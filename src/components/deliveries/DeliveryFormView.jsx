@@ -414,7 +414,6 @@ export default function DeliveryFormView({
                 {!delivery && !isPickupMode &&
                 <div className={`relative min-w-0 ${useMobileLayout ? 'w-full' : ''}`}>
                     <DeliveryPatientSearch
-                      locked={openMode === 'add_to_route'}
                     patientSearch={patientSearch} setPatientSearch={setPatientSearch}
                     selectedPatient={selectedPatient} filteredPatients={filteredPatients}
                     highlightedPatientIndex={highlightedPatientIndex} setHighlightedPatientIndex={setHighlightedPatientIndex}
