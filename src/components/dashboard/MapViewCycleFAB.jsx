@@ -16,6 +16,8 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
 
     const now = Date.now();
     const throttleWindow = reason === 'route_change' || reason === 'completed_stop' ? 350 : 2500;
+
+    if (currentPhase === 1 && reason !== 'route_change') return;
     const flashKey = `${reason}:${details?.driverId || 'all'}:${details?.deliveryDate || 'all'}:${details?.deliveryId || 'all'}`;
 
     if (lastFlashKeyRef.current === flashKey && now - lastFlashAtRef.current < throttleWindow) return;
@@ -44,27 +46,12 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
     const unsubscribe = fabControlEvents.subscribe((event) => {
       if (event?.type !== 'REACTIVATE_FAB') return;
       if (event?.suppressIfPhase1 && currentPhase === 1) return;
+      if (currentPhase === 1) return;
       flashUpdate(event?.reason || 'generic');
     });
 
-    const handleRouteReordered = (e) => {
-      if (e?.detail?.suppressFabIfPhase1 && currentPhase === 1) return;
-      flashUpdate('stop_order_change', e?.detail || {});
-    };
-
-    const handleDeliveriesUpdated = (e) => {
-      if (e?.detail?.triggeredBy !== 'etaUpdated') return;
-      if (e?.detail?.suppressFabIfPhase1 && currentPhase === 1) return;
-      flashUpdate('eta_update', e?.detail || {});
-    };
-
-    window.addEventListener('routeReordered', handleRouteReordered);
-    window.addEventListener('deliveriesUpdated', handleDeliveriesUpdated);
-
     return () => {
       unsubscribe();
-      window.removeEventListener('routeReordered', handleRouteReordered);
-      window.removeEventListener('deliveriesUpdated', handleDeliveriesUpdated);
     };
   }, [currentPhase, flashUpdate]);
 
