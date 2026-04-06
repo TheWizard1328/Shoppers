@@ -131,29 +131,31 @@ export default function SquareSyncAudit() {
         };
       });
 
-      const deliveryRowsBase = deliveries.map((delivery) => {
-        const locationId = locationIdByStoreId.get(delivery.store_id) || "";
-        const store = storeById.get(delivery.store_id);
-        const patient = patientById.get(delivery.patient_id);
-        const amountCents = toAmountCents(delivery.cod_total_amount_required);
-        const exportReference = store?.abbreviation && patient?.full_name
-          ? `${String(delivery.delivery_date || "").slice(5, 7)}/${String(delivery.delivery_date || "").slice(8, 10)}(${store.abbreviation})-${patient.full_name}`
-          : delivery.delivery_id || delivery.id;
+      const deliveryRowsBase = deliveries
+        .map((delivery) => {
+          const locationId = locationIdByStoreId.get(delivery.store_id) || "";
+          const store = storeById.get(delivery.store_id);
+          const patient = patientById.get(delivery.patient_id);
+          const amountCents = toAmountCents(delivery.cod_total_amount_required);
+          const exportReference = store?.abbreviation && patient?.full_name
+            ? `${String(delivery.delivery_date || "").slice(5, 7)}/${String(delivery.delivery_date || "").slice(8, 10)}(${store.abbreviation})-${patient.full_name}`
+            : delivery.delivery_id || delivery.id;
 
-        return {
-          id: `delivery-${delivery.id}`,
-          itemName: exportReference,
-          date: normalizeDate(delivery.delivery_date),
-          locationId,
-          storeId: delivery.store_id || "",
-          storeName: store?.name || "Unknown Store",
-          amountCents,
-          amountLabel: formatCurrencyFromCents(amountCents),
-          deliveryId: delivery.id,
-          exportReference,
-          status: delivery.status || "pending",
-        };
-      });
+          return {
+            id: `delivery-${delivery.id}`,
+            itemName: exportReference,
+            date: normalizeDate(delivery.delivery_date),
+            locationId,
+            storeId: delivery.store_id || "",
+            storeName: store?.name || "Unknown Store",
+            amountCents,
+            amountLabel: formatCurrencyFromCents(amountCents),
+            deliveryId: delivery.id,
+            exportReference,
+            status: delivery.status || "pending",
+          };
+        })
+        .filter((row) => row.locationId);
 
       const transactionRows = attachDiscrepancies(transactionRowsBase, [
         { label: "Catalog", rows: catalogRowsBase },
@@ -372,7 +374,10 @@ export default function SquareSyncAudit() {
               label: "Actions",
               headerClassName: "whitespace-nowrap min-w-[220px]",
               sortValue: (row) => row.actionMatchPercentage || 0,
-              render: (row) => `${Number(row.actionMatchPercentage || 0)}% match`,
+              render: (row) => {
+                const score = Number(row.actionMatchPercentage || 0);
+                return score > 0 ? `${score}% match` : "0% match";
+              },
             },
           ]}
         />
