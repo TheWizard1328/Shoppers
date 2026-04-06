@@ -278,7 +278,7 @@ function Dashboard() {
     const handleImmediateDeliveryUpdate = async (event) => {
       const { immediate, freshDeliveries, deliveryDate, skipMapPhaseOneRefresh } = event.detail || {};
 
-      if (immediate && freshDeliveries && Array.isArray(freshDeliveries) && freshDeliveries.length > 0) {
+      if (immediate) {
         if (updateDeliveriesLocally) {
           const dedupedFresh = Array.from(new Map(freshDeliveries.filter(Boolean).map((d) => [d.id, d])).values());
           updateDeliveriesLocally(dedupedFresh, false);
