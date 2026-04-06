@@ -1121,33 +1121,54 @@ export default function SquareManagement() {
       return String(value).slice(0, 10);
     };
 
-    const buildAmountStoreKey = (row) => `${row.rawStoreId || row.locationId || row.storeName || 'Unknown'}::${Math.round(Number(row.amount || 0) * 100)}`;
+    const normalizeName = (value) => String(value || '').trim().toLowerCase();
+    const buildAmountKey = (row) => `${Math.round(Number(row.amount || 0) * 100)}`;
+    const buildAmountStoreKey = (row) => `${row.rawStoreId || row.locationId || row.storeName || 'Unknown'}::${buildAmountKey(row)}`;
+    const buildAmountDateKey = (row) => `${normalizeDate(row.deliveryDate)}::${buildAmountKey(row)}`;
     const buildAmountStoreDateKey = (row) => `${buildAmountStoreKey(row)}::${normalizeDate(row.deliveryDate)}`;
+    const buildNameAmountKey = (row) => `${normalizeName(row.itemName)}::${buildAmountKey(row)}`;
+
     const reconciliationTransactions = filteredTransactionRows.filter((row) => !['cancelled', 'failed'].includes(row.rawStatus));
 
     const transactionMatchKeys = new Set(
       reconciliationTransactions.flatMap((row) => {
-        const baseKey = buildAmountStoreKey(row);
-        const dateKey = buildAmountStoreDateKey(row);
-        return [baseKey, dateKey];
+        const amountStoreKey = buildAmountStoreKey(row);
+        const amountDateKey = buildAmountDateKey(row);
+        const amountStoreDateKey = buildAmountStoreDateKey(row);
+        const nameAmountKey = buildNameAmountKey(row);
+        return [amountStoreKey, amountDateKey, amountStoreDateKey, nameAmountKey];
       })
     );
 
     const catalogMatchKeys = new Set(
       filteredCatalogRows.flatMap((row) => {
-        const baseKey = buildAmountStoreKey(row);
-        const dateKey = buildAmountStoreDateKey(row);
-        return [baseKey, dateKey];
+        const amountStoreKey = buildAmountStoreKey(row);
+        const amountDateKey = buildAmountDateKey(row);
+        const amountStoreDateKey = buildAmountStoreDateKey(row);
+        const nameAmountKey = buildNameAmountKey(row);
+        return [amountStoreKey, amountDateKey, amountStoreDateKey, nameAmountKey];
       })
     );
 
     const missingDeliveryRows = [];
 
     filteredDeliveryRows.forEach((deliveryRow) => {
-      const baseKey = buildAmountStoreKey(deliveryRow);
-      const dateKey = buildAmountStoreDateKey(deliveryRow);
-      const hasTransactionMatch = transactionMatchKeys.has(dateKey) || transactionMatchKeys.has(baseKey);
-      const hasCatalogMatch = catalogMatchKeys.has(dateKey) || catalogMatchKeys.has(baseKey);
+      const amountStoreKey = buildAmountStoreKey(deliveryRow);
+      const amountDateKey = buildAmountDateKey(deliveryRow);
+      const amountStoreDateKey = buildAmountStoreDateKey(deliveryRow);
+      const nameAmountKey = buildNameAmountKey(deliveryRow);
+
+      const hasTransactionMatch =
+        transactionMatchKeys.has(amountStoreDateKey) ||
+        transactionMatchKeys.has(amountStoreKey) ||
+        transactionMatchKeys.has(amountDateKey) ||
+        transactionMatchKeys.has(nameAmountKey);
+
+      const hasCatalogMatch =
+        catalogMatchKeys.has(amountStoreDateKey) ||
+        catalogMatchKeys.has(amountStoreKey) ||
+        catalogMatchKeys.has(amountDateKey) ||
+        catalogMatchKeys.has(nameAmountKey);
 
       if (hasTransactionMatch || hasCatalogMatch) return;
 
