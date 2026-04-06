@@ -148,7 +148,7 @@ export default function DeliveryForm({
     return initialState;
   });
 
-  const [patientSearch, setPatientSearch] = useState(openMode === 'add_to_route' ? '__locked__' : "");
+  const [patientSearch, setPatientSearch] = useState("");
   const [selectedPatient, setSelectedPatient] = useState(() => (initialPatientId && Array.isArray(patients) ? (patients.find((pt) => pt && pt.id === initialPatientId) || null) : null));
   const [selectedPatientIds, setSelectedPatientIds] = useState(new Set());
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
