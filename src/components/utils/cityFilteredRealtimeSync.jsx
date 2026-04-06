@@ -161,13 +161,21 @@ class CityFilteredRealtimeSync {
              const selectedDate = (typeof window !== 'undefined' ? window.__appSelectedDate : null) || localStorage.getItem('global_selected_date') || localStorage.getItem('app_selectedDate');
              const selectedDriverId = (typeof window !== 'undefined' ? window.__appSelectedDriverId : null) || localStorage.getItem('global_selected_driver') || localStorage.getItem('app_selectedDriver');
 
-             // Remove from offline DB
-             await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, event.id);
-             console.log(`✅ [Realtime Delivery] Deleted from offline DB: ${event.id}`);
+             // Remove from offline DB, then force a fresh reload of the selected date slice
+              await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, event.id);
+              console.log(`✅ [Realtime Delivery] Deleted from offline DB: ${event.id}`);
 
-             const allSelectedDateDeliveries = selectedDate
-               ? await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDate)
-               : await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+              const reloadedSelectedDateDeliveries = selectedDate
+                ? await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDate)
+                : await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+
+              if (selectedDate) {
+                await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDate, reloadedSelectedDateDeliveries || []);
+              }
+
+              const allSelectedDateDeliveries = selectedDate
+                ? await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDate)
+                : reloadedSelectedDateDeliveries;
 
              const scopedDeliveries = (allSelectedDateDeliveries || []).filter((delivery) => {
                if (!delivery) return false;
