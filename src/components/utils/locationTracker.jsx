@@ -6,6 +6,7 @@ import { liveDistanceTracker } from './liveDistanceTracker';
 import { getCurrentDevice, updateDeviceLastActive } from './deviceManager';
 import { arrivalTimeDetector } from './arrivalTimeDetector';
 import { getLocationProvider } from './locationProviders';
+import { getCapacitorPlatform, getNativeLocationAuthorization, isCapacitorNativeApp, requestNativeLocationAuthorization } from './locationProviders/capacitorRuntime';
 import { getLocalDateString, getLocalTimestamp } from './localTimeHelper';
 
 // Lazy load broadcastMutation to avoid circular dependency issues
@@ -564,6 +565,13 @@ class LocationTracker {
 
     if (!this.isMobileDevice()) {
       throw new Error('Location tracking is only available on mobile devices (phones/tablets)');
+    }
+
+    if (isCapacitorNativeApp() && getCapacitorPlatform() === 'android') {
+      const nativePermission = await requestNativeLocationAuthorization();
+      if (!nativePermission.granted) {
+        throw new Error('Location permission denied. Please allow location access in Android settings.');
+      }
     }
 
     if (this.isTracking) {

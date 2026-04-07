@@ -1,4 +1,4 @@
-import { BackgroundGeolocation, ensureBackgroundNotificationPermission, getCapacitorPlatform, isCapacitorNativeApp } from './capacitorRuntime';
+import { BackgroundGeolocation, ensureBackgroundNotificationPermission, getCapacitorPlatform, getNativeLocationAuthorization, isCapacitorNativeApp, requestNativeLocationAuthorization } from './capacitorRuntime';
 
 const getBackgroundGeolocationPlugin = () => BackgroundGeolocation;
 
@@ -44,6 +44,10 @@ class NativeLocationProvider {
 
     const plugin = getBackgroundGeolocationPlugin();
     await ensureBackgroundNotificationPermission();
+    const permissionState = await getNativeLocationAuthorization();
+    if (!permissionState.granted) {
+      throw { code: 'NOT_AUTHORIZED', message: 'Location permission denied' };
+    }
 
     return await new Promise((resolve, reject) => {
       let watchId = null;
@@ -104,6 +108,10 @@ class NativeLocationProvider {
 
     const plugin = getBackgroundGeolocationPlugin();
     await ensureBackgroundNotificationPermission();
+    const permissionState = await requestNativeLocationAuthorization();
+    if (!permissionState.granted) {
+      throw { code: 'NOT_AUTHORIZED', message: 'Location permission denied' };
+    }
 
     return await plugin.addWatcher(
       {

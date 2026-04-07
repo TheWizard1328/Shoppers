@@ -4,6 +4,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { MapPinOff, AlertCircle, Activity, RefreshCw, Satellite, Eye, EyeOff } from "lucide-react";
 import { locationTracker } from "../utils/locationTracker";
+import { getCapacitorPlatform, getNativeLocationAuthorization, isCapacitorNativeApp, requestNativeLocationAuthorization } from "../utils/locationProviders/capacitorRuntime";
 import { base44 } from "@/api/base44Client";
 import { userHasRole, isAppOwner } from "../utils/userRoles";
 import { isMobileDevice as checkIsMobileDevice } from "../utils/deviceUtils";
@@ -193,6 +194,16 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         // TURNING ON: Make location visible to other drivers
         setPermissionStatus('Enabling location sharing...');
 
+        if (isCapacitorNativeApp() && getCapacitorPlatform() === 'android') {
+          const permissionState = await requestNativeLocationAuthorization();
+          if (!permissionState.granted) {
+            throw new Error('Please allow location access in Android settings first.');
+          }
+          if (!permissionState.backgroundGranted) {
+            setPermissionStatus('Background location still needs Android settings approval.');
+          }
+        }
+
         const updatedAppUser = await base44.entities.AppUser.update(appUserId, {
           location_tracking_enabled: true
         });
@@ -298,6 +309,9 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         <Label htmlFor="location-toggle" className="text-[10px] text-slate-500 leading-tight">
           With Other Drivers
         </Label>
+        {permissionStatus && (
+          <span className="text-[10px] text-slate-500 leading-tight">{permissionStatus}</span>
+        )}
       </div>
       <Switch
         id="location-toggle"
