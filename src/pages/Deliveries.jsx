@@ -979,10 +979,7 @@ export default function DeliveriesPage() {
   }, [location.search, location.pathname, navigate]);
 
 
-  const handleStatusChange = useCallback((value) => {
-    setStatusFilter(value);
-    updateUrl({ status: value });
-  }, [updateUrl]);
+  const handleStatusChange = useCallback((value) => { setStatusFilter(value); const params = new URLSearchParams(location.search); if (!value || value === 'all') params.delete('status'); else params.set('status', value); navigate(`${location.pathname}?${params.toString()}`, { replace: true }); }, [location.search, location.pathname, navigate]);
 
   const effectiveDeliveries = useMemo(() => {
     if (!currentUser || !allDeliveries || !Array.isArray(allDeliveries)) return [];
