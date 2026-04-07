@@ -82,6 +82,8 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
     return Object.keys(initialValues).some((key) => values[key] !== initialValues[key]);
   }, [initialValues, values]);
 
+  const shouldShowTimeWindows = !['completed', 'failed'].includes(values.statusChoice);
+
   return (
     <form
       onSubmit={(event) => {
@@ -205,26 +207,28 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
           )}
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label style={{ color: "var(--text-slate-900)" }}>Time Window Start</Label>
-            <Input
-              type="time"
-              value={values.delivery_time_start}
-              onChange={(event) => setValues((current) => ({ ...current, delivery_time_start: event.target.value }))}
-              style={getFieldStyle('delivery_time_start')}
-            />
+        {shouldShowTimeWindows && (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label style={{ color: "var(--text-slate-900)" }}>Time Window Start</Label>
+              <Input
+                type="time"
+                value={values.delivery_time_start}
+                onChange={(event) => setValues((current) => ({ ...current, delivery_time_start: event.target.value }))}
+                style={getFieldStyle('delivery_time_start')}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label style={{ color: "var(--text-slate-900)" }}>Time Window End</Label>
+              <Input
+                type="time"
+                value={values.delivery_time_end}
+                onChange={(event) => setValues((current) => ({ ...current, delivery_time_end: event.target.value }))}
+                style={getFieldStyle('delivery_time_end')}
+              />
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label style={{ color: "var(--text-slate-900)" }}>Time Window End</Label>
-            <Input
-              type="time"
-              value={values.delivery_time_end}
-              onChange={(event) => setValues((current) => ({ ...current, delivery_time_end: event.target.value }))}
-              style={getFieldStyle('delivery_time_end')}
-            />
-          </div>
-        </div>
+        )}
       </div>
 
       <div className="border-t px-4 py-4" style={{ borderColor: "var(--border-slate-200)" }}>
