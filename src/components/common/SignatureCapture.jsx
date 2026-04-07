@@ -93,13 +93,20 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
 
     setIsSaving(true);
     try {
+      const exportCanvas = document.createElement('canvas');
+      exportCanvas.width = canvas.width;
+      exportCanvas.height = canvas.height;
+      const exportCtx = exportCanvas.getContext('2d');
+      exportCtx.drawImage(canvas, 0, 0);
+      exportCtx.clearRect(canvas.width - 61, canvas.height * 0.1, 4, canvas.height * 0.8);
+
       const rotated = document.createElement('canvas');
-      rotated.width = canvas.height;
-      rotated.height = canvas.width;
+      rotated.width = exportCanvas.height;
+      rotated.height = exportCanvas.width;
       const rCtx = rotated.getContext('2d');
-      rCtx.translate(canvas.height, 0);
+      rCtx.translate(exportCanvas.height, 0);
       rCtx.rotate(Math.PI / 2);
-      rCtx.drawImage(canvas, 0, 0);
+      rCtx.drawImage(exportCanvas, 0, 0);
 
       const blob = await new Promise((resolve, reject) => {
         rotated.toBlob((result) => {
@@ -207,25 +214,25 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
               className="w-full h-full touch-none cursor-crosshair block"
               style={{ touchAction: 'none', display: 'block' }}
             />
-            {!hasSignature && (
-              <>
+            <>
+              {!hasSignature && (
                 <div className="absolute inset-0 flex items-center justify-start pl-[5px] pointer-events-none">
                   <span className="text-2xl select-none inline-block" style={{ color: 'var(--text-slate-300)', transform: 'rotate(-90deg)' }}>
                     ✍️ Sign here
                   </span>
                 </div>
-                <div
-                  className="absolute pointer-events-none"
-                  style={{
-                    right: '60px',
-                    top: '10%',
-                    height: '80%',
-                    width: '2px',
-                    backgroundColor: 'hsl(var(--border))'
-                  }}
-                />
-              </>
-            )}
+              )}
+              <div
+                className="absolute pointer-events-none"
+                style={{
+                  right: '60px',
+                  top: '10%',
+                  height: '80%',
+                  width: '2px',
+                  backgroundColor: 'hsl(var(--border))'
+                }}
+              />
+            </>
           </div>
         </div>
       </div>
