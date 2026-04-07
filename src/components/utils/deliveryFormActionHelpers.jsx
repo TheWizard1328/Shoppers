@@ -95,12 +95,19 @@ export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindo
     try {
       if (hasTimeWindowChanges) {
         const { optimizeRemainingStops } = await import('@/functions/optimizeRemainingStops');
-        await optimizeRemainingStops({
+        const optimizationResponse = await optimizeRemainingStops({
           driverId,
           deliveryDate,
           currentLocalTime,
           deviceTime: currentLocalTime
         });
+
+        const optimizationError = optimizationResponse?.response?.data?.error || optimizationResponse?.data?.error;
+        const optimizationStatus = optimizationResponse?.response?.status || optimizationResponse?.status;
+        if (optimizationStatus === 404 || optimizationError === 'Driver not found' || optimizationError === 'Driver location not available - no GPS, last completed, or home location set') {
+          console.warn('⚠️ [DeliveryForm] Skipping background route optimization:', optimizationError || 'Route data no longer available');
+          return;
+        }
       } else {
         const [{ calculateRealTimeETA }, { base44 }] = await Promise.all([
           import('@/functions/calculateRealTimeETA'),
