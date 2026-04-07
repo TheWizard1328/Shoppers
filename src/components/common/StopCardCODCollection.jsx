@@ -10,6 +10,7 @@ import { fabControlEvents } from '../utils/fabControlEvents';
 import { invalidate } from '../utils/dataManager';
 import { base44 } from "@/api/base44Client";
 import { runTerminalDeliverySideEffects } from '../utils/directDeliverySideEffects';
+import { smartRefreshManager } from '../utils/smartRefreshManager';
 
 export default function StopCardCODCollection({
   delivery,
@@ -33,6 +34,7 @@ export default function StopCardCODCollection({
   onClick
 }) {
   const codAmountInputRefs = useRef([]);
+  const codRefreshPauseRef = useRef(false);
 
   const handleCODPaymentChange = (index, field, value) => {
     const newPayments = [...codPayments];
@@ -88,10 +90,20 @@ export default function StopCardCODCollection({
         transition={{ duration: 0.2 }}
         className="overflow-hidden rounded-md p-3 space-y-2 w-full"
         style={{ background: 'var(--bg-slate-50)' }}
+        onAnimationStart={() => {
+          if (!codRefreshPauseRef.current) {
+            smartRefreshManager.pause();
+            codRefreshPauseRef.current = true;
+          }
+        }}
         onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm md:text-xs font-semibold" style={{ color: 'var(--text-slate-700)' }}>Collect COD Payments</span>
             <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={async (e) => {
+              if (codRefreshPauseRef.current) {
+                smartRefreshManager.resume();
+                codRefreshPauseRef.current = false;
+              }
             e.stopPropagation();
             setCodPayments([]);
             if (onCODUpdate) {
@@ -235,6 +247,10 @@ export default function StopCardCODCollection({
                 console.error('❌ Failed to save COD:', error);
                 fabControlEvents.reactivateFAB(true);
               } finally {
+                if (codRefreshPauseRef.current) {
+                  smartRefreshManager.resume();
+                  codRefreshPauseRef.current = false;
+                }
                 setIsCompleting(false);
               }
             }}
