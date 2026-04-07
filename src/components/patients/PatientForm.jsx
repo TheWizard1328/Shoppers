@@ -621,7 +621,6 @@ export default function PatientForm({
           };
           await onSave(completePatient);
         }
-        onCancel();
       }
     } catch (error) {
       console.error('❌ [PatientForm] Save error:', error);

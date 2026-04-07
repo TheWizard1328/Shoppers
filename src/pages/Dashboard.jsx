@@ -3798,62 +3798,16 @@ function Dashboard() {
     setShowPatientForm(true);
   };
 
-  const handleSavePatient = async (patientData, shouldReturnPatient = false) => {
-    // Pause ALL update systems
-    setIsEntityUpdating(true);
-    pauseOfflineMutations();
-    pauseOfflineSync();
-    smartRefreshManager.pause();
+  const handleSavePatient = async (patientData) => {
+    setShowPatientForm(false);
 
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
-    try {
-      let savedPatient;
-
-      // CRITICAL: Check if PatientForm already created the patient (patientData.id exists)
-      if (patientData.id) {
-        // Patient was already created in PatientForm - just use that data
-        savedPatient = patientData;
-      } else if (editingPatient && editingPatient.id) {
-        // Updating existing patient
-        await base44.entities.Patient.update(editingPatient.id, patientData);
-        savedPatient = { ...editingPatient, ...patientData };
-      } else {
-        // Creating new patient (fallback if PatientForm didn't create it)
-        savedPatient = await base44.entities.Patient.create(patientData);
-      }
-
-      // CRITICAL: Ensure patient is in offline DB
-      if (savedPatient.id) {
-        await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [savedPatient]);
-      }
-
-      invalidate('Patient');
-      await refreshData();
-
-      setShowPatientForm(false);
-
-      // CRITICAL: Always call callback if it exists, regardless of edit mode
-      if (patientFormCallback && savedPatient) {
-        patientFormCallback(savedPatient);
-      }
-
-      setEditingPatient(null);
-      setPatientFormCallback(null);
-    } catch (error) {
-      console.error('Error saving patient:', error);
-      alert(`Failed to save patient: ${error.message || error}`);
-      throw error;
-    } finally {
-      // Resume all systems
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      resumeOfflineMutations();
-      resumeOfflineSync();
-      smartRefreshManager.resume();
-
-      setIsEntityUpdating(false);
+    if (patientFormCallback && patientData) {
+      patientFormCallback(patientData);
     }
+
+    setEditingPatient(null);
+    setPatientFormCallback(null);
+    setPatientFormMode(null);
   };
 
   const triggerPostDeleteOperations = async (driverId, deliveryDate) => {
@@ -6108,6 +6062,7 @@ function Dashboard() {
             setPatientFormCallback(null);
             setPatientFormMode(null);
           }}
+
           returnPatientOnSave={!!patientFormCallback} />
 
         }
