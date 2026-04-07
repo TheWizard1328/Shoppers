@@ -7,10 +7,22 @@ const ACTIVE_STATUSES = ['pending', 'in_transit', 'en_route'];
 const INACTIVE_STATUSES = ['completed', 'failed', 'cancelled'];
 const APP_TIMEZONE = 'America/Edmonton';
 const ETA_DRIFT_THRESHOLD_MINUTES = 5;
+const MIN_DISTANCE_TRAVELED_METERS = 100;
 
 function toNumber(value) {
   const num = Number(value);
   return Number.isFinite(num) ? num : null;
+}
+
+function calculateDistanceInMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const φ1 = lat1 * Math.PI / 180;
+  const φ2 = lat2 * Math.PI / 180;
+  const Δφ = (lat2 - lat1) * Math.PI / 180;
+  const Δλ = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
 }
 
 function getEdmontonDate(value = new Date()) {
@@ -142,6 +154,20 @@ async function processDriver(base44, appUser, deliveryDate) {
   const currentLon = toNumber(appUser.current_longitude);
   if (currentLat == null || currentLon == null) {
     return { skipped: true, reason: 'missing_coordinates', driver_id: appUser.user_id };
+  }
+
+  const previousLat = toNumber(appUser.previous_latitude ?? appUser.old_current_latitude);
+  const previousLon = toNumber(appUser.previous_longitude ?? appUser.old_current_longitude);
+  if (previousLat != null && previousLon != null) {
+    const movedMeters = calculateDistanceInMeters(previousLat, previousLon, currentLat, currentLon);
+    if (movedMeters < MIN_DISTANCE_TRAVELED_METERS) {
+      return {
+        skipped: true,
+        reason: 'movement_below_threshold',
+        driver_id: appUser.user_id,
+        moved_meters: Math.round(movedMeters)
+      };
+    }
   }
 
   const allDeliveries = await base44.asServiceRole.entities.Delivery.filter({

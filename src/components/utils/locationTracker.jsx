@@ -436,7 +436,11 @@ class LocationTracker {
           this.lastEtaRefreshPosition = { latitude, longitude };
           this.lastEtaRefreshAt = now;
           base44.functions.invoke('refreshDriverEtasOnLocationUpdate', {
-            data: updatedAppUser,
+            data: {
+              ...updatedAppUser,
+              previous_latitude: previousEtaPosition?.latitude ?? null,
+              previous_longitude: previousEtaPosition?.longitude ?? null
+            },
             old_data: previousEtaPosition ? {
               current_latitude: previousEtaPosition.latitude,
               current_longitude: previousEtaPosition.longitude
