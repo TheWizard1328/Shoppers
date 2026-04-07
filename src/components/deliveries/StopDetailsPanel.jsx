@@ -344,6 +344,11 @@ export default function StopDetailsPanel({
                 TR# {String(delivery.tracking_number).padStart(2, '0')}
               </Badge>
             )}
+            {delivery.ampm_deliveries && (
+              <Badge variant="outline" className="rounded-full" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+                {delivery.ampm_deliveries}
+              </Badge>
+            )}
             {delivery.actual_delivery_time && (
               <Badge variant="secondary" className="font-mono rounded-full" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
                 <Clock className="w-3 h-3 mr-1" />
