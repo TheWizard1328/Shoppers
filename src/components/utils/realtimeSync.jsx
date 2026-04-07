@@ -101,19 +101,6 @@ async function flushBuffered(entityName) {
     ]));
 
     relevantItems.forEach((item) => {
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-        detail: {
-          deliveryId: item.id,
-          deliveryDate: item.data?.delivery_date,
-          driverId: item.data?.driver_id,
-          freshDeliveries: item.data ? [item.data] : [],
-          triggeredBy: 'realtimeBufferedFieldUpdate',
-          source: 'realtime_sync',
-          fromRealtime: true,
-          preserveLocalState: true
-        }
-      }));
-
       if (Array.isArray(item.changedFields) && item.changedFields.includes('status') && item.data?.status === 'in_transit') {
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('deliveryBecameInTransit', {
@@ -140,43 +127,31 @@ async function flushBuffered(entityName) {
       }
     });
 
-    const buildScopedDeliveries = (driverId = null) => fullReplacementData.filter((delivery) => {
+    const scopedDeliveries = fullReplacementData.filter((delivery) => {
       if (!delivery) return false;
       if (selectedDate && delivery.delivery_date !== selectedDate) return false;
       if (selectedDriverId && selectedDriverId !== 'all') {
         return delivery.driver_id === selectedDriverId;
       }
-      if (driverId) {
-        return delivery.driver_id === driverId;
-      }
       return true;
     });
 
-    const driverIdsToRefresh = selectedDriverId && selectedDriverId !== 'all'
-      ? [selectedDriverId]
-      : candidateDriverIds.length > 0
-        ? candidateDriverIds
-        : [null];
-
-    driverIdsToRefresh.forEach((driverId) => {
-      const scopedDeliveries = buildScopedDeliveries(driverId);
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-        detail: {
-          deliveries: scopedDeliveries,
-          freshDeliveries: scopedDeliveries,
-          deletedIds: deletedItems.map((item) => item.id).filter(Boolean),
-          immediate: true,
-          deliveryDate: selectedDate,
-          driverId,
-          triggeredBy: 'realtimeBufferedFullRefresh',
-          source: 'realtime_sync',
-          fromRealtime: true,
-          fullReplacement: true,
-          skipMapPhaseOneRefresh: true,
-          preserveLocalState: true
-        }
-      }));
-    });
+    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+      detail: {
+        deliveries: scopedDeliveries,
+        freshDeliveries: scopedDeliveries,
+        deletedIds: deletedItems.map((item) => item.id).filter(Boolean),
+        immediate: true,
+        deliveryDate: selectedDate,
+        driverId: selectedDriverId && selectedDriverId !== 'all' ? selectedDriverId : null,
+        triggeredBy: 'realtimeBufferedFullRefresh',
+        source: 'realtime_sync',
+        fromRealtime: true,
+        fullReplacement: true,
+        skipMapPhaseOneRefresh: true,
+        preserveLocalState: true
+      }
+    }));
   }
 
   if (typeof window !== 'undefined' && entityName === 'AppUser' && Array.isArray(fullReplacementData)) {
@@ -634,6 +609,7 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
     }));
 
     if (entity === 'Delivery') {
+      const shouldDispatchLocalDeliveryEvent = action === 'delete' || action === 'batch_delete';
       if (action === 'delete') {
         window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', {
           detail: { deletedIds: [id] }
@@ -665,21 +641,23 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
           }));
         }
       }
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-        detail: {
-          deliveryId: id,
-          deletedId: action === 'delete' ? id : undefined,
-          deletedIds: action === 'batch_delete' ? ids : action === 'delete' ? [id] : undefined,
-          deliveryDate: data?.delivery_date,
-          driverId: data?.driver_id,
-          deletedDelivery: action === 'delete' ? data : undefined,
-          freshDeliveries: action === 'delete' ? undefined : data ? [data] : undefined,
-          triggeredBy: 'realtimeBroadcast',
-          source: 'realtime_sync',
-          fromRealtime: true,
-          preserveLocalState: true
-        }
-      }));
+      if (shouldDispatchLocalDeliveryEvent) {
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: {
+            deliveryId: id,
+            deletedId: action === 'delete' ? id : undefined,
+            deletedIds: action === 'batch_delete' ? ids : action === 'delete' ? [id] : undefined,
+            deliveryDate: data?.delivery_date,
+            driverId: data?.driver_id,
+            deletedDelivery: action === 'delete' ? data : undefined,
+            freshDeliveries: action === 'delete' ? undefined : data ? [data] : undefined,
+            triggeredBy: 'realtimeBroadcast',
+            source: 'realtime_sync',
+            fromRealtime: true,
+            preserveLocalState: true
+          }
+        }));
+      }
     }
 
     if (entity === 'AppUser') {
