@@ -198,7 +198,14 @@ async function loadGlobalSettings(userId) {
 export async function loadUserSettings(userId) {
   if (!userId) {
     console.warn('⚠️ [UserSettings] No userId provided, returning defaults');
-    return { ...DEFAULT_SETTINGS };
+    return {
+      ...DEFAULT_SETTINGS,
+      selected_date: null,
+      selected_driver_id: 'all',
+      show_all_driver_markers: false,
+      show_breadcrumbs: false,
+      location_tracking_enabled: true
+    };
   }
 
   const deviceIdentifier = getDeviceIdentifier();
@@ -227,7 +234,14 @@ export async function loadUserSettings(userId) {
   // Check if offline - use defaults when no local cache exists
   if (!offlineManager.getOnlineStatus()) {
     console.log('📴 [UserSettings] No local settings cache available while offline, using defaults');
-    return { ...DEFAULT_SETTINGS };
+    return {
+      ...DEFAULT_SETTINGS,
+      selected_date: null,
+      selected_driver_id: 'all',
+      show_all_driver_markers: false,
+      show_breadcrumbs: false,
+      location_tracking_enabled: true
+    };
   }
 
   if (inFlightSettingsPromise) {
@@ -254,6 +268,11 @@ export async function loadUserSettings(userId) {
         ...DEFAULT_SETTINGS,
         ...globalSettings,
         ...deviceProfile,
+        selected_date: deviceProfile.selected_date || null,
+        selected_driver_id: deviceProfile.selected_driver_id || 'all',
+        show_all_driver_markers: deviceProfile.show_all_driver_markers ?? false,
+        show_breadcrumbs: deviceProfile.show_breadcrumbs ?? false,
+        location_tracking_enabled: deviceProfile.location_tracking_enabled ?? true,
         device_identifier: deviceIdentifier,
         device_type: deviceType
       };
@@ -298,6 +317,11 @@ export async function loadUserSettings(userId) {
       
       cachedSettings = {
         ...DEFAULT_SETTINGS,
+        selected_date: null,
+        selected_driver_id: 'all',
+        show_all_driver_markers: false,
+        show_breadcrumbs: false,
+        location_tracking_enabled: true,
         device_identifier: deviceIdentifier,
         device_type: deviceType
       };
