@@ -63,7 +63,8 @@ export default function DeliveryMarkers({
     const isFinishedForFade = FINISHED_STATUSES.includes(delivery.status);
     const isSelectedDriverMarker = !delivery.isOtherDriver;
     const isSelectedRouteComplete = isSelectedDriverMarker && driversWithCompleteRoute.has(delivery.driver_id);
-    const isRouteInProgress = !driversWithCompleteRoute.has(delivery.driver_id) && hasIncompleteStops;
+    const routeHasIncompleteStops = deliveryMarkers.some((item) => item && item.driver_id === delivery.driver_id && !FINISHED_STATUSES.includes(item.status) && item.status !== 'pending');
+    const isRouteInProgress = !driversWithCompleteRoute.has(delivery.driver_id) && routeHasIncompleteStops;
     const isUserHoveringFaded = fadedMarkerHighlights.has(delivery.id);
     const isDeliveryFaded = isFinishedForFade && !isHighlighted && !isSelectedRouteComplete && !isSelectedDriverMarker;
     const isDeliveryInProgressFade = isFinishedForFade && isSelectedDriverMarker && !isSelectedRouteComplete && isRouteInProgress;
