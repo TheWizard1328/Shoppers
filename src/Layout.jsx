@@ -245,21 +245,8 @@ export default function Layout({ children, currentPageName }) {
     accent_color: '#0066CC'
   });
 
-  // Apply theme class - mobile phones can use dark mode, desktops and tablets always light
-  // CRITICAL: Apply theme IMMEDIATELY to prevent flash of light mode
+  // Apply theme class and respect system dark mode when set to auto
   useEffect(() => {
-    // CRITICAL: Use isMobileDeviceForTheme() for theme decisions - ONLY phones get dark mode
-    // Desktops and tablets ALWAYS use light mode
-    const isMobilePhone = isMobileDeviceForTheme();
-
-    if (!isMobilePhone) {
-      // Force light mode on desktops and tablets
-      document.documentElement.classList.remove('auto-theme', 'dark-theme', 'dark');
-      document.documentElement.classList.add('light-theme');
-      return;
-    }
-
-    // Mobile phone theme switching
     if (themePreference === 'dark') {
       document.documentElement.classList.remove('auto-theme', 'light-theme');
       document.documentElement.classList.add('dark-theme', 'dark');
@@ -267,7 +254,7 @@ export default function Layout({ children, currentPageName }) {
       document.documentElement.classList.remove('auto-theme', 'dark-theme', 'dark');
       document.documentElement.classList.add('light-theme');
     } else {
-      document.documentElement.classList.remove('light-theme', 'dark-theme');
+      document.documentElement.classList.remove('light-theme', 'dark-theme', 'dark');
       document.documentElement.classList.add('auto-theme');
     }
   }, [themePreference]);
@@ -1892,9 +1879,10 @@ export default function Layout({ children, currentPageName }) {
             font-size: 15px;
             margin: 0;
             padding: 0;
-            height: 100vh;
-            height: 100dvh;
-            width: 100vw;
+            height: 100%;
+            min-height: 100vh;
+            min-height: 100dvh;
+            width: 100%;
             overflow: hidden;
             overscroll-behavior: none;
             background: var(--bg-white);
@@ -1902,9 +1890,10 @@ export default function Layout({ children, currentPageName }) {
           }
 
         #root {
-          height: 100vh;
-          height: 100dvh;
-          width: 100vw;
+          height: 100%;
+          min-height: 100vh;
+          min-height: 100dvh;
+          width: 100%;
           overflow: hidden;
         }
 
@@ -1921,9 +1910,10 @@ export default function Layout({ children, currentPageName }) {
         .app-container {
           display: flex;
           flex-direction: row;
-          height: 100vh;
-          height: 100dvh;
-          width: 100vw;
+          height: 100%;
+          min-height: 100vh;
+          min-height: 100dvh;
+          width: 100%;
           overflow: hidden;
           background: var(--bg-slate-50);
         }
