@@ -2747,7 +2747,7 @@ function Dashboard() {
 
       // STEP 3: Update UI immediately with merge-safe date data
       if (updateDeliveriesLocally) {
-        updateDeliveriesLocally(priorityDeliveries, false);
+        updateDeliveriesLocally([...(deliveries || []).filter((d) => d && d.delivery_date !== dateStr), ...priorityDeliveries], true);
 
         // CRITICAL: Protect from smart refresh overwrite
         priorityDeliveries.forEach((d) => {
@@ -2797,7 +2797,7 @@ function Dashboard() {
       // STEP 5: Dispatch event to force map and stop cards to re-render
       // CRITICAL: NO route optimization on date change
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-        detail: { deliveryDate: dateStr, triggeredBy: 'dateChange' }
+        detail: { deliveryDate: dateStr, triggeredBy: 'dateChange', preserveLocalState: true, freshDeliveries: priorityDeliveries }
       }));
 
       // CRITICAL: Force stats refresh immediately after date change
