@@ -1479,7 +1479,7 @@ export default function DeliveryForm({
         delivery, formData, selectedPatient, currentUser, oldDriver, newDriver, driverChanged,
         isCurrentUserDriver:userHasRole(currentUser,'driver'), statusChangedToCompletion,
         actualDeliveryTimeChanged, t:dataToSave.actual_delivery_time, allDeliveries,
-        isPickupMode, updateDeliveryLocal
+        isPickupMode, updateDeliveryLocal, dateChanged
       });
       return true;
     } catch (error) {

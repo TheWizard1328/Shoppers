@@ -18,7 +18,8 @@ export async function runDeliverySubmitSideEffects({
   t,
   allDeliveries,
   isPickupMode,
-  updateDeliveryLocal
+  updateDeliveryLocal,
+  dateChanged
 }) {
   if (driverChanged && oldDriver && newDriver && currentUser && isCurrentUserDriver) {
     const patientName = delivery.patient_name || selectedPatient?.full_name || 'Unknown';
@@ -108,6 +109,31 @@ export async function runDeliverySubmitSideEffects({
         console.error('❌ [DeliveryForm] Patient update failed:', error);
       });
     }, 0);
+  }
+
+  if (isPickupMode && delivery && (driverChanged || dateChanged)) {
+    const previousPickupKey = delivery.stop_id || delivery.puid || delivery.id;
+    const transferredPendingDeliveries = allDeliveries.filter((d) =>
+      d &&
+      d.id !== delivery.id &&
+      d.patient_id &&
+      d.status === 'pending' &&
+      d.puid === previousPickupKey
+    );
+
+    if (transferredPendingDeliveries.length > 0) {
+      await Promise.all(
+        transferredPendingDeliveries.map((relatedDelivery) =>
+          updateDeliveryLocal(relatedDelivery.id, {
+            driver_id: formData.driver_id || '',
+            driver_name: formData.driver_name || '',
+            delivery_date: formData.delivery_date,
+            ampm_deliveries: formData.ampm_deliveries || relatedDelivery.ampm_deliveries || null
+          }).catch((error) => console.error(`Failed to transfer ${relatedDelivery.patient_name}:`, error))
+        )
+      );
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
   }
 
   if (isPickupMode && delivery && formData.status === 'completed' && formData.store_id && formData.ampm_deliveries) {
