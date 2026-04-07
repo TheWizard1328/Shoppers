@@ -1,3 +1,4 @@
+import { base44 } from "@/api/base44Client";
 import { offlineDB } from "./offlineDatabase";
 import { updatePatientLocal } from "./offlineMutations";
 
@@ -14,5 +15,7 @@ export async function persistPatientSignature(patientId, signatureImageUrl) {
     return updatePatientLocal(patientId, updates);
   }
 
-  return null;
+  const updatedPatient = await base44.entities.Patient.update(patientId, updates);
+  await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [updatedPatient]);
+  return updatedPatient;
 }
