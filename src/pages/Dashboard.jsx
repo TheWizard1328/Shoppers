@@ -134,25 +134,9 @@ function Dashboard() {
       return new Date(dateParam + 'T00:00:00');
     }
 
-    // Check if it's after 8:00 AM local time
-    const now = new Date();
-    const currentHour = now.getHours();
-    const isAfter8AM = currentHour >= 8;
-
     // Check saved date
     const saved = globalFilters.getSelectedDate();
     const savedDate = typeof saved === 'string' && saved ? new Date(saved + 'T00:00:00') : null;
-
-    // If after 8:00 AM and this is first open of the day (saved date is before today), use today
-    if (isAfter8AM && savedDate) {
-      const todayStr = getEdmDate();
-      const today = new Date(todayStr + 'T00:00:00');
-      savedDate.setHours(0, 0, 0, 0);
-
-      if (savedDate < today) {
-        return new Date(todayStr + 'T00:00:00');
-      }
-    }
 
     return savedDate || new Date();
   });
