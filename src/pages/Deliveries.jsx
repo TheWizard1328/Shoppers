@@ -3247,7 +3247,7 @@ export default function DeliveriesPage() {
               </Select>
               <Select value={storeFilter} onValueChange={handleStoreChange}>
                 <SelectTrigger className="w-[160px] bg-white border-slate-300 text-slate-900 font-medium"><SelectValue placeholder="Store" /></SelectTrigger>
-                <SelectContent><SelectItem value="all">All Stores</SelectItem>{routeScopedStoreOptions.map((store) => <SelectItem key={store.id} value={store.id}>{store.abbreviation ? `${store.abbreviation} — ${store.name}` : store.name}</SelectItem>)}</SelectContent>
+                <SelectContent><SelectItem value="all">All Stores</SelectItem>{routeScopedStoreOptions.map((store) => <SelectItem key={store.id} value={store.id}>{store.label}</SelectItem>)}</SelectContent>
               </Select>
               <Select value={statusFilter} onValueChange={handleStatusChange}>
                 <SelectTrigger className="w-36 bg-white border-slate-300 text-slate-900 font-medium"><SelectValue placeholder="Status" /></SelectTrigger>

@@ -4,10 +4,19 @@ import { sortUsers } from '../utils/sorting';
 import { userHasRole } from '../utils/userRoles';
 
 export function getRouteScopedStoreOptions(selectedDateDeliveries = [], stores = []) {
-  const ids = [...new Set((selectedDateDeliveries || []).map((d) => d?.store_id).filter(Boolean))];
+  const counts = (selectedDateDeliveries || []).reduce((acc, delivery) => {
+    if (delivery?.store_id) acc[delivery.store_id] = (acc[delivery.store_id] || 0) + 1;
+    return acc;
+  }, {});
+
   return (stores || [])
-    .filter((store) => ids.includes(store.id))
-    .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity) || (a.name || '').localeCompare(b.name || ''));
+    .filter((store) => counts[store.id])
+    .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity) || (a.name || '').localeCompare(b.name || ''))
+    .map((store) => ({
+      ...store,
+      deliveryCount: counts[store.id] || 0,
+      label: `${store.name} (${counts[store.id] || 0})`
+    }));
 }
 
 export function getDriverFilterOptions({ effectiveDrivers = [], effectiveDeliveries = [], selectedDate, currentUser, driverFilter }) {
