@@ -35,7 +35,21 @@ const initializeGlobalFilters = () => {
     const INACTIVITY_WINDOW_MS = 15 * 60 * 1000;
     const shouldTreatAsFreshSession = !hasSessionStarted || !lastSeenAt || Date.now() - lastSeenAt > INACTIVITY_WINDOW_MS;
 
-    if (savedDate && !shouldTreatAsFreshSession) {
+    let isDispatcherUser = false;
+    try {
+      const cachedUser = sessionStorage.getItem('effectiveUserCache');
+      const parsedUser = cachedUser ? JSON.parse(cachedUser) : null;
+      const appRoles = parsedUser?.appUser?.app_roles || parsedUser?.user?.app_roles || [];
+      isDispatcherUser = Array.isArray(appRoles) && appRoles.includes('dispatcher');
+    } catch (error) {
+      isDispatcherUser = false;
+    }
+
+    if (isDispatcherUser && savedDate && savedDate !== today) {
+      globalState.selectedDate = today;
+      localStorage.setItem(STORAGE_KEYS.selectedDate, today);
+      console.log(`📅 [GlobalFilters] Dispatcher fresh load using today instead of saved date: ${today}`);
+    } else if (savedDate && !shouldTreatAsFreshSession) {
       globalState.selectedDate = savedDate;
       console.log(`📅 [GlobalFilters] Using saved date from active session: ${savedDate}`);
     } else if (savedDate) {
