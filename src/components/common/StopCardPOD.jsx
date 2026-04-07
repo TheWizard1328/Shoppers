@@ -28,7 +28,8 @@ export default function StopCardPOD({
   showButtons = true,
   currentUser,
 }) {
-  const patientHasSavedSignature = !!patient?.signature_image_url;
+  const patientSavedSignatureUrl = patient?.signature_image_url || patient?.saved_signature_image_url || null;
+  const patientHasSavedSignature = !!patientSavedSignatureUrl;
   const isAssignedDriver = !!currentUser?.id && !!delivery?.driver_id && currentUser.id === delivery.driver_id;
   const isAppOwnerUser = currentUser?.role === 'admin';
   const canSeeSavedSignatureHighlight = isAssignedDriver || isAppOwnerUser;
@@ -179,11 +180,11 @@ export default function StopCardPOD({
                   <Pen className={`w-5 h-5 md:w-4 md:h-4 ${delivery.signature_image_url ? 'text-emerald-700' : showSavedSignatureHint ? 'text-yellow-700' : 'text-slate-600'}`} />
                 )}
               </Button>
-              {!delivery.signature_image_url && showSavedSignatureHint && patient?.signature_image_url && (
+              {!delivery.signature_image_url && showSavedSignatureHint && patientSavedSignatureUrl && (
                 <Button
                   onClick={(e) => {
                     e.stopPropagation();
-                    setViewingImageUrl(patient.signature_image_url);
+                    setViewingImageUrl(patientSavedSignatureUrl);
                   }}
                   size="sm"
                   variant="outline"
