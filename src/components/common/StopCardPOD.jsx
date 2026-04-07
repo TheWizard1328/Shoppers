@@ -30,6 +30,8 @@ export default function StopCardPOD({
 }) {
   const patientSavedSignatureUrl = patient?.signature_image_url || patient?.saved_signature_image_url || null;
   const patientHasSavedSignature = !!patientSavedSignatureUrl;
+  const deliveryHasSignature = !!delivery?.signature_image_url;
+  const deliveryHasPhotos = Array.isArray(delivery?.proof_photo_urls) && delivery.proof_photo_urls.length > 0;
   const isAssignedDriver = !!currentUser?.id && !!delivery?.driver_id && currentUser.id === delivery.driver_id;
   const isAppOwnerUser = currentUser?.role === 'admin';
   const canSeeSavedSignatureHighlight = isAssignedDriver || isAppOwnerUser;
@@ -159,12 +161,12 @@ export default function StopCardPOD({
       {showButtons && !isPickup && (
         <div className="flex items-center gap-2">
           {/* Signature Button */}
-          {((isNextDelivery && !isFinishedDelivery) || (delivery.status === 'completed' && delivery.signature_image_url)) && (
+          {((isNextDelivery && !isFinishedDelivery) || (delivery.status === 'completed' && deliveryHasSignature)) && (
             <div className="flex items-center">
               <Button
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (delivery.status === 'completed' && delivery.signature_image_url) {
+                  if (delivery.status === 'completed' && deliveryHasSignature) {
                     setViewingImageUrl(delivery.signature_image_url);
                   } else {
                     setShowSignatureCapture(true);
@@ -172,15 +174,15 @@ export default function StopCardPOD({
                 }}
                 size="sm"
                 variant="outline"
-                className={`h-10 md:h-8 w-10 md:w-8 p-0 ${delivery.signature_image_url ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' : showSavedSignatureHint ? 'bg-yellow-100 border-yellow-400 hover:bg-yellow-200' : 'bg-slate-100 border-slate-400 hover:bg-slate-200'}`}
+                className={`h-10 md:h-8 w-10 md:w-8 p-0 ${deliveryHasSignature ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' : showSavedSignatureHint ? 'bg-yellow-100 border-yellow-400 hover:bg-yellow-200' : 'bg-slate-100 border-slate-400 hover:bg-slate-200'}`}
               >
                 {delivery.status === 'completed' && delivery.signature_image_url ? (
                   <Eye className="w-5 h-5 md:w-4 md:h-4 text-emerald-700" />
                 ) : (
-                  <Pen className={`w-5 h-5 md:w-4 md:h-4 ${delivery.signature_image_url ? 'text-emerald-700' : showSavedSignatureHint ? 'text-yellow-700' : 'text-slate-600'}`} />
+                  <Pen className={`w-5 h-5 md:w-4 md:h-4 ${deliveryHasSignature ? 'text-emerald-700' : showSavedSignatureHint ? 'text-yellow-700' : 'text-slate-600'}`} />
                 )}
               </Button>
-              {!delivery.signature_image_url && showSavedSignatureHint && patientSavedSignatureUrl && (
+              {!deliveryHasSignature && showSavedSignatureHint && patientSavedSignatureUrl && (
                 <Button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -194,7 +196,7 @@ export default function StopCardPOD({
                   <Eye className="w-5 h-5 md:w-4 md:h-4 text-yellow-700" />
                 </Button>
               )}
-              {delivery.signature_image_url && delivery.status !== 'completed' && (
+              {deliveryHasSignature && delivery.status !== 'completed' && (
                 <Button
                   onClick={async (e) => {
                     e.stopPropagation();
@@ -212,12 +214,12 @@ export default function StopCardPOD({
           )}
 
           {/* Photo Button */}
-          {((isNextDelivery && !isFinishedDelivery) || (delivery.status === 'completed' && delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0)) && (
+          {((isNextDelivery && !isFinishedDelivery) || (delivery.status === 'completed' && deliveryHasPhotos)) && (
             <div className="flex items-center">
               <Button
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (delivery.status === 'completed' && delivery.proof_photo_urls?.length > 0) {
+                  if (delivery.status === 'completed' && deliveryHasPhotos) {
                     setViewingImageUrl(delivery.proof_photo_urls[0]);
                   } else {
                     setShowPhotoCapture(true);
@@ -225,15 +227,15 @@ export default function StopCardPOD({
                 }}
                 size="sm"
                 variant="outline"
-                className={`h-10 md:h-8 w-10 md:w-8 p-0 ${delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' : 'bg-slate-100 border-slate-400 hover:bg-slate-200'}`}
+                className={`h-10 md:h-8 w-10 md:w-8 p-0 ${deliveryHasPhotos ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' : 'bg-slate-100 border-slate-400 hover:bg-slate-200'}`}
               >
                 {delivery.status === 'completed' && delivery.proof_photo_urls?.length > 0 ? (
                   <Eye className="w-5 h-5 md:w-4 md:h-4 text-emerald-700" />
                 ) : (
-                  <Camera className={`w-5 h-5 md:w-4 md:h-4 ${delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ? 'text-emerald-700' : 'text-slate-600'}`} />
+                  <Camera className={`w-5 h-5 md:w-4 md:h-4 ${deliveryHasPhotos ? 'text-emerald-700' : 'text-slate-600'}`} />
                 )}
               </Button>
-              {delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 && delivery.status !== 'completed' && (
+              {deliveryHasPhotos && delivery.status !== 'completed' && (
                 <Button
                   onClick={async (e) => {
                     e.stopPropagation();
