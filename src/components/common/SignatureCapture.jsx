@@ -100,7 +100,7 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
       const exportCtx = exportCanvas.getContext('2d');
       exportCtx.drawImage(canvas, 0, 0);
       if (isWidescreenCapture) {
-        exportCtx.clearRect(canvas.width * 0.1, 58, canvas.width * 0.8, 4);
+        exportCtx.clearRect(canvas.width * 0.1, canvas.height - 62, canvas.width * 0.8, 4);
       } else {
         exportCtx.clearRect(canvas.width - 61, canvas.height * 0.1, 4, canvas.height * 0.8);
       }
@@ -241,7 +241,7 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
                 style={isWidescreenCapture ? {
                   left: '10%',
                   right: '10%',
-                  top: '60px',
+                  bottom: '60px',
                   height: '2px',
                   backgroundColor: 'hsl(var(--border))'
                 } : {
