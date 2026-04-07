@@ -1,6 +1,6 @@
 /**
- * Utility for updating patient GPS coordinates based on the driver's current device location.
- * Ensures we grab a fresh GPS fix (not stale cached coords) and updates Patient + distance_from_store.
+ * Utility for updating patient GPS coordinates based on either the map crosshair or device location.
+ * Ensures we use the preferred source and updates Patient + distance_from_store.
  */
 
 import { base44 } from "@/api/base44Client";
@@ -74,7 +74,6 @@ export const updatePatientGPS = async ({ patientId, storeId, stores, mapCrosshai
 
     const hasCrosshairCoords = Number.isFinite(mapCrosshairCoords?.latitude) && Number.isFinite(mapCrosshairCoords?.longitude);
 
-    // 1) Fresh location from device unless crosshair is explicitly preferred
     const fresh = preferCrosshair && hasCrosshairCoords ? null : await getFreshDeviceLocation();
 
     // 2) Choose best coordinates

@@ -292,7 +292,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
       storeId: delivery.store_id,
       stores,
       mapCrosshairCoords: window.__mapCrosshairCoords || null,
-      preferCrosshair: !isMobileDevice() && !isPrimaryDevice,
+      preferCrosshair: delivery?.status === 'completed' || (!isMobileDevice() && !isPrimaryDevice),
       currentPatientCoords: {
         latitude: patient?.latitude,
         longitude: patient?.longitude
