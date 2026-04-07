@@ -1583,10 +1583,9 @@ export default function DeliveryForm({
     // Location updates will continue, but Dashboard won't refresh until form closes
     (async () => {
       try {
-        // Keep smart refresh active - form data needs to stay fresh while editing
-        // The staged deliveries are local-only and won't be affected
+        // Pause smart refresh while the form is open to prevent refresh bursts during editing
         const { smartRefreshManager } = await import('../utils/smartRefreshManager');
-        // Don't pause smart refresh - let it continue updating form data
+        smartRefreshManager.pause();
         
         // Keep driver location poller ACTIVE - location tracking continues
         // const { driverLocationPoller } = await import('../utils/driverLocationPoller');
@@ -1614,9 +1613,10 @@ export default function DeliveryForm({
       // CRITICAL: Resume all background operations and trigger Dashboard UI refresh
       (async () => {
         try {
-          // Resume smart refresh
+          // Resume smart refresh after the form fully closes
           const { smartRefreshManager } = await import('../utils/smartRefreshManager');
           smartRefreshManager.resume();
+          smartRefreshManager.resetTimers?.();
           
           // Location poller is already running, no need to resume
           
