@@ -360,9 +360,9 @@ export default function StopDetailsPanel({
                 SID {delivery.stop_id}
               </Badge>
             )}
-            {isAppOwner(currentUser) && delivery.patient_id && (
+            {isAppOwner(currentUser) && patient?.patient_id && (
               <Badge variant="outline" className="font-mono rounded-full" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
-                PID {delivery.patient_id}
+                PID {patient.patient_id}
               </Badge>
             )}
             <Badge className={`border rounded-full ${status.color}`} style={{ background: undefined, color: undefined }}>
