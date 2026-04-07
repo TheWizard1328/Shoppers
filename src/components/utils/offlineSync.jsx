@@ -305,7 +305,7 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
       }
     }
     
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, 2500));
     notifySyncStatus({ status: 'priority_sync', phase: 'deliveries' });
     
     // CRITICAL: Wait for rate limit before next fetch
@@ -339,7 +339,7 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
         if (smartRefreshMgr) smartRefreshMgr.recordSuccess();
       }
     
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, 3000));
     notifySyncStatus({ status: 'priority_sync', phase: 'patients' });
     
     // STEP 3: Extract unique patient IDs from these deliveries and sync them immediately

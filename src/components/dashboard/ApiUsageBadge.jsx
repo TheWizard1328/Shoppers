@@ -50,18 +50,15 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
   };
 
   useEffect(() => {
-    // Initial fetch shortly after mount
-    const t = setTimeout(fetchCounts, 1000);
-
-    // Poll every 60 seconds instead of listening to every single log insertion
-    // which causes massive rate limits when many logs are created at once
-    const interval = setInterval(fetchCounts, 60000);
+    if (!currentUser) return;
+    const delayedInitialFetch = setTimeout(fetchCounts, 12000);
+    const interval = setInterval(fetchCounts, 120000);
 
     return () => {
-      clearTimeout(t);
+      clearTimeout(delayedInitialFetch);
       clearInterval(interval);
     };
-  }, []);
+  }, [currentUser]);
 
   return (
     <>

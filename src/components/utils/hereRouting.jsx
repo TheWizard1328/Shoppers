@@ -3,6 +3,7 @@ import { offlineDB } from './offlineDatabase';
 
 const fetchingKeys = new Set();
 const memoryCache = new Map();
+const routeRequestTimestamps = new Map();
 const backoffCache = new Map();
 const backoffNoticeCache = new Map();
 const polylineDateSyncInflight = new Map();
@@ -496,6 +497,11 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
 
   const cacheKey = `here_${fromStop.latitude.toFixed(5)}_${fromStop.longitude.toFixed(5)}_${toStop.latitude.toFixed(5)}_${toStop.longitude.toFixed(5)}`;
   console.debug('[HERE][client] Cache key', { cacheKey, driverId, deliveryDate });
+  const lastRequestedAt = routeRequestTimestamps.get(cacheKey) || 0;
+  if (Date.now() - lastRequestedAt < 15000) {
+    return memoryCache.get(cacheKey) || null;
+  }
+  routeRequestTimestamps.set(cacheKey, Date.now());
   // Ensure we are subscribed to entity changes so non-primary devices get updates
   ensurePolylineSubscription();
 
@@ -514,9 +520,9 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
       let waited = 0;
       const iv = setInterval(() => {
         if (memoryCache.has(cacheKey)) { clearInterval(iv); resolve(memoryCache.get(cacheKey)); return; }
-        if (!fetchingKeys.has(cacheKey) || waited > 6000) { clearInterval(iv); resolve(null); }
-        waited += 150;
-      }, 150);
+        if (!fetchingKeys.has(cacheKey) || waited > 12000) { clearInterval(iv); resolve(memoryCache.get(cacheKey) || null); }
+        waited += 250;
+      }, 250);
     });
   }
   // Mark as in-flight before any DB/entity lookups to collapse concurrent callers
