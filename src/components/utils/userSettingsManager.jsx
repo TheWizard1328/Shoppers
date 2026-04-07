@@ -103,7 +103,12 @@ const DEVICE_SPECIFIC_SETTINGS = [
   'theme_preference',
   'admin_utilities_year',
   'admin_utilities_month',
-  'admin_utilities_driver'
+  'admin_utilities_driver',
+  'selected_date',
+  'selected_driver_id',
+  'show_all_driver_markers',
+  'show_breadcrumbs',
+  'location_tracking_enabled'
 ];
 
 // Check if a setting is global or device-specific
