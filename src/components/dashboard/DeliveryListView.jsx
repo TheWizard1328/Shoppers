@@ -8,6 +8,7 @@ import { FixedSizeList as List } from 'react-window';
 import StopDetailsPanel from '../deliveries/StopDetailsPanel';
 import BarcodeThumb from '../deliveries/BarcodeThumb';
 import { getCodSymbolColorClass } from '../utils/SpecialSymbolsBadges';
+import { isAppOwner } from '../utils/userRoles';
 
 // Memoized row component to prevent re-renders
 const DeliveryRow = memo(({
@@ -23,7 +24,8 @@ const DeliveryRow = memo(({
   isMobile,
   bulkEditMode,
   isBulkSelected,
-  onBulkToggle
+  onBulkToggle,
+  currentUser
 }) => {
   const isPickup = !delivery.patient_id;
   const isNextDelivery = delivery.isNextDelivery === true;
@@ -168,8 +170,8 @@ const DeliveryRow = memo(({
         <div className="flex flex-col items-center justify-center gap-1">
           {getStatusBadge(delivery.status)}
           {store?.abbreviation &&
-        <Badge variant="outline" className="rounded-full text-[11px] px-2 py-0.5" style={{ background: 'var(--bg-white)', color: store.color || 'var(--text-slate-600)', borderColor: store.color || 'var(--border-slate-300)' }}>
-              {store.abbreviation}
+        <Badge variant="outline" className="rounded-full text-[11px] px-2 py-0.5 max-w-full whitespace-normal break-words text-center" style={{ background: 'var(--bg-white)', color: store.color || 'var(--text-slate-600)', borderColor: store.color || 'var(--border-slate-300)' }}>
+              {store.abbreviation}{isAppOwner(currentUser) && delivery?.puid ? ` • ${delivery.puid}` : ''}
             </Badge>
         }
         </div>
@@ -190,13 +192,15 @@ const DeliveryRow = memo(({
         </div>
 
         {/* Notes column */}
-        <div className="flex flex-col min-w-0 text-xs text-slate-700">
-          {patient?.notes &&
-        <div className="truncate"><span className="text-slate-500">P:</span> {patient.notes}</div>
+        <div className="flex min-w-0 items-start py-1 text-xs text-slate-700">
+          <div className="min-w-0 w-full space-y-1 whitespace-normal break-words leading-4">
+            {patient?.notes &&
+          <div className="w-full"><span className="text-slate-500">P:</span> {patient.notes}</div>
         }
-          {delivery?.delivery_notes &&
-        <div className="truncate"><span className="text-slate-500">D:</span> {delivery.delivery_notes}</div>
+            {delivery?.delivery_notes &&
+          <div className="w-full"><span className="text-slate-500">D:</span> {delivery.delivery_notes}</div>
         }
+          </div>
         </div>
 
         {/* Receipts barcode */}
@@ -287,7 +291,7 @@ const DeliveryRow = memo(({
 DeliveryRow.displayName = 'DeliveryRow';
 
 const MOBILE_ROW_HEIGHT = 164;
-const DESKTOP_ROW_HEIGHT = 76;
+const DESKTOP_ROW_HEIGHT = 96;
 const DESKTOP_LIST_WIDTH = 1400;
 const DESKTOP_BULK_LIST_WIDTH = 1456;
 
@@ -533,7 +537,8 @@ const DeliveryListView = ({
           isMobile={isMobile}
           bulkEditMode={bulkEditMode}
           isBulkSelected={bulkSelectedIds.includes(delivery.id)}
-          onBulkToggle={onBulkToggle} />
+          onBulkToggle={onBulkToggle}
+          currentUser={currentUser} />
         
       </div>);
 
