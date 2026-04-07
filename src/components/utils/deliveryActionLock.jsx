@@ -38,6 +38,12 @@ export const releaseDeliveryActionLock = (lockOrToken) => {
   notifyListeners();
 };
 
+export const clearDeliveryActionLock = () => {
+  if (!activeDeliveryAction) return;
+  activeDeliveryAction = null;
+  notifyListeners();
+};
+
 export const runWithDeliveryActionLock = async (actionName, task) => {
   const lock = acquireDeliveryActionLock(actionName);
   if (!lock) {

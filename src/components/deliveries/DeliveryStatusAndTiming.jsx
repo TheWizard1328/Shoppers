@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { format } from "date-fns";
 import { isAppOwner } from '../utils/userRoles';
 import { getPickupStopIdForDelivery } from '../utils/ampmUtils';
+import { clearDeliveryActionLock } from '../utils/deliveryActionLock';
 
 export default function DeliveryStatusAndTiming({
   formData,
@@ -47,6 +48,11 @@ export default function DeliveryStatusAndTiming({
   const handleStatusChange = (value) => {
     const prevStatus = formData.status;
     setFormData(prev => ({ ...prev, status: value }));
+
+    const changingFromCompletionToActive = completionStatuses.includes(prevStatus) && activeStatuses.includes(value);
+    if (changingFromCompletionToActive) {
+      clearDeliveryActionLock();
+    }
 
     const changingToCompletion = completionStatuses.includes(value) && activeStatuses.includes(prevStatus);
     if (changingToCompletion) {
