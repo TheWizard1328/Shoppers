@@ -5,7 +5,7 @@ import { userHasRole } from '../utils/userRoles';
 
 export function getRouteScopedStoreOptions(selectedDateDeliveries = [], stores = []) {
   const counts = (selectedDateDeliveries || []).reduce((acc, delivery) => {
-    if (delivery?.store_id) acc[delivery.store_id] = (acc[delivery.store_id] || 0) + 1;
+    if (delivery?.store_id && delivery?.patient_id) acc[delivery.store_id] = (acc[delivery.store_id] || 0) + 1;
     return acc;
   }, {});
 
