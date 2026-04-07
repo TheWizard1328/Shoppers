@@ -86,6 +86,7 @@ import { smartRefreshManager } from '../components/utils/smartRefreshManager';
 import { updateDeliveryLocal, batchDeleteDeliveriesLocal } from '../components/utils/entityMutations';
 import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
 import { ProjectedPickupCard, StatBox } from '../components/deliveries/RouteManagementHelpers';
+import { applyRouteToolbarFilters, getDriverFilterOptions, getRouteScopedStoreOptions } from '../components/deliveries/routeToolbarFilters';
 
 const addMinutesToTime = (timeString, minutesToAdd) => {
   if (!timeString) return null;
@@ -164,6 +165,7 @@ export default function DeliveriesPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [driverFilter, setDriverFilter] = useState('all');
+  const [storeFilter, setStoreFilter] = useState('all');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedOverviewYear, setSelectedOverviewYear] = useState('all');
@@ -1272,6 +1274,9 @@ export default function DeliveriesPage() {
     return (groupedDeliveries[dateString] || []).filter((d) => !d.isProjected);
   }, [selectedDate, groupedDeliveries]);
 
+  const routeScopedStoreOptions = useMemo(() => getRouteScopedStoreOptions(selectedDateDeliveries, stores), [selectedDateDeliveries, stores]);
+  const driverFilterOptions = useMemo(() => getDriverFilterOptions({ effectiveDrivers, effectiveDeliveries, selectedDate, currentUser, driverFilter }), [effectiveDrivers, effectiveDeliveries, selectedDate, currentUser, driverFilter]);
+
   const availableYears = useMemo(() => {
     const years = [...new Set(sortedDates.map((date) => new Date(date.replace(/-/g, '/')).getFullYear()))];
     return years.sort((a, b) => b - a);
@@ -1495,36 +1500,15 @@ export default function DeliveriesPage() {
     return [...incomplete, ...completed];
   }, []);
 
-  const filteredAndSortedDeliveries = useMemo(() => {
-    let filtered = selectedDateDeliveries;
-
-    if (statusFilter && statusFilter !== 'all') {
-      filtered = filtered.filter((d) => d.status === statusFilter);
-    }
-
-    if (searchTerm) {
-      const lowerSearch = searchTerm.toLowerCase();
-      filtered = filtered.filter((d) => {
-        const patient = effectivePatients.find((p) => p.id === d.patient_id);
-        const store = stores.find((s) => s.id === d.store_id);
-
-        return (
-          (patient?.full_name || '').toLowerCase().includes(lowerSearch) ||
-          (patient?.address || '').toLowerCase().includes(lowerSearch) ||
-          (d.driver_name || '').toLowerCase().includes(lowerSearch) ||
-          (store?.name || '').toLowerCase().includes(lowerSearch) ||
-          (d.prescription_number || '').toLowerCase().includes(lowerSearch));
-
-      });
-    }
-
-    const sorted = sortDeliveriesByTime(filtered);
-
-    return sorted.map((delivery, index) => ({
-      ...delivery,
-      stopOrder: index + 1
-    }));
-  }, [selectedDateDeliveries, effectivePatients, stores, statusFilter, searchTerm, sortDeliveriesByTime]);
+  const filteredAndSortedDeliveries = useMemo(() => applyRouteToolbarFilters({
+    selectedDateDeliveries,
+    storeFilter,
+    statusFilter,
+    searchTerm,
+    effectivePatients,
+    stores,
+    sortDeliveriesByTime
+  }), [selectedDateDeliveries, storeFilter, statusFilter, searchTerm, effectivePatients, stores, sortDeliveriesByTime]);
 
   // Filter date cards based on search term (search across all available dates)
   const filteredDatesBySearch = useMemo(() => {
@@ -2631,6 +2615,7 @@ export default function DeliveriesPage() {
     try {
       manualDateSelectionRef.current = false;
       setDriverFilter(driverId);
+      setStoreFilter('all');
       updateUrl({
         driver: driverId,
         year: (selectedYear || new Date().getFullYear()).toString(),
@@ -2640,6 +2625,10 @@ export default function DeliveriesPage() {
       console.error('[handleDriverChange] Error:', error);
     }
   }, [updateUrl, selectedYear, selectedMonth]);
+
+  const handleStoreChange = useCallback((storeId) => {
+    setStoreFilter(storeId || 'all');
+  }, []);
 
 
 
@@ -3250,54 +3239,19 @@ export default function DeliveriesPage() {
             <div className="flex items-center gap-3">
               <div className="relative flex-grow">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <Input
-                placeholder="Search patient, address, Rx details, tracking..."
-                value={searchTerm}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                className="pl-10 w-full bg-slate-100 border-slate-300" />
+                <Input placeholder="Search patient, address, Rx details, tracking..." value={searchTerm} onChange={(e) => handleSearchChange(e.target.value)} className="pl-10 w-full bg-slate-100 border-slate-300" />
               </div>
-
-
-
               <Select value={driverFilter} onValueChange={handleDriverChange}>
-                <SelectTrigger className="w-[140px] bg-white border-slate-300">
-                  <SelectValue placeholder="Select driver" />
-                </SelectTrigger>
-                <SelectContent>
-                 <SelectItem value="all">All Drivers</SelectItem>
-                 {sortUsers((effectiveDrivers || []).filter((d) => userHasRole(d, 'driver') && (() => {const S = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null;if (!S) return true;const disp = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');const ss = disp ? new Set(currentUser.store_ids || []) : null;const ok = (effectiveDeliveries || []).some((del) => del && del.delivery_date === S && (!ss || !del.store_id || ss.has(del.store_id)) && (del.driver_id && (del.driver_id === d.id || del.driver_id === d.appUserId) || del.driver_name && (del.driver_name === d.full_name || del.driver_name === d.user_name)));return ok || driverFilter !== 'all' && d.id === driverFilter;})())).map((driver) => {
-                  // Check if there are duplicate names
-                  const duplicateNames = (effectiveDrivers || []).filter((d) =>
-                  getDriverDisplayName(d) === getDriverDisplayName(driver)
-                  );
-                  const displayName = duplicateNames.length > 1 ?
-                  `${getDriverDisplayName(driver)} (${driver.id.slice(-4)})` :
-                  getDriverDisplayName(driver);
-
-                  return (
-                    <SelectItem key={driver.id} value={driver.id}>
-                        {displayName}
-                      </SelectItem>);
-
-                })}
-                </SelectContent>
+                <SelectTrigger className="w-[140px] bg-white border-slate-300"><SelectValue placeholder="Select driver" /></SelectTrigger>
+                <SelectContent><SelectItem value="all">All Drivers</SelectItem>{driverFilterOptions.map((driver) => <SelectItem key={driver.id} value={driver.id}>{driver.label}</SelectItem>)}</SelectContent>
               </Select>
-
+              <Select value={storeFilter} onValueChange={handleStoreChange}>
+                <SelectTrigger className="w-[160px] bg-white border-slate-300 text-slate-900 font-medium"><SelectValue placeholder="Store" /></SelectTrigger>
+                <SelectContent><SelectItem value="all">All Stores</SelectItem>{routeScopedStoreOptions.map((store) => <SelectItem key={store.id} value={store.id}>{store.abbreviation ? `${store.abbreviation} — ${store.name}` : store.name}</SelectItem>)}</SelectContent>
+              </Select>
               <Select value={statusFilter} onValueChange={handleStatusChange}>
-                <SelectTrigger className="w-36 bg-white border-slate-300 text-slate-900 font-medium">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="Ready For Pickup">Ready For Pickup</SelectItem>
-                  <SelectItem value="picked_up">Picked Up</SelectItem>
-                  <SelectItem value="in_transit">In Transit</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="failed">Failed</SelectItem>
-                  <SelectItem value="returned">Returned</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                </SelectContent>
+                <SelectTrigger className="w-36 bg-white border-slate-300 text-slate-900 font-medium"><SelectValue placeholder="Status" /></SelectTrigger>
+                <SelectContent><SelectItem value="all">All Status</SelectItem><SelectItem value="pending">Pending</SelectItem><SelectItem value="Ready For Pickup">Ready For Pickup</SelectItem><SelectItem value="picked_up">Picked Up</SelectItem><SelectItem value="in_transit">In Transit</SelectItem><SelectItem value="completed">Completed</SelectItem><SelectItem value="failed">Failed</SelectItem><SelectItem value="returned">Returned</SelectItem><SelectItem value="cancelled">Cancelled</SelectItem></SelectContent>
               </Select>
             </div>
           </>
