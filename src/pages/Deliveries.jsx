@@ -1158,9 +1158,8 @@ export default function DeliveriesPage() {
       }
     }
     setDriverFilter(newDriverFilter);
-
-    setStatusFilter(statusParam || 'all');
-    setSearchTerm(searchParam || '');
+    if ((statusParam || 'all') !== statusFilter) setStatusFilter(statusParam || 'all');
+    if ((searchParam || '') !== searchTerm) setSearchTerm(searchParam || '');
 
     const currentDriver = (effectiveDrivers || []).find((d) => d.id === newDriverFilter);
     setActiveDriver(currentDriver || null);
