@@ -134,7 +134,7 @@ export default function StopCardBody({
                     COD Collected:{' '}
                     {codPayments.map((payment, index) =>
                 <span key={index}>
-                        {payment.type}: $${payment.amount.toFixed(2)}
+                        {payment.type}: ${payment.amount.toFixed(2)}
                         {index < codPayments.length - 1 && ', '}
                       </span>
                 )}
