@@ -148,7 +148,7 @@ export const resolvePickupPuid = async ({
       : ['pending', 'en_route', 'in_transit', 'Staged'].includes(existingPickup.status);
 
     if (isReusable) {
-      return existingPickup.stop_id;
+      return existingPickup.puid || existingPickup.stop_id;
     }
   }
 

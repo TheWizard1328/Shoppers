@@ -412,7 +412,7 @@ export const handleBatchSaveDelivery = async ({
         time_window_end: stop.time_window_end || stop.delivery_time_end,
         status: stop.patient_id ? stop.status : (stop.status || 'en_route'),
         stop_id: stop.stop_id,
-        puid: stop.puid || null,
+        puid: stop.patient_id ? (stop.puid || null) : stop.stop_id,
         stop_order: stop.isNew ? (stop.stop_order ?? null) : stop.stop_order,
         tracking_number: stop.tracking_number,
         delivery_notes: stop.delivery_notes || '',
