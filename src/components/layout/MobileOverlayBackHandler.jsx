@@ -52,15 +52,22 @@ export default function MobileOverlayBackHandler({ isMobile, isTabletPortrait, i
     window.addEventListener('overlayNavigateClose', handleOverlayNavigateClose);
 
     const capacitorApp = window.Capacitor?.Plugins?.App || window.Capacitor?.App;
-    if (capacitorApp?.addListener) {
-      nativeBackListener = capacitorApp.addListener('backButton', handleNativeBack);
+    if (window.Capacitor?.isNativePlatform?.() && capacitorApp?.addListener) {
+      const listenerResult = capacitorApp.addListener('backButton', handleNativeBack);
+      Promise.resolve(listenerResult).then((listener) => {
+        nativeBackListener = listener;
+      }).catch(() => {
+        nativeBackListener = null;
+      });
     }
 
     return () => {
       window.removeEventListener('popstate', handlePopState);
       document.removeEventListener('backbutton', handleNativeBack, false);
       window.removeEventListener('overlayNavigateClose', handleOverlayNavigateClose);
-      nativeBackListener?.remove?.();
+      if (nativeBackListener && typeof nativeBackListener.remove === 'function') {
+        nativeBackListener.remove();
+      }
     };
   }, [isMobile, isTabletPortrait, isOverlayOpen, onRequestCloseOverlay]);
 

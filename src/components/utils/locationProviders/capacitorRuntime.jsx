@@ -2,7 +2,6 @@ import { Capacitor, registerPlugin } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 
 export const BackgroundGeolocation = registerPlugin('BackgroundGeolocation');
-export const App = registerPlugin('App');
 
 export const isCapacitorNativeApp = () => {
   return typeof Capacitor?.isNativePlatform === 'function' && Capacitor.isNativePlatform();
@@ -64,5 +63,5 @@ export const requestNativeLocationAuthorization = async () => {
   }
 
   await plugin.openSettings();
-  return current;
+  return await getNativeLocationAuthorization();
 };
