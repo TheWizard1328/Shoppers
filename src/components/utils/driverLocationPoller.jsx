@@ -75,10 +75,13 @@ class DriverLocationPoller {
      return;
    }
 
-   // CRITICAL: Only skip automatic location processing when not on Dashboard.
-   // Do NOT clear markers just because the selected date isn't today, otherwise preloaded data disappears.
-   if (!forceNotify && currentPageName && currentPageName !== 'Dashboard') {
-     this.notifySubscribers([]);
+   // CRITICAL: Only poll/process automatic location updates on Dashboard while viewing today.
+   // For past/future dates, rely on existing websocket-synced data and skip polling.
+   const todayStr = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
+   const selectedDateKey = selectedDate instanceof Date
+     ? `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`
+     : (selectedDate || todayStr);
+   if (!forceNotify && (currentPageName !== 'Dashboard' || selectedDateKey !== todayStr)) {
      return;
    }
 

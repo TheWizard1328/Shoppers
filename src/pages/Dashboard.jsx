@@ -1482,7 +1482,7 @@ function Dashboard() {
     smartRefreshManager.setCurrentUser(currentUser);
     const runPeriodicSmartRefresh = async () => {
       if (smartRefreshManager.isPaused() || !hasTriggeredPrioritySyncRef.current || showDeliveryForm || showPatientForm || showOptimizationSettings || showAIAssistant) return;
-      const filters = { deliveryFilter: { delivery_date: format(selectedDate, 'yyyy-MM-dd') } };
+      const selectedDateStr = format(selectedDate, 'yyyy-MM-dd'); if (selectedDateStr !== getEdmDate()) return; const filters = { deliveryFilter: { delivery_date: selectedDateStr } };
       try {
         const updates = await smartRefreshManager.performSmartRefresh({ deliveries, patients, stores, cities, appUsers, drivers }, filters, false, showAllDriverMarkers, 'Dashboard', selectedDate);
         if (Array.isArray(updates?.deliveries) && updates.deliveries.length > 0 && updateDeliveriesLocally) updateDeliveriesLocally(updates.deliveries, true);
@@ -1493,7 +1493,7 @@ function Dashboard() {
         console.warn('⚠️ [Periodic Refresh] Error:', error.message);
       }
     };
-    const initialDelay = setTimeout(() => {runPeriodicSmartRefresh();if (smartRefreshManager?.checkHeartbeatAndSync) smartRefreshManager.checkHeartbeatAndSync();}, 90000);
+    const initialDelay = setTimeout(() => {if (format(selectedDate, 'yyyy-MM-dd') !== getEdmDate()) return; runPeriodicSmartRefresh();if (smartRefreshManager?.checkHeartbeatAndSync) smartRefreshManager.checkHeartbeatAndSync();}, 90000);
     const interval = setInterval(async () => {
       runPeriodicSmartRefresh();
       if (smartRefreshManager?.checkHeartbeatAndSync) smartRefreshManager.checkHeartbeatAndSync();
