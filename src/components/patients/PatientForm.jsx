@@ -553,8 +553,6 @@ export default function PatientForm({
         try { realtimeSync.broadcast('Patient', 'create', savedPatientId, { id: savedPatientId, ...backendPatient, ...dataToSave }); } catch {}
         
         if (returnPatientOnSave) {
-          // CRITICAL: Merge backend patient with dataToSave to ensure ALL fields are passed back
-          // Backend patient might not have latitude/longitude, so prioritize dataToSave values
           const completePatient = {
             ...backendPatient,
             ...dataToSave,
@@ -568,7 +566,8 @@ export default function PatientForm({
             distance_from_store: completePatient.distance_from_store,
             store_id: completePatient.store_id
           });
-          onSave(completePatient, true);
+          onSave?.(completePatient);
+          onCancel?.();
           return;
         }
       }
@@ -606,12 +605,13 @@ export default function PatientForm({
 
       // STEP 5: Close form and pass patient data to parent
       if (returnPatientOnSave) {
-        // Pass the complete patient (with ID) back to parent for auto-fill
         const completePatient = {
           ...dataToSave,
+          ...backendPatient,
           id: savedPatientId
         };
-        onSave(completePatient, true);
+        onSave?.(completePatient);
+        onCancel?.();
       } else {
         if (onSave) {
           const completePatient = {
