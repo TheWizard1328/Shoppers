@@ -215,8 +215,9 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
                   </span>
                 </div>
                 <div
-                  className="absolute right-[5px] pointer-events-none"
+                  className="absolute pointer-events-none"
                   style={{
+                    right: '30px',
                     top: '10%',
                     height: '80%',
                     width: '2px',
