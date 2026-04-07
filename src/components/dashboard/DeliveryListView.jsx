@@ -71,8 +71,8 @@ const DeliveryRow = memo(({
             <div className="flex flex-col items-center gap-1">
               {getStatusBadge(delivery.status)}
               {store?.abbreviation &&
-                <Badge variant="outline" className="rounded-full text-[11px] px-2 py-0.5" style={{ background: 'var(--bg-white)', color: store.color || 'var(--text-slate-600)', borderColor: store.color || 'var(--border-slate-300)' }}>
-                  {store.abbreviation}
+                <Badge variant="outline" className="rounded-full text-[11px] px-2 py-0.5 max-w-full whitespace-normal break-words text-center" style={{ background: 'var(--bg-white)', color: store.color || 'var(--text-slate-600)', borderColor: store.color || 'var(--border-slate-300)' }}>
+                  {store.abbreviation}{isAppOwner(currentUser) && delivery?.puid ? ` • ${delivery.puid}` : ''}
                 </Badge>
                 }
             </div>
