@@ -550,9 +550,6 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updated]);
     console.log('💾 [EntityMutations] Updated IndexedDB for:', deliveryId);
 
-    // STEP 1.5: Notify UI immediately with local version
-    notifyMutation({ type: 'update', entity: 'Delivery', id: deliveryId, data: updated });
-    
     // STEP 2: Update backend (sync to server)
     try {
       const backendDelivery = await base44.entities.Delivery.update(deliveryId, sanitizedUpdates);
@@ -581,8 +578,12 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
       notifyMutation({ type: 'update', entity: 'Delivery', id: deliveryId, data: updated });
     }
     
-    // CRITICAL: NO restart during batch operations
-    if (shouldManageSmartRefresh) await restartSmartRefresh();
+    // CRITICAL: keep Smart Refresh calm after direct delivery edits
+    if (shouldManageSmartRefresh) {
+      const { smartRefreshManager } = await import('./smartRefreshManager');
+      smartRefreshManager.resetTimers();
+      await restartSmartRefresh();
+    }
     return updated;
   } catch (error) {
     if (shouldManageSmartRefresh) await restartSmartRefresh();

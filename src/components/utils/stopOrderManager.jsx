@@ -86,11 +86,15 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate, ski
       await updateDeliveryLocal(
         delivery.id,
         { stop_order: newStopOrder },
-        { skipSmartRefresh: true, isBatchOperation: false }
+        { skipSmartRefresh: true, isBatchOperation: true }
       );
       // Small delay to prevent rate limits when updating many stops sequentially
       await new Promise(resolve => setTimeout(resolve, 50));
     }
+  }
+
+  if (updates.length > 0) {
+    try { window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'stopOrderRecalc', driverId, deliveryDate, preserveLocalState: true } })); } catch (_) {}
   }
 
   if (updates.length > 0 && !skipPolylineRegeneration) {
