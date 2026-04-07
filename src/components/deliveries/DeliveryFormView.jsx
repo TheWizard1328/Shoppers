@@ -512,6 +512,18 @@ export default function DeliveryFormView({
                       <Label className="text-xs">PUID</Label>
                       <Input value={formData.puid || ''} onChange={(e) => setFormData((prev) => ({ ...prev, puid: e.target.value }))} className="h-9 text-sm" disabled={isSaving} />
                     </div>
+                    <div className="flex-1 space-y-1">
+                      <Label className="text-xs">AM/PM</Label>
+                      <Select value={formData.ampm_deliveries || ''} onValueChange={(value) => setFormData((prev) => ({ ...prev, ampm_deliveries: value }))} disabled={isSaving}>
+                        <SelectTrigger className="h-9 text-sm">
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                        <SelectContent className="z-[999999]">
+                          <SelectItem value="AM">AM</SelectItem>
+                          <SelectItem value="PM">PM</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                     {!isPickupMode &&
                   <div className="flex-1 space-y-1">
                         <Label className="text-xs">X-KM</Label>
