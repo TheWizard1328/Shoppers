@@ -137,6 +137,14 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   }, [currentUser?.id]);
   useEffect(() => subscribeDeliveryActionLock(setActiveDeliveryAction), []);
   useEffect(() => {
+    if (!delivery) return;
+    const isActiveStartStatus = delivery.status === 'in_transit' || delivery.status === 'en_route';
+    if (!isActiveStartStatus) {
+      startTapLockRef.current = false;
+      setIsStarting(false);
+    }
+  }, [delivery?.status, delivery?.id]);
+  useEffect(() => {
     const refreshRangeCheck = () => setRangeRefreshTick((prev) => prev + 1);
     window.addEventListener('deliveryRangeCheckRefresh', refreshRangeCheck);
     window.addEventListener('driverLocationFocusRefresh', refreshRangeCheck);
@@ -222,7 +230,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const isGlobalCompleteLocked = !!activeDeliveryAction && activeDeliveryAction.actionName === 'complete_delivery';
   const isGlobalRestartLocked = !!activeDeliveryAction && activeDeliveryAction.actionName === 'restart_delivery';
   const isGlobalStartLocked = !!activeDeliveryAction && activeDeliveryAction.actionName === START_ACTION_NAME;
-  const isCurrentCardStartLocked = isGlobalStartLocked && isStarting;
+  const isCurrentCardStartLocked = isStarting && (isGlobalStartLocked || startTapLockRef.current);
   const { displayName, displayAddress, displayPhone, shouldRedact, finalDisplayName, finalDisplayAddress, finalDisplayPhone } = useDeliveryDisplayInfo({ delivery, patient, store, currentUser, isPickup, isInterStore, isInterStorePickup, isStrippedDelivery, isStrippedForDispatcher });
   const shouldDisableRetryReturn = useMemo(() => false, []);
   const { hasFutureRetry, hasFutureReturn, hasCompletedDelivery } = useMemo(() => {
@@ -301,7 +309,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     await collapseExpandedStopCardsForDriver(delivery?.driver_id);
   };
   const handleStartAction = async (e) => {
-    e?.preventDefault?.();e?.stopPropagation?.();if (startTapLockRef.current || isCurrentCardStartLocked || isProcessingBackground || isCompleting || isFailing || isRetrying || isRestarting) return;
+    e?.preventDefault?.();e?.stopPropagation?.();if (isCurrentCardStartLocked || isProcessingBackground || isCompleting || isFailing || isRetrying || isRestarting) return;
     if (isGlobalStartLocked && !isStarting) return;
     startTapLockRef.current = true;setIsStarting(true);setIsEntityUpdating(true);setIsProcessingBackground(true);fabControlEvents.deactivateFAB();const { driverLocationPoller } = await import('../utils/driverLocationPoller');driverLocationPoller.pause();smartRefreshManager.pause();
     const lockResult = await runWithDeliveryActionLock(START_ACTION_NAME, async () => {
