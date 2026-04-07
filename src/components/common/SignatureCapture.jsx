@@ -9,6 +9,7 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
   const [hasSignature, setHasSignature] = useState(false);
   const [showClear, setShowClear] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const isWidescreenCapture = window.innerWidth > window.innerHeight;
 
   const setupCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -98,18 +99,25 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
       exportCanvas.height = canvas.height;
       const exportCtx = exportCanvas.getContext('2d');
       exportCtx.drawImage(canvas, 0, 0);
-      exportCtx.clearRect(canvas.width - 61, canvas.height * 0.1, 4, canvas.height * 0.8);
+      if (isWidescreenCapture) {
+        exportCtx.clearRect(canvas.width * 0.1, 58, canvas.width * 0.8, 4);
+      } else {
+        exportCtx.clearRect(canvas.width - 61, canvas.height * 0.1, 4, canvas.height * 0.8);
+      }
 
-      const rotated = document.createElement('canvas');
-      rotated.width = exportCanvas.height;
-      rotated.height = exportCanvas.width;
-      const rCtx = rotated.getContext('2d');
-      rCtx.translate(exportCanvas.height, 0);
-      rCtx.rotate(Math.PI / 2);
-      rCtx.drawImage(exportCanvas, 0, 0);
+      const finalCanvas = isWidescreenCapture ? exportCanvas : document.createElement('canvas');
+
+      if (!isWidescreenCapture) {
+        finalCanvas.width = exportCanvas.height;
+        finalCanvas.height = exportCanvas.width;
+        const rCtx = finalCanvas.getContext('2d');
+        rCtx.translate(exportCanvas.height, 0);
+        rCtx.rotate(Math.PI / 2);
+        rCtx.drawImage(exportCanvas, 0, 0);
+      }
 
       const blob = await new Promise((resolve, reject) => {
-        rotated.toBlob((result) => {
+        finalCanvas.toBlob((result) => {
           if (!result || !result.size) {
             reject(new Error('Signature blob is empty'));
             return;
@@ -216,15 +224,27 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
             />
             <>
               {!hasSignature && (
-                <div className="absolute inset-0 flex items-center justify-start pl-[5px] pointer-events-none">
-                  <span className="text-2xl select-none inline-block" style={{ color: 'var(--text-slate-300)', transform: 'rotate(-90deg)' }}>
+                <div
+                  className="absolute inset-0 pointer-events-none"
+                  style={isWidescreenCapture ? { display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '12px' } : { display: 'flex', alignItems: 'center', justifyContent: 'flex-start', paddingLeft: '5px' }}
+                >
+                  <span
+                    className="text-2xl select-none inline-block"
+                    style={{ color: 'var(--text-slate-300)', transform: isWidescreenCapture ? 'none' : 'rotate(-90deg)' }}
+                  >
                     ✍️ Sign here
                   </span>
                 </div>
               )}
               <div
                 className="absolute pointer-events-none"
-                style={{
+                style={isWidescreenCapture ? {
+                  left: '10%',
+                  right: '10%',
+                  top: '60px',
+                  height: '2px',
+                  backgroundColor: 'hsl(var(--border))'
+                } : {
                   right: '60px',
                   top: '10%',
                   height: '80%',
