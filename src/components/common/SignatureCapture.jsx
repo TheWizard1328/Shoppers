@@ -208,11 +208,22 @@ export default function SignatureCapture({ onSave, onCancel, customerName = '', 
               style={{ touchAction: 'none', display: 'block' }}
             />
             {!hasSignature && (
-              <div className="absolute inset-0 flex items-center justify-start pl-[5px] pointer-events-none">
-                <span className="text-2xl select-none inline-block" style={{ color: 'var(--text-slate-300)', transform: 'rotate(-90deg)' }}>
-                  ✍️ Sign here
-                </span>
-              </div>
+              <>
+                <div className="absolute inset-0 flex items-center justify-start pl-[5px] pointer-events-none">
+                  <span className="text-2xl select-none inline-block" style={{ color: 'var(--text-slate-300)', transform: 'rotate(-90deg)' }}>
+                    ✍️ Sign here
+                  </span>
+                </div>
+                <div
+                  className="absolute right-[5px] pointer-events-none"
+                  style={{
+                    top: '10%',
+                    height: '80%',
+                    width: '2px',
+                    backgroundColor: 'hsl(var(--border))'
+                  }}
+                />
+              </>
             )}
           </div>
         </div>
