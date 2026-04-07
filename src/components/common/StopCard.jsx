@@ -44,7 +44,7 @@ import StopCardConfirmDialogs from './StopCardConfirmDialogs';
 import StopCardPOD from './StopCardPOD';
 import { useDeliveryDisplayInfo } from './StopCardRedaction';
 import { updatePatientGPS } from "../utils/patientGPSUpdater";
-import { buildRetryDelivery, collapseExpandedStopCardsForDriver, getCurrentLocalTimeString, getDriverRouteDeliveries, getFinishedLegEncodedPolyline, getNextActiveDelivery, getNextTrackingNumberInGroup, incrementTrackingNumber, refreshDriverRoute, reorderActiveRouteLocally, setAndCenterNextDelivery, withPausedDriverLocationPoller } from "./stopCardActionHelpers";
+import { buildRetryDelivery, collapseExpandedStopCardsForDriver, getCurrentLocalTimeString, getDriverRouteDeliveries, getFinishedLegEncodedPolyline, getNextActiveDelivery, getNextTrackingNumberInGroup, incrementTrackingNumber, optimizeRouteAndApplyNextDelivery, refreshDriverRoute, reorderActiveRouteLocally, setAndCenterNextDelivery, withPausedDriverLocationPoller } from "./stopCardActionHelpers";
 import { clearPendingBreadcrumbsForDriver, getPendingBreadcrumbsForDriver } from '../utils/pendingBreadcrumbsManager';
 import { runTerminalDeliverySideEffects } from '../utils/directDeliverySideEffects';
 import { getActiveDeliveryAction, runWithDeliveryActionLock, subscribeDeliveryActionLock } from '../utils/deliveryActionLock';
@@ -458,10 +458,16 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
           if ((delivery.cod_total_amount_required || 0) > 0) {
             backgroundTasks.push(deleteCODWithTimeout(delivery.id, 'Removed after creating return delivery'));
           }
-          backgroundTasks.push(collapseAndCenterNextDelivery({ driverDeliveries: getDriverRouteDeliveries(allDeliveries, delivery), targetDeliveryId: null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }));
           backgroundTasks.push((async () => {
-            invalidate('Delivery');
-            await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+            await optimizeRouteAndApplyNextDelivery({
+              driverId: delivery.driver_id,
+              deliveryDate: delivery.delivery_date,
+              currentLocalTime: getCurrentLocalTimeString(),
+              updateDeliveryLocal,
+              updateDeliveriesLocally,
+              forceRefreshDriverDeliveries,
+              generatePolyline: false
+            });
           })());
           if (userHasRole(currentUser, 'driver')) {
             backgroundTasks.push(notifyDriverReturn({ driver: currentUser, patientName: patient?.full_name, delivery, store, appUsers }));
@@ -512,12 +518,17 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
           }
         }
         await ensureDriverOnline();
-        await collapseAndCenterNextDelivery({ driverDeliveries: getDriverRouteDeliveries(allDeliveries, delivery), targetDeliveryId: null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
-        try {await base44.functions.invoke('optimizeRouteRealTime', { driverId: delivery.driver_id, deliveryDate: retryDate, currentLocalTime: getCurrentLocalTimeString(), generatePolyline: false });} catch (optimizeError) {console.warn('⚠️ [Retry] Route optimizer failed:', optimizeError);}
-        await refreshDriverRoute({ driverId: delivery.driver_id, deliveryDate: retryDate, forceRefreshDriverDeliveries, triggeredBy: 'retry' });
-        const refreshedDriverDeliveries = await base44.entities.Delivery.filter({ driver_id: delivery.driver_id, delivery_date: retryDate });
-        const nextRetryDelivery = getNextActiveDelivery(refreshedDriverDeliveries, null, FINISHED_STATUSES);
-        await collapseAndCenterNextDelivery({ driverDeliveries: refreshedDriverDeliveries, targetDeliveryId: nextRetryDelivery?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: retryDate });
+        try {
+          await optimizeRouteAndApplyNextDelivery({
+            driverId: delivery.driver_id,
+            deliveryDate: retryDate,
+            currentLocalTime: getCurrentLocalTimeString(),
+            updateDeliveryLocal,
+            updateDeliveriesLocally,
+            forceRefreshDriverDeliveries,
+            generatePolyline: false
+          });
+        } catch (optimizeError) {console.warn('⚠️ [Retry] Route optimizer failed:', optimizeError);}
         if (userHasRole(currentUser, 'driver')) await notifyDriverRetry({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name, delivery, store, appUsers });
       });
     } finally {resetActionLocks(true);}
@@ -532,7 +543,6 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
         await collapseDriverStopCards();
         await new Promise((resolve) => setTimeout(resolve, 100));
         const driverDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
-        await collapseAndCenterNextDelivery({ driverDeliveries, targetDeliveryId: null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
         const newStatus = isPickup ? 'en_route' : 'in_transit';
         const restartedRouteDeliveries = reorderActiveRouteLocally(
           driverDeliveries.map((item) => item?.id === delivery.id ? { ...item, status: newStatus, isNextDelivery: true, actual_delivery_time: null, delivery_notes: '', finished_leg_encoded_polyline: null } : { ...item, isNextDelivery: false }),
@@ -570,10 +580,16 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
           });
           updateDeliveriesLocally(updatedDeliveries, true);
         }
-        await collapseAndCenterNextDelivery({ driverDeliveries: restartedRouteDeliveries, targetDeliveryId: delivery.id, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
         try {
-          const optimizeResponse = await base44.functions.invoke('optimizeRouteRealTime', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime: getCurrentLocalTimeString(), generatePolyline: false });
-          const optimizeData = optimizeResponse?.data || optimizeResponse;
+          const { optimizeData } = await optimizeRouteAndApplyNextDelivery({
+            driverId: delivery.driver_id,
+            deliveryDate: delivery.delivery_date,
+            currentLocalTime: getCurrentLocalTimeString(),
+            updateDeliveryLocal,
+            updateDeliveriesLocally,
+            forceRefreshDriverDeliveries,
+            generatePolyline: false
+          });
           if (optimizeData?.success && Array.isArray(optimizeData.optimizedRoute) && optimizeData.optimizedRoute.length > 0) {
             window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: delivery.driver_id, updates: optimizeData.optimizedRoute.map((stop) => ({ deliveryId: stop.deliveryId || stop.delivery_id, newEta: stop.newETA || stop.eta })).filter((stop) => stop.deliveryId && stop.newEta) } }));
           }

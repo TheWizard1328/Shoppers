@@ -349,3 +349,42 @@ export async function refreshDriverRoute({ driverId, deliveryDate, forceRefreshD
     }));
   }
 }
+
+export async function optimizeRouteAndApplyNextDelivery({
+  driverId,
+  deliveryDate,
+  currentLocalTime,
+  updateDeliveryLocal,
+  updateDeliveriesLocally,
+  forceRefreshDriverDeliveries,
+  generatePolyline = false
+}) {
+  const optimizeResponse = await base44.functions.invoke('optimizeRouteRealTime', {
+    driverId,
+    deliveryDate,
+    currentLocalTime,
+    generatePolyline
+  });
+  const optimizeData = optimizeResponse?.data || optimizeResponse;
+  const optimizedRoute = Array.isArray(optimizeData?.optimizedRoute) ? optimizeData.optimizedRoute : [];
+  const nextOptimizedStopId = optimizedRoute[0]?.deliveryId || optimizedRoute[0]?.delivery_id || null;
+
+  await refreshDriverRoute({ driverId, deliveryDate, forceRefreshDriverDeliveries, triggeredBy: 'optimizedNextDeliverySync' });
+
+  const refreshedDriverDeliveries = await base44.entities.Delivery.filter({ driver_id: driverId, delivery_date: deliveryDate });
+  await setAndCenterNextDelivery({
+    driverDeliveries: refreshedDriverDeliveries,
+    targetDeliveryId: nextOptimizedStopId,
+    updateDeliveryLocal,
+    updateDeliveriesLocally,
+    driverId,
+    deliveryDate
+  });
+
+  return {
+    optimizeData,
+    optimizedRoute,
+    nextOptimizedStopId,
+    refreshedDriverDeliveries
+  };
+}
