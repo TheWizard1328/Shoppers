@@ -737,6 +737,7 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
     if (!deliveryDateToSync || deliveryDateToSync === selectedDateStr) {
       notifySyncStatus({ status: 'complete', skippedHistorical: true });
       window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
+      syncInProgress = false;
       return { success: true, skippedHistorical: true };
     }
 
@@ -1117,7 +1118,7 @@ export const forceSyncAll = async () => {
     const selectedDateStr = getLocalDateString();
 
     notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 5 });
-    const appUsersRaw = await AppUser.list();
+    const appUsersRaw = await fetchAppUsersDedup();
     const appUsersByUserId = new Map();
     appUsersRaw.forEach(au => {
       if (!au || !au.user_id) return;
@@ -1165,51 +1166,16 @@ export const forceSyncAll = async () => {
     notifySyncStatus({ status: 'syncing', entity: 'Companies', progress: 27, count: companies.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
-    // CRITICAL: Sync ALL active patients for complete historical data (not just recent)
-    // Payroll page needs patient data for any date in the year
-    notifySyncStatus({ status: 'syncing', entity: 'Patients (all active)', progress: 25 });
-    console.log('🔄 [ForceSyncAll] Syncing ALL active patients...');
+    // Sync only patients needed for today's deliveries to avoid rate limits on driver/manual sync
+    notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 25 });
+    console.log('🔄 [ForceSyncAll] Syncing patients referenced by today\'s deliveries...');
 
-    let allPatients = [];
-    let patientOffset = 0;
-    const PATIENT_FETCH_SIZE = 100;
+    const todaysDeliveries = await Delivery.filter({ delivery_date: selectedDateStr }, '-updated_date', 5000);
+    const patientIds = Array.from(new Set((todaysDeliveries || []).filter(d => d && d.patient_id).map(d => d.patient_id)));
+    const { totalPatients, freshPatients } = await syncPatientsByIds(patientIds);
 
-    while (true) {
-      try {
-        const patientBatch = await Patient.filter(
-          { status: 'active' },
-          '-updated_date',
-          PATIENT_FETCH_SIZE,
-          patientOffset
-        );
-
-        if (!patientBatch || patientBatch.length === 0) break;
-
-        allPatients = allPatients.concat(patientBatch);
-        await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientBatch);
-
-        const batchNumber = Math.floor(patientOffset / PATIENT_FETCH_SIZE) + 1;
-        const batchProgress = 25 + Math.min(10, Math.floor((allPatients.length / 4000) * 10));
-        notifySyncStatus({ 
-          status: 'syncing', 
-          entity: `Patients (${allPatients.length}+)`, 
-          progress: batchProgress, 
-          loaded: allPatients.length 
-        });
-        console.log(`   ✅ Batch ${batchNumber} synced (${allPatients.length} total patients)`);
-
-        if (patientBatch.length < PATIENT_FETCH_SIZE) break;
-
-        patientOffset += PATIENT_FETCH_SIZE;
-        await new Promise(r => setTimeout(r, 200));
-      } catch (error) {
-        console.warn(`   ⚠️ Patient batch failed:`, error.message);
-        break;
-      }
-    }
-
-    const cleanPatients = allPatients.filter(p => p && p.id && !p.id.startsWith('temp_'));
-    console.log(`✅ [ForceSyncAll] Synced ${cleanPatients.length} total active patients`);
+    const cleanPatients = (freshPatients || []).filter(p => p && p.id && !p.id.startsWith('temp_'));
+    console.log(`✅ [ForceSyncAll] Synced ${cleanPatients.length} referenced patients`);
     notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 35, count: cleanPatients.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
@@ -1248,7 +1214,7 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null)
   try {
     // 1) AppUsers (entire entity)
     notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 10 });
-    const appUsersRaw = await AppUser.list();
+    const appUsersRaw = await fetchAppUsersDedup();
     const appUsersByUserId = new Map();
     appUsersRaw.forEach(au => {
       if (!au || !au.user_id) return;
@@ -1509,7 +1475,7 @@ export const restartDeliveryPatientSync = async () => {
     
     notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 90 });
     console.log('👤 [ForceSyncAll] Fetching AppUsers...');
-    const appUsersRaw2 = await AppUser.list();
+    const appUsersRaw2 = await fetchAppUsersDedup();
     const appUsersByUserId2 = new Map();
     appUsersRaw2.forEach(au => {
       if (!au || !au.user_id) return;
