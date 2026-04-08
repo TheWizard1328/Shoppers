@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { sortUsers, sortStores } from '@/components/utils/sorting';
 
 export default function RemoteLogsTab({ appUsers = [] }) {
   const [logs, setLogs] = useState([]);
@@ -63,6 +64,14 @@ export default function RemoteLogsTab({ appUsers = [] }) {
     });
   }, [logs, search, level]);
 
+  const driverUsers = useMemo(() => {
+    return sortUsers((appUsers || []).filter((user) => user?.status === 'active' && user?.app_roles?.includes('driver')));
+  }, [appUsers]);
+
+  const storeUsers = useMemo(() => {
+    return sortStores((appUsers || []).filter((user) => user?.status === 'active' && user?.app_roles?.includes('dispatcher')));
+  }, [appUsers]);
+
   return (
     <div className="space-y-6">
       <Card>
@@ -76,16 +85,35 @@ export default function RemoteLogsTab({ appUsers = [] }) {
           </div>
           <div className="space-y-1">
             <div className="font-medium">Only log selected users</div>
-            <div className="grid gap-2 md:grid-cols-2">
-              {appUsers.map((user) =>
-              <label key={user.id} className="flex items-center gap-2 rounded border p-2">
-                  <Checkbox
-                  checked={selectedUsers.includes(user.user_id || user.id)}
-                  onCheckedChange={(checked) => toggleUser(user.user_id || user.id, checked === true)} />
-                
-                  <span>{user.user_name || user.full_name || user.id}</span>
-                </label>
-              )}
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-slate-700">Drivers</div>
+                <div className="grid gap-2">
+                  {driverUsers.map((user) => (
+                    <label key={user.id} className="flex items-center gap-2 rounded border p-2">
+                      <Checkbox
+                        checked={selectedUsers.includes(user.user_id || user.id)}
+                        onCheckedChange={(checked) => toggleUser(user.user_id || user.id, checked === true)}
+                      />
+                      <span>{user.user_name || user.full_name || user.id}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-slate-700">Stores</div>
+                <div className="grid gap-2">
+                  {storeUsers.map((user) => (
+                    <label key={user.id} className="flex items-center gap-2 rounded border p-2">
+                      <Checkbox
+                        checked={selectedUsers.includes(user.user_id || user.id)}
+                        onCheckedChange={(checked) => toggleUser(user.user_id || user.id, checked === true)}
+                      />
+                      <span>{user.user_name || user.full_name || user.id}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
             </div>
             <div className="text-xs text-slate-500">If nobody is selected, logging applies to all users except excluded ones.</div>
           </div>
