@@ -712,6 +712,8 @@ class LocationTracker {
           }
         );
 
+        const useNativeBackgroundWatcher = this.locationProvider?.backgroundCapable === true;
+
         this.heartbeatInterval = setInterval(() => {
           if (this.isTracking) {
             if (this.lastPosition) {
@@ -731,7 +733,7 @@ class LocationTracker {
                 false,
                 true
               );
-            } else {
+            } else if (!useNativeBackgroundWatcher) {
               console.log(`⏭️ [${providerName} PROVIDER] Poll: No cached GPS position - requesting fresh fix...`);
               this.locationProvider.getCurrentPosition({
                 enableHighAccuracy: true,
@@ -754,6 +756,8 @@ class LocationTracker {
                   true
                 );
               }).catch((err) => console.warn(`⚠️ [${providerName} PROVIDER] On-demand GPS fix failed:`, err.message));
+            } else {
+              console.log(`⏳ [${providerName} PROVIDER] Waiting for native background GPS update...`);
             }
           }
         }, this.updateInterval);

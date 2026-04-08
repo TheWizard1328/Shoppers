@@ -312,6 +312,9 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         {permissionStatus && (
           <span className="text-[10px] text-slate-500 leading-tight">{permissionStatus}</span>
         )}
+        {isCapacitorNativeApp() && getCapacitorPlatform() === 'android' && locationSharingEnabled && (
+          <span className="text-[10px] text-emerald-600 leading-tight">Background GPS active on Android</span>
+        )}
       </div>
       <Switch
         id="location-toggle"
