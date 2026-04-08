@@ -109,7 +109,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
                     value: user.user_id || user.id,
                     label: user.user_name || user.full_name || user.id
                   }))}
-                  selected={selectedUsers.filter((id) => driverUsers.some((user) => (user.user_id || user.id) === id))}
+                  value={selectedUsers.filter((id) => driverUsers.some((user) => (user.user_id || user.id) === id))}
                   onChange={(nextSelected) => {
                     const storeSelected = selectedUsers.filter((id) => storeUsers.some((user) => (user.user_id || user.id) === id));
                     const next = [...new Set([...storeSelected, ...nextSelected])];
@@ -126,7 +126,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
                     value: user.user_id || user.id,
                     label: user.user_name || user.full_name || user.id
                   }))}
-                  selected={selectedUsers.filter((id) => storeUsers.some((user) => (user.user_id || user.id) === id))}
+                  value={selectedUsers.filter((id) => storeUsers.some((user) => (user.user_id || user.id) === id))}
                   onChange={(nextSelected) => {
                     const driverSelected = selectedUsers.filter((id) => driverUsers.some((user) => (user.user_id || user.id) === id));
                     const next = [...new Set([...driverSelected, ...nextSelected])];
