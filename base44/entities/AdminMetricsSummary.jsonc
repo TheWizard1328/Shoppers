@@ -1,0 +1,78 @@
+{
+  "name": "AdminMetricsSummary",
+  "type": "object",
+  "properties": {
+    "city_id": {
+      "type": "string",
+      "description": "City this monthly summary belongs to"
+    },
+    "year": {
+      "type": "integer",
+      "description": "Summary year"
+    },
+    "month": {
+      "type": "integer",
+      "enum": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "description": "Summary month"
+    },
+    "period_start": {
+      "type": "string",
+      "format": "date",
+      "description": "First day of the summarized month"
+    },
+    "period_end": {
+      "type": "string",
+      "format": "date",
+      "description": "Last day of the summarized month"
+    },
+    "summary_version": {
+      "type": "string",
+      "description": "Calculation version for invalidation"
+    },
+    "delivery_counts": {
+      "type": "object",
+      "description": "Lightweight verification counts for refresh decisions",
+      "additionalProperties": true
+    },
+    "admin_metrics": {
+      "type": "object",
+      "description": "Precomputed admin metrics payload for this month",
+      "additionalProperties": true
+    },
+    "payroll_metrics": {
+      "type": "object",
+      "description": "Precomputed payroll payload for this month",
+      "additionalProperties": true
+    },
+    "last_source_delivery_updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Newest delivery updated timestamp included in this summary"
+    },
+    "calculated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When this summary was last calculated"
+    }
+  },
+  "required": [
+    "city_id",
+    "year",
+    "month",
+    "period_start",
+    "period_end"
+  ]
+}

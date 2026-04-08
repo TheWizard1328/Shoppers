@@ -3,7 +3,8 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
 
-const CACHE_VERSION = '1';
+const CACHE_VERSION = '2';
+const SUMMARY_VERSION = '1';
 const statsCache = new Map();
 const CACHE_DISABLED = true;
 const BATCH_LIMIT = 1000;
@@ -103,6 +104,65 @@ const DRIVER_FIELDS = [
 const PATIENT_FIELDS = ['id', 'full_name', 'distance_from_store', 'address'];
 const CITY_FIELDS = ['id', 'name', 'sort_order', 'province_state'];
 
+const getMonthDateRange = (year, month) => {
+  const paddedMonth = String(month).padStart(2, '0');
+  const start = `${year}-${paddedMonth}-01`;
+  const endDate = new Date(Date.UTC(year, month, 0));
+  const end = `${year}-${paddedMonth}-${String(endDate.getUTCDate()).padStart(2, '0')}`;
+  return { start, end };
+};
+
+const getMonthKey = (year, month) => `${year}-${String(month).padStart(2, '0')}`;
+
+const buildMonthlyDeliveryCounts = (deliveries = []) => {
+  const counts = {
+    total_deliveries: deliveries.length,
+    completed_or_failed_deliveries: 0,
+    after_hours_pickups: 0,
+    by_store: {},
+    by_driver: {}
+  };
+
+  deliveries.forEach((delivery) => {
+    if (!delivery) return;
+    if (delivery.status === 'completed' || delivery.status === 'failed') {
+      counts.completed_or_failed_deliveries++;
+    }
+    if (delivery.after_hours_pickup && (delivery.status === 'completed' || delivery.status === 'cancelled')) {
+      counts.after_hours_pickups++;
+    }
+    if (delivery.store_id) {
+      counts.by_store[delivery.store_id] = (counts.by_store[delivery.store_id] || 0) + 1;
+    }
+    if (delivery.driver_id) {
+      counts.by_driver[delivery.driver_id] = (counts.by_driver[delivery.driver_id] || 0) + 1;
+    }
+  });
+
+  return counts;
+};
+
+const getNewestUpdatedAt = (records = []) => {
+  let newest = null;
+  records.forEach((record) => {
+    const value = record?.updated_date || record?.created_date;
+    if (value && (!newest || value > newest)) newest = value;
+  });
+  return newest;
+};
+
+const countSummaryNeedsRefresh = (summaryRecord, deliveries) => {
+  if (!summaryRecord) return true;
+  if (summaryRecord.summary_version !== SUMMARY_VERSION) return true;
+
+  const latestUpdatedAt = getNewestUpdatedAt(deliveries);
+  const currentCounts = buildMonthlyDeliveryCounts(deliveries);
+  const savedCounts = summaryRecord.delivery_counts || {};
+
+  return JSON.stringify(savedCounts) !== JSON.stringify(currentCounts)
+    || (summaryRecord.last_source_delivery_updated_at || null) !== (latestUpdatedAt || null);
+};
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -135,6 +195,37 @@ Deno.serve(async (req) => {
       adminMetricsYear, adminMetricsCityId,
       payrollYear, payrollCityId,
     } = body;
+
+    const fetchMonthlySummaryRecord = async (year, month, cityId) => {
+      const summaryRecords = await base44.asServiceRole.entities.AdminMetricsSummary.filter({ year, month, city_id: cityId }, '', 10).catch((error) => {
+        if (isNotFoundError(error)) return [];
+        throw error;
+      });
+      return summaryRecords?.[0] || null;
+    };
+
+    const upsertMonthlySummaryRecord = async ({ year, month, cityId, adminMetrics, payrollMetrics, deliveries }) => {
+      const existingRecord = await fetchMonthlySummaryRecord(year, month, cityId);
+      const { start, end } = getMonthDateRange(year, month);
+      const payload = {
+        city_id: cityId,
+        year,
+        month,
+        period_start: start,
+        period_end: end,
+        summary_version: SUMMARY_VERSION,
+        delivery_counts: buildMonthlyDeliveryCounts(deliveries),
+        admin_metrics: adminMetrics,
+        payroll_metrics: payrollMetrics,
+        last_source_delivery_updated_at: getNewestUpdatedAt(deliveries),
+        calculated_at: new Date().toISOString()
+      };
+
+      if (existingRecord?.id) {
+        return await base44.asServiceRole.entities.AdminMetricsSummary.update(existingRecord.id, payload);
+      }
+      return await base44.asServiceRole.entities.AdminMetricsSummary.create(payload);
+    };
 
     const fetchYearData = async (year, cityId) => {
       const cacheKey = `${CACHE_VERSION}_${year}_${cityId || 'all'}`;
@@ -211,23 +302,7 @@ Deno.serve(async (req) => {
       return data;
     };
 
-    let adminMetrics = null;
-    if (adminMetricsYear) {
-      const yearData = await fetchYearData(adminMetricsYear, adminMetricsCityId);
-      adminMetrics = processAdminMetrics(
-        yearData.deliveries,
-        yearData.stores,
-        yearData.appUsers,
-        yearData.patients,
-        adminMetricsYear,
-        yearData.appFeeRate
-      );
-      adminMetrics.envelopeMetrics = calculateEnvelopeMetrics(yearData.deliveries, yearData.stores);
-    }
-
-    let payrollData = null;
-    if (payrollYear) {
-      const yearData = await fetchYearData(payrollYear, payrollCityId);
+    const buildPayrollData = (yearData) => {
       const drivers = yearData.appUsers.filter((appUserRecord) => appUserRecord.app_roles && appUserRecord.app_roles.includes('driver'));
 
       const driverStats = {};
@@ -277,7 +352,7 @@ Deno.serve(async (req) => {
         }
       });
 
-      payrollData = {
+      return {
         deliveries: yearData.deliveries,
         patients: yearData.patients,
         appUsers: yearData.appUsers,
@@ -293,6 +368,67 @@ Deno.serve(async (req) => {
           stores: yearData.stores.length
         }
       };
+    };
+
+    const warmMonthlySummaries = async (year, cityId) => {
+      const yearData = await fetchYearData(year, cityId);
+      for (let month = 1; month <= 12; month++) {
+        const { start, end } = getMonthDateRange(year, month);
+        const monthDeliveries = (yearData.deliveries || []).filter((delivery) => delivery?.delivery_date >= start && delivery?.delivery_date <= end);
+        if (!monthDeliveries.length) continue;
+
+        const existingSummary = await fetchMonthlySummaryRecord(year, month, cityId);
+        if (!countSummaryNeedsRefresh(existingSummary, monthDeliveries)) continue;
+
+        const monthPayrollRecords = (yearData.payrollRecords || []).filter((record) => record?.pay_period_start >= start && record?.pay_period_start <= end);
+        const monthData = {
+          ...yearData,
+          deliveries: monthDeliveries,
+          payrollRecords: monthPayrollRecords
+        };
+
+        const adminMetricsForMonth = processAdminMetrics(
+          monthData.deliveries,
+          monthData.stores,
+          monthData.appUsers,
+          monthData.patients,
+          year,
+          monthData.appFeeRate
+        );
+        adminMetricsForMonth.envelopeMetrics = calculateEnvelopeMetrics(monthData.deliveries, monthData.stores);
+
+        const payrollMetricsForMonth = buildPayrollData(monthData);
+
+        await upsertMonthlySummaryRecord({
+          year,
+          month,
+          cityId,
+          adminMetrics: adminMetricsForMonth,
+          payrollMetrics: payrollMetricsForMonth,
+          deliveries: monthDeliveries
+        });
+      }
+      return yearData;
+    };
+
+    let adminMetrics = null;
+    if (adminMetricsYear) {
+      const yearData = await warmMonthlySummaries(adminMetricsYear, adminMetricsCityId);
+      adminMetrics = processAdminMetrics(
+        yearData.deliveries,
+        yearData.stores,
+        yearData.appUsers,
+        yearData.patients,
+        adminMetricsYear,
+        yearData.appFeeRate
+      );
+      adminMetrics.envelopeMetrics = calculateEnvelopeMetrics(yearData.deliveries, yearData.stores);
+    }
+
+    let payrollData = null;
+    if (payrollYear) {
+      const yearData = await warmMonthlySummaries(payrollYear, payrollCityId);
+      payrollData = buildPayrollData(yearData);
     }
 
     return Response.json({ adminMetrics, payrollData });
