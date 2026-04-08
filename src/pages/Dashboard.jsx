@@ -261,20 +261,11 @@ function Dashboard() {
     if (!currentUser || !isDataLoaded) return;
 
     const handleImmediateDeliveryUpdate = async (event) => {
-      const { immediate, freshDeliveries, deliveryDate, skipMapPhaseOneRefresh } = event.detail || {};
+      const { immediate, freshDeliveries } = event.detail || {};
 
-      if (immediate) {
-        if (updateDeliveriesLocally) {
-          const dedupedFresh = Array.from(new Map(freshDeliveries.filter(Boolean).map((d) => [d.id, d])).values());
-          updateDeliveriesLocally(dedupedFresh, false);
-        }
-
-        const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true, 'Dashboard', selectedDate, true);
-        const latestAppUsers = locationUpdates?.appUsers || appUsers;
-
-        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-          detail: { appUsers: latestAppUsers, forceAll: true }
-        }));
+      if (immediate && updateDeliveriesLocally && Array.isArray(freshDeliveries)) {
+        const dedupedFresh = Array.from(new Map(freshDeliveries.filter(Boolean).map((d) => [d.id, d])).values());
+        updateDeliveriesLocally(dedupedFresh, false);
       }
     };
 

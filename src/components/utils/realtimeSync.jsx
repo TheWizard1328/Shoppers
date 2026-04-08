@@ -149,7 +149,8 @@ async function flushBuffered(entityName) {
         fromRealtime: true,
         fullReplacement: true,
         skipMapPhaseOneRefresh: true,
-        preserveLocalState: true
+        preserveLocalState: true,
+        skipDriverLocationRefresh: true
       }
     }));
   }
@@ -654,7 +655,8 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
             triggeredBy: 'realtimeBroadcast',
             source: 'realtime_sync',
             fromRealtime: true,
-            preserveLocalState: true
+            preserveLocalState: true,
+            skipDriverLocationRefresh: true
           }
         }));
       }
