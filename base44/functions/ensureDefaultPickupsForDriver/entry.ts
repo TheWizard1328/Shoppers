@@ -127,6 +127,20 @@ function findReusablePickup(pickups, targetSlot) {
 }
 
 async function ensurePickup(base44, { store, deliveryDate, driverId, driverName, slot, dispatcherId, createdByAppUserId }) {
+  const normalizePickupPuid = async (pickup) => {
+    if (!pickup?.id) return pickup;
+    const desiredPuid = pickup.puid || pickup.stop_id || null;
+    if (!desiredPuid) return pickup;
+    if (pickup.puid === desiredPuid && pickup.stop_id === desiredPuid) return pickup;
+    const updatedPickup = await base44.asServiceRole.entities.Delivery.update(pickup.id, {
+      stop_id: desiredPuid,
+      puid: desiredPuid,
+    }).catch((error) => {
+      if (isNotFoundError(error)) return null;
+      throw error;
+    });
+    return updatedPickup || { ...pickup, stop_id: desiredPuid, puid: desiredPuid };
+  };
   const existingStoreDeliveries = await base44.asServiceRole.entities.Delivery.filter({
     store_id: store.id,
     delivery_date: deliveryDate,
@@ -146,16 +160,18 @@ async function ensurePickup(base44, { store, deliveryDate, driverId, driverName,
         if (isNotFoundError(error)) return null;
         throw error;
       });
-      return updatedPickup || reusablePickup;
+      return await normalizePickupPuid(updatedPickup || reusablePickup);
     }
-    return reusablePickup;
+    return await normalizePickupPuid(reusablePickup);
   }
 
   const times = getSlotTimes(store, deliveryDate, slot);
   const fallbackTimes = getFallbackTimes(slot);
 
-  return await base44.asServiceRole.entities.Delivery.create({
-    stop_id: generateShortStopId(),
+  const pickupStopId = generateShortStopId();
+  const createdPickup = await base44.asServiceRole.entities.Delivery.create({
+    stop_id: pickupStopId,
+    puid: pickupStopId,
     store_id: store.id,
     delivery_id: generateDeliveryId(),
     delivery_date: deliveryDate,
@@ -169,6 +185,8 @@ async function ensurePickup(base44, { store, deliveryDate, driverId, driverName,
     delivery_time_end: times.end || fallbackTimes.end,
     tracking_number: getNextPickupTrackingNumber((routeDeliveries || []).filter((item) => !item?.patient_id)),
   });
+
+  return await normalizePickupPuid(createdPickup);
 }
 
 Deno.serve(async (req) => {

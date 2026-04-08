@@ -55,15 +55,39 @@ function generateDeliveryId() {
 const ensurePickupInFlight = new Map();
 const ensurePickupRecent = new Map();
 
-async function ensurePickupDriverName(base44, pickup, driverName) {
-  if (!pickup || pickup.driver_name || !driverName) return pickup;
+async function normalizePickupPuid(base44, pickup) {
+  if (!pickup?.id) return pickup;
+  const desiredPuid = pickup.puid || pickup.stop_id || null;
+  if (!desiredPuid) return pickup;
+  if (pickup.puid === desiredPuid && pickup.stop_id === desiredPuid) return pickup;
   try {
-    return await base44.asServiceRole.entities.Delivery.update(pickup.id, { driver_name: driverName }).catch((error) => {
+    return await base44.asServiceRole.entities.Delivery.update(pickup.id, {
+      stop_id: desiredPuid,
+      puid: desiredPuid,
+    }).catch((error) => {
+      if (isNotFoundError(error)) return null;
+      throw error;
+    }) || { ...pickup, stop_id: desiredPuid, puid: desiredPuid };
+  } catch (_) {
+    return { ...pickup, stop_id: desiredPuid, puid: desiredPuid };
+  }
+}
+
+async function ensurePickupDriverName(base44, pickup, driverName) {
+  if (!pickup) return pickup;
+  const desiredPuid = pickup.puid || pickup.stop_id || null;
+  if (pickup.driver_name === driverName && pickup.puid === desiredPuid && pickup.stop_id === desiredPuid) return pickup;
+  try {
+    const updatedPickup = await base44.asServiceRole.entities.Delivery.update(pickup.id, {
+      ...(driverName ? { driver_name: driverName } : {}),
+      ...(desiredPuid ? { stop_id: desiredPuid, puid: desiredPuid } : {})
+    }).catch((error) => {
       if (isNotFoundError(error)) return null;
       throw error;
     });
+    return updatedPickup || { ...pickup, ...(driverName ? { driver_name: driverName } : {}), ...(desiredPuid ? { stop_id: desiredPuid, puid: desiredPuid } : {}) };
   } catch (_) {
-    return { ...pickup, driver_name: driverName };
+    return { ...pickup, ...(driverName ? { driver_name: driverName } : {}), ...(desiredPuid ? { stop_id: desiredPuid, puid: desiredPuid } : {}) };
   }
 }
 
@@ -187,7 +211,8 @@ Deno.serve(async (req) => {
         stop_order: stopOrder
       });
 
-      return Response.json({ puid, pickupId: newPickup.id, isNew: true, pickup: newPickup });
+      const normalizedPickup = await normalizePickupPuid(base44, newPickup);
+      return Response.json({ puid, pickupId: normalizedPickup?.id || newPickup.id, isNew: true, pickup: normalizedPickup || newPickup });
     }
 
     const now = new Date();
@@ -313,7 +338,8 @@ Deno.serve(async (req) => {
       stop_order: stopOrder
     });
 
-    return Response.json({ puid, pickupId: newPickup.id, isNew: true, pickup: newPickup });
+    const normalizedPickup = await normalizePickupPuid(base44, newPickup);
+    return Response.json({ puid, pickupId: normalizedPickup?.id || newPickup.id, isNew: true, pickup: normalizedPickup || newPickup });
   } catch (error) {
     console.error('❌ Error in ensurePickupForDelivery:', error.message);
     return Response.json({ error: 'Failed to ensure pickup exists: ' + error.message }, { status: 500 });
