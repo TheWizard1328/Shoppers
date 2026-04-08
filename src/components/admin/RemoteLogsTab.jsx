@@ -34,7 +34,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
     const created = await base44.entities.RemoteLoggingSettings.create({
       scope: 'global',
       enabled: false,
-      capture_levels: ['log', 'info', 'warn', 'error', 'debug'],
+      capture_levels: ['warn', 'error', 'debug'],
       included_user_ids: [],
       excluded_user_ids: [],
       batch_size: 20,
@@ -48,6 +48,12 @@ export default function RemoteLogsTab({ appUsers = [] }) {
     const current = await ensureSettings();
     const updated = await base44.entities.RemoteLoggingSettings.update(current.id, { ...current, ...patch });
     setSettings(updated);
+  };
+
+  const clearLogs = async () => {
+    const rows = await base44.entities.RemoteLogEntry.list('-timestamp', 300);
+    await Promise.all((rows || []).map((row) => base44.entities.RemoteLogEntry.delete(row.id)));
+    setLogs([]);
   };
 
 
@@ -89,7 +95,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <span className="font-medium">Global logging</span>
-            <Switch checked={settings?.enabled === true} onCheckedChange={(checked) => updateSettings({ enabled: checked })} />
+            <Switch checked={settings?.enabled === true} onCheckedChange={(checked) => updateSettings({ enabled: checked, capture_levels: ['warn', 'error', 'debug'] })} />
           </div>
           <div className="space-y-1">
             <div className="font-medium">Only log selected users</div>
@@ -160,6 +166,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
               </SelectContent>
             </Select>
             <Button variant="outline" onClick={loadData}>Refresh</Button>
+            <Button variant="destructive" onClick={clearLogs}>Clear Logs</Button>
           </div>
 
           <div className="max-h-[600px] overflow-auto rounded border">
