@@ -214,7 +214,7 @@ const findCurrentPeriodIndex = (periods, today) => {
 export default function DriverPayroll() {
   // CRITICAL: ALL hooks must be at the top, before any conditional logic
   const { currentUser } = useUser();
-  const { smartRefreshActivity, setSmartRefreshActivity } = useAppData();
+  useAppData();
 
   const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear());
   const [selectedCityId, setSelectedCityId] = useState('all');
@@ -229,7 +229,6 @@ export default function DriverPayroll() {
   const [isCapturingScreenshot, setIsCapturingScreenshot] = useState(false);
   const [screenshotDataUrl, setScreenshotDataUrl] = useState(null);
   const [showScreenshotModal, setShowScreenshotModal] = useState(false);
-  const [showUpdated, setShowUpdated] = useState(false);
 
   const contentRef = useRef(null);
   const isManualChangeRef = useRef(false);
@@ -670,9 +669,6 @@ export default function DriverPayroll() {
     const runFetch = async () => {
       if (!isAutoRefresh) setIsLoadingPayroll(true);
 
-      if (isAutoRefresh && setSmartRefreshActivity) {
-        setSmartRefreshActivity({ active: true, updatedEntities: ['Payroll', 'Delivery'] });
-      }
 
       try {
         if (fullYearPayrollDataRef.current && !forceFresh) {
@@ -714,15 +710,12 @@ export default function DriverPayroll() {
       } finally {
         fetchPayrollInFlightRef.current = null;
         if (!isAutoRefresh) setIsLoadingPayroll(false);
-        if (isAutoRefresh && setSmartRefreshActivity) {
-          setSmartRefreshActivity({ active: false, updatedEntities: [] });
-        }
       }
     };
 
     fetchPayrollInFlightRef.current = runFetch();
     return fetchPayrollInFlightRef.current;
-  }, [selectedYear, currentUser, isPayrollPageActive, setSmartRefreshActivity]);
+  }, [selectedYear, currentUser, isPayrollPageActive]);
 
   const handleManualRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -982,30 +975,6 @@ export default function DriverPayroll() {
     periodSelectionDoneWithRecordsRef.current = true;
   }, [payPeriod, selectedYear, allPeriods, hasInitialized, payrollRecords, payrollData, selectedPeriodIndex]);
 
-  // Refresh payroll only on explicit manual refreshes or when a route shift completes.
-  useEffect(() => {
-    if (!hasInitialized || !isPayrollPageActive) return;
-
-    let hideTimer = null;
-
-    const handleRouteShiftCompleted = async () => {
-      try {
-        await fetchPayroll(true, true);
-        setShowUpdated(true);
-        if (hideTimer) clearTimeout(hideTimer);
-        hideTimer = setTimeout(() => setShowUpdated(false), 3000);
-      } catch (e) {
-        console.warn('Route-complete payroll refresh failed:', e);
-      }
-    };
-
-    window.addEventListener('routeShiftCompleted', handleRouteShiftCompleted);
-
-    return () => {
-      window.removeEventListener('routeShiftCompleted', handleRouteShiftCompleted);
-      if (hideTimer) clearTimeout(hideTimer);
-    };
-  }, [hasInitialized, isPayrollPageActive, fetchPayroll]);
 
   // Filter payroll records when period changes (don't re-fetch since all year data is loaded)
   // CRITICAL: Uses refs to avoid redundant updates
@@ -1186,9 +1155,6 @@ export default function DriverPayroll() {
                 )}
                 </SelectContent>
               </Select>
-              {showUpdated &&
-            <span className="ml-2 text-xs text-emerald-700 bg-emerald-100 border border-emerald-200 rounded-full px-2 py-0.5">Updated</span>
-            }
               </div>
 
             {/* Icon Buttons - Far Right (Desktop only) */}
