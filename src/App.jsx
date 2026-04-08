@@ -1,4 +1,5 @@
 import '@/components/utils/storageQuotaGuard'
+import '@/components/utils/remoteLoggerInit'
 import './App.css'
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'

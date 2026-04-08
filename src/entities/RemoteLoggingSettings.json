@@ -1,0 +1,50 @@
+{
+  "name": "RemoteLoggingSettings",
+  "type": "object",
+  "properties": {
+    "scope": {
+      "type": "string",
+      "enum": ["global"],
+      "default": "global",
+      "description": "Single global settings record"
+    },
+    "enabled": {
+      "type": "boolean",
+      "default": false,
+      "description": "Master switch for remote logging"
+    },
+    "capture_levels": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["log", "info", "warn", "error", "debug"]
+      },
+      "description": "Enabled log levels"
+    },
+    "included_user_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "If non-empty, only these users are logged"
+    },
+    "excluded_user_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Users excluded from logging"
+    },
+    "batch_size": {
+      "type": "number",
+      "default": 20,
+      "description": "Max logs to send per batch"
+    },
+    "flush_interval_ms": {
+      "type": "number",
+      "default": 15000,
+      "description": "How often buffered logs are sent"
+    }
+  },
+  "required": ["scope"]
+}
