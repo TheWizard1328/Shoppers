@@ -597,20 +597,8 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
     
     await new Promise(r => setTimeout(r, 3000));
     
-    // Step 5: Patients with timestamp check (or sync related to selected date deliveries)
-    let patients = [];
-    try {
-      const patientResult = await syncEntityWithTimestampCheck('Patient', Patient, { status: 'active' }, { status: 'active' });
-      invalidateEntityCache('Patient');
-      patients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
-      patients = patients.filter(p => p && p.id && !p.id.startsWith('temp_'));
-    } catch (patientError) {
-      console.warn('⚠️ [LoadPriorityData] Patient sync failed:', patientError.message);
-    }
-    
-    await new Promise(r => setTimeout(r, 3000));
-    
     // Step 5: Deliveries for selected date
+    let patients = [];
     const deliveryFilter = { delivery_date: selectedDateStr, ...filters };
     const deliveries = await Delivery.filter(deliveryFilter);
     
@@ -639,6 +627,7 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
           }
           await new Promise(r => setTimeout(r, 200));
         }
+        await offlineDB.updateSyncStatus('Patient', { recordCount: patientIdList.length, status: 'synced', lastSync: new Date().toISOString() });
       }
     }
     
@@ -910,7 +899,7 @@ export const performInitialSync = async (selectedDate = null) => {
     ? format(selectedDate, 'yyyy-MM-dd') 
     : format(new Date(), 'yyyy-MM-dd');
   
-  const priorityResult = await loadPriorityData(selectedDateStr);
+  const priorityResult = await loadPriorityData(selectedDateStr, { status: { $in: ['pending', 'in_transit', 'en_route', 'completed', 'failed', 'cancelled'] } });
   
   if (priorityResult.error) {
     return priorityResult;

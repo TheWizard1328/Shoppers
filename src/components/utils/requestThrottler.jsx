@@ -98,7 +98,7 @@ export const requestThrottler = {
         request.resolve(result);
         
         // Reset backoff on success
-        RATE_LIMIT_BACKOFF_MS = 60000;
+        RATE_LIMIT_BACKOFF_MS = 15000;
         
         // Small delay between requests in same priority
         await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
