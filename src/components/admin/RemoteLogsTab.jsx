@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import MultiSelect from '@/components/ui/multi-select';
 import { Label } from '@/components/ui/label';
 import { sortUsers, sortStores } from '@/components/utils/sorting';
+import { clearRemoteLogs } from '@/functions/clearRemoteLogs';
 
 export default function RemoteLogsTab({ appUsers = [] }) {
   const [logs, setLogs] = useState([]);
@@ -53,8 +54,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
   };
 
   const clearLogs = async () => {
-    const rows = await base44.entities.RemoteLogEntry.list('-timestamp', 1000);
-    await Promise.all((rows || []).map((row) => base44.entities.RemoteLogEntry.delete(row.id)));
+    await clearRemoteLogs({});
     setLogs([]);
   };
 
