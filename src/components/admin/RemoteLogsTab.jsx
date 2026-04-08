@@ -1,5 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
+
+const formatLogTimestamp = (timestamp) => {
+  if (!timestamp) return '-';
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return timestamp;
+  return date.toLocaleString();
+};
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -200,7 +207,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
               <tbody>
                 {filteredLogs.map((log) =>
                 <tr key={log.id} className="border-b align-top">
-                    <td className="p-2 whitespace-nowrap">{log.timestamp?.replace('T', ' ').slice(0, 19)}</td>
+                    <td className="p-2 whitespace-nowrap">{formatLogTimestamp(log.timestamp)}</td>
                     <td className="p-2 whitespace-nowrap">{log.level}</td>
                     <td className="p-2 whitespace-nowrap">{log.user_name || log.user_id || '-'}</td>
                     <td className="p-2 whitespace-nowrap">{log.page || '-'}</td>
