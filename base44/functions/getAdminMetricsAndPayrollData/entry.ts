@@ -156,7 +156,7 @@ Deno.serve(async (req) => {
       const [appSettings, allYearDeliveriesRaw, allYearPayrollRaw] = await Promise.all([
         base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }),
         fetchDateRangeRecords(base44.asServiceRole.entities.Delivery, 'delivery_date', yearStart, yearEnd, '-delivery_date'),
-        fetchDateRangeRecords(base44.asServiceRole.entities.Payroll, 'pay_period_start', yearStart, yearEnd, '-pay_period_start')
+        payrollYear ? fetchDateRangeRecords(base44.asServiceRole.entities.Payroll, 'pay_period_start', yearStart, yearEnd, '-pay_period_start') : Promise.resolve([])
       ]);
 
       let deliveries = dedupeById(allYearDeliveriesRaw || []);
@@ -173,7 +173,7 @@ Deno.serve(async (req) => {
           ? (cityStores.length ? cityStores.filter((store) => relevantStoreIds.includes(store.id)) : base44.asServiceRole.entities.Store.filter({ id: { $in: relevantStoreIds } }, '', 5000))
           : (cityStores.length ? cityStores : []),
         base44.asServiceRole.entities.AppUser.list('', 5000),
-        relevantPatientIds.length ? base44.asServiceRole.entities.Patient.filter({ id: { $in: relevantPatientIds } }, '', 5000) : []
+        []
       ]);
 
       const stores = (storesRaw || []).map((store) => pickFields(store, STORE_FIELDS));
@@ -184,7 +184,7 @@ Deno.serve(async (req) => {
         .filter((appUserRecord) => driverIdsToKeep.size === 0 || driverIdsToKeep.has(appUserRecord.user_id))
         .map((appUserRecord) => pickFields(appUserRecord, DRIVER_FIELDS));
 
-      const patients = (patientsRaw || []).map((patient) => pickFields(patient, PATIENT_FIELDS));
+      const patients = [];
 
       const relevantCityIds = Array.from(new Set(stores.map((store) => store.city_id).filter(Boolean)));
       const citiesRaw = relevantCityIds.length
@@ -307,13 +307,9 @@ Deno.serve(async (req) => {
 });
 
 function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFeeRate) {
-  const calculateExtraKm = (delivery, patientList) => {
+  const calculateExtraKm = (delivery) => {
     if (!delivery) return 0;
-    let distance = delivery.paid_km_override;
-    if (distance === undefined || distance === null) {
-      const patient = patientList?.find(p => p.id === delivery.patient_id);
-      distance = patient?.distance_from_store || 0;
-    }
+    const distance = delivery.paid_km_override ?? delivery.travel_dist ?? 0;
     const driver = appUsers.find(au => au.user_id === delivery.driver_id);
     const extraKmLimit = driver?.extra_km_limit || 0;
     const extraKm = distance - extraKmLimit;
@@ -392,13 +388,7 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
   });
   metrics.driverData = Array.from(uniqueDriverMap.values());
 
-  const patientMap = new Map((patients || []).map((patient) => [patient?.id, patient]));
-
-  const isReturn = (d) => {
-    if (!d?.patient_id) return false;
-    const patient = patientMap.get(d.patient_id);
-    return String(patient?.address || '').toUpperCase().includes('(RTN)');
-  };
+  const isReturn = (d) => String(d?.patient_name || '').toUpperCase().includes('(RTN)');
 
   const isCompletedPatientDelivery = (d) => d && d.status === 'completed' && !isReturn(d) && d.patient_id;
   const isFailedPatientDelivery = (d) => d && d.status === 'failed' && !isReturn(d) && d.patient_id;
@@ -514,7 +504,7 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
       if (isCompletedPatientForStore(delivery)) dailyStoreEntry.completed++;
       if (isFailedPatientForStore(delivery)) dailyStoreEntry.failed++;
       if (isCompletedAfterHoursPickup(delivery) || isCancelledAfterHoursPickup(delivery)) dailyStoreEntry.afterHours++;
-      if (delivery.patient_id && (isCompletedPatientForStore(delivery) || isFailedPatientForStore(delivery))) dailyStoreEntry.extra_km += calculateExtraKm(delivery, patients);
+      if (delivery.patient_id && (isCompletedPatientForStore(delivery) || isFailedPatientForStore(delivery))) dailyStoreEntry.extra_km += calculateExtraKm(delivery);
 
       if (wasPayingOnDeliveryDate && appFeeRate > 0) {
         storesPayingFeesSet.add(store.id);

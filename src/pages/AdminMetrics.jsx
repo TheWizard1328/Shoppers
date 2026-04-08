@@ -81,7 +81,7 @@ export default function AdminMetrics() {
 
   // Fetch metrics from backend - only when year or city changes or on initial load
   const fetchMetrics = useCallback(async (year, cityId, isInitial = false) => {
-    if (!hasAccess) return;
+    if (!hasAccess || !cityId) return;
 
     // Only show full loading screen on initial load
     if (isInitial) {
@@ -120,9 +120,9 @@ export default function AdminMetrics() {
   // Initial load - wait for city to be set
   useEffect(() => {
     if (hasAccess && initialCitySet && selectedCityId) {
-      fetchMetrics(selectedYear, selectedCityId, true); // isInitial = true
+      fetchMetrics(selectedYear, selectedCityId, true);
     }
-  }, [hasAccess, initialCitySet, selectedCityId]); // Wait for city selection
+  }, [hasAccess, initialCitySet, selectedCityId, selectedYear, fetchMetrics]);
 
   // Refresh metrics only on explicit manual refreshes or when a route shift completes.
   useEffect(() => {
@@ -149,7 +149,6 @@ export default function AdminMetrics() {
   // Handle city change
   const handleCityChange = (newCityId) => {
     setSelectedCityId(newCityId);
-    fetchMetrics(selectedYear, newCityId, false);
   };
 
   // Filter data based on selected month, store, and driver (client-side filtering)
