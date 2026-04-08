@@ -1631,9 +1631,6 @@ export default function DeliveryForm({
           
           // CRITICAL: Trigger immediate Dashboard UI refresh with current data
           window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-            detail: { appUsers: null }
-          }));
           
         } catch (error) {
           console.warn('⚠️ [DeliveryForm] Failed to resume some managers:', error);

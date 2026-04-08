@@ -696,7 +696,6 @@ export default function Layout({ children, currentPageName }) {
         if (freshDeliveries?.length > 0) {
           setDeliveries((prev) => { const map = new Map(prev.map((d) => [d?.id, d]).filter(([id]) => !!id)); freshDeliveries.forEach((d) => { if (d?.id) map.set(d.id, d); }); return Array.from(map.values()); });
         }
-        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers } }));
         return;
       }
       console.log(`🔄 [Layout] Delivery updated event: ${deliveryId} (${triggeredBy})`);
@@ -707,7 +706,6 @@ export default function Layout({ children, currentPageName }) {
         invalidate('Delivery');
         if (triggerFullDataLoadRef.current) triggerFullDataLoadRef.current(true);
       }
-      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers } }));
     };
     window.addEventListener('deliveriesUpdated', handleDeliveriesUpdated);
 
