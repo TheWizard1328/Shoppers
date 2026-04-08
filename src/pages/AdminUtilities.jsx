@@ -31,6 +31,7 @@ import { findFuzzyMatch, normalizeText } from '../components/utils/fuzzyMatching
 import { smartRefreshManager } from '../components/utils/smartRefreshManager';
 import { base44 } from '@/api/base44Client';
 import AppSettingsPanel from '../components/admin/AppSettingsPanel';
+import AdminUtilitiesExtraTabs from '../components/admin/AdminUtilitiesExtraTabs';
 import { loadUserSettings, saveSetting } from '../components/utils/userSettingsManager';
 import DeliveryForm from '../components/deliveries/DeliveryForm';
 import MessageRulesManager from '../components/admin/MessageRulesManager';
@@ -3668,7 +3669,7 @@ export default function AdminUtilities() {
 
         <Tabs value={activeUtilityTab} onValueChange={setActiveUtilityTab} className="w-full flex-1 flex flex-col min-h-0">
           <div className="overflow-x-auto overflow-y-hidden scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent">
-            <TabsList className="items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground grid min-w-full w-max gap-1 md:gap-0 h-auto md:h-14" style={{ gridTemplateColumns: 'repeat(8,minmax(max-content,1fr))' }}>
+            <TabsList className="items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground grid min-w-full w-max gap-1 md:gap-0 h-auto md:h-14" style={{ gridTemplateColumns: 'repeat(9,minmax(max-content,1fr))' }}>
               <TabsTrigger value="data" className="px-3 text-xs font-medium text-center rounded-md inline-flex items-center whitespace-nowrap ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow md:text-sm justify-center">Data</TabsTrigger>
               <TabsTrigger value="store-metrics" className="px-3 text-xs font-medium text-center rounded-md inline-flex items-center whitespace-nowrap ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow md:text-sm justify-center">Metrics</TabsTrigger>
               <TabsTrigger value="user-settings" className="px-3 text-xs font-medium text-center rounded-md inline-flex items-center whitespace-nowrap ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow md:text-sm justify-center">Settings</TabsTrigger>
@@ -3676,6 +3677,7 @@ export default function AdminUtilities() {
               <TabsTrigger value="message-rules" className="px-3 text-xs font-medium text-center rounded-md inline-flex items-center whitespace-nowrap ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow md:text-sm justify-center">Messages</TabsTrigger>
               <TabsTrigger value="polylines" className="px-3 text-xs font-medium text-center rounded-md inline-flex items-center whitespace-nowrap ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow md:text-sm justify-center">Routes</TabsTrigger>
               <TabsTrigger value="api-logs" className="px-3 text-xs font-medium text-center rounded-md inline-flex items-center whitespace-nowrap ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow md:text-sm justify-center">Logs</TabsTrigger>
+              <TabsTrigger value="remote-logs" className="px-3 text-xs font-medium text-center rounded-md inline-flex items-center whitespace-nowrap ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow md:text-sm justify-center">Remote Logs</TabsTrigger>
               <TabsTrigger value="patient-analysis" className="px-3 text-xs font-medium text-center rounded-md inline-flex items-center whitespace-nowrap ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow md:text-sm justify-center">Patient Analysis</TabsTrigger>
             </TabsList>
           </div>
@@ -3874,25 +3876,11 @@ export default function AdminUtilities() {
             
           </TabsContent>
 
-          <TabsContent value="app-settings">
-            <AppSettingsPanel />
-          </TabsContent>
-
-          <TabsContent value="message-rules">
-            <MessageRulesManager />
-          </TabsContent>
-
           <TabsContent value="polylines" className="mt-6 flex-1 min-h-0">
             <PolylineViewerWrapper users={mergedUsers} activeUtilityTab={activeUtilityTab} />
           </TabsContent>
 
-          <TabsContent value="api-logs">
-            <GoogleAPILogViewer />
-          </TabsContent>
-
-          <TabsContent value="patient-analysis">
-            <PatientAnalysisReview stores={stores || []} />
-          </TabsContent>
+          <AdminUtilitiesExtraTabs appUsers={appUsers || []} stores={stores || []} />
         </Tabs>
       </div>
 
