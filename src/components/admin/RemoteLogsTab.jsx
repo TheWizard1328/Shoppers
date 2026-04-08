@@ -16,7 +16,6 @@ export default function RemoteLogsTab({ appUsers = [] }) {
   const [level, setLevel] = useState('all');
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [logUserFilter, setLogUserFilter] = useState('all');
-  const [logUserOptions, setLogUserOptions] = useState([]);
 
   const loadData = async () => {
     const [logRows, settingsRows] = await Promise.all([
@@ -26,10 +25,6 @@ export default function RemoteLogsTab({ appUsers = [] }) {
     setLogs(logRows || []);
     setSettings(settingsRows?.[0] || null);
     setSelectedUsers(settingsRows?.[0]?.included_user_ids || []);
-    const uniqueLogUsers = Array.from(new Map((logRows || [])
-      .filter((row) => row?.user_id)
-      .map((row) => [row.user_id, { value: row.user_id, label: row.user_name || row.user_id }])).values());
-    setLogUserOptions(uniqueLogUsers);
   };
 
   useEffect(() => {
@@ -81,17 +76,11 @@ export default function RemoteLogsTab({ appUsers = [] }) {
     return sortStores((appUsers || []).filter((user) => user?.status === 'active' && user?.app_roles?.includes('dispatcher')));
   }, [appUsers]);
 
-  const combinedUserOptions = useMemo(() => {
-    const drivers = driverUsers.map((user) => ({
-      value: user.user_id || user.id,
-      label: user.user_name || user.full_name || user.id
-    }));
-    const stores = storeUsers.map((user) => ({
-      value: user.user_id || user.id,
-      label: user.user_name || user.full_name || user.id
-    }));
-    return [...drivers, ...stores];
-  }, [driverUsers, storeUsers]);
+  const logFilterOptions = useMemo(() => {
+    return Array.from(new Map((logs || [])
+      .filter((row) => row?.user_id)
+      .map((row) => [row.user_id, { value: row.user_id, label: row.user_name || row.user_id }])).values());
+  }, [logs]);
 
   return (
     <div className="space-y-6">
@@ -162,7 +151,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All users</SelectItem>
-                  {logUserOptions.map((user) => (
+                  {logFilterOptions.map((user) => (
                     <SelectItem key={user.value} value={user.value}>{user.label}</SelectItem>
                   ))}
                 </SelectContent>
