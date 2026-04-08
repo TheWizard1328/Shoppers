@@ -8,13 +8,14 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Flag } from 'lucide-react';
+import { Flag, FlagTriangleRight } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export default function ErrorFlagIndicator() {
-  const [flagStatus, setFlagStatus] = useState('green'); // green, yellow, red
+  const [flagStatus, setFlagStatus] = useState('green'); // green, yellow, red, sync
   const [lastError, setLastError] = useState(null);
   const [lastErrorTime, setLastErrorTime] = useState(null);
+  const [isDeliveryPatientSyncing, setIsDeliveryPatientSyncing] = useState(false);
   
   useEffect(() => {
     // Listen for rate limit errors
@@ -52,6 +53,27 @@ export default function ErrorFlagIndicator() {
       console.log('🚩 [ErrorFlag] Connection restored - GREEN FLAG');
     };
     
+    const handleSyncStatus = (event) => {
+      const detail = event.detail || {};
+      const entity = detail.entity;
+      const status = detail.status;
+      const isRelevantSync = entity === 'Deliveries' || entity === 'Patients' || entity === 'deliveries' || entity === 'patients' || detail.phase === 'deliveries' || detail.phase === 'patients';
+
+      if (!isRelevantSync) return;
+
+      if (status === 'syncing' || status === 'force_syncing' || status === 'background_syncing' || status === 'priority_sync') {
+        setIsDeliveryPatientSyncing(true);
+      }
+
+      if (status === 'complete' || status === 'synced' || status === 'error') {
+        setIsDeliveryPatientSyncing(false);
+      }
+    };
+
+    const handleOfflineSyncComplete = () => {
+      setIsDeliveryPatientSyncing(false);
+    };
+
     // Auto-clear flag after 5 seconds
     const interval = setInterval(() => {
       if (lastErrorTime && (Date.now() - lastErrorTime > 5000)) {
@@ -65,33 +87,45 @@ export default function ErrorFlagIndicator() {
     window.addEventListener('rateLimitDetected', handleRateLimit);
     window.addEventListener('connectionError', handleConnectionError);
     window.addEventListener('connectionRestored', handleConnectionRestored);
+    window.addEventListener('periodicSyncProgress', handleSyncStatus);
+    window.addEventListener('offlineSyncComplete', handleOfflineSyncComplete);
     
     return () => {
       clearInterval(interval);
       window.removeEventListener('rateLimitDetected', handleRateLimit);
       window.removeEventListener('connectionError', handleConnectionError);
       window.removeEventListener('connectionRestored', handleConnectionRestored);
+      window.removeEventListener('periodicSyncProgress', handleSyncStatus);
+      window.removeEventListener('offlineSyncComplete', handleOfflineSyncComplete);
     };
   }, [lastErrorTime]);
   
-  const colorClass = flagStatus === 'red' 
-    ? 'text-red-500' 
-    : flagStatus === 'yellow' 
-      ? 'text-yellow-500' 
-      : 'text-green-500';
+  const colorClass = isDeliveryPatientSyncing
+    ? 'text-blue-500'
+    : flagStatus === 'red' 
+      ? 'text-red-500' 
+      : flagStatus === 'yellow' 
+        ? 'text-yellow-500' 
+        : 'text-green-500';
   
-  const tooltipText = flagStatus === 'red' 
-    ? `Rate Limit Hit (${lastError || 'Unknown'})` 
-    : flagStatus === 'yellow' 
-      ? `Minor Error (${lastError || 'Unknown'})` 
-      : 'All Systems Normal';
+  const tooltipText = isDeliveryPatientSyncing
+    ? 'Delivery and patient sync in progress'
+    : flagStatus === 'red' 
+      ? `Rate Limit Hit (${lastError || 'Unknown'})` 
+      : flagStatus === 'yellow' 
+        ? `Minor Error (${lastError || 'Unknown'})` 
+        : 'All Systems Normal';
   
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
           <div className="flex items-center">
-            <Flag className={`w-3.5 h-3.5 ${colorClass}`} />
+            {isDeliveryPatientSyncing ? (
+              <FlagTriangleRight className={`w-3.5 h-3.5 ${colorClass} fill-current`} />
+            ) : (
+              <Flag className={`w-3.5 h-3.5 ${colorClass}`} />
+            )}
           </div>
         </TooltipTrigger>
         <TooltipContent className="z-[9999]">
