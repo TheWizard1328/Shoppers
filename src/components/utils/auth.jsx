@@ -22,7 +22,7 @@ clearLegacyHereLocalStorageCache();
 let userCache = {
   data: null,
   timestamp: 0,
-  ttl: 600000, // 10 minutes cache
+  ttl: 1800000, // 30 minutes cache
   lastFailureTime: 0,
   backoffTime: 0
 };
@@ -174,6 +174,7 @@ export const getEffectiveUser = async () => {
         }
 
         while (retryCount < maxRetries) {
+            if (persistedEffectiveUser) return cacheResolvedUser(persistedEffectiveUser);
             try {
                 if (!navigator.onLine) {
                     console.warn('⚠️ [auth.js] Device is offline, returning cached user data if available');
@@ -233,7 +234,7 @@ export const getEffectiveUser = async () => {
 
                 if (error.response?.status === 429 || errorMessage.includes('429') || errorMessage.includes('Rate limit')) {
                     userCache.lastFailureTime = Date.now();
-                    userCache.backoffTime = Math.min((userCache.backoffTime || 30000) * 2, 600000);
+                    userCache.backoffTime = Math.min((userCache.backoffTime || 60000) * 2, 1800000);
                     console.warn(`⏰ [auth.js] Rate limit detected. Backing off for ${userCache.backoffTime / 1000}s`);
 
                     if (userCache.data) {

@@ -9,14 +9,14 @@
  */
 
 const THROTTLE_DELAYS = {
-  critical: 300,
-  priority: 900,
-  standard: 1400,
-  background: 2500
+  critical: 800,
+  priority: 1500,
+  standard: 2200,
+  background: 3500
 };
 
-const BATCH_COOLDOWN = 300;
-let RATE_LIMIT_BACKOFF_MS = 15000;
+const BATCH_COOLDOWN = 800;
+let RATE_LIMIT_BACKOFF_MS = 30000;
 
 let requestQueue = [];
 let isProcessing = false;
