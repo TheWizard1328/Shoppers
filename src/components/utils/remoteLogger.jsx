@@ -40,9 +40,17 @@ const stringifyArg = (arg) => {
 };
 
 const loadSettings = async () => {
-  const rows = await base44.entities.RemoteLoggingSettings.filter({ scope: 'global' }, '-updated_date', 1);
-  activeSettings = rows?.[0] || null;
-  return activeSettings;
+  try {
+    const rows = await base44.entities.RemoteLoggingSettings.filter({ scope: 'global' }, '-updated_date', 1);
+    activeSettings = rows?.[0] || null;
+    return activeSettings;
+  } catch (error) {
+    if (String(error?.message || '').includes('RemoteLoggingSettings')) {
+      activeSettings = { enabled: false };
+      return activeSettings;
+    }
+    throw error;
+  }
 };
 
 const shouldCapture = async () => {
@@ -68,8 +76,16 @@ const flushNow = async () => {
   const nextBatch = buffer.slice(0, batchSize);
   const remaining = buffer.slice(batchSize);
 
-  await base44.entities.RemoteLogEntry.bulkCreate(nextBatch);
-  writeBuffer(remaining);
+  try {
+    await base44.entities.RemoteLogEntry.bulkCreate(nextBatch);
+    writeBuffer(remaining);
+  } catch (error) {
+    if (String(error?.message || '').includes('RemoteLogEntry')) {
+      activeSettings = { enabled: false };
+      return;
+    }
+    throw error;
+  }
 };
 
 const scheduleFlush = (interval) => {
@@ -109,9 +125,14 @@ const enqueue = async (level, args) => {
 
 export const initRemoteLogger = async () => {
   if (initialized || typeof window === 'undefined') return;
-  initialized = true;
 
   const settings = await loadSettings();
+  if (!settings || settings.enabled === false) {
+    initialized = true;
+    return;
+  }
+
+  initialized = true;
   scheduleFlush(Number(settings?.flush_interval_ms) || 15000);
 
   const original = {
