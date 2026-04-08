@@ -85,6 +85,7 @@ import DriverStatusToggle from './components/layout/DriverStatusToggle';
 import LocationTrackingToggle from './components/layout/LocationTrackingToggle';
 import AppErrorBoundary from './components/layout/AppErrorBoundary';
 import { loadUserSettings, saveSetting, clearSettingsCache, getDeviceType, getDeviceIdentifier } from './components/utils/userSettingsManager';
+import useAutoThemeSync from './components/utils/useAutoThemeSync';
 import DeviceSelectionModal from './components/devices/DeviceSelectionModal';
 import MessagingPanel from './components/messaging/MessagingPanel';
 import SmartRefreshIndicator from './components/layout/SmartRefreshIndicator';
@@ -236,6 +237,8 @@ export default function Layout({ children, currentPageName }) {
   const [sidebarWidth, setSidebarWidth] = useState(240); // Will be loaded from user settings
   const [themePreference, setThemePreference] = useState('auto');
   const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
+
+  useAutoThemeSync(themePreference);
   const [dataSource, setDataSource] = useState('offline'); // 'offline' or 'online'
   const [branding, setBranding] = useState({
     logo_url: '',
@@ -244,20 +247,6 @@ export default function Layout({ children, currentPageName }) {
     secondary_color: '#FFFFFF',
     accent_color: '#0066CC'
   });
-
-  // Apply theme class and respect system dark mode when set to auto
-  useEffect(() => {
-    if (themePreference === 'dark') {
-      document.documentElement.classList.remove('auto-theme', 'light-theme');
-      document.documentElement.classList.add('dark-theme', 'dark');
-    } else if (themePreference === 'light') {
-      document.documentElement.classList.remove('auto-theme', 'dark-theme', 'dark');
-      document.documentElement.classList.add('light-theme');
-    } else {
-      document.documentElement.classList.remove('light-theme', 'dark-theme', 'dark');
-      document.documentElement.classList.add('auto-theme');
-    }
-  }, [themePreference]);
 
   const handleThemeChange = async (newTheme) => {
     setThemePreference(newTheme);
