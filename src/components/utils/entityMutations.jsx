@@ -400,6 +400,16 @@ export const deletePatient = async (patientId, options = {}) => {
     // Notify UI immediately
     notifyMutation({ type: 'delete', entity: 'Patient', id: patientId, data: null });
 
+    // CRITICAL: Remove deleted patient from all caches and forms immediately
+    const { removeDeletedFromCache, invalidate } = await import('./dataManager');
+    removeDeletedFromCache('Patient', [patientId]);
+    invalidate('Patient');
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('patientDeleted', {
+        detail: { patientId }
+      }));
+    }
+
     // Sync to backend
     try {
       await base44.entities.Patient.delete(patientId);

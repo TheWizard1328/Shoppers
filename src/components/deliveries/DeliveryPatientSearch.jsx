@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -45,9 +45,13 @@ export default function DeliveryPatientSearch({
   locked = false
 }) {
   const showCameraButton = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const visiblePatients = React.useMemo(
+    () => (filteredPatients || []).filter((patient) => !patient?._isDeletedLocally),
+    [filteredPatients]
+  );
 
   const handlePatientSearchKeyDown = (e) => {
-    if (!filteredPatients.length) {
+    if (!visiblePatients.length) {
       handleSearchKeyDown?.(e);
       return;
     }
@@ -57,7 +61,7 @@ export default function DeliveryPatientSearch({
       const direction = e.key === 'ArrowDown' ? 1 : -1;
       const nextIndex = highlightedPatientIndex < 0 ?
       0 :
-      Math.max(0, Math.min(filteredPatients.length - 1, highlightedPatientIndex + direction));
+      Math.max(0, Math.min(visiblePatients.length - 1, highlightedPatientIndex + direction));
 
       setHighlightedPatientIndex(nextIndex);
       requestAnimationFrame(() => {
@@ -70,7 +74,7 @@ export default function DeliveryPatientSearch({
       e.preventDefault();
       e.stopPropagation();
       addPatientButtonRef?.current?.blur?.();
-      const highlightedPatient = filteredPatients[highlightedPatientIndex];
+      const highlightedPatient = visiblePatients[highlightedPatientIndex];
       if (!highlightedPatient?._isAlreadyStaged) {
         onPatientSelect(highlightedPatient, false);
       }
@@ -154,7 +158,7 @@ export default function DeliveryPatientSearch({
             </div>
         }
 
-          {filteredPatients.length === 0 ?
+          {visiblePatients.length === 0 ?
         <div className="p-4 text-center text-slate-500 text-sm">
               No patients found
               {onCreatePatient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
@@ -178,7 +182,7 @@ export default function DeliveryPatientSearch({
             </div> :
 
         <div className="divide-y">
-              {filteredPatients.map((patient, index) => {
+              {visiblePatients.map((patient, index) => {
             const patientStore = stores?.find((s) => s && s.id === patient.store_id);
             const storeAbbr = patientStore?.abbreviation || '';
             const isHighlighted = index === highlightedPatientIndex;
