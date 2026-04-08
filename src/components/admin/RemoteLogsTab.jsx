@@ -16,9 +16,9 @@ export default function RemoteLogsTab({ appUsers = [] }) {
 
   const loadData = async () => {
     const [logRows, settingsRows] = await Promise.all([
-      base44.entities.RemoteLogEntry.list('-timestamp', 300),
-      base44.entities.RemoteLoggingSettings.filter({ scope: 'global' }, '-updated_date', 1)
-    ]);
+    base44.entities.RemoteLogEntry.list('-timestamp', 300),
+    base44.entities.RemoteLoggingSettings.filter({ scope: 'global' }, '-updated_date', 1)]
+    );
     setLogs(logRows || []);
     setSettings(settingsRows?.[0] || null);
     setSelectedUsers(settingsRows?.[0]?.included_user_ids || []);
@@ -74,18 +74,18 @@ export default function RemoteLogsTab({ appUsers = [] }) {
             <span className="font-medium">Global logging</span>
             <Switch checked={settings?.enabled === true} onCheckedChange={(checked) => updateSettings({ enabled: checked })} />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1">
             <div className="font-medium">Only log selected users</div>
             <div className="grid gap-2 md:grid-cols-2">
-              {appUsers.map((user) => (
-                <label key={user.id} className="flex items-center gap-2 rounded border p-2">
+              {appUsers.map((user) =>
+              <label key={user.id} className="flex items-center gap-2 rounded border p-2">
                   <Checkbox
-                    checked={selectedUsers.includes(user.user_id || user.id)}
-                    onCheckedChange={(checked) => toggleUser(user.user_id || user.id, checked === true)}
-                  />
+                  checked={selectedUsers.includes(user.user_id || user.id)}
+                  onCheckedChange={(checked) => toggleUser(user.user_id || user.id, checked === true)} />
+                
                   <span>{user.user_name || user.full_name || user.id}</span>
                 </label>
-              ))}
+              )}
             </div>
             <div className="text-xs text-slate-500">If nobody is selected, logging applies to all users except excluded ones.</div>
           </div>
@@ -125,20 +125,20 @@ export default function RemoteLogsTab({ appUsers = [] }) {
                 </tr>
               </thead>
               <tbody>
-                {filteredLogs.map((log) => (
-                  <tr key={log.id} className="border-b align-top">
+                {filteredLogs.map((log) =>
+                <tr key={log.id} className="border-b align-top">
                     <td className="p-2 whitespace-nowrap">{log.timestamp?.replace('T', ' ').slice(0, 19)}</td>
                     <td className="p-2 whitespace-nowrap">{log.level}</td>
                     <td className="p-2 whitespace-nowrap">{log.user_name || log.user_id || '-'}</td>
                     <td className="p-2 whitespace-nowrap">{log.page || '-'}</td>
                     <td className="p-2 break-words">{log.message}</td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
         </CardContent>
       </Card>
-    </div>
-  );
+    </div>);
+
 }
