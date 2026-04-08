@@ -10,6 +10,7 @@ let activityLevel = 'normal'; // 'idle', 'normal', 'active'
 let activityListeners = [];
 
 const IDLE_THRESHOLD = 5 * 60 * 1000; // 5 minutes
+const BACKGROUND_SYNC_IDLE_THRESHOLD = 2 * 60 * 1000; // 2 minutes
 const ACTIVE_THRESHOLD = 30 * 1000; // 30 seconds
 
 export const userActivityMonitor = {
@@ -45,6 +46,11 @@ export const userActivityMonitor = {
    * Check if user is idle
    */
   isIdle: () => (Date.now() - lastActivityTime) > IDLE_THRESHOLD,
+
+  /**
+   * Check if user has been inactive long enough for conservative background sync
+   */
+  isBackgroundSyncIdle: () => (Date.now() - lastActivityTime) > BACKGROUND_SYNC_IDLE_THRESHOLD,
 
   /**
    * Subscribe to activity changes

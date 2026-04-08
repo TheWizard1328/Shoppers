@@ -27,6 +27,8 @@ import {
 } from './dataSyncCoordinator';
 import { getOfflineStoreName, OFFLINE_SYNC_ENTITY_CLIENTS } from './offlineEntityRegistry';
 import { getLocalDateString } from './localTimeHelper';
+import { isMobileDevice } from './deviceUtils';
+import { userActivityMonitor } from './userActivityMonitor';
 
 // Configuration
 const PATIENT_BATCH_SIZE = 25; // Even smaller chunks to reduce rate limits
@@ -35,22 +37,28 @@ const BATCH_COOLDOWN = 10000;
 const DELIVERY_DATE_RANGE_DAYS = 90;
 const PATIENT_SYNC_INTERVAL_HOURS = 168; // Only sync patients once per 7 days in background
 const BACKGROUND_SYNC_MIN_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes between background sync runs
+const HISTORICAL_SYNC_COOLDOWN_MS = 1500;
+const HISTORICAL_PATIENT_STORE_BATCH_SIZE = 100;
+const MOBILE_HISTORICAL_SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 const getMutationEntityClient = (entityName) => OFFLINE_SYNC_ENTITY_CLIENTS[entityName] || null;
 
 let syncInProgress = false;
 let syncPaused = false;
+let syncPauseReasons = new Set();
 let syncListeners = [];
 let lastBackgroundSyncAt = 0;
 
 // ==================== SYNC CONTROL ====================
 
-export const pauseOfflineSync = () => {
+export const pauseOfflineSync = (reason = 'general') => {
+  syncPauseReasons.add(reason);
   syncPaused = true;
 };
 
-export const resumeOfflineSync = () => {
-  syncPaused = false;
+export const resumeOfflineSync = (reason = 'general') => {
+  syncPauseReasons.delete(reason);
+  syncPaused = syncPauseReasons.size > 0;
 };
 
 export const isOfflineSyncPaused = () => syncPaused;
@@ -228,6 +236,83 @@ const syncPatientsByIds = async (patientIds = [], batchSize = 50) => {
 
   await offlineDB.updateSyncMetadata('Patient', new Date().toISOString(), new Date().toISOString());
   return { totalPatients, freshPatients };
+};
+
+const getHistoricalSyncMeta = async () => {
+  const metadata = await offlineDB.getSyncMetadata('Historical_Mobile_Sync');
+  return metadata || {};
+};
+
+const updateHistoricalSyncMeta = async (updates = {}) => {
+  const current = await getHistoricalSyncMeta();
+  await offlineDB.updateSyncMetadata('Historical_Mobile_Sync', null, new Date().toISOString(), {
+    ...current,
+    ...updates
+  });
+};
+
+const shouldRunMobileHistoricalSync = async () => {
+  if (!isMobileDevice()) return false;
+  if (!userActivityMonitor.isBackgroundSyncIdle()) return false;
+  const metadata = await getHistoricalSyncMeta();
+  const lastCompletedAt = metadata?.last_completed_at ? new Date(metadata.last_completed_at).getTime() : 0;
+  return !lastCompletedAt || (Date.now() - lastCompletedAt) >= MOBILE_HISTORICAL_SYNC_INTERVAL_MS;
+};
+
+const getHistoricalDeliveryIndex = async () => {
+  const metadata = await getHistoricalSyncMeta();
+  return Number.isInteger(metadata?.delivery_cycle_index) ? metadata.delivery_cycle_index : 1;
+};
+
+const getHistoricalPatientStoreIndex = async () => {
+  const metadata = await getHistoricalSyncMeta();
+  return Number.isInteger(metadata?.patient_store_index) ? metadata.patient_store_index : 0;
+};
+
+const syncHistoricalPatientsByStore = async (storeIds = null) => {
+  const allStores = await offlineDB.getAll(offlineDB.STORES.STORES);
+  const targetStores = (allStores || []).filter((store) => store && (!storeIds?.length || storeIds.includes(store.id)));
+  if (targetStores.length === 0) {
+    return { success: true, completed: true, count: 0 };
+  }
+
+  const storeIndex = await getHistoricalPatientStoreIndex();
+  const targetStore = targetStores[storeIndex] || targetStores[0];
+  if (!targetStore?.id) {
+    return { success: true, completed: true, count: 0 };
+  }
+
+  let totalPatients = 0;
+  let offset = 0;
+  while (true) {
+    if (syncPaused || !userActivityMonitor.isBackgroundSyncIdle()) {
+      return { success: true, paused: true, count: totalPatients };
+    }
+
+    const batchPatients = await Patient.filter({ store_id: targetStore.id }, '-updated_date', HISTORICAL_PATIENT_STORE_BATCH_SIZE, offset);
+    if (!batchPatients || batchPatients.length === 0) break;
+
+    await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, batchPatients);
+    invalidateEntityCache('Patient');
+    totalPatients += batchPatients.length;
+
+    notifySyncStatus({ status: 'background_syncing', phase: 'patients', storeId: targetStore.id, count: totalPatients });
+
+    if (batchPatients.length < HISTORICAL_PATIENT_STORE_BATCH_SIZE) break;
+    offset += HISTORICAL_PATIENT_STORE_BATCH_SIZE;
+    await new Promise((resolve) => setTimeout(resolve, HISTORICAL_SYNC_COOLDOWN_MS));
+  }
+
+  const nextStoreIndex = storeIndex + 1;
+  const completed = nextStoreIndex >= targetStores.length;
+  await updateHistoricalSyncMeta({
+    patient_store_index: completed ? 0 : nextStoreIndex,
+    patient_phase_complete: completed,
+    patient_last_store_id: targetStore.id,
+    patient_last_synced_at: new Date().toISOString()
+  });
+
+  return { success: true, completed, count: totalPatients, storeId: targetStore.id };
 };
 
 // ==================== PRIORITY DATA LOADING ====================
@@ -678,25 +763,25 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
  */
 const getNextDeliveryDateToSync = async () => {
   try {
-    const metadata = await offlineDB.getSyncMetadata('Delivery_DateCycle');
-    const lastCycleDate = metadata?.lastCycleDate ? new Date(metadata.lastCycleDate) : null;
-    const cycleIndex = metadata?.cycleIndex || 0;
-    
-    // Start from today and go back 90 days
+    const cycleIndex = await getHistoricalDeliveryIndex();
     const today = new Date();
     const targetDate = new Date(today);
-    targetDate.setDate(targetDate.getDate() - ((cycleIndex % DELIVERY_DATE_RANGE_DAYS)));
-    
+    targetDate.setDate(targetDate.getDate() - cycleIndex);
     const dateStr = format(targetDate, 'yyyy-MM-dd');
-    const nextIndex = (cycleIndex + 1) % DELIVERY_DATE_RANGE_DAYS;
-    
-    // Store for next cycle
-    await offlineDB.updateSyncMetadata('Delivery_DateCycle', null, new Date().toISOString(), { cycleIndex: nextIndex, lastCycleDate: new Date().toISOString() });
-    
+    const nextIndex = cycleIndex >= DELIVERY_DATE_RANGE_DAYS ? 1 : cycleIndex + 1;
+
+    await updateHistoricalSyncMeta({
+      delivery_cycle_index: nextIndex,
+      delivery_last_synced_date: dateStr,
+      delivery_last_synced_at: new Date().toISOString(),
+      patient_phase_complete: cycleIndex >= DELIVERY_DATE_RANGE_DAYS ? false : undefined,
+      patient_store_index: cycleIndex >= DELIVERY_DATE_RANGE_DAYS ? 0 : undefined
+    });
+
     return dateStr;
   } catch (error) {
-    // Default: start from today
-    return format(new Date(), 'yyyy-MM-dd');
+    const fallbackDate = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+    return fallbackDate;
   }
 };
 
@@ -713,6 +798,10 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
   if ((now - lastBackgroundSyncAt) < BACKGROUND_SYNC_MIN_INTERVAL_MS) {
     return { skipped: true, reason: 'background_cooldown' };
   }
+
+  if (!(await shouldRunMobileHistoricalSync())) {
+    return { skipped: true, reason: 'not_idle_or_not_due' };
+  }
   
   syncInProgress = true;
   lastBackgroundSyncAt = now;
@@ -721,32 +810,53 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
   try {
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
-    // Strictly defer and throttle background work: one historical delivery date only.
-    const deliveryDateToSync = await getNextDeliveryDateToSync();
-    if (!deliveryDateToSync || deliveryDateToSync === selectedDateStr) {
-      notifySyncStatus({ status: 'complete', skippedHistorical: true });
+    const historicalMeta = await getHistoricalSyncMeta();
+    const deliveryPhaseComplete = historicalMeta?.delivery_cycle_index > DELIVERY_DATE_RANGE_DAYS;
+
+    if (!deliveryPhaseComplete) {
+      const deliveryDateToSync = await getNextDeliveryDateToSync();
+      if (!deliveryDateToSync || deliveryDateToSync === selectedDateStr || deliveryDateToSync === getLocalDateString()) {
+        notifySyncStatus({ status: 'complete', skippedHistorical: true });
+        window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
+        return { success: true, skippedHistorical: true };
+      }
+
+      const deliveryFilter = { delivery_date: deliveryDateToSync };
+      if (storeIds && storeIds.length > 0) {
+        deliveryFilter.store_id = { $in: storeIds };
+      }
+
+      const deliveries = await Delivery.filter(deliveryFilter, '-updated_date', 500);
+      if (deliveries.length > 0) {
+        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+        invalidateEntityCache('Delivery');
+      }
+
+      await offlineDB.updateSyncMetadata('Delivery', null, new Date().toISOString());
+      const nextMeta = await getHistoricalSyncMeta();
+      const completedDeliveries = nextMeta?.delivery_cycle_index > DELIVERY_DATE_RANGE_DAYS;
+      if (completedDeliveries) {
+        await updateHistoricalSyncMeta({ patient_phase_complete: false, patient_store_index: 0 });
+      }
+
+      notifySyncStatus({ status: 'complete', phase: 'deliveries', date: deliveryDateToSync });
       window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
-      syncInProgress = false;
-      return { success: true, skippedHistorical: true };
+      return { success: true, phase: 'deliveries', date: deliveryDateToSync };
     }
 
-    const deliveryFilter = { delivery_date: deliveryDateToSync };
-    if (storeIds && storeIds.length > 0) {
-      deliveryFilter.store_id = { $in: storeIds };
+    const patientSyncResult = await syncHistoricalPatientsByStore(storeIds);
+    if (patientSyncResult?.completed) {
+      await updateHistoricalSyncMeta({
+        last_completed_at: new Date().toISOString(),
+        delivery_cycle_index: 1,
+        patient_phase_complete: false,
+        patient_store_index: 0
+      });
     }
 
-    const deliveries = await Delivery.filter(deliveryFilter, '-updated_date', 500);
-    if (deliveries.length > 0) {
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
-      invalidateEntityCache('Delivery');
-    }
-
-    await offlineDB.updateSyncMetadata('Delivery', null, new Date().toISOString());
-
-    notifySyncStatus({ status: 'complete' });
+    notifySyncStatus({ status: 'complete', phase: 'patients' });
     window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
-    
-    return { success: true };
+    return { success: true, phase: 'patients', ...patientSyncResult };
   } catch (error) {
     notifySyncStatus({ status: 'error', error: error.message });
     return { error: error.message };

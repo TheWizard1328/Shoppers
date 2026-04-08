@@ -45,6 +45,7 @@ import { sortFilteredPatients } from './patientSearchSorter';
 import { resumeDeliveryFormManagers } from './resumeDeliveryFormManagers';
 import { clearRecurringSelection } from './recurringHelpers';
 import { handleBatchSave as runHandleBatchSave } from './handleBatchSave';
+import { pauseOfflineSync, resumeOfflineSync } from '../utils/offlineSync';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) => (<div className="flex items-center space-x-2"><Checkbox id={id} checked={checked} onCheckedChange={onChange} disabled={disabled} /><Label htmlFor={id} className={`text-sm font-medium leading-none ${disabled ? 'text-slate-400' : ''}`}>{label}</Label></div>);
 
