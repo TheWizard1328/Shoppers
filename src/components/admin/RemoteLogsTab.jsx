@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
+import MultiSelect from '@/components/ui/multi-select';
 import { sortUsers, sortStores } from '@/components/utils/sorting';
 
 export default function RemoteLogsTab({ appUsers = [] }) {
@@ -50,11 +50,6 @@ export default function RemoteLogsTab({ appUsers = [] }) {
     setSettings(updated);
   };
 
-  const toggleUser = (userId, checked) => {
-    const next = checked ? [...selectedUsers, userId] : selectedUsers.filter((id) => id !== userId);
-    setSelectedUsers(next);
-    updateSettings({ included_user_ids: next });
-  };
 
   const filteredLogs = useMemo(() => {
     return (logs || []).filter((log) => {
@@ -88,31 +83,37 @@ export default function RemoteLogsTab({ appUsers = [] }) {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <div className="text-sm font-medium text-slate-700">Drivers</div>
-                <div className="grid gap-1">
-                  {driverUsers.map((user) =>
-                  <label key={user.id} className="flex items-center gap-2 rounded border p-2">
-                      <Checkbox
-                      checked={selectedUsers.includes(user.user_id || user.id)}
-                      onCheckedChange={(checked) => toggleUser(user.user_id || user.id, checked === true)} />
-                    
-                      <span>{user.user_name || user.full_name || user.id}</span>
-                    </label>
-                  )}
-                </div>
+                <MultiSelect
+                  options={driverUsers.map((user) => ({
+                    value: user.user_id || user.id,
+                    label: user.user_name || user.full_name || user.id
+                  }))}
+                  selected={selectedUsers.filter((id) => driverUsers.some((user) => (user.user_id || user.id) === id))}
+                  onChange={(nextSelected) => {
+                    const storeSelected = selectedUsers.filter((id) => storeUsers.some((user) => (user.user_id || user.id) === id));
+                    const next = [...new Set([...storeSelected, ...nextSelected])];
+                    setSelectedUsers(next);
+                    updateSettings({ included_user_ids: next });
+                  }}
+                  placeholder="Select drivers"
+                />
               </div>
               <div className="space-y-2">
                 <div className="text-sm font-medium text-slate-700">Stores</div>
-                <div className="grid gap-1">
-                  {storeUsers.map((user) =>
-                  <label key={user.id} className="flex items-center gap-2 rounded border p-2">
-                      <Checkbox
-                      checked={selectedUsers.includes(user.user_id || user.id)}
-                      onCheckedChange={(checked) => toggleUser(user.user_id || user.id, checked === true)} />
-                    
-                      <span>{user.user_name || user.full_name || user.id}</span>
-                    </label>
-                  )}
-                </div>
+                <MultiSelect
+                  options={storeUsers.map((user) => ({
+                    value: user.user_id || user.id,
+                    label: user.user_name || user.full_name || user.id
+                  }))}
+                  selected={selectedUsers.filter((id) => storeUsers.some((user) => (user.user_id || user.id) === id))}
+                  onChange={(nextSelected) => {
+                    const driverSelected = selectedUsers.filter((id) => driverUsers.some((user) => (user.user_id || user.id) === id));
+                    const next = [...new Set([...driverSelected, ...nextSelected])];
+                    setSelectedUsers(next);
+                    updateSettings({ included_user_ids: next });
+                  }}
+                  placeholder="Select stores"
+                />
               </div>
             </div>
             <div className="text-xs text-slate-500">If nobody is selected, logging applies to all users except excluded ones.</div>
