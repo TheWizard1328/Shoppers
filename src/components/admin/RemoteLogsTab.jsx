@@ -88,30 +88,30 @@ export default function RemoteLogsTab({ appUsers = [] }) {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <div className="text-sm font-medium text-slate-700">Drivers</div>
-                <div className="grid gap-2">
-                  {driverUsers.map((user) => (
-                    <label key={user.id} className="flex items-center gap-2 rounded border p-2">
+                <div className="grid gap-1">
+                  {driverUsers.map((user) =>
+                  <label key={user.id} className="flex items-center gap-2 rounded border p-2">
                       <Checkbox
-                        checked={selectedUsers.includes(user.user_id || user.id)}
-                        onCheckedChange={(checked) => toggleUser(user.user_id || user.id, checked === true)}
-                      />
+                      checked={selectedUsers.includes(user.user_id || user.id)}
+                      onCheckedChange={(checked) => toggleUser(user.user_id || user.id, checked === true)} />
+                    
                       <span>{user.user_name || user.full_name || user.id}</span>
                     </label>
-                  ))}
+                  )}
                 </div>
               </div>
               <div className="space-y-2">
                 <div className="text-sm font-medium text-slate-700">Stores</div>
-                <div className="grid gap-2">
-                  {storeUsers.map((user) => (
-                    <label key={user.id} className="flex items-center gap-2 rounded border p-2">
+                <div className="grid gap-1">
+                  {storeUsers.map((user) =>
+                  <label key={user.id} className="flex items-center gap-2 rounded border p-2">
                       <Checkbox
-                        checked={selectedUsers.includes(user.user_id || user.id)}
-                        onCheckedChange={(checked) => toggleUser(user.user_id || user.id, checked === true)}
-                      />
+                      checked={selectedUsers.includes(user.user_id || user.id)}
+                      onCheckedChange={(checked) => toggleUser(user.user_id || user.id, checked === true)} />
+                    
                       <span>{user.user_name || user.full_name || user.id}</span>
                     </label>
-                  ))}
+                  )}
                 </div>
               </div>
             </div>
