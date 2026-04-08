@@ -268,7 +268,7 @@ export default function AdminMetrics() {
         <Card className="p-8 text-center" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
           <h2 className="text-xl font-bold mb-2" style={{ color: '#ef4444' }}>Error Loading Metrics</h2>
           <p style={{ color: 'var(--text-slate-600)', marginBottom: '1rem' }}>{error}</p>
-          <Button onClick={fetchMetrics}>Retry</Button>
+          <Button onClick={() => fetchMetrics(selectedYear, selectedCityId, false)}>Retry</Button>
         </Card>
       </div>);
 

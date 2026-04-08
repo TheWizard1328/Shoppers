@@ -298,7 +298,11 @@ Deno.serve(async (req) => {
     return Response.json({ adminMetrics, payrollData });
   } catch (error) {
     console.error('❌ CRITICAL ERROR in getAdminMetricsAndPayrollData:', error);
-    return Response.json({ error: error.message || 'Unknown error occurred' }, { status: 500 });
+    const isRateLimit = error?.status === 429 || error?.response?.status === 429 || String(error?.message || '').toLowerCase().includes('rate limit');
+    return Response.json(
+      { error: isRateLimit ? 'Too many requests right now. Please wait a moment and try again.' : error.message || 'Unknown error occurred' },
+      { status: isRateLimit ? 429 : 500 }
+    );
   }
 });
 
