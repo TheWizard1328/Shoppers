@@ -76,6 +76,28 @@ export default function RemoteLogsTab({ appUsers = [] }) {
     return sortStores((appUsers || []).filter((user) => user?.status === 'active' && user?.app_roles?.includes('dispatcher')));
   }, [appUsers]);
 
+  const driverOptions = useMemo(() => {
+    return driverUsers.map((user) => ({
+      value: user.user_id || user.id,
+      label: user.user_name || user.full_name || user.id
+    }));
+  }, [driverUsers]);
+
+  const storeOptions = useMemo(() => {
+    return storeUsers.map((user) => ({
+      value: user.user_id || user.id,
+      label: user.user_name || user.full_name || user.id
+    }));
+  }, [storeUsers]);
+
+  const selectedDriverUsers = useMemo(() => {
+    return selectedUsers.filter((id) => driverOptions.some((user) => user.value === id));
+  }, [selectedUsers, driverOptions]);
+
+  const selectedStoreUsers = useMemo(() => {
+    return selectedUsers.filter((id) => storeOptions.some((user) => user.value === id));
+  }, [selectedUsers, storeOptions]);
+
   const logFilterOptions = useMemo(() => {
     return Array.from(new Map((logs || [])
       .filter((row) => row?.user_id)
@@ -99,14 +121,10 @@ export default function RemoteLogsTab({ appUsers = [] }) {
               <div className="space-y-2">
                 <div className="text-sm font-medium text-slate-700">Drivers</div>
                 <MultiSelect
-                  options={driverUsers.map((user) => ({
-                    value: user.user_id || user.id,
-                    label: user.user_name || user.full_name || user.id
-                  }))}
-                  value={selectedUsers.filter((id) => driverUsers.some((user) => (user.user_id || user.id) === id))}
+                  options={driverOptions}
+                  value={selectedDriverUsers}
                   onChange={(nextSelected) => {
-                    const storeSelected = selectedUsers.filter((id) => storeUsers.some((user) => (user.user_id || user.id) === id));
-                    const next = [...new Set([...storeSelected, ...nextSelected])];
+                    const next = [...new Set([...selectedStoreUsers, ...nextSelected])];
                     setSelectedUsers(next);
                     updateSettings({ included_user_ids: next });
                   }}
@@ -116,14 +134,10 @@ export default function RemoteLogsTab({ appUsers = [] }) {
               <div className="space-y-2">
                 <div className="text-sm font-medium text-slate-700">Stores</div>
                 <MultiSelect
-                  options={storeUsers.map((user) => ({
-                    value: user.user_id || user.id,
-                    label: user.user_name || user.full_name || user.id
-                  }))}
-                  value={selectedUsers.filter((id) => storeUsers.some((user) => (user.user_id || user.id) === id))}
+                  options={storeOptions}
+                  value={selectedStoreUsers}
                   onChange={(nextSelected) => {
-                    const driverSelected = selectedUsers.filter((id) => driverUsers.some((user) => (user.user_id || user.id) === id));
-                    const next = [...new Set([...driverSelected, ...nextSelected])];
+                    const next = [...new Set([...selectedDriverUsers, ...nextSelected])];
                     setSelectedUsers(next);
                     updateSettings({ included_user_ids: next });
                   }}
