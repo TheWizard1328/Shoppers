@@ -1138,7 +1138,7 @@ export default function Patients() {
     try {
       const { deletePatientLocal } = await import('../components/utils/offlineMutations');
       await deletePatientLocal(patient.id);
-      invalidate('Patient'); // Invalidate only Patient cache for AppDataContext
+      await invalidate('Patient');
       // Remove the patient from the local state immediately
       setAllPatients((prev) => prev.filter((p) => p.id !== patient.id));
       // If the deleted patient was selected, clear selection
@@ -1249,7 +1249,7 @@ export default function Patients() {
         }
       }
 
-      invalidate('Patient'); // Invalidate only Patient cache after bulk delete for AppDataContext
+      await invalidate('Patient');
       // Filter out deleted patients from the local state
       setAllPatients((prev) => prev.filter((p) => !filteredPatients.some((dp) => dp.id === p.id)));
       setSelectedPatient(null);

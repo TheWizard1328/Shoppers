@@ -421,10 +421,16 @@ export const deletePatient = async (patientId, options = {}) => {
       // Broadcast to other devices
       broadcastMutation('Patient', 'delete', patientId, null);
     } catch (error) {
-      console.warn('⚠️ [EntityMutations] Patient delete sync failed, queuing:', error.message);
-      await offlineDB.addPendingMutation({ operation: 'delete', entity: 'Patient', recordId: patientId });
+      if (error.message?.includes('not found') || error.message?.includes('404') || error.response?.status === 404) {
+        const { smartRefreshManager } = await import('./smartRefreshManager');
+        smartRefreshManager.deletedPatientIds.add(patientId);
+      } else {
+        console.warn('⚠️ [EntityMutations] Patient delete sync failed, queuing:', error.message);
+        await offlineDB.addPendingMutation({ operation: 'delete', entity: 'Patient', recordId: patientId });
+      }
     }
 
+    await refreshOfflineEntitySnapshots('Patient');
     await restartSmartRefresh();
     return true;
   } catch (error) {
