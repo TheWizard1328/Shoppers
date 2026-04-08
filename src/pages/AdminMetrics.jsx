@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BarChart3, DollarSign, Store, Package, RefreshCw, TrendingUp, Users, Truck, Share2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
+import { backgroundMetricsSync } from '@/functions/backgroundMetricsSync';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { getEffectiveUser } from '@/components/utils/auth';
 import { isAppOwner, userHasRole } from '../components/utils/userRoles';
@@ -48,6 +49,7 @@ export default function AdminMetrics() {
   const [selectedDriverId, setSelectedDriverId] = useState('all'); // Filter by driver
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [liveSyncStatus, setLiveSyncStatus] = useState(null);
+  const backgroundSyncStartedRef = useRef(false);
 
   const availableYears = useMemo(() => {
     const currentYear = new Date().getFullYear();
@@ -153,6 +155,7 @@ export default function AdminMetrics() {
   // Handle city change
   const handleCityChange = (newCityId) => {
     setSelectedCityId(newCityId);
+    backgroundSyncStartedRef.current = false;
   };
 
   const handleManualRefresh = async () => {
@@ -160,6 +163,30 @@ export default function AdminMetrics() {
     await fetchMetrics(selectedYear, selectedCityId, 'force-refresh');
     setIsManualRefreshing(false);
   };
+
+  useEffect(() => {
+    if (!hasAccess || !selectedCityId || !selectedYear || isLoading || !metricsData) return;
+    if (backgroundSyncStartedRef.current) return;
+
+    backgroundSyncStartedRef.current = true;
+    const runBackgroundSync = async () => {
+      try {
+        const response = await backgroundMetricsSync({
+          year: parseInt(selectedYear),
+          cityId: selectedCityId === 'all' ? null : selectedCityId
+        });
+        const syncData = response?.data || response;
+        if (syncData?.needsRefresh && parseInt(selectedYear) === new Date().getFullYear()) {
+          await fetchMetrics(selectedYear, selectedCityId, false);
+        }
+      } catch (error) {
+        console.warn('Background metrics sync skipped:', error?.message || error);
+      }
+    };
+
+    const timer = setTimeout(runBackgroundSync, 1200);
+    return () => clearTimeout(timer);
+  }, [hasAccess, selectedCityId, selectedYear, isLoading, metricsData, fetchMetrics]);
 
   // Filter data based on selected month, store, and driver (client-side filtering)
   const filteredData = useMemo(() => {
