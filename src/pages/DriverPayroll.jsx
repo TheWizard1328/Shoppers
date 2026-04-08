@@ -237,6 +237,8 @@ export default function DriverPayroll() {
   const triedPreviousPeriodRef = useRef(false);
   const summaryRef = useRef(null);
   const fetchPayrollInFlightRef = useRef(null);
+  const lastFetchSignatureRef = useRef('');
+  const lastFetchTimestampRef = useRef(0);
   const [detailsOpen, setDetailsOpen] = useState(false);
 
   // Define isDriver early (after refs, before useMemo/useCallback that might use it)
@@ -655,6 +657,12 @@ export default function DriverPayroll() {
   const fetchPayroll = useCallback(async (isAutoRefresh = false, forceFresh = false) => {
     if (!currentUser || !isPayrollPageActive) return;
 
+    const fetchSignature = `${selectedYear}-${isAutoRefresh}-${forceFresh}`;
+    const now = Date.now();
+    if (!forceFresh && lastFetchSignatureRef.current === fetchSignature && now - lastFetchTimestampRef.current < 4000) {
+      return fullYearPayrollDataRef.current;
+    }
+
     if (fetchPayrollInFlightRef.current) {
       return fetchPayrollInFlightRef.current;
     }
@@ -684,6 +692,8 @@ export default function DriverPayroll() {
         const data = response?.data?.payrollData || response?.payrollData;
 
         fullYearPayrollDataRef.current = data;
+        lastFetchSignatureRef.current = fetchSignature;
+        lastFetchTimestampRef.current = Date.now();
 
         console.log(`✅ [DriverPayroll] Loaded:`, {
           deliveries: data?.deliveries?.length || 0,
@@ -753,7 +763,7 @@ export default function DriverPayroll() {
     if (hasInitialized && isPayrollPageActive) {
       fetchPayroll(false, false);
     }
-  }, [selectedYear, selectedCityId, hasInitialized, isPayrollPageActive, fetchPayroll]);
+  }, [selectedYear, hasInitialized, isPayrollPageActive, fetchPayroll]);
 
   // Initialize defaults based on user role - runs ONCE on mount
   // CRITICAL: Reads offline Payroll records to determine the correct pay cycle + period BEFORE rendering data
@@ -864,8 +874,6 @@ export default function DriverPayroll() {
       setSelectedYear(year);
       setHasInitialized(true);
 
-      // Now fetch real data
-      fetchPayroll(false, false);
     };
 
     initFromOfflineData();
