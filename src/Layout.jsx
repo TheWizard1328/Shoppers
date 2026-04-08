@@ -699,12 +699,12 @@ export default function Layout({ children, currentPageName }) {
         return;
       }
       console.log(`🔄 [Layout] Delivery updated event: ${deliveryId} (${triggeredBy})`);
-      if (deliveryDate && driverId) {
-        invalidate('Delivery');
-        if (triggerFullDataLoadRef.current) triggerFullDataLoadRef.current(true);
-      } else if (deliveryId) {
-        invalidate('Delivery');
-        if (triggerFullDataLoadRef.current) triggerFullDataLoadRef.current(true);
+      if (freshDeliveries?.length > 0) {
+        setDeliveries((prev) => {
+          const map = new Map((prev || []).filter(Boolean).map((d) => [d?.id, d]).filter(([id]) => !!id));
+          freshDeliveries.forEach((d) => { if (d?.id) map.set(d.id, d); });
+          return Array.from(map.values());
+        });
       }
     };
     window.addEventListener('deliveriesUpdated', handleDeliveriesUpdated);

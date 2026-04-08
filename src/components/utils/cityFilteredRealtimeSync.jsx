@@ -132,7 +132,8 @@ class CityFilteredRealtimeSync {
                   deliveryDate: freshDelivery.delivery_date,
                   triggeredBy: 'realtimeWebSocket',
                   source: 'realtime_sync',
-                  fromRealtime: true
+                  fromRealtime: true,
+                  preserveLocalState: true
                 }
               }));
               
