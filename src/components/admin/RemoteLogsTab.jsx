@@ -65,11 +65,11 @@ export default function RemoteLogsTab({ appUsers = [] }) {
   }, [logs, search, level]);
 
   const driverUsers = useMemo(() => {
-    return sortUsers((appUsers || []).filter((user) => user?.app_roles?.includes('driver')));
+    return sortUsers((appUsers || []).filter((user) => user?.status === 'active' && user?.app_roles?.includes('driver')));
   }, [appUsers]);
 
   const storeUsers = useMemo(() => {
-    return sortStores((appUsers || []).filter((user) => user?.app_roles?.includes('dispatcher')));
+    return sortStores((appUsers || []).filter((user) => user?.status === 'active' && user?.app_roles?.includes('dispatcher')));
   }, [appUsers]);
 
   return (
