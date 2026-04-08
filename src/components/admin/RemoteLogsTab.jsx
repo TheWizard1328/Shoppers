@@ -55,9 +55,10 @@ export default function RemoteLogsTab({ appUsers = [] }) {
     return (logs || []).filter((log) => {
       if (level !== 'all' && log.level !== level) return false;
       if (search && !`${log.message} ${log.user_name || ''} ${log.page || ''}`.toLowerCase().includes(search.toLowerCase())) return false;
+      if (selectedUsers.length > 0 && !selectedUsers.includes(log.user_id)) return false;
       return true;
     });
-  }, [logs, search, level]);
+  }, [logs, search, level, selectedUsers]);
 
   const driverUsers = useMemo(() => {
     return sortUsers((appUsers || []).filter((user) => user?.status === 'active' && user?.app_roles?.includes('driver')));
@@ -66,6 +67,18 @@ export default function RemoteLogsTab({ appUsers = [] }) {
   const storeUsers = useMemo(() => {
     return sortStores((appUsers || []).filter((user) => user?.status === 'active' && user?.app_roles?.includes('dispatcher')));
   }, [appUsers]);
+
+  const combinedUserOptions = useMemo(() => {
+    const drivers = driverUsers.map((user) => ({
+      value: user.user_id || user.id,
+      label: user.user_name || user.full_name || user.id
+    }));
+    const stores = storeUsers.map((user) => ({
+      value: user.user_id || user.id,
+      label: user.user_name || user.full_name || user.id
+    }));
+    return [...drivers, ...stores];
+  }, [driverUsers, storeUsers]);
 
   return (
     <div className="space-y-6">
@@ -128,6 +141,13 @@ export default function RemoteLogsTab({ appUsers = [] }) {
         <CardContent className="space-y-4">
           <div className="flex flex-col gap-2 md:flex-row">
             <Input placeholder="Search logs..." value={search} onChange={(e) => setSearch(e.target.value)} />
+            <MultiSelect
+              options={combinedUserOptions}
+              value={selectedUsers}
+              onChange={setSelectedUsers}
+              placeholder="Filter users"
+              className="md:w-72"
+            />
             <Select value={level} onValueChange={setLevel}>
               <SelectTrigger className="w-full md:w-40"><SelectValue /></SelectTrigger>
               <SelectContent>
