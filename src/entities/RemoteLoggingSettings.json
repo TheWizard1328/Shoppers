@@ -4,14 +4,14 @@
   "properties": {
     "scope": {
       "type": "string",
+      "description": "Settings scope",
       "enum": ["global"],
-      "default": "global",
-      "description": "Single global settings record"
+      "default": "global"
     },
     "enabled": {
       "type": "boolean",
       "default": false,
-      "description": "Master switch for remote logging"
+      "description": "Whether remote logging is enabled"
     },
     "capture_levels": {
       "type": "array",
@@ -19,31 +19,31 @@
         "type": "string",
         "enum": ["log", "info", "warn", "error", "debug"]
       },
-      "description": "Enabled log levels"
+      "description": "Console levels to capture"
     },
     "included_user_ids": {
       "type": "array",
       "items": {
         "type": "string"
       },
-      "description": "If non-empty, only these users are logged"
+      "description": "Only capture logs for these users when not empty"
     },
     "excluded_user_ids": {
       "type": "array",
       "items": {
         "type": "string"
       },
-      "description": "Users excluded from logging"
+      "description": "Never capture logs for these users"
     },
     "batch_size": {
       "type": "number",
       "default": 20,
-      "description": "Max logs to send per batch"
+      "description": "How many logs to send per batch"
     },
     "flush_interval_ms": {
       "type": "number",
       "default": 15000,
-      "description": "How often buffered logs are sent"
+      "description": "Flush interval in milliseconds"
     }
   },
   "required": ["scope"]

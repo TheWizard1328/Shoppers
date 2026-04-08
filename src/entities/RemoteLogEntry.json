@@ -4,29 +4,28 @@
   "properties": {
     "level": {
       "type": "string",
-      "enum": ["log", "info", "warn", "error", "debug"],
-      "description": "Console log level"
+      "enum": ["log", "info", "warn", "error", "debug"]
     },
     "message": {
       "type": "string",
-      "description": "Log message text"
+      "description": "Captured console message"
     },
     "timestamp": {
       "type": "string",
       "format": "date-time",
-      "description": "When the log was created on the device"
+      "description": "Client timestamp"
     },
     "user_id": {
       "type": "string",
-      "description": "Authenticated user ID if available"
+      "description": "Authenticated user id"
     },
     "user_name": {
       "type": "string",
-      "description": "App user name if available"
+      "description": "Authenticated user name"
     },
     "device_identifier": {
       "type": "string",
-      "description": "Stable device identifier"
+      "description": "Stable device id"
     },
     "device_type": {
       "type": "string",
@@ -42,12 +41,12 @@
     },
     "session_id": {
       "type": "string",
-      "description": "Browser session identifier"
+      "description": "Browser session id"
     },
     "metadata": {
       "type": "object",
-      "description": "Extra structured log metadata",
-      "additionalProperties": true
+      "additionalProperties": true,
+      "description": "Optional extra metadata"
     }
   },
   "required": ["level", "message", "timestamp"]
