@@ -6,14 +6,12 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { sortUsers, sortStores } from '@/components/utils/sorting';
 
 export default function RemoteLogsTab({ appUsers = [] }) {
   const [logs, setLogs] = useState([]);
   const [settings, setSettings] = useState(null);
   const [search, setSearch] = useState('');
   const [level, setLevel] = useState('all');
-  const [selectedLogUser, setSelectedLogUser] = useState('all');
   const [selectedUsers, setSelectedUsers] = useState([]);
 
   const loadData = async () => {
@@ -60,23 +58,10 @@ export default function RemoteLogsTab({ appUsers = [] }) {
   const filteredLogs = useMemo(() => {
     return (logs || []).filter((log) => {
       if (level !== 'all' && log.level !== level) return false;
-      if (selectedLogUser !== 'all' && (log.user_id || '') !== selectedLogUser) return false;
       if (search && !`${log.message} ${log.user_name || ''} ${log.page || ''}`.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
-  }, [logs, search, level, selectedLogUser]);
-
-  const filterUsers = useMemo(() => {
-    return sortUsers((appUsers || []).filter((user) => user?.status === 'active'));
-  }, [appUsers]);
-
-  const driverUsers = useMemo(() => {
-    return sortUsers((appUsers || []).filter((user) => user?.status === 'active' && user?.app_roles?.includes('driver')));
-  }, [appUsers]);
-
-  const storeUsers = useMemo(() => {
-    return sortStores((appUsers || []).filter((user) => user?.status === 'active' && user?.app_roles?.includes('dispatcher')));
-  }, [appUsers]);
+  }, [logs, search, level]);
 
   return (
     <div className="space-y-6">
@@ -91,35 +76,16 @@ export default function RemoteLogsTab({ appUsers = [] }) {
           </div>
           <div className="space-y-2">
             <div className="font-medium">Only log selected users</div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <div className="text-sm font-medium text-slate-700">Drivers</div>
-                <div className="grid gap-2">
-                  {driverUsers.map((user) => (
-                    <label key={user.id} className="flex items-center gap-2 rounded border p-2">
-                      <Checkbox
-                        checked={selectedUsers.includes(user.user_id || user.id)}
-                        onCheckedChange={(checked) => toggleUser(user.user_id || user.id, checked === true)}
-                      />
-                      <span>{user.user_name || user.full_name || user.id}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="text-sm font-medium text-slate-700">Stores</div>
-                <div className="grid gap-2">
-                  {storeUsers.map((user) => (
-                    <label key={user.id} className="flex items-center gap-2 rounded border p-2">
-                      <Checkbox
-                        checked={selectedUsers.includes(user.user_id || user.id)}
-                        onCheckedChange={(checked) => toggleUser(user.user_id || user.id, checked === true)}
-                      />
-                      <span>{user.user_name || user.full_name || user.id}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+            <div className="grid gap-2 md:grid-cols-2">
+              {appUsers.map((user) => (
+                <label key={user.id} className="flex items-center gap-2 rounded border p-2">
+                  <Checkbox
+                    checked={selectedUsers.includes(user.user_id || user.id)}
+                    onCheckedChange={(checked) => toggleUser(user.user_id || user.id, checked === true)}
+                  />
+                  <span>{user.user_name || user.full_name || user.id}</span>
+                </label>
+              ))}
             </div>
             <div className="text-xs text-slate-500">If nobody is selected, logging applies to all users except excluded ones.</div>
           </div>
@@ -133,17 +99,6 @@ export default function RemoteLogsTab({ appUsers = [] }) {
         <CardContent className="space-y-4">
           <div className="flex flex-col gap-2 md:flex-row">
             <Input placeholder="Search logs..." value={search} onChange={(e) => setSearch(e.target.value)} />
-            <Select value={selectedLogUser} onValueChange={setSelectedLogUser}>
-              <SelectTrigger className="w-full md:w-56"><SelectValue placeholder="All users" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All users</SelectItem>
-                {filterUsers.map((user) => (
-                  <SelectItem key={user.id} value={user.user_id || user.id}>
-                    {user.user_name || user.full_name || user.id}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
             <Select value={level} onValueChange={setLevel}>
               <SelectTrigger className="w-full md:w-40"><SelectValue /></SelectTrigger>
               <SelectContent>
