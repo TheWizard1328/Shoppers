@@ -46,6 +46,8 @@ export default function AdminMetrics() {
   const [initialCitySet, setInitialCitySet] = useState(false);
   const [showDayByDay, setShowDayByDay] = useState(false); // Toggle for day-by-day view
   const [selectedDriverId, setSelectedDriverId] = useState('all'); // Filter by driver
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
+  const [liveSyncStatus, setLiveSyncStatus] = useState(null);
 
   const availableYears = useMemo(() => {
     const currentYear = new Date().getFullYear();
@@ -95,18 +97,20 @@ export default function AdminMetrics() {
       const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
         adminMetricsYear: parseInt(year),
         adminMetricsCityId: cityId === 'all' ? null : cityId,
-        // CRITICAL: Don't fetch payroll data on AdminMetrics page (not needed here)
+        forceRefreshCurrentYear: isInitial === 'force-refresh',
         payrollYear: null,
         payrollCityId: null,
         payrollDriverId: null
       });
       const data = response?.data?.adminMetrics || response?.adminMetrics;
+      const syncStatus = response?.data?.adminMetricsMeta || response?.adminMetricsMeta || null;
 
       if (data?.error) {
         throw new Error(data.error);
       }
 
       setMetricsData(data);
+      setLiveSyncStatus(syncStatus);
       setSelectedMonth(null); // Reset month selection when year changes
     } catch (err) {
       console.error('Failed to fetch metrics:', err);
@@ -149,6 +153,12 @@ export default function AdminMetrics() {
   // Handle city change
   const handleCityChange = (newCityId) => {
     setSelectedCityId(newCityId);
+  };
+
+  const handleManualRefresh = async () => {
+    setIsManualRefreshing(true);
+    await fetchMetrics(selectedYear, selectedCityId, 'force-refresh');
+    setIsManualRefreshing(false);
   };
 
   // Filter data based on selected month, store, and driver (client-side filtering)
@@ -314,8 +324,8 @@ export default function AdminMetrics() {
               </SelectContent>
             </Select>
             <div className="ml-0 md:ml-auto flex items-center gap-1.5 md:gap-2 shrink-0">
-              <Button variant="outline" size="icon" onClick={() => fetchMetrics(selectedYear, selectedCityId, false)} disabled={isFetching}>
-                <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
+              <Button variant="outline" size="icon" onClick={handleManualRefresh} disabled={isFetching || isManualRefreshing}>
+                <RefreshCw className={`w-4 h-4 ${(isFetching || isManualRefreshing) ? 'animate-spin' : ''}`} />
               </Button>
               <Button variant="outline" size="icon">
                 <Share2 className="w-4 h-4" />
@@ -323,6 +333,15 @@ export default function AdminMetrics() {
             </div>
           </div>
         </div>
+
+        {liveSyncStatus && (
+          <div className="flex items-center gap-2 text-xs md:text-sm" style={{ color: 'var(--text-slate-600)' }}>
+            <Badge variant="secondary">
+              {liveSyncStatus.liveWindowApplied ? `Live sync: last ${liveSyncStatus.liveWindowDays} days` : 'Summary only'}
+            </Badge>
+            {liveSyncStatus.currentMonthSynced && <span>Current month refreshed on load.</span>}
+          </div>
+        )}
 
         {/* Summary Cards */}
         <div className="shrink-0 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">

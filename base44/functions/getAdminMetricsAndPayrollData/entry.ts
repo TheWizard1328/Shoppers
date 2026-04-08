@@ -3,8 +3,9 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
 
-const CACHE_VERSION = '2';
-const SUMMARY_VERSION = '1';
+const CACHE_VERSION = '3';
+const SUMMARY_VERSION = '2';
+const LIVE_SYNC_WINDOW_DAYS = 7;
 const statsCache = new Map();
 const CACHE_DISABLED = true;
 const BATCH_LIMIT = 1000;
@@ -114,6 +115,170 @@ const getMonthDateRange = (year, month) => {
 
 const getMonthKey = (year, month) => `${year}-${String(month).padStart(2, '0')}`;
 
+const toDateOnly = (date) => date.toISOString().split('T')[0];
+
+const getTodayDateString = () => toDateOnly(new Date());
+
+const getLiveWindowStart = () => {
+  const date = new Date();
+  date.setDate(date.getDate() - (LIVE_SYNC_WINDOW_DAYS - 1));
+  return toDateOnly(date);
+};
+
+const isCurrentMonth = (year, month) => {
+  const now = new Date();
+  return now.getFullYear() === year && now.getMonth() + 1 === month;
+};
+
+const mergeMetrics = (baseMetrics, incomingMetrics) => {
+  if (!baseMetrics) return incomingMetrics;
+  if (!incomingMetrics) return baseMetrics;
+
+  const merged = {
+    ...baseMetrics,
+    monthlyData: Array(12).fill(null).map((_, index) => ({
+      month: baseMetrics.monthlyData?.[index]?.month || incomingMetrics.monthlyData?.[index]?.month || MONTH_NAMES[index],
+      billable: (baseMetrics.monthlyData?.[index]?.billable || 0) + (incomingMetrics.monthlyData?.[index]?.billable || 0),
+      nonBillable: (baseMetrics.monthlyData?.[index]?.nonBillable || 0) + (incomingMetrics.monthlyData?.[index]?.nonBillable || 0),
+      total: (baseMetrics.monthlyData?.[index]?.total || 0) + (incomingMetrics.monthlyData?.[index]?.total || 0)
+    })),
+    yearTotals: {
+      billable: (baseMetrics.yearTotals?.billable || 0) + (incomingMetrics.yearTotals?.billable || 0),
+      nonBillable: (baseMetrics.yearTotals?.nonBillable || 0) + (incomingMetrics.yearTotals?.nonBillable || 0),
+      activeDrivers: Math.max(baseMetrics.yearTotals?.activeDrivers || 0, incomingMetrics.yearTotals?.activeDrivers || 0)
+    },
+    storeDataByMonth: {},
+    driverDataByMonth: {},
+    driverDataByStore: {},
+    dailyDriverData: {},
+    storeData: [],
+    driverData: [],
+    dailyDeliveryData: {},
+    dailyStoreData: {},
+    monthlyStoreData: {},
+    storeFeeTotals: {
+      total_fees_owed: (baseMetrics.storeFeeTotals?.total_fees_owed || 0) + (incomingMetrics.storeFeeTotals?.total_fees_owed || 0),
+      app_fee_rate: incomingMetrics.storeFeeTotals?.app_fee_rate || baseMetrics.storeFeeTotals?.app_fee_rate || 0,
+      stores_paying_fees: Math.max(baseMetrics.storeFeeTotals?.stores_paying_fees || 0, incomingMetrics.storeFeeTotals?.stores_paying_fees || 0),
+      total_stores: Math.max(baseMetrics.storeFeeTotals?.total_stores || 0, incomingMetrics.storeFeeTotals?.total_stores || 0),
+      active_stores: Math.max(baseMetrics.storeFeeTotals?.active_stores || 0, incomingMetrics.storeFeeTotals?.active_stores || 0),
+      total_billable_while_paying: (baseMetrics.storeFeeTotals?.total_billable_while_paying || 0) + (incomingMetrics.storeFeeTotals?.total_billable_while_paying || 0),
+      monthlyFees: Array(12).fill(0).map((_, index) => (baseMetrics.storeFeeTotals?.monthlyFees?.[index] || 0) + (incomingMetrics.storeFeeTotals?.monthlyFees?.[index] || 0))
+    },
+    entityCounts: incomingMetrics.entityCounts || baseMetrics.entityCounts || {}
+  };
+
+  const mergeArrayByKey = (first = [], second = [], key) => {
+    const map = new Map();
+    [...first, ...second].forEach((item) => {
+      if (!item?.[key]) return;
+      const existing = map.get(item[key]);
+      if (!existing) {
+        map.set(item[key], { ...item });
+        return;
+      }
+      const mergedItem = { ...existing, ...item };
+      ['completed', 'failed', 'afterHours', 'cancelled', 'fees', 'billable', 'nonBillable', 'extra_km', 'total', 'totalCompleted', 'totalFailed'].forEach((field) => {
+        if (existing[field] != null || item[field] != null) {
+          mergedItem[field] = (existing[field] || 0) + (item[field] || 0);
+        }
+      });
+      map.set(item[key], mergedItem);
+    });
+    return Array.from(map.values());
+  };
+
+  for (let month = 1; month <= 12; month++) {
+    merged.storeDataByMonth[month] = mergeArrayByKey(baseMetrics.storeDataByMonth?.[month], incomingMetrics.storeDataByMonth?.[month], 'storeId');
+    merged.driverDataByMonth[month] = mergeArrayByKey(baseMetrics.driverDataByMonth?.[month], incomingMetrics.driverDataByMonth?.[month], 'driverId');
+    merged.monthlyStoreData[month] = mergeArrayByKey(baseMetrics.monthlyStoreData?.[month], incomingMetrics.monthlyStoreData?.[month], 'storeId');
+    merged.dailyDeliveryData[month] = mergeArrayByKey(baseMetrics.dailyDeliveryData?.[month], incomingMetrics.dailyDeliveryData?.[month], 'day');
+
+    const baseDailyStore = baseMetrics.dailyStoreData?.[month] || {};
+    const incomingDailyStore = incomingMetrics.dailyStoreData?.[month] || {};
+    const mergedDailyStore = {};
+    [...new Set([...Object.keys(baseDailyStore), ...Object.keys(incomingDailyStore)])].forEach((storeId) => {
+      mergedDailyStore[storeId] = mergeArrayByKey(baseDailyStore[storeId], incomingDailyStore[storeId], 'day');
+    });
+    merged.dailyStoreData[month] = mergedDailyStore;
+
+    const baseDailyDriver = baseMetrics.dailyDriverData?.[month] || {};
+    const incomingDailyDriver = incomingMetrics.dailyDriverData?.[month] || {};
+    const mergedDailyDriver = {};
+    [...new Set([...Object.keys(baseDailyDriver), ...Object.keys(incomingDailyDriver)])].forEach((driverId) => {
+      mergedDailyDriver[driverId] = mergeArrayByKey(baseDailyDriver[driverId], incomingDailyDriver[driverId], 'day');
+    });
+    merged.dailyDriverData[month] = mergedDailyDriver;
+  }
+
+  merged.storeData = mergeArrayByKey(baseMetrics.storeData, incomingMetrics.storeData, 'storeId');
+  merged.driverData = mergeArrayByKey(baseMetrics.driverData, incomingMetrics.driverData, 'driverId');
+
+  return merged;
+};
+
+const mergeEnvelopeMetrics = (baseEnvelopeMetrics, incomingEnvelopeMetrics) => {
+  if (!baseEnvelopeMetrics) return incomingEnvelopeMetrics;
+  if (!incomingEnvelopeMetrics) return baseEnvelopeMetrics;
+
+  const merged = {
+    byStoreAndMonth: {},
+    yearTotals: {
+      envelopeDeliveriesCount: (baseEnvelopeMetrics.yearTotals?.envelopeDeliveriesCount || 0) + (incomingEnvelopeMetrics.yearTotals?.envelopeDeliveriesCount || 0),
+      totalEnvelopeValue: (baseEnvelopeMetrics.yearTotals?.totalEnvelopeValue || 0) + (incomingEnvelopeMetrics.yearTotals?.totalEnvelopeValue || 0),
+      adjustedDeliveries: (baseEnvelopeMetrics.yearTotals?.adjustedDeliveries || 0) + (incomingEnvelopeMetrics.yearTotals?.adjustedDeliveries || 0),
+      actualDeliveries: (baseEnvelopeMetrics.yearTotals?.actualDeliveries || 0) + (incomingEnvelopeMetrics.yearTotals?.actualDeliveries || 0)
+    }
+  };
+
+  [...new Set([...Object.keys(baseEnvelopeMetrics.byStoreAndMonth || {}), ...Object.keys(incomingEnvelopeMetrics.byStoreAndMonth || {})])].forEach((storeId) => {
+    merged.byStoreAndMonth[storeId] = {};
+    [...new Set([...Object.keys(baseEnvelopeMetrics.byStoreAndMonth?.[storeId] || {}), ...Object.keys(incomingEnvelopeMetrics.byStoreAndMonth?.[storeId] || {})])].forEach((month) => {
+      const baseMonth = baseEnvelopeMetrics.byStoreAndMonth?.[storeId]?.[month] || {};
+      const incomingMonth = incomingEnvelopeMetrics.byStoreAndMonth?.[storeId]?.[month] || {};
+      merged.byStoreAndMonth[storeId][month] = {
+        envelopeDeliveriesCount: (baseMonth.envelopeDeliveriesCount || 0) + (incomingMonth.envelopeDeliveriesCount || 0),
+        totalEnvelopeValue: (baseMonth.totalEnvelopeValue || 0) + (incomingMonth.totalEnvelopeValue || 0),
+        actualDeliveries: (baseMonth.actualDeliveries || 0) + (incomingMonth.actualDeliveries || 0),
+        adjustedDeliveries: (baseMonth.adjustedDeliveries || 0) + (incomingMonth.adjustedDeliveries || 0)
+      };
+    });
+  });
+
+  return merged;
+};
+
+const subtractWindowFromMonthMetrics = (monthMetrics, windowMetrics, month) => {
+  if (!monthMetrics) return monthMetrics;
+  if (!windowMetrics) return monthMetrics;
+
+  const mergedNegative = mergeMetrics(monthMetrics, {
+    ...windowMetrics,
+    monthlyData: Array(12).fill(null).map((_, index) => {
+      const item = windowMetrics.monthlyData?.[index] || { month: MONTH_NAMES[index], billable: 0, nonBillable: 0, total: 0 };
+      return {
+        month: item.month,
+        billable: index === month - 1 ? -(item.billable || 0) : 0,
+        nonBillable: index === month - 1 ? -(item.nonBillable || 0) : 0,
+        total: index === month - 1 ? -(item.total || 0) : 0
+      };
+    }),
+    yearTotals: {
+      billable: -(windowMetrics.yearTotals?.billable || 0),
+      nonBillable: -(windowMetrics.yearTotals?.nonBillable || 0),
+      activeDrivers: monthMetrics.yearTotals?.activeDrivers || 0
+    },
+    storeFeeTotals: {
+      ...(windowMetrics.storeFeeTotals || {}),
+      total_fees_owed: -(windowMetrics.storeFeeTotals?.total_fees_owed || 0),
+      total_billable_while_paying: -(windowMetrics.storeFeeTotals?.total_billable_while_paying || 0),
+      monthlyFees: Array(12).fill(0).map((_, index) => index === month - 1 ? -(windowMetrics.storeFeeTotals?.monthlyFees?.[index] || 0) : 0)
+    }
+  });
+
+  return mergedNegative;
+};
+
 const buildMonthlyDeliveryCounts = (deliveries = []) => {
   const counts = {
     total_deliveries: deliveries.length,
@@ -163,6 +328,8 @@ const countSummaryNeedsRefresh = (summaryRecord, deliveries) => {
     || (summaryRecord.last_source_delivery_updated_at || null) !== (latestUpdatedAt || null);
 };
 
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -194,7 +361,10 @@ Deno.serve(async (req) => {
     const {
       adminMetricsYear, adminMetricsCityId,
       payrollYear, payrollCityId,
+      forceRefreshCurrentYear = false
     } = body;
+
+    const normalizedCityId = adminMetricsCityId || 'all';
 
     const fetchMonthlySummaryRecord = async (year, month, cityId) => {
       const summaryRecords = await base44.asServiceRole.entities.AdminMetricsSummary.filter({ year, month, city_id: cityId }, '', 10).catch((error) => {
@@ -202,6 +372,14 @@ Deno.serve(async (req) => {
         throw error;
       });
       return summaryRecords?.[0] || null;
+    };
+
+    const fetchYearSummaryRecords = async (year, cityId) => {
+      const summaryRecords = await base44.asServiceRole.entities.AdminMetricsSummary.filter({ year, city_id: cityId }, '', 100).catch((error) => {
+        if (isNotFoundError(error)) return [];
+        throw error;
+      });
+      return dedupeById(summaryRecords || []);
     };
 
     const upsertMonthlySummaryRecord = async ({ year, month, cityId, adminMetrics, payrollMetrics, deliveries }) => {
@@ -227,8 +405,8 @@ Deno.serve(async (req) => {
       return await base44.asServiceRole.entities.AdminMetricsSummary.create(payload);
     };
 
-    const fetchYearData = async (year, cityId) => {
-      const cacheKey = `${CACHE_VERSION}_${year}_${cityId || 'all'}`;
+    const fetchYearData = async (year, cityId, options = {}) => {
+      const cacheKey = `${CACHE_VERSION}_${year}_${cityId || 'all'}_${options.startDate || 'full'}_${options.endDate || 'full'}_${options.includePayroll ? 'payroll' : 'admin'}`;
       const cached = statsCache.get(cacheKey);
       if (!CACHE_DISABLED && cached && (Date.now() - cached.timestamp < 300000)) {
         return cached.data;
@@ -241,13 +419,13 @@ Deno.serve(async (req) => {
         cityStoreIds = new Set((cityStores || []).map((store) => store.id));
       }
 
-      const yearStart = `${year}-01-01`;
-      const yearEnd = `${year}-12-31`;
+      const yearStart = options.startDate || `${year}-01-01`;
+      const yearEnd = options.endDate || `${year}-12-31`;
 
       const [appSettings, allYearDeliveriesRaw, allYearPayrollRaw] = await Promise.all([
         base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }),
         fetchDateRangeRecords(base44.asServiceRole.entities.Delivery, 'delivery_date', yearStart, yearEnd, '-delivery_date'),
-        payrollYear ? fetchDateRangeRecords(base44.asServiceRole.entities.Payroll, 'pay_period_start', yearStart, yearEnd, '-pay_period_start') : Promise.resolve([])
+        options.includePayroll ? fetchDateRangeRecords(base44.asServiceRole.entities.Payroll, 'pay_period_start', yearStart, yearEnd, '-pay_period_start') : Promise.resolve([])
       ]);
 
       let deliveries = dedupeById(allYearDeliveriesRaw || []);
@@ -256,15 +434,13 @@ Deno.serve(async (req) => {
       }
 
       const relevantStoreIds = Array.from(new Set(deliveries.map((delivery) => delivery.store_id).filter(Boolean)));
-      const relevantPatientIds = Array.from(new Set(deliveries.map((delivery) => delivery.patient_id).filter(Boolean)));
       const relevantDriverIds = Array.from(new Set(deliveries.map((delivery) => delivery.driver_id).filter(Boolean)));
 
-      const [storesRaw, appUsersRaw, patientsRaw] = await Promise.all([
+      const [storesRaw, appUsersRaw] = await Promise.all([
         relevantStoreIds.length
           ? (cityStores.length ? cityStores.filter((store) => relevantStoreIds.includes(store.id)) : base44.asServiceRole.entities.Store.filter({ id: { $in: relevantStoreIds } }, '', 5000))
           : (cityStores.length ? cityStores : []),
-        base44.asServiceRole.entities.AppUser.list('', 5000),
-        []
+        base44.asServiceRole.entities.AppUser.list('', 5000)
       ]);
 
       const stores = (storesRaw || []).map((store) => pickFields(store, STORE_FIELDS));
@@ -370,15 +546,20 @@ Deno.serve(async (req) => {
       };
     };
 
-    const warmMonthlySummaries = async (year, cityId) => {
-      const yearData = await fetchYearData(year, cityId);
+    const buildSummaryBackfill = async (year, cityId, options = {}) => {
+      const yearData = await fetchYearData(year, cityId, { includePayroll: !!options.includePayroll });
+      const summaryRecords = [];
+
       for (let month = 1; month <= 12; month++) {
         const { start, end } = getMonthDateRange(year, month);
         const monthDeliveries = (yearData.deliveries || []).filter((delivery) => delivery?.delivery_date >= start && delivery?.delivery_date <= end);
         if (!monthDeliveries.length) continue;
 
         const existingSummary = await fetchMonthlySummaryRecord(year, month, cityId);
-        if (!countSummaryNeedsRefresh(existingSummary, monthDeliveries)) continue;
+        if (!options.force && !countSummaryNeedsRefresh(existingSummary, monthDeliveries)) {
+          summaryRecords.push(existingSummary);
+          continue;
+        }
 
         const monthPayrollRecords = (yearData.payrollRecords || []).filter((record) => record?.pay_period_start >= start && record?.pay_period_start <= end);
         const monthData = {
@@ -399,7 +580,7 @@ Deno.serve(async (req) => {
 
         const payrollMetricsForMonth = buildPayrollData(monthData);
 
-        await upsertMonthlySummaryRecord({
+        const savedRecord = await upsertMonthlySummaryRecord({
           year,
           month,
           cityId,
@@ -407,31 +588,130 @@ Deno.serve(async (req) => {
           payrollMetrics: payrollMetricsForMonth,
           deliveries: monthDeliveries
         });
+        summaryRecords.push(savedRecord);
       }
-      return yearData;
+
+      return { yearData, summaryRecords };
+    };
+
+    const composeMetricsFromSummaries = (summaryRecords = []) => {
+      let mergedAdminMetrics = null;
+      let mergedPayrollMetrics = null;
+
+      summaryRecords
+        .slice()
+        .sort((a, b) => (a.month || 0) - (b.month || 0))
+        .forEach((record) => {
+          mergedAdminMetrics = mergeMetrics(mergedAdminMetrics, record.admin_metrics || null);
+          mergedPayrollMetrics = mergedPayrollMetrics ? mergeMetrics(mergedPayrollMetrics, record.payroll_metrics || null) : (record.payroll_metrics || mergedPayrollMetrics);
+          if (mergedAdminMetrics) {
+            mergedAdminMetrics.envelopeMetrics = mergeEnvelopeMetrics(mergedAdminMetrics.envelopeMetrics, record.admin_metrics?.envelopeMetrics || null);
+          }
+        });
+
+      return { adminMetrics: mergedAdminMetrics, payrollData: mergedPayrollMetrics };
     };
 
     let adminMetrics = null;
+    let adminMetricsMeta = null;
     if (adminMetricsYear) {
-      const yearData = await warmMonthlySummaries(adminMetricsYear, adminMetricsCityId);
-      adminMetrics = processAdminMetrics(
-        yearData.deliveries,
-        yearData.stores,
-        yearData.appUsers,
-        yearData.patients,
-        adminMetricsYear,
-        yearData.appFeeRate
-      );
-      adminMetrics.envelopeMetrics = calculateEnvelopeMetrics(yearData.deliveries, yearData.stores);
+      const currentYear = new Date().getFullYear();
+      let summaryRecords = await fetchYearSummaryRecords(adminMetricsYear, normalizedCityId);
+
+      if (forceRefreshCurrentYear && adminMetricsYear === currentYear) {
+        const backfill = await buildSummaryBackfill(adminMetricsYear, normalizedCityId, { force: true, includePayroll: false });
+        summaryRecords = backfill.summaryRecords;
+      } else if (!summaryRecords.length) {
+        const backfill = await buildSummaryBackfill(adminMetricsYear, normalizedCityId, { force: false, includePayroll: false });
+        summaryRecords = backfill.summaryRecords;
+      }
+
+      const composed = composeMetricsFromSummaries(summaryRecords);
+      adminMetrics = composed.adminMetrics;
+
+      const now = new Date();
+      const liveWindowStart = getLiveWindowStart();
+      const liveWindowEnd = getTodayDateString();
+      const currentMonth = now.getMonth() + 1;
+      const shouldApplyLiveWindow = adminMetricsYear === currentYear;
+
+      if (shouldApplyLiveWindow) {
+        const currentMonthSummary = summaryRecords.find((record) => record.month === currentMonth);
+        const liveWindowData = await fetchYearData(adminMetricsYear, normalizedCityId, {
+          startDate: liveWindowStart,
+          endDate: liveWindowEnd,
+          includePayroll: false
+        });
+
+        const liveWindowMetrics = processAdminMetrics(
+          liveWindowData.deliveries,
+          liveWindowData.stores,
+          liveWindowData.appUsers,
+          liveWindowData.patients,
+          adminMetricsYear,
+          liveWindowData.appFeeRate
+        );
+        liveWindowMetrics.envelopeMetrics = calculateEnvelopeMetrics(liveWindowData.deliveries, liveWindowData.stores);
+
+        if (currentMonthSummary?.admin_metrics) {
+          const adjustedCurrentMonth = subtractWindowFromMonthMetrics(currentMonthSummary.admin_metrics, liveWindowMetrics, currentMonth);
+          const summaryWithoutCurrentMonth = composeMetricsFromSummaries(summaryRecords.filter((record) => record.month !== currentMonth));
+          adminMetrics = mergeMetrics(summaryWithoutCurrentMonth.adminMetrics, adjustedCurrentMonth);
+          adminMetrics = mergeMetrics(adminMetrics, liveWindowMetrics);
+          adminMetrics.envelopeMetrics = mergeEnvelopeMetrics(summaryWithoutCurrentMonth.adminMetrics?.envelopeMetrics || null, adjustedCurrentMonth?.envelopeMetrics || null);
+          adminMetrics.envelopeMetrics = mergeEnvelopeMetrics(adminMetrics.envelopeMetrics, liveWindowMetrics.envelopeMetrics);
+        } else {
+          adminMetrics = mergeMetrics(adminMetrics, liveWindowMetrics);
+          adminMetrics.envelopeMetrics = mergeEnvelopeMetrics(adminMetrics?.envelopeMetrics || null, liveWindowMetrics.envelopeMetrics);
+        }
+
+        if (currentMonthSummary == null || countSummaryNeedsRefresh(currentMonthSummary, liveWindowData.deliveries)) {
+          const monthRange = getMonthDateRange(adminMetricsYear, currentMonth);
+          const fullCurrentMonthData = await fetchYearData(adminMetricsYear, normalizedCityId, {
+            startDate: monthRange.start,
+            endDate: liveWindowEnd,
+            includePayroll: false
+          });
+          const currentMonthMetrics = processAdminMetrics(
+            fullCurrentMonthData.deliveries,
+            fullCurrentMonthData.stores,
+            fullCurrentMonthData.appUsers,
+            fullCurrentMonthData.patients,
+            adminMetricsYear,
+            fullCurrentMonthData.appFeeRate
+          );
+          currentMonthMetrics.envelopeMetrics = calculateEnvelopeMetrics(fullCurrentMonthData.deliveries, fullCurrentMonthData.stores);
+          await upsertMonthlySummaryRecord({
+            year: adminMetricsYear,
+            month: currentMonth,
+            cityId: normalizedCityId,
+            adminMetrics: currentMonthMetrics,
+            payrollMetrics: null,
+            deliveries: fullCurrentMonthData.deliveries
+          });
+        }
+
+        adminMetricsMeta = {
+          liveWindowApplied: true,
+          liveWindowDays: LIVE_SYNC_WINDOW_DAYS,
+          currentMonthSynced: true
+        };
+      } else {
+        adminMetricsMeta = {
+          liveWindowApplied: false,
+          liveWindowDays: LIVE_SYNC_WINDOW_DAYS,
+          currentMonthSynced: false
+        };
+      }
     }
 
     let payrollData = null;
     if (payrollYear) {
-      const yearData = await warmMonthlySummaries(payrollYear, payrollCityId);
-      payrollData = buildPayrollData(yearData);
+      const backfill = await buildSummaryBackfill(payrollYear, payrollCityId || 'all', { force: false, includePayroll: true });
+      payrollData = buildPayrollData(backfill.yearData);
     }
 
-    return Response.json({ adminMetrics, payrollData });
+    return Response.json({ adminMetrics, adminMetricsMeta, payrollData });
   } catch (error) {
     console.error('❌ CRITICAL ERROR in getAdminMetricsAndPayrollData:', error);
     const isRateLimit = error?.status === 429 || error?.response?.status === 429 || String(error?.message || '').toLowerCase().includes('rate limit');
