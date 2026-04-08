@@ -13,6 +13,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
   const [settings, setSettings] = useState(null);
   const [search, setSearch] = useState('');
   const [level, setLevel] = useState('all');
+  const [selectedLogUser, setSelectedLogUser] = useState('all');
   const [selectedUsers, setSelectedUsers] = useState([]);
 
   const loadData = async () => {
@@ -59,10 +60,15 @@ export default function RemoteLogsTab({ appUsers = [] }) {
   const filteredLogs = useMemo(() => {
     return (logs || []).filter((log) => {
       if (level !== 'all' && log.level !== level) return false;
+      if (selectedLogUser !== 'all' && (log.user_id || '') !== selectedLogUser) return false;
       if (search && !`${log.message} ${log.user_name || ''} ${log.page || ''}`.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
-  }, [logs, search, level]);
+  }, [logs, search, level, selectedLogUser]);
+
+  const filterUsers = useMemo(() => {
+    return sortUsers((appUsers || []).filter((user) => user?.status === 'active'));
+  }, [appUsers]);
 
   const driverUsers = useMemo(() => {
     return sortUsers((appUsers || []).filter((user) => user?.status === 'active' && user?.app_roles?.includes('driver')));
@@ -127,6 +133,17 @@ export default function RemoteLogsTab({ appUsers = [] }) {
         <CardContent className="space-y-4">
           <div className="flex flex-col gap-2 md:flex-row">
             <Input placeholder="Search logs..." value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Select value={selectedLogUser} onValueChange={setSelectedLogUser}>
+              <SelectTrigger className="w-full md:w-56"><SelectValue placeholder="All users" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All users</SelectItem>
+                {filterUsers.map((user) => (
+                  <SelectItem key={user.id} value={user.user_id || user.id}>
+                    {user.user_name || user.full_name || user.id}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={level} onValueChange={setLevel}>
               <SelectTrigger className="w-full md:w-40"><SelectValue /></SelectTrigger>
               <SelectContent>
