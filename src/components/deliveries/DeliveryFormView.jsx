@@ -808,7 +808,16 @@ export default function DeliveryFormView({
                 }
                 {isPickupMode && !userHasRole(currentUser, 'dispatcher') && (
                   <div className="flex items-center">
-                    <CheckboxField id="after_hours_pickup_footer" label="After Hours Pickup" checked={formData.after_hours_pickup} onChange={(c) => setFormData((p) => ({ ...p, after_hours_pickup: c }))} disabled={isSaving} />
+                    <CheckboxField
+                      id="after_hours_pickup_footer"
+                      label="After Hours Pickup"
+                      checked={formData.after_hours_pickup}
+                      onChange={(c) => {
+                        if (!userHasRole(currentUser, 'admin')) return;
+                        setFormData((p) => ({ ...p, after_hours_pickup: c }));
+                      }}
+                      disabled={isSaving || !userHasRole(currentUser, 'admin')}
+                    />
                   </div>
                 )}
               </div>
