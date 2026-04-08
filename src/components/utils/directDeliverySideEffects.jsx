@@ -20,6 +20,20 @@ export const triggerSquareCodCreate = ({ deliveryId, patientName, storeAbbreviat
   }, 0);
 };
 
+export const triggerSquareCodUpsert = ({ deliveryId, patientName, storeAbbreviation, codAmount, deliveryDate, storeId }) => {
+  if (!deliveryId || Number(codAmount || 0) <= 0) return;
+  setTimeout(() => {
+    base44.functions.invoke('squareCreateCodItem', {
+      deliveryId,
+      patientName,
+      storeAbbreviation,
+      codAmount,
+      deliveryDate,
+      storeId
+    }).catch((error) => console.warn('⚠️ [DeliverySideEffects] Square upsert skipped:', error?.message || error));
+  }, 0);
+};
+
 export const triggerSquareCodDelete = ({ deliveryId, nextStatus, delivery, reason }) => {
   const deleteReason = reason || nextStatus;
   const shouldDelete = deleteReason === 'cod_removed' || (
