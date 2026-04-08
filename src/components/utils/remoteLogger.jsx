@@ -9,6 +9,10 @@ const MAX_BUFFER = 200;
 let initialized = false;
 let flushTimer = null;
 let activeSettings = null;
+let settingsPromise = null;
+let mePromise = null;
+let isFlushing = false;
+let suppressConsoleCapture = false;
 
 const getSessionId = () => {
   const existing = sessionStorage.getItem(SESSION_KEY);
@@ -40,15 +44,31 @@ const stringifyArg = (arg) => {
 };
 
 const loadSettings = async () => {
-  const rows = await base44.entities.RemoteLoggingSettings.filter({ scope: 'global' }, '-updated_date', 1);
-  activeSettings = rows?.[0] || null;
-  return activeSettings;
+  if (activeSettings) return activeSettings;
+  if (!settingsPromise) {
+    settingsPromise = base44.entities.RemoteLoggingSettings.filter({ scope: 'global' }, '-updated_date', 1)
+      .then((rows) => {
+        activeSettings = rows?.[0] || null;
+        return activeSettings;
+      })
+      .finally(() => {
+        settingsPromise = null;
+      });
+  }
+  return settingsPromise;
+};
+
+const getMe = async () => {
+  if (!mePromise) {
+    mePromise = base44.auth.me().catch(() => null);
+  }
+  return mePromise;
 };
 
 const shouldCapture = async () => {
   const settings = activeSettings || await loadSettings();
   if (!settings?.enabled) return false;
-  const me = await base44.auth.me().catch(() => null);
+  const me = await getMe();
   const userId = me?.id || null;
   const included = Array.isArray(settings.included_user_ids) ? settings.included_user_ids : [];
   const excluded = Array.isArray(settings.excluded_user_ids) ? settings.excluded_user_ids : [];
@@ -58,18 +78,24 @@ const shouldCapture = async () => {
 };
 
 const flushNow = async () => {
-  const canCapture = await shouldCapture();
-  if (!canCapture) return;
-  const buffer = readBuffer();
-  if (buffer.length === 0) return;
+  if (isFlushing) return;
+  isFlushing = true;
+  try {
+    const canCapture = await shouldCapture();
+    if (!canCapture) return;
+    const buffer = readBuffer();
+    if (buffer.length === 0) return;
 
-  const settings = activeSettings || await loadSettings();
-  const batchSize = Math.max(1, Math.min(Number(settings?.batch_size) || 20, 100));
-  const nextBatch = buffer.slice(0, batchSize);
-  const remaining = buffer.slice(batchSize);
+    const settings = activeSettings || await loadSettings();
+    const batchSize = Math.max(1, Math.min(Number(settings?.batch_size) || 20, 100));
+    const nextBatch = buffer.slice(0, batchSize);
+    const remaining = buffer.slice(batchSize);
 
-  await base44.entities.RemoteLogEntry.bulkCreate(nextBatch);
-  writeBuffer(remaining);
+    await base44.entities.RemoteLogEntry.bulkCreate(nextBatch);
+    writeBuffer(remaining);
+  } finally {
+    isFlushing = false;
+  }
 };
 
 const scheduleFlush = (interval) => {
@@ -80,11 +106,13 @@ const scheduleFlush = (interval) => {
 };
 
 const enqueue = async (level, args) => {
+  if (suppressConsoleCapture) return;
   const settings = activeSettings || await loadSettings();
+  if (!settings?.enabled) return;
   const levels = Array.isArray(settings?.capture_levels) && settings.capture_levels.length > 0 ? settings.capture_levels : ['log', 'info', 'warn', 'error', 'debug'];
   if (!levels.includes(level)) return;
 
-  const me = await base44.auth.me().catch(() => null);
+  const me = await getMe();
   const { deviceType, os } = getUserAgentInfo();
   const current = readBuffer();
   current.push({
@@ -102,7 +130,7 @@ const enqueue = async (level, args) => {
   });
   writeBuffer(current);
 
-  if (current.length >= (Number(settings?.batch_size) || 20)) {
+  if (level === 'error' || level === 'warn' || current.length >= (Number(settings?.batch_size) || 20)) {
     flushNow().catch(() => {});
   }
 };
@@ -124,7 +152,9 @@ export const initRemoteLogger = async () => {
 
   ['log', 'info', 'warn', 'error', 'debug'].forEach((level) => {
     console[level] = (...args) => {
-      enqueue(level, args).catch(() => {});
+      if (!suppressConsoleCapture) {
+        enqueue(level, args).catch(() => {});
+      }
       original[level](...args);
     };
   });
