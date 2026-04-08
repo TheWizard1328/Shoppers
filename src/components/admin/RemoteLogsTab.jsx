@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import MultiSelect from '@/components/ui/multi-select';
+import { Label } from '@/components/ui/label';
 import { sortUsers, sortStores } from '@/components/utils/sorting';
 
 export default function RemoteLogsTab({ appUsers = [] }) {
@@ -14,6 +15,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
   const [search, setSearch] = useState('');
   const [level, setLevel] = useState('all');
   const [selectedUsers, setSelectedUsers] = useState([]);
+  const [logUserFilter, setLogUserFilter] = useState('all');
 
   const loadData = async () => {
     const [logRows, settingsRows] = await Promise.all([
@@ -61,10 +63,10 @@ export default function RemoteLogsTab({ appUsers = [] }) {
     return (logs || []).filter((log) => {
       if (level !== 'all' && log.level !== level) return false;
       if (search && !`${log.message} ${log.user_name || ''} ${log.page || ''}`.toLowerCase().includes(search.toLowerCase())) return false;
-      if (selectedUsers.length > 0 && !selectedUsers.includes(log.user_id)) return false;
+      if (logUserFilter !== 'all' && log.user_id !== logUserFilter) return false;
       return true;
     });
-  }, [logs, search, level, selectedUsers]);
+  }, [logs, search, level, logUserFilter]);
 
   const driverUsers = useMemo(() => {
     return sortUsers((appUsers || []).filter((user) => user?.status === 'active' && user?.app_roles?.includes('driver')));
@@ -147,13 +149,20 @@ export default function RemoteLogsTab({ appUsers = [] }) {
         <CardContent className="space-y-4">
           <div className="flex flex-col gap-2 md:flex-row">
             <Input placeholder="Search logs..." value={search} onChange={(e) => setSearch(e.target.value)} />
-            <MultiSelect
-              options={combinedUserOptions}
-              value={selectedUsers}
-              onChange={setSelectedUsers}
-              placeholder="Filter users"
-              className="md:w-72"
-            />
+            <div className="w-full md:w-72 space-y-2">
+              <Label>Filter user</Label>
+              <Select value={logUserFilter} onValueChange={setLogUserFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Filter user" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All users</SelectItem>
+                  {combinedUserOptions.map((user) => (
+                    <SelectItem key={user.value} value={user.value}>{user.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <Select value={level} onValueChange={setLevel}>
               <SelectTrigger className="w-full md:w-40"><SelectValue /></SelectTrigger>
               <SelectContent>
