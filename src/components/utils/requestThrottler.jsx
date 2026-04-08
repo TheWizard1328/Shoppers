@@ -9,14 +9,14 @@
  */
 
 const THROTTLE_DELAYS = {
-  critical: 500,      // Critical requests (user, auth) - short delay
-  priority: 2000,     // Priority data (AppUsers, deliveries) - medium delay
-  standard: 3000,     // Standard requests (patients, stats) - longer delay
-  background: 5000    // Background syncs - longest delay
+  critical: 300,
+  priority: 900,
+  standard: 1400,
+  background: 2500
 };
 
-const BATCH_COOLDOWN = 1000; // Delay between different batch types
-let RATE_LIMIT_BACKOFF_MS = 60000; // starts at 1m (exponential: 1m -> 2m -> 5m)
+const BATCH_COOLDOWN = 300;
+let RATE_LIMIT_BACKOFF_MS = 15000;
 
 let requestQueue = [];
 let isProcessing = false;
@@ -108,8 +108,7 @@ export const requestThrottler = {
           isRateLimited = true;
           rateLimitUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
           console.warn(`⚠️ [RequestThrottler] Rate limit detected - backing off for ${Math.round(RATE_LIMIT_BACKOFF_MS / 1000)}s`);
-          // Exponential backoff progression: 1m -> 2m -> 5m
-          RATE_LIMIT_BACKOFF_MS = RATE_LIMIT_BACKOFF_MS === 60000 ? 120000 : 300000;
+          RATE_LIMIT_BACKOFF_MS = RATE_LIMIT_BACKOFF_MS === 15000 ? 30000 : 60000;
           
           // Re-queue the request
           requestQueue.unshift(request);
