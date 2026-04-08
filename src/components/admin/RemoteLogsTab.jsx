@@ -53,7 +53,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
   };
 
   const clearLogs = async () => {
-    const rows = await base44.entities.RemoteLogEntry.list('-timestamp', 300);
+    const rows = await base44.entities.RemoteLogEntry.list('-timestamp', 1000);
     await Promise.all((rows || []).map((row) => base44.entities.RemoteLogEntry.delete(row.id)));
     setLogs([]);
   };
