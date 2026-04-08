@@ -98,6 +98,7 @@ import { StatBadge, calculateDistance, generateUniqueSID, addMinutesToTime, roun
 import { saveDriverChangedDelivery } from "@/components/utils/saveDriverChangedDelivery";
 import { getFabTargetDriverMapLocation, isDriverOffDuty, getSelfDriverLocationForBounds } from "@/components/dashboard/mapViewPhaseHelpers";
 import { centerDeliveryCard, centerNextDeliveryCard, getNextDeliveryCard } from '@/components/utils/deliveryCardUtils';
+import { loadDashboardOfflineDateData, mergeDeliveriesForDate, hasDeliveryDataForSelection } from '@/components/dashboard/dashboardInitialLoadHelpers';
 
 function Dashboard() {
   const { currentUser, isLoadingUser, refreshUser } = useUser();
@@ -2468,12 +2469,8 @@ function Dashboard() {
     requestAnimationFrame(() => {requestAnimationFrame(() => {setTimeout(() => {
           // CRITICAL: Check BOTH filtered view AND full deliveries array to avoid stale closure clearing markers
           const _dateCheck = format(selectedDate, 'yyyy-MM-dd');
-          const _hasFullData = selectedDriverId && selectedDriverId !== 'all' ? deliveries.some((d) => d && d.delivery_date === _dateCheck && d.driver_id === selectedDriverId) : deliveries.some((d) => d && d.delivery_date === _dateCheck);
+          const _hasFullData = hasDeliveryDataForSelection({ deliveries, selectedDateStr: _dateCheck, selectedDriverId });
           if (deliveriesWithStopOrder.length === 0 && !_hasFullData) {
-            setMapViewPhase(1);setIsMapViewLocked(false);setInitialMapViewApplied(true);
-            setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
-            if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}
-            mapLockExpiresAtRef.current = null;setMapViewTrigger((prev) => prev + 1);
             return;
           }
           const phaseToApply = savedFabPhaseRef.current;
@@ -2861,7 +2858,9 @@ function Dashboard() {
         smartRefreshManager.clearPendingUpdates();
       }
 
-      if (updateDeliveriesLocally) {updateDeliveriesLocally(freshDeliveries, false);}
+      if (updateDeliveriesLocally) {
+        updateDeliveriesLocally(mergeDeliveriesForDate({ deliveries, selectedDateStr: dateStr, freshDeliveries }), true);
+      }
 
       // CRITICAL: Wait for markers to render BEFORE dispatching event or triggering map
       await new Promise((resolve) => setTimeout(resolve, 650));
@@ -5225,18 +5224,19 @@ function Dashboard() {
 
     const loadOfflineDataFirst = async () => {
       try {
-        const mountDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-        const mountAppUsers = ((await offlineDB.getAll(offlineDB.STORES.APP_USERS)) || []).filter((u) => u?.user_id && u.user_id !== 'undefined');
-        if (mountDeliveries && mountDeliveries.length > 0 && updateDeliveriesLocally) {
-          const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
-          updateDeliveriesLocally([...otherDateDeliveries, ...mountDeliveries], true);
-        }
-        const appUsersToProcess = mountAppUsers.length > 0 ? mountAppUsers : appUsers;
-        if (appUsersToProcess && appUsersToProcess.length > 0) {
-          driverLocationPoller.processLocationData(currentUser, mountDeliveries || [], drivers, stores, appUsersToProcess, selectedDate, true, 'Dashboard', showAllDriverMarkers);
-          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: appUsersToProcess, forceAll: true } }));
-        }
-        setForceRender((prev) => prev + 1);
+        await loadDashboardOfflineDateData({
+          selectedDateStr,
+          deliveries,
+          appUsers,
+          updateDeliveriesLocally,
+          currentUser,
+          drivers,
+          stores,
+          selectedDate,
+          driverLocationPoller,
+          showAllDriverMarkers,
+          setForceRender,
+        });
       } catch (error) {
         console.warn('⚠️ [STEP 1] Offline DB load failed:', error.message);
       }
@@ -5253,7 +5253,7 @@ function Dashboard() {
         const today = selectedDateStr === getEdmDate();
         if ((await offlineDB.getCacheValidation('Delivery', { scopeKey: `date:${selectedDateStr}`, maxAgeMs: today ? 60 * 1000 : 10 * 60 * 1000, allowEmpty: true })).isValid) return;
         const { performPrioritySyncBeforeRefresh } = await import('@/components/utils/offlineSync');await performPrioritySyncBeforeRefresh(selectedDateStr, globalFilters.getSelectedCityId(), smartRefreshManager);
-        const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);await offlineDB.updateCacheSnapshot('Delivery', freshDeliveries || [], { scopeKey: `date:${selectedDateStr}`, syncType: 'startup_full' });if (updateDeliveriesLocally && freshDeliveries?.length || updateDeliveriesLocally && !deliveries.some((d) => d && d.delivery_date === selectedDateStr)) {const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);updateDeliveriesLocally([...otherDateDeliveries, ...(freshDeliveries || [])], true);}
+        const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);await offlineDB.updateCacheSnapshot('Delivery', freshDeliveries || [], { scopeKey: `date:${selectedDateStr}`, syncType: 'startup_full' });if (updateDeliveriesLocally) {updateDeliveriesLocally(mergeDeliveriesForDate({ deliveries, selectedDateStr, freshDeliveries }), true);}
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryDate: selectedDateStr, triggeredBy: 'backgroundSyncComplete' } }));
         const isTodaySelected = selectedDateStr === getEdmDate(),m = await offlineDB.getSyncMetadata('Delivery'),t = new Date(m?.last_sync_time || m?.last_sync_date || m?.last_synced_timestamp || 0).getTime();
         const active = (freshDeliveries || []).some((d) => d && !['completed', 'failed', 'cancelled', 'returned'].includes(d.status));
