@@ -2504,8 +2504,7 @@ export default function AdminUtilities() {
       }
 
       try {
-        console.log('🔄 [AdminUtilities] Polling refetch for tab:', activeDataTab);
-
+        if (activeUtilityTab !== 'data') return;
         switch (activeDataTab) {
           case 'deliveries':
             if (manualLoadTriggered) {await refetchDeliveries();}
