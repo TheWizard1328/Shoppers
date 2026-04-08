@@ -475,7 +475,7 @@ export const loadDeliveries = async (
   } else {
     loadDeliveriesForDate(selectedDateStr, priorityFilters, true)
       .then((freshDeliveries) => {
-        if (freshDeliveries && freshDeliveries.length > 0) {
+        if (Array.isArray(freshDeliveries)) {
           onInitialLoadComplete(freshDeliveries);
         }
       })
