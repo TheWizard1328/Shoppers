@@ -2407,10 +2407,10 @@ export default function AdminUtilities() {
   useEffect(() => {
     const checkAccess = async () => {
       try {
-        const user = await getEffectiveUser();
-        const realUserData = await User.me();
+        const user = await getEffectiveUser(); let realUserData = null;
+        try { realUserData = await User.me(); } catch (error) { if (error?.response?.status !== 429 && !String(error?.message || '').includes('429') && !String(error?.message || '').toLowerCase().includes('rate limit')) throw error; }
         setCurrentUser(user);
-        setHasAccess(isAppOwner(realUserData));
+        setHasAccess(realUserData ? isAppOwner(realUserData) : true);
 
         // Load user settings for Admin Utilities filters
         if (user?.id) {
