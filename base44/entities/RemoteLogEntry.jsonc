@@ -4,7 +4,13 @@
   "properties": {
     "level": {
       "type": "string",
-      "enum": ["log", "info", "warn", "error", "debug"]
+      "enum": [
+        "log",
+        "info",
+        "warn",
+        "error",
+        "debug"
+      ]
     },
     "message": {
       "type": "string",
@@ -49,5 +55,9 @@
       "description": "Optional extra metadata"
     }
   },
-  "required": ["level", "message", "timestamp"]
+  "required": [
+    "level",
+    "message",
+    "timestamp"
+  ]
 }

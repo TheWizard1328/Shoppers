@@ -5,7 +5,9 @@
     "scope": {
       "type": "string",
       "description": "Settings scope",
-      "enum": ["global"],
+      "enum": [
+        "global"
+      ],
       "default": "global"
     },
     "enabled": {
@@ -17,7 +19,13 @@
       "type": "array",
       "items": {
         "type": "string",
-        "enum": ["log", "info", "warn", "error", "debug"]
+        "enum": [
+          "log",
+          "info",
+          "warn",
+          "error",
+          "debug"
+        ]
       },
       "description": "Console levels to capture"
     },
@@ -46,5 +54,7 @@
       "description": "Flush interval in milliseconds"
     }
   },
-  "required": ["scope"]
+  "required": [
+    "scope"
+  ]
 }
