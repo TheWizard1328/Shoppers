@@ -98,11 +98,15 @@ export default function RemoteLogsTab({ appUsers = [] }) {
     return selectedUsers.filter((id) => storeOptions.some((user) => user.value === id));
   }, [selectedUsers, storeOptions]);
 
+  const appUserNameMap = useMemo(() => {
+    return new Map((appUsers || []).map((user) => [user.user_id || user.id, user.user_name || user.full_name || user.id]));
+  }, [appUsers]);
+
   const logFilterOptions = useMemo(() => {
     return Array.from(new Map((logs || []).
     filter((row) => row?.user_id).
-    map((row) => [row.user_id, { value: row.user_id, label: row.user_name || row.user_id }])).values());
-  }, [logs]);
+    map((row) => [row.user_id, { value: row.user_id, label: appUserNameMap.get(row.user_id) || row.user_name || row.user_id }])).values());
+  }, [logs, appUserNameMap]);
 
   return (
     <div className="space-y-6">
@@ -202,7 +206,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
                 <tr key={log.id} className="border-b align-top">
                     <td className="p-2 whitespace-nowrap">{log.timestamp?.replace('T', ' ').slice(0, 19)}</td>
                     <td className="p-2 whitespace-nowrap">{log.level}</td>
-                    <td className="p-2 whitespace-nowrap">{log.user_name || log.user_id || '-'}</td>
+                    <td className="p-2 whitespace-nowrap">{appUserNameMap.get(log.user_id) || log.user_name || log.user_id || '-'}</td>
                     <td className="p-2 whitespace-nowrap">{log.page || '-'}</td>
                     <td className="p-2 break-words">{log.message}</td>
                   </tr>
