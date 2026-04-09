@@ -251,6 +251,19 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
     return '📊';
   };
 
+  const liveCounts = stats ? {
+    patients: runtimeStats.patients ?? stats.patients?.count ?? 0,
+    deliveries: runtimeStats.deliveries ?? stats.deliveries?.count ?? 0,
+    appUsers: runtimeStats.appusers ?? stats.appUsers?.count ?? 0,
+    cities: runtimeStats.cities ?? stats.cities?.count ?? 0,
+    driverOverviewStats: runtimeStats.driveroverviewstats ?? stats.driverOverviewStats?.count ?? 0,
+    squareTransactions: runtimeStats.squaretransactions ?? stats.squareTransactions?.count ?? 0,
+  } : null;
+
+  const liveTotalRecords = liveCounts
+    ? liveCounts.patients + liveCounts.deliveries + liveCounts.appUsers + liveCounts.cities + liveCounts.driverOverviewStats
+    : 0;
+
   // Inline mode for stats card (mobile) or upper-left (desktop)
   if (embedded || inline) {
     // CRITICAL: Always render stats if we have the object (even with 0 counts)
@@ -267,9 +280,9 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
             <span className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>
               {isSyncing ? 'Syncing...' : 'Offline DB'}
             </span>
-            {shouldRenderStats && !isSyncing &&
+            {shouldRenderStats &&
             <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
-                ({stats.patients.count + stats.deliveries.count + stats.appUsers.count + (stats.cities?.count || 0) + (stats.driverOverviewStats?.count || 0)})
+                ({liveTotalRecords})
               </span>
             }
           </div>
@@ -301,7 +314,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{runtimeStats.appusers !== undefined ? runtimeStats.appusers : stats.appUsers.count}</div>
+                          <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.appUsers}</div>
                           {stats.fullSyncStatus?.appUsers?.completed &&
                       <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
                       }
@@ -322,7 +335,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.cities.count}</div>
+                            <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.cities}</div>
                             {stats.fullSyncStatus?.cities?.completed &&
                       <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
                       }
@@ -343,7 +356,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{runtimeStats.patients !== undefined ? runtimeStats.patients : stats.patients.count}</div>
+                          <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.patients}</div>
                           {stats.fullSyncStatus?.patients?.completed &&
                       <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
                       }
@@ -365,7 +378,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{runtimeStats.deliveries !== undefined ? runtimeStats.deliveries : stats.deliveries.count}</div>
+                            <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.deliveries}</div>
                             {stats.fullSyncStatus?.deliveries?.completed &&
                         <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
                         }
@@ -383,7 +396,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.driverOverviewStats?.count || 0}</div>
+                            <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.driverOverviewStats}</div>
                           </div>
                         </div>
                       </div>
@@ -400,7 +413,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.deliveries.count} / {stats.driverOverviewStats?.count || 0}</div>
+                          <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.deliveries} / {liveCounts.driverOverviewStats}</div>
                           {stats.fullSyncStatus?.deliveries?.completed &&
                       <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
                       }
@@ -421,7 +434,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.squareTransactions.count}</div>
+                            <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.squareTransactions}</div>
                             {stats.fullSyncStatus?.squareTransactions?.completed &&
                       <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
                       }
@@ -502,9 +515,9 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
           <span className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>
             {isSyncing ? 'Syncing...' : 'Offline DB'}
           </span>
-          {shouldRenderStats && !isSyncing &&
+          {shouldRenderStats &&
           <span className="text-xs ml-1" style={{ color: 'var(--text-slate-500)' }}>
-              ({stats.patients.count + stats.deliveries.count + stats.appUsers.count + (stats.cities?.count || 0) + (stats.driverOverviewStats?.count || 0)} records)
+              ({liveTotalRecords} records)
             </span>
           }
         </button>
@@ -536,7 +549,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{runtimeStats.patients !== undefined ? runtimeStats.patients : stats.patients.count}</div>
+                          <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.patients}</div>
                           {stats.fullSyncStatus?.patients?.completed &&
                       <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
                       }
@@ -558,7 +571,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{runtimeStats.deliveries !== undefined ? runtimeStats.deliveries : stats.deliveries.count}</div>
+                            <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.deliveries}</div>
                             {stats.fullSyncStatus?.deliveries?.completed &&
                         <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
                         }
@@ -576,7 +589,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.driverOverviewStats?.count || 0}</div>
+                            <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.driverOverviewStats}</div>
                           </div>
                         </div>
                       </div>
@@ -593,7 +606,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.deliveries.count} / {stats.driverOverviewStats?.count || 0}</div>
+                          <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.deliveries} / {liveCounts.driverOverviewStats}</div>
                           {stats.fullSyncStatus?.deliveries?.completed &&
                       <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
                       }
@@ -613,7 +626,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{runtimeStats.appusers !== undefined ? runtimeStats.appusers : stats.appUsers.count}</div>
+                          <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.appUsers}</div>
                           {stats.fullSyncStatus?.appUsers?.completed &&
                       <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
                       }
@@ -634,7 +647,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.cities.count}</div>
+                            <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.cities}</div>
                             {stats.fullSyncStatus?.cities?.completed &&
                       <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
                       }
@@ -656,7 +669,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.squareTransactions.count}</div>
+                            <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.squareTransactions}</div>
                             {stats.fullSyncStatus?.squareTransactions?.completed &&
                       <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
                       }
