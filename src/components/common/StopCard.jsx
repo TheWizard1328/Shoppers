@@ -463,11 +463,12 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     if (!onCreateReturn || !returnPatient || isCreatingReturn) return;
     setIsCreatingReturn(true);
     const selectedReturnPatient = returnPatient;
+    const resolvedStore = store || stores.find((s) => s && s.id === delivery?.store_id);
     setShowReturnConfirm(false);
     setReturnPatient(null);
     onClick?.(null);
     try {
-      await onCreateReturn({ originalDelivery: delivery, returnPatient: selectedReturnPatient, store: store, _skipPickupCreation: true });
+      await onCreateReturn({ originalDelivery: delivery, returnPatient: selectedReturnPatient, store: resolvedStore, _skipPickupCreation: true });
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'return', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
       toast.success('Return created');
       Promise.resolve().then(async () => {
