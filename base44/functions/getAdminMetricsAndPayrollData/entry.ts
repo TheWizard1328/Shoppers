@@ -871,7 +871,13 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
     const store = delivery.store_id ? storeMap.get(delivery.store_id) : null;
     const wasPayingOnDeliveryDate = store ? wasPayingFeesOnDate(store, delivery.delivery_date) : false;
 
-    if (isBillableDelivery(delivery)) {
+    const countsTowardMonthlySplit =
+      isCompletedPatientDelivery(delivery) ||
+      isFailedPatientDelivery(delivery) ||
+      isCompletedAfterHoursPickup(delivery) ||
+      isCancelledAfterHoursPickup(delivery);
+
+    if (countsTowardMonthlySplit) {
       metrics.monthlyData[monthIndex].total++;
       if (wasPayingOnDeliveryDate) {
         metrics.monthlyData[monthIndex].billable++;
