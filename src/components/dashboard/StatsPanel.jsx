@@ -381,14 +381,22 @@ export default function StatsPanel({
             onMouseEnter={() => handleCardInteraction(true)} onMouseLeave={() => handleCardInteraction(false)}>
             <div className="flex flex-wrap gap-x-2 gap-y-1 items-center justify-center">
               {legendData.map(route => (
-                <div key={route.driverId} className="flex items-center gap-1.5">
+                <button
+                  key={route.driverId}
+                  type="button"
+                  className="flex items-center gap-1.5 rounded px-1 py-0.5 hover:bg-slate-100 transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDriverChange(route.driverId);
+                  }}
+                >
                   <div
                     className="w-3 h-3 rounded-full border-2 border-white shadow-sm flex-shrink-0"
                     style={{ backgroundColor: isAllDriversMode ? route.color : getStatusColor(route.driverStatus) }}
                   />
                   <span className="text-xs font-medium whitespace-nowrap" style={{ color: 'var(--text-slate-700)' }}>{route.driverName || 'Unknown'}</span>
                   <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>({route.totalStops})</span>
-                </div>
+                </button>
               ))}
             </div>
           </div>
