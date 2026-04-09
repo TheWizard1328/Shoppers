@@ -506,8 +506,9 @@ export default function DeliveryMap({
     const byDriver = new Map();
 
     safeUsers.forEach((user) => {
-      if (user?.id && user.home_latitude && user.home_longitude) {
-        byDriver.set(user.id, { completed: 0, remainingPickups: 0, remainingDeliveries: 0 });
+      const driverKey = user?.id || user?.user_id;
+      if (driverKey && user.home_latitude && user.home_longitude) {
+        byDriver.set(driverKey, { completed: 0, remainingPickups: 0, remainingDeliveries: 0 });
       }
     });
 
@@ -541,31 +542,35 @@ export default function DeliveryMap({
     const visibleDriverIds = new Set([...deliveryMarkers, ...pickupMarkers].map((stop) => stop?.driver_id).filter(Boolean));
     const isDispatcher = currentUser && userHasRole(currentUser, "dispatcher") && !userHasRole(currentUser, "admin") && !userHasRole(currentUser, "driver");
     const items = safeUsers.filter((user) => user.home_latitude && user.home_longitude).filter((user) => {
-      const homeVisibility = driverHomeVisibilityById.get(user.id);
-      const hasVisibleStops = visibleDriverIds.has(user.id);
-      const isCurrentDriverUser = user.id === currentUser.id && userHasRole(currentUser, "driver");
+      const driverKey = user?.id || user?.user_id;
+      const homeVisibility = driverHomeVisibilityById.get(driverKey);
+      const hasVisibleStops = visibleDriverIds.has(driverKey);
+      const isCurrentDriverUser = driverKey === currentUser.id && userHasRole(currentUser, "driver");
       if (isCurrentDriverUser) {
         return !homeVisibility || homeVisibility.shouldShowHomeMarker;
       }
       if (!homeVisibility?.shouldShowHomeMarker) return false;
-      if (isPureDriver && user.id !== currentUser.id && !(showOtherDriverDeliveries || isAllDriversMode)) return false;
+      if (isPureDriver && driverKey !== currentUser.id && !(showOtherDriverDeliveries || isAllDriversMode)) return false;
       if (isDispatcher) {
         if (!(showOtherDriverDeliveries || isAllDriversMode)) return false;
         return hasVisibleStops;
       }
       if (showOtherDriverDeliveries || isAllDriversMode) return hasVisibleStops;
-      return user.id === selectedDriverId || user.id === currentUser.id;
-    }).map((user) => ({
-      id: `home-${user.id}`,
-      driverId: user.id,
-      driver: user,
-      latitude: user.home_latitude,
-      longitude: user.home_longitude,
-      driverColor: getDriverColor(user),
-      driverName: user.user_name || user.full_name || "Unknown Driver",
-      excludeFromBounds: false,
-      isRouteComplete: driversWithCompleteRoute.has(user.id)
-    }));
+      return driverKey === selectedDriverId || driverKey === currentUser.id;
+    }).map((user) => {
+      const driverKey = user?.id || user?.user_id;
+      return {
+        id: `home-${driverKey}`,
+        driverId: driverKey,
+        driver: user,
+        latitude: user.home_latitude,
+        longitude: user.home_longitude,
+        driverColor: getDriverColor(user),
+        driverName: user.user_name || user.full_name || "Unknown Driver",
+        excludeFromBounds: false,
+        isRouteComplete: driversWithCompleteRoute.has(driverKey)
+      };
+    });
 
     prevDriverHomeMarkersRef.current = items;
     return items;
