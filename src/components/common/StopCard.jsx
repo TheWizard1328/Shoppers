@@ -736,7 +736,11 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           let pendingBreadcrumbsString = null;
                           try {pendingBreadcrumbsString = await getPendingBreadcrumbsForDriver({ driverUserId: delivery.driver_id, appUsers });} catch (breadcrumbErr) {console.warn('⚠️ [COMPLETE] Breadcrumb fetch failed, continuing without:', breadcrumbErr.message);}
                           const hasPendingPickupTransitions = isPickup && pendingPickups && pendingPickups.some((p) => p.status === 'pending');
-                          const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);const useRetroactiveTiming = isPastDeliveryDate;
+                          const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
+                          const useRetroactiveTiming = !shouldUseRegularTiming({
+                            deliveryDate: delivery?.delivery_date,
+                            todayDateString: localDeviceTodayStr
+                          });
                           console.warn('[StopCard] complete retro timing gate', { deliveryId: delivery?.id, useRetroactiveTiming, isPickup, isPastDeliveryDate, deliveryDate: delivery?.delivery_date, comparisonRouteDate: comparisonRouteDateStr, selectedRouteDate: selectedRouteDateStr, selectedDateSource: selectedDateSourceStr, todayDateString: localDeviceTodayStr, edmontonTime: edmontonNowParts.time });
                           const retroactiveTiming = useRetroactiveTiming ? await calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: localDeviceTodayStr, allowSameDay: false }) : null;const completionCodPayments = autoCODPayment || codPayments;const sameRouteDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
                           const forcedCompletionTimestamp = useRetroactiveTiming ? (retroactiveTiming?.actual_delivery_time || localTimeString) : localTimeString;
