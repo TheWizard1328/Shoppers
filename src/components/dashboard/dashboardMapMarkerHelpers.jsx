@@ -13,12 +13,15 @@ export function getVisibleHomeMarkersForBounds({
   showAllDriverMarkers,
   userHasRole
 }) {
+  const isAdmin = userHasRole(currentUser, 'admin');
+  const isShowAllMode = showAllDriverMarkers || selectedDriverId === 'all';
+
   return (mapHomeMarkers || []).filter((home) => {
     const stops = [...(mapDeliveryMarkers || []), ...(mapPickupMarkers || [])].filter((stop) => stop?.driver_id === home.driverId);
     const hasCompletedStops = stops.some((stop) => FINISHED_MAP_STATUSES.includes(stop.status));
     const remainingPickups = stops.filter((stop) => stop?.markerType === 'pickup' && !FINISHED_MAP_STATUSES.includes(stop.status)).length;
     const shouldShowHome = !hasCompletedStops || remainingPickups === 0;
-    const shouldShowForCurrentView = (userHasRole(currentUser, 'driver') && home.driverId === currentUser.id) || showAllDriverMarkers || selectedDriverId === 'all' || home.driverId === selectedDriverId;
+    const shouldShowForCurrentView = (userHasRole(currentUser, 'driver') && home.driverId === currentUser.id) || (isAdmin && isShowAllMode) || showAllDriverMarkers || selectedDriverId === 'all' || home.driverId === selectedDriverId;
     return !home.excludeFromBounds && shouldShowHome && shouldShowForCurrentView;
   });
 }
