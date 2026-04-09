@@ -506,9 +506,9 @@ export default function DeliveryMap({
     const byDriver = new Map();
 
     safeUsers.forEach((user) => {
-      if (user?.id && user.home_latitude && user.home_longitude && user.driver_status !== "off_duty") {
-        byDriver.set(user.id, { completed: 0, remainingPickups: 0, remainingDeliveries: 0 });
-      }
+    if (user?.id && user.home_latitude && user.home_longitude && user.driver_status !== "off_duty") {
+      byDriver.set(user.id, { completed: 0, remainingPickups: 0, remainingDeliveries: 0 });
+    }
     });
 
     [...deliveryMarkers, ...pickupMarkers].forEach((stop) => {
@@ -524,7 +524,7 @@ export default function DeliveryMap({
     byDriver.forEach((state, driverId) => {
       visibilityMap.set(driverId, {
         ...state,
-        shouldShowHomeMarker: state.completed === 0 || (state.completed > 0 && state.remainingPickups === 0)
+        shouldShowHomeMarker: state.completed === 0 || state.remainingPickups === 0
       });
     });
     return visibilityMap;
@@ -539,7 +539,7 @@ export default function DeliveryMap({
     }
 
     const visibleDriverIds = new Set([...deliveryMarkers, ...pickupMarkers].map((stop) => stop?.driver_id).filter(Boolean));
-    const items = safeUsers.filter((user) => visibleDriverIds.has(user.id) && user.home_latitude && user.home_longitude && user.driver_status !== "off_duty").filter((user) => {
+    const items = safeUsers.filter((user) => user.home_latitude && user.home_longitude && user.driver_status !== "off_duty").filter((user) => {
       const homeVisibility = driverHomeVisibilityById.get(user.id);
       if (!homeVisibility?.shouldShowHomeMarker) return false;
       if (isPureDriver && user.id !== currentUser.id && !(showOtherDriverDeliveries || isAllDriversMode)) return false;
