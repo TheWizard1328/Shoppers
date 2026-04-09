@@ -2034,9 +2034,8 @@ function Dashboard() {
           const maxSpan = Math.max(latSpan, lonSpan);
 
           const spanKm = maxSpan * 111.0;
-          const baseZoom = 16 - Math.log2(spanKm + 1) * 1.5;
-          const screenAdjustment = isMobile ? 0.5 : -0.5;
-          const phase1MaxZoom = Math.max(8.0, Math.min(19, Math.round((baseZoom + screenAdjustment) * 10) / 10)).toFixed(1);
+          const baseZoom = 16 - Math.log2(spanKm + 1) * 1.2;
+          const phase1MaxZoom = Math.max(12.0, Math.min(19, Math.round(baseZoom * 10) / 10));
 
           const padding = getMapPadding();
 
@@ -2237,14 +2236,11 @@ function Dashboard() {
 
         // 3. Only fit bounds if we have actual markers to show (NO city center fallback)
         if (allCoordinatesPhase3.length > 0) {
-          // CRITICAL: Check if there are actually visible cards before using measured height
           const hasVisibleCards = deliveriesWithStopOrder.some((d) => d && d.status !== 'pending');
-
           const statsCardCurrHeight = statsCardRef.current?.offsetHeight || 75;
           const topPadding = isMobile ? statsCardCurrHeight + 25 : 25;
 
-          // CRITICAL: Only measure stop cards height if cards are actually visible
-          let bottomPadding = 25; // Default when no cards
+          let bottomPadding = 25;
           if (hasVisibleCards) {
             const stopCardsContainer = stopCardsContainerRef.current;
             if (stopCardsContainer) {
@@ -2262,7 +2258,6 @@ function Dashboard() {
             paddingBottomRight: [25, bottomPadding]
           };
 
-          // Calculate appropriate zoom based on span
           let minLat = Infinity,maxLat = -Infinity,minLon = Infinity,maxLon = -Infinity;
           allCoordinatesPhase3.forEach(([lat, lon]) => {
             minLat = Math.min(minLat, lat);
@@ -2275,8 +2270,6 @@ function Dashboard() {
           const lonSpan = maxLon - minLon;
           const maxSpan = Math.max(latSpan, lonSpan);
           const spanKm = maxSpan * 111.0;
-
-          // CRITICAL: Consistent zoom calculation across all devices
           const baseZoom = 16 - Math.log2(spanKm + 1) * 1.2;
           const phase3MaxZoom = Math.max(12.0, Math.min(19, Math.round(baseZoom * 10) / 10));
 
