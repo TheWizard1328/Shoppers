@@ -543,7 +543,8 @@ export default function DeliveryMap({
     const items = safeUsers.filter((user) => user.home_latitude && user.home_longitude).filter((user) => {
       const homeVisibility = driverHomeVisibilityById.get(user.id);
       const hasVisibleStops = visibleDriverIds.has(user.id);
-      if (isPureDriver && user.id === currentUser.id) {
+      const isCurrentDriverUser = user.id === currentUser.id && userHasRole(currentUser, "driver");
+      if (isCurrentDriverUser) {
         return !homeVisibility || homeVisibility.shouldShowHomeMarker;
       }
       if (!homeVisibility?.shouldShowHomeMarker) return false;
