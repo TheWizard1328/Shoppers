@@ -102,6 +102,12 @@ class BackgroundSyncManager {
   resume() {
     console.log('▶️ [BackgroundSync] Resumed');
     this.isPaused = false;
+
+    if (this.isRunning && !this.currentSyncInterval) {
+      this.scheduleNextSync();
+    }
+
+    this.forceSyncNow().catch(() => {});
   }
 
   /**

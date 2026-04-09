@@ -59,6 +59,10 @@ export const pauseOfflineSync = (reason = 'general') => {
 export const resumeOfflineSync = (reason = 'general') => {
   syncPauseReasons.delete(reason);
   syncPaused = syncPauseReasons.size > 0;
+
+  if (!syncPaused && typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('offlineSyncResumed'));
+  }
 };
 
 export const isOfflineSyncPaused = () => syncPaused;
@@ -829,7 +833,7 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
     }
 
     const historicalMeta = await getHistoricalSyncMeta();
-    const deliveryPhaseComplete = historicalMeta?.delivery_cycle_index > DELIVERY_DATE_RANGE_DAYS;
+    const deliveryPhaseComplete = Number(historicalMeta?.delivery_cycle_index || 1) === 1 && historicalMeta?.delivery_last_synced_date === format(subDays(new Date(), DELIVERY_DATE_RANGE_DAYS), 'yyyy-MM-dd');
 
     if (!deliveryPhaseComplete) {
       const deliveryDateToSync = await getNextDeliveryDateToSync();
@@ -1673,12 +1677,16 @@ export const initializeOfflineDBBeforeRender = async (smartRefreshMgr = null, cu
 
 if (typeof window !== 'undefined' && !window.__rxdeliverReconnectSyncRegistered) {
   window.__rxdeliverReconnectSyncRegistered = true;
-  window.addEventListener('online', () => {
+
+  const triggerOfflineBackgroundSync = () => {
     setTimeout(() => {
       processPendingMutations().catch(() => {});
       performBackgroundSync(getLocalDateString()).catch(() => {});
     }, 1500);
-  });
+  };
+
+  window.addEventListener('online', triggerOfflineBackgroundSync);
+  window.addEventListener('offlineSyncResumed', triggerOfflineBackgroundSync);
 }
 
 export const getSyncStats = async () => {
