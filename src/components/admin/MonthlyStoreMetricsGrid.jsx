@@ -60,7 +60,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
           let value;
           if (metricsViewMode === 'deliveries') {
             // Total = Completed Deliveries + After Hours + Failed
-            const totalDeliveries = (storeData.completed || 0) + (storeData.afterHours || 0) + (storeData.failed || 0);
+            const totalDeliveries = (storeData.completed || 0) + (storeData.failed || 0) + (storeData.afterHours || 0);
             // Only add envelope adjustment if toggle is on AND this store has envelope data
             const envelopeInfo = metricsData.envelopeMetrics?.byStoreAndMonth?.[storeData.storeId]?.[month];
             const envelopeAdjustment = showEnvelopeAdjustedTotals && envelopeInfo?.totalEnvelopeValue > 0 ?
@@ -93,7 +93,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
       let value;
       if (metricsViewMode === 'deliveries') {
         // Total = Completed Deliveries + After Hours + Failed
-        const totalDeliveries = (store.completed || 0) + (store.afterHours || 0) + (store.failed || 0);
+        const totalDeliveries = (store.completed || 0) + (store.failed || 0) + (store.afterHours || 0);
         // Only add envelope adjustment if toggle is on AND this store has envelope data
         const envelopeInfo = metricsData.envelopeMetrics?.byStoreAndMonth?.[store.storeId]?.[month];
         const envelopeAdjustment = showEnvelopeAdjustedTotals && envelopeInfo?.totalEnvelopeValue > 0 ?

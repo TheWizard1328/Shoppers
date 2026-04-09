@@ -383,7 +383,7 @@ export default function AdminMetrics() {
                   {(
                   selectedMonth ?
                   (metricsData.monthlyStoreData?.[selectedMonth] || []).reduce((sum, store) => {
-                    const totalDeliveries = (store.completed || 0) + (store.afterHours || 0) + (store.failed || 0);
+                    const totalDeliveries = (store.completed || 0) + (store.failed || 0) + (store.afterHours || 0);
                     const envelopeInfo = metricsData.envelopeMetrics?.byStoreAndMonth?.[store.storeId]?.[selectedMonth];
                     const envelopeAdjustment = showEnvelopeAdjustedTotals && envelopeInfo?.totalEnvelopeValue > 0 ?
                       envelopeInfo.totalEnvelopeValue - envelopeInfo.envelopeDeliveriesCount :
