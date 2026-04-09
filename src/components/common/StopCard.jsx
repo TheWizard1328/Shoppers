@@ -399,7 +399,8 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
         status: 'in_transit',
         delivery_time_start: deliveryTimeStart,
         tracking_number: incrementTrackingNumber(delivery.tracking_number, i + 1),
-        isNextDelivery: false
+        isNextDelivery: false,
+        ...(pendingDelivery.active === false ? { active: true } : {})
       }));
 
       Promise.all(localUpdates.map((update) => updateDeliveryLocal(update.id, update, { skipSmartRefresh: true }))).catch((err) => console.warn('Local update failed:', err));
@@ -412,7 +413,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
       const codBatch = allPendingDeliveries.filter((pd) => pd.cod_total_amount_required > 0 && pd.patient_id).map((pendingDelivery) => {const storeForCod = stores.find((s) => s && s.id === pendingDelivery.store_id);return { deliveryId: pendingDelivery.id, patientName: pendingDelivery.patient_name, storeAbbreviation: storeForCod?.abbreviation || '', codAmount: pendingDelivery.cod_total_amount_required, deliveryDate: pendingDelivery.delivery_date, storeId: pendingDelivery.store_id };});
 
       // Background: Sync updates to server (no await in main thread)
-      sortedPending.forEach((pendingDelivery, i) => {queueDeliveryUpdate(pendingDelivery.id, { status: 'in_transit', delivery_time_start: deliveryTimeStart, tracking_number: incrementTrackingNumber(delivery.tracking_number, i + 1) });});
+      sortedPending.forEach((pendingDelivery, i) => {queueDeliveryUpdate(pendingDelivery.id, { status: 'in_transit', delivery_time_start: deliveryTimeStart, tracking_number: incrementTrackingNumber(delivery.tracking_number, i + 1), ...(pendingDelivery.active === false ? { active: true } : {}) });});
       await flushQueuedDeliveryUpdates();
       invalidate('Delivery');
       await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
