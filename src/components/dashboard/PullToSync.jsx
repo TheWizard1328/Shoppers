@@ -103,33 +103,22 @@ export default function PullToSync({
       } catch (e) {}
 
       await new Promise((resolve) => setTimeout(resolve, silent ? 0 : 400));
-      const driverFilter = currentDriverId && currentDriverId !== 'all' 
-        ? { driver_id: currentDriverId } 
-        : {};
+      const allStores = await offlineDB.getAll(offlineDB.STORES.STORES);
+      const cityStoreIds = (allStores || []).filter((store) => !selectedCityId || store?.city_id === selectedCityId).map((store) => store.id);
+      const cityFilter = cityStoreIds.length > 0 ? { store_id: { $in: cityStoreIds } } : {};
       if (window.__dashboardSyncing && window.__activePullToSyncRunId && !silent && window.__activePullToSyncRunId !== syncRunId) {
         return;
       }
 
-      // ─── STEP 1: Fetch deliveries for selected driver + date ───────────────
+      // ─── STEP 1: Fetch full selected date + city slice for ALL drivers ─────
       window.dispatchEvent(new CustomEvent('pullToSyncStarted', { detail: { suppressIncrementalUi: true } }));
       const freshDeliveries = await base44.entities.Delivery.filter({ 
         delivery_date: selectedDateStr,
-        ...driverFilter
+        ...cityFilter
       });
 
-      // FULL REPLACEMENT: Delete all offline deliveries for this date, then save fresh ones.
-      // This ensures deletions and driver transfers are properly reflected.
-      if (selectedDriverId && selectedDriverId !== 'all') {
-        // Driver-specific sync: only delete that driver's records for this date
-        const existingForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-        const driverRecords = (existingForDate || []).filter(d => d?.driver_id === selectedDriverId);
-        await Promise.all(
-          driverRecords.map(d => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id).catch(() => {}))
-        );
-      } else {
-        // All-drivers sync: wipe the entire date using the efficient cursor-based delete
-        await offlineDB.deleteDeliveriesByDate(selectedDateStr).catch(() => {});
-      }
+      // FULL REPLACEMENT: replace the full selected date slice so legend/routes stay complete.
+      await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr, freshDeliveries || []).catch(() => {});
 
       // Save fresh records from server
       if (freshDeliveries?.length > 0) {
@@ -142,7 +131,7 @@ export default function PullToSync({
         { synced_delivery_date: selectedDateStr }
       );
 
-      // ─── STEP 2: Sync patients for those deliveries ────────────────────────
+      // ─── STEP 2: Sync patients for those deliveries plus current city stores ─────
       const patientIds = Array.from(
         new Set((freshDeliveries || []).filter(d => d?.patient_id).map(d => d.patient_id))
       );
@@ -164,10 +153,17 @@ export default function PullToSync({
             })
           )
         )).flat().filter(Boolean);
+      }
 
-        if (freshPatients.length > 0) {
-          await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
-        }
+      if (cityStoreIds.length > 0) {
+        const cityPatients = await base44.entities.Patient.filter({ store_id: { $in: cityStoreIds } }).catch(() => []);
+        freshPatients = [...freshPatients, ...cityPatients].filter(Boolean);
+      }
+
+      if (freshPatients.length > 0) {
+        const patientMap = new Map(freshPatients.map((patient) => [patient.id, patient]));
+        freshPatients = Array.from(patientMap.values());
+        await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
       }
 
       // ─── STEP 3: Load from offline DB + update UI ─────────────────────────
@@ -179,9 +175,7 @@ export default function PullToSync({
       ]);
 
       const offlineDeliveries = Array.isArray(offlineDeliveriesRaw)
-        ? (currentDriverId && currentDriverId !== 'all'
-          ? offlineDeliveriesRaw.filter((d) => d?.driver_id === currentDriverId)
-          : offlineDeliveriesRaw)
+        ? offlineDeliveriesRaw
         : [];
 
       const safeAppUsers = Array.isArray(freshAppUsers)
