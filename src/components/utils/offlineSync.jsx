@@ -329,6 +329,9 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
   if (syncPaused) return { skipped: true };
   
   try {
+    const allStores = await offlineDB.getAll(offlineDB.STORES.STORES);
+    const cityStoreIds = cityId ? (allStores || []).filter((store) => store?.city_id === cityId).map((store) => store.id) : [];
+
     notifySyncStatus({ status: 'priority_sync', phase: 'appusers' });
     
     // CRITICAL: Wait for rate limit before fetching
@@ -400,21 +403,8 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
     
     // STEP 2: Fetch and sync Deliveries for active date with deduplication
     // CRITICAL: If in Show All or All Drivers mode, fetch ALL drivers' deliveries for the date
-    let deliveryFilter = {};
-    
-    if (!fetchAllDriversDeliveries) {
-      // Individual driver mode - filter by driver if provided
-      const { globalFilters } = await import('./globalFilters');
-      const selectedDriverId = globalFilters?.getSelectedDriverId?.();
-      if (selectedDriverId && selectedDriverId !== 'all') {
-        deliveryFilter.driver_id = selectedDriverId;
-        console.log(`📦 [PrioritySyncBeforeRefresh] STEP 2: Fetching deliveries for driver ${selectedDriverId} only (deduplicated)`);
-      } else {
-        console.log(`📦 [PrioritySyncBeforeRefresh] STEP 2: Fetching ALL drivers' deliveries (deduplicated, All Drivers mode)`);
-      }
-    } else {
-      console.log(`📦 [PrioritySyncBeforeRefresh] STEP 2: Fetching ALL drivers' deliveries (deduplicated, Show All mode)`);
-    }
+    const deliveryFilter = cityStoreIds.length > 0 ? { store_id: { $in: cityStoreIds } } : {};
+    console.log(`📦 [PrioritySyncBeforeRefresh] STEP 2: Fetching ALL drivers' deliveries for selected date${cityStoreIds.length > 0 ? ' and city' : ''} (deduplicated)`);
     
     const deliveries = await fetchDeliveriesDedup(selectedDateStr, deliveryFilter);
     if (deliveries && deliveries.length > 0) {
@@ -684,7 +674,8 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
     
     // Step 5: Deliveries for selected date
     let patients = [];
-    const deliveryFilter = { delivery_date: selectedDateStr, ...filters };
+    const cityStoreIds = filters?.city_id ? (stores || []).filter((store) => store?.city_id === filters.city_id).map((store) => store.id) : [];
+    const deliveryFilter = { delivery_date: selectedDateStr, ...(cityStoreIds.length > 0 ? { store_id: { $in: cityStoreIds } } : {}), ...Object.fromEntries(Object.entries(filters || {}).filter(([key]) => key !== 'city_id')) };
     const deliveries = await Delivery.filter(deliveryFilter);
     
     if (deliveries && deliveries.length > 0) {
@@ -712,8 +703,19 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
           }
           await new Promise(r => setTimeout(r, 200));
         }
-        await offlineDB.updateSyncStatus('Patient', { recordCount: patientIdList.length, status: 'synced', lastSync: new Date().toISOString() });
       }
+
+      if (cityStoreIds.length > 0) {
+        const cityPatients = await Patient.filter({ store_id: { $in: cityStoreIds } }, '-updated_date', 5000);
+        if (cityPatients && cityPatients.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, cityPatients);
+          invalidateEntityCache('Patient');
+          const patientMap = new Map([...patients, ...cityPatients].filter(Boolean).map((patient) => [patient.id, patient]));
+          patients = Array.from(patientMap.values());
+        }
+      }
+
+      await offlineDB.updateSyncStatus('Patient', { recordCount: patients.length, status: 'synced', lastSync: new Date().toISOString() });
     }
     
     // CRITICAL: Verify data was actually saved before marking as synced
@@ -802,6 +804,10 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
   if (!(await shouldRunMobileHistoricalSync())) {
     return { skipped: true, reason: 'not_idle_or_not_due' };
   }
+
+  if (!selectedDateStr) {
+    return { skipped: true, reason: 'missing_selected_date' };
+  }
   
   syncInProgress = true;
   lastBackgroundSyncAt = now;
@@ -809,6 +815,18 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
   
   try {
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+
+    const selectedDateFilter = { delivery_date: selectedDateStr, ...(storeIds && storeIds.length > 0 ? { store_id: { $in: storeIds } } : {}) };
+    const selectedDateDeliveries = await Delivery.filter(selectedDateFilter, '-updated_date', 5000);
+    if (selectedDateDeliveries && selectedDateDeliveries.length > 0) {
+      await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr, selectedDateDeliveries);
+      invalidateEntityCache('Delivery');
+
+      const selectedDatePatientIds = Array.from(new Set(selectedDateDeliveries.filter((delivery) => delivery?.patient_id).map((delivery) => delivery.patient_id)));
+      if (selectedDatePatientIds.length > 0) {
+        await syncPatientsByIds(selectedDatePatientIds);
+      }
+    }
 
     const historicalMeta = await getHistoricalSyncMeta();
     const deliveryPhaseComplete = historicalMeta?.delivery_cycle_index > DELIVERY_DATE_RANGE_DAYS;
@@ -1000,7 +1018,7 @@ export const quickReconcile = async (selectedDateStr) => {
  * Main entry point for initial sync
  * CRITICAL: For new users, always sync ALL patients to populate offline DB
  */
-export const performInitialSync = async (selectedDate = null) => {
+export const performInitialSync = async (selectedDate = null, cityId = null) => {
   if (syncInProgress || syncPaused) {
     return { skipped: true };
   }
@@ -1009,7 +1027,7 @@ export const performInitialSync = async (selectedDate = null) => {
     ? format(selectedDate, 'yyyy-MM-dd') 
     : format(new Date(), 'yyyy-MM-dd');
   
-  const priorityResult = await loadPriorityData(selectedDateStr, { status: { $in: ['pending', 'in_transit', 'en_route', 'completed', 'failed', 'cancelled'] } });
+  const priorityResult = await loadPriorityData(selectedDateStr, { city_id: cityId, status: { $in: ['pending', 'in_transit', 'en_route', 'completed', 'failed', 'cancelled'] } });
   
   if (priorityResult.error) {
     return priorityResult;
