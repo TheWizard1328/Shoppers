@@ -260,6 +260,15 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
     squareTransactions: runtimeStats.squaretransactions ?? stats.squareTransactions?.count ?? 0,
   } : null;
 
+  const liveLastSync = stats ? {
+    patients: runtimeStats.patients !== undefined ? new Date().toISOString() : stats.patients?.lastSync,
+    deliveries: runtimeStats.deliveries !== undefined ? new Date().toISOString() : stats.deliveries?.lastSync,
+    appUsers: runtimeStats.appusers !== undefined ? new Date().toISOString() : stats.appUsers?.lastSync,
+    cities: runtimeStats.cities !== undefined ? new Date().toISOString() : stats.cities?.lastSync,
+    driverOverviewStats: runtimeStats.driveroverviewstats !== undefined ? new Date().toISOString() : (stats.driverOverviewStats?.lastSync || stats.deliveries?.lastSync),
+    squareTransactions: runtimeStats.squaretransactions !== undefined ? new Date().toISOString() : stats.squareTransactions?.lastSync,
+  } : null;
+
   const liveTotalRecords = liveCounts
     ? liveCounts.patients + liveCounts.deliveries + liveCounts.appUsers + liveCounts.cities + liveCounts.driverOverviewStats
     : 0;
@@ -310,7 +319,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                           </div>
                           <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
                             <Clock className="w-3 h-3" />
-                            <span>{formatLastSync(runtimeStats.appusers !== undefined ? undefined : stats.appUsers.lastSync)}</span>
+                            <span>{formatLastSync(liveLastSync.appUsers)}</span>
                           </div>
                         </div>
                         <div className="text-right">
@@ -331,7 +340,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                             </div>
                             <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
                               <Clock className="w-3 h-3" />
-                              <span>{formatLastSync(stats.cities.lastSync)}</span>
+                              <span>{formatLastSync(liveLastSync.cities)}</span>
                             </div>
                           </div>
                           <div className="text-right">
@@ -352,7 +361,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                           </div>
                           <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
                             <Clock className="w-3 h-3" />
-                            <span>{formatLastSync(runtimeStats.patients ? undefined : stats.patients.lastSync)}</span>
+                            <span>{formatLastSync(liveLastSync.patients)}</span>
                           </div>
                         </div>
                         <div className="text-right">
@@ -374,7 +383,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                             </div>
                             <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
                               <Clock className="w-3 h-3" />
-                              <span>{formatLastSync(runtimeStats.deliveries !== undefined ? undefined : stats.deliveries.lastSync)}</span>
+                              <span>{formatLastSync(liveLastSync.deliveries)}</span>
                             </div>
                           </div>
                           <div className="text-right">
@@ -392,7 +401,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                             </div>
                             <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
                               <Clock className="w-3 h-3" />
-                              <span>{formatLastSync(stats.driverOverviewStats?.lastSync || stats.deliveries.lastSync)}</span>
+                              <span>{formatLastSync(liveLastSync.driverOverviewStats)}</span>
                             </div>
                           </div>
                           <div className="text-right">
@@ -409,7 +418,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                           </div>
                           <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
                             <Clock className="w-3 h-3" />
-                            <span>{formatLastSync(stats.deliveries.lastSync)}</span>
+                            <span>{formatLastSync(liveLastSync.deliveries)}</span>
                           </div>
                         </div>
                         <div className="text-right">
@@ -430,7 +439,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                             </div>
                             <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
                               <Clock className="w-3 h-3" />
-                              <span>{formatLastSync(stats.squareTransactions.lastSync)}</span>
+                              <span>{formatLastSync(liveLastSync.squareTransactions)}</span>
                             </div>
                           </div>
                           <div className="text-right">
@@ -545,7 +554,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                           </div>
                           <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
                             <Clock className="w-3 h-3" />
-                            <span>{formatLastSync(runtimeStats.patients ? undefined : stats.patients.lastSync)}</span>
+                            <span>{formatLastSync(liveLastSync.patients)}</span>
                           </div>
                         </div>
                         <div className="text-right">
@@ -567,7 +576,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                             </div>
                             <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
                               <Clock className="w-3 h-3" />
-                              <span>{formatLastSync(runtimeStats.deliveries !== undefined ? undefined : stats.deliveries.lastSync)}</span>
+                              <span>{formatLastSync(liveLastSync.deliveries)}</span>
                             </div>
                           </div>
                           <div className="text-right">
@@ -585,7 +594,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                             </div>
                             <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
                               <Clock className="w-3 h-3" />
-                              <span>{formatLastSync(stats.driverOverviewStats?.lastSync || stats.deliveries.lastSync)}</span>
+                              <span>{formatLastSync(liveLastSync.driverOverviewStats)}</span>
                             </div>
                           </div>
                           <div className="text-right">
@@ -602,7 +611,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                           </div>
                           <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
                             <Clock className="w-3 h-3" />
-                            <span>{formatLastSync(stats.deliveries.lastSync)}</span>
+                            <span>{formatLastSync(liveLastSync.deliveries)}</span>
                           </div>
                         </div>
                         <div className="text-right">
@@ -622,7 +631,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                           </div>
                           <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
                             <Clock className="w-3 h-3" />
-                            <span>{formatLastSync(runtimeStats.appusers !== undefined ? undefined : stats.appUsers.lastSync)}</span>
+                            <span>{formatLastSync(liveLastSync.appUsers)}</span>
                           </div>
                         </div>
                         <div className="text-right">
@@ -643,7 +652,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                             </div>
                             <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
                               <Clock className="w-3 h-3" />
-                              <span>{formatLastSync(stats.cities.lastSync)}</span>
+                              <span>{formatLastSync(liveLastSync.cities)}</span>
                             </div>
                           </div>
                           <div className="text-right">
@@ -665,7 +674,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                             </div>
                             <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
                               <Clock className="w-3 h-3" />
-                              <span>{formatLastSync(stats.squareTransactions.lastSync)}</span>
+                              <span>{formatLastSync(liveLastSync.squareTransactions)}</span>
                             </div>
                           </div>
                           <div className="text-right">
