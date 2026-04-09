@@ -248,9 +248,35 @@ const mergeEnvelopeMetrics = (baseEnvelopeMetrics, incomingEnvelopeMetrics) => {
   return merged;
 };
 
+const negateDailyMetricEntries = (entries = []) => {
+  return (entries || []).map((entry) => ({
+    ...entry,
+    completed: -(entry?.completed || 0),
+    failed: -(entry?.failed || 0),
+    afterHours: -(entry?.afterHours || 0),
+    cancelled: -(entry?.cancelled || 0),
+    billable: -(entry?.billable || 0),
+    nonBillable: -(entry?.nonBillable || 0),
+    extra_km: -(entry?.extra_km || 0),
+    total: -(entry?.total || 0),
+    totalCompleted: -(entry?.totalCompleted || 0),
+    totalFailed: -(entry?.totalFailed || 0)
+  }));
+};
+
 const subtractWindowFromMonthMetrics = (monthMetrics, windowMetrics, month) => {
   if (!monthMetrics) return monthMetrics;
   if (!windowMetrics) return monthMetrics;
+
+  const negativeDailyStoreData = {};
+  Object.entries(windowMetrics.dailyStoreData?.[month] || {}).forEach(([storeId, entries]) => {
+    negativeDailyStoreData[storeId] = negateDailyMetricEntries(entries);
+  });
+
+  const negativeDailyDriverData = {};
+  Object.entries(windowMetrics.dailyDriverData?.[month] || {}).forEach(([driverId, entries]) => {
+    negativeDailyDriverData[driverId] = negateDailyMetricEntries(entries);
+  });
 
   const mergedNegative = mergeMetrics(monthMetrics, {
     ...windowMetrics,
@@ -267,6 +293,12 @@ const subtractWindowFromMonthMetrics = (monthMetrics, windowMetrics, month) => {
       billable: -(windowMetrics.yearTotals?.billable || 0),
       nonBillable: -(windowMetrics.yearTotals?.nonBillable || 0),
       activeDrivers: monthMetrics.yearTotals?.activeDrivers || 0
+    },
+    dailyStoreData: {
+      [month]: negativeDailyStoreData
+    },
+    dailyDriverData: {
+      [month]: negativeDailyDriverData
     },
     storeFeeTotals: {
       ...(windowMetrics.storeFeeTotals || {}),
