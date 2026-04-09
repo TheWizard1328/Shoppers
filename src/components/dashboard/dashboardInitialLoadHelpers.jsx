@@ -37,8 +37,5 @@ export function mergeDeliveriesForDate({ deliveries, selectedDateStr, freshDeliv
 }
 
 export function hasDeliveryDataForSelection({ deliveries, selectedDateStr, selectedDriverId }) {
-  if (selectedDriverId && selectedDriverId !== 'all') {
-    return (deliveries || []).some((d) => d && d.delivery_date === selectedDateStr && d.driver_id === selectedDriverId);
-  }
   return (deliveries || []).some((d) => d && d.delivery_date === selectedDateStr);
 }

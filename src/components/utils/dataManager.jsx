@@ -434,13 +434,10 @@ export const loadFullMonthDeliveries = async (filters = {}, forceRefresh = false
  */
 export const loadPriorityDeliveriesForSelection = async (dateStr, selectedDriverId = 'all', forceRefresh = true, extraFilters = {}) => {
   const apiFilters = { delivery_date: dateStr, ...extraFilters };
-  if (selectedDriverId && selectedDriverId !== 'all') {
-    apiFilters.driver_id = selectedDriverId;
-  }
 
   const deliveries = await loadDeliveriesForDate(dateStr, apiFilters, forceRefresh);
   await offlineDB.updateCacheSnapshot('Delivery', deliveries || [], {
-    scopeKey: `selection:${dateStr}:${selectedDriverId || 'all'}`,
+    scopeKey: `selection:${dateStr}:all`,
     syncType: 'selection_priority'
   });
 
