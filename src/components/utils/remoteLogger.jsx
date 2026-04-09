@@ -1,6 +1,7 @@
 import { base44 } from '@/api/base44Client';
 import { getDeviceIdentifier } from '@/components/utils/userSettingsManager';
 import { getUserAgentInfo } from '@/components/utils/deviceUtils';
+import { getCurrentDevice } from '@/components/utils/deviceManager';
 
 const STORAGE_KEY = 'rxdeliver_remote_log_buffer';
 const SESSION_KEY = 'rxdeliver_remote_log_session_id';
@@ -114,6 +115,7 @@ const enqueue = async (level, args) => {
 
   const me = await getMe();
   const { deviceType, os } = getUserAgentInfo();
+  const currentDevice = me?.id ? await getCurrentDevice(me.id).catch(() => null) : null;
   const current = readBuffer();
   current.push({
     level,
@@ -122,11 +124,15 @@ const enqueue = async (level, args) => {
     user_id: me?.id || null,
     user_name: me?.full_name || null,
     device_identifier: getDeviceIdentifier(),
-    device_type: deviceType,
-    os,
+    device_type: currentDevice?.device_info?.device_type || deviceType,
+    os: currentDevice?.device_info?.os || os,
     page: window.location.pathname,
     session_id: getSessionId(),
-    metadata: {}
+    metadata: {
+      device_name: currentDevice?.device_name || null,
+      device_os: currentDevice?.device_info?.os || os || null,
+      device_type: currentDevice?.device_info?.device_type || deviceType || null
+    }
   });
   writeBuffer(current);
 

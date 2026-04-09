@@ -200,6 +200,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
                   <th className="p-2 text-left">Time</th>
                   <th className="p-2 text-left">Level</th>
                   <th className="p-2 text-left">User</th>
+                  <th className="p-2 text-left">Device</th>
                   <th className="p-2 text-left">Page</th>
                   <th className="p-2 text-left">Message</th>
                 </tr>
@@ -210,6 +211,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
                     <td className="p-2 whitespace-nowrap">{formatLogTimestamp(log.timestamp)}</td>
                     <td className="p-2 whitespace-nowrap">{log.level}</td>
                     <td className="p-2 whitespace-nowrap">{log.user_name || log.user_id || '-'}</td>
+                    <td className="p-2 whitespace-nowrap">{[log.metadata?.device_name, log.metadata?.device_os || log.os || log.device_type].filter(Boolean).join(' • ') || '-'}</td>
                     <td className="p-2 whitespace-nowrap">{log.page || '-'}</td>
                     <td className="p-2 break-words">{log.message}</td>
                   </tr>
