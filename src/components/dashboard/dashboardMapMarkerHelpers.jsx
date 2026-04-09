@@ -11,10 +11,15 @@ export function getVisibleHomeMarkersForBounds({
   currentUser,
   selectedDriverId,
   showAllDriverMarkers,
-  userHasRole
+  userHasRole,
+  hasDriverMarkers = false
 }) {
   const isAdmin = userHasRole(currentUser, 'admin');
   const isShowAllMode = showAllDriverMarkers || selectedDriverId === 'all';
+
+  if (hasDriverMarkers) {
+    return [];
+  }
 
   return (mapHomeMarkers || []).filter((home) => {
     const stops = [...(mapDeliveryMarkers || []), ...(mapPickupMarkers || [])].filter((stop) => stop?.driver_id === home.driverId);
