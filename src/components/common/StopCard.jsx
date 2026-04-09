@@ -315,10 +315,10 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const blockCardToggle = (e) => {
     e?.preventDefault?.();
     e?.stopPropagation?.();
-    actionTapLockRef.current = true;
     if (isExpanded) {
       onClick?.(null);
     }
+    actionTapLockRef.current = true;
     window.setTimeout(() => {
       actionTapLockRef.current = false;
     }, 350);
