@@ -19,6 +19,21 @@ const LEGACY_CACHE_DB_NAMES = [
   'rxdeliver_persistent_cache_v2'
 ];
 
+const listLegacyCacheDbNames = async () => {
+  if (typeof indexedDB === 'undefined' || typeof indexedDB.databases !== 'function') {
+    return LEGACY_CACHE_DB_NAMES;
+  }
+
+  try {
+    const databases = await indexedDB.databases();
+    return (databases || [])
+      .map((db) => db?.name)
+      .filter((name) => name && name.startsWith('rxdeliver_persistent_cache_') && name !== getOfflineCacheDbName());
+  } catch (error) {
+    return LEGACY_CACHE_DB_NAMES;
+  }
+};
+
 const deleteLegacyCacheDbIfExists = (dbName) => new Promise((resolve) => {
   if (typeof indexedDB === 'undefined' || !dbName || dbName === getOfflineCacheDbName()) {
     resolve(false);
@@ -34,7 +49,8 @@ const deleteLegacyCacheDbIfExists = (dbName) => new Promise((resolve) => {
 const cleanupLegacyCacheDatabases = async () => {
   if (legacyCacheCleanupPromise) return legacyCacheCleanupPromise;
 
-  legacyCacheCleanupPromise = Promise.all(LEGACY_CACHE_DB_NAMES.map(deleteLegacyCacheDbIfExists))
+  legacyCacheCleanupPromise = listLegacyCacheDbNames()
+    .then((dbNames) => Promise.all((dbNames || []).map(deleteLegacyCacheDbIfExists)))
     .catch(() => [])
     .finally(() => {
       legacyCacheCleanupPromise = null;

@@ -36,6 +36,21 @@ const LEGACY_OFFLINE_DB_NAMES = [
   'rxdeliver_persistent_offline_v2'
 ];
 
+const listLegacyOfflineDbNames = async () => {
+  if (typeof indexedDB === 'undefined' || typeof indexedDB.databases !== 'function') {
+    return LEGACY_OFFLINE_DB_NAMES;
+  }
+
+  try {
+    const databases = await indexedDB.databases();
+    return (databases || [])
+      .map((db) => db?.name)
+      .filter((name) => name && name.startsWith('rxdeliver_persistent_offline_') && name !== DB_NAME);
+  } catch (error) {
+    return LEGACY_OFFLINE_DB_NAMES;
+  }
+};
+
 const deleteIndexedDbIfExists = (dbName) => new Promise((resolve) => {
   if (typeof indexedDB === 'undefined' || !dbName || dbName === DB_NAME) {
     resolve(false);
@@ -51,7 +66,8 @@ const deleteIndexedDbIfExists = (dbName) => new Promise((resolve) => {
 const cleanupLegacyOfflineDatabases = async () => {
   if (legacyCleanupPromise) return legacyCleanupPromise;
 
-  legacyCleanupPromise = Promise.all(LEGACY_OFFLINE_DB_NAMES.map(deleteIndexedDbIfExists))
+  legacyCleanupPromise = listLegacyOfflineDbNames()
+    .then((dbNames) => Promise.all((dbNames || []).map(deleteIndexedDbIfExists)))
     .catch(() => [])
     .finally(() => {
       legacyCleanupPromise = null;
