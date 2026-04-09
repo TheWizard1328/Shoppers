@@ -586,8 +586,9 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
           });
           updateDeliveriesLocally(updatedDeliveries, true);
         }
+        let restartOptimizeData = null;
         try {
-          const { optimizeData } = await optimizeRouteAndApplyNextDelivery({
+          const optimizationResult = await optimizeRouteAndApplyNextDelivery({
             driverId: delivery.driver_id,
             deliveryDate: delivery.delivery_date,
             currentLocalTime: getCurrentLocalTimeString(),
@@ -596,10 +597,13 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
             forceRefreshDriverDeliveries,
             generatePolyline: false
           });
-          if (optimizeData?.success && Array.isArray(optimizeData.optimizedRoute) && optimizeData.optimizedRoute.length > 0) {
-            window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: delivery.driver_id, updates: optimizeData.optimizedRoute.map((stop) => ({ deliveryId: stop.deliveryId || stop.delivery_id, newEta: stop.newETA || stop.eta })).filter((stop) => stop.deliveryId && stop.newEta) } }));
-          }
-        } catch (optimizeError) {console.warn('⚠️ [Restart Delivery] Route optimizer failed:', optimizeError);}
+          restartOptimizeData = optimizationResult?.optimizeData || null;
+        } catch (optimizeError) {
+          console.warn('⚠️ [Restart Delivery] Route optimizer failed:', optimizeError);
+        }
+        if (restartOptimizeData?.success && Array.isArray(restartOptimizeData.optimizedRoute) && restartOptimizeData.optimizedRoute.length > 0) {
+          window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: delivery.driver_id, updates: restartOptimizeData.optimizedRoute.map((stop) => ({ deliveryId: stop.deliveryId || stop.delivery_id, newEta: stop.newETA || stop.eta })).filter((stop) => stop.deliveryId && stop.newEta) } }));
+        }
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'restart', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true, suppressFabIfPhase1: true } }));
         window.dispatchEvent(new CustomEvent('deliveryStatusChanged', { detail: { triggeredBy: 'restart', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, maxStops: 5 } }));
         if (userHasRole(currentUser, 'driver')) await notifyDriverRetry({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name, delivery, store, appUsers });
