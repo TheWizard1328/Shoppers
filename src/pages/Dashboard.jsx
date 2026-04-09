@@ -2831,7 +2831,7 @@ function Dashboard() {
     lastAppliedTriggerRef.current = nextTrigger;
     setSelectedDriverId(driverId);globalFilters.setSelectedDriverId(driverId);
     try {
-      setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current = null;setAreCardsVisible(false);setCurrentToNextPolyline(null);setDriverRoutes([]);
+      setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current = null;setAreCardsVisible(false);setCurrentToNextPolyline(null);setDriverRoutes([]);window.dispatchEvent(new CustomEvent('clearRoutePolylines'));
       setIsEntityUpdating(true);
 
       // CRITICAL: Uncheck "Show All" when switching to "All Drivers" mode to prevent duplicate markers

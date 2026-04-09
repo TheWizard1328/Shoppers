@@ -18,8 +18,10 @@ export default function MapSection({
   stopCardsBaseHeight, handleMarkerClick, handleCardInteraction,
   areCardsVisible, handleMapViewCycle, isStatsCardCentered,
   dailyPolylineCount, isExpanded,
+  polylineResetKey,
   realTimeETAEnabled, showDeliveryForm, showPatientForm, showOptimizationSettings,
 }) {
+  const mapResetKey = `${selectedDriverId}-${selectedDateStr}`;
   return (
     <>
       {currentUser && isAppOwner(currentUser) &&
@@ -44,6 +46,7 @@ export default function MapSection({
 
       <div className="absolute inset-0">
         <DeliveryMap
+          key={mapResetKey}
           deliveries={deliveriesWithStopOrder}
           allDeliveriesForDate={deliveries}
           selectedDriverId={selectedDriverId}
