@@ -1,10 +1,10 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Phone, Package, Info, Loader2, Plus } from "lucide-react";
-import { format } from "date-fns";
+import { format, parseISO, isBefore } from "date-fns";
 import { formatPhoneNumber } from "../utils/phoneFormatter";
 import HelpTooltip, { HELP_CONTENT } from "./HelpTooltip";
 import SpecialSymbolsBadges from "../utils/SpecialSymbolsBadges";
@@ -76,6 +76,29 @@ export default function StopCardBody({
       e.target.blur();
     }
   };
+
+  const lastDeliveryBadgeDate = useMemo(() => {
+    if (isPickup || !delivery?.patient_id || !delivery?.delivery_date || !Array.isArray(allDeliveries)) return null;
+
+    const currentDeliveryDate = parseISO(`${delivery.delivery_date}T00:00:00`);
+
+    const priorCompletedDates = allDeliveries
+      .filter((item) =>
+        item &&
+        item.id !== delivery.id &&
+        item.patient_id === delivery.patient_id &&
+        item.delivery_date &&
+        item.status === 'completed'
+      )
+      .map((item) => item.delivery_date)
+      .filter((dateStr) => {
+        const itemDate = parseISO(`${dateStr}T00:00:00`);
+        return isBefore(itemDate, currentDeliveryDate);
+      })
+      .sort((a, b) => b.localeCompare(a));
+
+    return priorCompletedDates[0] || null;
+  }, [allDeliveries, delivery?.delivery_date, delivery?.id, delivery?.patient_id, isPickup]);
 
   return (
     <>
@@ -385,9 +408,9 @@ export default function StopCardBody({
                     <Label className="text-base font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-700)' }}>
                       Driver Notes
                     </Label>
-                    {!isPickup && patient?.last_delivery_date && (
+                    {lastDeliveryBadgeDate && (
                       <Badge variant="outline" className="text-[11px] px-2 py-1 h-auto bg-slate-50 border-slate-300 text-slate-700 font-semibold whitespace-nowrap">
-                        LD: {format(new Date(`${patient.last_delivery_date}T00:00:00`), 'MMM dd, yy')}
+                        LD: {format(parseISO(`${lastDeliveryBadgeDate}T00:00:00`), 'MMM dd, yy')}
                       </Badge>
                     )}
                   </div>
