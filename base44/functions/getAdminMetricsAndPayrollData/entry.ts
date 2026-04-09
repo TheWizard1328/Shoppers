@@ -436,11 +436,16 @@ Deno.serve(async (req) => {
       const relevantStoreIds = Array.from(new Set(deliveries.map((delivery) => delivery.store_id).filter(Boolean)));
       const relevantDriverIds = Array.from(new Set(deliveries.map((delivery) => delivery.driver_id).filter(Boolean)));
 
-      const [storesRaw, appUsersRaw] = await Promise.all([
+      const relevantPatientIds = Array.from(new Set(deliveries.map((delivery) => delivery.patient_id).filter(Boolean)));
+
+      const [storesRaw, appUsersRaw, patientsRaw] = await Promise.all([
         relevantStoreIds.length
           ? (cityStores.length ? cityStores.filter((store) => relevantStoreIds.includes(store.id)) : base44.asServiceRole.entities.Store.filter({ id: { $in: relevantStoreIds } }, '', 5000))
           : (cityStores.length ? cityStores : []),
-        base44.asServiceRole.entities.AppUser.list('', 5000)
+        base44.asServiceRole.entities.AppUser.list('', 5000),
+        relevantPatientIds.length
+          ? base44.asServiceRole.entities.Patient.filter({ id: { $in: relevantPatientIds } }, '', 5000)
+          : Promise.resolve([])
       ]);
 
       const stores = (storesRaw || []).map((store) => pickFields(store, STORE_FIELDS));
@@ -451,7 +456,7 @@ Deno.serve(async (req) => {
         .filter((appUserRecord) => driverIdsToKeep.size === 0 || driverIdsToKeep.has(appUserRecord.user_id))
         .map((appUserRecord) => pickFields(appUserRecord, DRIVER_FIELDS));
 
-      const patients = [];
+      const patients = (patientsRaw || []).map((patient) => pickFields(patient, PATIENT_FIELDS));
 
       const relevantCityIds = Array.from(new Set(stores.map((store) => store.city_id).filter(Boolean)));
       const citiesRaw = relevantCityIds.length
@@ -723,13 +728,16 @@ Deno.serve(async (req) => {
 });
 
 function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFeeRate) {
+  const patientMap = new Map((patients || []).map((patient) => [patient?.id, patient]));
+
   const calculateExtraKm = (delivery) => {
     if (!delivery || !delivery.patient_id) return 0;
-    if (delivery.paid_km_override == null) return 0;
-    const paidDistance = Number(delivery.paid_km_override || 0);
     const driver = appUsers.find(au => au.user_id === delivery.driver_id);
     const extraKmLimit = Number(driver?.extra_km_limit || 0);
-    const extraKm = paidDistance - extraKmLimit;
+    const overrideDistance = Number(delivery.paid_km_override || 0);
+    const patientDistance = Number(patientMap.get(delivery.patient_id)?.distance_from_store || 0);
+    const baseDistance = overrideDistance > 0 ? overrideDistance : patientDistance;
+    const extraKm = baseDistance - extraKmLimit;
     return extraKm > 0 ? extraKm : 0;
   };
 
