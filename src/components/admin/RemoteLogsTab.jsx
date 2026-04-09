@@ -1,13 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { RefreshCw } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
-
-const formatLogTimestamp = (timestamp) => {
-  if (!timestamp) return '-';
-  const date = new Date(timestamp);
-  if (Number.isNaN(date.getTime())) return timestamp;
-  return date.toLocaleString();
-};
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,11 +17,8 @@ export default function RemoteLogsTab({ appUsers = [] }) {
   const [level, setLevel] = useState('all');
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [logUserFilter, setLogUserFilter] = useState('all');
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [refreshTick, setRefreshTick] = useState(0);
 
   const loadData = async () => {
-    setIsRefreshing(true);
     const [logRows, settingsRows] = await Promise.all([
     base44.entities.RemoteLogEntry.list('-timestamp', 300),
     base44.entities.RemoteLoggingSettings.filter({ scope: 'global' }, '-updated_date', 1)]
@@ -37,8 +26,6 @@ export default function RemoteLogsTab({ appUsers = [] }) {
     setLogs(logRows || []);
     setSettings(settingsRows?.[0] || null);
     setSelectedUsers(settingsRows?.[0]?.included_user_ids || []);
-    setRefreshTick((prev) => prev + 1);
-    setTimeout(() => setIsRefreshing(false), 250);
   };
 
   useEffect(() => {
@@ -67,11 +54,8 @@ export default function RemoteLogsTab({ appUsers = [] }) {
   };
 
   const clearLogs = async () => {
-    setIsRefreshing(true);
     await clearRemoteLogs({});
     setLogs([]);
-    setRefreshTick((prev) => prev + 1);
-    setTimeout(() => setIsRefreshing(false), 250);
   };
 
 
@@ -175,11 +159,8 @@ export default function RemoteLogsTab({ appUsers = [] }) {
             <Input placeholder="Search logs..." value={search} onChange={(e) => setSearch(e.target.value)} />
             <div className="w-full md:w-72 space-y-2">
               <Label>Filter user</Label>
-              <Select value={logUserFilter} onValueChange={(value) => {
-                setLogUserFilter(value);
-                setRefreshTick((prev) => prev + 1);
-              }}>
-                <SelectTrigger className={isRefreshing ? 'ring-2 ring-primary/30' : ''}>
+              <Select value={logUserFilter} onValueChange={setLogUserFilter}>
+                <SelectTrigger>
                   <SelectValue placeholder="Filter user" />
                 </SelectTrigger>
                 <SelectContent>
@@ -190,11 +171,8 @@ export default function RemoteLogsTab({ appUsers = [] }) {
                 </SelectContent>
               </Select>
             </div>
-            <Select value={level} onValueChange={(value) => {
-              setLevel(value);
-              setRefreshTick((prev) => prev + 1);
-            }}>
-              <SelectTrigger className={`w-full md:w-40 ${isRefreshing ? 'ring-2 ring-primary/30' : ''}`}><SelectValue /></SelectTrigger>
+            <Select value={level} onValueChange={setLevel}>
+              <SelectTrigger className="w-full md:w-40"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All levels</SelectItem>
                 <SelectItem value="log">log</SelectItem>
@@ -204,21 +182,17 @@ export default function RemoteLogsTab({ appUsers = [] }) {
                 <SelectItem value="debug">debug</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" onClick={loadData} disabled={isRefreshing}>
-              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
-            <Button variant="destructive" onClick={clearLogs} disabled={isRefreshing}>Clear Logs</Button>
+            <Button variant="outline" onClick={loadData}>Refresh</Button>
+            <Button variant="destructive" onClick={clearLogs}>Clear Logs</Button>
           </div>
 
-          <div key={refreshTick} className={`max-h-[600px] overflow-auto rounded border transition-opacity duration-200 ${isRefreshing ? 'opacity-60' : 'opacity-100'}`}>
+          <div className="max-h-[600px] overflow-auto rounded border">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-white border-b">
                 <tr>
                   <th className="p-2 text-left">Time</th>
                   <th className="p-2 text-left">Level</th>
                   <th className="p-2 text-left">User</th>
-                  <th className="p-2 text-left">Device</th>
                   <th className="p-2 text-left">Page</th>
                   <th className="p-2 text-left">Message</th>
                 </tr>
@@ -226,10 +200,9 @@ export default function RemoteLogsTab({ appUsers = [] }) {
               <tbody>
                 {filteredLogs.map((log) =>
                 <tr key={log.id} className="border-b align-top">
-                    <td className="p-2 whitespace-nowrap">{formatLogTimestamp(log.timestamp)}</td>
+                    <td className="p-2 whitespace-nowrap">{log.timestamp?.replace('T', ' ').slice(0, 19)}</td>
                     <td className="p-2 whitespace-nowrap">{log.level}</td>
                     <td className="p-2 whitespace-nowrap">{log.user_name || log.user_id || '-'}</td>
-                    <td className="p-2 whitespace-nowrap">{[log.metadata?.device_name, log.metadata?.device_os || log.os || log.device_type].filter(Boolean).join(' • ') || '-'}</td>
                     <td className="p-2 whitespace-nowrap">{log.page || '-'}</td>
                     <td className="p-2 break-words">{log.message}</td>
                   </tr>
