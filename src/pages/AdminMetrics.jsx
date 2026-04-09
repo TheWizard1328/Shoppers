@@ -100,6 +100,7 @@ export default function AdminMetrics() {
         adminMetricsYear: parseInt(year),
         adminMetricsCityId: cityId === 'all' ? null : cityId,
         forceRefreshCurrentYear: isInitial === 'force-refresh',
+        refreshCurrentMonthSummary: isInitial === 'force-refresh',
         payrollYear: null,
         payrollCityId: null,
         payrollDriverId: null

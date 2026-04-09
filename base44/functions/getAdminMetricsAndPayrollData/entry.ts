@@ -426,7 +426,8 @@ Deno.serve(async (req) => {
     const {
       adminMetricsYear, adminMetricsCityId,
       payrollYear, payrollCityId,
-      forceRefreshCurrentYear = false
+      forceRefreshCurrentYear = false,
+      refreshCurrentMonthSummary = false
     } = body;
 
     const normalizedCityId = adminMetricsCityId || 'all';
@@ -617,8 +618,10 @@ Deno.serve(async (req) => {
     const buildSummaryBackfill = async (year, cityId, options = {}) => {
       const yearData = await fetchYearData(year, cityId, { includePayroll: !!options.includePayroll });
       const summaryRecords = [];
+      const currentMonthNumber = new Date().getMonth() + 1;
 
       for (let month = 1; month <= 12; month++) {
+        if (options.refreshCurrentMonthOnly && year === new Date().getFullYear() && month !== currentMonthNumber) continue;
         const { start, end } = getMonthDateRange(year, month);
         const monthDeliveries = (yearData.deliveries || []).filter((delivery) => delivery?.delivery_date >= start && delivery?.delivery_date <= end);
         if (!monthDeliveries.length) continue;
@@ -687,7 +690,11 @@ Deno.serve(async (req) => {
       let summaryRecords = await fetchYearSummaryRecords(adminMetricsYear, normalizedCityId);
 
       if (forceRefreshCurrentYear && adminMetricsYear === currentYear) {
-        const backfill = await buildSummaryBackfill(adminMetricsYear, normalizedCityId, { force: true, includePayroll: false });
+        const backfill = await buildSummaryBackfill(adminMetricsYear, normalizedCityId, {
+          force: true,
+          includePayroll: false,
+          refreshCurrentMonthOnly: refreshCurrentMonthSummary === true
+        });
         summaryRecords = backfill.summaryRecords;
       } else if (!summaryRecords.length) {
         const backfill = await buildSummaryBackfill(adminMetricsYear, normalizedCityId, { force: false, includePayroll: false });
