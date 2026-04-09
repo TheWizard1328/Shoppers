@@ -341,7 +341,8 @@ export default function SquareManagement() {
     const paymentsData = paymentsResponse?.data || paymentsResponse || {};
 
     const catalogRecords = snapshotData.catalogRecords || [];
-    const transactions = paymentsData.transactions || snapshotData.transactionRecords || [];
+    const transactions = (paymentsData.transactions || snapshotData.transactionRecords || [])
+      .filter((record) => record && typeof record.item_name === 'string' && record.item_name.trim().length > 0);
     const shouldRefreshDeliveries = snapshotData.shouldRefreshDeliveries === true;
     const deliveryRecords = shouldRefreshDeliveries ? (snapshotData.deliveries || []) : (offlineDeliveries || []);
     const nextConfigs = refreshLocations ? (snapshotData.locationConfigs || []) : (locationConfigsRef.current || []);
