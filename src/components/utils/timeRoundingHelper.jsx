@@ -250,9 +250,9 @@ export const calculateRetroactiveStopTiming = async ({
   }
 
   if (isFirstStop) {
-    const actualDeliveryTime = new Date(baseTime.getTime());
-    const arrivalOffsetMinutes = Math.floor(Math.random() * 5) + 1;
-    const arrivalTime = new Date(actualDeliveryTime.getTime() - arrivalOffsetMinutes * 60000);
+    const arrivalTime = new Date(baseTime.getTime());
+    const deliveryOffsetMinutes = Math.floor(Math.random() * 5) + 1;
+    const actualDeliveryTime = new Date(arrivalTime.getTime() + deliveryOffsetMinutes * 60000);
     const result = {
       actual_delivery_time: formatLocalTimestamp(actualDeliveryTime),
       arrival_time: formatLocalTimestamp(arrivalTime),
@@ -266,9 +266,9 @@ export const calculateRetroactiveStopTiming = async ({
     return result;
   }
 
-  const actualDeliveryTime = new Date(baseTime.getTime());
-  const arrivalOffsetMinutes = Math.floor(Math.random() * 5) + 1;
-  const arrivalTime = new Date(actualDeliveryTime.getTime() - arrivalOffsetMinutes * 60000);
+  const arrivalTime = new Date(baseTime.getTime());
+  const deliveryOffsetMinutes = Math.floor(Math.random() * 5) + 1;
+  const actualDeliveryTime = new Date(arrivalTime.getTime() + deliveryOffsetMinutes * 60000);
   const result = {
     actual_delivery_time: formatLocalTimestamp(actualDeliveryTime),
     arrival_time: formatLocalTimestamp(arrivalTime),
