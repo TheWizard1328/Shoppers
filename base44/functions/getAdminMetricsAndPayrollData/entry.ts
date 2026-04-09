@@ -722,12 +722,9 @@ Deno.serve(async (req) => {
         liveWindowMetrics.envelopeMetrics = calculateEnvelopeMetrics(liveWindowData.deliveries, liveWindowData.stores);
 
         if (currentMonthSummary?.admin_metrics) {
-          const adjustedCurrentMonth = subtractWindowFromMonthMetrics(currentMonthSummary.admin_metrics, liveWindowMetrics, currentMonth);
           const summaryWithoutCurrentMonth = composeMetricsFromSummaries(summaryRecords.filter((record) => record.month !== currentMonth));
-          adminMetrics = mergeMetrics(summaryWithoutCurrentMonth.adminMetrics, adjustedCurrentMonth);
-          adminMetrics = mergeMetrics(adminMetrics, liveWindowMetrics);
-          adminMetrics.envelopeMetrics = mergeEnvelopeMetrics(summaryWithoutCurrentMonth.adminMetrics?.envelopeMetrics || null, adjustedCurrentMonth?.envelopeMetrics || null);
-          adminMetrics.envelopeMetrics = mergeEnvelopeMetrics(adminMetrics.envelopeMetrics, liveWindowMetrics.envelopeMetrics);
+          adminMetrics = mergeMetrics(summaryWithoutCurrentMonth.adminMetrics, liveWindowMetrics);
+          adminMetrics.envelopeMetrics = mergeEnvelopeMetrics(summaryWithoutCurrentMonth.adminMetrics?.envelopeMetrics || null, liveWindowMetrics.envelopeMetrics);
         } else {
           adminMetrics = mergeMetrics(adminMetrics, liveWindowMetrics);
           adminMetrics.envelopeMetrics = mergeEnvelopeMetrics(adminMetrics?.envelopeMetrics || null, liveWindowMetrics.envelopeMetrics);
