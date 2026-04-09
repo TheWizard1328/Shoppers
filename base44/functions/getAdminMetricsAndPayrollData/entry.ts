@@ -72,6 +72,35 @@ const DELIVERY_FIELDS = [
   'actual_delivery_time'
 ];
 
+const isCompletedStatus = (delivery) => delivery?.status === 'completed';
+const isFailedStatus = (delivery) => delivery?.status === 'failed';
+const isCancelledStatus = (delivery) => delivery?.status === 'cancelled';
+const isAfterHoursPickupDelivery = (delivery) => delivery?.after_hours_pickup === true;
+const isPatientOrTransferDelivery = (delivery) => !!delivery?.patient_id;
+const isReturnDelivery = (delivery) => String(delivery?.patient_name || '').toUpperCase().includes('(RTN)');
+
+const isDriverPayableDelivery = (delivery) => {
+  if (!delivery) return false;
+  if (isAfterHoursPickupDelivery(delivery)) {
+    return isCompletedStatus(delivery) || isCancelledStatus(delivery);
+  }
+  return isCompletedStatus(delivery) || isFailedStatus(delivery);
+};
+
+const isAdminBillableDelivery = (delivery) => {
+  if (!delivery) return false;
+  return !isAfterHoursPickupDelivery(delivery) && (isCompletedStatus(delivery) || isFailedStatus(delivery));
+};
+
+const isAdminNonBillableDelivery = (delivery) => {
+  if (!delivery) return false;
+  return isAfterHoursPickupDelivery(delivery) && (isCompletedStatus(delivery) || isCancelledStatus(delivery));
+};
+
+const isAppFeePayableDelivery = (delivery, storePaysFees) => {
+  return isDriverPayableDelivery(delivery) && storePaysFees;
+};
+
 const STORE_FIELDS = [
   'id',
   'name',
@@ -135,13 +164,17 @@ const mergeMetrics = (baseMetrics, incomingMetrics) => {
   if (!incomingMetrics) return baseMetrics;
 
   const merged = {
-    ...baseMetrics,
-    monthlyData: Array(12).fill(null).map((_, index) => ({
-      month: baseMetrics.monthlyData?.[index]?.month || incomingMetrics.monthlyData?.[index]?.month || MONTH_NAMES[index],
-      billable: (baseMetrics.monthlyData?.[index]?.billable || 0) + (incomingMetrics.monthlyData?.[index]?.billable || 0),
-      nonBillable: (baseMetrics.monthlyData?.[index]?.nonBillable || 0) + (incomingMetrics.monthlyData?.[index]?.nonBillable || 0),
-      total: (baseMetrics.monthlyData?.[index]?.total || 0) + (incomingMetrics.monthlyData?.[index]?.total || 0)
-    })),
+  ...baseMetrics,
+  monthlyData: Array(12).fill(null).map((_, index) => {
+  const billable = (baseMetrics.monthlyData?.[index]?.billable || 0) + (incomingMetrics.monthlyData?.[index]?.billable || 0);
+  const nonBillable = (baseMetrics.monthlyData?.[index]?.nonBillable || 0) + (incomingMetrics.monthlyData?.[index]?.nonBillable || 0);
+  return {
+    month: baseMetrics.monthlyData?.[index]?.month || incomingMetrics.monthlyData?.[index]?.month || MONTH_NAMES[index],
+    billable,
+    nonBillable,
+    total: billable + nonBillable
+  };
+  }),
     yearTotals: {
       billable: (baseMetrics.yearTotals?.billable || 0) + (incomingMetrics.yearTotals?.billable || 0),
       nonBillable: (baseMetrics.yearTotals?.nonBillable || 0) + (incomingMetrics.yearTotals?.nonBillable || 0),
@@ -539,27 +572,25 @@ Deno.serve(async (req) => {
       yearData.deliveries.forEach((delivery) => {
         if (!delivery || !delivery.delivery_date || !delivery.store_id) return;
 
-        const matchedPatient = delivery.patient_id ? patientMap.get(delivery.patient_id) : null;
-        const isPatientReturn = String(matchedPatient?.address || '').toUpperCase().includes('(RTN)');
-        const isValidDelivery = ((delivery.status === 'completed' || delivery.status === 'failed') || (delivery.status === 'cancelled' && isPatientReturn)) && delivery.patient_id;
-        const isAfterHoursPickup = delivery.after_hours_pickup && (delivery.status === 'completed' || delivery.status === 'cancelled');
+        const isPayrollPayable = isDriverPayableDelivery(delivery);
+        const isPayrollAfterHours = isAdminNonBillableDelivery(delivery);
 
         if (delivery.driver_id) {
-          if (isValidDelivery) {
+          if (isPayrollPayable) {
             driverStats[delivery.driver_id] = driverStats[delivery.driver_id] || { total_deliveries: 0, total_after_hours_pickups: 0 };
             driverStats[delivery.driver_id].total_deliveries++;
           }
-          if (isAfterHoursPickup) {
+          if (isPayrollAfterHours) {
             driverStats[delivery.driver_id] = driverStats[delivery.driver_id] || { total_deliveries: 0, total_after_hours_pickups: 0 };
             driverStats[delivery.driver_id].total_after_hours_pickups++;
           }
         }
 
         if (storeStats[delivery.store_id]) {
-          if (isValidDelivery) {
+          if (isPayrollPayable) {
             storeStats[delivery.store_id].total_deliveries++;
           }
-          if (isAfterHoursPickup) {
+          if (isPayrollAfterHours) {
             storeStats[delivery.store_id].total_after_hours_pickups++;
           }
         }
@@ -845,24 +876,14 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
   });
   metrics.driverData = Array.from(uniqueDriverMap.values());
 
-  const isReturn = (d) => String(d?.patient_name || '').toUpperCase().includes('(RTN)');
+  const isCompletedAfterHoursPickup = (d) => isAfterHoursPickupDelivery(d) && isCompletedStatus(d);
+  const isCancelledAfterHoursPickup = (d) => isAfterHoursPickupDelivery(d) && isCancelledStatus(d);
+  const isCompletedPatientForStore = (d) => !isAfterHoursPickupDelivery(d) && isCompletedStatus(d) && isPatientOrTransferDelivery(d);
+  const isFailedPatientForStore = (d) => !isAfterHoursPickupDelivery(d) && isFailedStatus(d) && isPatientOrTransferDelivery(d);
 
-  const isCompletedPatientDelivery = (d) => d && d.status === 'completed' && !isReturn(d) && d.patient_id;
-  const isFailedPatientDelivery = (d) => d && d.status === 'failed' && !isReturn(d) && d.patient_id;
-  const isCompletedAfterHoursPickup = (d) => d && d.after_hours_pickup && d.status === 'completed';
-  const isCancelledAfterHoursPickup = (d) => d && d.after_hours_pickup && d.status === 'cancelled';
-  const isCompletedPatientForStore = (d) => d && d.status === 'completed' && d.patient_id;
-  const isFailedPatientForStore = (d) => d && d.status === 'failed' && d.patient_id;
+  const isBillableDelivery = (d) => isAdminBillableDelivery(d);
 
-  const isBillableDelivery = (d) => {
-    if (!d) return false;
-    return isCompletedPatientDelivery(d) || isFailedPatientDelivery(d) || isReturn(d);
-  };
-
-  const isNonBillableDelivery = (d) => {
-    if (!d) return false;
-    return isCompletedAfterHoursPickup(d) || isCancelledAfterHoursPickup(d);
-  };
+  const isNonBillableDelivery = (d) => isAdminNonBillableDelivery(d);
 
   const storeMonthlyFees = new Map();
   const storesPayingFeesSet = new Set();
@@ -972,7 +993,7 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
 
       if (wasPayingOnDeliveryDate && appFeeRate > 0) {
         storesPayingFeesSet.add(store.id);
-        if (isBillableDelivery(delivery)) {
+        if (isAppFeePayableDelivery(delivery, wasPayingOnDeliveryDate)) {
           if (!storeMonthlyFees.has(store.id)) storeMonthlyFees.set(store.id, Array(12).fill(0));
           storeMonthlyFees.get(store.id)[monthIndex] += appFeeRate;
           metrics.storeFeeTotals.monthlyFees[monthIndex] += appFeeRate;
