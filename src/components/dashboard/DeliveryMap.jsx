@@ -506,9 +506,9 @@ export default function DeliveryMap({
     const byDriver = new Map();
 
     safeUsers.forEach((user) => {
-    if (user?.id && user.home_latitude && user.home_longitude && user.driver_status !== "off_duty") {
-      byDriver.set(user.id, { completed: 0, remainingPickups: 0, remainingDeliveries: 0 });
-    }
+      if (user?.id && user.home_latitude && user.home_longitude) {
+        byDriver.set(user.id, { completed: 0, remainingPickups: 0, remainingDeliveries: 0 });
+      }
     });
 
     [...deliveryMarkers, ...pickupMarkers].forEach((stop) => {
@@ -524,7 +524,7 @@ export default function DeliveryMap({
     byDriver.forEach((state, driverId) => {
       visibilityMap.set(driverId, {
         ...state,
-        shouldShowHomeMarker: state.completed === 0 || state.remainingPickups === 0
+        shouldShowHomeMarker: state.completed === 0 || (state.completed > 0 && state.remainingPickups === 0)
       });
     });
     return visibilityMap;
@@ -539,10 +539,19 @@ export default function DeliveryMap({
     }
 
     const visibleDriverIds = new Set([...deliveryMarkers, ...pickupMarkers].map((stop) => stop?.driver_id).filter(Boolean));
-    const items = safeUsers.filter((user) => user.home_latitude && user.home_longitude && user.driver_status !== "off_duty").filter((user) => {
+    const isDispatcher = currentUser && userHasRole(currentUser, "dispatcher") && !userHasRole(currentUser, "admin") && !userHasRole(currentUser, "driver");
+    const items = safeUsers.filter((user) => user.home_latitude && user.home_longitude).filter((user) => {
       const homeVisibility = driverHomeVisibilityById.get(user.id);
+      const hasVisibleStops = visibleDriverIds.has(user.id);
+      if (isPureDriver && user.id === currentUser.id) {
+        return !homeVisibility || homeVisibility.shouldShowHomeMarker;
+      }
       if (!homeVisibility?.shouldShowHomeMarker) return false;
       if (isPureDriver && user.id !== currentUser.id && !(showOtherDriverDeliveries || isAllDriversMode)) return false;
+      if (isDispatcher) {
+        if (!(showOtherDriverDeliveries || isAllDriversMode)) return false;
+        return hasVisibleStops;
+      }
       if (showOtherDriverDeliveries || isAllDriversMode) return true;
       return user.id === selectedDriverId || user.id === currentUser.id;
     }).map((user) => ({
