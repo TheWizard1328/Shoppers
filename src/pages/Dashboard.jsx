@@ -1879,11 +1879,14 @@ function Dashboard() {
         }
 
         // 3. HOME LOCATIONS: Re-check visibility rules before including homes in FAB bounds
-        const mapHomeMarkers = (window.__mapHomeMarkers || []).filter((home) => {
-          const stops = [...(window.__mapDeliveryMarkers || []), ...(window.__mapPickupMarkers || [])].filter((stop) => stop?.driver_id === home.driverId);
-          const completed = stops.filter((stop) => ['completed', 'failed', 'cancelled', 'returned'].includes(stop.status)).length;
-          const remainingPickups = stops.filter((stop) => stop?.markerType === 'pickup' && !['completed', 'failed', 'cancelled', 'returned'].includes(stop.status)).length;
-          return !home.excludeFromBounds && (completed === 0 || remainingPickups === 0) && (!(userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher') && !(showAllDriverMarkers || selectedDriverId === 'all')) || home.driverId === currentUser.id || home.driverId === selectedDriverId);
+        const mapHomeMarkers = (window.__dashboardMapMarkerHelpers?.getVisibleHomeMarkersForBounds || ((params) => params.mapHomeMarkers || []))({
+          mapHomeMarkers: window.__mapHomeMarkers || [],
+          mapDeliveryMarkers: window.__mapDeliveryMarkers || [],
+          mapPickupMarkers: window.__mapPickupMarkers || [],
+          currentUser,
+          selectedDriverId,
+          showAllDriverMarkers,
+          userHasRole
         });
         mapHomeMarkers.forEach((home) => {if (home.latitude && home.longitude) allCoordinates.push([home.latitude, home.longitude]);});
 
@@ -1917,29 +1920,14 @@ function Dashboard() {
           // Single driver mode - fallback to full deliveries if filtered view is temporarily empty (race condition)
           deliveriesToMap = deliveriesWithStopOrder.length > 0 ? deliveriesWithStopOrder : deliveries.filter((d) => d && d.delivery_date === selectedDateStr);
         }
-        let coordsAdded = 0;
-
-        if (deliveriesToMap && Array.isArray(deliveriesToMap)) {
-          deliveriesToMap.forEach((delivery) => {
-            if (!delivery) return;
-
-            if (delivery.patient_id) {
-              const patient = patients.find((p) => p && p.id === delivery.patient_id);
-              if (patient?.latitude && patient?.longitude) {
-                allCoordinates.push([patient.latitude, patient.longitude]);
-                hasStopMarkers = true;
-                coordsAdded++;
-              }
-            } else if (delivery.store_id) {
-              const store = stores.find((s) => s && s.id === delivery.store_id);
-              if (store?.latitude && store?.longitude) {
-                allCoordinates.push([store.latitude, store.longitude]);
-                hasStopMarkers = true;
-                coordsAdded++;
-              }
-            }
-          });
-        }
+        const stopCoordinateResult = (window.__dashboardMapMarkerHelpers?.appendStopCoordinates || ((params) => ({ hasStopMarkers: false, coordsAdded: 0, allCoordinates: params.allCoordinates || [] })))({
+          deliveriesToMap,
+          patients,
+          stores,
+          allCoordinates
+        });
+        hasStopMarkers = hasStopMarkers || stopCoordinateResult.hasStopMarkers;
+        let coordsAdded = stopCoordinateResult.coordsAdded;
 
         // Get current city center
         const selectedCityId = globalFilters.getSelectedCityId();

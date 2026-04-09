@@ -553,7 +553,7 @@ export default function DeliveryMap({
         if (!(showOtherDriverDeliveries || isAllDriversMode)) return false;
         return hasVisibleStops;
       }
-      if (showOtherDriverDeliveries || isAllDriversMode) return true;
+      if (showOtherDriverDeliveries || isAllDriversMode) return hasVisibleStops;
       return user.id === selectedDriverId || user.id === currentUser.id;
     }).map((user) => ({
       id: `home-${user.id}`,
