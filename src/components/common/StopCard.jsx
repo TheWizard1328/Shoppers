@@ -799,7 +799,9 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           }
                           const { offlineDB: _offlineDB } = await import('../utils/offlineDatabase');
                           const clearNextFlags = sameRouteDeliveries.filter((d) => d && d.id !== delivery.id && d.isNextDelivery === true).map((d) => _offlineDB.bulkSave(_offlineDB.STORES.DELIVERIES, [{ ...d, isNextDelivery: false }]));
-                          await collapseDriverStopCards();
+                          if (isExpanded) {
+                            await collapseDriverStopCards();
+                          }
                           const saveResults = await Promise.all([
                           updateDeliveryLocal(delivery.id, completionUpdate, { skipSmartRefresh: true }),
                           ...clearNextFlags]
