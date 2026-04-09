@@ -2002,21 +2002,7 @@ function Dashboard() {
             setMapZoom(null);
           }
         }
-        // CASE 2: Drivers but no stop markers → center on drivers + city center
-        else if (!hasStopMarkers && hasDriverMarkers && currentCity?.latitude && currentCity?.longitude) {
-          allCoordinates.push([currentCity.latitude, currentCity.longitude]);
-          const padding = getMapPadding();
-          setShouldFitBounds({
-            bounds: allCoordinates,
-            options: {
-              ...padding,
-              maxZoom: 17.5,
-              animate: true
-            }
-          });
-          setMapCenter(null);
-          setMapZoom(null);
-        }
+
         // CASE 3: Normal case with stop markers
         else if (allCoordinates.length > 0) {
 
