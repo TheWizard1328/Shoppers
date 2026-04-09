@@ -4,8 +4,4 @@ export async function optimizeRemainingStops(payload) {
   return await base44.functions.invoke('optimizeRemainingStops', payload || {});
 }
 
-if (typeof window !== 'undefined') {
-  window.optimizeRemainingStops = optimizeRemainingStops;
-}
-
 export default optimizeRemainingStops;
