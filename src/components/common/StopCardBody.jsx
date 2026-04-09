@@ -379,20 +379,17 @@ export default function StopCardBody({
                 </div>
             }
 
-              {!isPickup && patient?.last_delivery_date && (
-                <div className="flex items-center gap-2 mt-2">
-                  <Badge variant="outline" className="text-[11px] px-2 py-1 h-auto bg-slate-50 border-slate-300 text-slate-700 font-semibold">
-                    LD: {patient.last_delivery_date}
-                  </Badge>
-                </div>
-              )}
-
               {/* Driver Notes - editable for admins/dispatchers even on completed stops; read-only for drivers */}
               <div className="space-y-1 mt-2">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <Label className="text-base font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-700)' }}>
                       Driver Notes
                     </Label>
+                    {!isPickup && patient?.last_delivery_date && (
+                      <Badge variant="outline" className="text-[11px] px-2 py-1 h-auto bg-slate-50 border-slate-300 text-slate-700 font-semibold whitespace-nowrap">
+                        LD: {format(new Date(`${patient.last_delivery_date}T00:00:00`), 'MMM dd, yy')}
+                      </Badge>
+                    )}
                   </div>
                   <Textarea
                 value={notesInput}
