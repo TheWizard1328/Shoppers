@@ -1878,48 +1878,29 @@ function Dashboard() {
           });
         }
 
-        // 3. HOME LOCATIONS: Re-check visibility rules before including homes in FAB bounds
-        const mapHomeMarkers = (window.__dashboardMapMarkerHelpers?.getVisibleHomeMarkersForBounds || ((params) => params.mapHomeMarkers || []))({
-          mapHomeMarkers: window.__mapHomeMarkers || [],
-          mapDeliveryMarkers: window.__mapDeliveryMarkers || [],
-          mapPickupMarkers: window.__mapPickupMarkers || [],
-          currentUser,
-          selectedDriverId,
-          showAllDriverMarkers,
-          userHasRole
-        });
-        mapHomeMarkers.forEach((home) => {if (home.latitude && home.longitude) allCoordinates.push([home.latitude, home.longitude]);});
-
-        // 4. Add delivery/pickup markers based on mode
+        // 3. Add delivery/pickup markers based on mode FIRST so live-driver detection only considers drivers with actual visible stops
         // CRITICAL: When "Show All" is checked OR "All Drivers" selected, show ALL deliveries for date
         let deliveriesToMap = [];
 
         if (shouldShowAllMarkersForBounds) {
-          // Show all deliveries for selected date
           let allDateDeliveries = deliveries.filter((d) => d && d.delivery_date === selectedDateStr);
 
-          // CRITICAL: For dispatchers, ONLY include deliveries from drivers who have stops in dispatcher's stores
           if (isDispatcher && !isAdmin) {
             const dispatcherStoreIds = new Set(currentUser?.store_ids || []);
-
-            // Get drivers who have deliveries in dispatcher's stores
             const driversWithStoreDeliveries = new Set(
-              allDateDeliveries.
-              filter((d) => d && dispatcherStoreIds.has(d.store_id)).
-              map((d) => d.driver_id).
-              filter(Boolean)
+              allDateDeliveries
+                .filter((d) => d && dispatcherStoreIds.has(d.store_id))
+                .map((d) => d.driver_id)
+                .filter(Boolean)
             );
-
-            // Filter to only show deliveries from those drivers (ALL their stops for the date)
             deliveriesToMap = allDateDeliveries.filter((d) => d && driversWithStoreDeliveries.has(d.driver_id));
-
           } else {
             deliveriesToMap = allDateDeliveries;
           }
         } else {
-          // Single driver mode - fallback to full deliveries if filtered view is temporarily empty (race condition)
-          deliveriesToMap = deliveriesWithStopOrder.length > 0 ? deliveriesWithStopOrder : deliveries.filter((d) => d && d.delivery_date === selectedDateStr);
+          deliveriesToMap = deliveriesWithStopOrder.length > 0 ? deliveriesWithStopOrder : deliveries.filter((d) => d && d.delivery_date === selectedDateStr && (!selectedDriverId || selectedDriverId === 'all' || d.driver_id === selectedDriverId));
         }
+
         const stopCoordinateResult = (window.__dashboardMapMarkerHelpers?.appendStopCoordinates || ((params) => ({ hasStopMarkers: false, coordsAdded: 0, allCoordinates: params.allCoordinates || [] })))({
           deliveriesToMap,
           patients,
@@ -1928,6 +1909,21 @@ function Dashboard() {
         });
         hasStopMarkers = hasStopMarkers || stopCoordinateResult.hasStopMarkers;
         let coordsAdded = stopCoordinateResult.coordsAdded;
+
+        // 4. HOME LOCATIONS: only suppress home markers when there is a live marker for a driver that actually has visible stops in this view
+        const visibleDriverIdsForBounds = new Set((deliveriesToMap || []).map((d) => d?.driver_id).filter(Boolean));
+        const mapDriverLocationMarkersForBounds = (window.__mapDriverLocationMarkers || []).filter((marker) => visibleDriverIdsForBounds.has(marker?.driver_id || marker?.driverId || marker?.user_id || marker?.id));
+        const mapHomeMarkers = (window.__dashboardMapMarkerHelpers?.getVisibleHomeMarkersForBounds || ((params) => params.mapHomeMarkers || []))({
+          mapHomeMarkers: window.__mapHomeMarkers || [],
+          mapDeliveryMarkers: (window.__mapDeliveryMarkers || []).filter((marker) => visibleDriverIdsForBounds.has(marker?.driver_id)),
+          mapPickupMarkers: (window.__mapPickupMarkers || []).filter((marker) => visibleDriverIdsForBounds.has(marker?.driver_id)),
+          currentUser,
+          selectedDriverId,
+          showAllDriverMarkers,
+          userHasRole,
+          hasDriverMarkers: mapDriverLocationMarkersForBounds.length > 0
+        });
+        mapHomeMarkers.forEach((home) => {if (home.latitude && home.longitude) allCoordinates.push([home.latitude, home.longitude]);});
 
         // Get current city center
         const selectedCityId = globalFilters.getSelectedCityId();
