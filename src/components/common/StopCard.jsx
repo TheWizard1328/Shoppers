@@ -458,7 +458,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     });
     if (lockResult?.skipped) return;
   };
-  const handleReturnClick = async (e) => {e.stopPropagation();setIsPreparingReturn(true);try {if (!delivery || !store) {alert('Missing delivery or store information');return;}const returnPatientName = `${store.name.replace(/-/g, ' ')} Return`;const foundReturnPatient = patients.find((p) => p && p.full_name === returnPatientName && p.store_id === delivery.store_id);if (!foundReturnPatient) {alert(`Return patient "${returnPatientName}" not found. Please ensure a patient with this name exists for the store.`);return;}setReturnPatient(foundReturnPatient);setShowReturnConfirm(true);} finally {setIsPreparingReturn(false);}};
+  const handleReturnClick = async (e) => {e.stopPropagation();setIsPreparingReturn(true);try {const resolvedStore = store || stores.find((s) => s && s.id === delivery?.store_id);if (!delivery || !resolvedStore) {alert('Missing delivery or store information');return;}const returnPatientName = `${resolvedStore.name.replace(/-/g, ' ')} Return`;const foundReturnPatient = patients.find((p) => p && p.full_name === returnPatientName && p.store_id === delivery.store_id);if (!foundReturnPatient) {alert(`Return patient "${returnPatientName}" not found. Please ensure a patient with this name exists for the store.`);return;}setReturnPatient(foundReturnPatient);setShowReturnConfirm(true);} finally {setIsPreparingReturn(false);}};
   const handleConfirmReturn = async () => {
     if (!onCreateReturn || !returnPatient || isCreatingReturn) return;
     setIsCreatingReturn(true);
