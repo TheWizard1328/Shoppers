@@ -1219,10 +1219,10 @@ function Dashboard() {
 
 
 
+
         // This subscription handles changes from other components
       }});return unsubscribe;}, [window.location.search, selectedDate]); // Listen for driver status break/resume events from DriverStatusToggle
-  useEffect(() => {const clearLock = () => {if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}mapLockExpiresAtRef.current = null;};const pulsePhaseOne = (ms) => {clearLock();const x = Date.now() + ms;mapLockExpiresAtRef.current = x;setMapViewPhase(1);setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, ms);};const unsubscribe = fabControlEvents.subscribe((event) => {if (event.type === 'BREAK_START') {phaseBeforeBreakRef.current = event.previousPhase;clearLock();setIsMapViewLocked(false);setMapViewPhase(1);setMapViewTrigger((prev) => prev + 1);} else if (event.type === 'BREAK_END') {const phaseToRestore = event.phaseToRestore || 1;setMapViewPhase(phaseToRestore);setIsMapViewLocked(phaseToRestore !== 1);setMapViewTrigger((prev) => prev + 1);clearLock();phaseBeforeBreakRef.current = null;} else if (event.type === 'DONE_BUTTON_CLICKED') pulsePhaseOne(3000);else if (event.type === 'ACCEPT_ALL_CLICKED') pulsePhaseOne(500);else if (event.type === 'DELIVERY_REALTIME_CREATE_DELETE_PULSE' && mapViewPhaseRef.current === 1) {const eventMatchesDriver = !selectedDriverId || selectedDriverId === 'all' || event.driverId === selectedDriverId;const eventMatchesDate = !selectedDate || !event.deliveryDate || event.deliveryDate === format(selectedDate, 'yyyy-MM-dd');if (event.relevantToCurrentSelection === true && eventMatchesDriver && eventMatchesDate) pulsePhaseOne(500);} else if (event.type === 'REACTIVATE_PHASE_TWO_IF_AVAILABLE') {if (mapViewPhase !== 2 || isMapViewLocked) return;clearLock();setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);} else if (event.type === 'PHASE2_TEMP_UNLOCK' && mapViewPhase === 2 && isMapViewLocked) {clearLock();setIsMapViewLocked(false);} else if (event.type === 'PHASE2_COMPLETE_RECENTER' && mapViewPhase === 2) {clearLock();setTimeout(() => {const x = Date.now() + 900;setMapViewPhase(2);setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);mapLockExpiresAtRef.current = x;mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, 900);}, 140);}
-        });
+  useEffect(() => {const clearLock = () => {if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}mapLockExpiresAtRef.current = null;};const pulsePhaseOne = (ms) => {clearLock();const x = Date.now() + ms;mapLockExpiresAtRef.current = x;setMapViewPhase(1);setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, ms);};const unsubscribe = fabControlEvents.subscribe((event) => {if (event.type === 'BREAK_START') {phaseBeforeBreakRef.current = event.previousPhase;clearLock();setIsMapViewLocked(false);setMapViewPhase(1);setMapViewTrigger((prev) => prev + 1);} else if (event.type === 'BREAK_END') {const phaseToRestore = event.phaseToRestore || 1;setMapViewPhase(phaseToRestore);setIsMapViewLocked(phaseToRestore !== 1);setMapViewTrigger((prev) => prev + 1);clearLock();phaseBeforeBreakRef.current = null;} else if (event.type === 'DONE_BUTTON_CLICKED') pulsePhaseOne(3000);else if (event.type === 'ACCEPT_ALL_CLICKED') pulsePhaseOne(500);else if (event.type === 'DELIVERY_REALTIME_CREATE_DELETE_PULSE' && mapViewPhaseRef.current === 1) {const eventMatchesDriver = !selectedDriverId || selectedDriverId === 'all' || event.driverId === selectedDriverId;const eventMatchesDate = !selectedDate || !event.deliveryDate || event.deliveryDate === format(selectedDate, 'yyyy-MM-dd');if (event.relevantToCurrentSelection === true && eventMatchesDriver && eventMatchesDate) pulsePhaseOne(500);} else if (event.type === 'REACTIVATE_PHASE_TWO_IF_AVAILABLE') {if (mapViewPhase !== 2 || isMapViewLocked) return;clearLock();setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);} else if (event.type === 'PHASE2_TEMP_UNLOCK' && mapViewPhase === 2 && isMapViewLocked) {clearLock();setIsMapViewLocked(false);} else if (event.type === 'PHASE2_COMPLETE_RECENTER' && mapViewPhase === 2) {clearLock();setTimeout(() => {const x = Date.now() + 900;setMapViewPhase(2);setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);mapLockExpiresAtRef.current = x;mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, 900);}, 140);}});
       return unsubscribe;
     }, [deliveriesWithStopOrder, mapViewPhase, isMapViewLocked]);
 
@@ -1517,11 +1517,11 @@ function Dashboard() {
 
 
 
+
       // Callback provided for future use
     }, currentUser);const unsubscribe = driverLocationPoller.subscribe((locations) => {if (!locations || !Array.isArray(locations)) return; // CRITICAL: On mobile with active GPS tracking, filter out self marker (blue dot shows instead)
         // On all other devices/scenarios, show the shared marker
         const isTrackingOnThisDevice = locationTracker.isTracking === true;const shouldFilterSelf = isMobile && isDriver && isTrackingOnThisDevice;const filteredLocations = shouldFilterSelf ? locations.filter((loc) => {if (loc._isSelf === true) {return false;}return true;}) : locations;
-
         setAllDriverLocations(filteredLocations);
       });
 
@@ -2601,10 +2601,10 @@ function Dashboard() {
 
 
 
+
       // No map repositioning on smart refresh restart - user controls map manually
     };window.addEventListener('smartRefreshComplete', handleSmartRefreshCompleteEvent);window.addEventListener('smartRefreshRestarted', handleSmartRefreshRestartedEvent);return () => {window.removeEventListener('smartRefreshComplete', handleSmartRefreshCompleteEvent);window.removeEventListener('smartRefreshRestarted', handleSmartRefreshRestartedEvent);};}, [mapViewPhase, deliveriesWithStopOrder, selectedCardId]); // Auto-center on next stop on initial load
   const hasAutoSelectedRef = useRef(false);const hasScrolledToNextCardRef = useRef(false);
-
   // Set up rate limit error handler
   useEffect(() => {
     window._setRateLimitError = (hasError) => {
