@@ -22,6 +22,7 @@ import ExportRouteButton from '@/components/deliveries/ExportRouteButton';
 import LocationTrackingToggle from "@/components/layout/LocationTrackingToggle";
 import { saveSetting } from "@/components/utils/userSettingsManager";
 import { getDriverColor } from "@/components/utils/driverUtils";
+import { useEffect, useState } from "react";
 
 export default function StatsPanel({
   currentUser, isDriver, isAdmin, isDispatcher,
@@ -44,25 +45,51 @@ export default function StatsPanel({
   dailyPolylineCount, stats, finalizedDutyTime,
   refreshUser, dataSource,
 }) {
+  const [legendDeliveries, setLegendDeliveries] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadLegendDeliveries = async () => {
+      const selectedCityId = globalFilters.getSelectedCityId();
+      const cityStoreIds = new Set(
+        (stores || []).filter((store) => store?.city_id === selectedCityId).map((store) => store.id)
+      );
+
+      const offlineDateDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr).catch(() => []);
+      const sourceDeliveries = offlineDateDeliveries?.length > 0 ? offlineDateDeliveries : deliveries || [];
+      const nextLegendDeliveries = sourceDeliveries.filter((delivery) => {
+        if (!delivery || delivery.delivery_date !== selectedDateStr || !delivery.driver_id) return false;
+        return cityStoreIds.size === 0 || cityStoreIds.has(delivery.store_id);
+      });
+
+      if (active) {
+        setLegendDeliveries(nextLegendDeliveries);
+      }
+    };
+
+    loadLegendDeliveries();
+    window.addEventListener('smartRefreshComplete', loadLegendDeliveries);
+    window.addEventListener('deliveriesUpdated', loadLegendDeliveries);
+    window.addEventListener('deliveriesImported', loadLegendDeliveries);
+
+    return () => {
+      active = false;
+      window.removeEventListener('smartRefreshComplete', loadLegendDeliveries);
+      window.removeEventListener('deliveriesUpdated', loadLegendDeliveries);
+      window.removeEventListener('deliveriesImported', loadLegendDeliveries);
+    };
+  }, [selectedDateStr, stores, deliveries]);
+
   const legendData = (() => {
     if (!isAdmin || !Array.isArray(driverRoutes) || driverRoutes.length === 0) return [];
 
-    const selectedCityId = globalFilters.getSelectedCityId();
-    const cityStoreIds = new Set(
-      (stores || []).filter((store) => store?.city_id === selectedCityId).map((store) => store.id)
-    );
-
-    const deliveriesForLegend = (deliveries || []).filter((delivery) => {
-      if (!delivery || delivery.delivery_date !== selectedDateStr || !delivery.driver_id) return false;
-      return cityStoreIds.size === 0 || cityStoreIds.has(delivery.store_id);
-    });
-
     const routeMap = new Map((driverRoutes || []).map((route) => [route.driverId, route]));
-    const driverIdsWithStops = new Set(deliveriesForLegend.map((delivery) => delivery.driver_id));
+    const driverIdsWithStops = new Set(legendDeliveries.map((delivery) => delivery.driver_id));
 
     return Array.from(driverIdsWithStops).map((driverId) => {
       const route = routeMap.get(driverId);
-      const driverDeliveries = deliveriesForLegend.filter((delivery) => delivery.driver_id === driverId);
+      const driverDeliveries = legendDeliveries.filter((delivery) => delivery.driver_id === driverId);
       const driverAppUser = (appUsers || []).find((appUser) => appUser?.user_id === driverId);
       const driverName = route?.driverName || driverAppUser?.user_name || driversList.find((driver) => driver?.id === driverId)?.user_name || 'Unknown';
       const totalStops = driverDeliveries.length;
