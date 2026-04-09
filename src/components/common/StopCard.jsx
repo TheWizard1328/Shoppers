@@ -460,8 +460,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     if (lockResult?.skipped) return;
   };
   const handleReturnClick = async (e) => {
-    e?.preventDefault?.();
-    e?.stopPropagation?.();
+    blockCardToggle(e, { keepExpanded: true });
     setIsPreparingReturn(true);
     try {
       const resolvedStore = store || stores.find((s) => s && s.id === delivery?.store_id);
@@ -525,8 +524,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   };
   const handleCancelReturn = () => {setShowReturnConfirm(false);setReturnPatient(null);};
   const handleRetryDelivery = async (e) => {
-    e?.preventDefault?.();
-    e?.stopPropagation?.();
+    blockCardToggle(e, { keepExpanded: true });
     const lockResult = await runWithDeliveryActionLock('retry_delivery', async () => {
     pauseOfflineSync('delivery_actions');
     fabControlEvents.deactivateFAB();setIsRetrying(true);setIsProcessingBackground(true);
@@ -656,7 +654,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   return (
     <motion.div id={`stop-card-${delivery.id}`} data-is-condensed={shouldFade && !isExpanded && !isHovered} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className={`w-full cursor-pointer transition-all ${showCenteredIncompleteCollapsed ? 'self-start' : ''} ${isSelected && !isStrippedDelivery ? 'ring-2 ring-blue-500' : ''}`} style={{ scrollSnapAlign: 'center', position: 'relative', zIndex: cardZIndex }} onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
       <Card data-route-completed-condensed={showCompletedRouteCenteredCondensed ? "true" : "false"} className={`bg-card text-card-foreground rounded-xl border shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 overflow-hidden ${forceCompactCollapsed ? 'h-[72px] min-h-[72px]' : isStrippedForDispatcher ? 'h-[72px] min-h-[72px]' : showCompletedRouteCenteredCondensed ? 'h-[72px] min-h-[72px]' : !isRailCentered && !isExpanded ? 'h-[72px] min-h-[72px]' : showCenteredIncompleteCollapsed ? 'min-h-0 h-auto self-start' : isFinishedDelivery && isExpanded ? 'h-auto min-h-[120px]' : 'min-h-[120px]'} min-w-[338px] max-w-[338px] border-blue-500`} onClick={(e) => {
-          const actionButton = e.target?.closest?.('[data-stopcard-action="start"], [data-stopcard-action="complete"], [data-stopcard-action="restart"]');
+          const actionButton = e.target?.closest?.('[data-stopcard-action="start"], [data-stopcard-action="complete"], [data-stopcard-action="restart"], [data-stopcard-action="retry"], [data-stopcard-action="return"]');
           if (startTapLockRef.current || completeTapLockRef.current || actionTapLockRef.current || isStarting || isCompleting || isRestarting || isProcessingBackground || isFailing || actionButton) return;
           onClick && onClick(delivery);
         }} style={{ background: 'var(--bg-white)', borderColor: isNextDelivery ? '#10B981' : '#3B82F6', opacity: shouldFade ? 0.4 : 1, transition: 'opacity 0.2s ease-in-out', maxHeight: shouldAnchorExpandedCard ? 'calc(100dvh - var(--bottom-nav-height, 64px) - 1rem)' : undefined }}>
