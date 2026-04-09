@@ -737,11 +737,12 @@ Deno.serve(async (req) => {
           adminMetrics.envelopeMetrics = mergeEnvelopeMetrics(adminMetrics?.envelopeMetrics || null, liveWindowMetrics.envelopeMetrics);
         }
 
-        if (currentMonthSummary == null || countSummaryNeedsRefresh(currentMonthSummary, liveWindowData.deliveries)) {
+        if (refreshCurrentMonthSummary === true || currentMonthSummary == null || countSummaryNeedsRefresh(currentMonthSummary, liveWindowData.deliveries)) {
           const monthRange = getMonthDateRange(adminMetricsYear, currentMonth);
+          const fullCurrentMonthEnd = monthRange.end;
           const fullCurrentMonthData = await fetchYearData(adminMetricsYear, normalizedCityId, {
             startDate: monthRange.start,
-            endDate: liveWindowEnd,
+            endDate: fullCurrentMonthEnd,
             includePayroll: false
           });
           const currentMonthMetrics = processAdminMetrics(
