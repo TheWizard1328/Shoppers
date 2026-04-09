@@ -45,6 +45,7 @@ Deno.serve(async (req) => {
 
     const params = new URLSearchParams({
       transportMode: 'car',
+      routingMode: 'short',
       origin: `${originLat},${originLng}`,
       destination: `${destinationLat},${destinationLng}`,
       return: 'polyline,summary',

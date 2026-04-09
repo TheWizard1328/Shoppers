@@ -282,7 +282,7 @@ Deno.serve(async (req) => {
         });
 
         // CRITICAL: Don't use optimize:true - respect the time-based order
-        const directionsUrl = `https://router.hereapi.com/v8/routes?${hereWaypoints}&return=summary&transportMode=car&routingMode=fast&apiKey=${hereApiKey}`;
+        const directionsUrl = `https://router.hereapi.com/v8/routes?${hereWaypoints}&return=summary&transportMode=car&routingMode=short&apiKey=${hereApiKey}`;
 
         let directionsData = null;
         for (let attempt = 0; attempt < 3; attempt++) {
