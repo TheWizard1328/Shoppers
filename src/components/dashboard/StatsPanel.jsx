@@ -65,10 +65,7 @@ export default function StatsPanel({
       const driverDeliveries = deliveriesForLegend.filter((delivery) => delivery.driver_id === driverId);
       const driverAppUser = (appUsers || []).find((appUser) => appUser?.user_id === driverId);
       const driverName = route?.driverName || driverAppUser?.user_name || driversList.find((driver) => driver?.id === driverId)?.user_name || 'Unknown';
-      const totalStops = driverDeliveries.filter((delivery) => {
-        if (delivery.after_hours_pickup && !delivery.patient_id) return true;
-        return delivery.patient_id && (delivery.status === 'completed' || delivery.status === 'failed');
-      }).length;
+      const totalStops = driverDeliveries.length;
 
       return {
         driverId,
