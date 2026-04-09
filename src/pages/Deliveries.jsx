@@ -227,15 +227,13 @@ export default function DeliveriesPage() {
       return false;
     }
 
-    // Dispatchers bypass if only 1 driver has deliveries for their stores
+    // Dispatchers never use Driver Overview in Route Management
     if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
-      if (uniqueDriversForDispatcher && uniqueDriversForDispatcher.count === 1) {
-        return false;
-      }
+      return false;
     }
 
     return true;
-  }, [driverFilter, currentUser, uniqueDriversForDispatcher]);
+  }, [driverFilter, currentUser]);
   const [refreshKey, setRefreshKey] = React.useState(0);
 
   const lastLoadTime = useRef(0);
@@ -3724,7 +3722,7 @@ export default function DeliveriesPage() {
                               </SelectTrigger>
                               <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                                 <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Drivers</SelectItem>
-                                  {sortUsers((effectiveDrivers || []).filter((d) => userHasRole(d, 'driver') && (() => {const S = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null;if (!S) return true;const disp = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');const ss = disp ? new Set(currentUser.store_ids || []) : null;const ok = (effectiveDeliveries || []).some((del) => del && del.delivery_date === S && (!ss || !del.store_id || ss.has(del.store_id)) && (del.driver_id && (del.driver_id === d.id || del.driver_id === d.appUserId) || del.driver_name && (del.driver_name === d.full_name || del.driver_name === d.user_name)));return ok || driverFilter !== 'all' && d.id === driverFilter;})())).map((driver) => {const dup = (effectiveDrivers || []).filter((x) => getDriverDisplayName(x) === getDriverDisplayName(driver));const name = dup.length > 1 ? `${getDriverDisplayName(driver)} (${driver.id.slice(-4)})` : getDriverDisplayName(driver);return <SelectItem key={driver.id} value={driver.id} style={{ color: 'var(--text-slate-900)' }}>{name}</SelectItem>;})}
+                                  {sortUsers((effectiveDrivers || []).filter((d) => userHasRole(d, 'driver'))).map((driver) => {const dup = (effectiveDrivers || []).filter((x) => getDriverDisplayName(x) === getDriverDisplayName(driver));const name = dup.length > 1 ? `${getDriverDisplayName(driver)} (${driver.id.slice(-4)})` : getDriverDisplayName(driver);return <SelectItem key={driver.id} value={driver.id} style={{ color: 'var(--text-slate-900)' }}>{name}</SelectItem>;})}
                               </SelectContent>
                             </Select><div className="mt-2"><ExportRouteButton currentUser={currentUser} driverFilter={driverFilter} selectedDate={selectedDate} driverFilteredDeliveries={driverFilteredDeliveries} /></div>
                           </div>
