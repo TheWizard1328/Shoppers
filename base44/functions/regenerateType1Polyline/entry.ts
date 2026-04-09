@@ -104,6 +104,39 @@ function distanceMeters(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
+function decodeGooglePolyline(encoded) {
+  if (!encoded || typeof encoded !== 'string') return [];
+  let index = 0;
+  let lat = 0;
+  let lon = 0;
+  const coordinates = [];
+
+  while (index < encoded.length) {
+    let result = 0;
+    let shift = 0;
+    let byte;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+
+    result = 0;
+    shift = 0;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    lon += (result & 1) ? ~(result >> 1) : (result >> 1);
+
+    coordinates.push([lat / 1e5, lon / 1e5]);
+  }
+
+  return coordinates;
+}
+
 // Re-use the decodeHereFlexiblePolyline function already defined above
 
 function buildStopOrderRepairUpdates(deliveries) {
@@ -329,7 +362,10 @@ Deno.serve(async (req) => {
       // Decode the existing polyline to check deviation
       let deviationMeters = Infinity;
       try {
-        const decodedCoords = decodeHereFlexiblePolyline(existingType1.encoded_polyline);
+        let decodedCoords = decodeGooglePolyline(existingType1.encoded_polyline);
+        if (!decodedCoords || decodedCoords.length <= 1) {
+          decodedCoords = decodeHereFlexiblePolyline(existingType1.encoded_polyline);
+        }
         if (decodedCoords && decodedCoords.length > 1) {
           // Find closest point on polyline to current driver location
           let minDistance = Infinity;
