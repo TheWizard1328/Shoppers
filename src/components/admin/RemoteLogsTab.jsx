@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 
 const formatLogTimestamp = (timestamp) => {
@@ -24,8 +25,11 @@ export default function RemoteLogsTab({ appUsers = [] }) {
   const [level, setLevel] = useState('all');
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [logUserFilter, setLogUserFilter] = useState('all');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshTick, setRefreshTick] = useState(0);
 
   const loadData = async () => {
+    setIsRefreshing(true);
     const [logRows, settingsRows] = await Promise.all([
     base44.entities.RemoteLogEntry.list('-timestamp', 300),
     base44.entities.RemoteLoggingSettings.filter({ scope: 'global' }, '-updated_date', 1)]
@@ -33,6 +37,8 @@ export default function RemoteLogsTab({ appUsers = [] }) {
     setLogs(logRows || []);
     setSettings(settingsRows?.[0] || null);
     setSelectedUsers(settingsRows?.[0]?.included_user_ids || []);
+    setRefreshTick((prev) => prev + 1);
+    setTimeout(() => setIsRefreshing(false), 250);
   };
 
   useEffect(() => {
@@ -61,8 +67,11 @@ export default function RemoteLogsTab({ appUsers = [] }) {
   };
 
   const clearLogs = async () => {
+    setIsRefreshing(true);
     await clearRemoteLogs({});
     setLogs([]);
+    setRefreshTick((prev) => prev + 1);
+    setTimeout(() => setIsRefreshing(false), 250);
   };
 
 
@@ -166,8 +175,11 @@ export default function RemoteLogsTab({ appUsers = [] }) {
             <Input placeholder="Search logs..." value={search} onChange={(e) => setSearch(e.target.value)} />
             <div className="w-full md:w-72 space-y-2">
               <Label>Filter user</Label>
-              <Select value={logUserFilter} onValueChange={setLogUserFilter}>
-                <SelectTrigger>
+              <Select value={logUserFilter} onValueChange={(value) => {
+                setLogUserFilter(value);
+                setRefreshTick((prev) => prev + 1);
+              }}>
+                <SelectTrigger className={isRefreshing ? 'ring-2 ring-primary/30' : ''}>
                   <SelectValue placeholder="Filter user" />
                 </SelectTrigger>
                 <SelectContent>
@@ -178,8 +190,11 @@ export default function RemoteLogsTab({ appUsers = [] }) {
                 </SelectContent>
               </Select>
             </div>
-            <Select value={level} onValueChange={setLevel}>
-              <SelectTrigger className="w-full md:w-40"><SelectValue /></SelectTrigger>
+            <Select value={level} onValueChange={(value) => {
+              setLevel(value);
+              setRefreshTick((prev) => prev + 1);
+            }}>
+              <SelectTrigger className={`w-full md:w-40 ${isRefreshing ? 'ring-2 ring-primary/30' : ''}`}><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All levels</SelectItem>
                 <SelectItem value="log">log</SelectItem>
@@ -189,11 +204,14 @@ export default function RemoteLogsTab({ appUsers = [] }) {
                 <SelectItem value="debug">debug</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" onClick={loadData}>Refresh</Button>
-            <Button variant="destructive" onClick={clearLogs}>Clear Logs</Button>
+            <Button variant="outline" onClick={loadData} disabled={isRefreshing}>
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+            <Button variant="destructive" onClick={clearLogs} disabled={isRefreshing}>Clear Logs</Button>
           </div>
 
-          <div className="max-h-[600px] overflow-auto rounded border">
+          <div key={refreshTick} className={`max-h-[600px] overflow-auto rounded border transition-opacity duration-200 ${isRefreshing ? 'opacity-60' : 'opacity-100'}`}>
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-white border-b">
                 <tr>
