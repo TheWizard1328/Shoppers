@@ -723,12 +723,10 @@ Deno.serve(async (req) => {
 });
 
 function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFeeRate) {
-  const patientMap = new Map((patients || []).map((patient) => [patient?.id, patient]));
-
   const calculateExtraKm = (delivery) => {
     if (!delivery || !delivery.patient_id) return 0;
-    const patient = patientMap.get(delivery.patient_id);
-    const paidDistance = Number(delivery.paid_km_override ?? patient?.distance_from_store ?? 0);
+    if (delivery.paid_km_override == null) return 0;
+    const paidDistance = Number(delivery.paid_km_override || 0);
     const driver = appUsers.find(au => au.user_id === delivery.driver_id);
     const extraKmLimit = Number(driver?.extra_km_limit || 0);
     const extraKm = paidDistance - extraKmLimit;
