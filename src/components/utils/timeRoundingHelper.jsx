@@ -88,9 +88,16 @@ export const parseLocalTimestamp = (value) => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
-export const shouldUseRegularTiming = ({ deliveryDate, todayDateString }) => {
+export const shouldUseRegularTiming = ({ deliveryDate, todayDateString, currentTimeString }) => {
   if (!deliveryDate || !todayDateString) return false;
-  return deliveryDate === todayDateString;
+  if (deliveryDate !== todayDateString) return false;
+  if (!currentTimeString) return true;
+
+  const [hours = 0, minutes = 0] = String(currentTimeString).split(':').map(Number);
+  const currentMinutes = hours * 60 + minutes;
+  const retroCutoffMinutes = 21 * 60;
+
+  return currentMinutes < retroCutoffMinutes;
 };
 
 const parseDateTimeParts = (dateString, timeString = '09:00') => {
@@ -243,9 +250,12 @@ export const calculateRetroactiveStopTiming = async ({
   }
 
   if (isFirstStop) {
+    const actualDeliveryTime = new Date(baseTime.getTime());
+    const arrivalOffsetMinutes = Math.floor(Math.random() * 5) + 1;
+    const arrivalTime = new Date(actualDeliveryTime.getTime() - arrivalOffsetMinutes * 60000);
     const result = {
-      actual_delivery_time: formatLocalTimestamp(baseTime),
-      arrival_time: formatLocalTimestamp(baseTime),
+      actual_delivery_time: formatLocalTimestamp(actualDeliveryTime),
+      arrival_time: formatLocalTimestamp(arrivalTime),
       ...(Number.isFinite(travelDistanceKm) ? { travel_dist: travelDistanceKm } : {})
     };
     console.warn('[Retro] result first stop', {
@@ -256,8 +266,9 @@ export const calculateRetroactiveStopTiming = async ({
     return result;
   }
 
-  const arrivalTime = new Date(baseTime.getTime());
-  const actualDeliveryTime = new Date(arrivalTime.getTime());
+  const actualDeliveryTime = new Date(baseTime.getTime());
+  const arrivalOffsetMinutes = Math.floor(Math.random() * 5) + 1;
+  const arrivalTime = new Date(actualDeliveryTime.getTime() - arrivalOffsetMinutes * 60000);
   const result = {
     actual_delivery_time: formatLocalTimestamp(actualDeliveryTime),
     arrival_time: formatLocalTimestamp(arrivalTime),
