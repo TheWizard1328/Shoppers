@@ -690,12 +690,12 @@ Deno.serve(async (req) => {
       let summaryRecords = await fetchYearSummaryRecords(adminMetricsYear, normalizedCityId);
 
       if (forceRefreshCurrentYear && adminMetricsYear === currentYear) {
-        const backfill = await buildSummaryBackfill(adminMetricsYear, normalizedCityId, {
+        await buildSummaryBackfill(adminMetricsYear, normalizedCityId, {
           force: true,
           includePayroll: false,
           refreshCurrentMonthOnly: refreshCurrentMonthSummary === true
         });
-        summaryRecords = backfill.summaryRecords;
+        summaryRecords = await fetchYearSummaryRecords(adminMetricsYear, normalizedCityId);
       } else if (!summaryRecords.length) {
         const backfill = await buildSummaryBackfill(adminMetricsYear, normalizedCityId, { force: false, includePayroll: false });
         summaryRecords = backfill.summaryRecords;
