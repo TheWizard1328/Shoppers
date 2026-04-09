@@ -33,8 +33,8 @@ class LocationTracker {
         this.updateInterval = 15000; // 15 seconds GPS polling (balanced)
         this.coordinateUpdateInterval = 15000; // 15 seconds between coordinate updates
 
-        // Distance threshold - only upload if moved > 200m
-        this.minDistanceChange = 250; // Balanced: 250 meters minimum movement to trigger upload
+        // Distance threshold - only upload if moved at least 100m
+        this.minDistanceChange = 100; // 100 meters minimum movement to trigger upload
 
         // Deduplication - prevent duplicate updates within 2 seconds
         this.lastUploadTime = 0;
@@ -76,14 +76,14 @@ class LocationTracker {
       // Interval locked to 15 seconds for primary device polling
       this.updateInterval = 15000; // 15 seconds GPS polling
 
-      // 200m minimum movement threshold
-      this.minDistanceChange = 200;
+      // 100m minimum movement threshold
+      this.minDistanceChange = 100;
 
       console.log(`📍 [LocationTracker] Interval: ${this.updateInterval / 1000}s, distance threshold: ${this.minDistanceChange}m`);
     } catch (error) {
       console.warn('⚠️ Could not load route optimization settings, using defaults');
       this.updateInterval = 15000; // Default 15 seconds
-      this.minDistanceChange = 250; // Default 250m
+      this.minDistanceChange = 100; // Default 100m
     }
   }
 
@@ -232,9 +232,9 @@ class LocationTracker {
       }
     }
 
-    // CRITICAL: Check distance threshold - SKIP for primary devices (always update)
+    // CRITICAL: Check distance threshold against last uploaded location
     let distance = 0;
-    if (this.lastPosition && !forceUpdate && !timestampOnly && !isPrimaryDevice) {
+    if (this.lastPosition && !forceUpdate && !timestampOnly) {
       distance = this.calculateDistance(
         this.lastPosition.latitude,
         this.lastPosition.longitude,
@@ -261,7 +261,7 @@ class LocationTracker {
     } else if (forceUpdate) {
       console.log(`💓 [LocationTracker] EVENT-DRIVEN UPDATE - uploading coordinates + timestamp`);
     } else {
-      console.log(`⏰ [LocationTracker] GPS update - moved ${distance.toFixed(0)}m, uploading coordinates + timestamp`);
+      console.log(`⏰ [LocationTracker] GPS update - moved ${distance.toFixed(0)}m, uploading coordinates + timestamp (threshold ${this.minDistanceChange}m)`);
     }
 
     // CRITICAL: Set lastUpdate BEFORE attempting upload for deduplication

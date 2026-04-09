@@ -355,7 +355,9 @@ const subscribeToEntity = (entityName) => {
         ? (data?.full_name || id)
         : entityName === 'Delivery'
           ? (data?.patient_name || data?.full_name || data?.patient_id || id)
-          : id;
+          : entityName === 'AppUser'
+            ? (data?.user_name || data?.full_name || data?.email || id)
+            : id;
       console.log(`📡 [RealtimeSync] ${entityName} ${type}: ${displayId}`, changedFields.length > 0 ? `changed: ${changedFields.join(', ')}` : '');
       
       // CRITICAL: Save to offline DB immediately on WebSocket update
@@ -376,7 +378,11 @@ const subscribeToEntity = (entityName) => {
             if (entityName === 'DriverRoutePolyline') {
               console.log(`💾 [RealtimeSync] Saved DriverRoutePolyline to offline DB: ${data.driver_id} segment ${data.segment_origin_lat},${data.segment_origin_lon} -> ${data.segment_dest_lat},${data.segment_dest_lon}`);
             } else {
-              const savedLabel = entityName === 'Patient' ? (data?.full_name || data?.id || 'Patient') : entityName;
+              const savedLabel = entityName === 'Patient'
+                ? (data?.full_name || data?.id || 'Patient')
+                : entityName === 'AppUser'
+                  ? (data?.user_name || data?.full_name || data?.email || data?.id || 'AppUser')
+                  : entityName;
               console.log(`💾 [RealtimeSync] Saved ${savedLabel} to offline DB - changed: ${changedFields.join(', ')}`);
             }
           }
