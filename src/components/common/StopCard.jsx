@@ -311,14 +311,16 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     if (!shouldCondenseCardOnAction()) return;
     await collapseExpandedStopCardsForDriver(delivery?.driver_id);
   };
-  const blockCardToggle = (e) => {
-    e?.preventDefault?.();
-    e?.stopPropagation?.();
-    actionTapLockRef.current = true;
-    window.setTimeout(() => {
-      actionTapLockRef.current = false;
-    }, 350);
-  };
+
+  // const blockCardToggle = (e) => {
+  //   e?.preventDefault?.();
+  //   e?.stopPropagation?.();
+  //   actionTapLockRef.current = true;
+  //   window.setTimeout(() => {
+  //     actionTapLockRef.current = false;
+  //   }, 350);
+  // };
+
   const handleStartAction = async (e) => {
     e?.preventDefault?.();e?.stopPropagation?.();if (isCurrentCardStartLocked || isProcessingBackground || isCompleting || isFailing || isRetrying || isRestarting) return;
     if (isGlobalStartLocked && !isStarting) return;
