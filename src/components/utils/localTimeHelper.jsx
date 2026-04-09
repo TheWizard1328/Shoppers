@@ -127,5 +127,11 @@ export function parseEntityTimestamp(timestamp) {
   }
 
   const normalizedTimestamp = String(timestamp);
+  const isUtcEntityTimestamp = /Z$|[+-]\d{2}:\d{2}$/.test(normalizedTimestamp);
+
+  if (isUtcEntityTimestamp) {
+    return new Date(normalizedTimestamp);
+  }
+
   return parseLocalTimestamp(normalizedTimestamp);
 }
