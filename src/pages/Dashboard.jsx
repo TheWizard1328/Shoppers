@@ -1901,14 +1901,13 @@ function Dashboard() {
           deliveriesToMap = deliveriesWithStopOrder.length > 0 ? deliveriesWithStopOrder : deliveries.filter((d) => d && d.delivery_date === selectedDateStr && (!selectedDriverId || selectedDriverId === 'all' || d.driver_id === selectedDriverId));
         }
 
-        const stopCoordinateResult = (window.__dashboardMapMarkerHelpers?.appendStopCoordinates || ((params) => ({ hasStopMarkers: false, coordsAdded: 0, allCoordinates: params.allCoordinates || [] })))({
-          deliveriesToMap,
-          patients,
-          stores,
-          allCoordinates
+        let coordsAdded = 0;
+        [...(window.__mapDeliveryMarkers || []), ...(window.__mapPickupMarkers || [])].forEach((marker) => {
+          if (!marker?.latitude || !marker?.longitude) return;
+          allCoordinates.push([marker.latitude, marker.longitude]);
+          hasStopMarkers = true;
+          coordsAdded++;
         });
-        hasStopMarkers = hasStopMarkers || stopCoordinateResult.hasStopMarkers;
-        let coordsAdded = stopCoordinateResult.coordsAdded;
 
         // 4. HOME LOCATIONS: only suppress home markers when there is a live marker for a driver that actually has visible stops in this view
         const visibleDriverIdsForBounds = new Set((deliveriesToMap || []).map((d) => d?.driver_id).filter(Boolean));
