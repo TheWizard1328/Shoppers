@@ -333,11 +333,15 @@ export default function SquareManagement() {
     });
     const snapshotData = snapshotResponse?.data || snapshotResponse || {};
 
-    const paymentsResponse = await base44.functions.invoke('squareCodCore', {
+    const paymentPayload = {
       action: 'fetchPayments',
       daysBack: 60,
-      locationIds: (snapshotData.locationIds || []).filter(Boolean),
-    });
+    };
+    const validLocationIds = (snapshotData.locationIds || []).filter(Boolean);
+    if (validLocationIds.length > 0) {
+      paymentPayload.locationIds = validLocationIds;
+    }
+    const paymentsResponse = await base44.functions.invoke('squareCodCore', paymentPayload);
     const paymentsData = paymentsResponse?.data || paymentsResponse || {};
 
     const catalogRecords = snapshotData.catalogRecords || [];
