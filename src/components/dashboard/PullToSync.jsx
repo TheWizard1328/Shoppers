@@ -97,14 +97,16 @@ export default function PullToSync({
     try {
       const selectedDateStr = globalFilters.getSelectedDate() || format(selectedDate, 'yyyy-MM-dd');
       const currentDriverId = globalFilters.getSelectedDriverId() || selectedDriverId;
+      const currentCityId = globalFilters.getSelectedCityId() || selectedCityId;
       try {
         window.__selectedDashboardDate = selectedDateStr;
         window.__selectedDashboardDriverId = currentDriverId;
+        window.__selectedDashboardCityId = currentCityId;
       } catch (e) {}
 
       await new Promise((resolve) => setTimeout(resolve, silent ? 0 : 400));
       const allStores = await offlineDB.getAll(offlineDB.STORES.STORES);
-      const cityStoreIds = (allStores || []).filter((store) => !selectedCityId || store?.city_id === selectedCityId).map((store) => store.id);
+      const cityStoreIds = (allStores || []).filter((store) => !currentCityId || store?.city_id === currentCityId).map((store) => store.id);
       const cityFilter = cityStoreIds.length > 0 ? { store_id: { $in: cityStoreIds } } : {};
       if (window.__dashboardSyncing && window.__activePullToSyncRunId && !silent && window.__activePullToSyncRunId !== syncRunId) {
         return;
@@ -201,6 +203,15 @@ export default function PullToSync({
       if (onSyncComplete) {
         await onSyncComplete(offlineDeliveries, freshPatients, safeAppUsers);
       }
+
+      console.log('🔄 [PullToSync] Final synced delivery set', {
+        selectedDateStr,
+        currentCityId,
+        currentDriverId,
+        serverCount: freshDeliveries?.length || 0,
+        offlineCount: offlineDeliveries?.length || 0,
+        drivers: Array.from(new Set((offlineDeliveries || []).map((delivery) => delivery?.driver_id).filter(Boolean)))
+      });
 
       // Mark UI sync complete + release overlay
       try { window.__dashboardSyncing = false; } catch (e) {}
