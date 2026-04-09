@@ -8,7 +8,6 @@ import { format } from "date-fns";
 import { queueEntityRequest } from "./requestQueue";
 import { touchUserCache } from "./auth";
 import { globalFilters } from "./globalFilters";
-import { quickReconcile } from "./offlineSync";
 
 const shouldAutoCenterNextDeliveryFromSmartRefresh = (deliveries = [], selectedDriverId = 'all', currentUser = null) => {
   if (!Array.isArray(deliveries) || deliveries.length === 0 || !currentUser) return false;
@@ -633,32 +632,9 @@ class LightweightRefreshManager {
         Object.assign(updates, lightweightUpdates);
       }
 
-      // STEP 4: Quick reconciliation - compare online vs offline for Deliveries & AppUsers
-      // Runs at most every 2 minutes to avoid rate limits
-      const now = Date.now();
-      const timeSinceLastReconcile = now - (this._lastReconcileTime || 0);
-      if (timeSinceLastReconcile > 600000 && filters.deliveryFilter?.delivery_date) {
-        const selectedDate = filters.deliveryFilter.delivery_date;
-        console.log(`🔍 [SmartRefresh] Running quick reconcile for ${selectedDate}...`);
-        try {
-          const reconcileResult = await quickReconcile(selectedDate);
-          this._lastReconcileTime = Date.now();
-
-          if (reconcileResult.deliveriesUpdated && Array.isArray(reconcileResult.freshDeliveries) && reconcileResult.freshDeliveries.length > 0) {
-            updates.deliveries = reconcileResult.freshDeliveries;
-            updates.isFullReplacementDeliveries = true;
-            console.log(`📦 [SmartRefresh] Reconcile updated deliveries: ${reconcileResult.freshDeliveries.length}`);
-          }
-          if (reconcileResult.appUsersUpdated && reconcileResult.freshAppUsers) {
-            updates.appUsers = reconcileResult.freshAppUsers;
-            console.log(`👤 [SmartRefresh] Reconcile updated AppUsers: ${reconcileResult.freshAppUsers.length}`);
-          }
-          this.recordSuccess();
-        } catch (e) {
-          console.warn('⚠️ [SmartRefresh] Reconcile failed:', e.message);
-          this.recordError(e);
-        }
-      }
+      // STEP 4: Dashboard smart refresh must stay offline/WebSocket-first.
+      // Do not pull server reconcile data here because it can reintroduce older route state
+      // over the current offline route for the selected day.
       
       // CRITICAL: Never let partial/empty delivery refreshes clear a populated dashboard
       if (Array.isArray(updates.deliveries) && Array.isArray(currentData?.deliveries) && currentData.deliveries.length > 0 && updates.deliveries.length === 0) {
