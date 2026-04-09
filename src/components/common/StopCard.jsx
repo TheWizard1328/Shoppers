@@ -313,12 +313,12 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   };
 
   const blockCardToggle = (e) => {
-  //   e?.preventDefault?.();
-  //   e?.stopPropagation?.();
-  //   actionTapLockRef.current = true;
-  //   window.setTimeout(() => {
-  //     actionTapLockRef.current = false;
-  //   }, 350);
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    actionTapLockRef.current = true;
+    window.setTimeout(() => {
+      actionTapLockRef.current = false;
+    }, 350);
   };
 
   const handleStartAction = async (e) => {
