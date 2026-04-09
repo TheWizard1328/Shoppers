@@ -858,10 +858,12 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
 
   const isBillableDelivery = (d) => {
     if (!d) return false;
-    if (isCompletedAfterHoursPickup(d) || isCancelledAfterHoursPickup(d)) return true;
-    if (isCompletedInterStorePickup(d) || isFailedInterStorePickup(d)) return true;
-    if (d.patient_id && (isCompletedPatientDelivery(d) || isFailedPatientDelivery(d) || isReturn(d))) return true;
-    return false;
+    return isCompletedPatientDelivery(d) || isFailedPatientDelivery(d) || isReturn(d);
+  };
+
+  const isNonBillableDelivery = (d) => {
+    if (!d) return false;
+    return isCompletedAfterHoursPickup(d) || isCancelledAfterHoursPickup(d) || isCompletedInterStorePickup(d) || isFailedInterStorePickup(d);
   };
 
   const storeMonthlyFees = new Map();
@@ -874,11 +876,13 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
     const store = delivery.store_id ? storeMap.get(delivery.store_id) : null;
     const wasPayingOnDeliveryDate = store ? wasPayingFeesOnDate(store, delivery.delivery_date) : false;
 
-    const countsTowardMonthlySplit = isBillableDelivery(delivery);
+    const isBillable = isBillableDelivery(delivery);
+    const isNonBillable = isNonBillableDelivery(delivery);
+    const countsTowardMonthlySplit = isBillable || isNonBillable;
 
     if (countsTowardMonthlySplit) {
       metrics.monthlyData[monthIndex].total++;
-      if (wasPayingOnDeliveryDate) {
+      if (isBillable) {
         metrics.monthlyData[monthIndex].billable++;
         metrics.yearTotals.billable++;
       } else {
@@ -889,10 +893,10 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
       if (!metrics.dailyDeliveryData[monthIndex + 1]) metrics.dailyDeliveryData[monthIndex + 1] = [];
       let dailyEntry = metrics.dailyDeliveryData[monthIndex + 1].find(d => d.day === dayOfMonth);
       if (dailyEntry) {
-        if (wasPayingOnDeliveryDate) dailyEntry.billable++;
+        if (isBillable) dailyEntry.billable++;
         else dailyEntry.nonBillable++;
       } else {
-        metrics.dailyDeliveryData[monthIndex + 1].push({ day: dayOfMonth, billable: wasPayingOnDeliveryDate ? 1 : 0, nonBillable: wasPayingOnDeliveryDate ? 0 : 1 });
+        metrics.dailyDeliveryData[monthIndex + 1].push({ day: dayOfMonth, billable: isBillable ? 1 : 0, nonBillable: isBillable ? 0 : 1 });
       }
 
       if (delivery.driver_id) {
@@ -903,7 +907,7 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
           annualDriverEntry = { name: driverName, driverId: delivery.driver_id, billable: 0, nonBillable: 0 };
           metrics.driverData.push(annualDriverEntry);
         }
-        if (wasPayingOnDeliveryDate) annualDriverEntry.billable++;
+        if (isBillable) annualDriverEntry.billable++;
         else annualDriverEntry.nonBillable++;
 
         if (!metrics.driverDataByMonth[monthIndex + 1]) metrics.driverDataByMonth[monthIndex + 1] = [];
@@ -912,7 +916,7 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
           monthlyDriverEntry = { name: driverName, driverId: delivery.driver_id, billable: 0, nonBillable: 0 };
           metrics.driverDataByMonth[monthIndex + 1].push(monthlyDriverEntry);
         }
-        if (wasPayingOnDeliveryDate) monthlyDriverEntry.billable++;
+        if (isBillable) monthlyDriverEntry.billable++;
         else monthlyDriverEntry.nonBillable++;
 
         if (!metrics.dailyDriverData[monthIndex + 1]) metrics.dailyDriverData[monthIndex + 1] = {};
@@ -922,7 +926,7 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
           dailyDriverEntry = { day: dayOfMonth, billable: 0, nonBillable: 0 };
           metrics.dailyDriverData[monthIndex + 1][delivery.driver_id].push(dailyDriverEntry);
         }
-        if (wasPayingOnDeliveryDate) dailyDriverEntry.billable++;
+        if (isBillable) dailyDriverEntry.billable++;
         else dailyDriverEntry.nonBillable++;
 
         if (delivery.store_id) {
@@ -932,7 +936,7 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
             storeDriverEntry = { name: driverName, driverId: delivery.driver_id, billable: 0, nonBillable: 0 };
             metrics.driverDataByStore[delivery.store_id].push(storeDriverEntry);
           }
-          if (wasPayingOnDeliveryDate) storeDriverEntry.billable++;
+          if (isBillable) storeDriverEntry.billable++;
           else storeDriverEntry.nonBillable++;
         }
       }
