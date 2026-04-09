@@ -420,35 +420,46 @@ export default function HereType1Polylines({
         }
 
         jobs.push(
-          getHerePolyline(driverId, current, destination, nextStop.delivery_date).then((remainingCoords) => {
-            if (cancelled) return;
-            nextDeviationSegments[segmentId] = {
-              segmentId,
-              driverId,
-              origin,
-              destination,
-              currentPoint: current,
-              breadcrumbCoords: buildBreadcrumbLine(nextStop.delivery_route_breadcrumbs, origin, current),
-              remainingCoords: Array.isArray(remainingCoords) && remainingCoords.length > 1 ? remainingCoords : makeFallback(current, destination),
-              remainingPoint: current,
-              deviationDistance,
-              lastFetchedAt: Date.now()
-            };
-          }).catch(() => {
-            if (cancelled) return;
-            nextDeviationSegments[segmentId] = {
-              segmentId,
-              driverId,
-              origin,
-              destination,
-              currentPoint: current,
-              breadcrumbCoords: buildBreadcrumbLine(nextStop.delivery_route_breadcrumbs, origin, current),
-              remainingCoords: makeFallback(current, destination),
-              remainingPoint: current,
-              deviationDistance,
-              lastFetchedAt: Date.now()
-            };
-          })
+          (async () => {
+            try {
+              const remainingKey = getHereCacheKey(current, destination);
+              let remainingCoords = getCachedPolyline(remainingKey, cache);
+              if (!remainingCoords) {
+                remainingCoords = await hydrateFromOffline(remainingKey, driverId, current, destination, nextStop.delivery_date)
+                  .then((hydrated) => hydrated ? getCachedPolyline(remainingKey, cache) : null);
+              }
+              if (!remainingCoords) {
+                remainingCoords = await getHerePolyline(driverId, current, destination, nextStop.delivery_date);
+              }
+              if (cancelled) return;
+              nextDeviationSegments[segmentId] = {
+                segmentId,
+                driverId,
+                origin,
+                destination,
+                currentPoint: current,
+                breadcrumbCoords: buildBreadcrumbLine(nextStop.delivery_route_breadcrumbs, origin, current),
+                remainingCoords: Array.isArray(remainingCoords) && remainingCoords.length > 1 ? remainingCoords : makeFallback(current, destination),
+                remainingPoint: current,
+                deviationDistance,
+                lastFetchedAt: Date.now()
+              };
+            } catch (_) {
+              if (cancelled) return;
+              nextDeviationSegments[segmentId] = {
+                segmentId,
+                driverId,
+                origin,
+                destination,
+                currentPoint: current,
+                breadcrumbCoords: buildBreadcrumbLine(nextStop.delivery_route_breadcrumbs, origin, current),
+                remainingCoords: makeFallback(current, destination),
+                remainingPoint: current,
+                deviationDistance,
+                lastFetchedAt: Date.now()
+              };
+            }
+          })()
         );
       });
 
