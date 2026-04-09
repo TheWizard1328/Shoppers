@@ -99,9 +99,9 @@ export default function RemoteLogsTab({ appUsers = [] }) {
   }, [selectedUsers, storeOptions]);
 
   const logFilterOptions = useMemo(() => {
-    return Array.from(new Map((logs || [])
-      .filter((row) => row?.user_id)
-      .map((row) => [row.user_id, { value: row.user_id, label: row.user_name || row.user_id }])).values());
+    return Array.from(new Map((logs || []).
+    filter((row) => row?.user_id).
+    map((row) => [row.user_id, { value: row.user_id, label: row.user_name || row.user_id }])).values());
   }, [logs]);
 
   return (
@@ -128,8 +128,8 @@ export default function RemoteLogsTab({ appUsers = [] }) {
                     setSelectedUsers(next);
                     updateSettings({ included_user_ids: next });
                   }}
-                  placeholder="Select drivers"
-                />
+                  placeholder="Select drivers" />
+                
               </div>
               <div className="space-y-2">
                 <div className="text-sm font-medium text-slate-700">Stores</div>
@@ -141,8 +141,8 @@ export default function RemoteLogsTab({ appUsers = [] }) {
                     setSelectedUsers(next);
                     updateSettings({ included_user_ids: next });
                   }}
-                  placeholder="Select stores"
-                />
+                  placeholder="Select stores" />
+                
               </div>
             </div>
             <div className="text-xs text-slate-500">If nobody is selected, logging applies to all users except excluded ones.</div>
@@ -157,17 +157,17 @@ export default function RemoteLogsTab({ appUsers = [] }) {
         <CardContent className="space-y-4">
           <div className="flex flex-col gap-2 md:flex-row">
             <Input placeholder="Search logs..." value={search} onChange={(e) => setSearch(e.target.value)} />
-            <div className="w-full md:w-72 space-y-2">
-              <Label>Filter user</Label>
+            <div className="w-full md:w-72">
+              
               <Select value={logUserFilter} onValueChange={setLogUserFilter}>
                 <SelectTrigger>
                   <SelectValue placeholder="Filter user" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All users</SelectItem>
-                  {logFilterOptions.map((user) => (
-                    <SelectItem key={user.value} value={user.value}>{user.label}</SelectItem>
-                  ))}
+                  {logFilterOptions.map((user) =>
+                  <SelectItem key={user.value} value={user.value}>{user.label}</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>
