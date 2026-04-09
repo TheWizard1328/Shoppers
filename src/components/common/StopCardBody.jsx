@@ -78,11 +78,11 @@ export default function StopCardBody({
   };
 
   const lastDeliveryBadgeDate = useMemo(() => {
-    if (isPickup || !delivery?.patient_id || !delivery?.delivery_date || !Array.isArray(allDeliveries)) return null;
+    if (isPickup || !delivery?.delivery_date) return null;
 
     const currentDeliveryDate = parseISO(`${delivery.delivery_date}T00:00:00`);
 
-    const priorCompletedDates = allDeliveries
+    const priorCompletedDates = (allDeliveries || [])
       .filter((item) =>
         item &&
         item.id !== delivery.id &&
@@ -97,8 +97,17 @@ export default function StopCardBody({
       })
       .sort((a, b) => b.localeCompare(a));
 
-    return priorCompletedDates[0] || null;
-  }, [allDeliveries, delivery?.delivery_date, delivery?.id, delivery?.patient_id, isPickup]);
+    if (priorCompletedDates[0]) return priorCompletedDates[0];
+
+    if (patient?.last_delivery_date) {
+      const patientLastDate = parseISO(`${patient.last_delivery_date}T00:00:00`);
+      if (isBefore(patientLastDate, currentDeliveryDate)) {
+        return patient.last_delivery_date;
+      }
+    }
+
+    return null;
+  }, [allDeliveries, delivery?.delivery_date, delivery?.id, delivery?.patient_id, isPickup, patient?.last_delivery_date]);
 
   return (
     <>
