@@ -1221,10 +1221,10 @@ function Dashboard() {
 
 
 
+
         // This subscription handles changes from other components
       }});return unsubscribe;}, [window.location.search, selectedDate]); // Listen for driver status break/resume events from DriverStatusToggle
-  useEffect(() => {const clearLock = () => {if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}mapLockExpiresAtRef.current = null;};const pulsePhaseOne = (ms) => {clearLock();const x = Date.now() + ms;mapLockExpiresAtRef.current = x;setMapViewPhase(1);setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, ms);};const unsubscribe = fabControlEvents.subscribe((event) => {if (event.type === 'BREAK_START') {phaseBeforeBreakRef.current = event.previousPhase;clearLock();setIsMapViewLocked(false);setMapViewPhase(1);setMapViewTrigger((prev) => prev + 1);} else if (event.type === 'BREAK_END') {const phaseToRestore = event.phaseToRestore || 1;setMapViewPhase(phaseToRestore);setIsMapViewLocked(phaseToRestore !== 1);setMapViewTrigger((prev) => prev + 1);clearLock();phaseBeforeBreakRef.current = null;} else if (event.type === 'DONE_BUTTON_CLICKED') pulsePhaseOne(3000);else if (event.type === 'ACCEPT_ALL_CLICKED') pulsePhaseOne(500);else if (event.type === 'DELIVERY_REALTIME_CREATE_DELETE_PULSE' && mapViewPhaseRef.current === 1) {const eventMatchesDriver = !selectedDriverId || selectedDriverId === 'all' || event.driverId === selectedDriverId;const eventMatchesDate = !selectedDate || !event.deliveryDate || event.deliveryDate === format(selectedDate, 'yyyy-MM-dd');if (event.relevantToCurrentSelection === true && eventMatchesDriver && eventMatchesDate) pulsePhaseOne(500);} else if (event.type === 'REACTIVATE_PHASE_TWO_IF_AVAILABLE') {if (mapViewPhase !== 2 || isMapViewLocked) return;clearLock();setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);} else if (event.type === 'PHASE2_TEMP_UNLOCK' && mapViewPhase === 2 && isMapViewLocked) {clearLock();setIsMapViewLocked(false);} else if (event.type === 'PHASE2_COMPLETE_RECENTER' && mapViewPhase === 2) {clearLock();setTimeout(() => {const x = Date.now() + 900;setMapViewPhase(2);setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);mapLockExpiresAtRef.current = x;mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, 900);}, 140);}});return unsubscribe;
-    }, [deliveriesWithStopOrder, mapViewPhase, isMapViewLocked]);
+  useEffect(() => {const clearLock = () => {if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}mapLockExpiresAtRef.current = null;};const pulsePhaseOne = (ms) => {clearLock();const x = Date.now() + ms;mapLockExpiresAtRef.current = x;setMapViewPhase(1);setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, ms);};const unsubscribe = fabControlEvents.subscribe((event) => {if (event.type === 'BREAK_START') {phaseBeforeBreakRef.current = event.previousPhase;clearLock();setIsMapViewLocked(false);setMapViewPhase(1);setMapViewTrigger((prev) => prev + 1);} else if (event.type === 'BREAK_END') {const phaseToRestore = event.phaseToRestore || 1;setMapViewPhase(phaseToRestore);setIsMapViewLocked(phaseToRestore !== 1);setMapViewTrigger((prev) => prev + 1);clearLock();phaseBeforeBreakRef.current = null;} else if (event.type === 'DONE_BUTTON_CLICKED') pulsePhaseOne(3000);else if (event.type === 'ACCEPT_ALL_CLICKED') pulsePhaseOne(500);else if (event.type === 'DELIVERY_REALTIME_CREATE_DELETE_PULSE' && mapViewPhaseRef.current === 1) {const eventMatchesDriver = !selectedDriverId || selectedDriverId === 'all' || event.driverId === selectedDriverId;const eventMatchesDate = !selectedDate || !event.deliveryDate || event.deliveryDate === format(selectedDate, 'yyyy-MM-dd');if (event.relevantToCurrentSelection === true && eventMatchesDriver && eventMatchesDate) pulsePhaseOne(500);} else if (event.type === 'REACTIVATE_PHASE_TWO_IF_AVAILABLE') {if (mapViewPhase !== 2 || isMapViewLocked) return;clearLock();setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);} else if (event.type === 'PHASE2_TEMP_UNLOCK' && mapViewPhase === 2 && isMapViewLocked) {clearLock();setIsMapViewLocked(false);} else if (event.type === 'PHASE2_COMPLETE_RECENTER' && mapViewPhase === 2) {clearLock();setTimeout(() => {const x = Date.now() + 900;setMapViewPhase(2);setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);mapLockExpiresAtRef.current = x;mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, 900);}, 140);}});return unsubscribe;}, [deliveriesWithStopOrder, mapViewPhase, isMapViewLocked]);
 
   useEffect(() => {
     return () => {
@@ -1519,11 +1519,11 @@ function Dashboard() {
 
 
 
+
       // Callback provided for future use
     }, currentUser);const unsubscribe = driverLocationPoller.subscribe((locations) => {if (!locations || !Array.isArray(locations)) return; // CRITICAL: On mobile with active GPS tracking, filter out self marker (blue dot shows instead)
         // On all other devices/scenarios, show the shared marker
-        const isTrackingOnThisDevice = locationTracker.isTracking === true;const shouldFilterSelf = isMobile && isDriver && isTrackingOnThisDevice;const filteredLocations = shouldFilterSelf ? locations.filter((loc) => {if (loc._isSelf === true) {return false;}return true;}) : locations;setAllDriverLocations(filteredLocations);
-      });
+        const isTrackingOnThisDevice = locationTracker.isTracking === true;const shouldFilterSelf = isMobile && isDriver && isTrackingOnThisDevice;const filteredLocations = shouldFilterSelf ? locations.filter((loc) => {if (loc._isSelf === true) {return false;}return true;}) : locations;setAllDriverLocations(filteredLocations);});
 
     return () => {
       unsubscribe();
@@ -2603,24 +2603,24 @@ function Dashboard() {
 
 
 
+
       // No map repositioning on smart refresh restart - user controls map manually
     };window.addEventListener('smartRefreshComplete', handleSmartRefreshCompleteEvent);window.addEventListener('smartRefreshRestarted', handleSmartRefreshRestartedEvent);return () => {window.removeEventListener('smartRefreshComplete', handleSmartRefreshCompleteEvent);window.removeEventListener('smartRefreshRestarted', handleSmartRefreshRestartedEvent);};}, [mapViewPhase, deliveriesWithStopOrder, selectedCardId]); // Auto-center on next stop on initial load
   const hasAutoSelectedRef = useRef(false);const hasScrolledToNextCardRef = useRef(false); // Set up rate limit error handler
-  useEffect(() => {
-    window._setRateLimitError = (hasError) => {
-      setHasRateLimitError(hasError);
-      if (hasError) {
-        // Auto-clear after 10 seconds
-        setTimeout(() => {
-          setHasRateLimitError(false);
-        }, 10000);
-      }
-    };
+  useEffect(() => {window._setRateLimitError = (hasError) => {
+        setHasRateLimitError(hasError);
+        if (hasError) {
+          // Auto-clear after 10 seconds
+          setTimeout(() => {
+            setHasRateLimitError(false);
+          }, 10000);
+        }
+      };
 
-    return () => {
-      delete window._setRateLimitError;
-    };
-  }, []);
+      return () => {
+        delete window._setRateLimitError;
+      };
+    }, []);
 
   // REMOVED: Periodic route optimizer that was causing excessive Google Maps API hits
   // The app already has optimization built in via:
@@ -5766,7 +5766,7 @@ function Dashboard() {
             const dateKey = format(selectedDate, 'yyyy-MM-dd');
             const legendData = isAdmin ? driversList.filter((driver) => deliveries.some((d) => d && d.delivery_date === dateKey && d.driver_id === driver.id)).map((driver) => {const s = (appUsers || []).find((au) => au && au.user_id === driver.id)?.driver_status;const c = s === 'on_duty' ? '#16a34a' : s === 'on_break' ? '#3b82f6' : s === 'off_duty' ? '#dc2626' : '#94a3b8';return { driverId: driver.id, driverName: driver.user_name || driver.full_name || 'Unknown', color: getDriverColor(driver), totalStops: deliveries.filter((d) => d && d.delivery_date === dateKey && d.driver_id === driver.id && d.patient_id && String(d.patient_id).trim() !== '' && (d.status === 'completed' || d.status === 'failed')).length + deliveries.filter((d) => d && d.delivery_date === dateKey && d.driver_id === driver.id && (!d.patient_id || String(d.patient_id).trim() === '') && d.after_hours_pickup === true && (d.status === 'completed' || d.status === 'cancelled')).length, statusRingColor: c };}) : isAllDriversMode ? [...driverRoutes].sort((a, b) => (a.driverName || '').localeCompare(b.driverName || '')) : [];
             if (!legendData.length) return null;
-            return <div className="rounded-lg backdrop-blur-sm shadow-lg border" style={{ background: 'var(--bg-white)', opacity: 0.95, borderColor: 'var(--border-slate-200)', width: cardWidth }} onMouseEnter={() => handleCardInteraction(true)} onMouseLeave={() => handleCardInteraction(false)}><div className="flex w-full flex-wrap gap-x-1.5 gap-y-0.5 items-center justify-center">{legendData.map((route) => {const au = (appUsers || []).find((a) => a && a.user_id === route.driverId);const s = au?.driver_status;const isOnline = s === 'on_duty' || s === 'online' || au?.location_updated_at && Date.now() - new Date(au.location_updated_at).getTime() < 300000;const c = s === 'on_duty' ? '#16a34a' : s === 'on_break' ? '#3b82f6' : s === 'off_duty' ? '#dc2626' : '#94a3b8';const bg = isAllDriversMode ? route.color : c;const bd = isAllDriversMode ? `3px solid ${c}` : '0 solid transparent';return <div key={route.driverId} className="flex items-center gap-1.0"><div className="relative flex items-center justify-center w-3 h-3">{isOnline && <div className="absolute inset-0 rounded-full animate-ping opacity-75" style={{ backgroundColor: c }} />}<div className="rounded-full relative w-3 h-3 shadow-sm flex-shrink-0" style={{ backgroundColor: bg, border: bd }} /></div><span className="text-xs font-medium whitespace-nowrap" style={{ color: 'var(--text-slate-700)' }}>{route.driverName || 'Unknown'}</span><span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>({route.totalStops})</span></div>;})}</div></div>;
+            return <div className="rounded-lg backdrop-blur-sm shadow-lg border" style={{ background: 'var(--bg-white)', opacity: 0.95, borderColor: 'var(--border-slate-200)', width: cardWidth }} onMouseEnter={() => handleCardInteraction(true)} onMouseLeave={() => handleCardInteraction(false)}><div className="flex w-full flex-wrap gap-x-1.5 gap-y-0.5 items-center justify-center">{legendData.map((route) => {const au = (appUsers || []).find((a) => a && a.user_id === route.driverId);const s = au?.driver_status;const isOnline = s === 'on_duty' || s === 'online' || au?.location_updated_at && Date.now() - new Date(au.location_updated_at).getTime() < 300000;const c = s === 'on_duty' ? '#16a34a' : s === 'on_break' ? '#3b82f6' : s === 'off_duty' ? '#dc2626' : '#94a3b8';const bg = isAllDriversMode ? route.color : c;const bd = isAllDriversMode ? `3px solid ${c}` : '0 solid transparent';return <div key={route.driverId} className="flex items-center gap-1.0"><div className="relative flex items-center justify-center w-3 h-3">{isOnline && <div className="opacity-75 rounded-full absolute inset-0 animate-ping" style={{ backgroundColor: c }} />}<div className="rounded-full relative w-3 h-3 shadow-sm flex-shrink-0" style={{ backgroundColor: bg, border: bd }} /></div><span className="text-xs font-medium whitespace-nowrap" style={{ color: 'var(--text-slate-700)' }}>{route.driverName || 'Unknown'}</span><span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>({route.totalStops})</span></div>;})}</div></div>;
           })()}
         </div>
       </div>
