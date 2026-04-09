@@ -851,12 +851,15 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
   const isFailedPatientDelivery = (d) => d && d.status === 'failed' && !isReturn(d) && d.patient_id;
   const isCompletedAfterHoursPickup = (d) => d && d.after_hours_pickup && d.status === 'completed';
   const isCancelledAfterHoursPickup = (d) => d && d.after_hours_pickup && d.status === 'cancelled';
+  const isCompletedInterStorePickup = (d) => d && d.status === 'completed' && !d.patient_id && !d.after_hours_pickup;
+  const isFailedInterStorePickup = (d) => d && d.status === 'failed' && !d.patient_id && !d.after_hours_pickup;
   const isCompletedPatientForStore = (d) => d && d.status === 'completed' && d.patient_id;
   const isFailedPatientForStore = (d) => d && d.status === 'failed' && d.patient_id;
 
   const isBillableDelivery = (d) => {
     if (!d) return false;
     if (isCompletedAfterHoursPickup(d) || isCancelledAfterHoursPickup(d)) return true;
+    if (isCompletedInterStorePickup(d) || isFailedInterStorePickup(d)) return true;
     if (d.patient_id && (isCompletedPatientDelivery(d) || isFailedPatientDelivery(d) || isReturn(d))) return true;
     return false;
   };
@@ -938,8 +941,8 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
     if (delivery.store_id && store?.abbreviation) {
       const annualStoreEntry = metrics.storeData.find(s => s.storeId === delivery.store_id);
       if (annualStoreEntry) {
-        if (isCompletedPatientForStore(delivery)) annualStoreEntry.completed++;
-        if (isFailedPatientForStore(delivery)) annualStoreEntry.failed++;
+        if (isCompletedPatientForStore(delivery) || isCompletedInterStorePickup(delivery)) annualStoreEntry.completed++;
+        if (isFailedPatientForStore(delivery) || isFailedInterStorePickup(delivery)) annualStoreEntry.failed++;
         if (isCompletedAfterHoursPickup(delivery) || isCancelledAfterHoursPickup(delivery)) annualStoreEntry.afterHours++;
       }
 
@@ -949,8 +952,8 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
         monthlyStoreEntry = { abbreviation: store.abbreviation, name: store.name, storeId: delivery.store_id, completed: 0, failed: 0, afterHours: 0, color: store.color, sortOrder: store.sort_order };
         metrics.storeDataByMonth[monthIndex + 1].push(monthlyStoreEntry);
       }
-      if (isCompletedPatientForStore(delivery)) monthlyStoreEntry.completed++;
-      if (isFailedPatientForStore(delivery)) monthlyStoreEntry.failed++;
+      if (isCompletedPatientForStore(delivery) || isCompletedInterStorePickup(delivery)) monthlyStoreEntry.completed++;
+      if (isFailedPatientForStore(delivery) || isFailedInterStorePickup(delivery)) monthlyStoreEntry.failed++;
       if (isCompletedAfterHoursPickup(delivery) || isCancelledAfterHoursPickup(delivery)) monthlyStoreEntry.afterHours++;
 
       if (!metrics.dailyStoreData[monthIndex + 1]) metrics.dailyStoreData[monthIndex + 1] = {};
@@ -960,8 +963,8 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
         dailyStoreEntry = { day: dayOfMonth, completed: 0, failed: 0, afterHours: 0, extra_km: 0 };
         metrics.dailyStoreData[monthIndex + 1][delivery.store_id].push(dailyStoreEntry);
       }
-      if (isCompletedPatientForStore(delivery)) dailyStoreEntry.completed++;
-      if (isFailedPatientForStore(delivery)) dailyStoreEntry.failed++;
+      if (isCompletedPatientForStore(delivery) || isCompletedInterStorePickup(delivery)) dailyStoreEntry.completed++;
+      if (isFailedPatientForStore(delivery) || isFailedInterStorePickup(delivery)) dailyStoreEntry.failed++;
       if (isCompletedAfterHoursPickup(delivery) || isCancelledAfterHoursPickup(delivery)) dailyStoreEntry.afterHours++;
       if (delivery.patient_id && (isCompletedPatientForStore(delivery) || isFailedPatientForStore(delivery))) dailyStoreEntry.extra_km += calculateExtraKm(delivery);
 
