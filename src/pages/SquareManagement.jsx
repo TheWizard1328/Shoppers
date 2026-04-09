@@ -826,7 +826,8 @@ export default function SquareManagement() {
     setDeletingId(itemToDelete.catalog_object_id);
     try {
       // Call the delete function with catalog object ID
-      await base44.functions.invoke('squareDeleteCodItem', {
+      await base44.functions.invoke('squareCodCore', {
+        action: 'deleteCodItem',
         catalogObjectId: itemToDelete.catalog_object_id,
         transactionId: itemToDelete.transaction_id,
         reason: 'manual_delete'
