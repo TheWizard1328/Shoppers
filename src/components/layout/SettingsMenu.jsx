@@ -1,5 +1,6 @@
-import React from 'react';
-import { RefreshCw } from 'lucide-react';
+import React, { useState } from 'react';
+import { RefreshCw, FlaskConical } from 'lucide-react';
+import DemoModeDialog from '@/components/demo/DemoModeDialog';
 import {
   DropdownMenuContent,
   DropdownMenuItem,
@@ -32,8 +33,11 @@ export default function SettingsMenu({
 }) {
   const isMobileDeviceForUI = isMobile !== undefined ? isMobile : isMobileDevice();
   const isMobileForTheme = isMobileDeviceForTheme();
+  const [showDemoModeDialog, setShowDemoModeDialog] = useState(false);
   
   return (
+    <>
+      <DemoModeDialog open={showDemoModeDialog} onOpenChange={setShowDemoModeDialog} />
     <DropdownMenuContent 
       align="end" 
       className="w-60 z-[10002]" 
@@ -167,6 +171,20 @@ export default function SettingsMenu({
         </div>
       )}
 
+      {currentUser?.app_roles?.includes('admin') && (
+        <>
+          <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
+          <DropdownMenuItem
+            onClick={() => setShowDemoModeDialog(true)}
+            className="cursor-pointer"
+            style={{ fontSize: isMobileDeviceForUI ? '16px' : '15px' }}
+          >
+            <FlaskConical className={`${isMobileDeviceForUI ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
+            Demo Mode
+          </DropdownMenuItem>
+        </>
+      )}
+
       {/* Force Full App Refresh */}
       <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
       <DropdownMenuItem
@@ -187,5 +205,6 @@ export default function SettingsMenu({
       </DropdownMenuItem>
       <DeleteAccountMenuItem />
     </DropdownMenuContent>
+    </>
   );
 }
