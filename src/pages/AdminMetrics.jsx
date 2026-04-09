@@ -374,7 +374,7 @@ export default function AdminMetrics() {
         <div className="shrink-0 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
             <CardContent className="p-4 pt-3 pb-3 min-w-[75px]">
-              <p className="text-sm mb-2" style={{ color: 'var(--text-slate-500)' }}>{selectedMonth ? `${MONTH_NAMES[selectedMonth - 1]} Billable` : `${selectedYear} Deliveries`}</p>
+              <p className="text-sm mb-2" style={{ color: 'var(--text-slate-500)' }}>{selectedMonth ? `${MONTH_NAMES[selectedMonth - 1]} Billable` : `${selectedYear} Billable`}</p>
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-lg" style={{ background: '#d1fae5' }}>
                   <Package className="w-5 h-5" style={{ color: '#059669' }} />
@@ -383,8 +383,6 @@ export default function AdminMetrics() {
                   {(
                   selectedMonth ?
                   metricsData.monthlyData?.[selectedMonth - 1]?.billable :
-                  showEnvelopeAdjustedTotals && metricsData.envelopeMetrics ?
-                  metricsData.envelopeMetrics.yearTotals.adjustedDeliveries :
                   metricsData.yearTotals?.billable)?.
                   toLocaleString() || 0}
                 </p>
