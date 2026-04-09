@@ -382,14 +382,7 @@ export default function AdminMetrics() {
                 <p className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
                   {(
                   selectedMonth ?
-                  (metricsData.monthlyStoreData?.[selectedMonth] || []).reduce((sum, store) => {
-                    const totalDeliveries = (store.completed || 0) + (store.failed || 0) + (store.afterHours || 0);
-                    const envelopeInfo = metricsData.envelopeMetrics?.byStoreAndMonth?.[store.storeId]?.[selectedMonth];
-                    const envelopeAdjustment = showEnvelopeAdjustedTotals && envelopeInfo?.totalEnvelopeValue > 0 ?
-                      envelopeInfo.totalEnvelopeValue - envelopeInfo.envelopeDeliveriesCount :
-                      0;
-                    return sum + totalDeliveries + envelopeAdjustment;
-                  }, 0) :
+                  metricsData.monthlyData?.[selectedMonth - 1]?.billable :
                   showEnvelopeAdjustedTotals && metricsData.envelopeMetrics ?
                   metricsData.envelopeMetrics.yearTotals.adjustedDeliveries :
                   metricsData.yearTotals?.billable)?.
@@ -408,7 +401,7 @@ export default function AdminMetrics() {
                 </div>
                 <p className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
                   {(selectedMonth ?
-                  0 :
+                  metricsData.monthlyData?.[selectedMonth - 1]?.nonBillable :
                   metricsData.yearTotals?.nonBillable)?.
                   toLocaleString() || 0}
                 </p>
