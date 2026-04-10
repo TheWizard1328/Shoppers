@@ -82,7 +82,15 @@ export default function DemoModeDialog({ open, onOpenChange }) {
     if (loading) return;
     setLoading(true);
 
-    if (selectedAddress?.latitude && selectedAddress?.longitude) {
+    const hasSelectedAddress = selectedAddress?.latitude && selectedAddress?.longitude;
+
+    if (hasSelectedAddress) {
+      await Promise.all([
+        ...(routes || []).map((item) => base44.entities.DemoRoute.delete(item.id)),
+        ...(patients || []).map((item) => base44.entities.DemoPatient.delete(item.id)),
+        ...(stores || []).map((item) => base44.entities.DemoStore.delete(item.id))
+      ]);
+
       await base44.functions.invoke('generateDemoData', {
         address: selectedAddress.full_address || selectedAddress.street_address || address,
         latitude: selectedAddress.latitude,
@@ -104,11 +112,13 @@ export default function DemoModeDialog({ open, onOpenChange }) {
       }
     }
 
+    setAddress('');
+    setSelectedAddress(null);
     await loadData();
     setLoading(false);
     window.dispatchEvent(new CustomEvent('demoModeChanged'));
 
-    if (selectedAddress?.latitude && selectedAddress?.longitude) {
+    if (hasSelectedAddress) {
       onOpenChange(false);
     }
   };
