@@ -5,10 +5,14 @@ import MessageRulesManager from '../admin/MessageRulesManager';
 import GoogleAPILogViewer from '../admin/GoogleAPILogViewer';
 import RemoteLogsTab from '../admin/RemoteLogsTab';
 import PatientAnalysisReview from '../admin/PatientAnalysisReview';
+import DriverSyncManagementTab from '../admin/DriverSyncManagementTab';
 
 export default function AdminUtilitiesExtraTabs({ appUsers = [], stores = [] }) {
   return (
     <>
+      <TabsContent value="sync-management">
+        <DriverSyncManagementTab appUsers={appUsers || []} />
+      </TabsContent>
       <TabsContent value="app-settings">
         <AppSettingsPanel />
       </TabsContent>
