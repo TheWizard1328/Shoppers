@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
@@ -13,6 +13,7 @@ export default function DemoModeDialog({ open, onOpenChange }) {
   const [address, setAddress] = useState('');
   const [selectedAddress, setSelectedAddress] = useState(null);
   const [loading, setLoading] = useState(false);
+  const didAutofillRef = useRef(false);
 
   const loadData = async () => {
     const me = await base44.auth.me();
@@ -30,11 +31,56 @@ export default function DemoModeDialog({ open, onOpenChange }) {
     setCities(cityRows || []);
   };
 
+  const autofillNearestAddress = async () => {
+    if (!navigator.geolocation || didAutofillRef.current) return;
+
+    const position = await new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 300000
+      });
+    });
+
+    const latitude = position.coords.latitude;
+    const longitude = position.coords.longitude;
+    const searchText = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+    const response = await base44.functions.invoke('googlePlacesAutocomplete', {
+      input: searchText,
+      latitude,
+      longitude
+    });
+    const predictions = response?.data?.predictions || response?.predictions || [];
+    const closestMatch = predictions[0];
+
+    if (!closestMatch?.place_id) return;
+
+    const detailsResponse = await base44.functions.invoke('googlePlaceDetails', {
+      place_id: closestMatch.place_id
+    });
+    const details = detailsResponse?.data || detailsResponse;
+    const fullAddress = details?.formatted_address || closestMatch.description || '';
+    const streetAddress = details?.address || fullAddress.split(',')[0]?.trim() || fullAddress;
+
+    setAddress(streetAddress);
+    setSelectedAddress({
+      full_address: fullAddress,
+      street_address: streetAddress,
+      latitude: details?.latitude,
+      longitude: details?.longitude,
+      place_id: closestMatch.place_id,
+      distance: closestMatch.distance ?? null
+    });
+    didAutofillRef.current = true;
+  };
+
   useEffect(() => {
     if (open) {
       setAddress('');
       setSelectedAddress(null);
+      didAutofillRef.current = false;
       loadData();
+      autofillNearestAddress().catch(() => {});
     }
   }, [open]);
 
