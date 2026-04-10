@@ -239,5 +239,10 @@
   "required": [
     "delivery_date"
   ],
-  "rls": {}
+  "rls": {
+    "read": {},
+    "create": {},
+    "update": {},
+    "delete": {}
+  }
 }

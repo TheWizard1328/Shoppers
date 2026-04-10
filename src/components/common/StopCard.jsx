@@ -20,6 +20,7 @@ import { getCurrentDevice } from '../utils/deviceManager';
 import { formatAddressWithUnit, cleanBuzzerFromAddress } from '../utils/addressCleaner';
 import { calculateDeliveryPay, formatPay } from '../utils/payCalculator';
 import { base44 } from "@/api/base44Client";
+import { setDriverStatus } from "@/functions/setDriverStatus";
 import { locationTracker } from "../utils/locationTracker";
 import { useAppData } from "../utils/AppDataContext";
 import { calculateHaversineDistance } from "../utils/distanceCalculator";
@@ -108,18 +109,10 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const ensureDriverOnline = async () => {
     if (!currentUser?.id) return;
     try {
-      const { offlineDB } = await import('../utils/offlineDatabase');
-      let appUserData = await offlineDB.getAll(offlineDB.STORES.APP_USERS);let appUser = appUserData?.find((au) => au.user_id === currentUser.id);
-      if (!appUser) {
-        const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });appUser = appUsers?.[0];
-        if (appUsers && appUsers.length > 0) await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
-      }
-      if (appUser && appUser.driver_status !== 'on_duty') {
-        await base44.entities.AppUser.update(appUser.id, { driver_status: 'on_duty', location_tracking_enabled: true });
-        try {await locationTracker.startTracking({ ...currentUser, appUserId: appUser.id });} catch (trackingError) {console.warn('Could not start location tracking:', trackingError.message);}
-        if (onDriverStatusChange) onDriverStatusChange('on_duty');
-      }
-    } catch (error) {console.error('Failed to auto-toggle driver online:', error);}
+      const { data } = await setDriverStatus({ newStatus: 'on_duty' });
+      try { await locationTracker.startTracking({ ...currentUser, appUserId: data?.appUserId }); } catch (trackingError) { console.warn('Could not start location tracking:', trackingError.message); }
+      if (onDriverStatusChange) onDriverStatusChange('on_duty');
+    } catch (error) { console.error('Failed to auto-toggle driver online:', error); }
   };
   const isFinishedDelivery = FINISHED_STATUSES.includes(delivery?.status);const isExpanded = isStrippedForDispatcher ? false : compact ? false : isSelected;
   const shouldCollapseBeforeAction = isExpanded; // only selected cards are eligible; height check happens at action time
@@ -760,7 +753,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
               const shouldRecalculateFailureEtas = shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, criticalUpdate.actual_delivery_time);
               if (incompleteAfterThis.length === 0) {
                 fabControlEvents.notifyDoneButtonClicked();window.dispatchEvent(new CustomEvent('showRouteSummary', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
-                if (currentUser?.id) {const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });if (appUsers && appUsers.length > 0) {const appUser = appUsers[0];await base44.entities.AppUser.update(appUser.id, { driver_status: 'off_duty', location_tracking_enabled: false });locationTracker.stopTracking();if (onDriverStatusChange) onDriverStatusChange('off_duty');}}
+                if (currentUser?.id) {await setDriverStatus({ newStatus: 'off_duty' });locationTracker.stopTracking();if (onDriverStatusChange) onDriverStatusChange('off_duty');}
               }
               window.dispatchEvent(new CustomEvent('deliveryStatusChanged', { detail: { triggeredBy: status, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, maxStops: 5 } }));
               const driverDeliveries = allDriverDeliveries.map((item) => item.id === delivery.id ? { ...item, ...criticalUpdate, isNextDelivery: false } : item);
@@ -853,7 +846,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           const optimisticDeliveries = allDeliveries.map((d) => {if (!d || d.driver_id !== delivery.driver_id || d.delivery_date !== delivery.delivery_date) return d;if (d.id === delivery.id) return { ...d, ...completionUpdate, isNextDelivery: false };return d;});
                           const routeDeliveries = optimisticDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);const incompleteDeliveries = routeDeliveries.filter((d) => d && d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending').sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));const nextStop = incompleteDeliveries[0] || null;
                           await collapseAndCenterNextDelivery({ driverDeliveries: routeDeliveries, targetDeliveryId: nextStop?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
-                          if (!nextStop) {fabControlEvents.notifyDoneButtonClicked();window.dispatchEvent(new CustomEvent('showRouteSummary', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));try {locationTracker.stopTracking();} catch (trackingError) {console.warn('Could not stop location tracking:', trackingError.message);}if (onDriverStatusChange) onDriverStatusChange('off_duty');}
+                          if (!nextStop) {fabControlEvents.notifyDoneButtonClicked();window.dispatchEvent(new CustomEvent('showRouteSummary', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));try {await setDriverStatus({ newStatus: 'off_duty' });locationTracker.stopTracking();} catch (trackingError) {console.warn('Could not stop location tracking:', trackingError.message);}if (onDriverStatusChange) onDriverStatusChange('off_duty');}
                           fabControlEvents.notifyPhaseTwoCompleteRecenter();fabControlEvents.reactivateFAB(true, { suppressIfPhase1: true, reason: 'stop_status_change' });
                           const backgroundTasks = [];
                           if (autoCODPayment && onCODUpdate) backgroundTasks.push(onCODUpdate(delivery.id, autoCODPayment, true));
