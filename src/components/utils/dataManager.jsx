@@ -7,6 +7,10 @@ import { AppUser } from '@/entities/AppUser';
 import { Company } from '@/entities/Company';
 import { SquareLocationConfig } from '@/entities/SquareLocationConfig';
 import { SquareTransaction } from '@/entities/SquareTransaction';
+import { DemoPatient } from '@/entities/DemoPatient';
+import { DemoRoute } from '@/entities/DemoRoute';
+import { DemoStore } from '@/entities/DemoStore';
+import { DemoSettings } from '@/entities/DemoSettings';
 import { format, subDays } from 'date-fns';
 import { offlineDB } from './offlineDatabase';
 import { 
@@ -41,7 +45,38 @@ const entities = {
   AppUser,
   Company,
   SquareLocationConfig,
-  SquareTransaction
+  SquareTransaction,
+  DemoPatient,
+  DemoRoute,
+  DemoStore,
+  DemoSettings
+};
+
+let demoModeState = { active: false };
+
+const refreshDemoModeState = async () => {
+  try {
+    const me = await User.me();
+    if (!me) {
+      demoModeState = { active: false };
+      return demoModeState;
+    }
+    const rows = await DemoSettings.filter({ user_id: me.id });
+    demoModeState = { active: rows?.[0]?.is_demo_mode_active === true };
+    return demoModeState;
+  } catch {
+    demoModeState = { active: false };
+    return demoModeState;
+  }
+};
+
+const resolveEntityName = async (entityName) => {
+  const state = await refreshDemoModeState();
+  if (!state.active) return entityName;
+  if (entityName === 'Patient') return 'DemoPatient';
+  if (entityName === 'Delivery') return 'DemoRoute';
+  if (entityName === 'Store') return 'DemoStore';
+  return entityName;
 };
 
 // CRITICAL: NO IN-MEMORY CACHE - Use offline DB exclusively
@@ -85,7 +120,7 @@ export const isOfflineDBLoadComplete = () => {
 // NO FREQUENT CACHE - removed
 
 export const getData = async (entityName, sortKey = null, queryOrLimit = null, forceRefresh = false) => {
-  // Determine if queryOrLimit is a query object or a limit number
+  entityName = await resolveEntityName(entityName);
   const isQueryObject = queryOrLimit && typeof queryOrLimit === 'object' && !Array.isArray(queryOrLimit);
   const query = isQueryObject ? queryOrLimit : null;
   const limit = !isQueryObject && typeof queryOrLimit === 'number' ? queryOrLimit : null;

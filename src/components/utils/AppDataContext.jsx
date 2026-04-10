@@ -723,6 +723,14 @@ export const AppDataProvider = ({ children, value }) => {
     value.updatePatientsLocally,
     forceRefreshDriverDeliveries
   ]);
+
+  useEffect(() => {
+    const handleDemoModeChanged = () => {
+      value.refreshData?.(true);
+    };
+    window.addEventListener('demoModeChanged', handleDemoModeChanged);
+    return () => window.removeEventListener('demoModeChanged', handleDemoModeChanged);
+  }, [value.refreshData]);
   
   return (
     <AppDataContext.Provider value={wrappedValue}>
