@@ -5369,7 +5369,7 @@ function Dashboard() {
               position: 'relative'
             }}>
 
-            <div className="mt-1 -ml-[30px] flex items-center justify-between">
+            <div className="mt-1 flex items-center justify-between">
               <div className="pr-1 flex items-center gap-2">
                 <h2 className="pl-2 text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>Dashboard</h2>
                 {currentUser &&
