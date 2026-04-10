@@ -79,14 +79,35 @@ export default function DemoModeDialog({ open, onOpenChange }) {
   };
 
   const startNewDemo = async () => {
-    if (!selectedAddress?.latitude || !selectedAddress?.longitude || loading) return;
+    if (loading) return;
     setLoading(true);
-    await base44.functions.invoke('generateDemoData', {
-      address: selectedAddress.full_address || selectedAddress.street_address || address,
-      latitude: selectedAddress.latitude,
-      longitude: selectedAddress.longitude,
-      city_id: cityCenter?.id || null
-    });
+
+    if (selectedAddress?.latitude && selectedAddress?.longitude) {
+      await base44.functions.invoke('generateDemoData', {
+        address: selectedAddress.full_address || selectedAddress.street_address || address,
+        latitude: selectedAddress.latitude,
+        longitude: selectedAddress.longitude,
+        city_id: cityCenter?.id || null
+      });
+    } else {
+      const me = await base44.auth.me();
+      const [storeRows, patientRows, routeRows] = await Promise.all([
+        base44.entities.DemoStore.list(),
+        base44.entities.DemoPatient.list(),
+        base44.entities.DemoRoute.list()
+      ]);
+
+      await Promise.all([
+        ...((routeRows || []).filter((item) => item.is_demo && item.created_by === me.email).map((item) => base44.entities.DemoRoute.delete(item.id))),
+        ...((patientRows || []).filter((item) => item.is_demo && item.created_by === me.email).map((item) => base44.entities.DemoPatient.delete(item.id))),
+        ...((storeRows || []).filter((item) => item.is_demo && item.created_by === me.email).map((item) => base44.entities.DemoStore.delete(item.id)))
+      ]);
+
+      if (settings?.id) {
+        await base44.entities.DemoSettings.update(settings.id, { demo_store_id: null });
+      }
+    }
+
     await loadData();
     setLoading(false);
     window.dispatchEvent(new CustomEvent('demoModeChanged'));
@@ -124,8 +145,8 @@ export default function DemoModeDialog({ open, onOpenChange }) {
 
           <div className="flex flex-wrap justify-end gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button onClick={startNewDemo} disabled={loading || !selectedAddress?.latitude || !selectedAddress?.longitude}>
-              {loading ? 'Creating…' : 'New Demo'}
+            <Button onClick={startNewDemo} disabled={loading}>
+              {loading ? 'Creating…' : selectedAddress?.latitude && selectedAddress?.longitude ? 'New Demo' : 'Clear Data'}
             </Button>
             <Button variant="outline" onClick={activateDemo} disabled={!stores.length}>
               Continue Demo
