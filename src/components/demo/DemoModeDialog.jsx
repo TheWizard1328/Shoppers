@@ -77,7 +77,7 @@ export default function DemoModeDialog({ open, onOpenChange }) {
   };
 
   const startNewDemo = async () => {
-    if (!selectedAddress?.latitude || !selectedAddress?.longitude) return;
+    if (!selectedAddress?.latitude || !selectedAddress?.longitude || loading) return;
     setLoading(true);
     await base44.functions.invoke('generateDemoData', {
       address: selectedAddress.full_address || selectedAddress.street_address || address,
@@ -88,6 +88,7 @@ export default function DemoModeDialog({ open, onOpenChange }) {
     await loadData();
     setLoading(false);
     window.dispatchEvent(new CustomEvent('demoModeChanged'));
+    onOpenChange(false);
   };
 
   return (
@@ -108,26 +109,32 @@ export default function DemoModeDialog({ open, onOpenChange }) {
             </div>
           </div>
 
-          <div className="space-y-2">
-            <div className="text-sm font-medium">Demo store address</div>
-            <GoogleAddressAutocomplete
-              value={address}
-              onChange={setAddress}
-              onAddressSelect={setSelectedAddress}
-              cityCenter={cityCenter}
-              placeholder="Enter a demo store address"
-            />
-          </div>
+          {!stores.length && (
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Demo store address</div>
+              <GoogleAddressAutocomplete
+                value={address}
+                onChange={setAddress}
+                onAddressSelect={setSelectedAddress}
+                cityCenter={cityCenter}
+                placeholder="Enter a demo store address"
+              />
+            </div>
+          )}
 
           <div className="flex flex-wrap justify-end gap-2">
-            {settings?.is_demo_mode_active ? (
-              <Button variant="outline" onClick={disableDemo}>Exit Demo</Button>
-            ) : (
-              <Button variant="outline" onClick={activateDemo} disabled={!stores.length}>Continue Demo</Button>
+            {stores.length ? (
+              settings?.is_demo_mode_active ? (
+                <Button variant="outline" onClick={disableDemo}>Exit Demo</Button>
+              ) : (
+                <Button variant="outline" onClick={activateDemo}>Continue Demo</Button>
+              )
+            ) : null}
+            {!stores.length && (
+              <Button onClick={startNewDemo} disabled={loading || !selectedAddress?.latitude}>
+                {loading ? 'Creating…' : 'Start Demo'}
+              </Button>
             )}
-            <Button onClick={startNewDemo} disabled={loading || !selectedAddress?.latitude}>
-              {loading ? 'Creating…' : 'Start New Demo'}
-            </Button>
           </div>
         </div>
       </DialogContent>
