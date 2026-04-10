@@ -154,15 +154,19 @@ export default function DemoModeDialog({ open, onOpenChange }) {
         longitude: selectedAddress.longitude,
         city_id: cityCenter?.id || null
       });
-    } else if (settings?.id) {
-      await base44.entities.DemoSettings.update(settings.id, {
-        demo_store_id: null,
-        is_demo_mode_active: false
-      });
+      setAddress('');
+      setSelectedAddress(null);
+    } else {
+      setAddress('');
+      setSelectedAddress(null);
+      if (settings?.id) {
+        await base44.entities.DemoSettings.update(settings.id, {
+          demo_store_id: null,
+          is_demo_mode_active: false
+        });
+      }
     }
 
-    setAddress('');
-    setSelectedAddress(null);
     await loadData();
     setLoading(false);
     window.dispatchEvent(new CustomEvent('demoModeChanged'));
