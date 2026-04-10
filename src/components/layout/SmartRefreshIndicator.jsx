@@ -299,7 +299,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
           onClick={handleManualRefresh}
           disabled={isPaused}
           className={`w-7 h-7 min-w-7 min-h-7 aspect-square rounded-full flex shrink-0 items-center justify-center transition-colors duration-200 hover:scale-110 relative pointer-events-auto ${getSpinnerColor()} ${isActive && !isPaused ? 'shadow-lg' : ''}`}
-          style={{ position: 'relative', zIndex: 10030 }}
+          style={{ position: 'relative', zIndex: 10030, transform: 'translateX(-30px)' }}
           title={hasError ? 'Refresh error' : !isOnline ? 'Offline' : isPaused ? 'Refresh paused' : 
                  activeManager === 'smart' ? 'Smart Refresh active' : 
                  activeManager === 'offline' ? 'Offline Sync active' : 
