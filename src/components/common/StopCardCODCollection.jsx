@@ -126,7 +126,7 @@ export default function StopCardCODCollection({
                   <SelectTrigger className="h-7 text-sm md:text-xs w-24" onClick={(e) => e.stopPropagation()} data-cod-select-index={index}>
                     <SelectValue placeholder="Type" />
                   </SelectTrigger>
-                  <SelectContent onClick={(e) => e.stopPropagation()} className="z-[9999]">
+                  <SelectContent position="item-aligned" side="bottom" onClick={(e) => e.stopPropagation()} className="z-[2147483647] relative">
                     <SelectItem value="Cash">Cash</SelectItem>
                     <SelectItem value="Debit">Debit</SelectItem>
                     <SelectItem value="Credit">Credit</SelectItem>
