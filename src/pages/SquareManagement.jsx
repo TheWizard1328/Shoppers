@@ -340,7 +340,8 @@ export default function SquareManagement() {
     const paymentsResponse = await base44.functions.invoke('squareCodCore', paymentPayload);
     const paymentsData = paymentsResponse?.data || paymentsResponse || {};
 
-    const catalogRecords = snapshotData.catalogRecords || [];
+    const rawCatalogRecords = snapshotData.catalogRecords || [];
+    const catalogRecords = rawCatalogRecords.filter((record) => record && typeof record.delivery_id === 'string' && /^[a-f0-9]{24}$/i.test(record.delivery_id));
     const transactions = (paymentsData.transactions || snapshotData.transactionRecords || [])
       .filter((record) => record && typeof record.item_name === 'string' && record.item_name.trim().length > 0);
     const shouldRefreshDeliveries = snapshotData.shouldRefreshDeliveries === true;
