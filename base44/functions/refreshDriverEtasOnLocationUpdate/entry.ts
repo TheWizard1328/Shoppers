@@ -3,8 +3,8 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
 
-const ACTIVE_STATUSES = ['pending', 'in_transit', 'en_route'];
-const INACTIVE_STATUSES = ['completed', 'failed', 'cancelled'];
+const ACTIVE_STATUSES = ['in_transit', 'en_route'];
+const INACTIVE_STATUSES = ['pending', 'completed', 'failed', 'cancelled'];
 const APP_TIMEZONE = 'America/Edmonton';
 const ETA_DRIFT_THRESHOLD_MINUTES = 5;
 const MIN_DISTANCE_TRAVELED_METERS = 100;
@@ -176,7 +176,7 @@ async function processDriver(base44, appUser, deliveryDate) {
   }, 'stop_order', 500);
 
   const activeDeliveries = (allDeliveries || [])
-    .filter((delivery) => !INACTIVE_STATUSES.includes(delivery.status))
+    .filter((delivery) => ACTIVE_STATUSES.includes(delivery.status))
     .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
   const finishedDeliveries = (allDeliveries || [])
@@ -282,13 +282,11 @@ Deno.serve(async (req) => {
     const deliveryDate = payload?.deliveryDate || getEdmontonDate();
     const explicitDriverId = payload?.driverId || payload?.data?.user_id || null;
 
-    let drivers = [];
-    if (explicitDriverId) {
-      drivers = await base44.asServiceRole.entities.AppUser.filter({ user_id: explicitDriverId }, '-updated_date', 1);
-    } else {
-      drivers = await base44.asServiceRole.entities.AppUser.filter({ driver_status: 'on_duty' }, '-updated_date', 500);
-      drivers = (drivers || []).filter((appUser) => Array.isArray(appUser?.app_roles) && appUser.app_roles.includes('driver'));
+    if (!explicitDriverId) {
+      return Response.json({ success: true, skipped: true, reason: 'driver_id_required', delivery_date: deliveryDate });
     }
+
+    const drivers = await base44.asServiceRole.entities.AppUser.filter({ user_id: explicitDriverId }, '-updated_date', 1);
 
     if (!drivers.length) {
       return Response.json({ success: true, skipped: true, reason: 'no_drivers_to_process', delivery_date: deliveryDate });

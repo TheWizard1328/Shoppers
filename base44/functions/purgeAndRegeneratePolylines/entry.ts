@@ -303,7 +303,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { driverId, deliveryDate, scope = 'all' } = body || {};
+    const { driverId, deliveryDate, scope = 'active_only' } = body || {};
 
     if (!driverId || !deliveryDate) {
       return Response.json({ error: 'driverId and deliveryDate are required' }, { status: 400 });
