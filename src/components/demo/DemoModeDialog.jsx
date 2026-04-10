@@ -90,21 +90,17 @@ export default function DemoModeDialog({ open, onOpenChange }) {
         city_id: cityCenter?.id || null
       });
     } else {
-      const me = await base44.auth.me();
-      const [storeRows, patientRows, routeRows] = await Promise.all([
-        base44.entities.DemoStore.list(),
-        base44.entities.DemoPatient.list(),
-        base44.entities.DemoRoute.list()
-      ]);
-
       await Promise.all([
-        ...((routeRows || []).filter((item) => item.is_demo && item.created_by === me.email).map((item) => base44.entities.DemoRoute.delete(item.id))),
-        ...((patientRows || []).filter((item) => item.is_demo && item.created_by === me.email).map((item) => base44.entities.DemoPatient.delete(item.id))),
-        ...((storeRows || []).filter((item) => item.is_demo && item.created_by === me.email).map((item) => base44.entities.DemoStore.delete(item.id)))
+        ...(routes || []).map((item) => base44.entities.DemoRoute.delete(item.id)),
+        ...(patients || []).map((item) => base44.entities.DemoPatient.delete(item.id)),
+        ...(stores || []).map((item) => base44.entities.DemoStore.delete(item.id))
       ]);
 
       if (settings?.id) {
-        await base44.entities.DemoSettings.update(settings.id, { demo_store_id: null });
+        await base44.entities.DemoSettings.update(settings.id, {
+          demo_store_id: null,
+          is_demo_mode_active: false
+        });
       }
     }
 
