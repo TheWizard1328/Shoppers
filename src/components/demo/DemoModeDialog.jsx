@@ -3,7 +3,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
 import { GoogleAddressAutocomplete } from '@/components/ui/google-address-autocomplete';
-import { base44 } from '@/api/base44Client';
 
 export default function DemoModeDialog({ open, onOpenChange }) {
   const [settings, setSettings] = useState(null);
