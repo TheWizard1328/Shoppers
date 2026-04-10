@@ -24,6 +24,7 @@ import { locationTracker } from "../utils/locationTracker";
 import { useAppData } from "../utils/AppDataContext";
 import { calculateHaversineDistance } from "../utils/distanceCalculator";
 import { createCODWithTimeout, deleteCODWithTimeout } from '../utils/squareCODHandler';
+import { cleanupSquareCodCatalogForDate } from '../utils/squareCodCatalogCleanup';
 import StopCardHeader from "./StopCardHeader";
 import StopCardBody from "./StopCardBody";
 import { notifyDriverAcceptedAll, notifyDriverAcceptedOne, notifyDispatcherAssignedAll, notifyDriverStarted, notifyDriverCompleted, notifyDriverFailed, notifyDriverRetry, notifyDriverReturn } from "../utils/deliveryMessaging";
@@ -862,6 +863,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                               }).catch((error) => console.warn('⚠️ [Complete] ETA refresh skipped:', error?.message || error))
                             );
                           }
+                          backgroundTasks.push(cleanupSquareCodCatalogForDate(delivery.delivery_date));
                           backgroundTasks.push(scheduleCompletionSideEffects({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, nextDeliveryId: nextStop?.id || null, lastCompletedDeliveryId: delivery.id, setOffDuty: !nextStop, appUserId: currentUser?.appUserId || currentUser?.id }));
                           backgroundTasks.push(userHasRole(currentUser, 'driver') ? notifyDriverCompleted({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name, delivery, store, appUsers }) : Promise.resolve());
                           await Promise.allSettled(backgroundTasks);

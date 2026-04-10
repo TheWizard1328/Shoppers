@@ -46,6 +46,7 @@ import { resumeDeliveryFormManagers } from './resumeDeliveryFormManagers';
 import { clearRecurringSelection } from './recurringHelpers';
 import { handleBatchSave as runHandleBatchSave } from './handleBatchSave';
 import { pauseOfflineSync, resumeOfflineSync } from '../utils/offlineSync';
+import { cleanupSquareCodCatalogForDate } from '../utils/squareCodCatalogCleanup';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) => (<div className="flex items-center space-x-2"><Checkbox id={id} checked={checked} onCheckedChange={onChange} disabled={disabled} /><Label htmlFor={id} className={`text-sm font-medium leading-none ${disabled ? 'text-slate-400' : ''}`}>{label}</Label></div>);
 
@@ -1464,6 +1465,9 @@ export default function DeliveryForm({
       if (delivery?.id) {
         await updateDeliveryLocal(delivery.id, { ...dataToSave, receipt_barcode_values: Array.isArray(formData.receipt_barcode_values) ? formData.receipt_barcode_values : [] });
         if (statusChangedToCompletion) triggerPatientLastDeliverySync({ delivery: { ...delivery, ...dataToSave, status: formData.status, patient_id: delivery.patient_id, delivery_date: formData.delivery_date }, previousStatus: delivery.status });
+        if (statusChangedToCompletion) {
+          cleanupSquareCodCatalogForDate(formData.delivery_date);
+        }
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryId: delivery.id, deliveryDate: formData.delivery_date, driverId: formData.driver_id, triggeredBy: 'deliveryFormUpdate' } }));
         if (statusChangedToCompletion) setTimeout(() => { base44.functions.invoke('purgeAndRegeneratePolylines', { driverId: formData.driver_id, deliveryDate: formData.delivery_date, scope: 'active_only' }).catch((e) => console.warn('⚠️ [DeliveryForm] Active polyline refresh failed:', e?.message || e)); }, 0);
