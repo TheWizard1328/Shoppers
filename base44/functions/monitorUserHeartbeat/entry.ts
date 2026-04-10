@@ -61,26 +61,9 @@ Deno.serve(async (req) => {
         shouldSetOffDuty = true;
         reason = 'Admin inactive';
       }
-      // RULE 3: Driver - only if no incomplete deliveries for today
+      // RULE 3: Driver - never auto-set off duty here
       else if (isDriver) {
-        // Check for incomplete deliveries today
-        const todayStr = now.toISOString().split('T')[0];
-        const todayDeliveries = await base44.asServiceRole.entities.Delivery.filter({
-          driver_id: appUser.user_id,
-          delivery_date: todayStr
-        });
-        
-        const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned', 'pending'];
-        const hasIncompleteDeliveries = todayDeliveries.some(d => 
-          d && !finishedStatuses.includes(d.status)
-        );
-        
-        if (!hasIncompleteDeliveries) {
-          shouldSetOffDuty = true;
-          reason = 'Driver inactive with no incomplete deliveries';
-        } else {
-          console.log(`⏭️ [${appUser.user_name}] Inactive ${inactiveMinutes}min but has ${todayDeliveries.filter(d => !finishedStatuses.includes(d.status)).length} incomplete deliveries - keeping status`);
-        }
+        console.log(`⏭️ [${appUser.user_name}] Driver inactive ${inactiveMinutes}min - leaving driver_status unchanged`);
       }
       
       // Update to off_duty if conditions met
