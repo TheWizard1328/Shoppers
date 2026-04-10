@@ -1386,7 +1386,7 @@ async function handleSyncOnlineSquareEntities(base44, payload) {
   ]);
 
   const safeCatalogRecords = catalogRecords
-    .filter((record) => record && typeof record.delivery_id === 'string' && record.delivery_id.trim().length > 0);
+    .filter((record) => record && typeof record.delivery_id === 'string' && /^[a-f0-9]{24}$/i.test(record.delivery_id));
 
   const safeTransactionRecords = transactionRecords
     .filter((record) => record && typeof record.item_name === 'string' && record.item_name.trim().length > 0);
