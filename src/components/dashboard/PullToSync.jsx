@@ -315,7 +315,7 @@ export default function PullToSync({
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="absolute top-2 left-0 right-0 z-50 pointer-events-none flex justify-center"
+            className="absolute top-2 left-0 right-0 z-50 pointer-events-none flex justify-center -translate-x-[30px]"
           >
             <div 
               className="flex items-center gap-2 px-4 py-2 rounded-full shadow-lg border backdrop-blur-sm"
