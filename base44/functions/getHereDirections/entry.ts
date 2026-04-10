@@ -1,6 +1,6 @@
+// Redeployed on 2026-04-09
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
-// Redeployed on 2026-03-28
 const buildFallback = (origin, destination, extra = {}) => Response.json({
   coordinates: [
     { lat: Number(origin?.lat), lng: Number(origin?.lng) },
