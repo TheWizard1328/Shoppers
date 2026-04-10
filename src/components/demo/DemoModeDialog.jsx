@@ -118,9 +118,7 @@ export default function DemoModeDialog({ open, onOpenChange }) {
     setLoading(false);
     window.dispatchEvent(new CustomEvent('demoModeChanged'));
 
-    if (hasSelectedAddress) {
-      onOpenChange(false);
-    }
+
   };
 
   return (
