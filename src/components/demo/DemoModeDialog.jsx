@@ -111,7 +111,10 @@ export default function DemoModeDialog({ open, onOpenChange }) {
     await loadData();
     setLoading(false);
     window.dispatchEvent(new CustomEvent('demoModeChanged'));
-    onOpenChange(false);
+
+    if (selectedAddress?.latitude && selectedAddress?.longitude) {
+      onOpenChange(false);
+    }
   };
 
   return (
