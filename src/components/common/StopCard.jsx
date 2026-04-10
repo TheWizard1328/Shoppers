@@ -738,7 +738,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                 ...clearFailNextFlags]
                 );
                 if (onStatusUpdate) await onStatusUpdate(delivery.id, status, criticalUpdate, false);
-                if (pendingBreadcrumbsString) await clearPendingBreadcrumbsForDriver({ driverUserId: delivery.driver_id, appUsers });
+                if (pendingBreadcrumbsString) await clearPendingBreadcrumbsForDriver({ driverUserId: delivery.driver_id, appUsers, force: true });
                 runTerminalDeliverySideEffects({ delivery, previousStatus: delivery.status, nextStatus: status, overrides: criticalUpdate });
                 // Background: generate polyline and patch it in after critical save
                 Promise.resolve().then(async () => {
@@ -841,7 +841,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                               await updatePatientLocal(patient.id, { signature_image_url: fallbackSignatureUrl });
                             } catch (_) {}
                           }
-                          if (pendingBreadcrumbsString) {try {await clearPendingBreadcrumbsForDriver({ driverUserId: delivery.driver_id, appUsers });} catch (_) {}}
+                          if (pendingBreadcrumbsString) {try {await clearPendingBreadcrumbsForDriver({ driverUserId: delivery.driver_id, appUsers, force: true });} catch (_) {}}
                           runTerminalDeliverySideEffects({ delivery, previousStatus: delivery.status, nextStatus: 'completed', overrides: completionUpdate });
                           const optimisticDeliveries = allDeliveries.map((d) => {if (!d || d.driver_id !== delivery.driver_id || d.delivery_date !== delivery.delivery_date) return d;if (d.id === delivery.id) return { ...d, ...completionUpdate, isNextDelivery: false };return d;});
                           const routeDeliveries = optimisticDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);const incompleteDeliveries = routeDeliveries.filter((d) => d && d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending').sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));const nextStop = incompleteDeliveries[0] || null;
