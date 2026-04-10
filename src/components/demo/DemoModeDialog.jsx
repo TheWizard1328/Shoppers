@@ -24,9 +24,9 @@ export default function DemoModeDialog({ open, onOpenChange }) {
       base44.entities.City.list()
     ]);
     setSettings(settingsRows[0] || null);
-    setStores((storeRows || []).filter((item) => item.is_demo));
-    setPatients((patientRows || []).filter((item) => item.is_demo));
-    setRoutes((routeRows || []).filter((item) => item.is_demo));
+    setStores((storeRows || []).filter((item) => item.is_demo && item.created_by === me.email));
+    setPatients((patientRows || []).filter((item) => item.is_demo && item.created_by === me.email));
+    setRoutes((routeRows || []).filter((item) => item.is_demo && item.created_by === me.email));
     setCities(cityRows || []);
   };
 
@@ -78,38 +78,41 @@ export default function DemoModeDialog({ open, onOpenChange }) {
     onOpenChange(false);
   };
 
+  const clearExistingDemoData = async () => {
+    const me = await base44.auth.me();
+    const [storeRows, patientRows, routeRows] = await Promise.all([
+      base44.entities.DemoStore.list(),
+      base44.entities.DemoPatient.list(),
+      base44.entities.DemoRoute.list()
+    ]);
+
+    await Promise.all([
+      ...(routeRows || []).filter((item) => item.is_demo && item.created_by === me.email).map((item) => base44.entities.DemoRoute.delete(item.id)),
+      ...(patientRows || []).filter((item) => item.is_demo && item.created_by === me.email).map((item) => base44.entities.DemoPatient.delete(item.id)),
+      ...(storeRows || []).filter((item) => item.is_demo && item.created_by === me.email).map((item) => base44.entities.DemoStore.delete(item.id))
+    ]);
+  };
+
   const startNewDemo = async () => {
     if (loading) return;
     setLoading(true);
 
     const hasSelectedAddress = selectedAddress?.latitude && selectedAddress?.longitude;
 
-    if (hasSelectedAddress) {
-      await Promise.all([
-        ...(routes || []).map((item) => base44.entities.DemoRoute.delete(item.id)),
-        ...(patients || []).map((item) => base44.entities.DemoPatient.delete(item.id)),
-        ...(stores || []).map((item) => base44.entities.DemoStore.delete(item.id))
-      ]);
+    await clearExistingDemoData();
 
+    if (hasSelectedAddress) {
       await base44.functions.invoke('generateDemoData', {
         address: selectedAddress.full_address || selectedAddress.street_address || address,
         latitude: selectedAddress.latitude,
         longitude: selectedAddress.longitude,
         city_id: cityCenter?.id || null
       });
-    } else {
-      await Promise.all([
-        ...(routes || []).map((item) => base44.entities.DemoRoute.delete(item.id)),
-        ...(patients || []).map((item) => base44.entities.DemoPatient.delete(item.id)),
-        ...(stores || []).map((item) => base44.entities.DemoStore.delete(item.id))
-      ]);
-
-      if (settings?.id) {
-        await base44.entities.DemoSettings.update(settings.id, {
-          demo_store_id: null,
-          is_demo_mode_active: false
-        });
-      }
+    } else if (settings?.id) {
+      await base44.entities.DemoSettings.update(settings.id, {
+        demo_store_id: null,
+        is_demo_mode_active: false
+      });
     }
 
     setAddress('');
@@ -117,13 +120,15 @@ export default function DemoModeDialog({ open, onOpenChange }) {
     await loadData();
     setLoading(false);
     window.dispatchEvent(new CustomEvent('demoModeChanged'));
-
-
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent
+        className="sm:max-w-xl"
+        onPointerDownOutside={(event) => event.preventDefault()}
+        onEscapeKeyDown={(event) => event.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>Demo Mode</DialogTitle>
         </DialogHeader>
