@@ -1126,7 +1126,7 @@ export default function Layout({ children, currentPageName }) {
     }
   };
 
-  const realUser = currentUser;
+  //const currentUser = currentUser;
 
   const handleCitySelected = useCallback(async (cityId) => {
     try {
@@ -1592,7 +1592,7 @@ export default function Layout({ children, currentPageName }) {
   }, [appUsers, stores]);
 
   const adminNavigationItems = useMemo(() => {
-    const isAdmin = realUser && userHasRole(realUser, 'admin');
+    const isAdmin = currentUser && userHasRole(currentUser, 'admin');
     const items = [
     {
       title: 'Cities',
@@ -1623,7 +1623,7 @@ export default function Layout({ children, currentPageName }) {
       icon: Users2
     }];
 
-    if (realUser && (isAppOwner(realUser) || userHasRole(realUser, 'admin'))) {
+    if (currentUser && (isAppOwner(currentUser) || userHasRole(currentUser, 'admin'))) {
       items.push({
         title: "Admin Metrics",
         pageName: 'AdminMetrics',
@@ -1638,7 +1638,7 @@ export default function Layout({ children, currentPageName }) {
       });
     }
 
-    if (realUser && canAccessImports(realUser, adminImportEnabled)) {
+    if (currentUser && canAccessImports(currentUser, adminImportEnabled)) {
       items.push({
         title: "Admin Utilities",
         pageName: 'AdminUtilities',
@@ -1648,12 +1648,12 @@ export default function Layout({ children, currentPageName }) {
     }
 
     // Square Locations - App Owner only
-    if (realUser && isAppOwner(realUser)) items.push(
+    if (currentUser && isAppOwner(currentUser)) items.push(
       { title: "Square Locations", pageName: 'SquareLocationConfigs', url: createPageUrl("SquareLocationConfigs"), icon: CreditCard },
       { title: "Square COD Audit", pageName: 'SquareSyncAudit', url: createPageUrl("SquareSyncAudit"), icon: FileText }
     );
     return items;
-  }, [entityCounts.cities, entityCounts.stores, entityCounts.users, realUser, adminImportEnabled, drivers.length]);
+  }, [entityCounts.cities, entityCounts.stores, entityCounts.users, currentUser, adminImportEnabled, drivers.length]);
 
   const constructUrlWithParams = useCallback((baseUrl) => {
     const currentParams = new URLSearchParams(location.search);
@@ -1786,7 +1786,7 @@ export default function Layout({ children, currentPageName }) {
   }, [deliveries]);
 
 
-  const showWatermark = realUser && isAppOwner(realUser);
+  const showWatermark = currentUser && isAppOwner(currentUser);
 
   return (
     <AppErrorBoundary>
@@ -2505,7 +2505,7 @@ export default function Layout({ children, currentPageName }) {
                             </DropdownMenuTrigger>
                             <SettingsMenu
                           currentUser={currentUser}
-                          realUser={realUser}
+                          currentUser={currentUser}
                           isAppOwner={isAppOwner(currentUser)}
                           adminImportEnabled={adminImportEnabled}
                           onAdminImportToggle={async (checked) => {
@@ -2845,7 +2845,7 @@ export default function Layout({ children, currentPageName }) {
                 isMobile={isMobile}
                 isTabletPortrait={isTabletPortrait}
                 currentUser={currentUser}
-                realUser={realUser}
+                currentUser={currentUser}
                 themePreference={themePreference}
                 onThemeChange={handleThemeChange}
                 cities={cities}
