@@ -18,20 +18,14 @@ Deno.serve(async (req) => {
     }
 
     let deleted = 0;
+    const rows = await base44.asServiceRole.entities.RemoteLogEntry.list('-created_date', 20);
 
-    while (true) {
-      const rows = await base44.asServiceRole.entities.RemoteLogEntry.list('-created_date', 50);
-      if (!rows || rows.length === 0) break;
-
-      for (const row of rows) {
-        await base44.asServiceRole.entities.RemoteLogEntry.delete(row.id);
-        deleted += 1;
-      }
-
-      if (rows.length < 50) break;
+    for (const row of rows || []) {
+      await base44.asServiceRole.entities.RemoteLogEntry.delete(row.id);
+      deleted += 1;
     }
 
-    return Response.json({ success: true, deleted });
+    return Response.json({ success: true, deleted, has_more: (rows || []).length === 20 });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }

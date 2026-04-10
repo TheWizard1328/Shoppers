@@ -54,8 +54,12 @@ export default function RemoteLogsTab({ appUsers = [] }) {
   };
 
   const clearLogs = async () => {
-    await clearRemoteLogs({});
-    setLogs([]);
+    let hasMore = true;
+    while (hasMore) {
+      const response = await clearRemoteLogs({});
+      hasMore = response?.data?.has_more === true;
+    }
+    await loadData();
   };
 
 
