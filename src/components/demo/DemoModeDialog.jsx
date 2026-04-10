@@ -32,6 +32,8 @@ export default function DemoModeDialog({ open, onOpenChange }) {
 
   useEffect(() => {
     if (open) {
+      setAddress('');
+      setSelectedAddress(null);
       loadData();
     }
   }, [open]);
@@ -122,10 +124,10 @@ export default function DemoModeDialog({ open, onOpenChange }) {
 
           <div className="flex flex-wrap justify-end gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button onClick={startNewDemo} disabled={loading || !selectedAddress?.latitude}>
+            <Button onClick={startNewDemo} disabled={loading || !selectedAddress?.latitude || !selectedAddress?.longitude}>
               {loading ? 'Creating…' : 'New Demo'}
             </Button>
-            <Button variant="outline" onClick={activateDemo} disabled={!stores.length || settings?.is_demo_mode_active}>
+            <Button variant="outline" onClick={activateDemo} disabled={!stores.length}>
               Continue Demo
             </Button>
           </div>
