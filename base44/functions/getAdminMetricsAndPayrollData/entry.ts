@@ -448,11 +448,12 @@ Deno.serve(async (req) => {
       return dedupeById(summaryRecords || []);
     };
 
-    const upsertMonthlySummaryRecord = async ({ year, month, cityId, adminMetrics, payrollMetrics, deliveries }) => {
+    const upsertMonthlySummaryRecord = async ({ year, month, cityId, cityName, adminMetrics, payrollMetrics, deliveries }) => {
       const existingRecord = await fetchMonthlySummaryRecord(year, month, cityId);
       const { start, end } = getMonthDateRange(year, month);
       const payload = {
         city_id: cityId,
+        city_name: cityName || '',
         year,
         month,
         period_start: start,
@@ -531,6 +532,9 @@ Deno.serve(async (req) => {
           ? await base44.asServiceRole.entities.City.filter({ id: cityId }, '', 1)
           : [];
       const cities = (citiesRaw || []).map((city) => pickFields(city, CITY_FIELDS));
+      const cityName = cityId && cityId !== 'all'
+        ? (cities.find((city) => city.id === cityId)?.name || '')
+        : 'All Cities';
 
       const payrollRecords = dedupeById(allYearPayrollRaw || []);
       const appFeeRate = parseFloat(appSettings?.[0]?.setting_value?.app_fees_per_delivery) || 0;
@@ -541,6 +545,7 @@ Deno.serve(async (req) => {
         appUsers,
         patients,
         cities,
+        cityName,
         appFeeRate,
         payrollRecords
       };
@@ -655,6 +660,7 @@ Deno.serve(async (req) => {
           year,
           month,
           cityId,
+          cityName: yearData.cityName,
           adminMetrics: adminMetricsForMonth,
           payrollMetrics: payrollMetricsForMonth,
           deliveries: monthDeliveries
@@ -738,6 +744,7 @@ Deno.serve(async (req) => {
             year: adminMetricsYear,
             month: currentMonth,
             cityId: normalizedCityId,
+            cityName: fullCurrentMonthData.cityName,
             adminMetrics: currentMonthMetrics,
             payrollMetrics: null,
             deliveries: fullCurrentMonthData.deliveries

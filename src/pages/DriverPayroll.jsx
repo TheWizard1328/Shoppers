@@ -680,7 +680,7 @@ export default function DriverPayroll() {
         console.log(`📥 [DriverPayroll] Fetching FULL YEAR payroll data - Year: ${selectedYear}`);
         const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
           payrollYear: selectedYear,
-          payrollCityId: null,
+          payrollCityId: selectedCityId,
           payrollDriverId: null,
           payrollStartDate: `${selectedYear}-01-01`,
           payrollEndDate: `${selectedYear}-12-31`

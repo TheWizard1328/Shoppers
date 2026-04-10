@@ -6,6 +6,10 @@
       "type": "string",
       "description": "City this monthly summary belongs to"
     },
+    "city_name": {
+      "type": "string",
+      "description": "Name of the city this monthly summary belongs to"
+    },
     "year": {
       "type": "integer",
       "description": "Summary year"
