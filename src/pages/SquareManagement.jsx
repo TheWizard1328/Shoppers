@@ -1070,7 +1070,6 @@ export default function SquareManagement() {
     (allTransactions || [])
       .filter((transaction) => {
         if (!transaction || isTransferTransaction(transaction)) return false;
-        if (transaction.type !== 'collection' || !['completed', 'refunded'].includes(transaction.status)) return false;
 
         const rawDate = transaction.raw_square_data?.payment_date || transaction.created_date || transaction.updated_date;
         const transactionDate = rawDate ? new Date(rawDate) : null;
