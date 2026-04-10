@@ -166,7 +166,7 @@ export default function StatsPanel({
           <div className="mt-1 mb-2 flex items-center justify-between">
             <div className="pr-1 flex items-center gap-2">
               <h2 className="pl-2 text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>Dashboard</h2>
-              {currentUser && <div className="flex items-center gap-1.5">
+              {currentUser && <div className="flex items-center gap-1.5 -ml-[30px]">
                 <SmartRefreshIndicator inline={true} onManualRefresh={async () => {
                   const syncButton = document.querySelector('[data-offline-sync-button]');
                   if (syncButton) syncButton.click();
