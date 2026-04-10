@@ -677,7 +677,7 @@ export default function DeliveryMap({
     try {
       const bounds = L.latLngBounds((Array.isArray(shouldFitBounds.bounds) ? shouldFitBounds.bounds : []).filter((point) => Array.isArray(point) && point.length === 2 && Number.isFinite(point[0]) && Number.isFinite(point[1])));
       if (!bounds.isValid()) return;
-      map.fitBounds(bounds, { ...(shouldFitBounds.options || {}), paddingTopLeft: shouldFitBounds.options?.paddingTopLeft || [60, 60], paddingBottomRight: shouldFitBounds.options?.paddingBottomRight || [60, 60], animate: true, duration: 0.8 });
+      map.fitBounds(bounds, { ...(shouldFitBounds.options || {}), paddingTopLeft: shouldFitBounds.options?.paddingTopLeft || [60, 60], paddingBottomRight: shouldFitBounds.options?.paddingBottomRight || [60, 60], animate: false });
       onBoundsFitted?.();
     } catch {}
   }, [map, shouldFitBounds, onBoundsFitted]);
@@ -777,8 +777,7 @@ export default function DeliveryMap({
         paddingTopLeft: [25, isMobile ? effectiveTopOverlayHeight + 25 : 60],
         paddingBottomRight: [25, areStopCardsVisible ? stopCardsHeight + 10 : 60],
         maxZoom: 17.5,
-        animate: true,
-        duration: 0.6
+        animate: false
       }
     );
   }, [map, mapViewPhase, isMapViewLocked, selectedDriverId, currentUser?.id, currentDriverLocation, routeAwareCurrentDriverMarker, routeAwareDriverLocationMarkers, deliveryMarkers, pickupMarkers, isMobile]);
@@ -790,7 +789,7 @@ export default function DeliveryMap({
     const sameZoom = Math.abs(map.getZoom() - zoom) < 0.01;
     if (sameCenter && sameZoom) return;
     window._lastProgrammaticMapMove = Date.now();
-    map.setView(center, zoom, { animate: true });
+    map.setView(center, zoom, { animate: false });
   }, [map, center, zoom]);
 
   useEffect(() => {
@@ -846,7 +845,7 @@ export default function DeliveryMap({
     const verticalCenter = topObscured + (size.y - topObscured - bottomObscured) * 0.38;
     const point = map.project([lat, lng], targetZoom);
     const newCenter = map.unproject(L.point(point.x, point.y - (size.y / 2 - verticalCenter)), targetZoom);
-    map.setView(newCenter, targetZoom, { animate: true, duration: 0.5 });
+    map.setView(newCenter, targetZoom, { animate: false });
   }, [map, currentZoom, isMobile, effectiveTopOverlayHeight, areStopCardsVisible, stopCardsHeight]);
 
   const handleMarkerClickForFanning = useCallback((marker, markerType) => {
