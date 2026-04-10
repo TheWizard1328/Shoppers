@@ -206,7 +206,12 @@ export default function DemoModeDialog({ open, onOpenChange }) {
           </div>
 
           <div className="flex flex-wrap justify-end gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button
+              variant="outline"
+              onClick={settings?.is_demo_mode_active ? disableDemo : () => onOpenChange(false)}
+            >
+              {settings?.is_demo_mode_active ? 'Exit Demo Mode' : 'Cancel'}
+            </Button>
             <Button onClick={startNewDemo} disabled={loading}>
               {loading ? 'Creating…' : selectedAddress?.latitude && selectedAddress?.longitude ? 'New Demo' : 'Clear Data'}
             </Button>
