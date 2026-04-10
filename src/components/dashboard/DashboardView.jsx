@@ -171,34 +171,34 @@ export default function DashboardView({
         </div>
       }
 
-      <StatsPanel
-        currentUser={currentUser} isDriver={isDriver} isAdmin={isAdmin} isDispatcher={isDispatcher}
-        deliveries={deliveries} filteredDeliveries={filteredDeliveries} drivers={drivers} stores={stores} appUsers={appUsers} driversList={driversList}
-        selectedDate={selectedDate} selectedDateStr={selectedDateStr} selectedDriverId={selectedDriverId}
-        calendarMonth={calendarMonth} setCalendarMonth={setCalendarMonth}
-        isCalendarOpen={isCalendarOpen} setIsCalendarOpen={setIsCalendarOpen}
-        handleDateChange={handleDateChange} handleDriverChange={handleDriverChange}
-        isDriverDropdownDisabled={isDriverDropdownDisabled} isAllDriversMode={isAllDriversMode} isDateFinished={isDateFinished}
-        showAllDriverMarkers={showAllDriverMarkers} setShowAllDriverMarkers={setShowAllDriverMarkers}
-        showBreadcrumbs={showBreadcrumbs} setShowBreadcrumbs={setShowBreadcrumbs} setBreadcrumbsData={setBreadcrumbsData}
-        showRoutes={showRoutes} setShowRoutes={setShowRoutes} driverRoutes={driverRoutes}
-        statsCardRef={statsCardRef} retractClustersRef={retractClustersRef}
-        mapLockTimeoutRef={mapLockTimeoutRef} mapLockExpiresAtRef={mapLockExpiresAtRef} lastProgrammaticMapMoveRef={lastProgrammaticMapMoveRef}
-        setMapViewPhase={setMapViewPhase} setIsMapViewLocked={setIsMapViewLocked} setMapViewTrigger={setMapViewTrigger}
-        statsPanelOpacity={statsPanelOpacity} isExpanded={isExpanded} setIsExpanded={setIsExpanded} areCardsVisible={areCardsVisible}
-        handleStatsPanelInteraction={handleStatsPanelInteraction} handleCardInteraction={handleCardInteraction} isStatsCardCentered={isStatsCardCentered}
-        statsCardPositioning={statsCardPositioning} pullToSyncKey={pullToSyncKey}
-        setIsEntityUpdating={setIsEntityUpdating} hasRateLimitError={hasRateLimitError} updateDeliveriesLocally={updateDeliveriesLocally}
-        setEditingDelivery={setEditingDelivery} setShowDeliveryForm={setShowDeliveryForm}
-        setShowOptimizationSettings={setShowOptimizationSettings}
-        setShowQuickAdjustments={setShowQuickAdjustments} setShowSmartPrioritization={setShowSmartPrioritization}
-        deliveryStats={deliveryStats} performanceStats={performanceStats} liveDistance={liveDistance} liveTimeOnDuty={liveTimeOnDuty}
-        isLoadingPayrollStats={isLoadingPayrollStats} dailyPolylineCount={dailyPolylineCount} stats={stats}
-        finalizedDutyTime={finalizedDutyTime}
-        refreshUser={refreshUser} dataSource={dataSource}
-      />
-
       <div className="flex-1 w-full relative min-h-0 overflow-hidden">
+        <StatsPanel
+          currentUser={currentUser} isDriver={isDriver} isAdmin={isAdmin} isDispatcher={isDispatcher}
+          deliveries={deliveries} filteredDeliveries={filteredDeliveries} drivers={drivers} stores={stores} appUsers={appUsers} driversList={driversList}
+          selectedDate={selectedDate} selectedDateStr={selectedDateStr} selectedDriverId={selectedDriverId}
+          calendarMonth={calendarMonth} setCalendarMonth={setCalendarMonth}
+          isCalendarOpen={isCalendarOpen} setIsCalendarOpen={setIsCalendarOpen}
+          handleDateChange={handleDateChange} handleDriverChange={handleDriverChange}
+          isDriverDropdownDisabled={isDriverDropdownDisabled} isAllDriversMode={isAllDriversMode} isDateFinished={isDateFinished}
+          showAllDriverMarkers={showAllDriverMarkers} setShowAllDriverMarkers={setShowAllDriverMarkers}
+          showBreadcrumbs={showBreadcrumbs} setShowBreadcrumbs={setShowBreadcrumbs} setBreadcrumbsData={setBreadcrumbsData}
+          showRoutes={showRoutes} setShowRoutes={setShowRoutes} driverRoutes={driverRoutes}
+          statsCardRef={statsCardRef} retractClustersRef={retractClustersRef}
+          mapLockTimeoutRef={mapLockTimeoutRef} mapLockExpiresAtRef={mapLockExpiresAtRef} lastProgrammaticMapMoveRef={lastProgrammaticMapMoveRef}
+          setMapViewPhase={setMapViewPhase} setIsMapViewLocked={setIsMapViewLocked} setMapViewTrigger={setMapViewTrigger}
+          statsPanelOpacity={statsPanelOpacity} isExpanded={isExpanded} setIsExpanded={setIsExpanded} areCardsVisible={areCardsVisible}
+          handleStatsPanelInteraction={handleStatsPanelInteraction} handleCardInteraction={handleCardInteraction} isStatsCardCentered={isStatsCardCentered}
+          statsCardPositioning={statsCardPositioning} pullToSyncKey={pullToSyncKey}
+          setIsEntityUpdating={setIsEntityUpdating} hasRateLimitError={hasRateLimitError} updateDeliveriesLocally={updateDeliveriesLocally}
+          setEditingDelivery={setEditingDelivery} setShowDeliveryForm={setShowDeliveryForm}
+          setShowOptimizationSettings={setShowOptimizationSettings}
+          setShowQuickAdjustments={setShowQuickAdjustments} setShowSmartPrioritization={setShowSmartPrioritization}
+          deliveryStats={deliveryStats} performanceStats={performanceStats} liveDistance={liveDistance} liveTimeOnDuty={liveTimeOnDuty}
+          isLoadingPayrollStats={isLoadingPayrollStats} dailyPolylineCount={dailyPolylineCount} stats={stats}
+          finalizedDutyTime={finalizedDutyTime}
+          refreshUser={refreshUser} dataSource={dataSource}
+          isMobile={isMobile}
+        />
         <MapSection
           currentUser={currentUser} isDriver={isDriver} isDispatcher={isDispatcher} isMobile={isMobile}
           deliveries={deliveries} patients={patients} stores={stores} drivers={drivers} appUsers={appUsers}
