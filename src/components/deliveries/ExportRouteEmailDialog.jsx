@@ -254,7 +254,7 @@ export default function ExportRouteEmailDialog({
     const recipientEmails = [...new Set(allRecipientEmails)];
 
     onOpenChange(false);
-    await onExportRoute({ recipientEmails, perStoreEmails, exportDate: selectedDate, stores });
+    await onExportRoute({ recipientEmails, perStoreEmails, exportDate: selectedDate, stores, storeName: stores.length === 1 ? stores[0]?.name : undefined });
   };
 
   return (

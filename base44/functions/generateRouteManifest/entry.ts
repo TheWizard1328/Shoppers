@@ -10,7 +10,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { driverId, deliveryDate, manifestType, ampm, storeIds, selectedCityId, recipientEmails, emailSubject } = body || {};
+    const { driverId, deliveryDate, manifestType, ampm, storeIds, selectedCityId, recipientEmails, emailSubject, storeName } = body || {};
     const isValidEmail = (value) => typeof value === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
     const callerAppUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }, '-updated_date', 1).catch(() => []);
     const callerAppUser = callerAppUsers?.[0] || null;
@@ -513,7 +513,14 @@ Deno.serve(async (req) => {
 
       const fileName = `${manifestType}${ampm ? `-${ampm}` : ''}-${deliveryDate}.pdf`;
       const { accessToken } = await base44.asServiceRole.connectors.getConnection('gmail');
-      const subject = emailSubject || `Route logs for: ${driverId || 'All Drivers'} ${deliveryDate}`;
+      const formattedEmailDate = (() => {
+        const parsed = new Date(`${deliveryDate}T12:00:00`);
+        const month = parsed.toLocaleDateString('en-US', { month: 'short' });
+        const day = String(parsed.getDate()).padStart(2, '0');
+        const year = String(parsed.getFullYear()).slice(-2);
+        return `${month} ${day}, ${year}`;
+      })();
+      const subject = emailSubject || `RxDeliver Route logs for: ${storeName || 'All Stores'} ${formattedEmailDate}`;
       const body = `Attached is your route manifest PDF for ${deliveryDate}.`;
 
       const emailStartedAt = Date.now();
