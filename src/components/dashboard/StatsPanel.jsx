@@ -5,6 +5,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Calendar as CalendarIcon, Clock, Truck, Plus, ChevronUp, ChevronDown, Settings, Sparkles, Binoculars } from "lucide-react";
+import { useEffect, useState } from "react";
+import { base44 } from "@/api/base44Client";
 import { format } from 'date-fns';
 import { globalFilters } from "@/components/utils/globalFilters";
 import { base44 } from "@/api/base44Client";
@@ -22,7 +24,6 @@ import ExportRouteButton from '@/components/deliveries/ExportRouteButton';
 import LocationTrackingToggle from "@/components/layout/LocationTrackingToggle";
 import { saveSetting } from "@/components/utils/userSettingsManager";
 import { getDriverColor } from "@/components/utils/driverUtils";
-import { useEffect, useState } from "react";
 
 export default function StatsPanel({
   currentUser, isDriver, isAdmin, isDispatcher,
@@ -46,6 +47,33 @@ export default function StatsPanel({
   refreshUser, dataSource,
 }) {
   const [legendDeliveries, setLegendDeliveries] = useState([]);
+  const [isDemoModeActive, setIsDemoModeActive] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadDemoModeState = async () => {
+      try {
+        const me = await base44.auth.me();
+        const rows = await base44.entities.DemoSettings.filter({ user_id: me.id });
+        if (active) {
+          setIsDemoModeActive(rows?.[0]?.is_demo_mode_active === true);
+        }
+      } catch {
+        if (active) {
+          setIsDemoModeActive(false);
+        }
+      }
+    };
+
+    loadDemoModeState();
+    window.addEventListener('demoModeChanged', loadDemoModeState);
+
+    return () => {
+      active = false;
+      window.removeEventListener('demoModeChanged', loadDemoModeState);
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -218,10 +246,15 @@ export default function StatsPanel({
               <Button
                 onClick={() => { setEditingDelivery(null); setShowDeliveryForm(true); }}
                 size="sm"
-                className={`h-8 w-8 p-0 transition-colors ${hasRateLimitError ? 'bg-red-500 hover:bg-red-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}
+                className={`relative h-8 w-8 p-0 transition-colors ${hasRateLimitError ? 'bg-red-500 hover:bg-red-600' : isDemoModeActive ? 'bg-blue-500 hover:bg-blue-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}
                 disabled={isDateFinished && !isAdmin}
-                title={hasRateLimitError ? 'Rate limit detected - please wait' : 'Add delivery'}>
+                title={hasRateLimitError ? 'Rate limit detected - please wait' : isDemoModeActive ? 'Add demo delivery' : 'Add delivery'}>
                 <Plus className="w-4 h-4" />
+                {isDemoModeActive && !hasRateLimitError && (
+                  <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white text-[8px] font-bold leading-none text-blue-600">
+                    D
+                  </span>
+                )}
               </Button>
             </div>
           </div>

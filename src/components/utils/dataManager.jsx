@@ -11,6 +11,7 @@ import { DemoPatient } from '@/entities/DemoPatient';
 import { DemoRoute } from '@/entities/DemoRoute';
 import { DemoStore } from '@/entities/DemoStore';
 import { DemoSettings } from '@/entities/DemoSettings';
+import DemoAppUser from '@/entities/DemoAppUser';
 import { format, subDays } from 'date-fns';
 import { offlineDB } from './offlineDatabase';
 import { 
@@ -49,7 +50,8 @@ const entities = {
   DemoPatient,
   DemoRoute,
   DemoStore,
-  DemoSettings
+  DemoSettings,
+  DemoAppUser
 };
 
 let demoModeState = { active: false };
@@ -76,6 +78,7 @@ const resolveEntityName = async (entityName) => {
   if (entityName === 'Patient') return 'DemoPatient';
   if (entityName === 'Delivery') return 'DemoRoute';
   if (entityName === 'Store') return 'DemoStore';
+  if (entityName === 'AppUser') return 'DemoAppUser';
   return entityName;
 };
 

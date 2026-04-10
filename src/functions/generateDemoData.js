@@ -39,6 +39,24 @@ const lastNames = ['Johnson', 'Smith', 'Brown', 'Taylor', 'Wilson', 'Martin', 'L
 const streetNames = ['Maple', 'Oak', 'Cedar', 'Pine', 'Spruce', 'River', 'Lake', 'Hill', 'Park', 'Elm', 'Sunset', 'Meadow'];
 const streetTypes = ['Street', 'Avenue', 'Road', 'Drive', 'Boulevard', 'Lane', 'Court'];
 const notes = ['Leave at front desk', 'Ring bell twice', 'Call on arrival', 'Side entrance', 'Fragile package', 'Mailbox OK'];
+const pickupNotes = ['Completed pickup', 'After-hours pickup completed', 'Store pickup finished'];
+const failureNotes = ['Patient not home', 'Address issue', 'Delivery delayed'];
+const returnNotes = ['Returned to store', 'Retry required', 'Customer requested return'];
+const routeStatuses = ['completed', 'failed', 'returned'];
+const todayStatuses = ['completed', 'failed', 'en_route', 'in_transit', 'pending'];
+const randomTime = (hour, minute = 0) => `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+const buildDateTime = (date, time) => `${formatDate(date)}T${time}:00`;
+const hoursToMinutes = (time) => {
+  const [hours, minutes] = time.split(':').map(Number);
+  return hours * 60 + minutes;
+};
+const minutesToTime = (minutes) => {
+  const safeMinutes = Math.max(0, minutes);
+  const hours = Math.floor(safeMinutes / 60);
+  const mins = safeMinutes % 60;
+  return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+};
+const addMinutes = (time, amount) => minutesToTime(hoursToMinutes(time) + amount);
 
 Deno.serve(async (req) => {
   try {
@@ -62,12 +80,14 @@ Deno.serve(async (req) => {
     const demoStores = await base44.asServiceRole.entities.DemoStore.filter({ created_by: user.email });
     const demoPatients = await base44.asServiceRole.entities.DemoPatient.filter({ created_by: user.email });
     const demoRoutes = await base44.asServiceRole.entities.DemoRoute.filter({ created_by: user.email });
+    const demoAppUsers = await base44.asServiceRole.entities.DemoAppUser.filter({ created_by: user.email });
     const settings = await base44.asServiceRole.entities.DemoSettings.filter({ user_id: user.id });
 
     await Promise.all([
       ...demoRoutes.map((item) => base44.asServiceRole.entities.DemoRoute.delete(item.id)),
       ...demoPatients.map((item) => base44.asServiceRole.entities.DemoPatient.delete(item.id)),
-      ...demoStores.map((item) => base44.asServiceRole.entities.DemoStore.delete(item.id))
+      ...demoStores.map((item) => base44.asServiceRole.entities.DemoStore.delete(item.id)),
+      ...demoAppUsers.map((item) => base44.asServiceRole.entities.DemoAppUser.delete(item.id))
     ]);
 
     const today = new Date();
@@ -86,6 +106,33 @@ Deno.serve(async (req) => {
 
     const patientCount = randomInt(10, 20);
     const patients = [];
+    const driverCount = randomInt(3, 5);
+    const demoDrivers = [];
+
+    for (let index = 0; index < driverCount; index += 1) {
+      const driverCoords = offsetCoordinates(latitude, longitude, randomBetween(1, 8), randomBetween(0, 360));
+      const driverName = `${pick(firstNames)} ${pick(lastNames)}`;
+      const demoDriver = await base44.asServiceRole.entities.DemoAppUser.create({
+        user_id: `demo-driver-${index + 1}`,
+        user_name: driverName,
+        app_roles: ['driver'],
+        phone: `(780) 555-${String(randomInt(1000, 9999)).padStart(4, '0')}`,
+        city_id: cityId,
+        city_ids: cityId ? [cityId] : [],
+        store_ids: [store.id],
+        status: 'active',
+        driver_status: 'on_duty',
+        location_tracking_enabled: true,
+        current_latitude: driverCoords.latitude,
+        current_longitude: driverCoords.longitude,
+        home_latitude: driverCoords.latitude,
+        home_longitude: driverCoords.longitude,
+        location_updated_at: new Date().toISOString(),
+        sort_order: index + 1,
+        is_demo: true
+      });
+      demoDrivers.push(demoDriver);
+    }
 
     for (let index = 0; index < patientCount; index += 1) {
       const distanceKm = randomBetween(0.25, 18);
@@ -118,33 +165,100 @@ Deno.serve(async (req) => {
       patients.push(patient);
     }
 
-    const routeCount = randomInt(5, 10);
+    const routeCount = randomInt(10, 18);
     const selectedPatients = [...patients].sort(() => Math.random() - 0.5).slice(0, routeCount);
+    const daysBack = 7;
 
-    for (let index = 0; index < selectedPatients.length; index += 1) {
-      const patient = selectedPatients[index];
-      const date = formatDate(addDays(today, index % 3));
-      await base44.asServiceRole.entities.DemoRoute.create({
-        delivery_id: `DEMO-ROUTE-${index + 1}`,
-        patient_id: patient.id,
-        driver_id: user.id,
-        driver_name: user.full_name || user.email,
-        created_by_app_user_id: user.id,
-        delivery_date: date,
-        delivery_time_start: patient.time_window_start || '10:00',
-        delivery_time_end: patient.time_window_end || '14:00',
-        delivery_time_eta: patient.time_window_start || '10:00',
-        status: pick(['pending', 'en_route', 'in_transit']),
-        store_id: store.id,
-        tracking_number: String((index + 1) * 10),
-        stop_order: index + 1,
-        stop_id: `SID-DEMO-${index + 1}`,
-        delivery_notes: patient.notes || '',
-        delivery_instructions: patient.notes || '',
-        ampm_deliveries: (patient.time_window_start || '10:00') < '12:00' ? 'AM' : 'PM',
-        extra_time: 5,
-        is_demo: true
+    for (let dayOffset = daysBack - 1; dayOffset >= 0; dayOffset -= 1) {
+      const routeDate = addDays(today, -dayOffset);
+      const date = formatDate(routeDate);
+      const patientsForDay = [...selectedPatients].sort(() => Math.random() - 0.5).slice(0, randomInt(4, Math.min(8, selectedPatients.length)));
+      const driverBuckets = new Map();
+
+      demoDrivers.forEach((driver) => {
+        driverBuckets.set(driver.id, []);
       });
+
+      patientsForDay.forEach((patient, index) => {
+        const driver = demoDrivers[index % demoDrivers.length];
+        driverBuckets.get(driver.id).push(patient);
+      });
+
+      for (const driver of demoDrivers) {
+        const assignedPatients = driverBuckets.get(driver.id) || [];
+        if (assignedPatients.length === 0) continue;
+
+        const amStart = randomTime(9, 0);
+        const pickupStatus = dayOffset === 0 ? (Math.random() > 0.5 ? 'completed' : 'en_route') : 'completed';
+        const pickupActualTime = pickupStatus === 'completed' ? buildDateTime(routeDate, addMinutes(amStart, randomInt(5, 20))) : '';
+        const pickupStopId = `SID-DEMO-${driver.user_id}-${date}-PICKUP`;
+        const pickupTrackingNumber = '20';
+
+        await base44.asServiceRole.entities.DemoRoute.create({
+          delivery_id: `DEMO-PICKUP-${driver.user_id}-${date}`,
+          patient_id: '',
+          driver_id: driver.user_id,
+          driver_name: driver.user_name,
+          created_by_app_user_id: user.id,
+          delivery_date: date,
+          delivery_time_start: amStart,
+          delivery_time_end: addMinutes(amStart, 30),
+          delivery_time_eta: amStart,
+          actual_delivery_time: pickupActualTime,
+          status: pickupStatus,
+          store_id: store.id,
+          tracking_number: pickupTrackingNumber,
+          stop_order: 1,
+          stop_id: pickupStopId,
+          delivery_notes: pick(pickupNotes),
+          delivery_instructions: 'Store pickup',
+          ampm_deliveries: 'AM',
+          extra_time: 5,
+          is_demo: true
+        });
+
+        let lastCompletedMinutes = hoursToMinutes(addMinutes(amStart, 20));
+
+        for (let index = 0; index < assignedPatients.length; index += 1) {
+          const patient = assignedPatients[index];
+          const stopOrder = index + 2;
+          const windowStart = patient.time_window_start || addMinutes(amStart, 30 + index * 25);
+          const windowEnd = patient.time_window_end || addMinutes(windowStart, 120);
+          const trackingNumber = String(20 + stopOrder).padStart(2, '0');
+          const isToday = dayOffset === 0;
+          const status = isToday ? pick(todayStatuses) : pick(routeStatuses);
+          const actualTime = status === 'completed' || status === 'failed' || status === 'returned'
+            ? buildDateTime(routeDate, minutesToTime(lastCompletedMinutes + randomInt(12, 28)))
+            : '';
+
+          if (actualTime) {
+            lastCompletedMinutes = hoursToMinutes(actualTime.split('T')[1].slice(0, 5));
+          }
+
+          await base44.asServiceRole.entities.DemoRoute.create({
+            delivery_id: `DEMO-ROUTE-${driver.user_id}-${date}-${index + 1}`,
+            patient_id: patient.id,
+            driver_id: driver.user_id,
+            driver_name: driver.user_name,
+            created_by_app_user_id: user.id,
+            delivery_date: date,
+            delivery_time_start: windowStart,
+            delivery_time_end: windowEnd,
+            delivery_time_eta: status === 'pending' ? windowStart : addMinutes(windowStart, randomInt(0, 20)),
+            actual_delivery_time: actualTime,
+            status,
+            store_id: store.id,
+            tracking_number: trackingNumber,
+            stop_order: stopOrder,
+            stop_id: `SID-DEMO-${driver.user_id}-${date}-${index + 1}`,
+            delivery_notes: status === 'failed' ? pick(failureNotes) : status === 'returned' ? pick(returnNotes) : patient.notes || '',
+            delivery_instructions: patient.notes || '',
+            ampm_deliveries: windowStart < '12:00' ? 'AM' : 'PM',
+            extra_time: 5,
+            is_demo: true
+          });
+        }
+      }
     }
 
     if (settings.length > 0) {
@@ -160,11 +274,14 @@ Deno.serve(async (req) => {
       });
     }
 
+    const createdRoutes = await base44.asServiceRole.entities.DemoRoute.filter({ created_by: user.email });
+
     return Response.json({
       success: true,
       store_id: store.id,
       patient_count: patients.length,
-      route_count: selectedPatients.length
+      driver_count: demoDrivers.length,
+      route_count: createdRoutes.length
     });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
