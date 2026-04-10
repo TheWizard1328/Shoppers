@@ -20,13 +20,15 @@ Deno.serve(async (req) => {
     let deleted = 0;
 
     while (true) {
-      const rows = await base44.asServiceRole.entities.RemoteLogEntry.list('-created_date', 200);
+      const rows = await base44.asServiceRole.entities.RemoteLogEntry.list('-created_date', 50);
       if (!rows || rows.length === 0) break;
 
-      await Promise.all(rows.map((row) => base44.asServiceRole.entities.RemoteLogEntry.delete(row.id)));
-      deleted += rows.length;
+      for (const row of rows) {
+        await base44.asServiceRole.entities.RemoteLogEntry.delete(row.id);
+        deleted += 1;
+      }
 
-      if (rows.length < 200) break;
+      if (rows.length < 50) break;
     }
 
     return Response.json({ success: true, deleted });
