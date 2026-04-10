@@ -335,12 +335,8 @@ export default function SquareManagement() {
 
     const paymentPayload = {
       action: 'fetchPayments',
-      daysBack: 60,
+      daysBack: 60
     };
-    const validLocationIds = (snapshotData.locationIds || []).filter(Boolean);
-    if (validLocationIds.length > 0) {
-      paymentPayload.locationIds = validLocationIds;
-    }
     const paymentsResponse = await base44.functions.invoke('squareCodCore', paymentPayload);
     const paymentsData = paymentsResponse?.data || paymentsResponse || {};
 
@@ -428,7 +424,6 @@ export default function SquareManagement() {
 
       await base44.functions.invoke('squareCodCore', {
         action: 'syncSquareCods',
-        purgeCatalogFirst: true,
         items,
       });
       await quickRefreshCatalogView();
