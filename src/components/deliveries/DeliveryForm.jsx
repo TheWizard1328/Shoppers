@@ -1465,7 +1465,7 @@ export default function DeliveryForm({
       if (delivery?.id) {
         await updateDeliveryLocal(delivery.id, { ...dataToSave, receipt_barcode_values: Array.isArray(formData.receipt_barcode_values) ? formData.receipt_barcode_values : [] });
         if (statusChangedToCompletion) triggerPatientLastDeliverySync({ delivery: { ...delivery, ...dataToSave, status: formData.status, patient_id: delivery.patient_id, delivery_date: formData.delivery_date }, previousStatus: delivery.status });
-        if (statusChangedToCompletion) {
+        if (formData.status === 'completed') {
           cleanupSquareCodCatalogForDate(formData.delivery_date);
         }
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
