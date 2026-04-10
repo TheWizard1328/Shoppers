@@ -45,6 +45,8 @@ export default function StopCardsSection({
       ref={stopCardsContainerRef}
       className={`horizontal-cards-container absolute left-0 right-0 ${isMobile ? 'z-[240]' : 'z-[150]'} px-4 pb-1 pointer-events-none flex flex-col justify-end`}
       style={{
+        position: 'absolute',
+        isolation: 'isolate',
         left: isSnapshotModeActive ? '5rem' : '0',
         top: mobileStopCardsTop,
         bottom: isMobile && mobileStopCardsTop ? 'auto' : 'calc(var(--bottom-nav-height, 0px) + 0.25rem)'
