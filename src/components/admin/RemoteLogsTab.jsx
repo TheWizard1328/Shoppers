@@ -105,12 +105,12 @@ export default function RemoteLogsTab({ appUsers = [] }) {
   }, [logs]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-">
       <Card>
-        <CardHeader>
+        <CardHeader className="px-6 py-3 flex flex-col space-y-1.5">
           <CardTitle>Remote Logging</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="px-6 py-3 space-y-4">
           <div className="flex items-center justify-between">
             <span className="font-medium">Global logging</span>
             <Switch checked={settings?.enabled === true} onCheckedChange={(checked) => updateSettings({ enabled: checked, capture_levels: ['warn', 'error', 'debug'] })} />
@@ -151,7 +151,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
       </Card>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="px-6 py-3 flex flex-col space-y-1.5">
           <CardTitle>Recent Remote Logs</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
