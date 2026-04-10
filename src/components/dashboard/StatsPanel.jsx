@@ -139,9 +139,9 @@ export default function StatsPanel({
   };
 
   return (
-    <div className={statsCardPositioning} style={{ zIndex: isMobile ? 100 : 600, position: 'absolute' }}>
+    <div className={statsCardPositioning} style={{ zIndex: isMobile ? 100 : 600, position: 'absolute', pointerEvents: 'none' }}>
       <div className="flex flex-col items-center gap-1 min-w-[340px] max-w-[345px] relative"
-        style={{ opacity: statsPanelOpacity, transition: 'opacity 0.5s ease-in-out' }}
+        style={{ opacity: statsPanelOpacity, transition: 'opacity 0.5s ease-in-out', pointerEvents: 'auto' }}
         onMouseEnter={() => handleStatsPanelInteraction(true)}
         onMouseLeave={() => handleStatsPanelInteraction(false)}>
 
