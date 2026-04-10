@@ -44,6 +44,7 @@ export default function StatsPanel({
   deliveryStats, performanceStats, liveDistance, liveTimeOnDuty, isLoadingPayrollStats,
   dailyPolylineCount, stats, finalizedDutyTime,
   refreshUser, dataSource,
+  isMobile,
 }) {
   const [legendDeliveries, setLegendDeliveries] = useState([]);
   const [isDemoModeActive, setIsDemoModeActive] = useState(false);
@@ -138,7 +139,7 @@ export default function StatsPanel({
   };
 
   return (
-    <div className={statsCardPositioning} style={{ zIndex: 140 }}>
+    <div className={statsCardPositioning} style={{ zIndex: isMobile ? 140 : 600 }}>
       <div className="flex flex-col items-center gap-1 min-w-[340px] max-w-[345px] relative"
         style={{ opacity: statsPanelOpacity, transition: 'opacity 0.5s ease-in-out' }}
         onMouseEnter={() => handleStatsPanelInteraction(true)}

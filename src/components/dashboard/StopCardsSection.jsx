@@ -43,7 +43,7 @@ export default function StopCardsSection({
   return (
     <div
       ref={stopCardsContainerRef}
-      className="horizontal-cards-container absolute left-0 right-0 z-[700] px-4 pb-1 pointer-events-none flex flex-col justify-end"
+      className={`horizontal-cards-container absolute left-0 right-0 ${isMobile ? 'z-[700]' : 'z-[150]'} px-4 pb-1 pointer-events-none flex flex-col justify-end`}
       style={{
         left: isSnapshotModeActive ? '5rem' : '0',
         top: mobileStopCardsTop,
