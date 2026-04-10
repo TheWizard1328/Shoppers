@@ -373,6 +373,12 @@ const subscribeToEntity = (entityName) => {
                             entityName === 'DriverRoutePolyline' ? offlineDB.STORES.DRIVER_ROUTE_POLYLINES :
                             entityName === 'Message' ? null : null;
 
+          if (entityName === 'Message' && typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('messageRealtimeUpdate', {
+              detail: { type, id, data }
+            }));
+          }
+
           if (storeName) {
             await offlineDB.save(storeName, data);
             if (entityName === 'DriverRoutePolyline') {

@@ -79,8 +79,8 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
     // Load initial messages
     fetchMessages(loadedDays, false);
 
-    // Subscribe to ALL message updates for this user (sent and received)
-    const unsubscribe = base44.entities.Message.subscribe((event) => {
+    const handleRealtimeMessage = (payload) => {
+      const event = payload?.detail || payload;
       if (event.type === 'create' || event.type === 'update') {
         const messageData = event.data;
         const isRelated = messageData?.receiver_id === currentUser.id || messageData?.sender_id === currentUser.id;
@@ -91,9 +91,15 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
           return exists ? prev.map(m => m.id === messageData.id ? messageData : m) : [...prev, messageData];
         });
       }
-    });
+    };
+
+    const unsubscribe = base44.entities.Message.subscribe(handleRealtimeMessage);
+    window.addEventListener('messageRealtimeUpdate', handleRealtimeMessage);
     
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      window.removeEventListener('messageRealtimeUpdate', handleRealtimeMessage);
+    };
   }, [currentUser?.id]);
 
   const handleLoadMore = async () => {

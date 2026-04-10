@@ -135,9 +135,8 @@ function ChatWindow({
 
     fetchMessages();
 
-    // Subscribe to real-time message updates
-    const unsubscribe = base44.entities.Message.subscribe((event) => {
-      // Only process messages for this conversation
+    const handleRealtimeMessage = (payload) => {
+      const event = payload?.detail || payload;
       if (event.data?.conversation_id !== conversationId || isHiddenSystemBroadcastMessageForThisDevice(event.data?.id)) return;
       
       if (event.type === 'create' || event.type === 'update') {
@@ -150,7 +149,6 @@ function ChatWindow({
           }
         });
 
-        // Mark as read if this message is for the current user and is unread
         if (event.data.receiver_id === currentUser?.id && !event.data.read) {
           base44.entities.Message.update(event.data.id, { read: true }).catch(() => {});
           if (onMessagesRead) {
@@ -158,9 +156,15 @@ function ChatWindow({
           }
         }
       }
-    });
+    };
 
-    return () => unsubscribe();
+    const unsubscribe = base44.entities.Message.subscribe(handleRealtimeMessage);
+    window.addEventListener('messageRealtimeUpdate', handleRealtimeMessage);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener('messageRealtimeUpdate', handleRealtimeMessage);
+    };
   }, [conversationId, currentUser?.id, onMessagesRead]);
 
   useEffect(() => {

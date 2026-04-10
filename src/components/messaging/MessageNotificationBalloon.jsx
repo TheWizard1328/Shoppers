@@ -23,9 +23,9 @@ export default function MessageNotificationBalloon({ currentUser, onOpenConversa
       setLastSeenMessageId(storedLastSeen);
     }
 
-    // Subscribe to real-time message updates
-    const unsubscribe = base44.entities.Message.subscribe((event) => {
-      if (event.data?.receiver_id !== currentUser.id || isHiddenSystemBroadcastMessageForThisDevice(event.data?.id)) return;
+    const handleRealtimeMessage = (payload) => {
+      const event = payload?.detail || payload;
+      if (event?.data?.receiver_id !== currentUser.id || isHiddenSystemBroadcastMessageForThisDevice(event?.data?.id)) return;
 
       if (event.type === 'create' && isAppUpdateBroadcast(event.data.content)) {
         setUpdatePromptMessage(event.data.content);
@@ -53,10 +53,14 @@ export default function MessageNotificationBalloon({ currentUser, onOpenConversa
           }, 8000);
         }
       }
-    });
+    };
+
+    const unsubscribe = base44.entities.Message.subscribe(handleRealtimeMessage);
+    window.addEventListener('messageRealtimeUpdate', handleRealtimeMessage);
 
     return () => {
       unsubscribe();
+      window.removeEventListener('messageRealtimeUpdate', handleRealtimeMessage);
       if (autoDismissTimeoutRef.current) {
         clearTimeout(autoDismissTimeoutRef.current);
       }
