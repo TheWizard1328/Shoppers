@@ -37,15 +37,30 @@ export async function updateSquareCODIfChanged({
     changed: initialCodCents !== currentCodCents
   });
   
-  // No change - skip Square operations
-  if (initialCodCents === currentCodCents) {
+  const store = stores?.find(s => s && s.id === formData.store_id);
+  let squareItemExists = false;
+
+  if (currentCodDollars > 0) {
+    try {
+      const response = await Promise.race([
+        base44.functions.invoke('squareGetCODData', { deliveryId: delivery.id }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Square lookup timeout')), 8000))
+      ]);
+      const payload = response?.data || response || {};
+      squareItemExists = Boolean(payload.item || payload.catalogItem || payload.catalogObject || (Array.isArray(payload.items) && payload.items.some((item) => item?.delivery_id === delivery.id || item?.deliveryId === delivery.id)));
+      console.log('🔎 [Square] Existing COD item check:', { deliveryId: delivery.id, squareItemExists });
+    } catch (lookupError) {
+      console.warn('⚠️ [Square] Failed to check existing COD item:', lookupError.message);
+    }
+  }
+
+  // No amount change and item already exists - skip Square operations
+  if (initialCodCents === currentCodCents && (!currentCodDollars || squareItemExists)) {
     console.log('💰 [Square] COD unchanged - no Square operations needed');
     return;
   }
   
-  const store = stores?.find(s => s && s.id === formData.store_id);
-  
-  if (initialCodDollars === 0 && currentCodDollars > 0) {
+  if ((initialCodDollars === 0 && currentCodDollars > 0) || (initialCodDollars === currentCodDollars && currentCodDollars > 0 && !squareItemExists)) {
     // Case 1: No COD → Has COD (CREATE)
     try {
       console.log('💳 [Square] COD added - creating COD item:', delivery.id, 'Amount:', currentCodDollars);
