@@ -827,6 +827,7 @@ async function handleFetchPayments(base44, payload) {
   const normalizedTransactions = soldCatalogItems.map((item, index) => {
     const amountCents = Math.round(Number(item?.amount || 0) * 100);
     const matchedTransaction = existingTransactionBySignature.get(buildLocationDateAmountSignature(item?.location_id, item?.item_name, amountCents));
+    if (!matchedTransaction?.delivery_id || !isValidEntityId(matchedTransaction.delivery_id)) return null;
 
     return {
       id: `${item?.square_payment_id || item?.payment_id || 'payment'}-${item?.catalog_object_id || index}`,
@@ -844,13 +845,13 @@ async function handleFetchPayments(base44, payload) {
       driver_id: matchedTransaction?.driver_id || null,
       dispatcher_id: matchedTransaction?.dispatcher_id || null,
       patient_id: matchedTransaction?.patient_id || null,
-      delivery_id: matchedTransaction?.delivery_id || null,
+      delivery_id: matchedTransaction.delivery_id,
       payment_method: String(item?.payment_method || matchedTransaction?.payment_method || 'CARD').toLowerCase(),
       created_date: item?.payment_date || null,
       updated_date: item?.payment_date || null,
       raw_square_data: item,
     };
-  });
+  }).filter(Boolean);
 
   const soldItemCounts = new Map();
   soldCatalogItems.forEach((item) => {
@@ -918,9 +919,10 @@ async function handleGetCodData(base44, payload = {}) {
   const transactionRetentionStartMs = Date.now() - daysBack * 24 * 60 * 60 * 1000;
   const refreshDeliveries = shouldRefreshDeliveries(payload?.lastDeliverySyncAt, payload?.forceDeliveryRefresh === true);
 
-  const [locationConfigs, stores] = await Promise.all([
+  const [locationConfigs, stores, existingTransactions] = await Promise.all([
     base44.asServiceRole.entities.SquareLocationConfig.filter({ status: 'active' }).catch(() => []),
     base44.asServiceRole.entities.Store.list('-updated_date', 500).catch(() => []),
+    base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 2000).catch(() => []),
   ]);
 
   const safeLocationConfigs = (Array.isArray(locationConfigs) ? locationConfigs : []).map(unwrapEntityRecord).filter(Boolean);
