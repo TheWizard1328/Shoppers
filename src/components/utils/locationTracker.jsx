@@ -30,7 +30,7 @@ class LocationTracker {
         this.currentUser = null;
         this.appUserId = null;
         this.driverStatus = 'off_duty';
-        this.updateInterval = 30000; // 30 seconds GPS polling (balanced)
+        this.updateInterval = 15000; // 15 seconds GPS polling
         this.coordinateUpdateInterval = 15000; // 15 seconds between coordinate updates
 
         // Distance threshold - only upload if moved at least 100m
@@ -76,7 +76,7 @@ class LocationTracker {
     try {
       const settings = getRouteOptimizationSettings();
       // Interval locked to 15 seconds for primary device polling
-      this.updateInterval = 30000; // 30 seconds GPS polling
+      this.updateInterval = 15000; // 15 seconds GPS polling
 
       // 100m minimum movement threshold
       this.minDistanceChange = 100;
@@ -84,7 +84,7 @@ class LocationTracker {
       console.log(`📍 [LocationTracker] Interval: ${this.updateInterval / 1000}s, distance threshold: ${this.minDistanceChange}m`);
     } catch (error) {
       console.warn('⚠️ Could not load route optimization settings, using defaults');
-      this.updateInterval = 30000; // Default 30 seconds
+      this.updateInterval = 15000; // Default 15 seconds
       this.minDistanceChange = 100; // Default 100m
     }
   }
