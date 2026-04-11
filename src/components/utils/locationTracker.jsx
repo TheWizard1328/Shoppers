@@ -131,6 +131,10 @@ class LocationTracker {
     this._eventUpdateTime = Date.now();
   }
 
+  shouldKeepNativeTrackingAlive() {
+    return this.isPrimaryDevice && (this.driverStatus === 'on_duty' || this.driverStatus === 'on_break');
+  }
+
   /**
    * Check if tracking should be active
    * CRITICAL: Always returns true - we track as long as app is open
@@ -481,21 +485,23 @@ class LocationTracker {
         this.backoffTime = 10000;
       }
 
-      // If too many failures, stop tracking
+      // If too many upload failures, keep native tracking alive on the primary device.
       if (this.failedUpdateCount >= this.maxFailedUpdates) {
-        console.error('❌ Too many failed updates, stopping location tracking');
-        this.stopTracking();
+        const keepTrackingAlive = this.shouldKeepNativeTrackingAlive();
+        console.error(`❌ Too many failed updates, ${keepTrackingAlive ? 'keeping native tracking alive' : 'stopping location tracking'}`);
+
+        if (!keepTrackingAlive) {
+          this.stopTracking();
+        }
 
         try {
           if (this.appUserId) {
-            // CRITICAL: PRESERVE last known coordinates - only disable tracking flag
+            // Preserve last known coordinates - only disable visibility flag after repeated upload failures
             const updateData = {
               location_tracking_enabled: false
-              // Keep current_latitude, current_longitude, and location_updated_at intact
             };
             await base44.entities.AppUser.update(this.appUserId, updateData);
 
-            // CRITICAL: DUAL-WRITE - Save to offline DB immediately
             try {
               const { offlineDB } = await import('./offlineDatabase');
               const appUser = await base44.entities.AppUser.filter({ id: this.appUserId });
@@ -512,7 +518,9 @@ class LocationTracker {
 
         window.dispatchEvent(new CustomEvent('locationTrackingError', {
           detail: {
-            message: 'Location updates failed multiple times. Tracking has been stopped but last location preserved.',
+            message: keepTrackingAlive
+              ? 'Location uploads failed multiple times. Tracking is still running on this primary device, but sharing was turned off.'
+              : 'Location updates failed multiple times. Tracking has been stopped but last location preserved.',
             error: error.message
           }
         }));
@@ -867,8 +875,8 @@ class LocationTracker {
 
         return true;
       } else {
-        // TURNING OFF: Hide location from other drivers
-        console.log('🔴 [Location Sharing] Disabling - hiding location from others (preserving coordinates)');
+        // TURNING OFF: Hide location from other drivers only
+        console.log('🔴 [Location Sharing] Disabling visibility only - background tracking stays active on the primary device');
         await base44.entities.AppUser.update(appUserId, {
           location_tracking_enabled: false
           // Keep coordinates and location_updated_at intact for stale marker display
