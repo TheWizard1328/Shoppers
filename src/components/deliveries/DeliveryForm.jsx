@@ -31,6 +31,10 @@ import { resolvePatientDriverAssignment, buildSelectedPatientFormData, buildDupl
 import { resetDraftEditorState, cleanupDetachedAutoCreatedPickups } from './deliveryDraftStateHelpers';
 import { filterPendingDeliveriesForUser, mapPendingDeliveriesToStaged } from './deliveryPendingLoadHelpers';
 import { scanPrescriptionLabel, handlePrescriptionScanResult } from './prescriptionScanHelpers';
+import { buildDeliveryFormInitialState } from './deliveryFormInitialState';
+import useDeliveryCamera from './useDeliveryCamera';
+import { sortStagedDeliveries, sortProjectedDeliveries } from './deliverySortHelpers';
+import { syncDeliveryCodOnUpdate, buildUpdatedDeliveryPayload } from './deliveryCodSaveHelpers';
 import { resolveProjectedDeliveryDriver, buildProjectedStagedItem } from './projectedDeliveryHelpers';
 import { prepareDeliverySaveData, buildPickupSnapshot, getDeliverySubmitFlags } from './deliverySubmitHelpers';
 import { resolveDistanceFromStore, buildPickupStagedDelivery, buildPatientStagedDelivery } from './deliveryStagingHelpers';
@@ -105,50 +109,20 @@ export default function DeliveryForm({
     return sorted.filter((driver) => driver && driver.user_name);
   }, [drivers]);
 
-  const [formData, setFormData] = useState(() => {
-    const initialState = {
-      patient_id: initialPatientId || "",
-      delivery_date: suggestedDate || format(new Date(), 'yyyy-MM-dd'),
-      delivery_time_start: "", delivery_time_end: "", delivery_time_eta: "",
-      time_window_start: "", time_window_end: "", status: "Staged",
-      driver_name: "", driver_id: "", prescription_number: "",
-      delivery_instructions: "", delivery_notes: "",
-      cod_total_amount_required: 0, cod_payments: [],
-      cod_payment_type: "No Payment", cod_amount: "",
-      tracking_number: "", delivery_stop_id: "", stop_id: "", puid: "",
-      paid_km_override: null,
-      patient_name: (initialPatientId && Array.isArray(patients) ? (patients.find(pt=>pt&&pt.id===initialPatientId)?.full_name || "") : ""), patient_phone: (initialPatientId && Array.isArray(patients) ? (patients.find(pt=>pt&&pt.id===initialPatientId)?.phone || "") : ""), unit_number: (initialPatientId && Array.isArray(patients) ? (patients.find(pt=>pt&&pt.id===initialPatientId)?.unit_number || "") : ""), store_phone: "", store_id: (initialPatientId && Array.isArray(patients) ? (patients.find(pt=>pt&&pt.id===initialPatientId)?.store_id || "") : ""),
-      mailbox_ok: false, call_upon_arrival: false, ring_bell: false,
-      dont_ring_bell: false, back_door: false, signature_needed: false,
-      fridge_item: false, oversized: false, after_hours_pickup: false, no_charge: false, extra_time: 0,
-      barcode_values: [], receipt_barcode_values: [],
-      recurring: false, recurring_daily: false,
-      recurring_weekly_mon: false, recurring_weekly_tue: false, recurring_weekly_wed: false,
-      recurring_weekly_thu: false, recurring_weekly_fri: false, recurring_weekly_sat: false,
-      recurring_weekly_sun: false, recurring_biweekly: false, recurring_weekly_x4: false,
-      recurring_monthly: false, recurring_bimonthly: false
-    };
-
-    if (!delivery && currentUser && stores && drivers) {
-      const { driverId, driverName } = resolveDefaultDriverForNewDelivery({
-        currentUser,
-        stores,
-        drivers,
-        allDrivers,
-        deliveryDate: initialState.delivery_date,
-        initialDriverId,
-        userHasRole,
-        getDriverNameForStorage
-      });
-
-      if (driverId && driverName) {
-        initialState.driver_id = driverId;
-        initialState.driver_name = driverName;
-      }
-    }
-
-    return initialState;
-  });
+  const [formData, setFormData] = useState(() => buildDeliveryFormInitialState({
+    initialPatientId,
+    patients,
+    suggestedDate,
+    delivery,
+    currentUser,
+    stores,
+    drivers,
+    allDrivers,
+    initialDriverId,
+    resolveDefaultDriverForNewDelivery,
+    userHasRole,
+    getDriverNameForStorage
+  }));
 
   const [patientSearch, setPatientSearch] = useState("");
   const [selectedPatient, setSelectedPatient] = useState(() => (initialPatientId && Array.isArray(patients) ? (patients.find((pt) => pt && pt.id === initialPatientId) || null) : null));
@@ -763,86 +737,20 @@ export default function DeliveryForm({
     }
   }, [onCreatePatient, handlePatientSelect]);
 
-  // Camera functions (for live camera stream)
-  const startCamera = useCallback(async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' }
-      });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
-        setIsCameraActive(true);
-      }
-    } catch (err) {
-      console.error("Error accessing camera:", err);
-      setError("Could not access camera. Please check permissions.");
-      setIsCameraActive(false);
-      setShowCameraOverlay(false); // Close overlay if camera fails
-    }
-  }, []);
-
-  const stopCamera = useCallback(() => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      videoRef.current.srcObject.getTracks().forEach((track) => track.stop());
-      videoRef.current.srcObject = null;
-    }
-    setIsCameraActive(false);
-  }, []);
-
-  const handleCameraCapture = useCallback(async () => {
-    if (!videoRef.current || !canvasRef.current) {
-      setError("Camera not ready");
-      return;
-    }
-
-    setIsScanning(true);
-    setError(null);
-
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    canvas.toBlob(async (blob) => {
-      if (!blob) {
-        setError("Failed to capture image");
-        setIsScanning(false);
-        return;
-      }
-
-      const file = new File([blob], "prescription_scan.jpg", { type: "image/jpeg" });
-
-      try {
-        const result = await scanPrescriptionLabel({ file, mode: 'base64' });
-        await handlePrescriptionScanResult({
-          result,
-          onCreatePatient,
-          handlePatientSelect,
-          setScanMatches,
-          setShowMatchPopup,
-          setExtractedData,
-          setIsPatientFormOpen
-        });
-      } catch (error) {
-        console.error('Error scanning prescription:', error);
-        setError(`Scan failed: ${error.message}`);
-      } finally {
-        setIsScanning(false);
-        stopCamera();
-        setShowCameraOverlay(false);
-      }
-    }, 'image/jpeg', 0.8);
-  }, [onCreatePatient, handlePatientSelect, stopCamera]);
-
-  // Stop camera when component unmounts
-  useEffect(() => {
-    return () => {
-      stopCamera();
-    };
-  }, [stopCamera]);
+  const { startCamera, stopCamera, handleCameraCapture } = useDeliveryCamera({
+    videoRef,
+    canvasRef,
+    setIsCameraActive,
+    setShowCameraOverlay,
+    setIsScanning,
+    setError,
+    onCreatePatient,
+    handlePatientSelect,
+    setScanMatches,
+    setShowMatchPopup,
+    setExtractedData,
+    setIsPatientFormOpen
+  });
 
   const handleSelectMatchedPatient = useCallback(async (patient) => {
     setShowMatchPopup(false);
@@ -1455,15 +1363,16 @@ export default function DeliveryForm({
         triggerSquareCodDelete({ deliveryId: delivery?.id, nextStatus: formData.status, delivery: { ...delivery, ...dataToSave, cod_payments: formData.cod_payments, cod_payment_type: formData.cod_payment_type } });
       }
 
-      if (codWasRemoved && delivery?.id) {
-        dataToSave.cod_payments = [];
-        dataToSave.cod_payment_type = 'No Payment';
-        dataToSave.cod_amount = '';
-        triggerSquareCodDelete({ deliveryId: delivery.id, reason: 'cod_removed' });
-      }
-
       if (delivery?.id) {
-        await updateDeliveryLocal(delivery.id, { ...dataToSave, receipt_barcode_values: Array.isArray(formData.receipt_barcode_values) ? formData.receipt_barcode_values : [] });
+        await syncDeliveryCodOnUpdate({
+          delivery,
+          formData,
+          stores,
+          base44,
+          dataToSave
+        });
+
+        await updateDeliveryLocal(delivery.id, buildUpdatedDeliveryPayload({ dataToSave, formData }));
         if (statusChangedToCompletion) triggerPatientLastDeliverySync({ delivery: { ...delivery, ...dataToSave, status: formData.status, patient_id: delivery.patient_id, delivery_date: formData.delivery_date }, previousStatus: delivery.status });
         if (formData.status === 'completed') {
           cleanupSquareCodCatalogForDate(formData.delivery_date);
@@ -1864,93 +1773,19 @@ export default function DeliveryForm({
     setHasChanges(true);
   }, [formData, stores, patients, drivers, allDeliveries, stagedDeliveries]);
 
-  const sortedStagedDeliveries = useMemo(() => {
-    let filtered = [...stagedDeliveries];
+  const sortedStagedDeliveries = useMemo(() => sortStagedDeliveries({
+    stagedDeliveries,
+    stores,
+    selectedDriverId: formData.driver_id
+  }), [stagedDeliveries, stores, formData.driver_id]);
 
-    // Filter by driver if a specific driver is selected
-    if (formData.driver_id && formData.driver_id !== '') {
-      filtered = filtered.filter((d) => d.driver_id === formData.driver_id);
-    }
-
-    return filtered.sort((a, b) => {
-      // First: Sort new staged (no id) to top, pending (with id) below
-      const aIsPending = !!a.id;
-      const bIsPending = !!b.id;
-
-      if (!aIsPending && bIsPending) return -1;
-      if (aIsPending && !bIsPending) return 1;
-
-      const storeA = stores?.find((s) => s && s.id === a.store_id);
-      const storeB = stores?.find((s) => s && s.id === b.store_id);
-
-      // Second: Sort by store sort_order
-      const sortOrderA = storeA?.sort_order ?? Infinity;
-      const sortOrderB = storeB?.sort_order ?? Infinity;
-      if (sortOrderA !== sortOrderB) {
-        return sortOrderA - sortOrderB;
-      }
-
-      // Third: Sort by AM/PM (AM before PM)
-      const ampmA = a.ampm_deliveries || 'ZZ'; // Default to end if no AMPM
-      const ampmB = b.ampm_deliveries || 'ZZ';
-      if (ampmA !== ampmB) {
-        return ampmA.localeCompare(ampmB); // 'AM' < 'PM' alphabetically
-      }
-
-      // Fourth: Sort by distance from store (closest first)
-      const distA = a.distanceFromStore ?? Infinity;
-      const distB = b.distanceFromStore ?? Infinity;
-      if (distA !== distB) {
-        return distA - distB;
-      }
-
-      return 0;
-    });
-  }, [stagedDeliveries, stores, formData.driver_id]);
-
-  const sortedProjectedDeliveries = useMemo(() => {
-    const scheduledPatientIds=new Set((allDeliveries||[]).filter((d)=>d&&d.delivery_date===formData.delivery_date&&d.patient_id).map((d)=>d.patient_id));
-    let filtered = projectedDeliveries.filter((proj) => !scheduledPatientIds.has(proj.patient_id));
-    // Filter by driver if a specific driver is selected (match by store's assigned driver)
-    if (formData.driver_id && formData.driver_id !== '') {
-      filtered = filtered.filter((proj) => {
-        const store = stores?.find((s) => s && s.id === proj.store_id);
-        if (!store) return false;
-
-        const deliveryDate = formData.delivery_date ? new Date(formData.delivery_date + 'T00:00:00') : new Date();
-        const dayOfWeek = deliveryDate.getDay();
-
-        let amDriverId, pmDriverId;
-        if (dayOfWeek === 6) {
-          amDriverId = store.saturday_am_driver_id;
-          pmDriverId = store.saturday_pm_driver_id;
-        } else if (dayOfWeek === 0) {
-          amDriverId = store.sunday_am_driver_id;
-          pmDriverId = store.sunday_pm_driver_id;
-        } else {
-          amDriverId = store.weekday_am_driver_id;
-          pmDriverId = store.weekday_pm_driver_id;
-        }
-
-        return amDriverId === formData.driver_id || pmDriverId === formData.driver_id;
-      });
-    }
-
-    return filtered.sort((a, b) => {
-      const storeA = stores?.find((s) => s && s.id === a.store_id);
-      const storeB = stores?.find((s) => s && s.id === b.store_id);
-
-      // Sort by store sort_order
-      const sortOrderA = storeA?.sort_order ?? Infinity;
-      const sortOrderB = storeB?.sort_order ?? Infinity;
-      if (sortOrderA !== sortOrderB) {
-        return sortOrderA - sortOrderB;
-      }
-
-      // Then by patient name
-      return (a.patient_name || '').localeCompare(b.patient_name || '');
-    });
-  }, [projectedDeliveries, allDeliveries, stores, formData.driver_id, formData.delivery_date]);
+  const sortedProjectedDeliveries = useMemo(() => sortProjectedDeliveries({
+    projectedDeliveries,
+    allDeliveries,
+    stores,
+    selectedDriverId: formData.driver_id,
+    deliveryDate: formData.delivery_date
+  }), [projectedDeliveries, allDeliveries, stores, formData.driver_id, formData.delivery_date]);
 
 
   const handleConfirmDelete = useConfirmDelete({ deleteConfirmation, setDeleteConfirmation, sortedStagedDeliveries, stagedDeliveries, editingStagedId, handleClearForm, setStagedDeliveries, setProjectedDeliveries, fullPredictionListRef, allDeliveries, formData, setHasChanges, setHasPendingDeletes, setEditingStagedId, setError, setIsDeletingPending });
