@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User } from '@/entities/User';
-import { AppUser } from '@/entities/AppUser';
-import { Store } from '@/entities/Store';
-import { City } from '@/entities/City';
+import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -37,10 +34,10 @@ export default function AppUsers() {
       setCurrentUser(user);
 
       const [appUsersData, authUsersData, storesData, citiesData] = await Promise.all([
-        AppUser.list(),
-        User.list(),
-        Store.list(),
-        City.list()
+        base44.entities.AppUser.list(),
+        base44.entities.User.list(),
+        base44.entities.Store.list(),
+        base44.entities.City.list()
       ]);
 
       setAppUsers(appUsersData || []);
@@ -57,11 +54,11 @@ export default function AppUsers() {
   const handleSave = async (appUserData) => {
     try {
       if (editingAppUser) {
-        await AppUser.update(editingAppUser.id, appUserData);
+        await base44.entities.AppUser.update(editingAppUser.id, appUserData);
         // Update local state immediately
         setAppUsers(prev => prev.map(u => u.id === editingAppUser.id ? { ...u, ...appUserData, updated_date: new Date().toISOString() } : u));
       } else {
-        const newAppUser = await AppUser.create(appUserData);
+        const newAppUser = await base44.entities.AppUser.create(appUserData);
         // Add to local state immediately
         setAppUsers(prev => [...prev, newAppUser]);
       }
@@ -76,7 +73,7 @@ export default function AppUsers() {
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this user? This will not delete their login credentials.')) {
       try {
-        await AppUser.delete(id);
+        await base44.entities.AppUser.delete(id);
         // Update local state immediately
         setAppUsers(prev => prev.filter(u => u.id !== id));
       } catch (error) {

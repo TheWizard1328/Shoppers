@@ -23,7 +23,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useAppData } from '../components/utils/AppDataContext';
 import { findFuzzyMatch, normalizeText } from '../components/utils/fuzzyMatching';
 import { smartRefreshManager } from '../components/utils/smartRefreshManager';
-import { base44 } from '@/api/base44Client';
 import AppSettingsPanel from '../components/admin/AppSettingsPanel';
 import AdminUtilitiesExtraTabs from '../components/admin/AdminUtilitiesExtraTabs';
 import { loadUserSettings, saveSetting } from '../components/utils/userSettingsManager';
@@ -1546,7 +1545,7 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
     const performRefresh = async () => {
       try {
         console.log('🔄 [UserSettingsTable] Checking for UserSettings changes...');
-        const freshSettings = await UserSettings.list();
+        const freshSettings = await base44.entities.UserSettings.list();
 
         if (!freshSettings) return;
 
@@ -2852,7 +2851,7 @@ export default function AdminUtilities() {
               await offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, p.id);
               setOfflinePatients((prev) => prev.filter((pat) => pat.id !== p.id));
             } else {
-              await Patient.delete(p.id);
+              await base44.entities.Patient.delete(p.id);
             }
 
             setBulkDelete((prev) => ({
@@ -2948,7 +2947,7 @@ export default function AdminUtilities() {
         // Delete all in this batch with minimal delay
         for (const delivery of batch) {
           try {
-            if (dataViewMode.deliveries === 'offline' || String(delivery.id || '').startsWith('temp_')) {const { offlineDB } = await import('../components/utils/offlineDatabase');await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, delivery.id);setOfflineDeliveries((prev) => prev.filter((d) => d.id !== delivery.id));} else {await Delivery.delete(delivery.id);}
+            if (dataViewMode.deliveries === 'offline' || String(delivery.id || '').startsWith('temp_')) {const { offlineDB } = await import('../components/utils/offlineDatabase');await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, delivery.id);setOfflineDeliveries((prev) => prev.filter((d) => d.id !== delivery.id));} else {await base44.entities.Delivery.delete(delivery.id);}
             successCount++;
           } catch (error) {
             if (error?.response?.status === 404 || String(error?.message || '').includes('404') || String(error?.message || '').toLowerCase().includes('not found')) {try {const { offlineDB } = await import('../components/utils/offlineDatabase');await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, delivery.id);} catch (_) {}successCount++;} else {console.error(`Failed to delete ${delivery.id}:`, error);failCount++;}
@@ -3044,7 +3043,7 @@ export default function AdminUtilities() {
           const { offlineDB } = await import('../components/utils/offlineDatabase');
 
           let ok = true;
-          if (!isOfflineMode) try { await Delivery.delete(delivery.id); } catch (error) { if (!(error?.response?.status === 404 || String(error?.message || '').includes('404') || String(error?.message || '').toLowerCase().includes('not found'))) { ok = false; console.error(`Failed to delete delivery ${delivery.id} from online DB:`, error); } }
+          if (!isOfflineMode) try { await base44.entities.Delivery.delete(delivery.id); } catch (error) { if (!(error?.response?.status === 404 || String(error?.message || '').includes('404') || String(error?.message || '').toLowerCase().includes('not found'))) { ok = false; console.error(`Failed to delete delivery ${delivery.id} from online DB:`, error); } }
           try { await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, delivery.id); } catch (error) { if (!(String(error?.message || '').toLowerCase().includes('not found') || String(error?.message || '').toLowerCase().includes('no record'))) { ok = false; console.error(`Failed to delete delivery ${delivery.id} from offline DB:`, error); } }
           if (isOfflineMode) setOfflineDeliveries((prev) => prev.filter((d) => d.id !== delivery.id));
           if (ok) successCount++; else { failCount++; segmentFailures++; failedDeletions.push(delivery); await new Promise((resolve) => setTimeout(resolve, 1000)); }
@@ -3110,7 +3109,7 @@ export default function AdminUtilities() {
               await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id);
               setOfflineDeliveries((prev) => prev.filter((del) => del.id !== d.id));
             } else {
-              await Delivery.delete(d.id);
+              await base44.entities.Delivery.delete(d.id);
             }
 
             setBulkDelete((prev) => ({
@@ -3520,23 +3519,23 @@ export default function AdminUtilities() {
     switch (entityType) {
       case 'patients':
         entityName = entity.full_name || entity.id;
-        EntityClass = Patient;
+        EntityClass = { name: 'Patient' };
         break;
       case 'deliveries':
         entityName = `Delivery ${entity.tracking_number || entity.id}`;
-        EntityClass = Delivery;
+        EntityClass = { name: 'Delivery' };
         break;
       case 'stores':
         entityName = entity.name || entity.id;
-        EntityClass = Store;
+        EntityClass = { name: 'Store' };
         break;
       case 'users':
         entityName = entity.user_name || entity.id;
-        EntityClass = AppUser;
+        EntityClass = { name: 'AppUser' };
         break;
       case 'cities':
         entityName = entity.name || entity.id;
-        EntityClass = City;
+        EntityClass = { name: 'City' };
         break;
       default:
         alert('Unknown entity type');
