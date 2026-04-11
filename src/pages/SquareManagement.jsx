@@ -353,13 +353,14 @@ export default function SquareManagement() {
         if (!(typeof normalized.dispatcher_id === 'string' && /^[a-f0-9]{24}$/i.test(normalized.dispatcher_id))) delete normalized.dispatcher_id;
         return normalized;
       });
+    const safeTransactionRecords = transactions.filter((record) => typeof record.delivery_id === 'string' && /^[a-f0-9]{24}$/i.test(record.delivery_id));
     const shouldRefreshDeliveries = snapshotData.shouldRefreshDeliveries === true;
     const deliveryRecords = shouldRefreshDeliveries ? (snapshotData.deliveries || []) : (offlineDeliveries || []);
     const nextConfigs = refreshLocations ? (snapshotData.locationConfigs || []) : (locationConfigsRef.current || []);
 
     await syncSquareCODSnapshotOffline({
       catalogItems: catalogRecords,
-      transactions,
+      transactions: safeTransactionRecords,
     });
 
     if (refreshLocations) {
@@ -386,7 +387,7 @@ export default function SquareManagement() {
     await base44.functions.invoke('squareCodCore', {
       action: 'syncOnlineSquareEntities',
       catalogRecords: safeCatalogRecords,
-      transactionRecords: transactions,
+      transactionRecords: safeTransactionRecords,
     });
 
     const refreshedCatalog = await getCatalogItemsOffline();
