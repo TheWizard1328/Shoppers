@@ -6,7 +6,7 @@ import { getDriverDisplayName } from '@/components/utils/driverUtils';
 import { formatPhoneNumber } from '@/components/utils/phoneFormatter';
 import ExportRouteButton from '@/components/deliveries/ExportRouteButton';
 import { globalFilters } from '@/components/utils/globalFilters';
-import { User } from '@/entities/User';
+import { base44 } from '@/api/base44Client';
 
 export default function SidebarUserFooter({
   currentUser,
@@ -40,7 +40,7 @@ export default function SidebarUserFooter({
               try {
                 sessionStorage.clear();
                 const currentUrl = window.location.origin + window.location.pathname;
-                await User.loginWithRedirect(currentUrl);
+                await base44.auth.redirectToLogin(currentUrl);
               } catch (error) {
                 console.error('Login failed:', error);
                 window.location.href = '/';

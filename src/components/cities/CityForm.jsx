@@ -164,10 +164,10 @@ export default function CityForm({ city, onSave, onCancel }) {
 
   useEffect(() => {
     if (city) {
-      Promise.all([base44.entities.Store.list(), base44.entities.User.list()]).then(([storesData, usersData]) => {
+      Promise.all([base44.entities.Store.list(), base44.entities.AppUser.list()]).then(([storesData, usersData]) => {
         const cityStores = storesData.filter(store => store.city_id === city.id);
         setStores(cityStores);
-        const cityDrivers = usersData.filter(user => (user.app_role === 'driver' || user.app_role === 'admin') && user.city_id === city.id);
+        const cityDrivers = usersData.filter(user => (user.app_roles || []).some(role => role === 'driver' || role === 'admin') && user.city_id === city.id);
         setDrivers(sortUsers(cityDrivers));
       }).catch(error => console.error("Error fetching city data:", error));
     }
