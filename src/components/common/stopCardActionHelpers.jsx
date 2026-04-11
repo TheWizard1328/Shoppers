@@ -350,6 +350,44 @@ export async function refreshDriverRoute({ driverId, deliveryDate, forceRefreshD
   }
 }
 
+export async function rehydrateLiveBreadcrumbsForRestart(delivery) {
+  if (!delivery?.driver_id || !delivery?.id || !delivery?.delivery_route_breadcrumbs) return;
+
+  let parsedBreadcrumbs = null;
+  try {
+    parsedBreadcrumbs = typeof delivery.delivery_route_breadcrumbs === 'string'
+      ? JSON.parse(delivery.delivery_route_breadcrumbs)
+      : delivery.delivery_route_breadcrumbs;
+  } catch {
+    return;
+  }
+
+  if (!Array.isArray(parsedBreadcrumbs) || parsedBreadcrumbs.length === 0) return;
+
+  try {
+    const existing = await base44.entities.PendingBreadcrumbLive.filter({
+      driver_id: delivery.driver_id,
+      delivery_id: delivery.id
+    });
+
+    if (existing && existing[0]?.id) {
+      await base44.entities.PendingBreadcrumbLive.update(existing[0].id, {
+        stop_order: Number(delivery.stop_order || 0),
+        breadcrumbs: parsedBreadcrumbs
+      });
+    } else {
+      await base44.entities.PendingBreadcrumbLive.create({
+        driver_id: delivery.driver_id,
+        delivery_id: delivery.id,
+        stop_order: Number(delivery.stop_order || 0),
+        breadcrumbs: parsedBreadcrumbs
+      });
+    }
+  } catch (error) {
+    console.warn('[stopCardActionHelpers] Could not rehydrate live breadcrumbs:', error?.message || error);
+  }
+}
+
 export async function optimizeRouteAndApplyNextDelivery({
   driverId,
   deliveryDate,

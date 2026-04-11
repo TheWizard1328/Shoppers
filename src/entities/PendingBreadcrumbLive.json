@@ -1,0 +1,63 @@
+{
+  "name": "PendingBreadcrumbLive",
+  "type": "object",
+  "properties": {
+    "driver_id": {
+      "type": "string",
+      "description": "The user_id of the driver recording these breadcrumbs."
+    },
+    "delivery_id": {
+      "type": "string",
+      "description": "The ID of the delivery this breadcrumb trail belongs to."
+    },
+    "stop_order": {
+      "type": "integer",
+      "description": "The stop order of the delivery this breadcrumb trail belongs to."
+    },
+    "breadcrumbs": {
+      "type": "array",
+      "description": "Array of raw GPS points [latitude, longitude, timestamp_ms].",
+      "items": {
+        "type": "array",
+        "items": [
+          { "type": "number" },
+          { "type": "number" },
+          { "type": "number" }
+        ],
+        "minItems": 3,
+        "maxItems": 3
+      }
+    }
+  },
+  "required": ["driver_id", "delivery_id", "stop_order", "breadcrumbs"],
+  "rls": {
+    "read": {
+      "logic": "or",
+      "conditions": [
+        { "field": "driver_id", "operator": "equals", "value": "{{user.id}}" },
+        { "field": "{{user.role}}", "operator": "equals", "value": "admin" }
+      ]
+    },
+    "create": {
+      "logic": "or",
+      "conditions": [
+        { "field": "driver_id", "operator": "equals", "value": "{{user.id}}" },
+        { "field": "{{user.role}}", "operator": "equals", "value": "admin" }
+      ]
+    },
+    "update": {
+      "logic": "or",
+      "conditions": [
+        { "field": "driver_id", "operator": "equals", "value": "{{user.id}}" },
+        { "field": "{{user.role}}", "operator": "equals", "value": "admin" }
+      ]
+    },
+    "delete": {
+      "logic": "or",
+      "conditions": [
+        { "field": "driver_id", "operator": "equals", "value": "{{user.id}}" },
+        { "field": "{{user.role}}", "operator": "equals", "value": "admin" }
+      ]
+    }
+  }
+}

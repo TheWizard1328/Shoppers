@@ -4,7 +4,7 @@
  */
 
 const DB_NAME = 'rxdeliver_persistent_offline_v2';
-const DB_VERSION = 11; // Incremented to move all environments to a single shared offline DB
+const DB_VERSION = 12; // Incremented for live breadcrumb key schema update
 const CACHE_SCHEMA_VERSION = 1;
 const DEFAULT_CACHE_SCOPE = 'global';
 
@@ -241,7 +241,9 @@ const openDatabase = async () => {
       }
 
       if (!db.objectStoreNames.contains(STORES.PENDING_BREADCRUMBS)) {
-        const breadcrumbStore = db.createObjectStore(STORES.PENDING_BREADCRUMBS, { keyPath: 'driver_id' });
+        const breadcrumbStore = db.createObjectStore(STORES.PENDING_BREADCRUMBS, { keyPath: 'id' });
+        breadcrumbStore.createIndex('driver_id', 'driver_id', { unique: false });
+        breadcrumbStore.createIndex('delivery_id', 'delivery_id', { unique: false });
         breadcrumbStore.createIndex('timestamp', 'timestamp', { unique: false });
       }
 

@@ -1,3 +1,4 @@
+import { base44 } from '@/api/base44Client';
 import { offlineDB } from "./offlineDatabase";
 
 function getDriverAppUser(driverUserId, appUsers = []) {
@@ -17,8 +18,8 @@ export function getEdmontonDateString(value = Date.now()) {
   return `${year}-${month}-${day}`;
 }
 
-export function buildPendingBreadcrumbKey({ appUserId, deliveryId, stopOrder }) {
-  return `${appUserId}__stop_${String(stopOrder ?? 'x')}__${deliveryId || 'unknown'}`;
+export function buildPendingBreadcrumbKey({ appUserId, driverUserId, deliveryId, stopOrder }) {
+  return `${driverUserId || appUserId || 'unknown'}__stop_${String(stopOrder ?? 'x')}__${deliveryId || 'unknown'}`;
 }
 
 function getFirstBreadcrumbTimestamp(record) {
@@ -52,6 +53,18 @@ export async function listPendingBreadcrumbRecordsForDriver({ driverUserId, appU
 }
 
 export async function getPendingBreadcrumbsForDriver({ driverUserId, appUsers = [] }) {
+  if (!driverUserId) return null;
+  try {
+    const liveRecords = await base44.entities.PendingBreadcrumbLive.filter({ driver_id: driverUserId });
+    const latestLiveRecord = (liveRecords || [])
+      .filter((record) => Array.isArray(record?.breadcrumbs) && record.breadcrumbs.length > 0)
+      .sort((a, b) => Number(a?.stop_order || 0) - Number(b?.stop_order || 0))
+      .slice(-1)[0];
+    if (latestLiveRecord?.breadcrumbs?.length) {
+      return JSON.stringify(latestLiveRecord.breadcrumbs);
+    }
+  } catch (_) {}
+
   const records = await listPendingBreadcrumbRecordsForDriver({ driverUserId, appUsers });
   const latestRecord = records[records.length - 1];
   if (!latestRecord?.breadcrumbs?.length) return null;
@@ -59,6 +72,14 @@ export async function getPendingBreadcrumbsForDriver({ driverUserId, appUsers = 
 }
 
 export async function getPendingBreadcrumbsForDelivery({ driverUserId, deliveryId, stopOrder, appUsers = [] }) {
+  if (driverUserId && deliveryId) {
+    try {
+      const liveRecords = await base44.entities.PendingBreadcrumbLive.filter({ driver_id: driverUserId, delivery_id: deliveryId });
+      const liveRecord = (liveRecords || [])[0];
+      if (liveRecord?.breadcrumbs?.length) return JSON.stringify(liveRecord.breadcrumbs);
+    } catch (_) {}
+  }
+
   const records = await listPendingBreadcrumbRecordsForDriver({ driverUserId, appUsers });
   const matchingRecord = records.find((record) => record?.delivery_id === deliveryId)
     || records.find((record) => Number(record?.stop_order) === Number(stopOrder));
@@ -69,8 +90,14 @@ export async function getPendingBreadcrumbsForDelivery({ driverUserId, deliveryI
 
 export async function clearPendingBreadcrumbsForDriver({ driverUserId, appUsers = [], force = false }) {
   if (!force) return;
+  try {
+    if (driverUserId) {
+      const liveRecords = await base44.entities.PendingBreadcrumbLive.filter({ driver_id: driverUserId });
+      await Promise.all((liveRecords || []).map((record) => base44.entities.PendingBreadcrumbLive.delete(record.id)));
+    }
+  } catch (_) {}
   const records = await listPendingBreadcrumbRecordsForDriver({ driverUserId, appUsers });
-  await Promise.all(records.map((record) => offlineDB.deleteRecord(offlineDB.STORES.PENDING_BREADCRUMBS, record.driver_id)));
+  await Promise.all(records.map((record) => offlineDB.deleteRecord(offlineDB.STORES.PENDING_BREADCRUMBS, record.id)));
 }
 
 export async function clearLegacyPendingBreadcrumbsForDriver({ driverUserId, appUsers = [], currentDateStr }) {

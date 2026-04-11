@@ -47,7 +47,7 @@ import StopCardReturnDialog from './StopCardReturnDialog';
 import StopCardPOD from './StopCardPOD';
 import { useDeliveryDisplayInfo } from './StopCardRedaction';
 import { updatePatientGPS } from "../utils/patientGPSUpdater";
-import { buildRetryDelivery, collapseExpandedStopCardsForDriver, getCurrentLocalTimeString, getDriverRouteDeliveries, getFinishedLegEncodedPolyline, getNextActiveDelivery, getNextTrackingNumberInGroup, incrementTrackingNumber, optimizeRouteAndApplyNextDelivery, refreshDriverRoute, reorderActiveRouteLocally, setAndCenterNextDelivery, withPausedDriverLocationPoller } from "./stopCardActionHelpers";
+import { buildRetryDelivery, collapseExpandedStopCardsForDriver, getCurrentLocalTimeString, getDriverRouteDeliveries, getFinishedLegEncodedPolyline, getNextActiveDelivery, getNextTrackingNumberInGroup, incrementTrackingNumber, optimizeRouteAndApplyNextDelivery, refreshDriverRoute, rehydrateLiveBreadcrumbsForRestart, reorderActiveRouteLocally, setAndCenterNextDelivery, withPausedDriverLocationPoller } from "./stopCardActionHelpers";
 import { clearPendingBreadcrumbsForDriver, getPendingBreadcrumbsForDriver } from '../utils/pendingBreadcrumbsManager';
 import { runTerminalDeliverySideEffects } from '../utils/directDeliverySideEffects';
 import { getActiveDeliveryAction, runWithDeliveryActionLock, subscribeDeliveryActionLock } from '../utils/deliveryActionLock';
@@ -580,6 +580,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
         await withPausedDriverLocationPoller(async () => {
         await collapseDriverStopCards();
         await new Promise((resolve) => setTimeout(resolve, 100));
+        await rehydrateLiveBreadcrumbsForRestart(delivery);
         const driverDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
         const newStatus = isPickup ? 'en_route' : 'in_transit';
         const restartedRouteDeliveries = reorderActiveRouteLocally(

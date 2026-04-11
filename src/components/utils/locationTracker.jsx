@@ -988,7 +988,8 @@ class LocationTracker {
       }
 
       const breadcrumbData = {
-        driver_id: pendingKey,
+        id: pendingKey,
+        driver_id: this.currentUser.id,
         owner_driver_id: this.appUserId,
         driver_user_id: this.currentUser.id,
         delivery_id: activeDelivery.id,
@@ -1002,6 +1003,32 @@ class LocationTracker {
       };
 
       await offlineDB.save(offlineDB.STORES.PENDING_BREADCRUMBS, breadcrumbData);
+      try {
+        const liveRecord = await base44.entities.PendingBreadcrumbLive.filter({
+          driver_id: this.currentUser.id,
+          delivery_id: activeDelivery.id
+        });
+        if (liveRecord && liveRecord[0]?.id) {
+          await base44.entities.PendingBreadcrumbLive.update(liveRecord[0].id, {
+            stop_order: stopOrder,
+            breadcrumbs: breadcrumbData.breadcrumbs
+          });
+        } else {
+          await base44.entities.PendingBreadcrumbLive.create({
+            driver_id: this.currentUser.id,
+            delivery_id: activeDelivery.id,
+            stop_order: stopOrder,
+            breadcrumbs: breadcrumbData.breadcrumbs
+          });
+        }
+      } catch (error) {
+        const isRateLimited = error?.response?.status === 429 || error?.status === 429 || error?.message?.includes('429') || error?.message?.toLowerCase?.().includes('rate limit');
+        if (!isRateLimited) {
+          console.warn(`⚠️ [LocationTracker] Live breadcrumb write skipped:`, error.message);
+        } else {
+          console.warn(`⚠️ [LocationTracker] Live breadcrumb rate-limited, skipping this point`);
+        }
+      }
       this.lastBreadcrumbPosition = { latitude, longitude, timestamp };
       window.dispatchEvent(new CustomEvent('breadcrumbCollected', {
         detail: {
