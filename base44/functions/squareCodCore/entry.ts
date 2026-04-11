@@ -827,7 +827,6 @@ async function handleFetchPayments(base44, payload) {
   const normalizedTransactions = soldCatalogItems.map((item, index) => {
     const amountCents = Math.round(Number(item?.amount || 0) * 100);
     const matchedTransaction = existingTransactionBySignature.get(buildLocationDateAmountSignature(item?.location_id, item?.item_name, amountCents));
-    if (!matchedTransaction?.delivery_id || !isValidEntityId(matchedTransaction.delivery_id)) return null;
 
     return {
       id: `${item?.square_payment_id || item?.payment_id || 'payment'}-${item?.catalog_object_id || index}`,
@@ -845,13 +844,13 @@ async function handleFetchPayments(base44, payload) {
       driver_id: matchedTransaction?.driver_id || null,
       dispatcher_id: matchedTransaction?.dispatcher_id || null,
       patient_id: matchedTransaction?.patient_id || null,
-      delivery_id: matchedTransaction.delivery_id,
+      delivery_id: matchedTransaction?.delivery_id || null,
       payment_method: String(item?.payment_method || matchedTransaction?.payment_method || 'CARD').toLowerCase(),
       created_date: item?.payment_date || null,
       updated_date: item?.payment_date || null,
       raw_square_data: item,
     };
-  }).filter(Boolean);
+  });
 
   const soldItemCounts = new Map();
   soldCatalogItems.forEach((item) => {

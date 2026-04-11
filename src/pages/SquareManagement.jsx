@@ -1094,7 +1094,7 @@ export default function SquareManagement() {
 
         const rawDate = transaction.raw_square_data?.payment_date || transaction.created_date || transaction.updated_date;
         const transactionDate = rawDate ? new Date(rawDate) : null;
-        if (!(transactionDate instanceof Date) || Number.isNaN(transactionDate.getTime())) return false;
+        if (!(transactionDate instanceof Date) || Number.isNaN(transactionDate.getTime()) || transactionDate < lookbackStart) return false;
 
         const matchedDelivery = transaction.delivery_id ? (deliveries || []).find((delivery) => delivery?.id === transaction.delivery_id) : null;
         const matchedStoreId = transaction.store_id || matchedDelivery?.store_id || null;
@@ -1384,20 +1384,8 @@ export default function SquareManagement() {
   }, [deliveries, lookbackStart, selectedDriverFilter, selectedDriverUserIds]);
 
   const filteredCardSpendCount = React.useMemo(() => {
-    return allTransactions.filter(transaction => {
-      if (!transaction || isTransferTransaction(transaction)) return false;
-      if (transaction.type !== 'collection' || !['completed', 'refunded'].includes(transaction.status)) return false;
-      const matchedDelivery = transaction.delivery_id ? (deliveries || []).find((delivery) => delivery?.id === transaction.delivery_id) : null;
-      if (selectedDriverFilter && selectedDriverFilter !== 'all') {
-        const matchedDriverId = transaction.driver_id || matchedDelivery?.driver_id || null;
-        if (selectedDriverUserIds.size === 0 || (matchedDriverId && !selectedDriverUserIds.has(matchedDriverId))) return false;
-      } else if (driverScopedLocationIds && driverScopedLocationIds.size > 0) {
-        const matchedDriverId = transaction.driver_id || matchedDelivery?.driver_id || null;
-        if (!driverScopedLocationIds.has(transaction.location_id) && !(matchedDriverId && selectedDriverUserIds.has(matchedDriverId))) return false;
-      }
-      return true;
-    }).length;
-  }, [allTransactions, deliveries, selectedDriverFilter, selectedDriverUserIds, driverScopedLocationIds]);
+    return filteredTransactionRows.length;
+  }, [filteredTransactionRows]);
 
   const filteredSalesCount = React.useMemo(() => {
     return soldCatalogItems.filter(transaction => {
