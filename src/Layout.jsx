@@ -1787,7 +1787,6 @@ export default function Layout({ children, currentPageName }) {
       <style>{`
           /* FORCE light mode color-scheme */
           html {
-            color-scheme: light;
           }
 
           :root {
@@ -1885,7 +1884,6 @@ export default function Layout({ children, currentPageName }) {
           --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
           --safe-area-inset-left: env(safe-area-inset-left, 0px);
           --bottom-nav-height: 0px;
-          color-scheme: light;
         }
 
         .app-container {
