@@ -1,12 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
-import { Delivery } from "@/entities/Delivery";
-import { Patient } from "@/entities/Patient";
-import { Store } from "@/entities/Store";
-import { City } from "@/entities/City";
-import { User } from "@/entities/User";
-import { AppUser } from "@/entities/AppUser";
 import { format, startOfDay, addDays, subDays, isSameDay, isToday, parseISO } from 'date-fns';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1634,7 +1628,7 @@ export default function DeliveriesPage() {
             stop_order: 1
           };
 
-          await Delivery.create(pickupPayload);
+          await base44.entities.Delivery.create(pickupPayload);
           await invalidate('Delivery');
         }
       });
@@ -1759,7 +1753,7 @@ export default function DeliveriesPage() {
 
     if (pickupDelivery) {
       if (pickupDelivery.stop_order !== 1 || pickupDelivery.tracking_number !== pickupTrackingBase) {
-        updates.push(Delivery.update(pickupDelivery.id, { stop_order: 1, tracking_number: pickupTrackingBase }));
+        updates.push(base44.entities.Delivery.update(pickupDelivery.id, { stop_order: 1, tracking_number: pickupTrackingBase }));
       }
     }
 
@@ -1774,7 +1768,7 @@ export default function DeliveriesPage() {
       const newTrackingNumber = `${storeAbbr}${String(baseNum + index + 1).padStart(3, '0')}`;
 
       if (delivery.stop_order !== newStopOrder || delivery.tracking_number !== newTrackingNumber) {
-        updates.push(Delivery.update(delivery.id, { stop_order: newStopOrder, tracking_number: newTrackingNumber }));
+        updates.push(base44.entities.Delivery.update(delivery.id, { stop_order: newStopOrder, tracking_number: newTrackingNumber }));
       }
     });
 
@@ -1862,7 +1856,7 @@ export default function DeliveriesPage() {
           delete finalDeliveryData.delivery_address;
 
           console.log(`✅ [Deliveries] Created delivery for ${staged.patient_name || 'pickup'}`);
-          await Delivery.create(finalDeliveryData);
+          await base44.entities.Delivery.create(finalDeliveryData);
 
           if (actualDriver) {
             console.log(`🔄 [Deliveries] Optimizing route for store ${store.name}`);
@@ -1872,7 +1866,7 @@ export default function DeliveriesPage() {
 
         console.log(`✅ [Deliveries] All ${stagedDeliveries.length} deliveries created, refreshing data...`);
         await invalidate('Delivery');
-        const freshDeliveries = await Delivery.list('-created_date');
+        const freshDeliveries = await base44.entities.Delivery.list('-created_date');
         setAllDeliveries(freshDeliveries || []);
         setShowDeliveryForm(false);
         setEditingDelivery(null);
@@ -1884,13 +1878,13 @@ export default function DeliveriesPage() {
       const isEditing = !!editingDelivery;
 
       if (deliveryData._storeUpdates) {
-        await Store.update(deliveryData._storeUpdates.id, { phone: deliveryData._storeUpdates.phone });
+        await base44.entities.Store.update(deliveryData._storeUpdates.id, { phone: deliveryData._storeUpdates.phone });
         await invalidate('Store');
         delete deliveryData._storeUpdates;
       }
 
       if (deliveryData._patientUpdates) {
-        await Patient.update(deliveryData._patientUpdates.id, deliveryData._patientUpdates);
+        await base44.entities.Patient.update(deliveryData._patientUpdates.id, deliveryData._patientUpdates);
         await invalidate('Patient');
         delete deliveryData._patientUpdates;
       }
@@ -1944,7 +1938,7 @@ export default function DeliveriesPage() {
       }
 
       if (isEditing) {
-        await Delivery.update(editingDelivery.id, deliveryData);
+        await base44.entities.Delivery.update(editingDelivery.id, deliveryData);
         await invalidate('Delivery');
       } else {
         const patient = (allPatients || []).find((p) => p && p.id === deliveryData.patient_id);
@@ -1978,7 +1972,7 @@ export default function DeliveriesPage() {
           stop_order: 9999
         };
 
-        await Delivery.create(finalDeliveryData);
+        await base44.entities.Delivery.create(finalDeliveryData);
         await invalidate('Delivery');
 
         if (actualDriver) {
@@ -1986,7 +1980,7 @@ export default function DeliveriesPage() {
         }
       }
 
-      const freshDeliveries = await Delivery.list('-created_date');
+      const freshDeliveries = await base44.entities.Delivery.list('-created_date');
       setAllDeliveries(freshDeliveries || []);
 
       setShowDeliveryForm(false);

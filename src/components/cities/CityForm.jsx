@@ -33,8 +33,7 @@ const PROVINCES_STATES = {
     "West Virginia", "Wisconsin", "Wyoming"
   ].sort()
 };
-import { Store } from "@/entities/Store";
-import { User } from "@/entities/User";
+import { base44 } from '@/api/base44Client';
 import { sortUsers } from "../utils/sorting";
 import { useAppData } from '../utils/AppDataContext';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
@@ -165,7 +164,7 @@ export default function CityForm({ city, onSave, onCancel }) {
 
   useEffect(() => {
     if (city) {
-      Promise.all([Store.list(), User.list()]).then(([storesData, usersData]) => {
+      Promise.all([base44.entities.Store.list(), base44.entities.User.list()]).then(([storesData, usersData]) => {
         const cityStores = storesData.filter(store => store.city_id === city.id);
         setStores(cityStores);
         const cityDrivers = usersData.filter(user => (user.app_role === 'driver' || user.app_role === 'admin') && user.city_id === city.id);
