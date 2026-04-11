@@ -53,15 +53,23 @@ export const requestNativeLocationAuthorization = async () => {
   }
 
   const plugin = BackgroundGeolocation;
-  if (!plugin || typeof plugin.openSettings !== 'function') {
+  if (!plugin) {
     return getNativeLocationAuthorization();
   }
 
-  const current = await getNativeLocationAuthorization();
-  if (current.backgroundGranted || getCapacitorPlatform() !== 'android') {
+  if (typeof plugin.requestPermissions === 'function') {
+    await plugin.requestPermissions();
+  }
+
+  let current = await getNativeLocationAuthorization();
+  if (getCapacitorPlatform() !== 'android' || (current.granted && current.backgroundGranted)) {
     return current;
   }
 
-  await plugin.openSettings();
-  return await getNativeLocationAuthorization();
+  if (typeof plugin.openSettings === 'function') {
+    await plugin.openSettings();
+    current = await getNativeLocationAuthorization();
+  }
+
+  return current;
 };

@@ -716,10 +716,12 @@ class LocationTracker {
           },
           {
             enableHighAccuracy: true,
-            timeout: 10000,
+            timeout: 30000,
             maximumAge: 0,
             requestPermissions: true,
             distanceFilter: 0,
+            interval: 15000,
+            fastestInterval: 10000,
             backgroundTitle: 'RxDeliver location tracking',
             backgroundMessage: 'Tracking delivery location in the background.'
           }
