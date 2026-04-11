@@ -5,7 +5,7 @@ import { format, differenceInMinutes } from 'date-fns';
 import { CheckCircle, Clock, Package, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FixedSizeList as List } from 'react-window';
-import StopDetailsPanel from '../deliveries/StopDetailsPanel';
+import { RouteManagementStopDetailsOverlay } from '../deliveries/RouteManagementHeader';
 import BarcodeThumb from '../deliveries/BarcodeThumb';
 import { getCodSymbolColorClass } from '../utils/SpecialSymbolsBadges';
 import { isAppOwner } from '../utils/userRoles';
@@ -650,90 +650,32 @@ const DeliveryListView = ({
 
         {/* Slide-in Details Panel Overlay */}
       <AnimatePresence>
-        {selectedDeliveryId && selectedDelivery &&
-        <>
-            {/* Backdrop */}
-            <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className={`${isMobile ? 'fixed' : 'absolute'} inset-0 bg-black/50 z-[200]`}
-            onClick={() => setSelectedDeliveryId(null)} />
-          
-            {isMobile ?
-          <motion.div
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="fixed bottom-0 left-0 right-0 z-[201] max-h-[78vh] overflow-hidden rounded-t-2xl"
-            style={{ background: 'var(--bg-white)' }}
-            onClick={(e) => e.stopPropagation()}>
-            
-                <div className="overflow-y-auto max-h-[78vh]">
-                  <StopDetailsPanel
-                delivery={selectedDelivery}
-                patient={selectedPatient}
-                store={selectedStore}
-                currentUser={currentUser}
-                onEdit={onEdit}
-                onEditPatient={onEditPatient}
-                onDelete={onDelete}
-                onRestart={onRestart}
-                onStatusUpdate={onStatusUpdate}
-                onNotesUpdate={onNotesUpdate}
-                onCODUpdate={onCODUpdate}
-                onCreateReturn={onCreateReturn}
-                onStartDelivery={onStartDelivery}
-                allDeliveries={allDeliveries}
-                selectedDate={selectedDate}
-                patients={patients}
-                stores={stores}
-                drivers={drivers}
-                onDriverStatusChange={onDriverStatusChange}
-                onClose={() => setSelectedDeliveryId(null)} />
-              
-              </div>
-            </motion.div> :
-
-          <motion.div
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="absolute right-0 w-[560px] shadow-xl z-[201] overflow-hidden"
-            style={{ background: 'var(--bg-white)', top: 'var(--driver-info-offset, 88px)', height: 'calc(100% - var(--driver-info-offset, 88px))' }}
-            onClick={(e) => e.stopPropagation()}>
-            
-                <div className="h-full overflow-y-auto">
-                  <StopDetailsPanel
-                delivery={selectedDelivery}
-                patient={selectedPatient}
-                store={selectedStore}
-                currentUser={currentUser}
-                onEdit={onEdit}
-                onEditPatient={onEditPatient}
-                onDelete={onDelete}
-                onRestart={onRestart}
-                onStatusUpdate={onStatusUpdate}
-                onNotesUpdate={onNotesUpdate}
-                onCODUpdate={onCODUpdate}
-                onCreateReturn={onCreateReturn}
-                onStartDelivery={onStartDelivery}
-                allDeliveries={allDeliveries}
-                selectedDate={selectedDate}
-                patients={patients}
-                stores={stores}
-                drivers={drivers}
-                onDriverStatusChange={onDriverStatusChange}
-                onClose={() => setSelectedDeliveryId(null)} />
-              
-                </div>
-              </motion.div>
-          }
-          </>
-        }
+        {selectedDeliveryId && selectedDelivery && (
+          <RouteManagementStopDetailsOverlay
+            selectedDeliveryId={selectedDeliveryId}
+            selectedDelivery={selectedDelivery}
+            selectedPatient={selectedPatient}
+            selectedStore={selectedStore}
+            currentUser={currentUser}
+            onEdit={onEdit}
+            onEditPatient={onEditPatient}
+            onDelete={onDelete}
+            onRestart={onRestart}
+            onStatusUpdate={onStatusUpdate}
+            onNotesUpdate={onNotesUpdate}
+            onCODUpdate={onCODUpdate}
+            onCreateReturn={onCreateReturn}
+            onStartDelivery={onStartDelivery}
+            allDeliveries={allDeliveries}
+            selectedDate={selectedDate}
+            patients={patients}
+            stores={stores}
+            drivers={drivers}
+            onDriverStatusChange={onDriverStatusChange}
+            isMobile={isMobile}
+            onClose={() => setSelectedDeliveryId(null)}
+          />
+        )}
       </AnimatePresence>
     </>);
 

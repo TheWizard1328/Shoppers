@@ -1,12 +1,107 @@
 import React from "react";
 import { format } from "date-fns";
 import { Search } from "lucide-react";
+import { motion } from "framer-motion";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import ExportRouteButton from "./ExportRouteButton";
 import SmartRefreshIndicator from "../layout/SmartRefreshIndicator";
+import StopDetailsPanel from "./StopDetailsPanel";
 import { userHasRole } from "../utils/userRoles";
+
+export function RouteManagementStopDetailsOverlay({
+  selectedDeliveryId,
+  selectedDelivery,
+  selectedPatient,
+  selectedStore,
+  currentUser,
+  onEdit,
+  onEditPatient,
+  onDelete,
+  onRestart,
+  onStatusUpdate,
+  onNotesUpdate,
+  onCODUpdate,
+  onCreateReturn,
+  onStartDelivery,
+  allDeliveries,
+  selectedDate,
+  patients,
+  stores,
+  drivers,
+  onDriverStatusChange,
+  isMobile,
+  onClose
+}) {
+  if (!selectedDeliveryId || !selectedDelivery) return null;
+
+  const panelProps = {
+    delivery: selectedDelivery,
+    patient: selectedPatient,
+    store: selectedStore,
+    currentUser,
+    onEdit,
+    onEditPatient,
+    onDelete,
+    onRestart,
+    onStatusUpdate,
+    onNotesUpdate,
+    onCODUpdate,
+    onCreateReturn,
+    onStartDelivery,
+    allDeliveries,
+    selectedDate,
+    patients,
+    stores,
+    drivers,
+    onDriverStatusChange,
+    onClose
+  };
+
+  return (
+    <>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        className={`${isMobile ? 'fixed' : 'absolute'} inset-0 bg-black/50 z-[200]`}
+        onClick={onClose}
+      />
+
+      {isMobile ? (
+        <motion.div
+          initial={{ y: "100%" }}
+          animate={{ y: 0 }}
+          exit={{ y: "100%" }}
+          transition={{ type: "spring", stiffness: 300, damping: 30 }}
+          className="fixed bottom-0 left-0 right-0 z-[201] max-h-[78vh] overflow-hidden rounded-t-2xl"
+          style={{ background: 'var(--bg-white)' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="overflow-y-auto max-h-[78vh]">
+            <StopDetailsPanel {...panelProps} />
+          </div>
+        </motion.div>
+      ) : (
+        <motion.div
+          initial={{ x: "100%" }}
+          animate={{ x: 0 }}
+          exit={{ x: "100%" }}
+          transition={{ type: "spring", stiffness: 300, damping: 30 }}
+          className="absolute right-0 w-[560px] shadow-xl z-[201] overflow-hidden"
+          style={{ background: 'var(--bg-white)', top: 'var(--driver-info-offset, 88px)', height: 'calc(100% - var(--driver-info-offset, 88px))' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="h-full overflow-y-auto">
+            <StopDetailsPanel {...panelProps} />
+          </div>
+        </motion.div>
+      )}
+    </>
+  );
+}
 
 export default function RouteManagementHeader({
   currentUser,
