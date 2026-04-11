@@ -168,5 +168,12 @@
     "full_name",
     "address"
   ],
-  "rls": {}
+  "rls": {
+    "read": {},
+    "create": {},
+    "update": {},
+    "delete": {
+      "created_by": "{{user.email}}"
+    }
+  }
 }
