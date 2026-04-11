@@ -567,16 +567,18 @@ function applyAutoDarkMode() {
 
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   const isMobile = isMobileDeviceForTheme();
+  const root = document.documentElement;
 
-  // Only toggle Tailwind's .dark on mobile/tablet; always remove on desktop
-  if (isMobile) {
-    document.documentElement.classList.toggle('dark', prefersDark);
+  root.classList.remove('light-theme', 'dark-theme');
+  root.classList.add('auto-theme');
+
+  if (isMobile && prefersDark) {
+    root.classList.add('dark');
   } else {
-    document.documentElement.classList.remove('dark');
+    root.classList.remove('dark');
   }
 
-  // Expose for diagnostics
-  document.documentElement.setAttribute('data-system-theme', prefersDark ? 'dark' : 'light');
+  root.setAttribute('data-system-theme', prefersDark ? 'dark' : 'light');
   console.log(`🌓 [UserSettings] Auto dark mode synced with system: ${prefersDark ? 'DARK' : 'LIGHT'}`);
 }
 
