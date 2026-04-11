@@ -34,6 +34,7 @@ const PROVINCES_STATES = {
   ].sort()
 };
 import { base44 } from '@/api/base44Client';
+import { User } from '@/api/entities';
 import { sortUsers } from "../utils/sorting";
 import { useAppData } from '../utils/AppDataContext';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';

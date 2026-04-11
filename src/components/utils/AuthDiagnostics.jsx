@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from '@/api/base44Client';
+import { User } from '@/api/entities';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertCircle, CheckCircle, XCircle, RefreshCw } from "lucide-react";
@@ -18,7 +19,7 @@ export default function AuthDiagnostics() {
 
     // Test 1: User.me()
     try {
-      const userMe = await base44.auth.me();
+      const userMe = await User.me();
       results.tests.push({
         name: "User.me()",
         status: "success",
