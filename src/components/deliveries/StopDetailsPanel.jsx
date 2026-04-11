@@ -43,6 +43,7 @@ import BarcodeThumb from "./BarcodeThumb";
 import BarcodeOverlay from "./BarcodeOverlay";
 import { base44 } from "@/api/base44Client";
 import { persistDeliveryProof } from "../utils/persistDeliveryProof";
+import { toast } from "sonner";
 import { calculateRealTimeETA } from "@/functions/calculateRealTimeETA";
 import { recalculateAndUpdateStopOrders } from "../utils/stopOrderManager";
 import { isRouteCompleted } from "../utils/routeCompletionChecker";
@@ -81,6 +82,7 @@ export default function StopDetailsPanel({
   const [editableStatus, setEditableStatus] = useState(delivery?.status || 'pending');
   const [deliveryTimeStart, setDeliveryTimeStart] = useState(delivery?.delivery_time_start || '');
   const [deliveryTimeEnd, setDeliveryTimeEnd] = useState(delivery?.delivery_time_end || '');
+  const [codAmountRequired, setCodAmountRequired] = useState(delivery?.cod_total_amount_required || 0);
   const [completionTime, setCompletionTime] = useState(
     delivery?.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'HH:mm') : format(new Date(), 'HH:mm')
   );
@@ -90,6 +92,7 @@ export default function StopDetailsPanel({
     setEditableStatus(delivery?.status || 'pending');
     setDeliveryTimeStart(delivery?.delivery_time_start || '');
     setDeliveryTimeEnd(delivery?.delivery_time_end || '');
+    setCodAmountRequired(delivery?.cod_total_amount_required || 0);
     setCompletionTime(
       delivery?.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'HH:mm') : format(new Date(), 'HH:mm')
     );
@@ -188,11 +191,16 @@ export default function StopDetailsPanel({
   const status = statusConfig[delivery.status] || statusConfig.pending;
   const StatusIcon = status.icon;
 
-  const canEdit = currentUser && (
-    currentUser.app_roles?.includes('driver') || 
-    currentUser.app_roles?.includes('admin')
-  );
+  const isDispatcherUser = currentUser?.app_roles?.includes('dispatcher');
+  const isDriverUser = currentUser?.app_roles?.includes('driver');
   const isAdminUser = currentUser?.app_roles?.includes('admin') || currentUser?.role === 'admin';
+  const canEdit = currentUser && (isDriverUser || isAdminUser || isDispatcherUser);
+  const canViewProofOfDelivery = !isDispatcherUser;
+  const canEditTimeWindows = isDispatcherUser && delivery?.status === 'pending';
+  const canEditCodInCurrentState = !!currentUser && !!patient && (
+    (isDispatcherUser && delivery?.status === 'pending') ||
+    ((isDriverUser || isAdminUser) && ['pending', 'in_transit'].includes(delivery?.status))
+  );
   const canManageStop = currentUser &&
     (isAdminUser || (currentUser.app_roles?.includes('driver') && !isRouteCompleted(delivery, allDeliveries)));
 
@@ -200,11 +208,12 @@ export default function StopDetailsPanel({
   const completionStatuses = ['completed', 'failed', 'cancelled'];
   const isActiveEditStatus = activeStatuses.includes(editableStatus);
   const isCompletionEditStatus = completionStatuses.includes(editableStatus);
+  const showTimeWindowEditors = canEditTimeWindows || isActiveEditStatus;
   const showDesktopClearButtons = typeof window !== 'undefined' && !window.matchMedia('(pointer: coarse)').matches;
   const initialCompletionTime = delivery?.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'HH:mm') : '';
   const hasStatusTimingChanges = (() => {
     if (editableStatus !== (delivery?.status || 'pending')) return true;
-    if (isActiveEditStatus) {
+    if (showTimeWindowEditors) {
       return (deliveryTimeStart || '') !== (delivery?.delivery_time_start || '') || (deliveryTimeEnd || '') !== (delivery?.delivery_time_end || '');
     }
     if (isCompletionEditStatus) {
@@ -212,6 +221,9 @@ export default function StopDetailsPanel({
     }
     return false;
   })();
+
+  const canDeleteCodInCurrentState = canEditCodInCurrentState && (!delivery?.cod_payments || delivery.cod_payments.length === 0);
+  const hasCodChanges = Number(codAmountRequired || 0) !== Number(delivery?.cod_total_amount_required || 0);
 
   const handleStatusChange = (value) => {
     const wasCompletionStatus = completionStatuses.includes(editableStatus);
@@ -230,7 +242,7 @@ export default function StopDetailsPanel({
     try {
       const timingUpdate = {};
 
-      if (isActiveEditStatus) {
+      if (showTimeWindowEditors) {
         timingUpdate.delivery_time_start = deliveryTimeStart || '';
         timingUpdate.delivery_time_end = deliveryTimeEnd || '';
       }
@@ -305,6 +317,67 @@ export default function StopDetailsPanel({
       if (!isUpdating && hasStatusTimingChanges) {
         handleApplyStatusTiming();
       }
+    }
+  };
+
+  const handleSaveCodAmount = async () => {
+    if (!canEditCodInCurrentState) return;
+    setIsUpdating(true);
+    try {
+      const nextAmount = Math.max(0, Number(codAmountRequired || 0));
+      await base44.entities.Delivery.update(delivery.id, {
+        cod_total_amount_required: nextAmount
+      });
+      window.dispatchEvent(new CustomEvent('deliveryUpdated', {
+        detail: {
+          deliveryId: delivery.id,
+          updates: { cod_total_amount_required: nextAmount },
+          driverId: delivery.driver_id,
+          deliveryDate: delivery.delivery_date,
+          source: 'stopDetailsPanelCod'
+        }
+      }));
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: {
+          driverId: delivery.driver_id,
+          deliveryDate: delivery.delivery_date,
+          triggeredBy: 'stopDetailsPanelCod'
+        }
+      }));
+      toast.success('COD amount updated');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleDeleteCodAmount = async () => {
+    if (!canDeleteCodInCurrentState) return;
+    setIsUpdating(true);
+    try {
+      await base44.entities.Delivery.update(delivery.id, {
+        cod_total_amount_required: 0,
+        cod_payments: []
+      });
+      setCodAmountRequired(0);
+      window.dispatchEvent(new CustomEvent('deliveryUpdated', {
+        detail: {
+          deliveryId: delivery.id,
+          updates: { cod_total_amount_required: 0, cod_payments: [] },
+          driverId: delivery.driver_id,
+          deliveryDate: delivery.delivery_date,
+          source: 'stopDetailsPanelCodDelete'
+        }
+      }));
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: {
+          driverId: delivery.driver_id,
+          deliveryDate: delivery.delivery_date,
+          triggeredBy: 'stopDetailsPanelCodDelete'
+        }
+      }));
+      toast.success('COD removed');
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -460,16 +533,43 @@ export default function StopDetailsPanel({
                 )}
 
                 {/* COD Information */}
-                {(delivery.cod_total_amount_required > 0 || (delivery.cod_payments && delivery.cod_payments.length > 0)) && (
-                  <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-100)' }}>
+                {(delivery.cod_total_amount_required > 0 || (delivery.cod_payments && delivery.cod_payments.length > 0) || canEditCodInCurrentState) && (
+                  <div className="pt-2 border-t space-y-2" style={{ borderColor: 'var(--border-slate-100)' }}>
                     <p className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
                       <DollarSign className="w-3 h-3" /> COD Payment
                     </p>
-                    {delivery.cod_total_amount_required > 0 && (
+                    {canEditCodInCurrentState ? (
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-end gap-2">
+                          <div className="flex-1">
+                            <Label className="text-xs font-semibold" style={{ color: 'var(--text-slate-700)' }}>
+                              Amount to collect
+                            </Label>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={codAmountRequired}
+                              onChange={(e) => setCodAmountRequired(e.target.value === '' ? '' : Number(e.target.value))}
+                              disabled={isUpdating}
+                              className="h-9 mt-1"
+                            />
+                          </div>
+                          <Button onClick={handleSaveCodAmount} disabled={isUpdating || !hasCodChanges} size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 px-3 whitespace-nowrap">
+                            Save
+                          </Button>
+                          {canDeleteCodInCurrentState && (
+                            <Button onClick={handleDeleteCodAmount} disabled={isUpdating || Number(delivery?.cod_total_amount_required || 0) <= 0} variant="outline" size="sm" className="h-9 px-3 whitespace-nowrap text-red-600 border-red-300">
+                              Delete
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ) : delivery.cod_total_amount_required > 0 ? (
                       <p className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>
                         Required: ${delivery.cod_total_amount_required.toFixed(2)}
                       </p>
-                    )}
+                    ) : null}
                     {delivery.cod_payments && delivery.cod_payments.length > 0 && (
                       <div className="mt-1 space-y-1">
                         {delivery.cod_payments.map((payment, idx) => (
@@ -547,7 +647,7 @@ export default function StopDetailsPanel({
                     <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                       {isPickup ? 'Pickup Status' : 'Delivery Status'}
                     </Label>
-                    <Select value={editableStatus} onValueChange={handleStatusChange} disabled={isUpdating}>
+                    <Select value={editableStatus} onValueChange={handleStatusChange} disabled={isUpdating || canEditTimeWindows}>
                       <SelectTrigger className="h-9">
                         <SelectValue />
                       </SelectTrigger>
@@ -571,7 +671,7 @@ export default function StopDetailsPanel({
                     </Select>
                   </div>
 
-                  {isActiveEditStatus && (
+                  {showTimeWindowEditors && (
                     <>
                       <div className="min-w-0 w-full space-y-1">
                         <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
@@ -624,7 +724,7 @@ export default function StopDetailsPanel({
                     </>
                   )}
 
-                  {!(isActiveEditStatus || isCompletionEditStatus) && (
+                  {!(showTimeWindowEditors || isCompletionEditStatus) && (
                     <>
                       <div className="min-w-0 w-full space-y-1 opacity-0 pointer-events-none" aria-hidden="true">
                         <Label className="text-sm font-semibold">Start</Label>
@@ -757,6 +857,7 @@ export default function StopDetailsPanel({
         )}
 
         {/* Images & Signatures Card */}
+        {canViewProofOfDelivery && (
         <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--text-slate-700)' }}>
@@ -876,6 +977,7 @@ export default function StopDetailsPanel({
             )}
           </CardContent>
         </Card>
+        )}
       </div>
 
       {/* Action Buttons - Drivers */}
