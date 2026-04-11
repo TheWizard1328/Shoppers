@@ -62,6 +62,8 @@ class LocationTracker {
         this.lastEtaRefreshAt = 0;
         this.minEtaRefreshDistance = 500;
         this.minTimeBetweenEtaRefresh = 120000;
+        this.lastBreadcrumbSavedAt = 0;
+        this.breadcrumbSaveInterval = 30000;
 
       // Load settings from RouteOptimizationSettings
       this.loadSettings();
@@ -653,6 +655,7 @@ class LocationTracker {
     this.failedUpdateCount = 0;
     this.backoffTime = 0;
     this.lastCoordinateUpdate = 0;
+    this.lastBreadcrumbSavedAt = 0;
 
     // Breadcrumb tracking
     this.lastBreadcrumbPosition = null;
@@ -805,6 +808,7 @@ class LocationTracker {
     this.backoffTime = 0;
     this.currentDeliveryDate = null;
     this.lastBreadcrumbPosition = null;
+    this.lastBreadcrumbSavedAt = 0;
     this.lastEtaRefreshPosition = null;
     this.lastEtaRefreshAt = 0;
     
@@ -916,6 +920,11 @@ class LocationTracker {
 
   async collectBreadcrumb(latitude, longitude, timestamp) {
     if (this.driverStatus !== 'on_duty' || !this.appUserId || !this.currentUser?.id) {
+      return;
+    }
+
+    if (this.lastBreadcrumbSavedAt && timestamp - this.lastBreadcrumbSavedAt < this.breadcrumbSaveInterval) {
+      console.log(`🍞 [LocationTracker] Skipping breadcrumb - waiting ${Math.ceil((this.breadcrumbSaveInterval - (timestamp - this.lastBreadcrumbSavedAt)) / 1000)}s for 30s interval`);
       return;
     }
 
@@ -1040,6 +1049,7 @@ class LocationTracker {
         }
       }
       this.lastBreadcrumbPosition = { latitude, longitude, timestamp };
+      this.lastBreadcrumbSavedAt = timestamp;
       window.dispatchEvent(new CustomEvent('breadcrumbCollected', {
         detail: {
           driverId: this.currentUser?.id,
