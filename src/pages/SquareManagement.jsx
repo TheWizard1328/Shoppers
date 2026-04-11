@@ -545,11 +545,20 @@ export default function SquareManagement() {
         setDrivers(driversList || []);
         setLocationIds((configs || []).map((config) => config?.square_location_id).filter(Boolean));
 
+        const offlineSquareSnapshot = await loadSquareViewFromOffline();
+
         if ((appDataDeliveries || []).length > 0) {
           setDeliveries(appDataDeliveries.filter((delivery) => delivery && delivery.delivery_date >= startDateStr && delivery.delivery_date <= endDateStr));
-          await loadSquareViewFromOffline();
         } else {
           await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr);
+        }
+
+        if ((offlineSquareSnapshot?.transactions || []).length > 0) {
+          setAllTransactions(offlineSquareSnapshot.transactions || []);
+          setSoldCatalogItems(offlineSquareSnapshot.sold || []);
+        }
+        if ((offlineSquareSnapshot?.items || []).length > 0) {
+          setCatalogItems(offlineSquareSnapshot.items || []);
         }
         const status = await loadSyncStatus();
         setIsLoading(false);
@@ -1085,13 +1094,17 @@ export default function SquareManagement() {
 
         const rawDate = transaction.raw_square_data?.payment_date || transaction.created_date || transaction.updated_date;
         const transactionDate = rawDate ? new Date(rawDate) : null;
-        if (!(transactionDate instanceof Date) || Number.isNaN(transactionDate.getTime()) || transactionDate < lookbackStart) return false;
+        if (!(transactionDate instanceof Date) || Number.isNaN(transactionDate.getTime())) return false;
 
-        const storeMatch = transaction.store_id ? visibleStoreIds.has(transaction.store_id) : visibleLocationIds.has(transaction.location_id);
+        const matchedDelivery = transaction.delivery_id ? (deliveries || []).find((delivery) => delivery?.id === transaction.delivery_id) : null;
+        const matchedStoreId = transaction.store_id || matchedDelivery?.store_id || null;
+        const storeMatch = matchedStoreId ? visibleStoreIds.has(matchedStoreId) : visibleLocationIds.has(transaction.location_id);
         if (!storeMatch) return false;
+
         if (selectedDriverFilter && selectedDriverFilter !== 'all') {
           if (selectedDriverUserIds.size === 0) return false;
-          return selectedDriverUserIds.has(transaction.driver_id);
+          const matchedDriverId = transaction.driver_id || matchedDelivery?.driver_id || null;
+          return matchedDriverId ? selectedDriverUserIds.has(matchedDriverId) : true;
         }
         return true;
       })
@@ -1373,17 +1386,18 @@ export default function SquareManagement() {
   const filteredCardSpendCount = React.useMemo(() => {
     return allTransactions.filter(transaction => {
       if (!transaction || isTransferTransaction(transaction)) return false;
-      const transactionDate = new Date(transaction.created_date || transaction.updated_date || 0);
-      if (!(transactionDate instanceof Date) || Number.isNaN(transactionDate.getTime()) || transactionDate < lookbackStart) return false;
       if (transaction.type !== 'collection' || !['completed', 'refunded'].includes(transaction.status)) return false;
+      const matchedDelivery = transaction.delivery_id ? (deliveries || []).find((delivery) => delivery?.id === transaction.delivery_id) : null;
       if (selectedDriverFilter && selectedDriverFilter !== 'all') {
-        if (selectedDriverUserIds.size === 0 || !selectedDriverUserIds.has(transaction.driver_id)) return false;
+        const matchedDriverId = transaction.driver_id || matchedDelivery?.driver_id || null;
+        if (selectedDriverUserIds.size === 0 || (matchedDriverId && !selectedDriverUserIds.has(matchedDriverId))) return false;
       } else if (driverScopedLocationIds && driverScopedLocationIds.size > 0) {
-        if (!driverScopedLocationIds.has(transaction.location_id) && !selectedDriverUserIds.has(transaction.driver_id)) return false;
+        const matchedDriverId = transaction.driver_id || matchedDelivery?.driver_id || null;
+        if (!driverScopedLocationIds.has(transaction.location_id) && !(matchedDriverId && selectedDriverUserIds.has(matchedDriverId))) return false;
       }
       return true;
     }).length;
-  }, [allTransactions, lookbackStart, selectedDriverFilter, selectedDriverUserIds, driverScopedLocationIds]);
+  }, [allTransactions, deliveries, selectedDriverFilter, selectedDriverUserIds, driverScopedLocationIds]);
 
   const filteredSalesCount = React.useMemo(() => {
     return soldCatalogItems.filter(transaction => {
