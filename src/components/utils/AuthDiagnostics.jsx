@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { User } from "@/entities/User";
-import { Patient } from "@/entities/Patient";
+import { base44 } from '@/api/base44Client';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertCircle, CheckCircle, XCircle, RefreshCw } from "lucide-react";
@@ -19,7 +18,7 @@ export default function AuthDiagnostics() {
 
     // Test 1: User.me()
     try {
-      const userMe = await User.me();
+      const userMe = await base44.auth.me();
       results.tests.push({
         name: "User.me()",
         status: "success",
@@ -57,7 +56,7 @@ export default function AuthDiagnostics() {
 
     // Test 3: User.list()
     try {
-      const users = await User.list();
+      const users = await base44.entities.User.list();
       results.tests.push({
         name: "User.list()",
         status: "success",
@@ -75,7 +74,7 @@ export default function AuthDiagnostics() {
 
     // Test 4: Patient.list()
     try {
-      const patients = await Patient.list();
+      const patients = await base44.entities.Patient.list();
       results.tests.push({
         name: "Patient.list()",
         status: "success",

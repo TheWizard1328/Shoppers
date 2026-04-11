@@ -1,8 +1,4 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Patient } from "@/entities/Patient";
-import { Store } from "@/entities/Store";
-import { User } from "@/entities/User";
-import { AppUser } from "@/entities/AppUser";
 import { base44 } from "@/api/base44Client";
 import { getData, getDeliveriesForDateRange } from '../components/utils/dataManager';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
