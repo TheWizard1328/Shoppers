@@ -2,7 +2,7 @@
  * DeliveryFormView - The pure render/JSX layer for DeliveryForm.
  * All logic remains in DeliveryForm.jsx; this file just renders it.
  */
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -32,6 +32,7 @@ import { handleBatchSaveDelivery } from '@/components/dashboard/handleBatchSaveD
 import { toast } from 'sonner';
 import { acquireDeliveryActionLock, releaseDeliveryActionLock, getActiveDeliveryAction, subscribeDeliveryActionLock } from '../utils/deliveryActionLock';
 import { renderDeliveryIdentifiersSection } from './deliveryFormHelpers';
+import { buildDeliveryStagedPanelProps } from './deliveryStagedPanelPropsHelper';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) =>
 <div className="flex items-center space-x-2">
@@ -99,10 +100,10 @@ export default function DeliveryFormView({
   buttonState, cancelButtonState, isFormValid, hasChanges, isPatientFormOpen,
   closeOnSave, onCancel, openMode, forceOpenDriverOnLoad = false
 }) {
-  const stagedCount = {
+  const stagedCount = React.useMemo(() => ({
     new: sortedStagedDeliveries.filter((s) => !s.id).length,
     pending: sortedStagedDeliveries.filter((s) => s.id).length
-  };
+  }), [sortedStagedDeliveries]);
   const [activeDeliveryAction, setActiveDeliveryAction] = React.useState(getActiveDeliveryAction());
   const effectiveDeliveryActionBusy = isDeliveryActionBusy || (!!activeDeliveryAction && activeDeliveryAction !== 'update_delivery');
   const enterActionLockRef = React.useRef(false);
@@ -174,15 +175,28 @@ export default function DeliveryFormView({
     return { driverId: null, resolvedSlot: timeSlot || 'AM', hasAnyAssignedSlot: false };
   };
 
-  const stagedPanelProps = {
-    sortedStagedDeliveries, sortedProjectedDeliveries, stores, patients,
-    currentUser, editingStagedId, isMobileDevice, handleStagedDeliveryClick,
-    handleClearForm, stagedDeliveries, fullPredictionListRef,
-    setProjectedDeliveries, setStagedDeliveries, setEditingStagedId,
-    patientSearchInputRef, confirmAddProjectedToStaged, setDeleteConfirmation,
-    isLoadingPredictions, onRefreshProjections: handleRefreshProjections,
+  const stagedPanelProps = buildDeliveryStagedPanelProps({
+    sortedStagedDeliveries,
+    sortedProjectedDeliveries,
+    stores,
+    patients,
+    currentUser,
+    editingStagedId,
+    isMobileDevice,
+    handleStagedDeliveryClick,
+    handleClearForm,
+    stagedDeliveries,
+    fullPredictionListRef,
+    setProjectedDeliveries,
+    setStagedDeliveries,
+    setEditingStagedId,
+    patientSearchInputRef,
+    confirmAddProjectedToStaged,
+    setDeleteConfirmation,
+    isLoadingPredictions,
+    handleRefreshProjections,
     shouldAutoFocusFields
-  };
+  });
 
   const hasTimeWindowChanges = Boolean(
     delivery && (
