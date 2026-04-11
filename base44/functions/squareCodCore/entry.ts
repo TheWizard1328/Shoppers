@@ -958,6 +958,7 @@ async function handleGetCodData(base44, payload = {}) {
 
   const catalogRecords = (liveCatalogItems || []).flatMap((item) => {
     const amountCents = getCatalogItemAmountCents(item);
+    const itemName = item?.item_data?.name || '';
     const locationIdsForItem = Array.from(new Set([
       ...(item?.present_at_location_ids || []),
       ...(item?.item_data?.variations || []).flatMap((variation) => variation?.present_at_location_ids || []),
@@ -965,19 +966,27 @@ async function handleGetCodData(base44, payload = {}) {
 
     if (locationIdsForItem.length === 0) return [];
 
+    const matchedTransaction = (existingTransactions || []).find((transaction) => {
+      if (!transaction?.delivery_id || !isValidEntityId(transaction.delivery_id)) return false;
+      if (normalizeText(transaction.square_catalog_object_id) && normalizeText(transaction.square_catalog_object_id) === normalizeText(item?.id)) return true;
+      return buildItemSignature(transaction?.item_name, transaction?.amount_cents ?? Math.round(Number(transaction?.amount || 0) * 100)) === buildItemSignature(itemName, amountCents);
+    });
+
+    if (!matchedTransaction?.delivery_id || !isValidEntityId(matchedTransaction.delivery_id)) return [];
+
     return locationIdsForItem.map((locationId) => {
       const store = storeByLocationId.get(locationId);
       return {
         square_catalog_object_id: item?.id,
         square_catalog_version: item?.version || null,
-        item_name: item?.item_data?.name || '',
+        item_name: itemName,
         description: item?.item_data?.description || '',
         amount: amountCents / 100,
         amount_cents: amountCents,
-        delivery_id: null,
-        delivery_date: toIsoDate(item?.item_data?.name),
-        patient_id: null,
-        store_id: store?.id || null,
+        delivery_id: matchedTransaction.delivery_id,
+        delivery_date: toIsoDate(itemName),
+        patient_id: matchedTransaction.patient_id || null,
+        store_id: matchedTransaction.store_id || store?.id || null,
         location_id: locationId,
         status: 'active',
         created_date: item?.created_at || null,
@@ -988,28 +997,35 @@ async function handleGetCodData(base44, payload = {}) {
 
   const recentTransactionRecords = paidOrderItems.map((item, index) => {
     const amountCents = toAmountCents(item?.amount_cents);
+    const matchedTransaction = existingTransactions.find((transaction) => {
+      if (!transaction?.delivery_id || !isValidEntityId(transaction.delivery_id)) return false;
+      if (normalizeText(transaction.square_payment_id) && normalizeText(transaction.square_payment_id) === normalizeText(item?.square_payment_id || item?.payment_id)) return true;
+      if (normalizeText(transaction.square_catalog_object_id) && normalizeText(transaction.square_catalog_object_id) === normalizeText(item?.catalog_object_id)) return true;
+      return buildLocationDateAmountSignature(transaction?.location_id, transaction?.item_name, transaction?.amount_cents ?? Math.round(Number(transaction?.amount || 0) * 100)) === buildLocationDateAmountSignature(item?.location_id, item?.item_name, amountCents);
+    });
+    if (!matchedTransaction?.delivery_id || !isValidEntityId(matchedTransaction.delivery_id)) return null;
     const store = storeByLocationId.get(item?.location_id);
     return {
       square_transaction_id: item?.order_id || `${item?.catalog_object_id || 'order'}-${index}`,
       square_payment_id: item?.order_id || `${item?.catalog_object_id || 'payment'}-${index}`,
-      square_catalog_object_id: item?.catalog_object_id || null,
+      square_catalog_object_id: item?.catalog_object_id || matchedTransaction.square_catalog_object_id || null,
       item_name: item?.item_name || '',
       amount: amountCents / 100,
       amount_cents: amountCents,
       type: 'collection',
-      status: 'completed',
-      delivery_id: `${item?.location_id || 'square'}-${getMonthDayKey(item?.item_name || '')}-${amountCents}-${index}`,
-      patient_id: null,
-      store_id: store?.id || null,
-      location_id: item?.location_id || null,
-      driver_id: null,
-      dispatcher_id: null,
-      payment_method: 'card',
+      status: matchedTransaction?.status === 'refunded' ? 'refunded' : 'completed',
+      delivery_id: matchedTransaction.delivery_id,
+      patient_id: matchedTransaction.patient_id || null,
+      store_id: matchedTransaction.store_id || store?.id || null,
+      location_id: item?.location_id || matchedTransaction.location_id || null,
+      driver_id: matchedTransaction.driver_id || null,
+      dispatcher_id: matchedTransaction.dispatcher_id || null,
+      payment_method: String(matchedTransaction?.payment_method || 'card').toLowerCase(),
       raw_square_data: item,
       created_date: null,
       updated_date: null,
     };
-  });
+  }).filter(Boolean);
 
   return {
     success: true,
@@ -1399,7 +1415,8 @@ async function handleSyncOnlineSquareEntities(base44, payload) {
       if (!(typeof normalized.driver_id === 'string' && /^[a-f0-9]{24}$/i.test(normalized.driver_id))) delete normalized.driver_id;
       if (!(typeof normalized.dispatcher_id === 'string' && /^[a-f0-9]{24}$/i.test(normalized.dispatcher_id))) delete normalized.dispatcher_id;
       return normalized;
-    });
+    })
+    .filter((record) => typeof record.delivery_id === 'string' && /^[a-f0-9]{24}$/i.test(record.delivery_id));
   if (safeCatalogRecords.length > 0) {
     await base44.asServiceRole.entities.SquareCatalogItems.bulkCreate(safeCatalogRecords);
   }
