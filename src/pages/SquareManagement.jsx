@@ -343,7 +343,16 @@ export default function SquareManagement() {
     const rawCatalogRecords = snapshotData.catalogRecords || [];
     const catalogRecords = rawCatalogRecords;
     const transactions = (paymentsData.transactions || snapshotData.transactionRecords || [])
-      .filter((record) => record && typeof record.item_name === 'string' && record.item_name.trim().length > 0);
+      .filter((record) => record && typeof record.item_name === 'string' && record.item_name.trim().length > 0)
+      .map((record) => {
+        const normalized = { ...record };
+        if (!(typeof normalized.delivery_id === 'string' && /^[a-f0-9]{24}$/i.test(normalized.delivery_id))) delete normalized.delivery_id;
+        if (!(typeof normalized.patient_id === 'string' && /^[a-f0-9]{24}$/i.test(normalized.patient_id))) delete normalized.patient_id;
+        if (!(typeof normalized.store_id === 'string' && /^[a-f0-9]{24}$/i.test(normalized.store_id))) delete normalized.store_id;
+        if (!(typeof normalized.driver_id === 'string' && /^[a-f0-9]{24}$/i.test(normalized.driver_id))) delete normalized.driver_id;
+        if (!(typeof normalized.dispatcher_id === 'string' && /^[a-f0-9]{24}$/i.test(normalized.dispatcher_id))) delete normalized.dispatcher_id;
+        return normalized;
+      });
     const shouldRefreshDeliveries = snapshotData.shouldRefreshDeliveries === true;
     const deliveryRecords = shouldRefreshDeliveries ? (snapshotData.deliveries || []) : (offlineDeliveries || []);
     const nextConfigs = refreshLocations ? (snapshotData.locationConfigs || []) : (locationConfigsRef.current || []);
