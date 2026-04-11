@@ -49,7 +49,7 @@ import { useDeliveryDisplayInfo } from './StopCardRedaction';
 import { updatePatientGPS } from "../utils/patientGPSUpdater";
 import { buildRetryDelivery, collapseExpandedStopCardsForDriver, getCurrentLocalTimeString, getDriverRouteDeliveries, getFinishedLegEncodedPolyline, getNextActiveDelivery, getNextTrackingNumberInGroup, incrementTrackingNumber, optimizeRouteAndApplyNextDelivery, refreshDriverRoute, rehydrateLiveBreadcrumbsForRestart, reorderActiveRouteLocally, setAndCenterNextDelivery, withPausedDriverLocationPoller } from "./stopCardActionHelpers";
 import { clearPendingBreadcrumbsForDriver, getPendingBreadcrumbsForDriver } from '../utils/pendingBreadcrumbsManager';
-import { runTerminalDeliverySideEffects } from '../utils/directDeliverySideEffects';
+import { runTerminalDeliverySideEffects, triggerSquareCodUpsert } from '../utils/directDeliverySideEffects';
 import { getActiveDeliveryAction, runWithDeliveryActionLock, subscribeDeliveryActionLock } from '../utils/deliveryActionLock';
 import { pauseOfflineSync, resumeOfflineSync } from '../utils/offlineSync';
 
@@ -540,18 +540,16 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
         });
         if ((delivery.cod_total_amount_required || 0) > 0) {
           await deleteCODWithTimeout(delivery.id, 'Removed after creating retry delivery');
-          if (retryDate !== delivery.delivery_date && !isPickup) {
-            const retryDeliveryId = newRetryDelivery?.id || newRetryDelivery?.data?.id;
-            if (retryDeliveryId) {
-              await createCODWithTimeout(
-                retryDeliveryId,
-                patient?.full_name || delivery.patient_name || 'Patient',
-                store?.abbreviation || '',
-                delivery.cod_total_amount_required,
-                retryDate,
-                delivery.store_id
-              );
-            }
+          const retryDeliveryId = newRetryDelivery?.id || newRetryDelivery?.data?.id;
+          if (retryDeliveryId && !isPickup) {
+            triggerSquareCodUpsert({
+              deliveryId: retryDeliveryId,
+              patientName: patient?.full_name || delivery.patient_name || 'Patient',
+              storeAbbreviation: store?.abbreviation || '',
+              codAmount: delivery.cod_total_amount_required,
+              deliveryDate: retryDate,
+              storeId: delivery.store_id
+            });
           }
         }
         await ensureDriverOnline();
@@ -619,6 +617,16 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
             return d;
           });
           updateDeliveriesLocally(updatedDeliveries, true);
+        }
+        if ((delivery.cod_total_amount_required || 0) > 0 && !isPickup) {
+          triggerSquareCodUpsert({
+            deliveryId: delivery.id,
+            patientName: patient?.full_name || delivery.patient_name || 'Patient',
+            storeAbbreviation: store?.abbreviation || '',
+            codAmount: delivery.cod_total_amount_required,
+            deliveryDate: delivery.delivery_date,
+            storeId: delivery.store_id
+          });
         }
         let restartOptimizeData = null;
         try {
