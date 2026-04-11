@@ -1,0 +1,67 @@
+{
+  "name": "SquareCatalogItems",
+  "type": "object",
+  "properties": {
+    "square_catalog_object_id": {
+      "type": "string",
+      "description": "Square catalog item ID"
+    },
+    "square_catalog_version": {
+      "type": "number",
+      "description": "Square catalog item version"
+    },
+    "item_name": {
+      "type": "string",
+      "description": "Display name of the catalog item"
+    },
+    "description": {
+      "type": "string",
+      "description": "Optional catalog item description"
+    },
+    "amount": {
+      "type": "number",
+      "description": "COD amount in dollars"
+    },
+    "amount_cents": {
+      "type": "number",
+      "description": "COD amount in cents"
+    },
+    "delivery_id": {
+      "type": "string",
+      "description": "Related delivery ID"
+    },
+    "delivery_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Related delivery date"
+    },
+    "patient_id": {
+      "type": "string",
+      "description": "Related patient ID"
+    },
+    "store_id": {
+      "type": "string",
+      "description": "Related store ID"
+    },
+    "location_id": {
+      "type": "string",
+      "description": "Square location ID"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "completed",
+        "deleted"
+      ],
+      "default": "active",
+      "description": "Current catalog item status"
+    }
+  },
+  "required": [
+    "square_catalog_object_id",
+    "item_name",
+    "amount",
+    "location_id"
+  ]
+}
