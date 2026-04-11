@@ -518,12 +518,10 @@ class LocationTracker {
     }
   }
 
-  handleLocationSuccess(position) {
+  async handleLocationSuccess(position) {
     const { latitude, longitude, accuracy } = position.coords;
     const timestamp = position.timestamp || Date.now();
     console.log(`📍 [LocationTracker] GPS position received - lat: ${latitude.toFixed(6)}, lon: ${longitude.toFixed(6)}, accuracy: ${accuracy?.toFixed(0)}m`);
-    // Note: watchPosition callback doesn't upload - heartbeat interval handles all uploads
-    // This just stores the position for the interval to use
     this.lastPosition = { latitude, longitude, accuracy };
 
     if (typeof window !== 'undefined') {
@@ -537,6 +535,17 @@ class LocationTracker {
       };
       window.dispatchEvent(new CustomEvent('driverPositionUpdated', { detail }));
       window.dispatchEvent(new CustomEvent('driverLocationChanged', { detail }));
+    }
+
+    if (this.isTracking && this.locationProvider?.backgroundCapable) {
+      await this.updateLocationInDatabase(
+        latitude,
+        longitude,
+        accuracy,
+        false,
+        false,
+        true
+      );
     }
   }
 
@@ -667,8 +676,6 @@ class LocationTracker {
 
         this.watchId = await this.locationProvider.watchPosition(
           async (position) => {
-            this.handleLocationSuccess(position);
-
             if (!this.isTracking) {
               this.isTracking = true;
               console.log(`✅ [${providerName} PROVIDER] GPS watch established - uploading initial location now`);
@@ -691,7 +698,10 @@ class LocationTracker {
               );
 
               resolve();
+              return;
             }
+
+            await this.handleLocationSuccess(position);
           },
           (error) => {
             console.error('❌ watchPosition error callback triggered:', error);
@@ -714,55 +724,55 @@ class LocationTracker {
 
         const useNativeBackgroundWatcher = this.locationProvider?.backgroundCapable === true;
 
-        this.heartbeatInterval = setInterval(() => {
-          if (this.isTracking) {
-            if (this.lastPosition) {
-              console.log(`💓 [${providerName} PROVIDER] Poll interval - uploading location`, {
-                lat: this.lastPosition.latitude.toFixed(6),
-                lng: this.lastPosition.longitude.toFixed(6),
-                accuracy: this.lastPosition.accuracy?.toFixed(0) + 'm',
-                appUserId: this.appUserId
-              });
+        if (!useNativeBackgroundWatcher) {
+          this.heartbeatInterval = setInterval(() => {
+            if (this.isTracking) {
+              if (this.lastPosition) {
+                console.log(`💓 [${providerName} PROVIDER] Poll interval - uploading location`, {
+                  lat: this.lastPosition.latitude.toFixed(6),
+                  lng: this.lastPosition.longitude.toFixed(6),
+                  accuracy: this.lastPosition.accuracy?.toFixed(0) + 'm',
+                  appUserId: this.appUserId
+                });
 
-              this._pendingEventUpdate = false;
-              this.updateLocationInDatabase(
-                this.lastPosition.latitude,
-                this.lastPosition.longitude,
-                this.lastPosition.accuracy,
-                true,
-                false,
-                true
-              );
-            } else if (!useNativeBackgroundWatcher) {
-              console.log(`⏭️ [${providerName} PROVIDER] Poll: No cached GPS position - requesting fresh fix...`);
-              this.locationProvider.getCurrentPosition({
-                enableHighAccuracy: true,
-                timeout: 5000,
-                maximumAge: 0,
-                requestPermissions: true
-              }).then((pos) => {
-                this.lastPosition = {
-                  latitude: pos.coords.latitude,
-                  longitude: pos.coords.longitude,
-                  accuracy: pos.coords.accuracy
-                };
-                console.log(`📍 [${providerName} PROVIDER] Got fresh GPS fix on demand:`, this.lastPosition.latitude.toFixed(6), this.lastPosition.longitude.toFixed(6));
+                this._pendingEventUpdate = false;
                 this.updateLocationInDatabase(
-                  pos.coords.latitude,
-                  pos.coords.longitude,
-                  pos.coords.accuracy,
+                  this.lastPosition.latitude,
+                  this.lastPosition.longitude,
+                  this.lastPosition.accuracy,
                   true,
                   false,
                   true
                 );
-              }).catch((err) => console.warn(`⚠️ [${providerName} PROVIDER] On-demand GPS fix failed:`, err.message));
-            } else {
-              console.log(`⏳ [${providerName} PROVIDER] Waiting for native background GPS update...`);
+              } else {
+                console.log(`⏭️ [${providerName} PROVIDER] Poll: No cached GPS position - requesting fresh fix...`);
+                this.locationProvider.getCurrentPosition({
+                  enableHighAccuracy: true,
+                  timeout: 5000,
+                  maximumAge: 0,
+                  requestPermissions: true
+                }).then((pos) => {
+                  this.lastPosition = {
+                    latitude: pos.coords.latitude,
+                    longitude: pos.coords.longitude,
+                    accuracy: pos.coords.accuracy
+                  };
+                  console.log(`📍 [${providerName} PROVIDER] Got fresh GPS fix on demand:`, this.lastPosition.latitude.toFixed(6), this.lastPosition.longitude.toFixed(6));
+                  this.updateLocationInDatabase(
+                    pos.coords.latitude,
+                    pos.coords.longitude,
+                    pos.coords.accuracy,
+                    true,
+                    false,
+                    true
+                  );
+                }).catch((err) => console.warn(`⚠️ [${providerName} PROVIDER] On-demand GPS fix failed:`, err.message));
+              }
             }
-          }
-        }, this.updateInterval);
+          }, this.updateInterval);
+        }
 
-        console.log(`✅ [${providerName} PROVIDER] Location tracking started - uploads every ${this.updateInterval/1000}s`);
+        console.log(`✅ [${providerName} PROVIDER] Location tracking started${useNativeBackgroundWatcher ? ' - streaming native updates' : ` - uploads every ${this.updateInterval/1000}s`}`);
       } catch (error) {
         console.error('❌ Failed to start location provider:', error);
         reject(this.handleLocationError(error));
