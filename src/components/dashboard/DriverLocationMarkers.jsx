@@ -460,7 +460,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
   const getLocationAge = (locationUpdatedAt) => {
     if (!locationUpdatedAt) return 'Unknown';
     try {
-      return format(new Date(locationUpdatedAt), 'h:mm a');
+      return format(new Date(locationUpdatedAt), 'h:mm:ss a');
     } catch (error) {
       return 'Invalid date';
     }
