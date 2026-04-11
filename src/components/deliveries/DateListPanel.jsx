@@ -82,19 +82,19 @@ export default function DateListPanel({
       return [];
     }
 
-    // Create patient map for quick lookup
     const patientMap = new Map();
     (patients || []).forEach((p) => {
       if (p?.id) patientMap.set(p.id, p);
       if (p?.patient_id) patientMap.set(p.patient_id, p);
     });
 
-    // Extract unique dates directly from delivery data (no UTC conversion)
+    const isDispatcher = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
+    const selectedStoreId = isDispatcher && deliveries.some((d) => d?.store_id) ? deliveries.find((d) => d?.store_id)?.store_id : null;
+    const scopedDeliveries = isDispatcher && selectedStoreId ? deliveries.filter((d) => d?.store_id === selectedStoreId) : deliveries;
+
     const dateMap = new Map();
-
-    deliveries.forEach((d) => {
+    scopedDeliveries.forEach((d) => {
       if (!d || !d.delivery_date) return;
-
       const dateStr = d.delivery_date;
       if (!dateMap.has(dateStr)) {
         dateMap.set(dateStr, []);
@@ -102,9 +102,7 @@ export default function DateListPanel({
       dateMap.get(dateStr).push(d);
     });
 
-    // Build stats for each unique date
     const list = Array.from(dateMap.entries()).map(([dateStr, dateDeliveries]) => {
-      // Helper function to detect returns (by notes or address)
       const isReturnDelivery = (d) => {
         const patient = patientMap.get(d.patient_id);
         const notesReturn = (d.delivery_notes || '').toLowerCase().includes('return');
@@ -112,33 +110,22 @@ export default function DateListPanel({
         return notesReturn || addressReturn;
       };
 
-      // CRITICAL: For dispatchers, exclude pickups (patient_id is null/empty) from total
-      const isDispatcher = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
-      const deliveriesOnly = isDispatcher ?
-      dateDeliveries.filter((d) => d.patient_id && d.patient_id !== '') :
-      dateDeliveries;
+      const deliveriesOnly = isDispatcher ? dateDeliveries.filter((d) => d.patient_id && d.patient_id !== '') : dateDeliveries;
       const total = deliveriesOnly.length;
 
-      // Completed: all completed deliveries (no returns, no pickups) + after hours pickups (completed or cancelled only)
       const completed = deliveriesOnly.filter((d) => {
-        // Completed deliveries (exclude returns and pickups)
         if (d.status === 'completed' && !isReturnDelivery(d) && !d.after_hours_pickup) {
           return true;
         }
-        // After hours pickups (completed or cancelled only) - but only for admins
         if (!isDispatcher && d.after_hours_pickup === true && (d.status === 'completed' || d.status === 'cancelled')) {
           return true;
         }
         return false;
       }).length;
 
-      // Failed: all failed deliveries only
       const failed = deliveriesOnly.filter((d) => d.status === 'failed').length;
-
-      // Returned: all deliveries marked as returned
       const returned = deliveriesOnly.filter((d) => isReturnDelivery(d)).length;
 
-      // Parse date as local time (YYYY-MM-DD format is always local)
       const [y, m, day] = dateStr.split('-').map(Number);
       const date = new Date(y, m - 1, day);
 
@@ -175,7 +162,7 @@ export default function DateListPanel({
         (dateListWithStats || datesWithDeliveries).filter((d) => d.total > 0).map(({ date, dateStr, total, completed, failed, returned, canDelete }, index) =>
         <Card
           key={dateStr || `date-${index}`}
-          onClick={() => onDateSelect(dateStr)} className="bg-card text-card-foreground pt-1 pr-3 pl-3 rounded-xl border cursor-pointer transition-all hover:shadow-md relative border-emerald-500 shadow-md"
+          onClick={() => onDateSelect(dateStr, deliveries.filter((delivery) => delivery?.delivery_date === dateStr))} className="bg-card text-card-foreground pt-1 pr-3 pl-3 rounded-xl border cursor-pointer transition-all hover:shadow-md relative border-emerald-500 shadow-md"
 
 
 
