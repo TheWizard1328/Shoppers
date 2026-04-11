@@ -278,10 +278,8 @@ export default function DriverPayroll() {
     const deliveries = Array.isArray(payrollData?.deliveries) ? payrollData.deliveries : [];
     let filtered = deliveries;
 
-    if (selectedCityId !== 'all') {
-      const cityStoreIds = new Set(filteredStores.map((s) => s.id));
-      filtered = filtered.filter((d) => d && cityStoreIds.has(d.store_id));
-    }
+    const cityStoreIds = new Set(filteredStores.map((s) => s.id));
+    filtered = filtered.filter((d) => d && cityStoreIds.has(d.store_id));
 
     // Filter by pay cycle
     if (payrollData?.appUsers && payPeriod) {
@@ -431,10 +429,8 @@ export default function DriverPayroll() {
     let filtered = deliveries;
 
     // Filter by city (via store)
-    if (selectedCityId !== 'all') {
-      const cityStoreIds = new Set(filteredStores.map((s) => s.id));
-      filtered = filtered.filter((d) => d && cityStoreIds.has(d.store_id));
-    }
+    const cityStoreIds = new Set(filteredStores.map((s) => s.id));
+    filtered = filtered.filter((d) => d && cityStoreIds.has(d.store_id));
 
     // CRITICAL: Filter by selected pay period date range
     // All year data is loaded; the grid/summary need only the current period's deliveries
@@ -678,9 +674,13 @@ export default function DriverPayroll() {
         }
 
         console.log(`📥 [DriverPayroll] Fetching FULL YEAR payroll data - Year: ${selectedYear}`);
-        const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
+        const effectivePayrollCityId = selectedCityId !== 'all'
+        ? selectedCityId
+        : (isDriver ? (currentUser?.city_id || null) : (currentUser?.city_id || null));
+
+      const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
           payrollYear: selectedYear,
-          payrollCityId: selectedCityId,
+          payrollCityId: effectivePayrollCityId,
           payrollDriverId: null,
           payrollStartDate: `${selectedYear}-01-01`,
           payrollEndDate: `${selectedYear}-12-31`

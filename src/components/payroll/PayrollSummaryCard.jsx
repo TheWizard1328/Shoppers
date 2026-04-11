@@ -213,7 +213,7 @@ export default function PayrollSummaryCard({
             const driverData = payrollData.find((d) => d.driver.id === driverId);
             const periodAppFeeAmount = countBillableDeliveries(driverId) * (driverData?.appFeePercentage || 0) / 100;
 
-            const recordData = { driver_id: driverId, city_id: selectedCityId && selectedCityId !== 'all' ? selectedCityId : null,
+            const recordData = { driver_id: driverId, city_id: selectedCityId && selectedCityId !== 'all' ? selectedCityId : (currentUser?.city_id || null),
               pay_period_start: periodStartStr, pay_period_end: periodEndStr, pay_period_type: payPeriod,
               total_deliveries: driverData?.totalDeliveries || 0, total_extra_km: driverData?.totalExtraKm || 0,
               total_oversized_deliveries: driverData?.oversizedCount || 0, total_after_hours_deliveries: driverData?.afterHoursCount || 0,
@@ -291,7 +291,7 @@ export default function PayrollSummaryCard({
         if (!driverData) return;
         const saveAppFeeAmount = countBillableDeliveries(driverId) * (driverData.appFeePercentage || 0) / 100;
 
-        const newRecordData = { driver_id: driverId, city_id: selectedCityId && selectedCityId !== 'all' ? selectedCityId : null,
+        const newRecordData = { driver_id: driverId, city_id: selectedCityId && selectedCityId !== 'all' ? selectedCityId : (currentUser?.city_id || null),
           pay_period_start: periodStartStr, pay_period_end: periodEndStr, pay_period_type: payPeriod,
           total_deliveries: driverData.totalDeliveries, total_extra_km: driverData.totalExtraKm,
           total_oversized_deliveries: driverData.oversizedCount, total_after_hours_deliveries: driverData.afterHoursCount || 0,
@@ -382,7 +382,7 @@ export default function PayrollSummaryCard({
       const existingRecord = getDriverPayrollRecord(driverData.driver.id);
       const edit = driverEdits[driverData.driver.id] || {};
       const finalizeAppFeeAmount = countBillableDeliveries(driverData.driver.id) * (edit.appFeePercent || 0) / 100;
-      const payrollRecord = { driver_id: driverData.driver.id, city_id: selectedCityId || null,
+      const payrollRecord = { driver_id: driverData.driver.id, city_id: selectedCityId && selectedCityId !== 'all' ? selectedCityId : (currentUser?.city_id || null),
         pay_period_start: periodStartStr, pay_period_end: periodEndStr, pay_period_type: payPeriod,
         total_deliveries: driverData.totalDeliveries, total_extra_km: driverData.totalExtraKm,
         total_oversized_deliveries: driverData.oversizedCount, total_after_hours_deliveries: driverData.afterHoursCount || 0,
