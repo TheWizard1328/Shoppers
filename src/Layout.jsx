@@ -2,12 +2,6 @@ import React, { useState, useEffect, Fragment, useMemo, useCallback, useRef } fr
 import { Link, useLocation } from "react-router-dom";
 // import "./components/utils/globalErrorHandler";
 import { createPageUrl } from "./utils";
-import { User } from "@/entities/User";
-import { AppUser } from "@/entities/AppUser";
-import { Delivery } from "@/entities/Delivery";
-import { Patient } from "@/entities/Patient";
-import { City } from "@/entities/City";
-import { Store } from "@/entities/Store";
 import { format } from "date-fns";
 import { getData, invalidate, loadDeliveries, loadDeliveriesForDate, loadFullMonthDeliveries } from './components/utils/dataManager';
 import { smartRefreshManager } from './components/utils/smartRefreshManager';
@@ -343,7 +337,7 @@ export default function Layout({ children, currentPageName }) {
         if(userHasRole(fetchedUser,'dispatcher')&&fetchedUser.status==='inactive'){
           sessionStorage.clear();clearUserCache();clearSettingsCache();
           alert('Access Denied: Your account is currently inactive. Please contact an administrator.');
-          try{await User.logout();}catch(e){}
+          try{await base44.auth.logout();}catch(e){}
           window.location.href='/';return;
         }
         setCurrentUser(fetchedUser);setHasAccess(true);

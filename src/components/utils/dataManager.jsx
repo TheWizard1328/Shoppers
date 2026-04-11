@@ -1,17 +1,4 @@
-import { Patient } from '@/entities/Patient';
-import { Delivery } from '@/entities/Delivery';
-import { User } from '@/entities/User';
-import { City } from '@/entities/City';
-import { Store } from '@/entities/Store';
-import { AppUser } from '@/entities/AppUser';
-import { Company } from '@/entities/Company';
-import { SquareLocationConfig } from '@/entities/SquareLocationConfig';
-import { SquareTransaction } from '@/entities/SquareTransaction';
-import { DemoPatient } from '@/entities/DemoPatient';
-import { DemoRoute } from '@/entities/DemoRoute';
-import { DemoStore } from '@/entities/DemoStore';
-import { DemoSettings } from '@/entities/DemoSettings';
-import DemoAppUser from '@/entities/DemoAppUser';
+import { base44 } from '@/api/base44Client';
 import { format, subDays } from 'date-fns';
 import { offlineDB } from './offlineDatabase';
 import { 
@@ -38,32 +25,32 @@ import { getOfflineStoreName, isOfflineManagedEntity } from './offlineEntityRegi
 import { getLocalDateString } from './localTimeHelper';
 
 const entities = {
-  Patient,
-  Delivery,
-  User,
-  City,
-  Store,
-  AppUser,
-  Company,
-  SquareLocationConfig,
-  SquareTransaction,
-  DemoPatient,
-  DemoRoute,
-  DemoStore,
-  DemoSettings,
-  DemoAppUser
+  Patient: base44.entities.Patient,
+  Delivery: base44.entities.Delivery,
+  User: base44.entities.User,
+  City: base44.entities.City,
+  Store: base44.entities.Store,
+  AppUser: base44.entities.AppUser,
+  Company: base44.entities.Company,
+  SquareLocationConfig: base44.entities.SquareLocationConfig,
+  SquareTransaction: base44.entities.SquareTransaction,
+  DemoPatient: base44.entities.DemoPatient,
+  DemoRoute: base44.entities.DemoRoute,
+  DemoStore: base44.entities.DemoStore,
+  DemoSettings: base44.entities.DemoSettings,
+  DemoAppUser: base44.entities.DemoAppUser
 };
 
 let demoModeState = { active: false };
 
 const refreshDemoModeState = async () => {
   try {
-    const me = await User.me();
+    const me = await base44.auth.me();
     if (!me) {
       demoModeState = { active: false };
       return demoModeState;
     }
-    const rows = await DemoSettings.filter({ user_id: me.id });
+    const rows = await base44.entities.DemoSettings.filter({ user_id: me.id });
     demoModeState = { active: rows?.[0]?.is_demo_mode_active === true };
     return demoModeState;
   } catch {
@@ -363,7 +350,7 @@ export const loadDeliveriesForDate = async (dateStr, filters = {}, forceRefresh 
           try {
             await waitForRateLimit();
             const dateFilters = { ...filtersWithoutDriver, delivery_date: dateStr };
-            const freshDeliveries = await Delivery.filter(dateFilters, '-updated_date');
+            const freshDeliveries = await base44.entities.Delivery.filter(dateFilters, '-updated_date');
             
             if (freshDeliveries && freshDeliveries.length > 0) {
               await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);

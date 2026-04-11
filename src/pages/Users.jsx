@@ -1,8 +1,5 @@
-
 import React, { useState, useEffect, useCallback } from "react";
-import { User } from "@/entities/User";
-import { Store } from "@/entities/Store";
-import { City } from "@/entities/City";
+import { base44 } from '@/api/base44Client';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -119,9 +116,9 @@ export default function UsersPage() {
     }
     try {
       const [usersData, storesData, citiesData] = await Promise.all([
-        User.list('sort_order'),
-        Store.list(),
-        City.list()
+        base44.entities.User.list('sort_order'),
+        base44.entities.Store.list(),
+        base44.entities.City.list()
       ]);
       setUsers(sortUsers(usersData || []));
       setStores(storesData || []);
@@ -187,9 +184,9 @@ export default function UsersPage() {
       };
 
       if (editingUser) {
-        await User.update(editingUser.id, dataToSave);
+        await base44.entities.User.update(editingUser.id, dataToSave);
       } else {
-        await User.create(dataToSave);
+        await base44.auth.updateMe(dataToSave);
       }
       setShowForm(false);
       setEditingUser(null);
@@ -251,7 +248,7 @@ export default function UsersPage() {
 
     try {
       const updatePromises = reorderedUsers.map((user, index) =>
-        User.update(user.id, { sort_order: index })
+        base44.entities.User.update(user.id, { sort_order: index })
       );
       await Promise.all(updatePromises);
     } catch (error) {
