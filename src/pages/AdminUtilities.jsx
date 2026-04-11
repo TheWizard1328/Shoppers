@@ -1,12 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { User } from '@/entities/User';
-import { AppUser } from '@/entities/AppUser';
-import { Delivery } from '@/entities/Delivery';
+import { base44 } from '@/api/base44Client';
 // import { ActiveDeliveries } from '@/entities/ActiveDeliveries'; // This entity doesn't exist
-import { City } from '@/entities/City';
-import { Store } from '@/entities/Store';
-import { Patient } from '@/entities/Patient';
-import { UserSettings } from '@/entities/UserSettings';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -131,7 +125,7 @@ const RouteImport = ({ onImportComplete, onCancel, stores, drivers, allUsers, cu
       setStatus(`Processing ${lines.length - 1} rows...`);
 
       const { offlineDB } = await import('../components/utils/offlineDatabase');
-      const allPatients = await Patient.list();
+      const allPatients = await base44.entities.Patient.list();
 
       // CRITICAL: Extract unique delivery dates from CSV for purge/resync
       const uniqueDeliveryDates = new Set();
@@ -158,7 +152,7 @@ const RouteImport = ({ onImportComplete, onCancel, stores, drivers, allUsers, cu
         console.log(`[RouteImport] Delete result for ${dateStr}:`, deleteResult);
 
         // Fetch fresh data from online DB
-        const onlineDeliveriesForDate = await Delivery.filter({ delivery_date: dateStr });
+        const onlineDeliveriesForDate = await base44.entities.Delivery.filter({ delivery_date: dateStr });
         console.log(`[RouteImport] Fetched ${onlineDeliveriesForDate.length} deliveries from online for ${dateStr}`);
 
         // Resync to offline DB
@@ -452,24 +446,24 @@ const getData = async (entityName, sortKey) => {
   try {
     switch (entityName) {
       case 'Patient':
-        data = await Patient.list();
+        data = await base44.entities.Patient.list();
         break;
       case 'Store':
-        data = await Store.list();
+        data = await base44.entities.Store.list();
         break;
       case 'User':
-        data = await User.list();
+        data = await base44.entities.User.list();
         break;
       case 'AppUser':
-        data = await AppUser.list();
+        data = await base44.entities.AppUser.list();
         break;
       case 'Delivery':
         console.log(`📥 [getData] Calling Delivery.list()...`);
-        data = await Delivery.list();
+        data = await base44.entities.Delivery.list();
         console.log(`📥 [getData] Delivery.list() returned ${data?.length || 0} records`);
         break;
       case 'City':
-        data = await City.list();
+        data = await base44.entities.City.list();
         break;
       default:
         data = [];
@@ -1518,7 +1512,7 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
   const loadSettings = useCallback(async () => {
     try {
       // Load cloud settings
-      const settings = await UserSettings.list();
+      const settings = await base44.entities.UserSettings.list();
       setUserSettings(settings || []);
 
       // Load local cached settings from IndexedDB
@@ -1622,7 +1616,7 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
     if (!window.confirm(`Are you sure you want to delete this ${viewMode === 'cloud' ? 'cloud' : 'local cached'} user setting?`)) return;
     try {
       if (viewMode === 'cloud') {
-        await UserSettings.delete(settingId);
+        await base44.entities.UserSettings.delete(settingId);
         setUserSettings((prev) => prev.filter((s) => s.id !== settingId));
       } else {
         // Delete from local IndexedDB cache
@@ -2247,8 +2241,8 @@ export default function AdminUtilities() {
       // Driver filter will be applied client-side after mergedUsers is ready
 
       const deliveries = Object.keys(filter).length > 0 ?
-      await Delivery.filter(filter, '-created_date', 1000) :
-      await Delivery.list('-created_date', 1000);
+      await base44.entities.Delivery.filter(filter, '-created_date', 1000) :
+      await base44.entities.Delivery.list('-created_date', 1000);
 
       return deliveries;
     },
@@ -2408,7 +2402,7 @@ export default function AdminUtilities() {
     const checkAccess = async () => {
       try {
         const user = await getEffectiveUser(); let realUserData = null;
-        try { realUserData = await User.me(); } catch (error) { if (error?.response?.status !== 429 && !String(error?.message || '').includes('429') && !String(error?.message || '').toLowerCase().includes('rate limit')) throw error; }
+        try { realUserData = await base44.auth.me(); } catch (error) { if (error?.response?.status !== 429 && !String(error?.message || '').includes('429') && !String(error?.message || '').toLowerCase().includes('rate limit')) throw error; }
         setCurrentUser(user);
         setHasAccess(realUserData ? isAppOwner(realUserData) : true);
 
@@ -2792,7 +2786,7 @@ export default function AdminUtilities() {
             setOfflinePatients((prev) => prev.filter((p) => p.id !== patient.id));
           } else {
             // ONLINE MODE: Delete ONLY from backend
-            await Patient.delete(patient.id);
+            await base44.entities.Patient.delete(patient.id);
           }
 
           successCount++;
@@ -3239,7 +3233,7 @@ export default function AdminUtilities() {
     for (const store of storesToDelete) {
       if (!store || !store.id) continue;
       try {
-        await Store.delete(store.id);
+        await base44.entities.Store.delete(store.id);
         successCount++;
       } catch (error) {
         console.error(`Failed to delete store ${store.id}:`, error);
@@ -3282,7 +3276,7 @@ export default function AdminUtilities() {
     for (const user of usersToDelete) {
       if (!user || !user.id) continue;
       try {
-        await AppUser.delete(user.id);
+        await base44.entities.AppUser.delete(user.id);
         successCount++;
       } catch (error) {
         console.error(`Failed to delete user ${user.id}:`, error);
@@ -3325,7 +3319,7 @@ export default function AdminUtilities() {
     for (const city of citiesToDelete) {
       if (!city || !city.id) continue;
       try {
-        await City.delete(city.id);
+        await base44.entities.City.delete(city.id);
         successCount++;
       } catch (error) {
         console.error(`Failed to delete city ${city.id}:`, error);
@@ -3584,15 +3578,15 @@ export default function AdminUtilities() {
           } else {
             // ONLINE MODE: Delete ONLY from backend
             if (entityType === 'patients') {
-              await Patient.delete(entity.id);
+              await base44.entities.Patient.delete(entity.id);
             } else if (entityType === 'deliveries') {
-              await Delivery.delete(entity.id);try {const { offlineDB } = await import('../components/utils/offlineDatabase');await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, entity.id);} catch (_) {}
+              await base44.entities.Delivery.delete(entity.id);try {const { offlineDB } = await import('../components/utils/offlineDatabase');await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, entity.id);} catch (_) {}
             } else if (entityType === 'stores') {
-              await Store.delete(entity.id);
+              await base44.entities.Store.delete(entity.id);
             } else if (entityType === 'users') {
-              await AppUser.delete(entity.id);
+              await base44.entities.AppUser.delete(entity.id);
             } else if (entityType === 'cities') {
-              await City.delete(entity.id);
+              await base44.entities.City.delete(entity.id);
             }
             console.log(`✅ Deleted ${entityName} from backend`);
 

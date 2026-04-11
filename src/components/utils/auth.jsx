@@ -1,5 +1,4 @@
-import { User } from '@/entities/User';
-import { AppUser } from '@/entities/AppUser';
+import { base44 } from '@/api/base44Client';
 import { createMergedUser } from './driverUtils';
 import { offlineDB } from './offlineDatabase';
 
@@ -98,7 +97,7 @@ const getAppUserByUserId = async (userId) => {
   const cachedAppUser = await getOfflineAppUser(userId);
   if (cachedAppUser) return cachedAppUser;
 
-  const appUsers = await withTimeout(AppUser.filter({ user_id: userId }), 8000);
+  const appUsers = await withTimeout(base44.entities.AppUser.filter({ user_id: userId }), 8000);
   if (appUsers && appUsers.length > 0) {
     await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
     return appUsers[0];
@@ -181,7 +180,7 @@ export const getEffectiveUser = async () => {
                     return userCache.data || persistedEffectiveUser;
                 }
 
-                const authUser = await withTimeout(User.me(), 10000);
+                const authUser = await withTimeout(base44.auth.me(), 10000);
                 persistAuthUser(authUser);
 
                 if (!authUser) {
@@ -210,7 +209,7 @@ export const getEffectiveUser = async () => {
                 if (!isDriver && (!currentStatus || currentStatus === 'off_duty') && appUser) {
                   try {
                     console.log(`🟢 [auth.js] Setting online status for non-driver user: ${mergedUser.user_name}`);
-                    await AppUser.update(appUser.id, { driver_status: 'online' });
+                    await base44.entities.AppUser.update(appUser.id, { driver_status: 'online' });
                     mergedUser.driver_status = 'online';
                     await offlineDB.save(offlineDB.STORES.APP_USERS, { ...appUser, driver_status: 'online' });
                     persistEffectiveUser(mergedUser);
