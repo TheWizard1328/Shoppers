@@ -6,6 +6,52 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { X } from "lucide-react";
 import DeliveryFormStaged from './DeliveryFormStaged';
 
+export function buildDeliveryStagedPanelProps({
+  sortedStagedDeliveries,
+  sortedProjectedDeliveries,
+  stores,
+  patients,
+  currentUser,
+  editingStagedId,
+  isMobileDevice,
+  handleStagedDeliveryClick,
+  handleClearForm,
+  stagedDeliveries,
+  fullPredictionListRef,
+  setProjectedDeliveries,
+  setStagedDeliveries,
+  setEditingStagedId,
+  patientSearchInputRef,
+  confirmAddProjectedToStaged,
+  setDeleteConfirmation,
+  isLoadingPredictions,
+  handleRefreshProjections,
+  shouldAutoFocusFields
+}) {
+  return {
+    sortedStagedDeliveries,
+    sortedProjectedDeliveries,
+    stores,
+    patients,
+    currentUser,
+    editingStagedId,
+    isMobileDevice,
+    handleStagedDeliveryClick,
+    handleClearForm,
+    stagedDeliveries,
+    fullPredictionListRef,
+    setProjectedDeliveries,
+    setStagedDeliveries,
+    setEditingStagedId,
+    patientSearchInputRef,
+    confirmAddProjectedToStaged,
+    setDeleteConfirmation,
+    isLoadingPredictions,
+    onRefreshProjections: handleRefreshProjections,
+    shouldAutoFocusFields
+  };
+}
+
 // Desktop staged panel
 export function DeliveryStagedPanelDesktop({
   sortedStagedDeliveries,
