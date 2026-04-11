@@ -566,13 +566,12 @@ function applyAutoDarkMode() {
   if (currentSettings.theme_preference !== 'auto') return;
 
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const isMobile = isMobileDeviceForTheme();
   const root = document.documentElement;
 
   root.classList.remove('light-theme', 'dark-theme');
   root.classList.add('auto-theme');
 
-  if (isMobile && prefersDark) {
+  if (prefersDark) {
     root.classList.add('dark');
   } else {
     root.classList.remove('dark');
