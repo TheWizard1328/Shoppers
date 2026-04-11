@@ -341,7 +341,7 @@ export default function SquareManagement() {
     const paymentsData = paymentsResponse?.data || paymentsResponse || {};
 
     const rawCatalogRecords = snapshotData.catalogRecords || [];
-    const catalogRecords = rawCatalogRecords.filter((record) => record && typeof record.delivery_id === 'string' && /^[a-f0-9]{24}$/i.test(record.delivery_id));
+    const catalogRecords = rawCatalogRecords;
     const transactions = (paymentsData.transactions || snapshotData.transactionRecords || [])
       .filter((record) => record && typeof record.item_name === 'string' && record.item_name.trim().length > 0);
     const shouldRefreshDeliveries = snapshotData.shouldRefreshDeliveries === true;
@@ -372,9 +372,11 @@ export default function SquareManagement() {
     }
 
     onStageChange?.({ stage: 'saving_offline', detail: 'Syncing online Square entities…' });
+    const safeCatalogRecords = catalogRecords.filter((record) => record && typeof record.delivery_id === 'string' && /^[a-f0-9]{24}$/i.test(record.delivery_id));
+
     await base44.functions.invoke('squareCodCore', {
       action: 'syncOnlineSquareEntities',
-      catalogRecords,
+      catalogRecords: safeCatalogRecords,
       transactionRecords: transactions,
     });
 
