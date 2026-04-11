@@ -230,8 +230,21 @@ async function bulkUpdateDeliveries(base44, deliveries, updatesById) {
   }
 }
 
-async function markDeliveriesPolylineUpdated() {
-  return;
+async function markDeliveriesPolylineUpdated(base44, deliveries, value) {
+  const finishedDeliveries = (Array.isArray(deliveries) ? deliveries : []).filter((delivery) =>
+    delivery?.id && FINISHED_STATUSES.has(delivery.status) && delivery?.PolylineUpdated !== value
+  );
+
+  if (finishedDeliveries.length === 0) return;
+
+  await processInChunks(finishedDeliveries, 20, async (delivery) => {
+    return await base44.asServiceRole.entities.Delivery.update(delivery.id, {
+      PolylineUpdated: value
+    }).catch((error) => {
+      if (isNotFoundError(error)) return null;
+      throw error;
+    });
+  });
 }
 
 function getEdmontonDateString(value = new Date()) {
@@ -401,7 +414,7 @@ Deno.serve(async (req) => {
     };
 
     const finishedStops = deliveries
-      .filter((delivery) => FINISHED_STATUSES.has(delivery.status))
+      .filter((delivery) => FINISHED_STATUSES.has(delivery.status) && delivery?.PolylineUpdated !== true)
       .sort((a, b) => {
         const aTime = new Date(a.actual_delivery_time || a.updated_date || a.created_date || 0).getTime();
         const bTime = new Date(b.actual_delivery_time || b.updated_date || b.created_date || 0).getTime();
@@ -420,42 +433,7 @@ Deno.serve(async (req) => {
     const deliveryUpdatesById = new Map();
 
     if (scope === 'all' || scope === 'completed_only') {
-      const finishedLegsToClear = finishedStops.filter((delivery) => typeof delivery?.finished_leg_encoded_polyline === 'string'
-        ? delivery.finished_leg_encoded_polyline.trim().length > 0
-        : !!delivery?.finished_leg_encoded_polyline);
-
-      if (finishedLegsToClear.length > 0) {
-        finishedLegsToClear.forEach((delivery) => {
-          deliveryUpdatesById.set(delivery.id, {
-            ...(deliveryUpdatesById.get(delivery.id) || {}),
-            finished_leg_encoded_polyline: ''
-          });
-        });
-      }
-      clearedFinishedLegs = finishedLegsToClear.length;
-
-      for (let index = 1; index < finishedStops.length; index += 1) {
-        const fromStop = getLatLon(finishedStops[index - 1]);
-        const toStop = getLatLon(finishedStops[index]);
-        if (!fromStop || !toStop) continue;
-
-        const cachedSegment = findExactCachedSegment(existingPolylines, fromStop, toStop);
-        const directions = cachedSegment ? {
-          encoded_polyline: cachedSegment.encoded_polyline,
-          estimated_distance_km: cachedSegment.estimated_distance_km ?? null,
-          estimated_duration_minutes: cachedSegment.estimated_duration_minutes ?? null
-        } : await getSegmentDirections(base44, fromStop, toStop);
-        if (!cachedSegment) {
-          apiCallsMade += 1;
-        }
-
-        deliveryUpdatesById.set(finishedStops[index].id, {
-          ...(deliveryUpdatesById.get(finishedStops[index].id) || {}),
-          finished_leg_encoded_polyline: directions.encoded_polyline || ''
-        });
-
-        regeneratedFinishedLegStopIds.push(finishedStops[index].id);
-      }
+      clearedFinishedLegs = 0;
     }
 
     const createdSegments = [];
