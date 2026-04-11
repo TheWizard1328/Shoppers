@@ -538,14 +538,14 @@ class LocationTracker {
     }
 
     if (this.isTracking && this.locationProvider?.backgroundCapable) {
-      await this.updateLocationInDatabase(
-        latitude,
-        longitude,
-        accuracy,
-        false,
-        false,
-        true
-      );
+    await this.updateLocationInDatabase(
+    latitude,
+    longitude,
+    accuracy,
+    false,
+    false,
+    this.isPrimaryDevice
+    );
     }
   }
 
@@ -740,9 +740,9 @@ class LocationTracker {
                   this.lastPosition.latitude,
                   this.lastPosition.longitude,
                   this.lastPosition.accuracy,
-                  true,
                   false,
-                  true
+                  false,
+                  this.isPrimaryDevice
                 );
               } else {
                 console.log(`⏭️ [${providerName} PROVIDER] Poll: No cached GPS position - requesting fresh fix...`);
@@ -762,9 +762,9 @@ class LocationTracker {
                     pos.coords.latitude,
                     pos.coords.longitude,
                     pos.coords.accuracy,
-                    true,
                     false,
-                    true
+                    false,
+                    this.isPrimaryDevice
                   );
                 }).catch((err) => console.warn(`⚠️ [${providerName} PROVIDER] On-demand GPS fix failed:`, err.message));
               }
