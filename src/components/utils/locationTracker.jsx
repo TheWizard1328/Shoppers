@@ -249,8 +249,9 @@ class LocationTracker {
       );
 
       if (distance < this.minDistanceChange) {
-        console.log(`📍 [LocationTracker] Moved only ${distance.toFixed(0)}m - waiting for ${this.minDistanceChange}m threshold`);
-        return; // Skip update if distance below threshold
+        console.log(`📍 [LocationTracker] Moved only ${distance.toFixed(0)}m - refreshing timestamp without updating coordinates`);
+        await this.updateLocationInDatabase(latitude, longitude, accuracy, forceUpdate, true, isPrimaryDevice);
+        return;
       }
     } else if (isPrimaryDevice && this.lastPosition) {
       distance = this.calculateDistance(
