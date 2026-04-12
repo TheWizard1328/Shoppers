@@ -1,13 +1,7 @@
 import React from 'react';
-import { Bike, ChevronDown, Circle } from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { Bike } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { TRAVEL_MODE_OPTIONS, updatePreferredTravelMode } from '@/components/dashboard/travelModeHelpers';
+import { updatePreferredTravelMode } from '@/components/dashboard/travelModeHelpers';
 
 function DrivingWheelIcon({ className = '' }) {
   return (
@@ -20,11 +14,12 @@ function DrivingWheelIcon({ className = '' }) {
   );
 }
 
-export default function TravelModeSelector({ currentUser, appUsers = [], value, onChange, className = '' }) {
+export default function TravelModeSelector({ currentUser, appUsers = [], value, onChange }) {
   const appUser = appUsers.find((user) => user?.user_id === currentUser?.id);
 
-  const handleValueChange = async (nextValue) => {
+  const handleToggle = async () => {
     if (!appUser?.id) return;
+    const nextValue = value === 'cycling' ? 'driving' : 'cycling';
     await updatePreferredTravelMode(appUsers, currentUser?.id, nextValue);
     onChange?.(nextValue);
   };
@@ -32,36 +27,18 @@ export default function TravelModeSelector({ currentUser, appUsers = [], value, 
   if (!currentUser) return null;
 
   const CurrentIcon = value === 'cycling' ? Bike : DrivingWheelIcon;
+  const label = value === 'cycling' ? 'Cycling' : 'Driving';
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          className={`h-8 px-2 gap-1.5 flex-shrink-0 ${className}`}
-          style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
-          title="Travel mode"
-        >
-          <CurrentIcon className="w-4 h-4" />
-          <ChevronDown className="w-3.5 h-3.5" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="z-[10001]">
-        {TRAVEL_MODE_OPTIONS.map((option) => {
-          const OptionIcon = option.value === 'cycling' ? Bike : DrivingWheelIcon;
-          const isActive = value === option.value;
-          return (
-            <DropdownMenuItem key={option.value} onClick={() => handleValueChange(option.value)} className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <OptionIcon className="w-4 h-4" />
-                <span>{option.label}</span>
-              </div>
-              {isActive ? <Circle className="w-2.5 h-2.5 fill-current" /> : null}
-            </DropdownMenuItem>
-          );
-        })}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <Button
+      variant="default"
+      size="sm"
+      onClick={handleToggle}
+      className="bg-emerald-600 hover:bg-emerald-700 text-white px-2 text-sm font-medium rounded-md inline-flex min-h-11 min-w-11 items-center justify-center whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring shadow gap-2 h-6 flex-shrink-0"
+      title="Toggle travel mode"
+    >
+      <CurrentIcon className="w-4 h-4" />
+      {label}
+    </Button>
   );
 }

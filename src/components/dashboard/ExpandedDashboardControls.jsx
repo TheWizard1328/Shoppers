@@ -127,25 +127,27 @@ export default function ExpandedDashboardControls({
         </div>
       )}
 
-      {currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'dispatcher') && (
-        <TravelModeSelector
-          currentUser={currentUser}
-          appUsers={appUsers}
-          value={preferredTravelMode}
-          onChange={setPreferredTravelMode}
-        />
-      )}
+      <div className="py-1 flex items-center gap-2 flex-shrink-0">
+        {currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'dispatcher') && (
+          <TravelModeSelector
+            currentUser={currentUser}
+            appUsers={appUsers}
+            value={preferredTravelMode}
+            onChange={setPreferredTravelMode}
+          />
+        )}
 
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => setShowOptimizationSettings(true)}
-        className="h-8 w-8 p-0 flex-shrink-0"
-        title="Route Optimization Settings"
-        style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
-      >
-        <Settings className="w-3.5 h-3.5" />
-      </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowOptimizationSettings(true)}
+          className="h-8 w-8 p-0 flex-shrink-0"
+          title="Route Optimization Settings"
+          style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
+        >
+          <Settings className="w-3.5 h-3.5" />
+        </Button>
+      </div>
     </div>
   );
 }
