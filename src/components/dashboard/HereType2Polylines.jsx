@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState, useRef } from "react";
 import { Polyline } from "react-leaflet";
 import { getHerePolyline } from "../utils/hereRouting";
 import { generateDriverColor } from "../utils/colorGenerator";
-import { applyTransportModeStyle } from "./polylineModeStyles";
 
 const FINISHED = ["completed", "failed", "cancelled"];
 
@@ -32,7 +31,6 @@ export default function HereType2Polylines({
   selectedDriverId = null,
 }) {
   const [cache, setCache] = useState({});
-  const [modeCache, setModeCache] = useState({});
   const [refreshToken, setRefreshToken] = useState(0);
   const [optimizing, setOptimizing] = useState(false);
   const [lastNonEmptyLines, setLastNonEmptyLines] = useState([]);
@@ -69,7 +67,6 @@ export default function HereType2Polylines({
         const coords = decodePolyline(match.encoded_polyline);
         if (Array.isArray(coords) && coords.length > 1) {
           setCache((p) => ({ ...p, [key]: coords }));
-          setModeCache((p) => ({ ...p, [key]: match.transport_mode || 'driving' }));
           try { localStorage.setItem(key, JSON.stringify(coords)); } catch (_) {}
           return true;
         }
@@ -230,24 +227,20 @@ export default function HereType2Polylines({
         } catch (_) {}
       }
       // Show dashed fallback immediately; HERE polyline will hydrate when ready
-      const transportMode = modeCache[key] || 'driving';
       lines.push(
         <Polyline
           key={`type2-here-${driverId}-${i}`}
           positions={coords || makeFallback(a, b)}
           pathOptions={{
-            ...applyTransportModeStyle({
-              transportMode,
-              fallbackColor: getDriverPolylineColor(driverId),
-              weight: 5,
-              opacity: coords ? (() => {
-                if (totalLegs <= 1) return 0.85;
-                const t = i / (totalLegs - 1);
-                const start = 0.95, end = 0.25;
-                return Math.max(end, start + (end - start) * t);
-              })() : 0.35,
-              fallbackDashArray: coords ? "" : "6,6"
-            }),
+            color: coords ? getDriverPolylineColor(driverId) : getDriverPolylineColor(driverId),
+            weight: 5,
+            opacity: coords ? (() => {
+              if (totalLegs <= 1) return 0.85; // single leg
+              const t = i / (totalLegs - 1);
+              const start = 0.95, end = 0.25;
+              return Math.max(end, start + (end - start) * t);
+            })() : 0.35,
+            dashArray: coords ? "" : "6,6",
             lineJoin: "round",
             lineCap: "round"
           }}

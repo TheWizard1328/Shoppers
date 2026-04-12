@@ -9,16 +9,14 @@
  */
 
 import { offlineDB } from './offlineDatabase';
-import { base44 } from '@/api/base44Client';
+import { Patient } from '@/entities/Patient';
+import { Delivery } from '@/entities/Delivery';
+import { AppUser } from '@/entities/AppUser';
+import { City } from '@/entities/City';
+import { Store } from '@/entities/Store';
+import { Company } from '@/entities/Company';
+import { SquareTransaction } from '@/entities/SquareTransaction';
 import { format, subDays } from 'date-fns';
-
-const Patient = base44.entities.Patient;
-const Delivery = base44.entities.Delivery;
-const AppUser = base44.entities.AppUser;
-const City = base44.entities.City;
-const Store = base44.entities.Store;
-const Company = base44.entities.Company;
-const SquareTransaction = base44.entities.SquareTransaction;
 import { 
   fetchAppUsersDedup, 
   fetchDeliveriesDedup, 
