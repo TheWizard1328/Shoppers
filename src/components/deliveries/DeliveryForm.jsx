@@ -1373,6 +1373,20 @@ export default function DeliveryForm({
         });
 
         await updateDeliveryLocal(delivery.id, buildUpdatedDeliveryPayload({ dataToSave, formData }));
+        if (['completed', 'failed', 'cancelled'].includes(formData.status)) {
+          const expectedTravelDist = Number(dataToSave.travel_dist ?? formData.travel_dist ?? 0);
+          const currentTravelDist = Number(delivery?.travel_dist ?? 0);
+          const shouldRefreshTravelDist = currentTravelDist <= 0 || (expectedTravelDist > 0 && Math.abs(currentTravelDist - expectedTravelDist) > 0.25);
+          if (shouldRefreshTravelDist) {
+            setTimeout(() => {
+              base44.functions.invoke('recalculateTravelDistance', {
+                deliveryId: delivery.id,
+                expectedTravelDist,
+                force: false
+              }).catch((err) => console.warn('⚠️ [DeliveryForm] Travel distance refresh failed:', err?.message || err));
+            }, 0);
+          }
+        }
         if (statusChangedToCompletion) triggerPatientLastDeliverySync({ delivery: { ...delivery, ...dataToSave, status: formData.status, patient_id: delivery.patient_id, delivery_date: formData.delivery_date }, previousStatus: delivery.status });
         if (formData.status === 'completed') {
           cleanupSquareCodCatalogForDate(formData.delivery_date);
