@@ -139,9 +139,9 @@ export const AppDataProvider = ({ children, value }) => {
     if (deliveryChanged) {
       const dedupedDeliveries = Array.from(new Map((nextDeliveries || []).filter(Boolean).map((item) => [item.id, item])).values());
       if (applyDeliveryChangesLocallyRef.current) {
-        applyDeliveryChangesLocallyRef.current({ upserts: deliveryUpserts, deleteIds: deliveryDeletes });
+        applyDeliveryChangesLocallyRef.current({ upserts: dedupedDeliveries, deleteIds: deliveryDeletes });
       } else if (updateDeliveriesLocallyRef.current) {
-        updateDeliveriesLocallyRef.current(dedupedDeliveries, false);
+        updateDeliveriesLocallyRef.current(dedupedDeliveries, true);
       }
 
       if (typeof window !== 'undefined') {

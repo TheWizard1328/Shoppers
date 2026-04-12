@@ -73,7 +73,17 @@ const getLocationKey = (lat, lng, zoom) => {
 const dedupeById = (items) => {
   const map = new Map();
   (items || []).forEach((item) => {
-    if (item?.id) map.set(item.id, item);
+    if (!item?.id) return;
+    const existing = map.get(item.id);
+    if (!existing) {
+      map.set(item.id, item);
+      return;
+    }
+    const existingTime = new Date(existing.updated_date || existing.location_updated_at || existing.created_date || 0).getTime();
+    const nextTime = new Date(item.updated_date || item.location_updated_at || item.created_date || 0).getTime();
+    if (nextTime >= existingTime) {
+      map.set(item.id, item);
+    }
   });
   return Array.from(map.values());
 };
