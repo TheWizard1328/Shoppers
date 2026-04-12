@@ -149,10 +149,10 @@ const DeliveryRow = memo(({
       </div> :
 
     <div
-      onClick={handleRowClick}
-      className={`${desktopGridClass} px-4 py-3 border-b cursor-pointer transition-colors ${
-      isNextDelivery ? 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/50' : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'} ${
-      isSelected || isBulkSelected ? 'bg-slate-100 dark:bg-slate-800' : ''}`}
+      onClick={handleRowClick} className="grid min-w-max grid-cols-[120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px] gap-2 px-4 py-2 border-b cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60 "
+
+
+
       style={{ borderColor: 'var(--border-slate-200)' }}>
       
         {bulkEditMode &&
@@ -196,10 +196,10 @@ const DeliveryRow = memo(({
           <div className="min-w-0 w-full space-y-1 whitespace-normal break-words leading-4">
             {patient?.notes &&
           <div className="w-full"><span className="text-slate-500">P:</span> {patient.notes}</div>
-        }
+          }
             {delivery?.delivery_notes &&
           <div className="w-full"><span className="text-slate-500">D:</span> {delivery.delivery_notes}</div>
-        }
+          }
           </div>
         </div>
 
@@ -650,32 +650,32 @@ const DeliveryListView = ({
 
         {/* Slide-in Details Panel Overlay */}
       <AnimatePresence>
-        {selectedDeliveryId && selectedDelivery && (
-          <RouteManagementStopDetailsOverlay
-            selectedDeliveryId={selectedDeliveryId}
-            selectedDelivery={selectedDelivery}
-            selectedPatient={selectedPatient}
-            selectedStore={selectedStore}
-            currentUser={currentUser}
-            onEdit={onEdit}
-            onEditPatient={onEditPatient}
-            onDelete={onDelete}
-            onRestart={onRestart}
-            onStatusUpdate={onStatusUpdate}
-            onNotesUpdate={onNotesUpdate}
-            onCODUpdate={onCODUpdate}
-            onCreateReturn={onCreateReturn}
-            onStartDelivery={onStartDelivery}
-            allDeliveries={allDeliveries}
-            selectedDate={selectedDate}
-            patients={patients}
-            stores={stores}
-            drivers={drivers}
-            onDriverStatusChange={onDriverStatusChange}
-            isMobile={isMobile}
-            onClose={() => setSelectedDeliveryId(null)}
-          />
-        )}
+        {selectedDeliveryId && selectedDelivery &&
+        <RouteManagementStopDetailsOverlay
+          selectedDeliveryId={selectedDeliveryId}
+          selectedDelivery={selectedDelivery}
+          selectedPatient={selectedPatient}
+          selectedStore={selectedStore}
+          currentUser={currentUser}
+          onEdit={onEdit}
+          onEditPatient={onEditPatient}
+          onDelete={onDelete}
+          onRestart={onRestart}
+          onStatusUpdate={onStatusUpdate}
+          onNotesUpdate={onNotesUpdate}
+          onCODUpdate={onCODUpdate}
+          onCreateReturn={onCreateReturn}
+          onStartDelivery={onStartDelivery}
+          allDeliveries={allDeliveries}
+          selectedDate={selectedDate}
+          patients={patients}
+          stores={stores}
+          drivers={drivers}
+          onDriverStatusChange={onDriverStatusChange}
+          isMobile={isMobile}
+          onClose={() => setSelectedDeliveryId(null)} />
+
+        }
       </AnimatePresence>
     </>);
 
