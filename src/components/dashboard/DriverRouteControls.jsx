@@ -14,6 +14,7 @@ export default function DriverRouteControls({
   appUsers,
   preferredTravelMode,
   setPreferredTravelMode,
+  hasActiveRoute,
 }) {
   if (!shouldShowLocationToggle) return null;
 
@@ -58,6 +59,7 @@ export default function DriverRouteControls({
               appUsers={appUsers}
               value={preferredTravelMode}
               onChange={setPreferredTravelMode}
+              disabled={!hasActiveRoute}
             />
           </>
         )}

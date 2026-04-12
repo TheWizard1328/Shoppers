@@ -9,14 +9,14 @@ const modeConfig = {
   pedestrian: { label: 'Walking', icon: Car },
 };
 
-export default function TravelModeButton({ currentUser, appUsers = [], value, onChange }) {
+export default function TravelModeButton({ currentUser, appUsers = [], value, onChange, disabled = false }) {
   const appUser = appUsers.find((user) => user?.user_id === currentUser?.id);
   const currentMode = normalizeTravelMode(value) === 'cycling' ? 'cycling' : 'driving';
   const isCycling = currentMode === 'cycling';
   const CurrentIcon = isCycling ? Bike : Car;
 
   const handleToggle = async () => {
-    if (!appUser?.id) return;
+    if (disabled || !appUser?.id) return;
     const nextValue = isCycling ? 'driving' : 'cycling';
     await updatePreferredTravelMode(appUsers, currentUser?.id, nextValue);
     onChange?.(nextValue);
@@ -29,9 +29,10 @@ export default function TravelModeButton({ currentUser, appUsers = [], value, on
       variant="outline"
       size="sm"
       onClick={handleToggle}
+      disabled={disabled}
       className="h-8 gap-1.5 px-2 flex-shrink-0"
       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
-      title={isCycling ? 'Cycling' : 'Driving'}
+      title={disabled ? 'Available during active route only' : isCycling ? 'Cycling' : 'Driving'}
     >
       <CurrentIcon className="w-3.5 h-3.5" />
       <span className="text-xs">{isCycling ? 'Cycling' : 'Driving'}</span>
