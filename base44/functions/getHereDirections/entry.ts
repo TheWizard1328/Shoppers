@@ -1,6 +1,17 @@
 // Redeployed on 2026-04-09
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
+const normalizeTransportMode = (value) => {
+  const input = String(value || 'driving').toLowerCase();
+  if (input === 'cycling' || input === 'bicycle' || input === 'bike') {
+    return { requested: 'cycling', hereTransportMode: 'bicycle' };
+  }
+  if (input === 'pedestrian' || input === 'walking' || input === 'walk') {
+    return { requested: 'pedestrian', hereTransportMode: 'pedestrian' };
+  }
+  return { requested: 'driving', hereTransportMode: 'car' };
+};
+
 const buildFallback = (origin, destination, extra = {}) => Response.json({
   coordinates: [
     { lat: Number(origin?.lat), lng: Number(origin?.lng) },
@@ -28,6 +39,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     origin = body?.origin || null;
     destination = body?.destination || null;
+    const { requested: transport_mode, hereTransportMode } = normalizeTransportMode(body?.transport_mode);
 
     const originLat = Number(origin?.lat);
     const originLng = Number(origin?.lng);
@@ -44,7 +56,7 @@ Deno.serve(async (req) => {
     }
 
     const params = new URLSearchParams({
-      transportMode: 'car',
+      transportMode: hereTransportMode,
       routingMode: 'short',
       origin: `${originLat},${originLng}`,
       destination: `${destinationLat},${destinationLng}`,
@@ -63,7 +75,7 @@ Deno.serve(async (req) => {
     if (!resp.ok) {
       const text = await resp.text();
       console.error('[HERE Routing] provider error', { status: resp.status, details: text?.slice(0, 500) });
-      return buildFallback(origin, destination, { provider_status: resp.status });
+      return buildFallback(origin, destination, { provider_status: resp.status, transport_mode });
     }
 
     const data = await resp.json();
@@ -72,7 +84,7 @@ Deno.serve(async (req) => {
 
     if (!route || !sections.length) {
       console.error('[HERE Routing] no route in payload', { payload: data });
-      return buildFallback(origin, destination);
+      return buildFallback(origin, destination, { transport_mode });
     }
 
     const polylines = sections.map((section) => section?.polyline).filter(Boolean);
@@ -89,7 +101,8 @@ Deno.serve(async (req) => {
         ],
         estimated_distance_km,
         estimated_duration_minutes,
-        polyline_format: 'fallback'
+        polyline_format: 'fallback',
+        transport_mode
       });
     }
 
@@ -98,10 +111,11 @@ Deno.serve(async (req) => {
       polyline: polylines[0],
       polylines,
       estimated_distance_km,
-      estimated_duration_minutes
+      estimated_duration_minutes,
+      transport_mode
     });
   } catch (err) {
     console.error('[getHereDirections] unexpected error', err?.message || err);
-    return buildFallback(origin, destination, { error: err?.message || 'Unknown error' });
+    return buildFallback(origin, destination, { error: err?.message || 'Unknown error', transport_mode: normalizeTransportMode(null).requested });
   }
 });
