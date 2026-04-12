@@ -21,6 +21,7 @@ export default function MapSection({
   polylineResetKey,
   realTimeETAEnabled, showDeliveryForm, showPatientForm, showOptimizationSettings,
   preferredTravelMode, onTravelModeChange,
+  topOverlayHeight = 0,
 }) {
   const mapResetKey = `${selectedDriverId}-${selectedDateStr}`;
   return (
@@ -83,6 +84,7 @@ export default function MapSection({
           stopCardsHeight={stopCardsBaseHeight}
           mapViewPhase={1}
           isMapViewLocked={false}
+          topOverlayHeight={topOverlayHeight}
           onMapReady={() => {
             if (!renderSequence.mapMarkers) {
               setRenderSequence(prev => ({ ...prev, mapMarkers: true, routeLines: true, driverLiveLocation: true, sharedLocations: true }));
