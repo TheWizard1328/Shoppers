@@ -21,13 +21,14 @@ export default function ResetPolylinesButton({
     return Array.from(new Set((selectedDriverIds || []).filter(Boolean).filter((id) => id !== "all")));
   }, [selectedDriverIds]);
 
-  const clearPolylineCache = () => {
+  const clearPolylineCache = async () => {
     try {
       Object.keys(localStorage).forEach((key) => {
         if (key.startsWith("here_")) {
           localStorage.removeItem(key);
         }
       });
+      await offlineDB.clearStore(offlineDB.STORES.DRIVER_ROUTE_POLYLINES);
     } catch (_) {}
   };
 
@@ -73,8 +74,8 @@ export default function ResetPolylinesButton({
         await new Promise(resolve => setTimeout(resolve, 300));
       }
 
-      // 2. Clear polylines from UI only (do not delete from DB)
-      clearPolylineCache();
+      // 2. Clear cached polylines from both local cache and offline DB
+      await clearPolylineCache();
       window.dispatchEvent(new CustomEvent("polylineCacheCleared", {
         detail: { driverIds, deliveryDate: selectedDate, triggeredBy: "resetPolylines" }
       }));
@@ -82,11 +83,15 @@ export default function ResetPolylinesButton({
       // 3. Update the polylines (per driver) sequentially
       for (const driverId of driverIds) {
         try {
-          await base44.functions.invoke("purgeAndRegeneratePolylines", {
+          const response = await base44.functions.invoke("purgeAndRegeneratePolylines", {
             driverId,
             deliveryDate: selectedDate,
             scope: "all",
           });
+          const result = response?.data || response || {};
+          if (!result.success) {
+            throw new Error(result.error || "Polyline regeneration failed");
+          }
           
           // Sync and update UI for this driver
           await syncDriverDateDeliveriesFromBackend([driverId]);
