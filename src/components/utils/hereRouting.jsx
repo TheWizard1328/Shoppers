@@ -106,7 +106,6 @@ async function persistGeneratedPolyline(driverId, deliveryDate, fromStop, toStop
     driver_id: driverId,
     delivery_date: deliveryDate,
     encoded_polyline: encodeGooglePolyline(coords),
-    transport_mode: metadata.transport_mode || 'driving',
     segment_origin_lat: round5(fromStop.latitude),
     segment_origin_lon: round5(fromStop.longitude),
     segment_dest_lat: round5(toStop.latitude),
@@ -483,7 +482,7 @@ async function canGenerateForDriver(driverId) {
   }
 }
 
-export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate, transportMode = 'driving') => {
+export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) => {
   if (!fromStop || !toStop) return null;
   // Normalize coords to numbers (tablet sometimes sends strings)
   fromStop = { latitude: Number(fromStop.latitude), longitude: Number(fromStop.longitude) };
@@ -569,8 +568,7 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate, 
     console.info('[HERE][client] Invoking getHereDirections', { cacheKey, origin: { lat: fromStop.latitude, lng: fromStop.longitude }, destination: { lat: toStop.latitude, lng: toStop.longitude } });
     const res = await base44.functions.invoke('getHereDirections', {
       origin: { lat: fromStop.latitude, lng: fromStop.longitude },
-      destination: { lat: toStop.latitude, lng: toStop.longitude },
-      transport_mode: transportMode
+      destination: { lat: toStop.latitude, lng: toStop.longitude }
     });
 
     const coords = decodeRouteGeometry(res?.data);
@@ -587,8 +585,7 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate, 
         try {
           await persistGeneratedPolyline(driverId, deliveryDate, fromStop, toStop, coords, {
             estimated_distance_km: res?.data?.estimated_distance_km ?? null,
-            estimated_duration_minutes: res?.data?.estimated_duration_minutes ?? null,
-            transport_mode: res?.data?.transport_mode || transportMode || 'driving'
+            estimated_duration_minutes: res?.data?.estimated_duration_minutes ?? null
           });
         } catch (persistError) {
           console.warn('[HERE][client] Persist generated polyline failed', { cacheKey, error: persistError?.message || persistError });
@@ -621,8 +618,8 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate, 
   return null;
 };
 
-export const getHereEncodedPolyline = async (driverId, fromStop, toStop, deliveryDate, transportMode = 'driving') => {
-  const coords = await getHerePolyline(driverId, fromStop, toStop, deliveryDate, transportMode);
+export const getHereEncodedPolyline = async (driverId, fromStop, toStop, deliveryDate) => {
+  const coords = await getHerePolyline(driverId, fromStop, toStop, deliveryDate);
   if (!Array.isArray(coords) || coords.length < 2) return null;
   const encoded = encodeGooglePolyline(coords);
   return encoded || null;

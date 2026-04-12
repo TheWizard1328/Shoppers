@@ -6,11 +6,11 @@
  * Caches results to prevent duplicate API calls within short time windows
  */
 
-import AppUser from '@/entities/AppUser.json';
-import Delivery from '@/entities/Delivery.json';
-import Patient from '@/entities/Patient.json';
-import City from '@/entities/City.json';
-import Store from '@/entities/Store.json';
+import { AppUser } from '@/entities/AppUser';
+import { Delivery } from '@/entities/Delivery';
+import { Patient } from '@/entities/Patient';
+import { City } from '@/entities/City';
+import { Store } from '@/entities/Store';
 
 const CACHE_TTL = 600000; // 10 minutes
 

@@ -1,9 +1,9 @@
-import Patient from '@/entities/Patient.json';
-import Delivery from '@/entities/Delivery.json';
-import AppUser from '@/entities/AppUser.json';
-import City from '@/entities/City.json';
-import Store from '@/entities/Store.json';
-import Company from '@/entities/Company.json';
+import { Patient } from '@/entities/Patient';
+import { Delivery } from '@/entities/Delivery';
+import { AppUser } from '@/entities/AppUser';
+import { City } from '@/entities/City';
+import { Store } from '@/entities/Store';
+import { Company } from '@/entities/Company';
 
 export const OFFLINE_ENTITY_STORE_KEYS = {
   Patient: 'PATIENTS',

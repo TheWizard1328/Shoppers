@@ -24,8 +24,7 @@ export default function RealTimeRouteOptimizer({
   selectedDate, 
   currentUser,
   isActive = true,
-  onRouteOptimized,
-  transportMode = 'driving'
+  onRouteOptimized 
 }) {
   const [notification, setNotification] = useState(null);
 
@@ -100,7 +99,6 @@ export default function RealTimeRouteOptimizer({
       const response = await base44.functions.invoke('optimizeRouteRealTime', {
         driverId: selectedDriverId,
         deliveryDate: selectedDate,
-        transport_mode: transportMode
       });
 
       const data = response?.data || response;
