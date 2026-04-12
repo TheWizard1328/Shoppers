@@ -451,6 +451,7 @@ export default function SquareManagement() {
 
       await base44.functions.invoke('squareCodCore', {
         action: 'syncSquareCods',
+        purgeCatalogFirst: true,
         items,
       });
       await quickRefreshCatalogView();
