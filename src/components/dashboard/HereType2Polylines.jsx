@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { Polyline } from "react-leaflet";
 import { getHerePolyline } from "../utils/hereRouting";
+import { generateDriverColor } from "../utils/colorGenerator";
 
 const FINISHED = ["completed", "failed", "cancelled"];
 
@@ -74,39 +75,7 @@ export default function HereType2Polylines({
     return false;
     };
 
-    // Map driverId -> color from parent-provided driverRoutes (keeps colors consistent with Type 3)
-  const driverColorMap = useMemo(() => {
-    const map = new Map();
-    (driverRoutes || []).forEach((r) => {
-      if (r && r.driverId) map.set(r.driverId, r.color || '#607D8B');
-    });
-    return map;
-  }, [driverRoutes]);
-
-  // Helpers to ensure non-blue colors in multi-driver mode
-  const isBlueHex = (hex) => {
-    if (!hex || typeof hex !== 'string' || !hex.startsWith('#') || hex.length < 7) return false;
-    const r = parseInt(hex.slice(1,3), 16), g = parseInt(hex.slice(3,5), 16), b = parseInt(hex.slice(5,7), 16);
-    const max = Math.max(r,g,b), min = Math.min(r,g,b);
-    const d = max - min;
-    if (d === 0) return false;
-    let h;
-    switch (max) {
-      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-      case g: h = (b - r) / d + 2; break;
-      default: h = (r - g) / d + 4;
-    }
-    h = h * 60; // 0..360
-    return h >= 180 && h <= 250; // blue-cyan range
-  };
-  const hashId = (s) => Array.from(String(s)).reduce((a,c)=>((a<<5)-a)+c.charCodeAt(0)|0,0);
-  const mapBlueToNonBlue = (hex, id) => {
-    // Always avoid blue hues for Type 2 regardless of mode
-    if (!isBlueHex(hex)) return hex;
-    const palette = ['#8A2BE2', '#EC4899', '#A855F7', '#F43F5E', '#A0522D', '#7C3AED', '#BE185D']; // no blues, no oranges
-    const idx = Math.abs(hashId(id || 'x')) % palette.length;
-    return palette[idx];
-  };
+    const getDriverPolylineColor = (driverId) => generateDriverColor(String(driverId || 'driver'));
 
   // Build per-driver incomplete stop sequences starting from next stop
   const driverIncomplete = useMemo(() => {
@@ -263,7 +232,7 @@ export default function HereType2Polylines({
           key={`type2-here-${driverId}-${i}`}
           positions={coords || makeFallback(a, b)}
           pathOptions={{
-            color: coords ? mapBlueToNonBlue((driverColorMap.get(driverId) || "#A855F7"), driverId) : "#94a3b8",
+            color: coords ? getDriverPolylineColor(driverId) : getDriverPolylineColor(driverId),
             weight: 5,
             opacity: coords ? (() => {
               if (totalLegs <= 1) return 0.85; // single leg

@@ -3,6 +3,7 @@ import { Polyline } from "react-leaflet";
 import { getHerePolyline, ensurePolylineSubscription } from "../utils/hereRouting";
 import useDriverRoutePolylineBackgroundSync from "../utils/useDriverRoutePolylineBackgroundSync";
 import { getRouteOptimizationSettings } from "./RouteOptimizationSettings";
+import { generateDriverColor } from "../utils/colorGenerator";
 
 const FINISHED = ["completed", "failed", "cancelled", "returned"];
 
@@ -480,6 +481,7 @@ export default function HereType1Polylines({
 
   const isGrace = Date.now() - mountTimeRef.current < 600;
   const lines = [];
+  const getDriverPolylineColor = (driverId) => generateDriverColor(String(driverId || 'driver'));
   const seenKeys = new Set();
 
   // Pre-route: home -> first stop (only when NO completed stops yet)
@@ -515,7 +517,7 @@ export default function HereType1Polylines({
             <Polyline
               key={`type1-pre-home-${driverId}`}
               positions={coords || makeFallback({ latitude: originLat, longitude: originLon }, next)}
-              pathOptions={{ color: coords ? "#2563eb" : '#3b82f6', weight: 5, opacity: coords ? 0.9 : 0.7, dashArray: coords ? '' : '8,8', lineJoin: 'round', lineCap: 'round' }}
+              pathOptions={{ color: getDriverPolylineColor(driverId), weight: 5, opacity: coords ? 0.95 : 0.75, dashArray: coords ? '' : '8,8', lineJoin: 'round', lineCap: 'round' }}
               pane="routeBasePane"
             />
           );

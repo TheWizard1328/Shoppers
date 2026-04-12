@@ -6,34 +6,32 @@ import { userHasRole } from '../utils/userRoles';
 import { isMobileDevice } from '../utils/deviceUtils';
 import { getCurrentDevice } from '../utils/deviceManager';
 import { formatPhoneNumber } from '../utils/phoneFormatter';
+import { generateDriverColor, getContrastColor } from '../utils/colorGenerator';
 
 // Create driver/dispatcher icon with border ring based on delivery status
-const createDriverIcon = (driverStatus = 'on_duty', initial = '', staleness = 'fresh', deliveryStatus = 'incomplete') => {
+const createDriverIcon = (driverColor = '#2563EB', driverStatus = 'on_duty', initial = '', staleness = 'fresh', deliveryStatus = 'incomplete') => {
   const size = 15;
-  
-  // Determine fill color based on status and staleness
-  let fillColor;
+
+  let fillColor = driverColor;
   if (staleness === 'very_stale') {
-    fillColor = '#DC2626'; // Red for very stale (30+ min)
+    fillColor = '#7F1D1D';
   } else if (staleness === 'stale') {
-    fillColor = '#F59E0B'; // Amber for stale (15-30 min)
+    fillColor = '#B45309';
   } else if (staleness === 'aging' || staleness === 'heartbeat_stale') {
-    fillColor = '#FB923C'; // Orange when heartbeat is older than 60s
+    fillColor = '#C2410C';
   } else if (driverStatus === 'on_break') {
-    fillColor = '#3b82f6'; // Blue for on break
-  } else {
-    fillColor = '#10B981'; // Green for fresh on duty
+    fillColor = '#475569';
   }
-  
-  // Determine border color based on delivery status
-  let borderColor = '#FFFFFF'; // White for incomplete (default)
+
+  let borderColor = '#FFFFFF';
   if (deliveryStatus === 'completed') {
-    borderColor = '#166534'; // Dark green for completed
+    borderColor = '#052E16';
   } else if (deliveryStatus === 'failed') {
-    borderColor = '#EF4444'; // Bright red for failed
+    borderColor = '#7F1D1D';
   }
+  const textColor = getContrastColor(fillColor);
   const borderWidth = 2;
-  
+
   return L.divIcon({
     html: `
       <div class="driver-marker" style="
@@ -58,7 +56,7 @@ const createDriverIcon = (driverStatus = 'on_duty', initial = '', staleness = 'f
           <span style="
             font-size: 8px;
             font-weight: bold;
-            color: white;
+            color: ${textColor};
             text-transform: uppercase;
           ">${initial || 'D'}</span>
         </div>
@@ -523,11 +521,13 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         // Higher z-index for self/shared location markers
         const zIndexValue = isSharedLocation ? 3000 : (isActive ? 2000 : 1000);
 
+        const driverColor = generateDriverColor(displayName);
+
         return (
           <Marker
             key={stableKey}
             position={position}
-            icon={createDriverIcon(user.driver_status, displayName.charAt(0).toUpperCase(), staleness, deliveryStatus)}
+            icon={createDriverIcon(driverColor, user.driver_status, displayName.charAt(0).toUpperCase(), staleness, deliveryStatus)}
             zIndexOffset={zIndexValue}
           >
             <Popup>

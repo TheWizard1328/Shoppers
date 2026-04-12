@@ -1,43 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Polyline } from "react-leaflet";
 import { getHerePolyline } from "../utils/hereRouting";
+import { generateDriverColor } from "../utils/colorGenerator";
 
 const FINISHED = ["completed", "failed", "cancelled"];
-const STORED_ROUTE_COLOR = "#16a34a";
-
-const getBreadcrumbRouteColor = () => {
-  const root = document.documentElement;
-  const isDarkMode = root.classList.contains('dark-theme') ||
-    (root.classList.contains('auto-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  return isDarkMode ? '#39FF14' : '#16a34a';
-};
-
-const isBlueHex = (hex) => {
-  if (!hex || typeof hex !== "string" || !hex.startsWith("#") || hex.length < 7) return false;
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const d = max - min;
-  if (d === 0) return false;
-  let h;
-  switch (max) {
-    case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-    case g: h = (b - r) / d + 2; break;
-    default: h = (r - g) / d + 4;
-  }
-  h *= 60;
-  return h >= 180 && h <= 250;
-};
-
-const hashId = (value) => Array.from(String(value || "x")).reduce((acc, char) => ((acc << 5) - acc) + char.charCodeAt(0) | 0, 0);
-
-const mapBlueToNonBlue = (hex, id) => {
-  if (!isBlueHex(hex)) return hex || "#607D8B";
-  const palette = ["#8A2BE2", "#EC4899", "#A855F7", "#F43F5E", "#A0522D", "#7C3AED", "#BE185D"];
-  return palette[Math.abs(hashId(id)) % palette.length];
-};
+const getDriverPolylineColor = (driverId) => generateDriverColor(String(driverId || 'driver'));
 
 const samePoint = (a, b) => (
   Math.abs(Number(a?.latitude) - Number(b?.latitude)) < 1e-5 &&
@@ -180,9 +147,7 @@ export default function CompletedBreadcrumbPolylines({
     return (driverRoutes || []).flatMap((route) => {
       if (!route?.driverId) return [];
 
-      const color = (isAllDriversMode || selectedDriverId === "all")
-        ? mapBlueToNonBlue(route.color, route.driverId)
-        : route.color;
+      const color = getDriverPolylineColor(route.driverId);
 
       const stops = [
         ...pickupMarkers.filter((pickup) => pickup && pickup.driver_id === route.driverId),
@@ -319,7 +284,6 @@ export default function CompletedBreadcrumbPolylines({
   }, [directSegmentLegs, breadcrumbRouteLegs, cache, polylineRenderKey]);
 
   const renderedLines = [];
-  const breadcrumbRouteColor = getBreadcrumbRouteColor();
 
   storedFinishedSegments.forEach((segment) => {
     if (!showStoredPolylines) return;
@@ -331,7 +295,7 @@ export default function CompletedBreadcrumbPolylines({
         key={`stored-finished-${segment.id}-${polylineRenderKey}-${highlightedDeliveryId || "none"}`}
         positions={coords}
         pathOptions={{
-          color: STORED_ROUTE_COLOR,
+          color: getDriverPolylineColor(segment.driverId),
           weight: 4,
           opacity: Math.max(segment.opacity, 0.35),
           lineJoin: "round",
@@ -358,7 +322,7 @@ export default function CompletedBreadcrumbPolylines({
           key={`completed-stored-${segment.id}-${polylineRenderKey}-${highlightedDeliveryId || "none"}`}
           positions={coords}
           pathOptions={{
-            color: STORED_ROUTE_COLOR,
+            color: getDriverPolylineColor(segment.driverId),
             weight: 4,
             opacity: Math.max(segment.opacity, 0.35),
             lineJoin: "round",
@@ -387,7 +351,7 @@ export default function CompletedBreadcrumbPolylines({
             key={`completed-breadcrumb-line-${leg.id}-${polylineRenderKey}`}
             positions={positions}
             pathOptions={{
-              color: breadcrumbRouteColor,
+              color: getDriverPolylineColor(segment.driverId),
               weight: 4,
               opacity: Math.max(segment.opacity, 0.35),
               lineJoin: "round",

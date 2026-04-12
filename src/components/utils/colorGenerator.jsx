@@ -1,4 +1,3 @@
-
 // Store color palette - distinct, professional colors for pharmacy stores
 const STORE_COLOR_PALETTE = [
   '',        // Blank color storeage for unused 0 index
@@ -97,23 +96,26 @@ export const getContrastColor = (backgroundColor) => {
   return luminance > 0.5 ? '#000000' : '#FFFFFF';
 };
 
-// Driver color palette - distinct, vibrant colors for different drivers
+// Driver color palette - higher-contrast colors for nearby markers/polylines
 const DRIVER_COLOR_PALETTE = [
-    '#3B82F6', // Blue
-    '#10B981', // Emerald
-    '#F59E0B', // Amber
-    '#EF4444', // Red
-    '#8B5CF6', // Purple
-    '#EC4899', // Pink
-    '#06B6D4', // Cyan
-    '#84CC16', // Lime
-    '#F97316', // Orange
-    '#6366F1', // Indigo
-    '#14B8A6', // Teal
-    '#A855F7', // Violet
-    '#F43F5E', // Rose
-    '#22C55E', // Green
-    '#FBBF24', // Yellow
+    '#DC2626', // Red
+    '#2563EB', // Blue
+    '#7C3AED', // Violet
+    '#059669', // Emerald
+    '#EA580C', // Orange
+    '#DB2777', // Pink
+    '#0F766E', // Teal
+    '#9333EA', // Purple
+    '#16A34A', // Green
+    '#C2410C', // Burnt Orange
+    '#BE123C', // Rose
+    '#1D4ED8', // Strong Blue
+    '#047857', // Dark Emerald
+    '#7E22CE', // Deep Purple
+    '#B91C1C', // Dark Red
+    '#0EA5E9', // Sky
+    '#65A30D', // Lime Green
+    '#D97706', // Amber
 ];
 
 const usedDriverColors = new Map();
