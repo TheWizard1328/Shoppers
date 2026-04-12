@@ -207,18 +207,6 @@ function mergeDeliveryUpdates(deliveries, updatesById) {
   });
 }
 
-function calculateHaversineKm(from, to) {
-  if (!from || !to) return null;
-  const toRadians = (value) => (value * Math.PI) / 180;
-  const earthRadiusKm = 6371;
-  const dLat = toRadians(to.lat - from.lat);
-  const dLon = toRadians(to.lon - from.lon);
-  const lat1 = toRadians(from.lat);
-  const lat2 = toRadians(to.lat);
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return Number((earthRadiusKm * c).toFixed(2));
-}
 
 async function bulkUpdateDeliveries(base44, deliveries, updatesById) {
   if (!(updatesById instanceof Map) || updatesById.size === 0) {
@@ -446,24 +434,6 @@ Deno.serve(async (req) => {
     const deliveryUpdatesById = new Map();
 
     const sortedForTravelDistance = [...deliveries].sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
-    for (let index = 0; index < sortedForTravelDistance.length; index += 1) {
-      const stop = sortedForTravelDistance[index];
-      if (!stop?.id) continue;
-      const previousStop = sortedForTravelDistance[index - 1];
-      const from = previousStop ? getLatLon(previousStop) : (() => {
-        const store = storeMap.get(stop?.store_id);
-        if (store?.latitude != null && store?.longitude != null) {
-          return { lat: Number(store.latitude), lon: Number(store.longitude) };
-        }
-        return null;
-      })();
-      const to = getLatLon(stop);
-      const travelDistanceKm = calculateHaversineKm(from, to);
-      deliveryUpdatesById.set(stop.id, {
-        ...(deliveryUpdatesById.get(stop.id) || {}),
-        travel_dist: travelDistanceKm
-      });
-    }
 
     if (scope === 'all' || scope === 'completed_only') {
       clearedFinishedLegs = 0;
@@ -489,7 +459,9 @@ Deno.serve(async (req) => {
         apiCallsMade += 1;
         regeneratedFinishedLegStopIds.push(stop.id);
         deliveryUpdatesById.set(stop.id, {
+          ...(deliveryUpdatesById.get(stop.id) || {}),
           finished_leg_encoded_polyline: directions.encoded_polyline,
+          travel_dist: directions.estimated_distance_km ?? null,
           PolylineUpdated: true
         });
       }
@@ -535,9 +507,17 @@ Deno.serve(async (req) => {
           pushSegment({ lat: currentLat, lon: currentLon }, firstActive);
         }
 
-        for (let index = 0; index < activeStops.length - 1; index += 1) {
-          const from = getLatLon(activeStops[index]);
-          const to = getLatLon(activeStops[index + 1]);
+        for (let index = 0; index < activeStops.length; index += 1) {
+          const stop = activeStops[index];
+          const previousStop = activeStops[index - 1];
+          const from = previousStop ? getLatLon(previousStop) : (() => {
+            const store = storeMap.get(stop?.store_id);
+            if (store?.latitude != null && store?.longitude != null) {
+              return { lat: Number(store.latitude), lon: Number(store.longitude) };
+            }
+            return null;
+          })();
+          const to = getLatLon(stop);
           pushSegment(from, to);
         }
 
@@ -556,12 +536,28 @@ Deno.serve(async (req) => {
 
         for (const spec of segmentSpecs) {
           const cachedSegment = findExactCachedSegment(existingPolylines, spec.from, spec.to);
+          const matchingStop = activeStops.find((stop) => {
+            const stopCoords = getLatLon(stop);
+            return stop?.id && stopCoords && samePoint({ lat: stopCoords.lat, lon: stopCoords.lon }, spec.to);
+          });
+
           if (cachedSegment) {
             segmentsToKeep.add(cachedSegment.id);
-            // We already have this segment, no need to recreate
+            if (matchingStop) {
+              deliveryUpdatesById.set(matchingStop.id, {
+                ...(deliveryUpdatesById.get(matchingStop.id) || {}),
+                travel_dist: cachedSegment.estimated_distance_km ?? null
+              });
+            }
           } else {
             const directions = await getSegmentDirections(base44, spec.from, spec.to);
             apiCallsMade += 1;
+            if (matchingStop) {
+              deliveryUpdatesById.set(matchingStop.id, {
+                ...(deliveryUpdatesById.get(matchingStop.id) || {}),
+                travel_dist: directions.estimated_distance_km ?? null
+              });
+            }
             createdSegments.push({
               driver_id: driverId,
               delivery_date: deliveryDate,
