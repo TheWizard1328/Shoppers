@@ -35,6 +35,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { locationTracker } from "@/components/utils/locationTracker";
 import { liveDistanceTracker } from "@/components/utils/liveDistanceTracker";
 import LocationTrackingToggle from "@/components/layout/LocationTrackingToggle";
+import DriverRouteControls from '@/components/dashboard/DriverRouteControls';
 import { globalFilters } from "@/components/utils/globalFilters";
 import { getDriverNameForComparison } from '@/components/utils/driverUtils';
 import { userHasRole, isAppOwner } from '@/components/utils/userRoles';
@@ -5675,47 +5676,17 @@ function Dashboard() {
                   </Button>
                   </div>
 
-                  {/* Location Toggle - All driver devices */}
-                  {shouldShowLocationToggle &&
-                <>
-                      <div className="border-t border-slate-200"></div>
-                      <div className="py-1 flex items-center gap-2">
-                        <LocationTrackingToggle
-                      user={currentUser}
-                      onUserUpdate={async () => {
-                        await refreshUser();
-                      }} />
-                      
-                        {/* Route Management Buttons - All drivers on any device */}
-                        {isDriver &&
-                    <>
-                            {/* Quick Route Adjustments */}
-                            <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowQuickAdjustments(true)}
-                        className="h-8 gap-1.5 px-2 flex-shrink-0"
-                        title="Quick route adjustments"
-                        style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                              <span className="text-xs">Adjust</span>
-                            </Button>
-                            
-                            {/* AI Smart Prioritization */}
-                            <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowSmartPrioritization(true)}
-                        className="h-8 gap-1.5 px-2 flex-shrink-0"
-                        title="AI delivery prioritization"
-                        style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                              <Sparkles className="w-3 h-3" />
-                              <span className="text-xs">AI</span>
-                            </Button>
-                          </>
-                    }
-                      </div>
-                    </>
-                }
+                  <DriverRouteControls
+                    shouldShowLocationToggle={shouldShowLocationToggle}
+                    currentUser={currentUser}
+                    refreshUser={refreshUser}
+                    isDriver={isDriver}
+                    setShowQuickAdjustments={setShowQuickAdjustments}
+                    setShowSmartPrioritization={setShowSmartPrioritization}
+                    appUsers={appUsers}
+                    preferredTravelMode={preferredTravelMode}
+                    setPreferredTravelMode={setPreferredTravelMode}
+                  />
 
                   {/* Offline Sync Indicator - embedded when stats card is centered */}
                   {isStatsCardCentered &&
