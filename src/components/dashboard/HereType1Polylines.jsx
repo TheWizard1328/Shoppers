@@ -4,7 +4,7 @@ import { getHerePolyline, ensurePolylineSubscription } from "../utils/hereRoutin
 import useDriverRoutePolylineBackgroundSync from "../utils/useDriverRoutePolylineBackgroundSync";
 import { getRouteOptimizationSettings } from "./RouteOptimizationSettings";
 import { generateDriverColor } from "../utils/colorGenerator";
-import { getTravelModeLineStyle, normalizeTravelMode } from "./travelModeStyles";
+import { getTravelModeLineStyle, normalizeTravelMode } from "./travelModeHelpers";
 
 const FINISHED = ["completed", "failed", "cancelled", "returned"];
 

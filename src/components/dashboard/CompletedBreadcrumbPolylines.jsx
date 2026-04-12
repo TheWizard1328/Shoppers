@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Polyline } from "react-leaflet";
 import { getHerePolyline } from "../utils/hereRouting";
 import { generateDriverColor } from "../utils/colorGenerator";
-import { getTravelModeLineStyle, normalizeTravelMode } from "./travelModeStyles";
+import { getTravelModeLineStyle, normalizeTravelMode } from "./travelModeHelpers";
 
 const FINISHED = ["completed", "failed", "cancelled"];
 const getDriverPolylineColor = (driverId) => generateDriverColor(String(driverId || 'driver'));

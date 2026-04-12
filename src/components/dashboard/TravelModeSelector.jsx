@@ -1,15 +1,14 @@
 import React from 'react';
-import { base44 } from '@/api/base44Client';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { TRAVEL_MODE_OPTIONS } from '@/components/dashboard/travelModeStyles';
+import { TRAVEL_MODE_OPTIONS, updatePreferredTravelMode } from '@/components/dashboard/travelModeHelpers';
 
 export default function TravelModeSelector({ currentUser, appUsers = [], value, onChange }) {
   const appUser = appUsers.find((user) => user?.user_id === currentUser?.id);
 
   const handleValueChange = async (nextValue) => {
     if (!appUser?.id) return;
-    await base44.entities.AppUser.update(appUser.id, { preferred_travel_mode: nextValue });
+    await updatePreferredTravelMode(appUsers, currentUser?.id, nextValue);
     onChange?.(nextValue);
   };
 

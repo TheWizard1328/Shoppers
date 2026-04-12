@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState, useRef } from "react";
 import { Polyline } from "react-leaflet";
 import { getHerePolyline } from "../utils/hereRouting";
 import { generateDriverColor } from "../utils/colorGenerator";
-import { getTravelModeLineStyle, normalizeTravelMode } from "./travelModeStyles";
+import { getTravelModeLineStyle, normalizeTravelMode } from "./travelModeHelpers";
 
 const FINISHED = ["completed", "failed", "cancelled"];
 
