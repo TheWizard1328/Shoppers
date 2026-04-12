@@ -83,7 +83,7 @@ export default function ExpandedStatsControls({
               <Button
                 variant="outline"
                 size="icon"
-                onClick={() => setShowAllDriverMarkers?.()}
+                onClick={setShowAllDriverMarkers}
                 className={`h-9 w-9 p-0 ${effectiveShowAllDriverMarkers ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
                 style={!effectiveShowAllDriverMarkers ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}
               >
