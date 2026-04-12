@@ -428,6 +428,8 @@ export default function DeliveryMap({
       const isSelf = user.id === currentUserId || user.user_id === currentUserId;
       if (!isSelf && user.location_tracking_enabled !== true) return null;
       if (!isAdmin && currentUserCityId && user.city_id && user.city_id !== currentUserCityId) return null;
+      if (!showOtherDriverDeliveries && selectedDriverId && selectedDriverId !== "all" && !isSelf && user.id !== selectedDriverId && user.user_id !== selectedDriverId) return null;
+      if (!showOtherDriverDeliveries && selectedDriverId && selectedDriverId !== "all" && isSelf && selectedDriverId !== currentUserId) return null;
       const resolvedDriverName = driverNameLookupMap.get(user.id) || driverNameLookupMap.get(user.user_id) || user.user_name || user.full_name || "Driver";
 
       if (isDispatcher) {
