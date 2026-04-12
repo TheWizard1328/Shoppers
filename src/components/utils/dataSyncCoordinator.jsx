@@ -6,11 +6,7 @@
  * Caches results to prevent duplicate API calls within short time windows
  */
 
-import { AppUser } from '@/entities/AppUser';
-import { Delivery } from '@/entities/Delivery';
-import { Patient } from '@/entities/Patient';
-import { City } from '@/entities/City';
-import { Store } from '@/entities/Store';
+import { base44 } from '@/api/base44Client';
 
 const CACHE_TTL = 600000; // 10 minutes
 
@@ -73,7 +69,7 @@ export const fetchAppUsersDedup = async () => {
   }
   
   // New request
-  const request = AppUser.list().then(data => {
+  const request = base44.entities.AppUser.list().then(data => {
     // CRITICAL: Deduplicate by user_id (keep most recent by location_updated_at)
     const deduped = new Map();
     (data || []).forEach(au => {
@@ -128,7 +124,7 @@ export const fetchDeliveriesDedup = async (dateStr, filter = {}) => {
   }
   
   // New request
-  const request = Delivery.filter({ delivery_date: dateStr, ...filter })
+  const request = base44.entities.Delivery.filter({ delivery_date: dateStr, ...filter })
     .then(data => {
       // Cache result
       dataCache.set(cacheKey, {
@@ -167,7 +163,7 @@ export const fetchPatientsDedup = async (filter = {}) => {
   }
   
   // New request
-  const request = Patient.filter(filter)
+  const request = base44.entities.Patient.filter(filter)
     .then(data => {
       const clean = (data || []).filter(p => p && p.id && !p.id.startsWith('temp_'));
       
@@ -208,7 +204,7 @@ export const fetchCitiesDedup = async () => {
   }
   
   // New request
-  const request = City.list()
+  const request = base44.entities.City.list()
     .then(data => {
       // Cache result
       dataCache.set(cacheKey, {
@@ -247,7 +243,7 @@ export const fetchStoresDedup = async () => {
   }
   
   // New request
-  const request = Store.list()
+  const request = base44.entities.Store.list()
     .then(data => {
       // Cache result
       dataCache.set(cacheKey, {
