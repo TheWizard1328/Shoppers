@@ -1514,7 +1514,21 @@ export default function SquareManagement() {
             </SelectContent>
           </Select>
 
-        </div>
+          <Select value={selectedDaysRange} onValueChange={setSelectedDaysRange}>
+            <SelectTrigger className="w-full min-w-0 px-2 text-xs md:w-[120px] md:px-3 md:text-sm">
+              <SelectValue placeholder="Days" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7">7 Days</SelectItem>
+              <SelectItem value="14">14 Days</SelectItem>
+              <SelectItem value="21">21 Days</SelectItem>
+              <SelectItem value="28">28 Days</SelectItem>
+              <SelectItem value="45">45 Days</SelectItem>
+              <SelectItem value="60">60 Days</SelectItem>
+            </SelectContent>
+          </Select>
+
+          </div>
 
         <div className="flex flex-wrap items-center justify-end gap-2 md:gap-3">
           {activeView === 'reconciliation' && (
