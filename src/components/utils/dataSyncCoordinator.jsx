@@ -28,9 +28,7 @@ const isCacheValid = (key) => {
 };
 
 const deduplicateRequest = (key) => {
-  if (pendingRequests.has(key)) {
-    return pendingRequests.get(key);
-  }
+  if (pendingRequests.has(key)) return pendingRequests.get(key);
   return null;
 };
 
@@ -45,15 +43,10 @@ export const fetchAppUsersDedup = async () => {
     (data || []).forEach((au) => {
       if (!au || !au.user_id) return;
       const existing = deduped.get(au.user_id);
-      if (!existing) {
-        deduped.set(au.user_id, au);
-        return;
-      }
+      if (!existing) return deduped.set(au.user_id, au);
       const newTime = au.location_updated_at ? new Date(au.location_updated_at).getTime() : 0;
       const existingTime = existing.location_updated_at ? new Date(existing.location_updated_at).getTime() : 0;
-      if (newTime > existingTime) {
-        deduped.set(au.user_id, au);
-      }
+      if (newTime > existingTime) deduped.set(au.user_id, au);
     });
     const result = Array.from(deduped.values());
     dataCache.set(cacheKey, { data: result, timestamp: Date.now(), ttl: getStrategy('AppUser').ttl });
