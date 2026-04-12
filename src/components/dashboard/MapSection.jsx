@@ -48,6 +48,17 @@ export default function MapSection({
 
       <ETANotification deliveries={filteredDeliveries} driverId={selectedDriverId} currentUser={currentUser} />
 
+      {currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'dispatcher') && (
+        <div className="absolute right-4 top-4 z-[160]">
+          <TravelModeSelector
+            currentUser={currentUser}
+            appUsers={appUsers}
+            value={resolvedTravelMode}
+            onChange={onTravelModeChange}
+          />
+        </div>
+      )}
+
       <div className="absolute inset-0">
         <DeliveryMap
           key={mapResetKey}
