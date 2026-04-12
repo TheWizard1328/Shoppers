@@ -145,7 +145,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
                     setSelectedUsers(next);
                     updateSettings({ included_user_ids: next });
                   }}
-                  placeholder="Select stores" className="inline-flex min-w-11 items-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border bg-background shadow-sm hover:bg-accent hover:text-accent-foreground px-4 py-2 w-full justify-between min-h-[65px] border-black undefined" />
+                  placeholder="Select stores" className="h-auto inline-flex min-w-11 items-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border bg-background shadow-sm hover:bg-accent hover:text-accent-foreground px-4 w-full justify-between min-h-[45px] border-black undefined" />
                 
               </div>
             </div>
