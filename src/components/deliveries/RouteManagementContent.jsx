@@ -129,6 +129,7 @@ export default function RouteManagementContent({
     const hasMeaningfulChanges =
     Object.keys(baseUpdates).length > 0 ||
     values.statusChoice !== "unchanged" ||
+    values.ampmChoice !== "unchanged" ||
     !!selectedStoreOption ||
     isAdmin && !!values.puid;
 
@@ -161,8 +162,13 @@ export default function RouteManagementContent({
           nextUpdates.store_id = selectedStoreOption.storeId;
           nextUpdates.ampm_deliveries = selectedStoreOption.slot;
           nextUpdates.puid = isAdmin ? values.puid || nextPuid : nextPuid;
-        } else if (isAdmin && values.puid) {
-          nextUpdates.puid = values.puid;
+        } else {
+          if (values.ampmChoice !== "unchanged") {
+            nextUpdates.ampm_deliveries = values.ampmChoice;
+          }
+          if (isAdmin && values.puid) {
+            nextUpdates.puid = values.puid;
+          }
         }
 
         return updateDeliveryLocal(deliveryId, nextUpdates, { isBatchOperation: true });
