@@ -1,5 +1,4 @@
 export default function getDriverRouteControlsProps({
-  setShowAllDriverMarkers,
   shouldShowLocationToggle,
   currentUser,
   refreshUser,
@@ -21,7 +20,6 @@ export default function getDriverRouteControlsProps({
   isOptimizingModeRoute,
 }) {
   return {
-    setShowAllDriverMarkers,
     shouldShowLocationToggle,
     currentUser,
     refreshUser,

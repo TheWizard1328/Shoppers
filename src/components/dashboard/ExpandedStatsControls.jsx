@@ -15,7 +15,6 @@ export default function ExpandedStatsControls({
   isDriver,
   isAllDriversMode,
   showAllDriverMarkers,
-  setShowAllDriverMarkers,
   currentUser,
   saveSetting,
   setIsExpanded,
@@ -83,7 +82,6 @@ export default function ExpandedStatsControls({
                 size="icon"
                 onClick={async () => {
                   const checked = !showAllDriverMarkers;
-                  setShowAllDriverMarkers(checked);
                   if (currentUser?.id) {
                     saveSetting(currentUser.id, 'show_all_driver_markers', checked);
                   }
@@ -186,7 +184,6 @@ export default function ExpandedStatsControls({
       </div>
 
       <DriverRouteControlsSlot
-        setShowAllDriverMarkers={setShowAllDriverMarkers}
         shouldShowLocationToggle={shouldShowLocationToggle}
         currentUser={currentUser}
         refreshUser={refreshUser}
