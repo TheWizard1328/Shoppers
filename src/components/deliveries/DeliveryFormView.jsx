@@ -822,7 +822,8 @@ export default function DeliveryFormView({
                     const { smartRefreshManager } = await import('../utils/smartRefreshManager');
                     smartRefreshManager.pause();
                     try {
-                      didSave = await handleSubmit(submitEvent);
+                      const result = await handleSubmit(submitEvent);
+                      didSave = result === true;
                     } finally {
                       smartRefreshManager.resume();
                     }
@@ -830,7 +831,9 @@ export default function DeliveryFormView({
 
                   if (!didSave) return;
 
-                  handleCancelClick();
+                  import('../utils/deliveryFormActionHelpers')
+                    .then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel }))
+                    .catch(() => handleCancelClick());
                   window.dispatchEvent(new CustomEvent('collapseSelectedStopCard'));
 
                   const affectedRoutes = [
