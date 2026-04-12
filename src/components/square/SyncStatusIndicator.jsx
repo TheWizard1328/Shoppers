@@ -98,7 +98,7 @@ export default function SyncStatusIndicator({ syncStatus, isSyncing, error, codD
                   </CollapsibleTrigger>
                 </div>
 
-                <CollapsibleContent className="md:block">
+                <CollapsibleContent forceMount className={`${isOpen ? 'block' : 'hidden'} md:block`}>
                   <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2">
                     <div className="rounded-xl bg-white/70 dark:bg-slate-900/40 px-3 py-2">
                       <div className="text-[11px] text-muted-foreground">Catalog</div>
