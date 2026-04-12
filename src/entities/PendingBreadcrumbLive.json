@@ -4,60 +4,40 @@
   "properties": {
     "driver_id": {
       "type": "string",
-      "description": "The user_id of the driver recording these breadcrumbs."
+      "description": "ID of the driver this live breadcrumb batch belongs to"
     },
-    "delivery_id": {
+    "delivery_date": {
       "type": "string",
-      "description": "The ID of the delivery this breadcrumb trail belongs to."
+      "format": "date",
+      "description": "Route date for these live breadcrumbs (YYYY-MM-DD)"
     },
-    "stop_order": {
-      "type": "integer",
-      "description": "The stop order of the delivery this breadcrumb trail belongs to."
-    },
-    "breadcrumbs": {
+    "points": {
       "type": "array",
-      "description": "Array of raw GPS points [latitude, longitude, timestamp_ms].",
+      "description": "Live GPS breadcrumb points captured before consolidation",
       "items": {
-        "type": "array",
-        "items": [
-          { "type": "number" },
-          { "type": "number" },
-          { "type": "number" }
-        ],
-        "minItems": 3,
-        "maxItems": 3
+        "type": "object",
+        "properties": {
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "timestamp": {
+            "type": "number",
+            "description": "Unix timestamp in milliseconds"
+          }
+        },
+        "required": [
+          "latitude",
+          "longitude",
+          "timestamp"
+        ]
       }
     }
   },
-  "required": ["driver_id", "delivery_id", "stop_order", "breadcrumbs"],
-  "rls": {
-    "read": {
-      "logic": "or",
-      "conditions": [
-        { "field": "driver_id", "operator": "equals", "value": "{{user.id}}" },
-        { "field": "{{user.role}}", "operator": "equals", "value": "admin" }
-      ]
-    },
-    "create": {
-      "logic": "or",
-      "conditions": [
-        { "field": "driver_id", "operator": "equals", "value": "{{user.id}}" },
-        { "field": "{{user.role}}", "operator": "equals", "value": "admin" }
-      ]
-    },
-    "update": {
-      "logic": "or",
-      "conditions": [
-        { "field": "driver_id", "operator": "equals", "value": "{{user.id}}" },
-        { "field": "{{user.role}}", "operator": "equals", "value": "admin" }
-      ]
-    },
-    "delete": {
-      "logic": "or",
-      "conditions": [
-        { "field": "driver_id", "operator": "equals", "value": "{{user.id}}" },
-        { "field": "{{user.role}}", "operator": "equals", "value": "admin" }
-      ]
-    }
-  }
+  "required": [
+    "driver_id",
+    "delivery_date"
+  ]
 }
