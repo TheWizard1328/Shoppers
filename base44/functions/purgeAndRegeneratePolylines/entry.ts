@@ -414,7 +414,7 @@ Deno.serve(async (req) => {
     };
 
     const finishedStops = deliveries
-      .filter((delivery) => FINISHED_STATUSES.has(delivery.status) && delivery?.PolylineUpdated !== true)
+      .filter((delivery) => FINISHED_STATUSES.has(delivery.status))
       .sort((a, b) => {
         const aTime = new Date(a.actual_delivery_time || a.updated_date || a.created_date || 0).getTime();
         const bTime = new Date(b.actual_delivery_time || b.updated_date || b.created_date || 0).getTime();
@@ -437,6 +437,32 @@ Deno.serve(async (req) => {
     }
 
     const createdSegments = [];
+
+    if (scope === 'all' || scope === 'completed_only') {
+      for (let index = 0; index < finishedStops.length; index += 1) {
+        const stop = finishedStops[index];
+        const previousStop = finishedStops[index - 1];
+        const from = previousStop ? getLatLon(previousStop) : (() => {
+          const store = storeMap.get(stop?.store_id);
+          if (store?.latitude != null && store?.longitude != null) {
+            return { lat: Number(store.latitude), lon: Number(store.longitude) };
+          }
+          return null;
+        })();
+        const to = getLatLon(stop);
+        if (!from || !to) continue;
+
+        const directions = await getSegmentDirections(base44, from, to);
+        apiCallsMade += 1;
+        regeneratedFinishedLegStopIds.push(stop.id);
+        deliveryUpdatesById.set(stop.id, {
+          finished_leg_encoded_polyline: directions.encoded_polyline,
+          PolylineUpdated: true
+        });
+      }
+
+      clearedFinishedLegs = finishedStops.length;
+    }
 
     if (deliveryUpdatesById.size > 0) {
       console.log(`# [purgeAndRegeneratePolylines] BEFORE finishedLeg bulkUpdateDeliveries | driver=${driverDisplayName} | date=${deliveryDate} | totalStops=${deliveries?.length || 0} | updateCount=${deliveryUpdatesById.size}`);
