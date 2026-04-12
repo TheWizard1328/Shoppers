@@ -1530,19 +1530,19 @@ export default function SquareManagement() {
 
           </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-2 md:gap-3">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between md:flex-1">
+          <SquareCodViewSwitcher activeView={activeView} onChange={setActiveView} counts={viewCounts} />
           {activeView === 'reconciliation' && (
             <Button
               onClick={syncReconciliationToCatalog}
               disabled={isLoading || isSyncing || isUpdatingReconciliationCatalog || reconciliationRows.length === 0}
-              className="gap-2 text-sm"
+              className="gap-2 text-sm md:ml-3"
             >
               <CloudDownload className={`w-4 h-4 flex-shrink-0 ${(isSyncing || isUpdatingReconciliationCatalog) ? 'animate-pulse' : ''}`} />
               <span className="hidden sm:inline">{isUpdatingReconciliationCatalog ? 'Updating Catalog...' : 'Update Catalog'}</span>
               <span className="sm:hidden">{isUpdatingReconciliationCatalog ? 'Updating...' : 'Update'}</span>
             </Button>
           )}
-          <SquareCodViewSwitcher activeView={activeView} onChange={setActiveView} counts={viewCounts} />
         </div>
       </div>
     </div>
