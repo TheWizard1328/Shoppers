@@ -207,6 +207,19 @@ function mergeDeliveryUpdates(deliveries, updatesById) {
   });
 }
 
+function calculateHaversineKm(from, to) {
+  if (!from || !to) return null;
+  const toRadians = (value) => (value * Math.PI) / 180;
+  const earthRadiusKm = 6371;
+  const dLat = toRadians(to.lat - from.lat);
+  const dLon = toRadians(to.lon - from.lon);
+  const lat1 = toRadians(from.lat);
+  const lat2 = toRadians(to.lat);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Number((earthRadiusKm * c).toFixed(2));
+}
+
 async function bulkUpdateDeliveries(base44, deliveries, updatesById) {
   if (!(updatesById instanceof Map) || updatesById.size === 0) {
     return deliveries || [];
@@ -432,6 +445,26 @@ Deno.serve(async (req) => {
     const regeneratedFinishedLegStopIds = [];
     const deliveryUpdatesById = new Map();
 
+    const sortedForTravelDistance = [...deliveries].sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
+    for (let index = 0; index < sortedForTravelDistance.length; index += 1) {
+      const stop = sortedForTravelDistance[index];
+      if (!stop?.id) continue;
+      const previousStop = sortedForTravelDistance[index - 1];
+      const from = previousStop ? getLatLon(previousStop) : (() => {
+        const store = storeMap.get(stop?.store_id);
+        if (store?.latitude != null && store?.longitude != null) {
+          return { lat: Number(store.latitude), lon: Number(store.longitude) };
+        }
+        return null;
+      })();
+      const to = getLatLon(stop);
+      const travelDistanceKm = calculateHaversineKm(from, to);
+      deliveryUpdatesById.set(stop.id, {
+        ...(deliveryUpdatesById.get(stop.id) || {}),
+        travel_dist: travelDistanceKm
+      });
+    }
+
     if (scope === 'all' || scope === 'completed_only') {
       clearedFinishedLegs = 0;
     }
@@ -600,7 +633,8 @@ Deno.serve(async (req) => {
       clearedFinishedLegs,
       regeneratedFinishedLegs: regeneratedFinishedLegStopIds.length,
       regeneratedFinishedLegStopIds,
-      repairedStopOrders: stopOrderRepairUpdates.length
+      repairedStopOrders: stopOrderRepairUpdates.length,
+      recalculatedTravelDistances: sortedForTravelDistance.length
     });
   } catch (error) {
     console.error('[purgeAndRegeneratePolylines] Error:', error?.message || error);
