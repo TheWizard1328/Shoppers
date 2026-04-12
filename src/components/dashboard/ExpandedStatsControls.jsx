@@ -78,18 +78,6 @@ export default function ExpandedStatsControls({
         {isDriver && !isAllDriversMode && (
           <div className="flex items-center flex-shrink-0">
             <div className="flex flex-col items-center gap-1">
-              <Button
-                variant="outline"
-                size="icon"
-                disabled
-                title="This old control is inactive"
-                className={`h-9 w-9 p-0 ${showAllDriverMarkers ? 'bg-emerald-600 text-white' : ''}`}
-                style={!showAllDriverMarkers ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}
-              >
-                <Binoculars className="w-4 h-4" />
-              </Button>
-            </div>
-            <div className="flex flex-col items-center gap-1">
               <BreadcrumbToggleButton
                 isMobile={isMobile}
                 isDriver={isDriver}
