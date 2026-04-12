@@ -5525,7 +5525,7 @@ function Dashboard() {
                     driversList={driversList}
                     isDriver={isDriver}
                     isAllDriversMode={isAllDriversMode}
-                    showAllDriverMarkers={showAllDriverMarkers}
+                    showAllDriverMarkers={showAllDriverMarkers} setShowAllDriverMarkers={setShowAllDriverMarkers}
                     currentUser={currentUser}
                     saveSetting={saveSetting}
                     setIsExpanded={setIsExpanded}
