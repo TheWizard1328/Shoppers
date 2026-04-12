@@ -98,24 +98,50 @@ export default function SquareCodDatasetTable({
                   key={row.id || `${row.itemName}-${index}`}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
                   role={onRowClick ? "button" : undefined}
-                  className="p-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+                  className="rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden"
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-sm text-slate-900 dark:text-slate-50 truncate">{row.itemName || 'N/A'}</p>
-                      {row.subtext && <p className="text-xs mt-0.5 text-slate-600 dark:text-slate-400 truncate">{row.subtext}</p>}
+                  <div className="p-4 border-b border-slate-100 dark:border-slate-700/70">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-[15px] leading-5 text-slate-900 dark:text-slate-50">{row.itemName || 'N/A'}</p>
+                        {row.subtext && <p className="text-xs mt-1 text-slate-600 dark:text-slate-400 line-clamp-2">{row.subtext}</p>}
+                      </div>
+                      <div className="shrink-0 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 px-3 py-2 text-base font-bold leading-none text-emerald-600 dark:text-emerald-400">{formatAmount(row.amount)}</div>
                     </div>
-                    <div className="text-base font-bold leading-none text-emerald-600 dark:text-emerald-400">{formatAmount(row.amount)}</div>
                   </div>
 
-                  <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-600 dark:text-slate-400">
-                    <div className="truncate"><span className="font-semibold text-slate-900 dark:text-slate-50">Store:</span> {row.storeName || 'Unknown'}</div>
-                    <div className="truncate text-right"><span className="font-semibold text-slate-900 dark:text-slate-50">Collection Date:</span> {formatDate(row.collectionDate || row.deliveryDate)}</div>
-                    {showLocationColumn && <div className="truncate col-span-2"><span className="font-semibold text-slate-900 dark:text-slate-50">Square Location ID:</span> {row.locationId || '—'}</div>}
-                    <div className="truncate col-span-2"><span className="font-semibold text-slate-900 dark:text-slate-50">Catalog ID:</span> {row.catalogId || '—'}</div>
-                  </div>
+                  <div className="p-4 space-y-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="rounded-xl bg-slate-50 dark:bg-slate-900/50 px-3 py-2">
+                        <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Store</div>
+                        <div className="mt-1 text-sm font-medium text-slate-900 dark:text-slate-50 truncate">{row.storeName || 'Unknown'}</div>
+                      </div>
+                      <div className="rounded-xl bg-slate-50 dark:bg-slate-900/50 px-3 py-2">
+                        <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Date</div>
+                        <div className="mt-1 text-sm font-medium text-slate-900 dark:text-slate-50">{formatDate(row.collectionDate || row.deliveryDate)}</div>
+                      </div>
+                    </div>
 
-                  {row.actions && <div className="mt-3 flex justify-end">{row.actions}</div>}
+                    {showLocationColumn && (
+                      <div className="rounded-xl bg-slate-50 dark:bg-slate-900/50 px-3 py-2">
+                        <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Square Location ID</div>
+                        <div className="mt-1 text-xs font-mono text-slate-700 dark:text-slate-300 break-all">{row.locationId || '—'}</div>
+                      </div>
+                    )}
+
+                    <div className="rounded-xl bg-slate-50 dark:bg-slate-900/50 px-3 py-2">
+                      <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Catalog ID</div>
+                      <div className="mt-1 text-xs font-mono text-slate-700 dark:text-slate-300 break-all">{row.catalogId || '—'}</div>
+                    </div>
+
+                    {row.notes && (
+                      <div className="rounded-xl bg-amber-50 dark:bg-amber-900/10 px-3 py-2 text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+                        {row.notes}
+                      </div>
+                    )}
+
+                    {row.actions && <div className="pt-1 flex justify-end">{row.actions}</div>}
+                  </div>
                 </div>
               ))}
             </div>

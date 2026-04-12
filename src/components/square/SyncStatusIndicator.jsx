@@ -53,14 +53,14 @@ export default function SyncStatusIndicator({ syncStatus, isSyncing, error, codD
 
   return (
     <Card className={`border ${status.borderColor}`}>
-      <CardContent className={`p-4 ${status.bgColor}`}>
+      <CardContent className={`p-3 md:p-4 ${status.bgColor}`}>
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3 flex-1">
             <div className={`mt-0.5 ${status.color}`}>
               {status.icon}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5 flex-wrap text-xs">
+              <div className="flex items-center gap-1.5 flex-wrap text-xs hidden md:flex">
                 <span className={`font-semibold ${status.color}`}>
                   {status.text}
                 </span>
@@ -80,16 +80,30 @@ export default function SyncStatusIndicator({ syncStatus, isSyncing, error, codD
                   <span className="text-muted-foreground">Transactions: Card Spend: {cardSpendCount} Sales: {salesCount}</span>
                 </>
               </div>
-              <div className="mt-2 flex items-center gap-1.5 flex-wrap text-xs">
-                <span className="text-muted-foreground">Deliveries with COD's: {codDeliveryCount}</span>
-                <span className="text-muted-foreground">•</span>
-                <span className="text-muted-foreground">Cash: {collectedCodTypeBreakdown.Cash}</span>
-                <span className="text-muted-foreground">•</span>
-                <span className="text-muted-foreground">Debit: {collectedCodTypeBreakdown.Debit}</span>
-                <span className="text-muted-foreground">•</span>
-                <span className="text-muted-foreground">Credit: {collectedCodTypeBreakdown.Credit}</span>
-                <span className="text-muted-foreground">•</span>
-                <span className="text-muted-foreground">Check: {collectedCodTypeBreakdown.Check}</span>
+              <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2">
+                <div className="rounded-xl bg-white/70 dark:bg-slate-900/40 px-3 py-2">
+                  <div className="text-[11px] text-muted-foreground">Catalog</div>
+                  <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">{catalogItemCount}</div>
+                </div>
+                <div className="rounded-xl bg-white/70 dark:bg-slate-900/40 px-3 py-2">
+                  <div className="text-[11px] text-muted-foreground">Card Spend</div>
+                  <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">{cardSpendCount}</div>
+                </div>
+                <div className="rounded-xl bg-white/70 dark:bg-slate-900/40 px-3 py-2">
+                  <div className="text-[11px] text-muted-foreground">Sales</div>
+                  <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">{salesCount}</div>
+                </div>
+                <div className="rounded-xl bg-white/70 dark:bg-slate-900/40 px-3 py-2">
+                  <div className="text-[11px] text-muted-foreground">COD Deliveries</div>
+                  <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">{codDeliveryCount}</div>
+                </div>
+              </div>
+
+              <div className="mt-2 flex flex-wrap gap-2 text-[11px] md:text-xs">
+                <span className="rounded-full bg-white/70 dark:bg-slate-900/40 px-2.5 py-1 text-slate-700 dark:text-slate-300">Cash {collectedCodTypeBreakdown.Cash}</span>
+                <span className="rounded-full bg-white/70 dark:bg-slate-900/40 px-2.5 py-1 text-slate-700 dark:text-slate-300">Debit {collectedCodTypeBreakdown.Debit}</span>
+                <span className="rounded-full bg-white/70 dark:bg-slate-900/40 px-2.5 py-1 text-slate-700 dark:text-slate-300">Credit {collectedCodTypeBreakdown.Credit}</span>
+                <span className="rounded-full bg-white/70 dark:bg-slate-900/40 px-2.5 py-1 text-slate-700 dark:text-slate-300">Check {collectedCodTypeBreakdown.Check}</span>
               </div>
               {error && (
                 <div className="text-xs text-red-600 font-medium mt-1">

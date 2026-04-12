@@ -10,7 +10,7 @@ const VIEWS = [
 
 export default function SquareCodViewSwitcher({ activeView, onChange, counts = {} }) {
   return (
-    <div className="flex flex-wrap items-center justify-end gap-2">
+    <div className="grid grid-cols-2 gap-2 md:flex md:flex-wrap md:items-center md:justify-end">
       {VIEWS.map((view) => {
         const count = counts[view.key];
         const isActive = activeView === view.key;
@@ -22,7 +22,7 @@ export default function SquareCodViewSwitcher({ activeView, onChange, counts = {
             variant={isActive ? "default" : "outline"}
             size="sm"
             onClick={() => onChange(view.key)}
-            className="gap-2 rounded-full px-3"
+            className="h-11 justify-between rounded-2xl px-4 md:h-9 md:w-auto md:justify-center md:gap-2 md:rounded-full md:px-3"
           >
             <span>{view.label}</span>
             {typeof count === "number" && (
