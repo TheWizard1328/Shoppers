@@ -1,0 +1,67 @@
+{
+  "name": "DriverRoutePolyline",
+  "type": "object",
+  "properties": {
+    "driver_id": {
+      "type": "string",
+      "description": "The ID of the driver this route belongs to"
+    },
+    "delivery_date": {
+      "type": "string",
+      "format": "date",
+      "description": "The date this route is for (yyyy-MM-dd)"
+    },
+    "encoded_polyline": {
+      "type": "string",
+      "description": "Google Directions API encoded polyline string for the most recent segment (last completed to next stop)"
+    },
+    "transport_mode": {
+      "type": "string",
+      "enum": [
+        "driving",
+        "cycling",
+        "pedestrian"
+      ],
+      "default": "driving",
+      "description": "Transport mode used for this predicted route polyline segment"
+    },
+    "segment_origin_lat": {
+      "type": "number",
+      "description": "Latitude of the origin point for the current segment"
+    },
+    "segment_origin_lon": {
+      "type": "number",
+      "description": "Longitude of the origin point for the current segment"
+    },
+    "segment_dest_lat": {
+      "type": "number",
+      "description": "Latitude of the destination point for the current segment"
+    },
+    "segment_dest_lon": {
+      "type": "number",
+      "description": "Longitude of the destination point for the current segment"
+    },
+    "estimated_distance_km": {
+      "type": "number",
+      "description": "Distance of this segment in kilometers"
+    },
+    "estimated_duration_minutes": {
+      "type": "number",
+      "description": "Estimated duration of this segment in minutes"
+    },
+    "daily_generation_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Counter for how many times Google Directions API was called for this driver today"
+    },
+    "last_generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when the polyline was last generated"
+    }
+  },
+  "required": [
+    "driver_id",
+    "delivery_date"
+  ]
+}

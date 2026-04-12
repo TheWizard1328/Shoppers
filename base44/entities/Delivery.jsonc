@@ -230,6 +230,15 @@
       "type": "string",
       "description": "Encoded polyline for the finished route leg that ended at this stop"
     },
+    "finished_leg_transport_mode": {
+      "type": "string",
+      "enum": [
+        "driving",
+        "cycling",
+        "pedestrian"
+      ],
+      "description": "Transport mode used for the finished route leg's polyline"
+    },
     "PolylineUpdated": {
       "type": "boolean",
       "default": false,
