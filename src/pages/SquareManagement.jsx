@@ -386,11 +386,17 @@ export default function SquareManagement() {
       .filter((record) => record && typeof record.item_name === 'string' && record.item_name.trim().length > 0)
       .map((record) => {
         const normalized = { ...record };
+        if (!(typeof normalized.square_catalog_object_id === 'string' && normalized.square_catalog_object_id.trim().length > 0)) {
+          delete normalized.square_catalog_object_id;
+        }
         if (!(typeof normalized.delivery_id === 'string' && /^[a-f0-9]{24}$/i.test(normalized.delivery_id))) delete normalized.delivery_id;
         if (!(typeof normalized.patient_id === 'string' && /^[a-f0-9]{24}$/i.test(normalized.patient_id))) delete normalized.patient_id;
         if (!(typeof normalized.store_id === 'string' && /^[a-f0-9]{24}$/i.test(normalized.store_id))) delete normalized.store_id;
+        if (!(typeof normalized.location_id === 'string' && normalized.location_id.trim().length > 0)) delete normalized.location_id;
         return normalized;
-      });
+      })
+      .filter((record) => typeof record.square_catalog_object_id === 'string' && record.square_catalog_object_id.trim().length > 0)
+      .filter((record) => typeof record.location_id === 'string' && record.location_id.trim().length > 0);
 
     await base44.functions.invoke('squareCodCore', {
       action: 'syncOnlineSquareEntities',
