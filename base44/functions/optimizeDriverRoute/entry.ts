@@ -48,6 +48,7 @@ Deno.serve(async (req) => {
     // Get driver info
     const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
     const driverAppUser = appUsers?.[0];
+    const preferredTravelMode = String(driverAppUser?.preferred_travel_mode || 'driving').toLowerCase();
 
     if (!driverAppUser) {
       return Response.json({ error: 'Driver not found' }, { status: 404 });
@@ -268,7 +269,8 @@ Deno.serve(async (req) => {
         algorithm: optimizableStops.length <= 10 ? 'branch_and_bound' : 'nearest_neighbor_2opt',
         api_calls: apiCalls,
         start_location_source: startLocationSource,
-        had_locked_stop: !!lockedFirstStop
+        had_locked_stop: !!lockedFirstStop,
+        transport_mode: preferredTravelMode
       }
     });
 

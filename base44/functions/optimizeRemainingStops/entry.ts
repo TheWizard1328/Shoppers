@@ -93,6 +93,12 @@ Deno.serve(async (req) => {
     // Get driver info
     const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
     const driverAppUser = appUsers?.[0];
+    const preferredTravelMode = String(driverAppUser?.preferred_travel_mode || 'driving').toLowerCase();
+    const hereTransportMode = preferredTravelMode === 'cycling'
+      ? 'bicycle'
+      : preferredTravelMode === 'pedestrian'
+        ? 'pedestrian'
+        : 'car';
     
     if (!driverAppUser) {
       return Response.json({ error: 'Driver not found' }, { status: 404 });
@@ -283,7 +289,7 @@ Deno.serve(async (req) => {
         });
 
         // CRITICAL: Don't use optimize:true - respect the time-based order
-        const directionsUrl = `https://router.hereapi.com/v8/routes?${hereWaypoints}&return=summary&transportMode=car&routingMode=short&apiKey=${hereApiKey}`;
+        const directionsUrl = `https://router.hereapi.com/v8/routes?${hereWaypoints}&return=summary&transportMode=${hereTransportMode}&routingMode=short&apiKey=${hereApiKey}`;
 
         let directionsData = null;
         for (let attempt = 0; attempt < 3; attempt++) {
@@ -568,7 +574,8 @@ Deno.serve(async (req) => {
             successful_calls: totalApiCalls,
             driver_id: driverId,
             delivery_date: deliveryDate,
-            stops_count: currentStageSorted.length
+            stops_count: currentStageSorted.length,
+            transport_mode: preferredTravelMode
           }
         });
       }
