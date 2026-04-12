@@ -25,14 +25,6 @@ export default function MapSection({
   const mapResetKey = `${selectedDriverId}-${selectedDateStr}`;
   return (
     <>
-      {currentUser && isAppOwner(currentUser) &&
-        <div className="absolute left-4 z-[140]" style={{ bottom: `${(deliveriesWithStopOrder.length > 0 ? stopCardsBaseHeight : 0) + 15}px` }}>
-          <div className="px-2 py-1 text-xs font-medium rounded-lg border" style={{ background: 'transparent', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-600)' }}>
-            🛣️ {dailyPolylineCount ?? '...'}
-          </div>
-        </div>
-      }
-
       {!isStatsCardCentered && <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} stopCardsHeight={stopCardsBaseHeight} />}
 
       {realTimeETAEnabled && isMobile && isDriver && selectedDriverId === currentUser?.id && selectedDriverId !== 'all' &&
