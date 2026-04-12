@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
@@ -58,23 +58,7 @@ export default function ExpandedStatsControls({
   setShowBreadcrumbs,
   setBreadcrumbsData,
 }) {
-  const [localShowAllDriverMarkers, setLocalShowAllDriverMarkers] = useState(Boolean(showAllDriverMarkers));
-
-  useEffect(() => {
-    setLocalShowAllDriverMarkers(Boolean(showAllDriverMarkers));
-  }, [showAllDriverMarkers]);
-
-  const effectiveShowAllDriverMarkers = typeof setShowAllDriverMarkers === 'function'
-    ? Boolean(showAllDriverMarkers)
-    : localShowAllDriverMarkers;
-
-  const handleShowAllDriverMarkersChange = (checked) => {
-    if (typeof setShowAllDriverMarkers === 'function') {
-      setShowAllDriverMarkers(checked);
-      return;
-    }
-    setLocalShowAllDriverMarkers(checked);
-  };
+  const effectiveShowAllDriverMarkers = Boolean(showAllDriverMarkers);
 
   return (
     <>
@@ -99,58 +83,7 @@ export default function ExpandedStatsControls({
               <Button
                 variant="outline"
                 size="icon"
-                onClick={async () => {
-                  const checked = !effectiveShowAllDriverMarkers;
-                  handleShowAllDriverMarkersChange(checked);
-                  if (currentUser?.id) {
-                    saveSetting(currentUser.id, 'show_all_driver_markers', checked);
-                  }
-                  setIsExpanded(false);
-                  setSelectedCardId(null);
-                  cardExpandedAtRef.current = null;
-                  setAreCardsVisible(false);
-                  setIsEntityUpdating(true);
-                  try {
-                    const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-                    let allDateDeliveries;
-                    if (dataSource === 'online') {
-                      allDateDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
-                      offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDateDeliveries).catch(() => {});
-                    } else {
-                      allDateDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-                      if (!allDateDeliveries || allDateDeliveries.length === 0) {
-                        allDateDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
-                        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDateDeliveries);
-                      }
-                    }
-                    if (updateDeliveriesLocally) {
-                      const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
-                      const mergedDeliveries = [...otherDateDeliveries, ...allDateDeliveries];
-                      updateDeliveriesLocally(mergedDeliveries, true);
-                    }
-                    await new Promise((resolve) => setTimeout(resolve, 150));
-                    const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true, 'Dashboard', selectedDate);
-                    const latestAppUsers = locationUpdates?.appUsers || appUsers;
-                    if (locationUpdates?.hasChanges) {
-                      driverLocationPoller.processLocationData(currentUser, allDateDeliveries, drivers, stores, latestAppUsers, selectedDate);
-                    }
-                    window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-                      detail: { appUsers: latestAppUsers, forceAll: checked }
-                    }));
-                  } finally {
-                    setIsEntityUpdating(false);
-                  }
-                  if (mapLockTimeoutRef.current) {
-                    clearTimeout(mapLockTimeoutRef.current);
-                    mapLockTimeoutRef.current = null;
-                  }
-                  mapLockExpiresAtRef.current = null;
-                  setMapViewPhase(1);
-                  setIsMapViewLocked(false);
-                  lastProgrammaticMapMoveRef.current = Date.now();
-                  window._lastProgrammaticMapMove = Date.now();
-                  setMapViewTrigger((prev) => prev + 1);
-                }}
+                onClick={() => setShowAllDriverMarkers?.()}
                 className={`h-9 w-9 p-0 ${effectiveShowAllDriverMarkers ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
                 style={!effectiveShowAllDriverMarkers ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}
               >
