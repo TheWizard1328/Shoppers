@@ -291,8 +291,12 @@ export default function DeliveryMap({
   }, [safeUsers]);
 
   const deliveriesToShow = useMemo(() => {
+    if (!showOtherDriverDeliveries) {
+      return safeDeliveries;
+    }
+
     const baseDeliveries = safeDeliveries.length > 0 ? safeDeliveries : safeAllDeliveriesForDate;
-    if (!showOtherDriverDeliveries || otherDriverDeliveries.length === 0) return baseDeliveries;
+    if (otherDriverDeliveries.length === 0) return baseDeliveries;
     return dedupeById([...baseDeliveries, ...otherDriverDeliveries]);
   }, [safeDeliveries, safeAllDeliveriesForDate, otherDriverDeliveries, showOtherDriverDeliveries]);
 
