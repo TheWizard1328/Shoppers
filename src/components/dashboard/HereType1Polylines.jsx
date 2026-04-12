@@ -4,6 +4,7 @@ import { getHerePolyline, ensurePolylineSubscription } from "../utils/hereRoutin
 import useDriverRoutePolylineBackgroundSync from "../utils/useDriverRoutePolylineBackgroundSync";
 import { getRouteOptimizationSettings } from "./RouteOptimizationSettings";
 import { generateDriverColor } from "../utils/colorGenerator";
+import { getTravelModeLineStyle, normalizeTravelMode } from "./travelModeStyles";
 
 const FINISHED = ["completed", "failed", "cancelled", "returned"];
 
@@ -122,6 +123,7 @@ export default function HereType1Polylines({
   selectedDriverId = null,
   showAll = false,
   driverLocations = [],
+  driverTravelModes = {},
 }) {
   const [cache, setCache] = useState({});
   const [refreshToken, setRefreshToken] = useState(0);
@@ -482,6 +484,16 @@ export default function HereType1Polylines({
   const isGrace = Date.now() - mountTimeRef.current < 600;
   const lines = [];
   const getDriverPolylineColor = (driverId) => generateDriverColor(String(driverId || 'driver'));
+  const getDriverRouteStyle = (driverId, opacityOverride) => {
+    const mode = normalizeTravelMode(driverTravelModes[driverId]);
+    const base = getTravelModeLineStyle(mode, getDriverPolylineColor(driverId));
+    return {
+      ...base,
+      opacity: opacityOverride ?? base.opacity,
+      lineJoin: 'round',
+      lineCap: 'round'
+    };
+  };
   const seenKeys = new Set();
 
   // Pre-route: home -> first stop (only when NO completed stops yet)
@@ -517,7 +529,10 @@ export default function HereType1Polylines({
             <Polyline
               key={`type1-pre-home-${driverId}`}
               positions={coords || makeFallback({ latitude: originLat, longitude: originLon }, next)}
-              pathOptions={{ color: getDriverPolylineColor(driverId), weight: 5, opacity: coords ? 0.95 : 0.75, dashArray: coords ? '' : '8,8', lineJoin: 'round', lineCap: 'round' }}
+              pathOptions={{
+                ...getDriverRouteStyle(driverId, coords ? 0.95 : 0.75),
+                dashArray: coords ? getDriverRouteStyle(driverId).dashArray : '8,8'
+              }}
               pane="routeBasePane"
             />
           );
@@ -555,7 +570,7 @@ export default function HereType1Polylines({
         <Polyline
           key={`type1-next-remaining-${driverId}`}
           positions={hybrid.remainingCoords}
-          pathOptions={{ color: "#2563eb", weight: 5, opacity: 0.95, lineJoin: "round", lineCap: "round" }}
+          pathOptions={getDriverRouteStyle(driverId, 0.95)}
           pane="routeBasePane"
         />
       );
@@ -584,7 +599,10 @@ export default function HereType1Polylines({
         <Polyline
           key={`type1-next-${driverId}`}
           positions={coords || makeFallback(origin, destination)}
-          pathOptions={{ color: coords ? "#2563eb" : "#3b82f6", weight: 5, opacity: coords ? 0.9 : 0.7, dashArray: coords ? "" : "8,8", lineJoin: "round", lineCap: "round" }}
+          pathOptions={{
+            ...getDriverRouteStyle(driverId, coords ? 0.9 : 0.7),
+            dashArray: coords ? getDriverRouteStyle(driverId).dashArray : '8,8'
+          }}
           pane="routeBasePane"
         />
       );
@@ -617,7 +635,10 @@ export default function HereType1Polylines({
         <Polyline
           key={`type1-home-${driverId}`}
           positions={coords || makeFallback(lastCompleted, home)}
-          pathOptions={{ color: coords ? "#2563eb" : "#3b82f6", weight: 5, opacity: coords ? 0.9 : 0.7, dashArray: coords ? "" : "8,8", lineJoin: "round", lineCap: "round" }}
+          pathOptions={{
+            ...getDriverRouteStyle(driverId, coords ? 0.9 : 0.7),
+            dashArray: coords ? getDriverRouteStyle(driverId).dashArray : '8,8'
+          }}
           pane="routeBasePane"
         />
       );

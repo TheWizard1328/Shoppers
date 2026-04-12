@@ -271,6 +271,16 @@ export default function DeliveryMap({
     return Array.isArray(users) ? users : [];
   }, [realtimeAppUsers, users]);
 
+  const driverTravelModes = useMemo(() => {
+    const modes = {};
+    safeUsers.forEach((user) => {
+      const mode = user?.preferred_travel_mode;
+      if (user?.id) modes[user.id] = mode;
+      if (user?.user_id) modes[user.user_id] = mode;
+    });
+    return modes;
+  }, [safeUsers]);
+
   const driverLookupMap = useMemo(() => {
     const map = new Map();
     safeUsers.forEach((user) => {
@@ -989,6 +999,7 @@ export default function DeliveryMap({
             polylineRenderKey={polylineRenderKey}
             showStoredPolylines={showRoutes}
             showBreadcrumbPolylines={showBreadcrumbs}
+            driverTravelModes={driverTravelModes}
           />
         )}
 
@@ -1007,8 +1018,8 @@ export default function DeliveryMap({
 
         {(showRoutes || (typeof window !== "undefined" && localStorage.getItem("rxdeliver_show_routes") === "true")) && (
           <>
-            <HereType2Polylines key={`type2-${selectedDriverId}-${selectedDate}-${showOtherDriverDeliveries ? "all" : "single"}`} isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverRoutes={driverRoutes} multiDriverMode={selectedDriverId === "all" || showOtherDriverDeliveries} selectedDriverId={selectedDriverId} />
-            <HereType1Polylines key={`type1-${selectedDriverId}-${selectedDate}-${showOtherDriverDeliveries ? "all" : "single"}`} isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverHomeMarkers={driverHomeMarkers} currentDriverMarker={routeAwareCurrentDriverMarker} selectedDriverId={selectedDriverId} showAll={isAllDriversMode || showOtherDriverDeliveries} driverLocations={routeAwareDriverLocationMarkers} />
+            <HereType2Polylines key={`type2-${selectedDriverId}-${selectedDate}-${showOtherDriverDeliveries ? "all" : "single"}`} isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverRoutes={driverRoutes} multiDriverMode={selectedDriverId === "all" || showOtherDriverDeliveries} selectedDriverId={selectedDriverId} driverTravelModes={driverTravelModes} />
+            <HereType1Polylines key={`type1-${selectedDriverId}-${selectedDate}-${showOtherDriverDeliveries ? "all" : "single"}`} isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverHomeMarkers={driverHomeMarkers} currentDriverMarker={routeAwareCurrentDriverMarker} selectedDriverId={selectedDriverId} showAll={isAllDriversMode || showOtherDriverDeliveries} driverLocations={routeAwareDriverLocationMarkers} driverTravelModes={driverTravelModes} />
           </>
         )}
 

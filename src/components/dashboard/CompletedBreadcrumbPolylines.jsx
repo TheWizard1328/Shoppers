@@ -2,9 +2,20 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Polyline } from "react-leaflet";
 import { getHerePolyline } from "../utils/hereRouting";
 import { generateDriverColor } from "../utils/colorGenerator";
+import { getTravelModeLineStyle, normalizeTravelMode } from "./travelModeStyles";
 
 const FINISHED = ["completed", "failed", "cancelled"];
 const getDriverPolylineColor = (driverId) => generateDriverColor(String(driverId || 'driver'));
+const getDriverRouteStyle = (driverId, driverTravelModes, opacityOverride) => {
+  const mode = normalizeTravelMode(driverTravelModes[driverId]);
+  const base = getTravelModeLineStyle(mode, getDriverPolylineColor(driverId));
+  return {
+    ...base,
+    opacity: opacityOverride ?? base.opacity,
+    lineJoin: 'round',
+    lineCap: 'round'
+  };
+};
 
 const samePoint = (a, b) => (
   Math.abs(Number(a?.latitude) - Number(b?.latitude)) < 1e-5 &&
@@ -122,6 +133,7 @@ export default function CompletedBreadcrumbPolylines({
   polylineRenderKey = 0,
   showStoredPolylines = true,
   showBreadcrumbPolylines = true,
+  driverTravelModes = {},
 }) {
   const [cache, setCache] = useState({});
   const requestTimesRef = useRef({});
@@ -294,13 +306,7 @@ export default function CompletedBreadcrumbPolylines({
       <Polyline
         key={`stored-finished-${segment.id}-${polylineRenderKey}-${highlightedDeliveryId || "none"}`}
         positions={coords}
-        pathOptions={{
-          color: getDriverPolylineColor(segment.driverId),
-          weight: 4,
-          opacity: Math.max(segment.opacity, 0.35),
-          lineJoin: "round",
-          lineCap: "round",
-        }}
+        pathOptions={getDriverRouteStyle(segment.driverId, driverTravelModes, Math.max(segment.opacity, 0.35))}
         pane="completedBreadcrumbPane"
       />
     );
@@ -321,13 +327,7 @@ export default function CompletedBreadcrumbPolylines({
         <Polyline
           key={`completed-stored-${segment.id}-${polylineRenderKey}-${highlightedDeliveryId || "none"}`}
           positions={coords}
-          pathOptions={{
-            color: getDriverPolylineColor(segment.driverId),
-            weight: 4,
-            opacity: Math.max(segment.opacity, 0.35),
-            lineJoin: "round",
-            lineCap: "round",
-          }}
+          pathOptions={getDriverRouteStyle(segment.driverId, driverTravelModes, Math.max(segment.opacity, 0.35))}
           pane="completedBreadcrumbPane"
         />
       );
@@ -350,13 +350,7 @@ export default function CompletedBreadcrumbPolylines({
           <Polyline
             key={`completed-breadcrumb-line-${leg.id}-${polylineRenderKey}`}
             positions={positions}
-            pathOptions={{
-              color: getDriverPolylineColor(segment.driverId),
-              weight: 4,
-              opacity: Math.max(segment.opacity, 0.35),
-              lineJoin: "round",
-              lineCap: "round",
-            }}
+            pathOptions={getDriverRouteStyle(segment.driverId, driverTravelModes, Math.max(segment.opacity, 0.35))}
             pane="completedBreadcrumbPane"
           />
         );

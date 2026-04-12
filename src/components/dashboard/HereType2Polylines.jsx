@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState, useRef } from "react";
 import { Polyline } from "react-leaflet";
 import { getHerePolyline } from "../utils/hereRouting";
 import { generateDriverColor } from "../utils/colorGenerator";
+import { getTravelModeLineStyle, normalizeTravelMode } from "./travelModeStyles";
 
 const FINISHED = ["completed", "failed", "cancelled"];
 
@@ -29,6 +30,7 @@ export default function HereType2Polylines({
   driverRoutes = [],
   multiDriverMode = false,
   selectedDriverId = null,
+  driverTravelModes = {},
 }) {
   const [cache, setCache] = useState({});
   const [refreshToken, setRefreshToken] = useState(0);
@@ -76,6 +78,16 @@ export default function HereType2Polylines({
     };
 
     const getDriverPolylineColor = (driverId) => generateDriverColor(String(driverId || 'driver'));
+    const getDriverRouteStyle = (driverId, opacityOverride) => {
+      const mode = normalizeTravelMode(driverTravelModes[driverId]);
+      const base = getTravelModeLineStyle(mode, getDriverPolylineColor(driverId));
+      return {
+        ...base,
+        opacity: opacityOverride ?? base.opacity,
+        lineJoin: 'round',
+        lineCap: 'round'
+      };
+    };
 
   // Build per-driver incomplete stop sequences starting from next stop
   const driverIncomplete = useMemo(() => {
@@ -232,17 +244,13 @@ export default function HereType2Polylines({
           key={`type2-here-${driverId}-${i}`}
           positions={coords || makeFallback(a, b)}
           pathOptions={{
-            color: coords ? getDriverPolylineColor(driverId) : getDriverPolylineColor(driverId),
-            weight: 5,
-            opacity: coords ? (() => {
-              if (totalLegs <= 1) return 0.85; // single leg
+            ...getDriverRouteStyle(driverId, coords ? (() => {
+              if (totalLegs <= 1) return 0.85;
               const t = i / (totalLegs - 1);
               const start = 0.95, end = 0.25;
               return Math.max(end, start + (end - start) * t);
-            })() : 0.35,
-            dashArray: coords ? "" : "6,6",
-            lineJoin: "round",
-            lineCap: "round"
+            })() : 0.35),
+            dashArray: coords ? getDriverRouteStyle(driverId).dashArray : '6,6'
           }}
           pane="routeBasePane"
         />
