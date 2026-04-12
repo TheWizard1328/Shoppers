@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Navigation } from "lucide-react";
 import { format } from "date-fns";
+import TransportModeSelector from "@/components/dashboard/TransportModeSelector";
 import { base44 } from "@/api/base44Client";
 import { isAppOwner } from "@/components/utils/userRoles";
 import { pauseOfflineMutations, resumeOfflineMutations } from "@/components/utils/offlineMutations";
@@ -25,6 +26,8 @@ export default function RouteActionButtons({
   refreshData,
   setIsMapViewLocked,
   setMapViewTrigger,
+  transportMode,
+  setTransportMode,
 }) {
   if (!isAppOwner(currentUser) || selectedDriverId === "all") {
     return null;
@@ -45,6 +48,7 @@ export default function RouteActionButtons({
         right: "64px"
       }}
     >
+      <TransportModeSelector value={transportMode} onChange={setTransportMode} disabled={isReoptimizing} />
       <Button
         onClick={async () => {
           if (isReoptimizing) return;
@@ -62,7 +66,8 @@ export default function RouteActionButtons({
               driverId: selectedDriverId,
               deliveryDate,
               currentLocalTime,
-              deviceTime: now.toISOString()
+              deviceTime: now.toISOString(),
+              transport_mode: transportMode
             });
             const data = response?.data || response;
             if (data?.success) {
