@@ -55,6 +55,9 @@ export default function getExpandedStatsControlsProps({
   const handleToggleShowAllDriverMarkers = async () => {
     const checked = !showAllDriverMarkers;
     setShowAllDriverMarkers(checked);
+    setMapViewPhase(1);
+    setIsMapViewLocked(false);
+    setMapViewTrigger((prev) => prev + 1);
 
     if (currentUser?.id) {
       saveSetting(currentUser.id, 'show_all_driver_markers', checked);
@@ -115,11 +118,8 @@ export default function getExpandedStatsControlsProps({
       }
 
       mapLockExpiresAtRef.current = null;
-      setMapViewPhase(1);
-      setIsMapViewLocked(false);
       lastProgrammaticMapMoveRef.current = Date.now();
       window._lastProgrammaticMapMove = Date.now();
-      setMapViewTrigger((prev) => prev + 1);
     } finally {
       setIsEntityUpdating(false);
     }
