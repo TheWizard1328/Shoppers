@@ -81,21 +81,16 @@ export function getDispatchersForStore(storeId, appUsers) {
 }
 
 /**
- * Get app owners (platform admins with user.role === 'admin')
- * CRITICAL: Only return users with role='admin' AND created_by equals their own email
- * This filters out Base44 staff (Yehonathan Cohen, wizardworxx, etc.)
+ * Get admin app users (app_roles includes 'admin')
  */
-export async function getAppOwners() {
-  try {
-    const users = await base44.entities.User.list();
-    return users.filter(user => 
-      user?.role === 'admin' && 
-      user?.created_by === user?.email // Only actual app owners, not Base44 staff
-    );
-  } catch (error) {
-    console.error('[deliveryMessaging] Failed to fetch app owners:', error);
-    return [];
-  }
+export function getAppOwners(appUsers) {
+  if (!appUsers) return [];
+  return appUsers.filter(user => {
+    if (!user || !user.app_roles) return false;
+    if (!user.app_roles.includes('admin')) return false;
+    if (user.status !== 'active') return false;
+    return true;
+  });
 }
 
 /**
@@ -112,8 +107,8 @@ export async function getRecipientsForEvent(recipientTypes, { storeId, appUsers,
       users = getDispatchersForStore(storeId, appUsers);
       users = users.map(u => ({ id: u.user_id, name: u.user_name }));
     } else if (type === 'appowner') {
-      const owners = await getAppOwners();
-      users = owners.map(u => ({ id: u.id, name: u.full_name }));
+      const owners = getAppOwners(appUsers);
+      users = owners.map(u => ({ id: u.user_id, name: u.user_name }));
     } else if (type === 'driver' && driverId) {
       const driver = appUsers?.find(u => u?.user_id === driverId);
       if (driver) {
