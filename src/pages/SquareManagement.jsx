@@ -1465,7 +1465,7 @@ export default function SquareManagement() {
   return (
     <div className="p-4 md:p-6 bg-background text-foreground w-full min-h-screen md:h-screen flex flex-col overflow-hidden" style={{ paddingBottom: navHeight ? navHeight + 8 : undefined }}>
     {/* Header */}
-    <div className="flex flex-col gap-4 mb-6">
+    <div className="flex flex-col gap-4 mb-6 flex-shrink-0">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
           <CreditCard className="w-6 md:w-8 h-6 md:h-8 flex-shrink-0 text-emerald-600 dark:text-emerald-400" />
@@ -1547,6 +1547,7 @@ export default function SquareManagement() {
       </div>
     </div>
 
+    <div className="flex-1 min-h-0 overflow-y-auto pr-1">
           {/* Sync Status Indicator */}
           {syncStatus && (
             <div className="mb-2">
@@ -1737,6 +1738,7 @@ export default function SquareManagement() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
     </div>
   );
 }
