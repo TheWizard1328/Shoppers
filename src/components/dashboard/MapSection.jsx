@@ -79,6 +79,8 @@ export default function MapSection({
           breadcrumbsData={breadcrumbsData}
           center={mapCenter}
           zoom={mapZoom}
+          setMapCenter={setMapCenter}
+          setMapZoom={setMapZoom}
           shouldFitBounds={shouldFitBounds}
           onBoundsFitted={() => setShouldFitBounds(null)}
           onMarkerClick={handleMarkerClick}
@@ -90,7 +92,7 @@ export default function MapSection({
           areCardsVisible={areCardsVisible}
           onLegendInteraction={handleCardInteraction}
           onDriverRoutesCalculated={setDriverRoutes}
-          onMapInteraction={(isUser) => { if (isUser) {} }}
+          onMapInteraction={() => {}}
           onDoubleTap={() => {
             const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
             if (nextCard?.id) {
@@ -101,6 +103,8 @@ export default function MapSection({
           areStopCardsVisible={deliveriesWithStopOrder.length > 0}
           highlightedDeliveryId={highlightedCardId}
           stopCardsHeight={stopCardsBaseHeight}
+          mapViewPhase={1}
+          isMapViewLocked={false}
           onMapReady={() => {
             if (!renderSequence.mapMarkers) {
               setRenderSequence(prev => ({ ...prev, mapMarkers: true, routeLines: true, driverLiveLocation: true, sharedLocations: true }));
