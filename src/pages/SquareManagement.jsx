@@ -1466,19 +1466,27 @@ export default function SquareManagement() {
     <div className="p-4 md:p-6 bg-background text-foreground w-full min-h-screen md:h-screen flex flex-col overflow-hidden" style={{ paddingBottom: navHeight ? navHeight + 8 : undefined }}>
     {/* Header */}
     <div className="flex flex-col gap-4 mb-6">
-      <div className="flex items-center gap-3">
-        <CreditCard className="w-6 md:w-8 h-6 md:h-8 flex-shrink-0 text-emerald-600 dark:text-emerald-400" />
-        <div className="min-w-0">
-          <h1 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-slate-50">Square COD</h1>
-          <p className="text-xs md:text-sm text-slate-600 dark:text-slate-400">Track and manage COD payments</p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <CreditCard className="w-6 md:w-8 h-6 md:h-8 flex-shrink-0 text-emerald-600 dark:text-emerald-400" />
+          <div className="min-w-0">
+            <h1 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-slate-50">Square COD</h1>
+            <p className="text-xs md:text-sm text-slate-600 dark:text-slate-400">Track and manage COD payments</p>
+          </div>
         </div>
+
+        <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="gap-2 text-sm shrink-0 self-start">
+          <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
+          <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : 'Sync'}</span>
+          <span className="sm:hidden">{isSyncing ? 'Syncing' : 'Sync'}</span>
+        </Button>
       </div>
       
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-row flex-wrap items-center gap-2 md:gap-3">
+        <div className="grid grid-cols-3 gap-2 md:flex md:flex-row md:flex-wrap md:items-center md:gap-3 w-full md:w-auto">
           {currentUser && isAppOwner(currentUser) && drivers.length > 0 && (
             <Select value={selectedDriverFilter} onValueChange={setSelectedDriverFilter}>
-              <SelectTrigger className="w-[150px] md:w-[200px] text-sm">
+              <SelectTrigger className="w-full md:w-[200px] text-sm">
                 <SelectValue placeholder="All Drivers" />
               </SelectTrigger>
               <SelectContent>
@@ -1493,7 +1501,7 @@ export default function SquareManagement() {
           )}
 
           <Select value={selectedStoreFilter} onValueChange={setSelectedStoreFilter}>
-            <SelectTrigger className="w-[150px] md:w-[200px] text-sm">
+            <SelectTrigger className="w-full md:w-[200px] text-sm">
               <SelectValue placeholder="All Stores" />
             </SelectTrigger>
             <SelectContent>
@@ -1506,11 +1514,6 @@ export default function SquareManagement() {
             </SelectContent>
           </Select>
 
-          <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="gap-2 text-sm">
-            <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
-            <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : 'Sync'}</span>
-            <span className="sm:hidden">{isSyncing ? 'Syncing' : 'Sync'}</span>
-          </Button>
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-2 md:gap-3">
@@ -1526,7 +1529,7 @@ export default function SquareManagement() {
             </Button>
           )}
           <Select value={selectedDaysRange} onValueChange={setSelectedDaysRange}>
-            <SelectTrigger className="w-[120px] text-sm">
+            <SelectTrigger className="w-full md:w-[120px] text-sm">
               <SelectValue placeholder="Days" />
             </SelectTrigger>
             <SelectContent>
