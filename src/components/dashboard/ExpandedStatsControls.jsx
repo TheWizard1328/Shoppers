@@ -109,39 +109,36 @@ export default function ExpandedStatsControls({
                   setSelectedCardId(null);
                   cardExpandedAtRef.current = null;
                   setAreCardsVisible(false);
-                  if (checked) {
-                    setIsEntityUpdating(true);
-                    try {
-                      const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-                      let allDateDeliveries;
-                      if (dataSource === 'online') {
+                  setIsEntityUpdating(true);
+                  try {
+                    const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+                    let allDateDeliveries;
+                    if (dataSource === 'online') {
+                      allDateDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
+                      offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDateDeliveries).catch(() => {});
+                    } else {
+                      allDateDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+                      if (!allDateDeliveries || allDateDeliveries.length === 0) {
                         allDateDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
-                        offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDateDeliveries).catch(() => {});
-                      } else {
-                        allDateDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-                        if (!allDateDeliveries || allDateDeliveries.length === 0) {
-                          allDateDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
-                          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDateDeliveries);
-                        }
+                        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDateDeliveries);
                       }
-                      if (updateDeliveriesLocally) {
-                        const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
-                        const mergedDeliveries = [...otherDateDeliveries, ...allDateDeliveries];
-                        updateDeliveriesLocally(mergedDeliveries, true);
-                      }
-                      await new Promise((resolve) => setTimeout(resolve, 300));
-                      const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true);
-                      if (locationUpdates?.hasChanges) {
-                        driverLocationPoller.processLocationData(currentUser, allDateDeliveries, drivers, stores, locationUpdates.appUsers, selectedDate);
-                      }
-                      const showAllLocationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true, 'Dashboard', selectedDate);
-                      const showAllLatestAppUsers = showAllLocationUpdates?.appUsers || appUsers;
-                      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-                        detail: { appUsers: showAllLatestAppUsers, forceAll: true }
-                      }));
-                    } finally {
-                      setIsEntityUpdating(false);
                     }
+                    if (updateDeliveriesLocally) {
+                      const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
+                      const mergedDeliveries = [...otherDateDeliveries, ...allDateDeliveries];
+                      updateDeliveriesLocally(mergedDeliveries, true);
+                    }
+                    await new Promise((resolve) => setTimeout(resolve, 150));
+                    const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true, 'Dashboard', selectedDate);
+                    const latestAppUsers = locationUpdates?.appUsers || appUsers;
+                    if (locationUpdates?.hasChanges) {
+                      driverLocationPoller.processLocationData(currentUser, allDateDeliveries, drivers, stores, latestAppUsers, selectedDate);
+                    }
+                    window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+                      detail: { appUsers: latestAppUsers, forceAll: checked }
+                    }));
+                  } finally {
+                    setIsEntityUpdating(false);
                   }
                   if (mapLockTimeoutRef.current) {
                     clearTimeout(mapLockTimeoutRef.current);
