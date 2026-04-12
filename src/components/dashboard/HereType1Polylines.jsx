@@ -4,6 +4,7 @@ import { getHerePolyline, ensurePolylineSubscription } from "../utils/hereRoutin
 import useDriverRoutePolylineBackgroundSync from "../utils/useDriverRoutePolylineBackgroundSync";
 import { getRouteOptimizationSettings } from "./RouteOptimizationSettings";
 import { generateDriverColor } from "../utils/colorGenerator";
+import { applyTransportModeStyle } from "./polylineModeStyles";
 
 const FINISHED = ["completed", "failed", "cancelled", "returned"];
 
@@ -124,6 +125,7 @@ export default function HereType1Polylines({
   driverLocations = [],
 }) {
   const [cache, setCache] = useState({});
+  const [modeCache, setModeCache] = useState({});
   const [refreshToken, setRefreshToken] = useState(0);
   const [deviationSegments, setDeviationSegments] = useState({});
   const deviationMetaRef = useRef({});
@@ -166,6 +168,7 @@ export default function HereType1Polylines({
         const coords = decodePolyline(match.encoded_polyline);
         if (Array.isArray(coords) && coords.length > 1) {
           setCache((p) => ({ ...p, [key]: coords }));
+          setModeCache((p) => ({ ...p, [key]: match.transport_mode || 'driving' }));
           try { localStorage.setItem(key, JSON.stringify(coords)); } catch (_) {}
           return true;
         }
@@ -513,11 +516,22 @@ export default function HereType1Polylines({
         
         if (!seenKeys.has(key)) {
           seenKeys.add(key);
+          const transportMode = modeCache[key] || 'driving';
           lines.push(
             <Polyline
               key={`type1-pre-home-${driverId}`}
               positions={coords || makeFallback({ latitude: originLat, longitude: originLon }, next)}
-              pathOptions={{ color: getDriverPolylineColor(driverId), weight: 5, opacity: coords ? 0.95 : 0.75, dashArray: coords ? '' : '8,8', lineJoin: 'round', lineCap: 'round' }}
+              pathOptions={{
+                ...applyTransportModeStyle({
+                  transportMode,
+                  fallbackColor: getDriverPolylineColor(driverId),
+                  weight: 5,
+                  opacity: coords ? 0.95 : 0.75,
+                  fallbackDashArray: coords ? '': '8,8'
+                }),
+                lineJoin: 'round',
+                lineCap: 'round'
+              }}
               pane="routeBasePane"
             />
           );
@@ -551,11 +565,21 @@ export default function HereType1Polylines({
 
     if (hybrid?.remainingCoords?.length > 1 && !seenKeys.has(`${key}_deviation_remaining`)) {
       seenKeys.add(`${key}_deviation_remaining`);
+      const transportMode = modeCache[key] || 'driving';
       lines.push(
         <Polyline
           key={`type1-next-remaining-${driverId}`}
           positions={hybrid.remainingCoords}
-          pathOptions={{ color: "#2563eb", weight: 5, opacity: 0.95, lineJoin: "round", lineCap: "round" }}
+          pathOptions={{
+            ...applyTransportModeStyle({
+              transportMode,
+              fallbackColor: "#2563eb",
+              weight: 5,
+              opacity: 0.95
+            }),
+            lineJoin: "round",
+            lineCap: "round"
+          }}
           pane="routeBasePane"
         />
       );
@@ -580,11 +604,22 @@ export default function HereType1Polylines({
 
     if (!seenKeys.has(key)) {
       seenKeys.add(key);
+      const transportMode = modeCache[key] || 'driving';
       lines.push(
         <Polyline
           key={`type1-next-${driverId}`}
           positions={coords || makeFallback(origin, destination)}
-          pathOptions={{ color: coords ? "#2563eb" : "#3b82f6", weight: 5, opacity: coords ? 0.9 : 0.7, dashArray: coords ? "" : "8,8", lineJoin: "round", lineCap: "round" }}
+          pathOptions={{
+            ...applyTransportModeStyle({
+              transportMode,
+              fallbackColor: coords ? "#2563eb" : "#3b82f6",
+              weight: 5,
+              opacity: coords ? 0.9 : 0.7,
+              fallbackDashArray: coords ? "" : "8,8"
+            }),
+            lineJoin: "round",
+            lineCap: "round"
+          }}
           pane="routeBasePane"
         />
       );
@@ -613,11 +648,22 @@ export default function HereType1Polylines({
     // Show dashed fallback immediately; HERE polyline will hydrate when ready
     if (!seenKeys.has(key)) {
       seenKeys.add(key);
+      const transportMode = modeCache[key] || 'driving';
       lines.push(
         <Polyline
           key={`type1-home-${driverId}`}
           positions={coords || makeFallback(lastCompleted, home)}
-          pathOptions={{ color: coords ? "#2563eb" : "#3b82f6", weight: 5, opacity: coords ? 0.9 : 0.7, dashArray: coords ? "" : "8,8", lineJoin: "round", lineCap: "round" }}
+          pathOptions={{
+            ...applyTransportModeStyle({
+              transportMode,
+              fallbackColor: coords ? "#2563eb" : "#3b82f6",
+              weight: 5,
+              opacity: coords ? 0.9 : 0.7,
+              fallbackDashArray: coords ? "" : "8,8"
+            }),
+            lineJoin: "round",
+            lineCap: "round"
+          }}
           pane="routeBasePane"
         />
       );

@@ -6,11 +6,13 @@
  * Caches results to prevent duplicate API calls within short time windows
  */
 
-import AppUser from '@/entities/AppUser.json';
-import Delivery from '@/entities/Delivery.json';
-import Patient from '@/entities/Patient.json';
-import City from '@/entities/City.json';
-import Store from '@/entities/Store.json';
+import { base44 } from '@/api/base44Client';
+
+const AppUser = base44.entities.AppUser;
+const Delivery = base44.entities.Delivery;
+const Patient = base44.entities.Patient;
+const City = base44.entities.City;
+const Store = base44.entities.Store;
 
 const CACHE_TTL = 600000; // 10 minutes
 
