@@ -15,7 +15,7 @@ export default function ExpandedStatsControls({
   isDriver,
   isAllDriversMode,
   showAllDriverMarkers,
-  setShowAllDriverMarkers,
+  setShowAllDriverMarkers = () => {},
   currentUser,
   saveSetting,
   setIsExpanded,
