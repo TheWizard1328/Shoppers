@@ -9,6 +9,15 @@ export default function getDriverRouteControlsProps({
   preferredTravelMode,
   setPreferredTravelMode,
   isRouteComplete,
+  modeDialogOpen,
+  setModeDialogOpen,
+  nearbyModeStops,
+  selectedModeStopIds,
+  toggleModeStop,
+  returnToCurrentLocation,
+  toggleReturnToCurrentLocation,
+  handleModeOptimize,
+  isOptimizingModeRoute,
 }) {
   return {
     shouldShowLocationToggle,
@@ -21,5 +30,14 @@ export default function getDriverRouteControlsProps({
     preferredTravelMode,
     setPreferredTravelMode,
     hasActiveRoute: !isRouteComplete,
+    modeDialogOpen,
+    setModeDialogOpen,
+    nearbyModeStops,
+    selectedModeStopIds,
+    toggleModeStop,
+    returnToCurrentLocation,
+    toggleReturnToCurrentLocation,
+    handleModeOptimize,
+    isOptimizingModeRoute,
   };
 }

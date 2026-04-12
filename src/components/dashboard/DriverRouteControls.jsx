@@ -1,7 +1,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import LocationTrackingToggle from '@/components/layout/LocationTrackingToggle';
-import TravelModeButton from '@/components/dashboard/TravelModeButton';
+import TravelModeControl from '@/components/dashboard/TravelModeControl';
 import { Sparkles } from 'lucide-react';
 
 export default function DriverRouteControls({
@@ -15,6 +15,15 @@ export default function DriverRouteControls({
   preferredTravelMode,
   setPreferredTravelMode,
   hasActiveRoute,
+  modeDialogOpen,
+  setModeDialogOpen,
+  nearbyModeStops,
+  selectedModeStopIds,
+  toggleModeStop,
+  returnToCurrentLocation,
+  toggleReturnToCurrentLocation,
+  handleModeOptimize,
+  isOptimizingModeRoute,
 }) {
   if (!shouldShowLocationToggle) return null;
 
@@ -54,12 +63,21 @@ export default function DriverRouteControls({
               <span className="text-xs">AI</span>
             </Button>
 
-            <TravelModeButton
+            <TravelModeControl
               currentUser={currentUser}
               appUsers={appUsers}
               value={preferredTravelMode}
               onChange={setPreferredTravelMode}
               disabled={!hasActiveRoute}
+              dialogOpen={modeDialogOpen}
+              onDialogOpenChange={setModeDialogOpen}
+              nearbyStops={nearbyModeStops}
+              selectedStopIds={selectedModeStopIds}
+              onToggleStop={toggleModeStop}
+              returnToCurrentLocation={returnToCurrentLocation}
+              onToggleReturn={toggleReturnToCurrentLocation}
+              onOptimize={handleModeOptimize}
+              isSubmitting={isOptimizingModeRoute}
             />
           </>
         )}
