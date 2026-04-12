@@ -133,7 +133,7 @@ export default function PickupMarkers({
                                 : m.status === 'returned' ? 'text-orange-600' : '';
                               return (
                                 <div
-                                  key={`stop-${m.id}`}
+                                  key={`stop-${driverId}-${storeId}-${m.id}-${m.stop_order || 'na'}`}
                                   className="flex items-center justify-between gap-2 text-[11px] py-0.5 pl-1 cursor-pointer rounded hover:bg-slate-50"
                                   onClick={() => { document.querySelectorAll('.leaflet-popup').forEach(p=>p.remove()); document.getElementById(`stop-card-${m.id}`)?.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'}); }}
                                 >
@@ -215,7 +215,7 @@ export default function PickupMarkers({
                                     : (m.delivery_time_eta || null);
                                   const timeColor = m.status === 'completed' ? 'text-emerald-600' : (m.status === 'failed' || m.status === 'cancelled') ? 'text-red-600' : m.status === 'returned' ? 'text-orange-600' : '';
                                   return (
-                                    <div key={`stop-${m.id}`} className="flex items-center justify-between gap-2 text-[11px] py-0.5 pl-1">
+                                    <div key={`stop-${driverId}-${storeId}-${m.id}-${m.stop_order || 'na'}`} className="flex items-center justify-between gap-2 text-[11px] py-0.5 pl-1">
                                       <div className="flex min-w-0 items-center gap-1" style={{color:'var(--text-slate-900)'}}>
                                         <MapPin className="w-3 h-3 flex-shrink-0" style={{color:'var(--text-slate-500)'}} />
                                         <span className="shrink-0 font-medium" style={{color:'var(--text-slate-500)',fontFamily:'Courier New, monospace'}}>#{stopNum != null ? String(stopNum).padStart(2, '0') : '??'}</span>
