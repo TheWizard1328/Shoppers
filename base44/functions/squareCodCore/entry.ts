@@ -1341,7 +1341,7 @@ async function handleSyncCatalogItems(base44) {
   const syncedCatalogTransactions = (allTransactionsAfterSync || [])
     .filter((transaction) => !staleIds.has(transaction.id))
     .filter((transaction) => transaction?.square_catalog_object_id)
-    .filter((transaction) => transaction?.status === 'pending')
+    .filter((transaction) => transaction?.location_id)
     .filter((transaction) => {
       const delivery = deliveryById.get(transaction.delivery_id);
       return isRecentDelivery(delivery?.delivery_date || transaction?.item_name);
@@ -1366,7 +1366,7 @@ async function handleSyncCatalogItems(base44) {
         patient_id: transaction.patient_id || null,
         store_id: transaction.store_id || null,
         location_id: transaction.location_id || null,
-        status: 'active',
+        status: transaction.status === 'pending' ? 'active' : 'completed',
       };
     }));
   }
