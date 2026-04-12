@@ -15,7 +15,6 @@ export default function ExpandedStatsControls({
   isDriver,
   isAllDriversMode,
   showAllDriverMarkers,
-  setShowAllDriverMarkers,
   currentUser,
   saveSetting,
   setIsExpanded,
@@ -58,8 +57,6 @@ export default function ExpandedStatsControls({
   setShowBreadcrumbs,
   setBreadcrumbsData,
 }) {
-  const effectiveShowAllDriverMarkers = Boolean(showAllDriverMarkers);
-
   return (
     <>
       <div className="pt-1 pb-1 border-t flex items-center gap-2" style={{ borderColor: 'var(--border-slate-200)' }}>
@@ -83,9 +80,62 @@ export default function ExpandedStatsControls({
               <Button
                 variant="outline"
                 size="icon"
-                onClick={setShowAllDriverMarkers}
-                className={`h-9 w-9 p-0 ${effectiveShowAllDriverMarkers ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
-                style={!effectiveShowAllDriverMarkers ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}
+                onClick={async () => {
+                  const checked = !showAllDriverMarkers;
+                  if (currentUser?.id) {
+                    saveSetting(currentUser.id, 'show_all_driver_markers', checked);
+                  }
+                  setIsExpanded(false);
+                  setSelectedCardId(null);
+                  cardExpandedAtRef.current = null;
+                  setAreCardsVisible(false);
+                  if (checked) {
+                    setIsEntityUpdating(true);
+                    try {
+                      const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+                      let allDateDeliveries;
+                      if (dataSource === 'online') {
+                        allDateDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
+                        offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDateDeliveries).catch(() => {});
+                      } else {
+                        allDateDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+                        if (!allDateDeliveries || allDateDeliveries.length === 0) {
+                          allDateDeliveries = await base44.entities.Delivery.filter({ delivery_date: selectedDateStr });
+                          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDateDeliveries);
+                        }
+                      }
+                      if (updateDeliveriesLocally) {
+                        const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
+                        const mergedDeliveries = [...otherDateDeliveries, ...allDateDeliveries];
+                        updateDeliveriesLocally(mergedDeliveries, true);
+                      }
+                      await new Promise((resolve) => setTimeout(resolve, 300));
+                      const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true);
+                      if (locationUpdates?.hasChanges) {
+                        driverLocationPoller.processLocationData(currentUser, allDateDeliveries, drivers, stores, locationUpdates.appUsers, selectedDate);
+                      }
+                      const showAllLocationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true, 'Dashboard', selectedDate);
+                      const showAllLatestAppUsers = showAllLocationUpdates?.appUsers || appUsers;
+                      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+                        detail: { appUsers: showAllLatestAppUsers, forceAll: true }
+                      }));
+                    } finally {
+                      setIsEntityUpdating(false);
+                    }
+                  }
+                  if (mapLockTimeoutRef.current) {
+                    clearTimeout(mapLockTimeoutRef.current);
+                    mapLockTimeoutRef.current = null;
+                  }
+                  mapLockExpiresAtRef.current = null;
+                  setMapViewPhase(1);
+                  setIsMapViewLocked(false);
+                  lastProgrammaticMapMoveRef.current = Date.now();
+                  window._lastProgrammaticMapMove = Date.now();
+                  setMapViewTrigger((prev) => prev + 1);
+                }}
+                className={`h-9 w-9 p-0 ${showAllDriverMarkers ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
+                style={!showAllDriverMarkers ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}
               >
                 <Binoculars className="w-4 h-4" />
               </Button>
@@ -100,7 +150,7 @@ export default function ExpandedStatsControls({
                 setShowRoutes={setShowRoutes}
                 setBreadcrumbsData={setBreadcrumbsData}
                 selectedDate={selectedDate}
-                showAllDriverMarkers={effectiveShowAllDriverMarkers}
+                showAllDriverMarkers={showAllDriverMarkers}
                 selectedDriverId={selectedDriverId}
                 currentUser={currentUser}
                 appUsers={appUsers}
