@@ -1,8 +1,6 @@
 import { format } from 'date-fns';
 import { isAppOwner, userHasRole } from '@/components/utils/userRoles';
 import DeliveryMap from "@/components/dashboard/DeliveryMap";
-import TravelModeSelector from '@/components/dashboard/TravelModeSelector';
-import { getPreferredTravelMode } from '@/components/dashboard/travelModeHelpers';
 import DashboardOfflineSync from '@/components/dashboard/DashboardOfflineSync';
 import ETATracker from '@/components/dashboard/ETATracker';
 import ETANotification from '@/components/dashboard/ETANotification';
@@ -25,7 +23,6 @@ export default function MapSection({
   preferredTravelMode, onTravelModeChange,
 }) {
   const mapResetKey = `${selectedDriverId}-${selectedDateStr}`;
-  const resolvedTravelMode = preferredTravelMode || getPreferredTravelMode(appUsers, currentUser?.id);
   return (
     <>
       {currentUser && isAppOwner(currentUser) &&
@@ -47,17 +44,6 @@ export default function MapSection({
       }
 
       <ETANotification deliveries={filteredDeliveries} driverId={selectedDriverId} currentUser={currentUser} />
-
-      {currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'dispatcher') && (
-        <div className="absolute right-4 top-4 z-[160]">
-          <TravelModeSelector
-            currentUser={currentUser}
-            appUsers={appUsers}
-            value={resolvedTravelMode}
-            onChange={onTravelModeChange}
-          />
-        </div>
-      )}
 
       <div className="absolute inset-0">
         <DeliveryMap

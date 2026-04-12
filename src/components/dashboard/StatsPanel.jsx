@@ -5,6 +5,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Calendar as CalendarIcon, Clock, Truck, Plus, ChevronUp, ChevronDown, Settings, Sparkles, Binoculars } from "lucide-react";
+import TravelModeButton from '@/components/dashboard/TravelModeButton';
 import { useEffect, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { format } from 'date-fns';
@@ -45,6 +46,8 @@ export default function StatsPanel({
   dailyPolylineCount, stats, finalizedDutyTime,
   refreshUser, dataSource,
   isMobile,
+  preferredTravelMode,
+  setPreferredTravelMode,
 }) {
   const [legendDeliveries, setLegendDeliveries] = useState([]);
   const [isDemoModeActive, setIsDemoModeActive] = useState(false);
@@ -407,6 +410,12 @@ export default function StatsPanel({
                     <Button variant="outline" size="sm" onClick={() => setShowSmartPrioritization(true)} className="h-8 gap-1.5 px-2 flex-shrink-0" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                       <Sparkles className="w-3 h-3" /><span className="text-xs">AI</span>
                     </Button>
+                    <TravelModeButton
+                      currentUser={currentUser}
+                      appUsers={appUsers}
+                      value={preferredTravelMode}
+                      onChange={setPreferredTravelMode}
+                    />
                   </>}
                 </div>
               </>}
