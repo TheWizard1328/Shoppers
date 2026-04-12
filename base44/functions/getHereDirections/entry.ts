@@ -28,6 +28,15 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     origin = body?.origin || null;
     destination = body?.destination || null;
+    const requestedTransportMode = String(body?.transportMode || body?.transport_mode || 'driving').toLowerCase();
+    const hereTransportMode = requestedTransportMode === 'cycling'
+      ? 'bicycle'
+      : requestedTransportMode === 'pedestrian'
+        ? 'pedestrian'
+        : 'car';
+    const normalizedTransportMode = requestedTransportMode === 'cycling' || requestedTransportMode === 'pedestrian'
+      ? requestedTransportMode
+      : 'driving';
 
     const originLat = Number(origin?.lat);
     const originLng = Number(origin?.lng);
@@ -44,7 +53,7 @@ Deno.serve(async (req) => {
     }
 
     const params = new URLSearchParams({
-      transportMode: 'car',
+      transportMode: hereTransportMode,
       routingMode: 'short',
       origin: `${originLat},${originLng}`,
       destination: `${destinationLat},${destinationLng}`,
@@ -98,7 +107,8 @@ Deno.serve(async (req) => {
       polyline: polylines[0],
       polylines,
       estimated_distance_km,
-      estimated_duration_minutes
+      estimated_duration_minutes,
+      transport_mode: normalizedTransportMode
     });
   } catch (err) {
     console.error('[getHereDirections] unexpected error', err?.message || err);

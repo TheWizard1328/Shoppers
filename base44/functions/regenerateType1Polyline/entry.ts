@@ -188,10 +188,11 @@ function buildStopOrderRepairUpdates(deliveries) {
     }));
 }
 
-async function getSegmentDirections(base44, from, to) {
+async function getSegmentDirections(base44, from, to, transportMode = 'driving') {
   const response = await base44.functions.invoke('getHereDirections', {
     origin: { lat: from.lat, lng: from.lon },
-    destination: { lat: to.lat, lng: to.lon }
+    destination: { lat: to.lat, lng: to.lon },
+    transportMode
   });
 
   const data = response?.data || response || {};
@@ -217,7 +218,8 @@ async function getSegmentDirections(base44, from, to) {
   return {
     encoded_polyline: polyline,
     estimated_distance_km: data?.estimated_distance_km ?? null,
-    estimated_duration_minutes: data?.estimated_duration_minutes ?? null
+    estimated_duration_minutes: data?.estimated_duration_minutes ?? null,
+    transport_mode: data?.transport_mode || transportMode || 'driving'
   };
 }
 
@@ -245,6 +247,7 @@ Deno.serve(async (req) => {
     const driverAppUser = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
     const homeLat = Number(driverAppUser[0]?.home_latitude);
     const homeLon = Number(driverAppUser[0]?.home_longitude);
+    const preferredTravelMode = String(driverAppUser[0]?.preferred_travel_mode || 'driving').toLowerCase();
 
     const deliveries = await base44.asServiceRole.entities.Delivery.filter({
       driver_id: driverId,
@@ -407,7 +410,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const directions = await getSegmentDirections(base44, originCoords, nextStopCoords);
+    const directions = await getSegmentDirections(base44, originCoords, nextStopCoords, preferredTravelMode);
 
     const payload = {
       driver_id: driverId,
@@ -419,6 +422,7 @@ Deno.serve(async (req) => {
       segment_dest_lon: round5(nextStopCoords.lon),
       estimated_distance_km: directions.estimated_distance_km,
       estimated_duration_minutes: directions.estimated_duration_minutes,
+      transport_mode: directions.transport_mode || preferredTravelMode,
       daily_generation_count: Number(existingType1?.daily_generation_count || 0) + 1,
       last_generated_at: new Date().toISOString()
     };
