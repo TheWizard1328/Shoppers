@@ -14,7 +14,7 @@ import { format, startOfDay } from 'date-fns';
 import { getData, invalidate, loadPriorityDeliveriesForSelection } from "@/components/utils/dataManager";
 import { offlineDB } from "@/components/utils/offlineDatabase";
 import { offlineFirstManager } from "@/components/utils/offlineFirstManager";
-import DeliveryMap from "@/components/dashboard/DeliveryMap";
+import MapSection from "@/components/dashboard/MapSection";
 import SnapshotTimeline from "@/components/snapshot/SnapshotTimeline";
 import { getDriverColor } from "@/components/dashboard/DeliveryMap";
 import HorizontalStopCards from "@/components/dashboard/HorizontalStopCards";
@@ -78,8 +78,6 @@ import ErrorFlagIndicator from "@/components/dashboard/ErrorFlagIndicator";
 // import OfflineIndicator from "@/components/dashboard/OfflineIndicator";
 // import OfflineSyncIndicator from '@/components/layout/OfflineSyncIndicator';
 import DashboardOfflineSync from '@/components/dashboard/DashboardOfflineSync';
-import ETATracker from '../components/dashboard/ETATracker';
-import RealTimeRouteOptimizer from '../components/dashboard/RealTimeRouteOptimizer';
 import QuickRouteAdjustments from '../components/dashboard/QuickRouteAdjustments';
 import { driverActivityMonitor } from '@/components/utils/driverActivityMonitor';
 import SmartPrioritizationPanel from '../components/dashboard/SmartPrioritizationPanel';
@@ -223,6 +221,7 @@ function Dashboard() {
   const [showAllDriverMarkers, setShowAllDriverMarkers] = useState(false);
   const [showSmartPrioritization, setShowSmartPrioritization] = useState(false);
   const [showBreadcrumbs, setShowBreadcrumbs] = useState(false);
+  const [preferredTravelMode, setPreferredTravelMode] = useState('driving');
   const [breadcrumbsData, setBreadcrumbsData] = useState({ historical: [], current: [] });
   const [performanceStats, setPerformanceStats] = useState(null);
   const [deliveryStats, setDeliveryStats] = useState(null);
@@ -976,6 +975,13 @@ function Dashboard() {
 
     return driversSource;
   }, [appUsers, currentUser, stores, selectedDate, deliveries]);
+
+  useEffect(() => {
+    const appUser = appUsers.find((user) => user?.user_id === currentUser?.id);
+    if (appUser?.preferred_travel_mode) {
+      setPreferredTravelMode(appUser.preferred_travel_mode);
+    }
+  }, [appUsers, currentUser?.id]);
 
   const shouldShowLocationToggle = useMemo(() => {
     // Show for all drivers on ALL devices and screen sizes
@@ -5736,83 +5742,57 @@ function Dashboard() {
       <div className="flex-1 w-full relative min-h-0 overflow-hidden">
         {currentUser && isAppOwner(currentUser) && <ApiUsageBadge currentUser={currentUser} stopCardsHeight={deliveriesWithStopOrder.length > 0 ? stopCardsBaseHeight : 0} showRoutes={showRoutes} showBreadcrumbs={showBreadcrumbs} showCompletedRouteControls={!isMobile && selectedDriverId !== 'all' && filteredDeliveries.length > 0 && filteredDeliveries.every((delivery) => delivery && ['completed', 'failed', 'cancelled', 'returned'].includes(delivery.status))} selectedDate={format(selectedDate, 'yyyy-MM-dd')} selectedDriverIds={selectedDriverId !== 'all' ? [selectedDriverId] : []} />}
 
-        {/* Offline Sync Indicator - separate when stats card is in upper left corner */}
-        {!isStatsCardCentered && <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} stopCardsHeight={stopCardsBaseHeight} />}
-
-        {/* Real-time ETA Tracker - ONLY for mobile drivers viewing their own route */}
-        {realTimeETAEnabled && isMobile && isDriver && selectedDriverId === currentUser?.id && selectedDriverId !== 'all' &&
-        <ETATracker
-          selectedDriverId={selectedDriverId}
-          selectedDate={selectedDateStr}
+        <MapSection
           currentUser={currentUser}
-          isActive={!showDeliveryForm && !showPatientForm && !showOptimizationSettings}
-          onETAUpdate={(updates) => {
-          }} />
-
-        }
-
-        {/* Real-time Route Optimizer - ONLY for mobile drivers viewing their own route */}
-        {isMobile && isDriver && selectedDriverId === currentUser?.id && selectedDriverId !== 'all' &&
-        <RealTimeRouteOptimizer
+          isDriver={isDriver}
+          isDispatcher={isDispatcher}
+          isMobile={isMobile}
+          deliveries={deliveries}
+          patients={patients}
+          stores={stores}
+          drivers={drivers}
+          appUsers={appUsers}
+          filteredDeliveries={filteredDeliveries}
+          deliveriesWithStopOrder={deliveriesWithStopOrder}
+          selectedDate={selectedDate}
+          selectedDateStr={selectedDateStr}
           selectedDriverId={selectedDriverId}
-          selectedDate={selectedDateStr}
-          currentUser={currentUser}
-          isActive={!showDeliveryForm && !showPatientForm && !showOptimizationSettings}
-          onRouteOptimized={(updates) => {
-          }} />
-
-        }
-
-
-        <div className="absolute inset-0">
-          <DeliveryMap
-            deliveries={deliveriesWithStopOrder}
-            selectedDriverId={selectedDriverId}
-            selectedDate={format(selectedDate, 'yyyy-MM-dd')}
-            patients={patients}
-            stores={stores}
-            users={appUsers}
-            currentUser={currentUser}
-            driverLocations={isAllDriversMode ? allDriverLocations : showAllDriverMarkers ? allDriverLocations : allDriverLocations}
-            deliveriesForLocationFilter={filteredDeliveries}
-            showOtherDriverDeliveries={showAllDriverMarkers}
-            currentDriverLocation={driverLocation}
-            currentToNextPolyline={currentToNextPolyline}
-            showBreadcrumbs={showBreadcrumbs}
-            breadcrumbsData={breadcrumbsData}
-            center={mapCenter} zoom={mapZoom}
-            setMapCenter={setMapCenter} setMapZoom={setMapZoom}
-            shouldFitBounds={shouldFitBounds}
-            onBoundsFitted={() => setShouldFitBounds(null)}
-            onMarkerClick={handleMarkerClick}
-            mapMode={mapMode}
-            onMapModeChange={setMapMode}
-            autoFitBounds={true}
-            showRoutes={showRoutes}
-            showLegend={false}
-            areCardsVisible={areCardsVisible}
-            onLegendInteraction={handleCardInteraction}
-            onDriverRoutesCalculated={setDriverRoutes}
-            onMapInteraction={handleMapInteraction} mapViewPhase={mapViewPhase} isMapViewLocked={isMapViewLocked}
-            onDoubleTap={handleMapViewCycle}
-            retractClustersRef={retractClustersRef}
-            areStopCardsVisible={deliveriesWithStopOrder.length > 0}
-            highlightedDeliveryId={highlightedCardId}
-            stopCardsHeight={stopCardsBaseHeight}
-            onMapReady={() => {
-              // CRITICAL: Mark map rendering complete (Sequence 3-6 done)
-              if (!renderSequence.mapMarkers) {
-                setRenderSequence((prev) => ({
-                  ...prev,
-                  mapMarkers: true,
-                  routeLines: true,
-                  driverLiveLocation: true,
-                  sharedLocations: true
-                }));
-              }
-            }} />
-        </div>
-
+          mapCenter={mapCenter}
+          mapZoom={mapZoom}
+          shouldFitBounds={shouldFitBounds}
+          setShouldFitBounds={setShouldFitBounds}
+          setMapCenter={setMapCenter}
+          setMapZoom={setMapZoom}
+          mapMode={mapMode}
+          setMapMode={setMapMode}
+          driverLocation={driverLocation}
+          allDriverLocations={allDriverLocations}
+          currentToNextPolyline={currentToNextPolyline}
+          showRoutes={showRoutes}
+          showAllDriverMarkers={showAllDriverMarkers}
+          showBreadcrumbs={showBreadcrumbs}
+          breadcrumbsData={breadcrumbsData}
+          highlightedCardId={highlightedCardId}
+          retractClustersRef={retractClustersRef}
+          setDriverRoutes={setDriverRoutes}
+          renderSequence={renderSequence}
+          setRenderSequence={setRenderSequence}
+          stopCardsBaseHeight={stopCardsBaseHeight}
+          handleMarkerClick={handleMarkerClick}
+          handleCardInteraction={handleCardInteraction}
+          areCardsVisible={areCardsVisible}
+          handleMapViewCycle={handleMapViewCycle}
+          isStatsCardCentered={isStatsCardCentered}
+          dailyPolylineCount={dailyPolylineCount}
+          isExpanded={isExpanded}
+          polylineResetKey={selectedDateStr}
+          realTimeETAEnabled={realTimeETAEnabled}
+          showDeliveryForm={showDeliveryForm}
+          showPatientForm={showPatientForm}
+          showOptimizationSettings={showOptimizationSettings}
+          preferredTravelMode={preferredTravelMode}
+          onTravelModeChange={setPreferredTravelMode}
+        />
         <div
           ref={stopCardsContainerRef}
           className="horizontal-cards-container absolute bottom-0 right-0 z-[1000] isolate px-4 pb-1 pointer-events-none flex flex-col justify-end max-h-[80vh]"
