@@ -1,4 +1,5 @@
 import { format } from 'date-fns';
+import { fabControlEvents } from '@/components/utils/fabControlEvents';
 import { isAppOwner, userHasRole } from '@/components/utils/userRoles';
 import DeliveryMap from "@/components/dashboard/DeliveryMap";
 import DashboardOfflineSync from '@/components/dashboard/DashboardOfflineSync';
@@ -73,6 +74,7 @@ export default function MapSection({
           onDriverRoutesCalculated={setDriverRoutes}
           onMapInteraction={() => {}}
           onDoubleTap={() => {
+            fabControlEvents.reactivateFAB(false, { forceWhileUserInteracting: true, reason: 'map_double_tap' });
             const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
             if (nextCard?.id) {
               window.dispatchEvent(new CustomEvent('centerStopCard', { detail: { deliveryId: nextCard.id } }));

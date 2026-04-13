@@ -46,7 +46,6 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
     const unsubscribe = fabControlEvents.subscribe((event) => {
       if (event?.type !== 'REACTIVATE_FAB') return;
       if (event?.suppressIfPhase1 && currentPhase === 1) return;
-      if (currentPhase === 1) return;
       flashUpdate(event?.reason || 'generic');
     });
 
