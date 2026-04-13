@@ -43,7 +43,7 @@ export function getFabTargetDriverMapLocation({
 
   if (!isOnDuty) return null;
 
-  if (isOwnDriver && driverLocation?.latitude && driverLocation?.longitude && isPrimaryDevice) {
+  if (isOwnDriver && driverLocation?.latitude && driverLocation?.longitude) {
     return { latitude: driverLocation.latitude, longitude: driverLocation.longitude };
   }
 

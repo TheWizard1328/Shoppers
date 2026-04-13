@@ -344,7 +344,7 @@ class LocationTracker {
         console.error('❌ [LocationTracker] FAILED TO SYNC to offline DB:', offlineError.message);
       }
 
-      // Step 4: Dispatch event to update other devices via WebSocket
+      // Step 4: Dispatch locally and broadcast so other devices update immediately
       if (typeof window !== 'undefined') {
         console.log(`📡 [LocationTracker] Dispatching driverLocationsUpdated for ${userName}`);
         window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
@@ -356,6 +356,7 @@ class LocationTracker {
           }
         }));
       }
+      await broadcastMutation('AppUser', 'update', updatedAppUser.id, updatedAppUser);
 
       // CRITICAL: Always update UserDevice last_active_at for primary tracker
       const currentDevice = await getCurrentDevice(this.currentUser.id);

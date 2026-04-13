@@ -1533,7 +1533,7 @@ function Dashboard() {
       // Callback provided for future use
     }, currentUser);const unsubscribe = driverLocationPoller.subscribe((locations) => {if (!locations || !Array.isArray(locations)) return; // CRITICAL: On mobile with active GPS tracking, filter out self marker (blue dot shows instead)
         // On all other devices/scenarios, show the shared marker
-        const isTrackingOnThisDevice = locationTracker.isTracking === true;const shouldFilterSelf = isMobile && isDriver && isTrackingOnThisDevice;const filteredLocations = shouldFilterSelf ? locations.filter((loc) => {if (loc._isSelf === true) {return false;}return true;}) : locations;setAllDriverLocations(filteredLocations);});
+        const shouldFilterSelf = isMobile && isDriver;const filteredLocations = shouldFilterSelf ? locations.filter((loc) => {if (loc._isSelf === true) {return false;}return true;}) : locations;setAllDriverLocations(filteredLocations);});
 
     return () => {
       unsubscribe();

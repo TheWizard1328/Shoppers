@@ -240,7 +240,7 @@ export default function HereType1Polylines({
     onSync: () => setRefreshToken((token) => token + 1)
   });
 
-  // Listen for route reorder/optimization events to refresh polylines
+  // Listen only to route-shape-changing events so location pings don't redraw type-1 lines
   useEffect(() => {
     const invalidate = () => { setRefreshToken((t) => t + 1); };
     const onReorder = invalidate;

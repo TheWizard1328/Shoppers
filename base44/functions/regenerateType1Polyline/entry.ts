@@ -352,7 +352,11 @@ Deno.serve(async (req) => {
     ) || null;
 
     if (exactExistingType1) {
-      return Response.json({ success: true, skipped: true, reason: 'cached_exact_segment', driverId, deliveryDate, nextStopId: nextActiveStop.id, repairedStopOrders: stopOrderRepairUpdates.length });
+      const lastGeneratedAt = exactExistingType1?.last_generated_at ? new Date(exactExistingType1.last_generated_at).getTime() : 0;
+      const movedSinceLastGenerate = distanceMeters(currentLat, currentLon, Number(exactExistingType1.segment_origin_lat), Number(exactExistingType1.segment_origin_lon));
+      if (Date.now() - lastGeneratedAt < DEFAULT_MIN_INTERVAL_MS || movedSinceLastGenerate < minMoveMeters) {
+        return Response.json({ success: true, skipped: true, reason: 'cached_exact_segment', driverId, deliveryDate, nextStopId: nextActiveStop.id, repairedStopOrders: stopOrderRepairUpdates.length });
+      }
     }
 
     const existingType1 = (existingPolylines || []).find((row) =>
@@ -383,8 +387,8 @@ Deno.serve(async (req) => {
         console.warn('[regenerateType1Polyline] Failed to decode polyline for deviation check:', e);
       }
 
-      // Only regenerate if driver has deviated significantly from the route (>200m)
-      const hasDeviated = deviationMeters > 200;
+      // Only regenerate if driver has deviated significantly from the route
+      const hasDeviated = deviationMeters > minMoveMeters;
       
       if (!hasDeviated) {
         // Check if origin point has changed (completed a new stop)
