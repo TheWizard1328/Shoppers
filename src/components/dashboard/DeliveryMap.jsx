@@ -202,9 +202,9 @@ export default function DeliveryMap({
   }, [retractClustersRef]);
 
   useEffect(() => {
-    if (routeRecalcVersion === 0) return;
+    if (routeRecalcVersion === 0 || mapViewPhase !== 2) return;
     setPolylineRenderKey((value) => value + 1);
-  }, [routeRecalcVersion]);
+  }, [routeRecalcVersion, mapViewPhase]);
 
   const effectiveTopOverlayHeight = topOverlayHeight || measuredTopOverlayHeight;
   useEffect(() => {
@@ -232,7 +232,6 @@ export default function DeliveryMap({
     const handleDeliveriesUpdate = () => {
       prevDriverRoutesRef.current = [];
       setRouteRenderKey((value) => value + 1);
-      setPolylineRenderKey((value) => value + 1);
       setFannedLocationKey(null);
     };
 

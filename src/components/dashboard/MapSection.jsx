@@ -24,7 +24,6 @@ export default function MapSection({
   preferredTravelMode, onTravelModeChange,
   topOverlayHeight = 0,
 }) {
-  const mapResetKey = `${selectedDriverId}-${selectedDateStr}`;
   return (
     <>
       {!isStatsCardCentered && <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} stopCardsHeight={stopCardsBaseHeight} />}
@@ -41,7 +40,6 @@ export default function MapSection({
 
       <div className="absolute inset-0">
         <DeliveryMap
-          key={mapResetKey}
           deliveries={deliveriesWithStopOrder}
           allDeliveriesForDate={deliveries}
           selectedDriverId={selectedDriverId}
