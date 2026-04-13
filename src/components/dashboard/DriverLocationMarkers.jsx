@@ -128,7 +128,13 @@ const mergeVisibleDriversByFreshness = (current = [], incoming = []) => {
       Number(existing?.current_longitude) !== Number(user?.current_longitude)
     );
     if (!existing || coordsChanged || nextTs >= existingTs) {
-      merged.set(key, user);
+      merged.set(key, {
+        ...existing,
+        ...user,
+        current_latitude: user?.current_latitude ?? existing?.current_latitude,
+        current_longitude: user?.current_longitude ?? existing?.current_longitude,
+        location_updated_at: user?.location_updated_at || existing?.location_updated_at || user?.updated_date || existing?.updated_date
+      });
     }
   });
   return Array.from(merged.values());
@@ -268,9 +274,8 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
   // Listen for driverLocationsUpdated events to force marker refresh
   useEffect(() => {
     const handleLocationUpdates = (event) => {
-      const { appUsers: updatedAppUsers, singleUpdate, forceAll, fromRealtime, fromPoller } = event.detail || {};
+      const { appUsers: updatedAppUsers, singleUpdate, forceAll, fromRealtime, fromPoller, mergeMode } = event.detail || {};
       
-      // CRITICAL: Don't show markers for past dates - check immediately
       if (selectedDate) {
         const todayStr = format(new Date(), 'yyyy-MM-dd');
         const selectedDateStr = selectedDate instanceof Date 
@@ -281,39 +286,29 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         }
       }
 
-      // Handle single driver update
-      if (fromPoller && updatedAppUsers && updatedAppUsers.length > 0) {
-        const validDrivers = dedupeVisibleDrivers(updatedAppUsers.filter(shouldShowMarker));
-        setVisibleDrivers(validDrivers);
-        return;
-      }
+      if (!updatedAppUsers || updatedAppUsers.length === 0) return;
 
-      if (singleUpdate && updatedAppUsers && updatedAppUsers.length === 1) {
-        const user = normalizeDriverRecord(updatedAppUsers[0]);
-        const userKey = getDriverIdentityKey(user);
-        
-        if (user.current_latitude && user.current_longitude && shouldShowMarker(user)) {
-          setVisibleDrivers(prev => {
-            const nextDrivers = prev.filter((driver) => (getDriverIdentityKey(driver) || driver?.id) !== userKey);
-            return dedupeVisibleDrivers([
-              ...nextDrivers,
-              {
-                ...user,
-                current_latitude: user.current_latitude,
-                current_longitude: user.current_longitude,
-                location_updated_at: user.location_updated_at || new Date().toISOString()
-              }
-            ]);
-          });
+      const normalizedIncoming = updatedAppUsers
+        .filter(Boolean)
+        .map((user) => normalizeDriverRecord(user))
+        .map((user) => ({
+          ...user,
+          current_latitude: user.current_latitude,
+          current_longitude: user.current_longitude,
+          location_updated_at: user.location_updated_at || new Date().toISOString()
+        }));
+
+      setVisibleDrivers((prev) => {
+        const prevList = Array.isArray(prev) ? prev : [];
+        const visibleIncoming = normalizedIncoming.filter(shouldShowMarker);
+
+        if (fromPoller) {
+          return dedupeVisibleDrivers(visibleIncoming);
         }
-        return;
-      }
 
-      // CRITICAL: Handle bulk appUsers update with FRESH DATA from event
-      if (updatedAppUsers && updatedAppUsers.length > 0) {
-        const validDrivers = dedupeVisibleDrivers(updatedAppUsers.filter(shouldShowMarker));
-        setVisibleDrivers(prev => mergeVisibleDriversByFreshness(prev, validDrivers));
-      }
+        const merged = mergeVisibleDriversByFreshness(prevList, visibleIncoming);
+        return dedupeVisibleDrivers(merged.filter(shouldShowMarker));
+      });
     };
 
     window.addEventListener('driverLocationsUpdated', handleLocationUpdates);
