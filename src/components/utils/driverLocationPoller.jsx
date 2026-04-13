@@ -230,11 +230,10 @@ class DriverLocationPoller {
        }
 
        // ========================================
-       // RULE 3: Admins (non-AppOwners) - can only see drivers with location sharing ON
+       // RULE 3: Admins (non-AppOwners) - can see on-duty drivers in their city
        // ========================================
        if (isAdmin && !isAppOwner(this.currentUser)) {
-         // Admins require location_tracking_enabled to be true
-         if (!user.location_tracking_enabled) return false;
+         if (user.driver_status !== 'on_duty') return false;
          return true;
        }
 

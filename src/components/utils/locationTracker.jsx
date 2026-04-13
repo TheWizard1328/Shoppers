@@ -238,29 +238,16 @@ class LocationTracker {
       }
     }
 
-    // CRITICAL: Check distance threshold against last uploaded location
+    // CRITICAL: On-duty drivers always upload coordinates every poll cycle.
+    // Distance is still calculated for logging/analytics only.
     let distance = 0;
-    if (this.lastPosition && !forceUpdate && !timestampOnly) {
+    if (this.lastPosition) {
       distance = this.calculateDistance(
         this.lastPosition.latitude,
         this.lastPosition.longitude,
         latitude,
         longitude
       );
-
-      if (distance < this.minDistanceChange) {
-        console.log(`📍 [LocationTracker] Moved only ${distance.toFixed(0)}m - refreshing timestamp without updating coordinates`);
-        await this.updateLocationInDatabase(latitude, longitude, accuracy, forceUpdate, true, isPrimaryDevice);
-        return;
-      }
-    } else if (isPrimaryDevice && this.lastPosition) {
-      distance = this.calculateDistance(
-        this.lastPosition.latitude,
-        this.lastPosition.longitude,
-        latitude,
-        longitude
-      );
-      console.log(`📍 [PRIMARY DEVICE] Uploading regardless of distance (moved ${distance.toFixed(0)}m)`);
     }
 
     if (timestampOnly) {
@@ -400,8 +387,8 @@ class LocationTracker {
       this.failedUpdateCount = 0;
       this.backoffTime = 0;
 
-      // CRITICAL: Collect breadcrumbs on coordinate updates (not timestamp-only) when on_duty
-      if (!timestampOnly && this.driverStatus === 'on_duty') {
+      // CRITICAL: Breadcrumbs run on their own 30s cycle while on duty.
+      if (this.driverStatus === 'on_duty') {
         await this.collectBreadcrumb(latitude, longitude, Date.now());
       }
 
@@ -939,19 +926,6 @@ class LocationTracker {
       return;
     }
 
-    if (this.isPrimaryDevice && this.lastBreadcrumbPosition) {
-      const breadcrumbDistance = this.calculateDistanceInMeters(
-        this.lastBreadcrumbPosition.latitude,
-        this.lastBreadcrumbPosition.longitude,
-        latitude,
-        longitude
-      );
-
-      if (breadcrumbDistance < this.minBreadcrumbDistance) {
-        console.log(`🍞 [LocationTracker] Skipping breadcrumb - moved only ${breadcrumbDistance.toFixed(0)}m`);
-        return;
-      }
-    }
 
     try {
       const { offlineDB } = await import('./offlineDatabase');

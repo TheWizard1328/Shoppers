@@ -267,7 +267,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
   // Listen for driverLocationsUpdated events to force marker refresh
   useEffect(() => {
     const handleLocationUpdates = (event) => {
-      const { appUsers: updatedAppUsers, singleUpdate, forceAll, fromRealtime } = event.detail || {};
+      const { appUsers: updatedAppUsers, singleUpdate, forceAll, fromRealtime, fromPoller } = event.detail || {};
       
       // CRITICAL: Don't show markers for past dates - check immediately
       if (selectedDate) {
@@ -281,6 +281,12 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       }
 
       // Handle single driver update
+      if (fromPoller && updatedAppUsers && updatedAppUsers.length > 0) {
+        const validDrivers = dedupeVisibleDrivers(updatedAppUsers.filter(shouldShowMarker));
+        setVisibleDrivers(validDrivers);
+        return;
+      }
+
       if (singleUpdate && updatedAppUsers && updatedAppUsers.length === 1) {
         const user = normalizeDriverRecord(updatedAppUsers[0]);
         const userKey = getDriverIdentityKey(user);
