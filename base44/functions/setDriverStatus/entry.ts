@@ -231,16 +231,41 @@ Deno.serve(async (req) => {
           console.log(`ℹ️ [setDriverStatus] No incomplete deliveries to mark as next`);
         }
       } else {
-        console.log(`🔄 [setDriverStatus] Driver going on duty from ${previousStatus || 'unknown'} - using next stop by stop order`);
-        const nextDelivery = allTodayDeliveries
-          .filter(d => !finishedStatuses.includes(d.status) && d.status !== 'pending')
-          .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
+        if (previousStatus === 'on_duty') {
+          const existingStartedDelivery = allTodayDeliveries.find((d) => d?.isNextDelivery === true && !finishedStatuses.includes(d.status) && d.status !== 'pending');
+          if (existingStartedDelivery) {
+            console.log(`ℹ️ [setDriverStatus] Driver already on duty - preserving current next stop: ${existingStartedDelivery.patient_name || 'Pickup'}`);
+          } else {
+            console.log(`🔄 [setDriverStatus] Driver already on duty with no next stop - restoring next stop by order`);
+            const nextDelivery = allTodayDeliveries
+              .filter(d => !finishedStatuses.includes(d.status) && d.status !== 'pending')
+              .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
 
-        if (nextDelivery) {
-          await base44.asServiceRole.entities.Delivery.update(nextDelivery.id, { isNextDelivery: true });
-          console.log(`✅ [setDriverStatus] Next stop by order marked as next: ${nextDelivery.patient_name || 'Pickup'}`);
+            if (nextDelivery) {
+              await base44.asServiceRole.entities.Delivery.update(nextDelivery.id, { isNextDelivery: true }).catch((error) => {
+                if (isNotFoundError(error)) return null;
+                throw error;
+              });
+              console.log(`✅ [setDriverStatus] Next stop by order restored: ${nextDelivery.patient_name || 'Pickup'}`);
+            } else {
+              console.log(`ℹ️ [setDriverStatus] No active deliveries available to mark as next`);
+            }
+          }
         } else {
-          console.log(`ℹ️ [setDriverStatus] No active deliveries available to mark as next`);
+          console.log(`🔄 [setDriverStatus] Driver going on duty from ${previousStatus || 'unknown'} - using next stop by stop order`);
+          const nextDelivery = allTodayDeliveries
+            .filter(d => !finishedStatuses.includes(d.status) && d.status !== 'pending')
+            .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
+
+          if (nextDelivery) {
+            await base44.asServiceRole.entities.Delivery.update(nextDelivery.id, { isNextDelivery: true }).catch((error) => {
+              if (isNotFoundError(error)) return null;
+              throw error;
+            });
+            console.log(`✅ [setDriverStatus] Next stop by order marked as next: ${nextDelivery.patient_name || 'Pickup'}`);
+          } else {
+            console.log(`ℹ️ [setDriverStatus] No active deliveries available to mark as next`);
+          }
         }
       }
     }
