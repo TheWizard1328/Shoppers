@@ -603,35 +603,51 @@ export default function PayrollSummaryCard({
 
   // Initialize and sync driver edits with payroll records
   useEffect(() => {
-    const newEdits = {};
-    const newPaidDrafts = {};
-    payrollData.filter((d) => d.totalDeliveries > 0).forEach((data) => {
-      const k = data.driver.id;
-      const pr = getDriverPayrollRecord(k);
-      const netAmount = getPeriodNetAmount({
-        grandTotal: data.grandTotal,
-        taxAmount: data.taxAmount,
-        bonusPay: pr?.bonus_pay || 0,
-        deductions: pr?.deductions || data.deductionsArray || [],
-        appFeeAmount: pr?.app_fee_amount ?? 0
+    setDriverEdits((prev) => {
+      const next = {};
+      payrollData.filter((d) => d.totalDeliveries > 0).forEach((data) => {
+        const k = data.driver.id;
+        const pr = getDriverPayrollRecord(k);
+        const netAmount = getPeriodNetAmount({
+          grandTotal: data.grandTotal,
+          taxAmount: data.taxAmount,
+          bonusPay: pr?.bonus_pay || 0,
+          deductions: pr?.deductions || data.deductionsArray || [],
+          appFeeAmount: pr?.app_fee_amount ?? 0
+        });
+        const paidAmount = pr?.paid_amount != null ? pr.paid_amount : netAmount;
+        next[k] = {
+          ...prev[k],
+          deductions: pr?.deductions || data.deductionsArray || [],
+          bonusPay: pr?.bonus_pay !== undefined ? pr.bonus_pay : 0,
+          appFeePercent: pr?.app_fee_percentage ?? 0,
+          appFeeAmount: pr?.app_fee_amount ?? 0,
+          paidAmount,
+          showDeductionManager: false,
+          newDeductionName: '',
+          newDeductionAmount: ''
+        };
       });
-      const paidAmount = pr?.paid_amount != null ? pr.paid_amount : netAmount;
-      newEdits[k] = {
-        deductions: pr?.deductions || data.deductionsArray || [],
-        bonusPay: pr?.bonus_pay !== undefined ? pr.bonus_pay : 0,
-        appFeePercent: pr?.app_fee_percentage ?? 0,
-        appFeeAmount: pr?.app_fee_amount ?? 0,
-        paidAmount,
-        showDeductionManager: false, newDeductionName: '', newDeductionAmount: ''
-      };
-      if (paidRefreshPauseRef.current[k]) {
-        newPaidDrafts[k] = paidDrafts[k] ?? String(paidAmount.toFixed(2));
-      } else {
-        newPaidDrafts[k] = String(paidAmount.toFixed(2));
-      }
+      return next;
     });
-    setDriverEdits(newEdits);
-    setPaidDrafts(newPaidDrafts);
+
+    setPaidDrafts((prev) => {
+      const next = {};
+      payrollData.filter((d) => d.totalDeliveries > 0).forEach((data) => {
+        const k = data.driver.id;
+        const pr = getDriverPayrollRecord(k);
+        const netAmount = getPeriodNetAmount({
+          grandTotal: data.grandTotal,
+          taxAmount: data.taxAmount,
+          bonusPay: pr?.bonus_pay || 0,
+          deductions: pr?.deductions || data.deductionsArray || [],
+          appFeeAmount: pr?.app_fee_amount ?? 0
+        });
+        const paidAmount = pr?.paid_amount != null ? pr.paid_amount : netAmount;
+        next[k] = paidRefreshPauseRef.current[k] ? (prev[k] ?? String(paidAmount.toFixed(2))) : String(paidAmount.toFixed(2));
+      });
+      return next;
+    });
   }, [payrollData, payrollRecords, calculateAppFeeAmount]);
 
   // Auto-sync payroll entity records with live-calculated data whenever payrollData or records change
