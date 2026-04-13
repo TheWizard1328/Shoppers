@@ -559,26 +559,36 @@ export default function PayrollSummaryCard({
     let total = 0;
     deliveries.forEach((d) => {
       if (!d || !d.store_id) return;
-      const matchedPatient = d.patient_id ?
-      patients?.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id)) :
-      null;
-      const isPatientReturn = String(matchedPatient?.address || '').toUpperCase().includes('(RTN)');
       const dd = new Date(d.delivery_date + 'T00:00:00');
       if (dd < calMonth || dd > calMonthEnd) return;
-      const valid = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && (d.after_hours_pickup || isPatientReturn);
-      if (!valid || !d.patient_id && !d.after_hours_pickup) return;
       const store = stores.find((s) => s?.id === d.store_id);
       if (!store) return;
+
       let pays = store.pays_app_fees || false;
       if (store.app_fee_history?.length > 0) {
-        const sorted = [...store.app_fee_history].sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date));
-        const entry = sorted.find((e) => new Date(e.effective_date) <= dd);
-        if (entry) pays = entry.pays_app_fees;
+        const sorted = [...store.app_fee_history].sort((a, b) => new Date(a.effective_date) - new Date(b.effective_date));
+        for (const entry of sorted) {
+          if (entry.effective_date <= d.delivery_date) pays = entry.pays_app_fees;
+          else break;
+        }
       }
-      if (pays) total++;
+      if (!pays || d.no_charge === true) return;
+
+      const patientName = String(d.patient_name || '').toUpperCase();
+      const isInterStore = patientName.includes('INTERSTORE') || patientName.includes('(ISD)') || patientName.includes('(ISP)');
+      const isPatientOrTransfer = !!d.patient_id;
+      const isAfterHours = d.after_hours_pickup === true;
+      const isRegularPickup = !isAfterHours && !isPatientOrTransfer && !isInterStore;
+      if (isRegularPickup) return;
+
+      const isCompleted = d.status === 'completed';
+      const isFailed = d.status === 'failed';
+      const isCancelled = d.status === 'cancelled';
+      const isAppFeePayable = isAfterHours ? (isCompleted || isCancelled) : (isPatientOrTransfer && (isCompleted || isFailed));
+      if (isAppFeePayable) total++;
     });
     return total * appFeesPerDelivery * appFeePercent / 100;
-  }, [deliveries, stores, patients, currentPeriod, appFeesPerDelivery]);
+  }, [deliveries, stores, currentPeriod, appFeesPerDelivery]);
 
   const sumAllDriversAppFeePercent = useMemo(() => driversWithDeliveries.reduce((sum, d) => d.driver.id === currentUser?.id && isAppOwner(currentUser) ? sum : sum + (driverEdits[d.driver.id]?.appFeePercent || 0), 0), [driversWithDeliveries, driverEdits, currentUser]);
   const appOwnerAppFeePercent = useMemo(() => Math.max(0, 100 - sumAllDriversAppFeePercent - otherAppFeePercent), [sumAllDriversAppFeePercent, otherAppFeePercent]);
@@ -1464,30 +1474,30 @@ export default function PayrollSummaryCard({
                                     let ytdTotalBillable = 0;
                                     deliveries.forEach((d) => {
                                       if (!d || !d.store_id) return;
-                                      const matchedPatient = d.patient_id ?
-                                      patients?.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id)) :
-                                      null;
-                                      const isPatientReturn = String(matchedPatient?.address || '').toUpperCase().includes('(RTN)');
                                       const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
                                       if (deliveryDate < yearStart || deliveryDate > currentMonthEnd) return;
-                                      const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && (d.after_hours_pickup || isPatientReturn);
-                                      if (!validStatus) return;
-                                      if (!d.patient_id && !d.after_hours_pickup) return;
                                       const store = stores.find((s) => s?.id === d.store_id);
                                       if (!store) return;
                                       let paysAppFees = store.pays_app_fees || false;
-                                      if (store.app_fee_history && store.app_fee_history.length > 0) {
-                                        const sortedHistory = [...store.app_fee_history].sort((a, b) =>
-                                        new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
-                                        );
-                                        const applicableEntry = sortedHistory.find((entry) =>
-                                        new Date(entry.effective_date) <= deliveryDate
-                                        );
-                                        if (applicableEntry) {
-                                          paysAppFees = applicableEntry.pays_app_fees;
+                                      if (store.app_fee_history?.length > 0) {
+                                        const sortedHistory = [...store.app_fee_history].sort((a, b) => new Date(a.effective_date) - new Date(b.effective_date));
+                                        for (const entry of sortedHistory) {
+                                          if (entry.effective_date <= d.delivery_date) paysAppFees = entry.pays_app_fees;
+                                          else break;
                                         }
                                       }
-                                      if (paysAppFees) {
+                                      if (!paysAppFees || d.no_charge === true) return;
+                                      const patientName = String(d.patient_name || '').toUpperCase();
+                                      const isInterStore = patientName.includes('INTERSTORE') || patientName.includes('(ISD)') || patientName.includes('(ISP)');
+                                      const isPatientOrTransfer = !!d.patient_id;
+                                      const isAfterHours = d.after_hours_pickup === true;
+                                      const isRegularPickup = !isAfterHours && !isPatientOrTransfer && !isInterStore;
+                                      if (isRegularPickup) return;
+                                      const isCompleted = d.status === 'completed';
+                                      const isFailed = d.status === 'failed';
+                                      const isCancelled = d.status === 'cancelled';
+                                      const isAppFeePayable = isAfterHours ? (isCompleted || isCancelled) : (isPatientOrTransfer && (isCompleted || isFailed));
+                                      if (isAppFeePayable) {
                                         ytdTotalBillable++;
                                       }
                                     });
@@ -1541,27 +1551,30 @@ export default function PayrollSummaryCard({
                           let totalBillableCount = 0;
                           deliveries.forEach((d) => {
                             if (!d || !d.store_id) return;
-                            const matchedPatient = d.patient_id ?
-                            patients?.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id)) :
-                            null;
-                            const isPatientReturn = String(matchedPatient?.address || '').toUpperCase().includes('(RTN)');
                             const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
                             if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
-                            const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && (d.after_hours_pickup || isPatientReturn);
-                            if (!validStatus) return;
-                            if (!d.patient_id && !d.after_hours_pickup) return;
                             const store = stores.find((s) => s?.id === d.store_id);
                             if (!store) return;
                             let paysAppFees = store.pays_app_fees || false;
-                            if (store.app_fee_history && store.app_fee_history.length > 0) {
-                              const sortedHistory = [...store.app_fee_history].sort((a, b) =>
-                              new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
-                              );
-                              if (sortedHistory[0]) {
-                                paysAppFees = sortedHistory[0].pays_app_fees;
+                            if (store.app_fee_history?.length > 0) {
+                              const sortedHistory = [...store.app_fee_history].sort((a, b) => new Date(a.effective_date) - new Date(b.effective_date));
+                              for (const entry of sortedHistory) {
+                                if (entry.effective_date <= d.delivery_date) paysAppFees = entry.pays_app_fees;
+                                else break;
                               }
                             }
-                            if (paysAppFees) {
+                            if (!paysAppFees || d.no_charge === true) return;
+                            const patientName = String(d.patient_name || '').toUpperCase();
+                            const isInterStore = patientName.includes('INTERSTORE') || patientName.includes('(ISD)') || patientName.includes('(ISP)');
+                            const isPatientOrTransfer = !!d.patient_id;
+                            const isAfterHours = d.after_hours_pickup === true;
+                            const isRegularPickup = !isAfterHours && !isPatientOrTransfer && !isInterStore;
+                            if (isRegularPickup) return;
+                            const isCompleted = d.status === 'completed';
+                            const isFailed = d.status === 'failed';
+                            const isCancelled = d.status === 'cancelled';
+                            const isAppFeePayable = isAfterHours ? (isCompleted || isCancelled) : (isPatientOrTransfer && (isCompleted || isFailed));
+                            if (isAppFeePayable) {
                               totalBillableCount++;
                             }
                           });
@@ -1577,30 +1590,30 @@ export default function PayrollSummaryCard({
                           let ytdTotalBillable = 0;
                           deliveries.forEach((d) => {
                             if (!d || !d.store_id) return;
-                            const matchedPatient = d.patient_id ?
-                            patients?.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id)) :
-                            null;
-                            const isPatientReturn = String(matchedPatient?.address || '').toUpperCase().includes('(RTN)');
                             const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
                             if (deliveryDate < yearStart || deliveryDate > currentMonthEnd) return;
-                            const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && (d.after_hours_pickup || isPatientReturn);
-                            if (!validStatus) return;
-                            if (!d.patient_id && !d.after_hours_pickup) return;
                             const store = stores.find((s) => s?.id === d.store_id);
                             if (!store) return;
                             let paysAppFees = store.pays_app_fees || false;
-                            if (store.app_fee_history && store.app_fee_history.length > 0) {
-                              const sortedHistory = [...store.app_fee_history].sort((a, b) =>
-                              new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
-                              );
-                              const applicableEntry = sortedHistory.find((entry) =>
-                              new Date(entry.effective_date) <= deliveryDate
-                              );
-                              if (applicableEntry) {
-                                paysAppFees = applicableEntry.pays_app_fees;
+                            if (store.app_fee_history?.length > 0) {
+                              const sortedHistory = [...store.app_fee_history].sort((a, b) => new Date(a.effective_date) - new Date(b.effective_date));
+                              for (const entry of sortedHistory) {
+                                if (entry.effective_date <= d.delivery_date) paysAppFees = entry.pays_app_fees;
+                                else break;
                               }
                             }
-                            if (paysAppFees) {
+                            if (!paysAppFees || d.no_charge === true) return;
+                            const patientName = String(d.patient_name || '').toUpperCase();
+                            const isInterStore = patientName.includes('INTERSTORE') || patientName.includes('(ISD)') || patientName.includes('(ISP)');
+                            const isPatientOrTransfer = !!d.patient_id;
+                            const isAfterHours = d.after_hours_pickup === true;
+                            const isRegularPickup = !isAfterHours && !isPatientOrTransfer && !isInterStore;
+                            if (isRegularPickup) return;
+                            const isCompleted = d.status === 'completed';
+                            const isFailed = d.status === 'failed';
+                            const isCancelled = d.status === 'cancelled';
+                            const isAppFeePayable = isAfterHours ? (isCompleted || isCancelled) : (isPatientOrTransfer && (isCompleted || isFailed));
+                            if (isAppFeePayable) {
                               ytdTotalBillable++;
                             }
                           });
@@ -1719,27 +1732,30 @@ export default function PayrollSummaryCard({
                                   let totalBillableCount = 0;
                                   deliveries.forEach((d) => {
                                     if (!d || !d.store_id) return;
-                                    const matchedPatient = d.patient_id ?
-                                      patients?.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id)) :
-                                      null;
-                                    const isPatientReturn = String(matchedPatient?.address || '').toUpperCase().includes('(RTN)');
                                     const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
                                     if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
-                                    const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && (d.after_hours_pickup || isPatientReturn);
-                                    if (!validStatus) return;
-                                    if (!d.patient_id && !d.after_hours_pickup) return;
                                     const store = stores.find((s) => s?.id === d.store_id);
                                     if (!store) return;
                                     let paysAppFees = store.pays_app_fees || false;
-                                    if (store.app_fee_history && store.app_fee_history.length > 0) {
-                                      const sortedHistory = [...store.app_fee_history].sort((a, b) =>
-                                        new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
-                                      );
-                                      if (sortedHistory[0]) {
-                                        paysAppFees = sortedHistory[0].pays_app_fees;
+                                    if (store.app_fee_history?.length > 0) {
+                                      const sortedHistory = [...store.app_fee_history].sort((a, b) => new Date(a.effective_date) - new Date(b.effective_date));
+                                      for (const entry of sortedHistory) {
+                                        if (entry.effective_date <= d.delivery_date) paysAppFees = entry.pays_app_fees;
+                                        else break;
                                       }
                                     }
-                                    if (paysAppFees) totalBillableCount++;
+                                    if (!paysAppFees || d.no_charge === true) return;
+                                    const patientName = String(d.patient_name || '').toUpperCase();
+                                    const isInterStore = patientName.includes('INTERSTORE') || patientName.includes('(ISD)') || patientName.includes('(ISP)');
+                                    const isPatientOrTransfer = !!d.patient_id;
+                                    const isAfterHours = d.after_hours_pickup === true;
+                                    const isRegularPickup = !isAfterHours && !isPatientOrTransfer && !isInterStore;
+                                    if (isRegularPickup) return;
+                                    const isCompleted = d.status === 'completed';
+                                    const isFailed = d.status === 'failed';
+                                    const isCancelled = d.status === 'cancelled';
+                                    const isAppFeePayable = isAfterHours ? (isCompleted || isCancelled) : (isPatientOrTransfer && (isCompleted || isFailed));
+                                    if (isAppFeePayable) totalBillableCount++;
                                   });
                                   return totalBillableCount * appFeesPerDelivery;
                                 })() - (calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) + calculateAppFeeAmount('other-app-fee', otherAppFeePercent)) : grandTotalGross + grandTotalBonus).toFixed(2)}</td>
