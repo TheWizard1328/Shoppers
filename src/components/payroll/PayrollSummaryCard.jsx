@@ -1210,7 +1210,7 @@ export default function PayrollSummaryCard({
                                 <tr style={{ color: 'var(--text-slate-600)' }}>
                               <td className="text-left pr-2">Paid:</td>
                               <td className="text-right pr-0.5">$</td>
-                              <td className="">
+                              <td className="mr-2">
                                 {isAdmin ?
                                     <Input
                                       type="number"
