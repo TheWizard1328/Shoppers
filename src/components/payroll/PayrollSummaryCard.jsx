@@ -18,11 +18,13 @@ import { useUser } from '../utils/UserContext';
 import { userHasRole, isAppOwner } from '../utils/userRoles';
 import { notifyDriverConfirmedPayroll, notifyAdminApprovedPayroll } from '../utils/deliveryMessaging';
 import { calculateYtdPayroll } from '../utils/payrollYtdCalculator';
-import PayrollMobileCard from './PayrollMobileCard';import LeftStatsAndNotes from './LeftStatsAndNotes';
+import PayrollMobileCard from './PayrollMobileCard';
+import LeftStatsAndNotes from './LeftStatsAndNotes';
 import { AppFeeAllDriversDialog } from './AppFeeDialogs';
 import { syncPayrollRecordsWithLiveData } from '../utils/payrollEntitySync';
 import { getReturnCountFromPatientId } from '../utils/returnDeliveryUtils';
 import { exportPayrollPdf } from './payrollPdfExport';
+import { getDefaultPaidAmount, getPeriodNetAmount, sumDeductionAmounts } from './payrollSummaryCalculations';
 
 const PROVINCE_TAX_RATES = { 'AB': 0.05, 'BC': 0.05, 'SK': 0.05, 'MB': 0.05, 'ON': 0.13, 'QC': 0.05, 'NB': 0.15, 'NS': 0.15, 'PE': 0.15, 'NL': 0.15, 'YT': 0.05, 'NT': 0.05, 'NU': 0.05 };
 
@@ -389,7 +391,13 @@ export default function PayrollSummaryCard({
       const existingRecord = getDriverPayrollRecord(driverData.driver.id);
       const edit = driverEdits[driverData.driver.id] || {};
       const finalizeAppFeeAmount = countBillableDeliveries(driverData.driver.id) * (edit.appFeePercent || 0) / 100;
-      const finalizedNetPay = driverData.grandTotal + driverData.taxAmount + (edit.bonusPay || 0) - (driverData.deductions || 0) + finalizeAppFeeAmount;
+      const finalizedNetPay = getPeriodNetAmount({
+        grandTotal: driverData.grandTotal,
+        taxAmount: driverData.taxAmount,
+        bonusPay: edit.bonusPay || 0,
+        deductions: driverData.deductionsArray || [],
+        appFeeAmount: finalizeAppFeeAmount
+      });
       const finalizedPaidAmount = parsePaidAmount(edit.paidAmount, finalizedNetPay);
       const payrollRecord = { driver_id: driverData.driver.id, city_id: selectedCityId && selectedCityId !== 'all' ? selectedCityId : currentUser?.city_id || null,
         pay_period_start: periodStartStr, pay_period_end: periodEndStr, pay_period_type: payPeriod,
@@ -420,7 +428,13 @@ export default function PayrollSummaryCard({
         const rec = getDriverPayrollRecord(dd.driver.id);
         const edit = driverEdits[dd.driver.id] || {};
         const appFeeAmount = edit.appFeeAmount || calculateAppFeeAmount(dd.driver.id, edit.appFeePercent || 0);
-        const netAmount = dd.grandTotal + dd.taxAmount + (edit.bonusPay || 0) - (edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) + appFeeAmount;
+        const netAmount = getPeriodNetAmount({
+          grandTotal: dd.grandTotal,
+          taxAmount: dd.taxAmount,
+          bonusPay: edit.bonusPay || 0,
+          deductions: edit.deductions || [],
+          appFeeAmount
+        });
         const paidAmount = parsePaidAmount(edit.paidAmount, netAmount);
         if (rec) await base44.entities.Payroll.update(rec.id, { paid_amount: paidAmount, status: 'admin_finalized', admin_finalized_at: new Date().toISOString(), admin_finalized_by: currentUser?.id });
       }
@@ -555,10 +569,14 @@ export default function PayrollSummaryCard({
   const ytdGrandTotalGross = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdGrossPay ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
   const totalPeriodPaidAmount = useMemo(() => driversWithDeliveries.reduce((sum, d) => {
     const edit = driverEdits[d.driver.id] || {};
-    const appFeeAmount = edit.appFeeAmount || calculateAppFeeAmount(d.driver.id, edit.appFeePercent || 0);
-    const netAmount = d.grandTotal + d.taxAmount + (edit.bonusPay || 0) - (edit.deductions?.reduce((acc, item) => acc + (item?.amount || 0), 0) || 0) + appFeeAmount;
-    return sum + parsePaidAmount(edit.paidAmount, netAmount);
-  }, 0), [driversWithDeliveries, driverEdits, calculateAppFeeAmount]);
+    const defaultPaidAmount = getDefaultPaidAmount({
+      grandTotal: d.grandTotal,
+      taxAmount: d.taxAmount,
+      bonusPay: edit.bonusPay || 0,
+      deductions: edit.deductions || []
+    });
+    return sum + parsePaidAmount(edit.paidAmount, defaultPaidAmount);
+  }, 0), [driversWithDeliveries, driverEdits]);
   const ytdGrandTotalTax = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdTaxAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
   const ytdGrandTotalDeductions = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdDeductionsAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
   const ytdGrandTotalBonus = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdBonusAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
@@ -570,7 +588,13 @@ export default function PayrollSummaryCard({
     payrollData.filter((d) => d.totalDeliveries > 0).forEach((data) => {
       const k = data.driver.id;
       const pr = getDriverPayrollRecord(k);
-      const netAmount = Math.round(data.grandTotal * 100) / 100 + Math.round(data.taxAmount * 100) / 100 + (pr?.bonus_pay || 0) - ((pr?.deductions || data.deductionsArray || []).reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) + (pr?.app_fee_amount ?? 0);
+      const netAmount = getPeriodNetAmount({
+        grandTotal: data.grandTotal,
+        taxAmount: data.taxAmount,
+        bonusPay: pr?.bonus_pay || 0,
+        deductions: pr?.deductions || data.deductionsArray || [],
+        appFeeAmount: pr?.app_fee_amount ?? 0
+      });
       newEdits[k] = {
         deductions: pr?.deductions || data.deductionsArray || [],
         bonusPay: pr?.bonus_pay !== undefined ? pr.bonus_pay : 0,
@@ -1177,7 +1201,7 @@ export default function PayrollSummaryCard({
                                     }
                               </td>
                               <td className="text-right pr-0.5">-$</td>
-                              <td className="text-right font-semibold" style={{ width: '60px' }}>{(edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0).toFixed(2)}</td>
+                              <td className="text-right font-semibold" style={{ width: '60px' }}>{sumDeductionAmounts(edit.deductions || []).toFixed(2)}</td>
                             </tr>
                             <tr style={{ color: 'var(--text-slate-600)' }}>
                               <td className="text-left pr-2">
@@ -1204,7 +1228,7 @@ export default function PayrollSummaryCard({
                             <tr className="text-lg font-bold text-emerald-600">
                               <td className="text-left pr-2">Net:</td>
                               <td className="text-right pr-0.5">$</td>
-                              <td className="text-right" style={{ width: '60px' }}>{(Math.round(data.grandTotal * 100) / 100 + Math.round(data.taxAmount * 100) / 100 + (edit.bonusPay || 0) - (edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) + (edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0))).toFixed(2)}</td>
+                              <td className="text-right" style={{ width: '60px' }}>{getPeriodNetAmount({ grandTotal: data.grandTotal, taxAmount: data.taxAmount, bonusPay: edit.bonusPay || 0, deductions: edit.deductions || [], appFeeAmount: edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0) }).toFixed(2)}</td>
                             </tr>
                             {canFinalize && (isAdmin || selectedDriverId === currentUser?.id) &&
                                 <tr style={{ color: 'var(--text-slate-600)' }}>
@@ -1215,12 +1239,12 @@ export default function PayrollSummaryCard({
                                     <Input
                                       type="number"
                                       step="0.01"
-                                      value={edit.paidAmount === '' ? '' : parsePaidAmount(edit.paidAmount, Math.round(data.grandTotal * 100) / 100 + Math.round(data.taxAmount * 100) / 100 + (edit.bonusPay || 0) - (edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) + (edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0))).toFixed(2)}
+                                      value={edit.paidAmount === '' ? '' : parsePaidAmount(edit.paidAmount, getDefaultPaidAmount({ grandTotal: data.grandTotal, taxAmount: data.taxAmount, bonusPay: edit.bonusPay || 0, deductions: edit.deductions || [] })).toFixed(2)}
                                       onChange={(e) => updateEdit({ paidAmount: e.target.value })}
                                       onBlur={() => savePayrollChanges(driverKey, {
                                         paid_amount: parsePaidAmount(
                                           edit.paidAmount,
-                                          Math.round(data.grandTotal * 100) / 100 + Math.round(data.taxAmount * 100) / 100 + (edit.bonusPay || 0) - (edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) + (edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0))
+                                          getDefaultPaidAmount({ grandTotal: data.grandTotal, taxAmount: data.taxAmount, bonusPay: edit.bonusPay || 0, deductions: edit.deductions || [] })
                                         )
                                       })} className="flex rounded-md border px-1 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-md h-7 min-h-0 w-[70px] text-right no-spinner font-semibold" /> :
 
@@ -1229,7 +1253,7 @@ export default function PayrollSummaryCard({
                                     <div className="h-7 min-h-0 w-[60px] flex items-center justify-end text-right font-semibold">
                                     {parsePaidAmount(
                                         edit.paidAmount,
-                                        Math.round(data.grandTotal * 100) / 100 + Math.round(data.taxAmount * 100) / 100 + (edit.bonusPay || 0) - (edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) + (edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0))
+                                        getDefaultPaidAmount({ grandTotal: data.grandTotal, taxAmount: data.taxAmount, bonusPay: edit.bonusPay || 0, deductions: edit.deductions || [] })
                                       ).toFixed(2)}
                                   </div>
                                     }
