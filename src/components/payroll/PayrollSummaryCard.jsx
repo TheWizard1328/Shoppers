@@ -26,6 +26,12 @@ import { exportPayrollPdf } from './payrollPdfExport';
 
 const PROVINCE_TAX_RATES = { 'AB': 0.05, 'BC': 0.05, 'SK': 0.05, 'MB': 0.05, 'ON': 0.13, 'QC': 0.05, 'NB': 0.15, 'NS': 0.15, 'PE': 0.15, 'NL': 0.15, 'YT': 0.05, 'NT': 0.05, 'NU': 0.05 };
 
+const parsePaidAmount = (value, fallback = 0) => {
+  if (value === '' || value == null) return fallback;
+  const parsed = parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
 export default function PayrollSummaryCard({
   deliveries,
   drivers,
@@ -142,13 +148,14 @@ export default function PayrollSummaryCard({
       const deductionsArray = Array.isArray(appUser?.deductions) ? appUser.deductions : [];
       const totalDeductions = totalPay > 0 ? deductionsArray.reduce((sum, d) => sum + (d?.amount || 0), 0) : 0;
       const grossPay = totalPay > 0 ? totalPay + taxAmount - totalDeductions : 0;
+      const storedPaidAmount = payrollRecord?.paid_amount;
 
       return {
         driver: { ...driver, id: driverId }, payRate, extraKmRate, extraKmLimit, oversizedRate,
         totalDeliveries: deliveryCount, totalBasePay: basePay, totalExtraKm, totalExtraKmPay: extraKmPay,
         oversizedCount, totalOversizedPay: oversizedPay, afterHoursCount, failedCount, returnsCount,
         storeReturnCount, grandTotal: totalPay, gstHstEnabled, taxRate, taxAmount, provinceCode,
-        deductions: totalDeductions, deductionsArray, grossPay, appFeePercentage
+        deductions: totalDeductions, deductionsArray, grossPay, appFeePercentage, storedPaidAmount
       };
     });
   }, [deliveries, drivers, appUsers, patients, cities, selectedYear, selectedDriverId, currentPeriod]);
@@ -297,7 +304,7 @@ export default function PayrollSummaryCard({
           total_oversized_deliveries: driverData.oversizedCount, total_after_hours_deliveries: driverData.afterHoursCount || 0,
           gross_pay: driverData.grossPay, net_pay: driverData.grandTotal,
           total_deductions: driverData.deductions, deductions: driverData.deductionsArray,
-          bonus_pay: 0, app_fee_percentage: 0, app_fee_amount: saveAppFeeAmount,
+          bonus_pay: 0, app_fee_percentage: 0, app_fee_amount: saveAppFeeAmount, paid_amount: driverData.grandTotal,
           tax_amount: driverData.taxAmount, pay_rate_per_delivery: driverData.payRate,
           extra_km_rate: driverData.extraKmRate, extra_km_limit: driverData.extraKmLimit,
           oversized_item_rate: driverData.oversizedRate, gst_hst_enabled: driverData.gstHstEnabled, status: 'draft' };
@@ -382,13 +389,15 @@ export default function PayrollSummaryCard({
       const existingRecord = getDriverPayrollRecord(driverData.driver.id);
       const edit = driverEdits[driverData.driver.id] || {};
       const finalizeAppFeeAmount = countBillableDeliveries(driverData.driver.id) * (edit.appFeePercent || 0) / 100;
+      const finalizedNetPay = driverData.grandTotal + driverData.taxAmount + (edit.bonusPay || 0) - (driverData.deductions || 0) + finalizeAppFeeAmount;
+      const finalizedPaidAmount = parsePaidAmount(edit.paidAmount, finalizedNetPay);
       const payrollRecord = { driver_id: driverData.driver.id, city_id: selectedCityId && selectedCityId !== 'all' ? selectedCityId : (currentUser?.city_id || null),
         pay_period_start: periodStartStr, pay_period_end: periodEndStr, pay_period_type: payPeriod,
         total_deliveries: driverData.totalDeliveries, total_extra_km: driverData.totalExtraKm,
         total_oversized_deliveries: driverData.oversizedCount, total_after_hours_deliveries: driverData.afterHoursCount || 0,
         gross_pay: driverData.grossPay, net_pay: driverData.grandTotal,
         total_deductions: driverData.deductions, deductions: driverData.deductionsArray,
-        bonus_pay: edit.bonusPay || 0, app_fee_percentage: edit.appFeePercent || 0, app_fee_amount: finalizeAppFeeAmount,
+        bonus_pay: edit.bonusPay || 0, app_fee_percentage: edit.appFeePercent || 0, app_fee_amount: finalizeAppFeeAmount, paid_amount: finalizedPaidAmount,
         tax_amount: driverData.taxAmount, pay_rate_per_delivery: driverData.payRate,
         extra_km_rate: driverData.extraKmRate, extra_km_limit: driverData.extraKmLimit,
         oversized_item_rate: driverData.oversizedRate, gst_hst_enabled: driverData.gstHstEnabled,
@@ -409,7 +418,11 @@ export default function PayrollSummaryCard({
       const dwdList = payrollData.filter((d) => d.totalDeliveries > 0);
       for (const dd of dwdList) {
         const rec = getDriverPayrollRecord(dd.driver.id);
-        if (rec) await base44.entities.Payroll.update(rec.id, { status: 'admin_finalized', admin_finalized_at: new Date().toISOString(), admin_finalized_by: currentUser?.id });
+        const edit = driverEdits[dd.driver.id] || {};
+        const appFeeAmount = edit.appFeeAmount || calculateAppFeeAmount(dd.driver.id, edit.appFeePercent || 0);
+        const netAmount = dd.grandTotal + dd.taxAmount + (edit.bonusPay || 0) - ((edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0)) || 0) + appFeeAmount;
+        const paidAmount = parsePaidAmount(edit.paidAmount, netAmount);
+        if (rec) await base44.entities.Payroll.update(rec.id, { paid_amount: paidAmount, status: 'admin_finalized', admin_finalized_at: new Date().toISOString(), admin_finalized_by: currentUser?.id });
       }
       await notifyAdminApprovedPayroll({ admin: currentUser, periodLabel: currentPeriod?.label || 'this period', driversWithDeliveries: dwdList, appUsers });
       if (refreshPayrollRecords) {await refreshPayrollRecords();} else
@@ -454,7 +467,7 @@ export default function PayrollSummaryCard({
   const formatCurrency = (amount, decimals = 2) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(amount);
   const roundPayrollData = (data) => {
     const rounded = { ...data };
-    ['gross_pay', 'net_pay', 'total_deductions', 'bonus_pay', 'app_fee_amount', 'tax_amount', 'pay_rate_per_delivery', 'extra_km_rate', 'extra_km_limit', 'oversized_item_rate', 'total_extra_km'].forEach((f) => {if (rounded[f] != null) rounded[f] = Math.round(rounded[f] * 100) / 100;});
+    ['gross_pay', 'net_pay', 'total_deductions', 'bonus_pay', 'app_fee_amount', 'paid_amount', 'tax_amount', 'pay_rate_per_delivery', 'extra_km_rate', 'extra_km_limit', 'oversized_item_rate', 'total_extra_km'].forEach((f) => {if (rounded[f] != null) rounded[f] = Math.round(rounded[f] * 100) / 100;});
     return rounded;
   };
 
@@ -511,6 +524,12 @@ export default function PayrollSummaryCard({
   const sumAllDriversAppFeePercent = useMemo(() => driversWithDeliveries.reduce((sum, d) => d.driver.id === currentUser?.id && isAppOwner(currentUser) ? sum : sum + (driverEdits[d.driver.id]?.appFeePercent || 0), 0), [driversWithDeliveries, driverEdits, currentUser]);
   const appOwnerAppFeePercent = useMemo(() => Math.max(0, 100 - sumAllDriversAppFeePercent - otherAppFeePercent), [sumAllDriversAppFeePercent, otherAppFeePercent]);
   const ytdGrandTotalGross = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdGrossPay ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
+  const totalPeriodPaidAmount = useMemo(() => driversWithDeliveries.reduce((sum, d) => {
+    const edit = driverEdits[d.driver.id] || {};
+    const appFeeAmount = edit.appFeeAmount || calculateAppFeeAmount(d.driver.id, edit.appFeePercent || 0);
+    const netAmount = d.grandTotal + d.taxAmount + (edit.bonusPay || 0) - ((edit.deductions?.reduce((acc, item) => acc + (item?.amount || 0), 0)) || 0) + appFeeAmount;
+    return sum + parsePaidAmount(edit.paidAmount, netAmount);
+  }, 0), [driversWithDeliveries, driverEdits, calculateAppFeeAmount]);
   const ytdGrandTotalTax = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdTaxAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
   const ytdGrandTotalDeductions = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdDeductionsAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
   const ytdGrandTotalBonus = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdBonusAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
@@ -551,11 +570,13 @@ export default function PayrollSummaryCard({
     payrollData.filter((d) => d.totalDeliveries > 0).forEach((data) => {
       const k = data.driver.id;
       const pr = getDriverPayrollRecord(k);
+      const netAmount = Math.round(data.grandTotal * 100) / 100 + Math.round(data.taxAmount * 100) / 100 + (pr?.bonus_pay || 0) - ((pr?.deductions || data.deductionsArray || []).reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) + (pr?.app_fee_amount ?? 0);
       newEdits[k] = {
         deductions: pr?.deductions || data.deductionsArray || [],
         bonusPay: pr?.bonus_pay !== undefined ? pr.bonus_pay : 0,
         appFeePercent: pr?.app_fee_percentage ?? 0,
         appFeeAmount: pr?.app_fee_amount ?? 0,
+        paidAmount: pr?.paid_amount != null ? pr.paid_amount : netAmount,
         showDeductionManager: false, newDeductionName: '', newDeductionAmount: ''
       };
     });
@@ -1185,6 +1206,27 @@ export default function PayrollSummaryCard({
                               <td className="text-right pr-0.5">$</td>
                               <td className="text-right" style={{ width: '60px' }}>{(Math.round(data.grandTotal * 100) / 100 + Math.round(data.taxAmount * 100) / 100 + (edit.bonusPay || 0) - (edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) + (edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0))).toFixed(2)}</td>
                             </tr>
+                            {isAdmin &&
+                            <tr style={{ color: 'var(--text-slate-600)' }}>
+                              <td className="text-left pr-2">Paid:</td>
+                              <td className="text-right pr-0.5">$</td>
+                              <td>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  value={edit.paidAmount ?? ''}
+                                  onChange={(e) => updateEdit({ paidAmount: e.target.value })}
+                                  onBlur={() => savePayrollChanges(driverKey, {
+                                    paid_amount: parsePaidAmount(
+                                      edit.paidAmount,
+                                      Math.round(data.grandTotal * 100) / 100 + Math.round(data.taxAmount * 100) / 100 + (edit.bonusPay || 0) - (edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) + (edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0))
+                                    )
+                                  })}
+                                  className="h-7 min-h-0 w-[88px] text-right no-spinner"
+                                />
+                              </td>
+                            </tr>
+                            }
                           </tbody>
                         </table>
                       </div>
@@ -1575,6 +1617,13 @@ export default function PayrollSummaryCard({
                                 <td className="text-right pr-0.5">$</td>
                                 <td className="text-right" style={{ width: '60px' }}>{(grandTotalGross + driversWithDeliveries.reduce((sum, d) => sum + (driverEdits[d.driver.id]?.bonusPay || 0), 0)).toFixed(2)}</td>
                               </tr>
+                              {isAdmin &&
+                              <tr style={{ color: 'var(--text-slate-600)' }}>
+                                <td className="text-left pr-2">Paid:</td>
+                                <td className="text-right pr-0.5">$</td>
+                                <td className="text-right font-semibold" style={{ width: '60px' }}>{totalPeriodPaidAmount.toFixed(2)}</td>
+                              </tr>
+                              }
                             </tbody>
                           </table>
                         </div>
