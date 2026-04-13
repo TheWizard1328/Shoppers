@@ -104,8 +104,7 @@ const isAdminNonBillableDelivery = (delivery) => {
 
 const isAppFeePayableDelivery = (delivery, storePaysFees) => {
   if (!delivery || !storePaysFees || delivery.no_charge === true) return false;
-  if (isRegularPickupDelivery(delivery)) return false;
-  return isDriverPayableDelivery(delivery);
+  return isAdminBillableDelivery(delivery) || isAdminNonBillableDelivery(delivery);
 };
 
 const STORE_FIELDS = [
