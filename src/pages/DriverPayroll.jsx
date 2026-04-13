@@ -674,9 +674,7 @@ export default function DriverPayroll() {
         }
 
         console.log(`📥 [DriverPayroll] Fetching FULL YEAR payroll data - Year: ${selectedYear}`);
-        const effectivePayrollCityId = selectedCityId !== 'all'
-        ? selectedCityId
-        : (isDriver ? (currentUser?.city_id || null) : (currentUser?.city_id || null));
+        const effectivePayrollCityId = selectedCityId !== 'all' ? selectedCityId : 'all';
 
       const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
           payrollYear: selectedYear,
@@ -761,9 +759,7 @@ export default function DriverPayroll() {
     if (!currentUser || hasInitialized || !isPayrollPageActive) return;
 
     const initFromOfflineData = async () => {
-      if (currentUser.city_id && !isDriver) {
-        setSelectedCityId(currentUser.city_id);
-      }
+      setSelectedCityId('all');
 
       if (isDriver) {
         setSelectedDriverId(currentUser.id);
