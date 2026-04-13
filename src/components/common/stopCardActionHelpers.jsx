@@ -278,7 +278,8 @@ export async function setAndCenterNextDelivery({
   updateDeliveriesLocally,
   driverId,
   deliveryDate,
-  collapseCards = true
+  collapseCards = true,
+  skipBackgroundSync = false
 }) {
   const scopedDeliveries = (driverDeliveries || []).filter(Boolean);
 
@@ -286,7 +287,7 @@ export async function setAndCenterNextDelivery({
     await collapseExpandedStopCardsForDriver(driverId);
   }
 
-  await syncNextDeliveryFlagsLocally({
+  const changedDeliveries = await syncNextDeliveryFlagsLocally({
     driverDeliveries: scopedDeliveries,
     nextDeliveryId: targetDeliveryId,
     updateDeliveriesLocally
@@ -296,7 +297,7 @@ export async function setAndCenterNextDelivery({
     centerDeliveryCard(targetDeliveryId);
   }
 
-  if (driverId && deliveryDate) {
+  if (!skipBackgroundSync && driverId && deliveryDate) {
     Promise.resolve().then(() =>
       base44.functions.invoke('setNextDeliveryFlag', {
         driverId,
@@ -308,36 +309,44 @@ export async function setAndCenterNextDelivery({
     );
   }
 
-  return targetDeliveryId;
+  return { targetDeliveryId, changedDeliveries };
 }
 
 export async function syncNextDeliveryFlagsLocally({ driverDeliveries = [], nextDeliveryId = null, updateDeliveriesLocally }) {
   const scopedDeliveries = (driverDeliveries || []).filter(Boolean);
-  if (scopedDeliveries.length === 0) return;
+  if (scopedDeliveries.length === 0) return [];
+
+  const currentNextDelivery = scopedDeliveries.find((item) => item?.isNextDelivery);
+  const transferredDistance = currentNextDelivery && currentNextDelivery.id !== nextDeliveryId
+    ? Number(currentNextDelivery.travel_dist || 0)
+    : 0;
 
   const updatedDeliveries = scopedDeliveries.map((item) => ({
     ...item,
-    isNextDelivery: !!nextDeliveryId && item.id === nextDeliveryId
+    isNextDelivery: !!nextDeliveryId && item.id === nextDeliveryId,
+    travel_dist: item.id === nextDeliveryId
+      ? transferredDistance
+      : (currentNextDelivery && item.id === currentNextDelivery.id && item.id !== nextDeliveryId ? 0 : item.travel_dist)
   }));
-  const changedDeliveries = updatedDeliveries.filter((item, index) => item.isNextDelivery !== scopedDeliveries[index]?.isNextDelivery);
+  const changedDeliveries = updatedDeliveries.filter((item, index) => {
+    const original = scopedDeliveries[index] || {};
+    return item.isNextDelivery !== original.isNextDelivery || Number(item.travel_dist || 0) !== Number(original.travel_dist || 0);
+  });
 
-  if (changedDeliveries.length === 0) return;
+  if (changedDeliveries.length === 0) return [];
 
   try {
     const { offlineDB } = await import('../utils/offlineDatabase');
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, changedDeliveries);
-    await Promise.all(
-      changedDeliveries.map((item) =>
-        base44.entities.Delivery.update(item.id, { isNextDelivery: item.isNextDelivery })
-      )
-    );
   } catch (error) {
-    console.warn('[stopCardActionHelpers] Failed to sync next-delivery flags to offline/online DB:', error?.message || error);
+    console.warn('[stopCardActionHelpers] Failed to sync next-delivery flags to offline DB:', error?.message || error);
   }
 
   if (updateDeliveriesLocally) {
     updateDeliveriesLocally(changedDeliveries, false);
   }
+
+  return changedDeliveries;
 }
 
 export async function refreshDriverRoute({ driverId, deliveryDate, forceRefreshDriverDeliveries, triggeredBy }) {
