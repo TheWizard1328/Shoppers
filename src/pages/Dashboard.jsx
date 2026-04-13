@@ -57,6 +57,7 @@ import { reorderStops } from "@/components/utils/stopReorderer";
 import { recalculateAndUpdateStopOrders, updateNextDeliveryFlags } from "@/components/utils/stopOrderManager";
 import { loadUserSettings, saveSetting, getSetting } from "@/components/utils/userSettingsManager";
 import { loadBreadcrumbsForDriver } from "@/components/utils/breadcrumbsManager";
+import useLiveBreadcrumbsSync from '@/components/dashboard/useLiveBreadcrumbsSync';
 import { fabControlEvents } from "@/components/utils/fabControlEvents";
 import {
   notifyDriverStarted,
@@ -5018,22 +5019,15 @@ function Dashboard() {
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
   const [forceRender, setForceRender] = useState(0);
 
-  useEffect(() => {
-    if (!showBreadcrumbs) return;
-    const activeDriverId = showAllDriverMarkers || selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
-    const activeDate = format(selectedDate, 'yyyy-MM-dd');
-    const matches = ({ driverId, deliveryDate } = {}) => (!driverId || !activeDriverId || driverId === activeDriverId) && (!deliveryDate || deliveryDate === activeDate);
-    const refresh = async (event) => matches(event.detail || {}) && setBreadcrumbsData(await loadBreadcrumbsForDriver(activeDriverId, activeDate, appUsers));
-    const append = (event) => {
-      const { point, ...detail } = event.detail || {};
-      if (!point || !matches(detail)) return;
-      setBreadcrumbsData((prev) => prev?.current?.some((p) => Number(p?.timestamp) === Number(point.timestamp)) ? prev : { historical: prev?.historical || [], current: [...(prev?.current || []), point] });
-    };
-    window.addEventListener('deliveriesUpdated', refresh);window.addEventListener('routeOptimizationComplete', refresh);window.addEventListener('routeReordered', refresh);window.addEventListener('breadcrumbCollected', append);
-    return () => {
-      window.removeEventListener('deliveriesUpdated', refresh);window.removeEventListener('routeOptimizationComplete', refresh);window.removeEventListener('routeReordered', refresh);window.removeEventListener('breadcrumbCollected', append);
-    };
-  }, [showBreadcrumbs, showAllDriverMarkers, selectedDriverId, currentUser?.id, selectedDate, appUsers]);
+  useLiveBreadcrumbsSync({
+    showBreadcrumbs,
+    showAllDriverMarkers,
+    selectedDriverId,
+    currentUser,
+    selectedDate,
+    appUsers,
+    setBreadcrumbsData
+  });
 
   // Listen for pullToSyncDataReady events - full update regardless of current state
   useEffect(() => {
