@@ -92,19 +92,18 @@ const isDriverPayableDelivery = (delivery) => {
   return isCompletedStatus(delivery) || isFailedStatus(delivery);
 };
 
-const isAdminBillableDelivery = (delivery) => {
-  if (!delivery || delivery.no_charge === true) return false;
-  return !isAfterHoursPickupDelivery(delivery) && (isCompletedStatus(delivery) || isFailedStatus(delivery));
+const isAdminBillableDelivery = (delivery, storePaysFees) => {
+  if (!storePaysFees) return false;
+  return isDriverPayableDelivery(delivery);
 };
 
-const isAdminNonBillableDelivery = (delivery) => {
-  if (!delivery || delivery.no_charge === true) return false;
-  return isAfterHoursPickupDelivery(delivery) && (isCompletedStatus(delivery) || isCancelledStatus(delivery));
+const isAdminNonBillableDelivery = (delivery, storePaysFees) => {
+  if (storePaysFees) return false;
+  return isDriverPayableDelivery(delivery);
 };
 
-const isAppFeePayableDelivery = (delivery, storePaysFees) => {
-  if (!delivery || !storePaysFees || delivery.no_charge === true) return false;
-  return isAdminBillableDelivery(delivery) || isAdminNonBillableDelivery(delivery);
+const isAppFeePayableDelivery = (delivery) => {
+  return isDriverPayableDelivery(delivery);
 };
 
 const STORE_FIELDS = [
@@ -918,9 +917,10 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
     const store = delivery.store_id ? storeMap.get(delivery.store_id) : null;
     const wasPayingOnDeliveryDate = store ? wasPayingFeesOnDate(store, delivery.delivery_date) : false;
 
-    const isBillable = isBillableDelivery(delivery);
-    const isNonBillable = isNonBillableDelivery(delivery);
-    const countsTowardMonthlySplit = isBillable || isNonBillable;
+    const isDriverPayable = isDriverPayableDelivery(delivery);
+    const isBillable = isBillableDelivery(delivery, wasPayingOnDeliveryDate);
+    const isNonBillable = isNonBillableDelivery(delivery, wasPayingOnDeliveryDate);
+    const countsTowardMonthlySplit = isDriverPayable;
 
     if (countsTowardMonthlySplit) {
       metrics.monthlyData[monthIndex].total++;
@@ -1014,9 +1014,9 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
       if (isCompletedAfterHoursPickup(delivery) || isCancelledAfterHoursPickup(delivery)) dailyStoreEntry.afterHours++;
       if (delivery.patient_id && (isCompletedPatientForStore(delivery) || isFailedPatientForStore(delivery))) dailyStoreEntry.extra_km += calculateExtraKm(delivery);
 
-      if (wasPayingOnDeliveryDate && appFeeRate > 0) {
+      if (appFeeRate > 0 && isDriverPayable && wasPayingOnDeliveryDate) {
         storesPayingFeesSet.add(store.id);
-        if (isAppFeePayableDelivery(delivery, wasPayingOnDeliveryDate)) {
+        if (isAppFeePayableDelivery(delivery)) {
           if (!storeMonthlyFees.has(store.id)) storeMonthlyFees.set(store.id, Array(12).fill(0));
           storeMonthlyFees.get(store.id)[monthIndex] += appFeeRate;
           metrics.storeFeeTotals.monthlyFees[monthIndex] += appFeeRate;
