@@ -4,7 +4,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
 
 const CACHE_VERSION = '3';
-const SUMMARY_VERSION = '2';
+const SUMMARY_VERSION = '3';
 const LIVE_SYNC_WINDOW_DAYS = 7;
 const statsCache = new Map();
 const CACHE_DISABLED = true;
@@ -104,6 +104,7 @@ const isAdminNonBillableDelivery = (delivery, storePaysFees) => {
 
 const isAppFeePayableDelivery = (delivery) => {
   if (!delivery || delivery.no_charge === true) return false;
+  if (isRegularPickupDelivery(delivery)) return false;
   if (isAfterHoursPickupDelivery(delivery)) {
     return isCompletedStatus(delivery) || isCancelledStatus(delivery);
   }
