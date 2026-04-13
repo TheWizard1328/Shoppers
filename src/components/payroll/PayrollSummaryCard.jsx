@@ -1292,16 +1292,19 @@ export default function PayrollSummaryCard({
                                         setPaidDrafts((prev) => ({ ...prev, [driverKey]: formattedValue }));
                                         updateEdit({ paidAmount: formattedValue });
                                       }}
-                                      onBlur={async () => {
+                                      onBlur={async (e) => {
                                         const fallbackAmount = getDefaultPaidAmount({ grandTotal: data.grandTotal, taxAmount: data.taxAmount, bonusPay: edit.bonusPay || 0, deductions: edit.deductions || [] });
-                                        const nextPaidAmount = parsePaidAmount(paidDrafts[driverKey], fallbackAmount);
+                                        const nextPaidAmount = parsePaidAmount(e.target.value, fallbackAmount);
                                         const formattedPaidAmount = nextPaidAmount.toFixed(2);
                                         setPaidDrafts((prev) => ({ ...prev, [driverKey]: formattedPaidAmount }));
-                                        updateEdit({ paidAmount: formattedPaidAmount });
+                                        setDriverEdits((prev) => ({
+                                          ...prev,
+                                          [driverKey]: { ...prev[driverKey], paidAmount: formattedPaidAmount }
+                                        }));
+                                        paidRefreshPauseRef.current[driverKey] = false;
                                         await savePayrollChanges(driverKey, {
                                           paid_amount: nextPaidAmount
                                         });
-                                        paidRefreshPauseRef.current[driverKey] = false;
                                       }} className="flex rounded-md border px-1 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-md h-7 min-h-0 w-[70px] text-right font-semibold" /> :
 
 
