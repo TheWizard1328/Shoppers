@@ -484,9 +484,13 @@ export default function HereType1Polylines({
   const isGrace = Date.now() - mountTimeRef.current < 600;
   const lines = [];
   const getDriverPolylineColor = (driverId) => generateDriverColor(String(driverId || 'driver'));
+  const getType1PolylineColor = (driverId) => {
+    const baseColor = getDriverPolylineColor(driverId);
+    return `${baseColor}80`;
+  };
   const getDriverRouteStyle = (driverId, opacityOverride) => {
     const mode = normalizeTravelMode(driverTravelModes[driverId]);
-    const base = getTravelModeLineStyle(mode, getDriverPolylineColor(driverId));
+    const base = getTravelModeLineStyle(mode, getType1PolylineColor(driverId));
     return {
       ...base,
       opacity: opacityOverride ?? base.opacity,
