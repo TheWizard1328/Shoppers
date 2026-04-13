@@ -69,6 +69,7 @@ export default function PayrollSummaryCard({
   const [activeInputField, setActiveInputField] = useState(null);
   const [paidDrafts, setPaidDrafts] = useState({});
   const [bonusDraftValue, setBonusDraftValue] = useState('');
+  const paidRefreshPauseRef = useRef({});
   const [deductionDraftName, setDeductionDraftName] = useState('');
   const [deductionDraftAmount, setDeductionDraftAmount] = useState('');
   const contentRef = useRef(null);
@@ -484,6 +485,11 @@ export default function PayrollSummaryCard({
     if (Object.prototype.hasOwnProperty.call(paidDrafts, driverId)) return paidDrafts[driverId];
     return fallback.toFixed(2);
   };
+  const formatCentsInput = (value) => {
+    const cleaned = String(value || '').replace(/[^\d]/g, '');
+    const cents = parseInt(cleaned, 10) || 0;
+    return (cents / 100).toFixed(2);
+  };
   const roundPayrollData = (data) => {
     const rounded = { ...data };
     ['gross_pay', 'net_pay', 'total_deductions', 'bonus_pay', 'app_fee_amount', 'paid_amount', 'tax_amount', 'pay_rate_per_delivery', 'extra_km_rate', 'extra_km_limit', 'oversized_item_rate', 'total_extra_km'].forEach((f) => {if (rounded[f] != null) rounded[f] = Math.round(rounded[f] * 100) / 100;});
@@ -614,7 +620,11 @@ export default function PayrollSummaryCard({
         paidAmount,
         showDeductionManager: false, newDeductionName: '', newDeductionAmount: ''
       };
-      newPaidDrafts[k] = String(paidAmount.toFixed(2));
+      if (paidRefreshPauseRef.current[k]) {
+        newPaidDrafts[k] = paidDrafts[k] ?? String(paidAmount.toFixed(2));
+      } else {
+        newPaidDrafts[k] = String(paidAmount.toFixed(2));
+      }
     });
     setDriverEdits(newEdits);
     setPaidDrafts(newPaidDrafts);
@@ -1251,14 +1261,16 @@ export default function PayrollSummaryCard({
                                 {isAdmin ?
                                     <Input
                                       type="text"
-                                      inputMode="decimal"
+                                      inputMode="numeric"
                                       value={getPaidDraftValue(driverKey, parsePaidAmount(edit.paidAmount, getDefaultPaidAmount({ grandTotal: data.grandTotal, taxAmount: data.taxAmount, bonusPay: edit.bonusPay || 0, deductions: edit.deductions || [] })))}
+                                      onFocus={(e) => {
+                                        paidRefreshPauseRef.current[driverKey] = true;
+                                        e.target.select();
+                                      }}
                                       onChange={(e) => {
-                                        const rawValue = e.target.value;
-                                        if (/^\d*(\.\d{0,2})?$/.test(rawValue) || rawValue === '') {
-                                          setPaidDrafts((prev) => ({ ...prev, [driverKey]: rawValue }));
-                                          updateEdit({ paidAmount: rawValue });
-                                        }
+                                        const formattedValue = formatCentsInput(e.target.value);
+                                        setPaidDrafts((prev) => ({ ...prev, [driverKey]: formattedValue }));
+                                        updateEdit({ paidAmount: formattedValue });
                                       }}
                                       onBlur={async () => {
                                         const fallbackAmount = getDefaultPaidAmount({ grandTotal: data.grandTotal, taxAmount: data.taxAmount, bonusPay: edit.bonusPay || 0, deductions: edit.deductions || [] });
@@ -1269,6 +1281,7 @@ export default function PayrollSummaryCard({
                                         await savePayrollChanges(driverKey, {
                                           paid_amount: nextPaidAmount
                                         });
+                                        paidRefreshPauseRef.current[driverKey] = false;
                                       }} className="flex rounded-md border px-1 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-md h-7 min-h-0 w-[70px] text-right font-semibold" /> :
 
 
