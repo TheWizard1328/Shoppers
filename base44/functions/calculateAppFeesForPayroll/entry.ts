@@ -1,6 +1,29 @@
 // Redeployed on 2026-03-28
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
+const isCompletedStatus = (delivery) => delivery?.status === 'completed';
+const isFailedStatus = (delivery) => delivery?.status === 'failed';
+const isCancelledStatus = (delivery) => delivery?.status === 'cancelled';
+const isAfterHoursPickupDelivery = (delivery) => delivery?.after_hours_pickup === true;
+const isPatientOrTransferDelivery = (delivery) => !!delivery?.patient_id;
+const isInterStoreDelivery = (delivery) => {
+  const name = String(delivery?.patient_name || '').toUpperCase();
+  return name.includes('INTERSTORE') || name.includes('(ISD)') || name.includes('(ISP)');
+};
+const isRegularPickupDelivery = (delivery) => !isAfterHoursPickupDelivery(delivery) && !isPatientOrTransferDelivery(delivery) && !isInterStoreDelivery(delivery);
+const isDriverPayableDelivery = (delivery) => {
+  if (!delivery || delivery.no_charge === true) return false;
+  if (isAfterHoursPickupDelivery(delivery)) {
+    return isCompletedStatus(delivery) || isCancelledStatus(delivery);
+  }
+  return isCompletedStatus(delivery) || isFailedStatus(delivery);
+};
+const isAppFeePayableDelivery = (delivery, storePaysFees) => {
+  if (!delivery || !storePaysFees || delivery.no_charge === true) return false;
+  if (isRegularPickupDelivery(delivery)) return false;
+  return isDriverPayableDelivery(delivery);
+};
+
 /**
  * Calculate app fees for a driver's payroll based on:
  * 1. Total billable deliveries from ALL stores for the entire month
@@ -35,19 +58,40 @@ Deno.serve(async (req) => {
       delivery_date: { $regex: `^${monthStr}` }
     });
 
-    // Filter to only completed deliveries (billable)
-    const billableDeliveries = allDeliveries.filter(d => 
-      d && d.status === 'completed' && !d.no_charge
-    );
-
-    const totalBillableDeliveries = billableDeliveries.length;
-
     // 2. Get app fees per delivery from AppSettings
     const settings = await base44.entities.AppSettings.filter({ 
       setting_key: 'refresh_intervals' 
     });
     
     const appFeesPerDelivery = settings?.[0]?.setting_value?.app_fees_per_delivery || 0;
+
+    const stores = await base44.entities.Store.list('', 5000);
+    const sortedHistoryCache = new Map();
+    const wasPayingFeesOnDate = (store, dateStr) => {
+      if (!store) return false;
+      if (!store.app_fee_history || store.app_fee_history.length === 0) {
+        return store.pays_app_fees || false;
+      }
+      if (!sortedHistoryCache.has(store.id)) {
+        sortedHistoryCache.set(store.id, [...store.app_fee_history].sort((a, b) => a.effective_date.localeCompare(b.effective_date)));
+      }
+      const sortedHistory = sortedHistoryCache.get(store.id);
+      let payingFees = false;
+      for (const entry of sortedHistory) {
+        if (entry.effective_date <= dateStr) payingFees = entry.pays_app_fees;
+        else break;
+      }
+      return payingFees;
+    };
+
+    const storeMap = new Map((stores || []).map((store) => [store.id, store]));
+    const billableDeliveries = allDeliveries.filter((delivery) => {
+      const store = delivery?.store_id ? storeMap.get(delivery.store_id) : null;
+      const storePaysFees = store ? wasPayingFeesOnDate(store, delivery.delivery_date) : false;
+      return isAppFeePayableDelivery(delivery, storePaysFees);
+    });
+
+    const totalBillableDeliveries = billableDeliveries.length;
 
     // 3. Calculate total payable app fees for the month
     const totalPayableAppFees = totalBillableDeliveries * appFeesPerDelivery;

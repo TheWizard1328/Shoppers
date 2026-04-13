@@ -78,9 +78,14 @@ const isCancelledStatus = (delivery) => delivery?.status === 'cancelled';
 const isAfterHoursPickupDelivery = (delivery) => delivery?.after_hours_pickup === true;
 const isPatientOrTransferDelivery = (delivery) => !!delivery?.patient_id;
 const isReturnDelivery = (delivery) => String(delivery?.patient_name || '').toUpperCase().includes('(RTN)');
+const isInterStoreDelivery = (delivery) => {
+  const name = String(delivery?.patient_name || '').toUpperCase();
+  return name.includes('INTERSTORE') || name.includes('(ISD)') || name.includes('(ISP)');
+};
+const isRegularPickupDelivery = (delivery) => !isAfterHoursPickupDelivery(delivery) && !isPatientOrTransferDelivery(delivery) && !isInterStoreDelivery(delivery);
 
 const isDriverPayableDelivery = (delivery) => {
-  if (!delivery) return false;
+  if (!delivery || delivery.no_charge === true) return false;
   if (isAfterHoursPickupDelivery(delivery)) {
     return isCompletedStatus(delivery) || isCancelledStatus(delivery);
   }
@@ -88,17 +93,19 @@ const isDriverPayableDelivery = (delivery) => {
 };
 
 const isAdminBillableDelivery = (delivery) => {
-  if (!delivery) return false;
+  if (!delivery || delivery.no_charge === true) return false;
   return !isAfterHoursPickupDelivery(delivery) && (isCompletedStatus(delivery) || isFailedStatus(delivery));
 };
 
 const isAdminNonBillableDelivery = (delivery) => {
-  if (!delivery) return false;
+  if (!delivery || delivery.no_charge === true) return false;
   return isAfterHoursPickupDelivery(delivery) && (isCompletedStatus(delivery) || isCancelledStatus(delivery));
 };
 
 const isAppFeePayableDelivery = (delivery, storePaysFees) => {
-  return isDriverPayableDelivery(delivery) && storePaysFees;
+  if (!delivery || !storePaysFees || delivery.no_charge === true) return false;
+  if (isRegularPickupDelivery(delivery)) return false;
+  return isDriverPayableDelivery(delivery);
 };
 
 const STORE_FIELDS = [
