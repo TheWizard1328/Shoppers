@@ -502,6 +502,7 @@ export default function PayrollSummaryCard({
   const grandTotalAllDrivers = driversWithDeliveries.reduce((sum, d) => sum + d.grandTotal, 0);
   const grandTotalTax = driversWithDeliveries.reduce((sum, d) => sum + d.taxAmount, 0);
   const grandTotalDeductions = driversWithDeliveries.reduce((sum, d) => sum + sumDeductionAmounts(driverEdits[d.driver.id]?.deductions || d.deductionsArray || []), 0);
+  const grandTotalBonus = driversWithDeliveries.reduce((sum, d) => sum + (Number(driverEdits[d.driver.id]?.bonusPay) || 0), 0);
   const grandTotalGross = driversWithDeliveries.reduce((sum, d) => sum + d.grossPay, 0);
   const driversWithDeliveriesIds = useMemo(() => driversWithDeliveries.map((d) => d.driver.id), [driversWithDeliveries]);
   const finalizedDriversCount = useMemo(() => driversWithDeliveriesIds.filter((id) => {const r = getDriverPayrollRecord(id);return r?.status === 'driver_finalized' || r?.status === 'admin_finalized' || r?.status === 'paid';}).length, [driversWithDeliveriesIds, payrollRecords]);
@@ -581,19 +582,20 @@ export default function PayrollSummaryCard({
   const appOwnerAppFeePercent = useMemo(() => Math.max(0, 100 - sumAllDriversAppFeePercent - otherAppFeePercent), [sumAllDriversAppFeePercent, otherAppFeePercent]);
   const ytdGrandTotalGross = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdGrossPay ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
   const totalPeriodPaidAmount = useMemo(() => {
-    const visibleDriverIds = new Set(driversWithDeliveries.map((d) => d.driver.id));
-    return payrollRecords.reduce((sum, record) => {
-      if (
-        !record ||
-        record.pay_period_start !== periodStartStr ||
-        record.pay_period_end !== periodEndStr ||
-        !visibleDriverIds.has(record.driver_id)
-      ) {
-        return sum;
-      }
-      return sum + (Number(record.paid_amount) || 0);
+    return driversWithDeliveries.reduce((sum, d) => {
+      const record = getDriverPayrollRecord(d.driver.id);
+      const deductions = driverEdits[d.driver.id]?.deductions || d.deductionsArray || [];
+      const bonus = Number(driverEdits[d.driver.id]?.bonusPay) || 0;
+      const fallbackPaid = getDefaultPaidAmount({
+        grandTotal: d.grandTotal,
+        taxAmount: d.taxAmount,
+        bonusPay: bonus,
+        deductions
+      });
+      const paid = record?.paid_amount != null ? Number(record.paid_amount) || 0 : fallbackPaid;
+      return sum + paid;
     }, 0);
-  }, [driversWithDeliveries, payrollRecords, periodStartStr, periodEndStr]);
+  }, [driversWithDeliveries, payrollRecords, driverEdits, periodStartStr, periodEndStr]);
   const ytdGrandTotalTax = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdTaxAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
   const ytdGrandTotalDeductions = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdDeductionsAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
   const ytdGrandTotalBonus = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdBonusAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
@@ -1671,7 +1673,7 @@ export default function PayrollSummaryCard({
                               <tr style={{ color: 'var(--text-slate-600)' }}>
                                 <td className="text-left pr-2">Bonus:</td>
                                 <td className="text-right pr-0.5">+$</td>
-                                <td className="text-right font-semibold" style={{ width: '60px' }}>{driversWithDeliveries.reduce((sum, d) => sum + (driverEdits[d.driver.id]?.bonusPay || 0), 0).toFixed(2)}</td>
+                                <td className="text-right font-semibold" style={{ width: '60px' }}>{grandTotalBonus.toFixed(2)}</td>
                               </tr>
                               {isPeriodEndOfMonth &&
                               <tr style={{ color: 'var(--text-slate-600)' }}>
@@ -1686,7 +1688,7 @@ export default function PayrollSummaryCard({
                               <tr className="text-lg font-bold text-emerald-600">
                                 <td className="text-left pr-2">Net:</td>
                                 <td className="text-right pr-0.5">$</td>
-                                <td className="text-right" style={{ width: '60px' }}>{(grandTotalGross + driversWithDeliveries.reduce((sum, d) => sum + (driverEdits[d.driver.id]?.bonusPay || 0), 0)).toFixed(2)}</td>
+                                <td className="text-right" style={{ width: '60px' }}>{(grandTotalGross + grandTotalBonus).toFixed(2)}</td>
                               </tr>
                               {isAdmin &&
                               <tr style={{ color: 'var(--text-slate-600)' }}>
@@ -1813,7 +1815,7 @@ export default function PayrollSummaryCard({
                     <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-blue-700)' }}>
                       <div className="text-left">Bonus:</div>
                       <div className="text-right pr-0.5">+$</div>
-                      <div className="text-right font-semibold">{driversWithDeliveries.reduce((sum, d) => sum + (driverEdits[d.driver.id]?.bonusPay || 0), 0).toFixed(2)}</div>
+                      <div className="text-right font-semibold">{grandTotalBonus.toFixed(2)}</div>
                       <div className="text-right pr-0.5">+$</div>
                       <div className="text-right font-semibold">{ytdGrandTotalBonus.toFixed(2)}</div>
                     </div>
@@ -1837,7 +1839,7 @@ export default function PayrollSummaryCard({
                     }}>
                       <div className="text-left">Net:</div>
                       <div className="text-right pr-0.5">$</div>
-                      <div className="text-right">{(grandTotalGross + driversWithDeliveries.reduce((sum, d) => sum + (driverEdits[d.driver.id]?.bonusPay || 0), 0)).toFixed(2)}</div>
+                      <div className="text-right">{(grandTotalGross + grandTotalBonus).toFixed(2)}</div>
                       <div className="text-right pr-0.5">$</div>
                       <div className="text-right">{ytdGrandTotalGross.toFixed(2)}</div>
                     </div>
