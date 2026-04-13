@@ -582,20 +582,20 @@ export default function PayrollSummaryCard({
   const appOwnerAppFeePercent = useMemo(() => Math.max(0, 100 - sumAllDriversAppFeePercent - otherAppFeePercent), [sumAllDriversAppFeePercent, otherAppFeePercent]);
   const ytdGrandTotalGross = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdGrossPay ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
   const totalPeriodPaidAmount = useMemo(() => {
-    return driversWithDeliveries.reduce((sum, d) => {
-      const record = getDriverPayrollRecord(d.driver.id);
-      const deductions = driverEdits[d.driver.id]?.deductions || d.deductionsArray || [];
-      const bonus = Number(driverEdits[d.driver.id]?.bonusPay) || 0;
-      const fallbackPaid = getDefaultPaidAmount({
-        grandTotal: d.grandTotal,
-        taxAmount: d.taxAmount,
-        bonusPay: bonus,
-        deductions
-      });
-      const paid = record?.paid_amount != null ? Number(record.paid_amount) || 0 : fallbackPaid;
-      return sum + paid;
+    const visibleDriverIds = new Set(driversWithDeliveries.map((d) => d.driver.id));
+    return payrollRecords.reduce((sum, record) => {
+      if (
+        !record ||
+        record.pay_period_start !== periodStartStr ||
+        record.pay_period_end !== periodEndStr ||
+        record.pay_period_type !== payPeriod ||
+        !visibleDriverIds.has(record.driver_id)
+      ) {
+        return sum;
+      }
+      return sum + (Number(record.paid_amount) || 0);
     }, 0);
-  }, [driversWithDeliveries, payrollRecords, driverEdits, periodStartStr, periodEndStr]);
+  }, [driversWithDeliveries, payrollRecords, periodStartStr, periodEndStr, payPeriod]);
   const ytdGrandTotalTax = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdTaxAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
   const ytdGrandTotalDeductions = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdDeductionsAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
   const ytdGrandTotalBonus = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdBonusAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
