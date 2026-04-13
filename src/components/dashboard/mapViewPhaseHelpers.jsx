@@ -47,16 +47,21 @@ export function getFabTargetDriverMapLocation({
     return { latitude: driverLocation.latitude, longitude: driverLocation.longitude };
   }
 
+  const sharedLocation = (allDriverLocations || []).find((loc) => (
+    loc?.driver_id === targetDriverId ||
+    loc?.driverId === targetDriverId ||
+    loc?.user_id === targetDriverId ||
+    loc?.id === targetDriverId
+  ));
+  if (sharedLocation?.latitude && sharedLocation?.longitude) {
+    return { latitude: sharedLocation.latitude, longitude: sharedLocation.longitude };
+  }
+
   if (targetAppUser?.current_latitude && targetAppUser?.current_longitude) {
     return {
       latitude: targetAppUser.current_latitude,
       longitude: targetAppUser.current_longitude,
     };
-  }
-
-  const sharedLocation = (allDriverLocations || []).find((loc) => loc?.driver_id === targetDriverId);
-  if (sharedLocation?.latitude && sharedLocation?.longitude) {
-    return { latitude: sharedLocation.latitude, longitude: sharedLocation.longitude };
   }
 
   return null;
