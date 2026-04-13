@@ -91,9 +91,9 @@ export default function PayrollSummaryCard({
       const periodDeliveries = deliveries.filter((d) => {
         if (!d || !d.delivery_date || d.driver_id !== driverId) return false;
 
-        const matchedPatient = d.patient_id
-          ? patients?.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id))
-          : null;
+        const matchedPatient = d.patient_id ?
+        patients?.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id)) :
+        null;
         const isPatientReturn = String(matchedPatient?.address || '').toUpperCase().includes('(RTN)');
 
         if (!d.patient_id && !d.after_hours_pickup) return false;
@@ -220,7 +220,7 @@ export default function PayrollSummaryCard({
             const driverData = payrollData.find((d) => d.driver.id === driverId);
             const periodAppFeeAmount = countBillableDeliveries(driverId) * (driverData?.appFeePercentage || 0) / 100;
 
-            const recordData = { driver_id: driverId, city_id: selectedCityId && selectedCityId !== 'all' ? selectedCityId : (currentUser?.city_id || null),
+            const recordData = { driver_id: driverId, city_id: selectedCityId && selectedCityId !== 'all' ? selectedCityId : currentUser?.city_id || null,
               pay_period_start: periodStartStr, pay_period_end: periodEndStr, pay_period_type: payPeriod,
               total_deliveries: driverData?.totalDeliveries || 0, total_extra_km: driverData?.totalExtraKm || 0,
               total_oversized_deliveries: driverData?.oversizedCount || 0, total_after_hours_deliveries: driverData?.afterHoursCount || 0,
@@ -267,9 +267,9 @@ export default function PayrollSummaryCard({
     let count = 0;
     deliveries.forEach((d) => {
       if (!d || driverId && d.driver_id !== driverId) return;
-      const matchedPatient = d.patient_id
-        ? patients?.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id))
-        : null;
+      const matchedPatient = d.patient_id ?
+      patients?.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id)) :
+      null;
       const isPatientReturn = String(matchedPatient?.address || '').toUpperCase().includes('(RTN)');
       const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
       if (deliveryDate < new Date(periodStartStr + 'T00:00:00') || deliveryDate > new Date(periodEndStr + 'T00:00:00')) return;
@@ -298,7 +298,7 @@ export default function PayrollSummaryCard({
         if (!driverData) return;
         const saveAppFeeAmount = countBillableDeliveries(driverId) * (driverData.appFeePercentage || 0) / 100;
 
-        const newRecordData = { driver_id: driverId, city_id: selectedCityId && selectedCityId !== 'all' ? selectedCityId : (currentUser?.city_id || null),
+        const newRecordData = { driver_id: driverId, city_id: selectedCityId && selectedCityId !== 'all' ? selectedCityId : currentUser?.city_id || null,
           pay_period_start: periodStartStr, pay_period_end: periodEndStr, pay_period_type: payPeriod,
           total_deliveries: driverData.totalDeliveries, total_extra_km: driverData.totalExtraKm,
           total_oversized_deliveries: driverData.oversizedCount, total_after_hours_deliveries: driverData.afterHoursCount || 0,
@@ -391,7 +391,7 @@ export default function PayrollSummaryCard({
       const finalizeAppFeeAmount = countBillableDeliveries(driverData.driver.id) * (edit.appFeePercent || 0) / 100;
       const finalizedNetPay = driverData.grandTotal + driverData.taxAmount + (edit.bonusPay || 0) - (driverData.deductions || 0) + finalizeAppFeeAmount;
       const finalizedPaidAmount = parsePaidAmount(edit.paidAmount, finalizedNetPay);
-      const payrollRecord = { driver_id: driverData.driver.id, city_id: selectedCityId && selectedCityId !== 'all' ? selectedCityId : (currentUser?.city_id || null),
+      const payrollRecord = { driver_id: driverData.driver.id, city_id: selectedCityId && selectedCityId !== 'all' ? selectedCityId : currentUser?.city_id || null,
         pay_period_start: periodStartStr, pay_period_end: periodEndStr, pay_period_type: payPeriod,
         total_deliveries: driverData.totalDeliveries, total_extra_km: driverData.totalExtraKm,
         total_oversized_deliveries: driverData.oversizedCount, total_after_hours_deliveries: driverData.afterHoursCount || 0,
@@ -420,7 +420,7 @@ export default function PayrollSummaryCard({
         const rec = getDriverPayrollRecord(dd.driver.id);
         const edit = driverEdits[dd.driver.id] || {};
         const appFeeAmount = edit.appFeeAmount || calculateAppFeeAmount(dd.driver.id, edit.appFeePercent || 0);
-        const netAmount = dd.grandTotal + dd.taxAmount + (edit.bonusPay || 0) - ((edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0)) || 0) + appFeeAmount;
+        const netAmount = dd.grandTotal + dd.taxAmount + (edit.bonusPay || 0) - (edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) + appFeeAmount;
         const paidAmount = parsePaidAmount(edit.paidAmount, netAmount);
         if (rec) await base44.entities.Payroll.update(rec.id, { paid_amount: paidAmount, status: 'admin_finalized', admin_finalized_at: new Date().toISOString(), admin_finalized_by: currentUser?.id });
       }
@@ -529,9 +529,9 @@ export default function PayrollSummaryCard({
     let total = 0;
     deliveries.forEach((d) => {
       if (!d || !d.store_id) return;
-      const matchedPatient = d.patient_id
-        ? patients?.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id))
-        : null;
+      const matchedPatient = d.patient_id ?
+      patients?.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id)) :
+      null;
       const isPatientReturn = String(matchedPatient?.address || '').toUpperCase().includes('(RTN)');
       const dd = new Date(d.delivery_date + 'T00:00:00');
       if (dd < calMonth || dd > calMonthEnd) return;
@@ -556,7 +556,7 @@ export default function PayrollSummaryCard({
   const totalPeriodPaidAmount = useMemo(() => driversWithDeliveries.reduce((sum, d) => {
     const edit = driverEdits[d.driver.id] || {};
     const appFeeAmount = edit.appFeeAmount || calculateAppFeeAmount(d.driver.id, edit.appFeePercent || 0);
-    const netAmount = d.grandTotal + d.taxAmount + (edit.bonusPay || 0) - ((edit.deductions?.reduce((acc, item) => acc + (item?.amount || 0), 0)) || 0) + appFeeAmount;
+    const netAmount = d.grandTotal + d.taxAmount + (edit.bonusPay || 0) - (edit.deductions?.reduce((acc, item) => acc + (item?.amount || 0), 0) || 0) + appFeeAmount;
     return sum + parsePaidAmount(edit.paidAmount, netAmount);
   }, 0), [driversWithDeliveries, driverEdits, calculateAppFeeAmount]);
   const ytdGrandTotalTax = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdTaxAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
@@ -1207,35 +1207,35 @@ export default function PayrollSummaryCard({
                               <td className="text-right" style={{ width: '60px' }}>{(Math.round(data.grandTotal * 100) / 100 + Math.round(data.taxAmount * 100) / 100 + (edit.bonusPay || 0) - (edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) + (edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0))).toFixed(2)}</td>
                             </tr>
                             {canFinalize && (isAdmin || selectedDriverId === currentUser?.id) &&
-                            <tr style={{ color: 'var(--text-slate-600)' }}>
+                                <tr style={{ color: 'var(--text-slate-600)' }}>
                               <td className="text-left pr-2">Paid:</td>
                               <td className="text-right pr-0.5">$</td>
                               <td>
-                                {isAdmin ? (
-                                  <Input
-                                    type="number"
-                                    step="0.01"
-                                    value={edit.paidAmount === '' ? '' : parsePaidAmount(edit.paidAmount, Math.round(data.grandTotal * 100) / 100 + Math.round(data.taxAmount * 100) / 100 + (edit.bonusPay || 0) - (edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) + (edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0))).toFixed(2)}
-                                    onChange={(e) => updateEdit({ paidAmount: e.target.value })}
-                                    onBlur={() => savePayrollChanges(driverKey, {
-                                      paid_amount: parsePaidAmount(
+                                {isAdmin ?
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      value={edit.paidAmount === '' ? '' : parsePaidAmount(edit.paidAmount, Math.round(data.grandTotal * 100) / 100 + Math.round(data.taxAmount * 100) / 100 + (edit.bonusPay || 0) - (edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) + (edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0))).toFixed(2)}
+                                      onChange={(e) => updateEdit({ paidAmount: e.target.value })}
+                                      onBlur={() => savePayrollChanges(driverKey, {
+                                        paid_amount: parsePaidAmount(
+                                          edit.paidAmount,
+                                          Math.round(data.grandTotal * 100) / 100 + Math.round(data.taxAmount * 100) / 100 + (edit.bonusPay || 0) - (edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) + (edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0))
+                                        )
+                                      })} className="flex rounded-md border px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-7 min-h-0 w-[70px] text-right no-spinner font-semibold" /> :
+
+
+
+                                    <div className="h-7 min-h-0 w-[60px] flex items-center justify-end text-right font-semibold">
+                                    {parsePaidAmount(
                                         edit.paidAmount,
                                         Math.round(data.grandTotal * 100) / 100 + Math.round(data.taxAmount * 100) / 100 + (edit.bonusPay || 0) - (edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) + (edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0))
-                                      )
-                                    })}
-                                    className="h-7 min-h-0 w-[60px] text-right no-spinner font-semibold"
-                                  />
-                                ) : (
-                                  <div className="h-7 min-h-0 w-[60px] flex items-center justify-end text-right font-semibold">
-                                    {parsePaidAmount(
-                                      edit.paidAmount,
-                                      Math.round(data.grandTotal * 100) / 100 + Math.round(data.taxAmount * 100) / 100 + (edit.bonusPay || 0) - (edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) + (edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0))
-                                    ).toFixed(2)}
+                                      ).toFixed(2)}
                                   </div>
-                                )}
+                                    }
                               </td>
                             </tr>
-                            }
+                                }
                           </tbody>
                         </table>
                       </div>
@@ -1327,9 +1327,9 @@ export default function PayrollSummaryCard({
                                     let totalBillableCount = 0;
                                     deliveries.forEach((d) => {
                                       if (!d || !d.store_id) return;
-                                      const matchedPatient = d.patient_id
-                                        ? patients?.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id))
-                                        : null;
+                                      const matchedPatient = d.patient_id ?
+                                      patients?.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id)) :
+                                      null;
                                       const isPatientReturn = String(matchedPatient?.address || '').toUpperCase().includes('(RTN)');
                                       const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
                                       if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
@@ -1375,9 +1375,9 @@ export default function PayrollSummaryCard({
                                     let ytdTotalBillable = 0;
                                     deliveries.forEach((d) => {
                                       if (!d || !d.store_id) return;
-                                      const matchedPatient = d.patient_id
-                                        ? patients?.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id))
-                                        : null;
+                                      const matchedPatient = d.patient_id ?
+                                      patients?.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id)) :
+                                      null;
                                       const isPatientReturn = String(matchedPatient?.address || '').toUpperCase().includes('(RTN)');
                                       const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
                                       if (deliveryDate < yearStart || deliveryDate > currentMonthEnd) return;
@@ -1452,9 +1452,9 @@ export default function PayrollSummaryCard({
                           let totalBillableCount = 0;
                           deliveries.forEach((d) => {
                             if (!d || !d.store_id) return;
-                            const matchedPatient = d.patient_id
-                              ? patients?.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id))
-                              : null;
+                            const matchedPatient = d.patient_id ?
+                            patients?.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id)) :
+                            null;
                             const isPatientReturn = String(matchedPatient?.address || '').toUpperCase().includes('(RTN)');
                             const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
                             if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
@@ -1488,9 +1488,9 @@ export default function PayrollSummaryCard({
                           let ytdTotalBillable = 0;
                           deliveries.forEach((d) => {
                             if (!d || !d.store_id) return;
-                            const matchedPatient = d.patient_id
-                              ? patients?.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id))
-                              : null;
+                            const matchedPatient = d.patient_id ?
+                            patients?.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id)) :
+                            null;
                             const isPatientReturn = String(matchedPatient?.address || '').toUpperCase().includes('(RTN)');
                             const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
                             if (deliveryDate < yearStart || deliveryDate > currentMonthEnd) return;
