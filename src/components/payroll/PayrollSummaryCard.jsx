@@ -1688,7 +1688,7 @@ export default function PayrollSummaryCard({
                               <tr className="text-lg font-bold text-emerald-600">
                                 <td className="text-left pr-2">Net:</td>
                                 <td className="text-right pr-0.5">$</td>
-                                <td className="text-right" style={{ width: '60px' }}>{(grandTotalGross + grandTotalBonus).toFixed(2)}</td>
+                                <td className="text-right" style={{ width: '60px' }}>{(grandTotalGross + grandTotalBonus + calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) + calculateAppFeeAmount('other-app-fee', otherAppFeePercent)).toFixed(2)}</td>
                               </tr>
                               {isAdmin &&
                               <tr style={{ color: 'var(--text-slate-600)' }}>
