@@ -217,7 +217,7 @@ export default function DriverPayroll() {
   useAppData();
 
   const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear());
-  const [selectedCityId, setSelectedCityId] = useState('all');
+  const [selectedCityId, setSelectedCityId] = useState('');
   const [selectedDriverId, setSelectedDriverId] = useState('all');
   const [payPeriod, setPayPeriod] = useState(null); // null until determined from data
   const [selectedPeriodIndex, setSelectedPeriodIndex] = useState(null); // null until determined
@@ -265,11 +265,8 @@ export default function DriverPayroll() {
   }, [payrollData?.cities]);
 
   const filteredStores = useMemo(() => {
-    if (!payrollData?.stores) return [];
-    let filtered = payrollData.stores.filter((s) => s.status !== 'inactive');
-    if (selectedCityId && selectedCityId !== 'all') {
-      filtered = filtered.filter((s) => s.city_id === selectedCityId);
-    }
+    if (!payrollData?.stores || !selectedCityId) return [];
+    const filtered = payrollData.stores.filter((s) => s.status !== 'inactive' && s.city_id === selectedCityId);
     return sortStores(filtered);
   }, [payrollData?.stores, selectedCityId]);
 
@@ -670,11 +667,9 @@ export default function DriverPayroll() {
         }
 
         console.log(`📥 [DriverPayroll] Fetching FULL YEAR payroll data - Year: ${selectedYear}`);
-        const effectivePayrollCityId = selectedCityId !== 'all' ? selectedCityId : 'all';
-
       const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
           payrollYear: selectedYear,
-          payrollCityId: effectivePayrollCityId
+          payrollCityId: selectedCityId
         });
         const data = response?.data?.payrollData || response?.payrollData;
 
@@ -742,12 +737,24 @@ export default function DriverPayroll() {
     }
   }, [selectedPeriodIndex, allPeriods.length]);
 
+  // Keep a valid city selected and trigger fetch only when a city exists
+  useEffect(() => {
+    if (!sortedCities.length) return;
+    if (selectedCityId && sortedCities.some((city) => city.id === selectedCityId)) return;
+    const fallbackCityId = currentUser?.city_id && sortedCities.some((city) => city.id === currentUser.city_id)
+      ? currentUser.city_id
+      : sortedCities[0]?.id || '';
+    if (fallbackCityId && fallbackCityId !== selectedCityId) {
+      setSelectedCityId(fallbackCityId);
+    }
+  }, [sortedCities, selectedCityId, currentUser]);
+
   // Trigger fetch when filters change (after initialization)
   useEffect(() => {
-    if (hasInitialized && isPayrollPageActive) {
+    if (hasInitialized && isPayrollPageActive && selectedCityId) {
       fetchPayroll(false, false);
     }
-  }, [hasInitialized, isPayrollPageActive, fetchPayroll]);
+  }, [hasInitialized, isPayrollPageActive, selectedCityId, fetchPayroll]);
 
   // Initialize defaults based on user role - runs ONCE on mount
   // CRITICAL: Reads offline Payroll records to determine the correct pay cycle + period BEFORE rendering data
@@ -755,7 +762,8 @@ export default function DriverPayroll() {
     if (!currentUser || hasInitialized || !isPayrollPageActive) return;
 
     const initFromOfflineData = async () => {
-      setSelectedCityId('all');
+      const defaultCityId = currentUser?.city_id || '';
+      setSelectedCityId(defaultCityId);
 
       if (isDriver) {
         setSelectedDriverId(currentUser.id);
@@ -1063,12 +1071,11 @@ export default function DriverPayroll() {
               React.startTransition(() => {
                 setSelectedCityId(v);
               });
-            }} disabled={isDriver}>
+            }} disabled={isDriver || !sortedCities.length}>
                 <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                   <SelectValue placeholder="City" />
                 </SelectTrigger>
                 <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                  <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Cities</SelectItem>
                   {sortedCities.map((city) =>
                 <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>
                       {city.name}
