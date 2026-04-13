@@ -295,10 +295,13 @@ export default function DeliveryMap({
       return safeDeliveries;
     }
 
-    const baseDeliveries = safeDeliveries.length > 0 ? safeDeliveries : safeAllDeliveriesForDate;
+    const fallbackDeliveriesForSelectedDate = selectedDate
+      ? safeAllDeliveriesForDate.filter((delivery) => delivery?.delivery_date === selectedDate)
+      : safeAllDeliveriesForDate;
+    const baseDeliveries = safeDeliveries.length > 0 ? safeDeliveries : fallbackDeliveriesForSelectedDate;
     if (otherDriverDeliveries.length === 0) return baseDeliveries;
     return dedupeById([...baseDeliveries, ...otherDriverDeliveries]);
-  }, [safeDeliveries, safeAllDeliveriesForDate, otherDriverDeliveries, showOtherDriverDeliveries]);
+  }, [safeDeliveries, safeAllDeliveriesForDate, otherDriverDeliveries, showOtherDriverDeliveries, selectedDate]);
 
   const driverNameLookupMap = useMemo(() => {
     const map = new Map();
