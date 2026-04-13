@@ -462,6 +462,9 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     if (lockResult?.skipped) return;
   };
   const handleReturnClick = async (e) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    if (isPreparingReturn || showReturnConfirm) return;
     blockCardToggle(e, { keepExpanded: true });
     setIsPreparingReturn(true);
     try {
@@ -477,7 +480,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
         return;
       }
       setReturnPatient(foundReturnPatient);
-      requestAnimationFrame(() => setShowReturnConfirm(true));
+      setShowReturnConfirm(true);
     } finally {
       setIsPreparingReturn(false);
     }
