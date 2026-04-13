@@ -119,6 +119,7 @@ export default function StoreMetricsPanel() {
         store_id: store.id,
         store_name: store.name,
         store_abbreviation: store.abbreviation,
+        sort_order: store.sort_order,
         pays_app_fees: !!store.pays_app_fees,
         current_fee_period: getFeePeriodForMonth(store, parseInt(selectedYear, 10), monthNumber),
         total_deliveries: totalDeliveries,
@@ -129,6 +130,8 @@ export default function StoreMetricsPanel() {
     }).sort((a, b) => {
       if (a.pays_app_fees && !b.pays_app_fees) return -1;
       if (!a.pays_app_fees && b.pays_app_fees) return 1;
+      const sortOrderDiff = (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity);
+      if (sortOrderDiff !== 0) return sortOrderDiff;
       return (a.store_name || '').localeCompare(b.store_name || '');
     });
 
