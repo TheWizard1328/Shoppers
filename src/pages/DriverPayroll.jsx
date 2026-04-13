@@ -680,10 +680,7 @@ export default function DriverPayroll() {
 
       const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
           payrollYear: selectedYear,
-          payrollCityId: effectivePayrollCityId,
-          payrollDriverId: null,
-          payrollStartDate: `${selectedYear}-01-01`,
-          payrollEndDate: `${selectedYear}-12-31`
+          payrollCityId: effectivePayrollCityId
         });
         const data = response?.data?.payrollData || response?.payrollData;
 
@@ -756,7 +753,7 @@ export default function DriverPayroll() {
     if (hasInitialized && isPayrollPageActive) {
       fetchPayroll(false, false);
     }
-  }, [selectedYear, hasInitialized, isPayrollPageActive, fetchPayroll]);
+  }, [hasInitialized, isPayrollPageActive, fetchPayroll]);
 
   // Initialize defaults based on user role - runs ONCE on mount
   // CRITICAL: Reads offline Payroll records to determine the correct pay cycle + period BEFORE rendering data

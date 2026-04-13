@@ -521,23 +521,9 @@ export default function PayrollSummaryCard({
     }).catch(() => {});
   }, []);
 
-  const sumAllDriversAppFeePercent = useMemo(() => driversWithDeliveries.reduce((sum, d) => d.driver.id === currentUser?.id && isAppOwner(currentUser) ? sum : sum + (driverEdits[d.driver.id]?.appFeePercent || 0), 0), [driversWithDeliveries, driverEdits, currentUser]);
-  const appOwnerAppFeePercent = useMemo(() => Math.max(0, 100 - sumAllDriversAppFeePercent - otherAppFeePercent), [sumAllDriversAppFeePercent, otherAppFeePercent]);
-  const ytdGrandTotalGross = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdGrossPay ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
-  const totalPeriodPaidAmount = useMemo(() => driversWithDeliveries.reduce((sum, d) => {
-    const edit = driverEdits[d.driver.id] || {};
-    const appFeeAmount = edit.appFeeAmount || calculateAppFeeAmount(d.driver.id, edit.appFeePercent || 0);
-    const netAmount = d.grandTotal + d.taxAmount + (edit.bonusPay || 0) - ((edit.deductions?.reduce((acc, item) => acc + (item?.amount || 0), 0)) || 0) + appFeeAmount;
-    return sum + parsePaidAmount(edit.paidAmount, netAmount);
-  }, 0), [driversWithDeliveries, driverEdits, calculateAppFeeAmount]);
-  const ytdGrandTotalTax = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdTaxAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
-  const ytdGrandTotalDeductions = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdDeductionsAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
-  const ytdGrandTotalBonus = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdBonusAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
-  const ytdGrandTotalNet = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdNetPay ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
-
   // Calculate AppFeeAmount for a driver - distribute from total monthly app fee pool (calendar month)
   const calculateAppFeeAmount = useCallback((driverId, appFeePercent) => {
-    if (appFeePercent <= 0 || appFeesPerDelivery === 0) return 0;
+    if (!currentPeriod || appFeePercent <= 0 || appFeesPerDelivery === 0) return 0;
     const calMonth = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
     const calMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
     let total = 0;
@@ -563,6 +549,20 @@ export default function PayrollSummaryCard({
     });
     return total * appFeesPerDelivery * appFeePercent / 100;
   }, [deliveries, stores, patients, currentPeriod, appFeesPerDelivery]);
+
+  const sumAllDriversAppFeePercent = useMemo(() => driversWithDeliveries.reduce((sum, d) => d.driver.id === currentUser?.id && isAppOwner(currentUser) ? sum : sum + (driverEdits[d.driver.id]?.appFeePercent || 0), 0), [driversWithDeliveries, driverEdits, currentUser]);
+  const appOwnerAppFeePercent = useMemo(() => Math.max(0, 100 - sumAllDriversAppFeePercent - otherAppFeePercent), [sumAllDriversAppFeePercent, otherAppFeePercent]);
+  const ytdGrandTotalGross = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdGrossPay ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
+  const totalPeriodPaidAmount = useMemo(() => driversWithDeliveries.reduce((sum, d) => {
+    const edit = driverEdits[d.driver.id] || {};
+    const appFeeAmount = edit.appFeeAmount || calculateAppFeeAmount(d.driver.id, edit.appFeePercent || 0);
+    const netAmount = d.grandTotal + d.taxAmount + (edit.bonusPay || 0) - ((edit.deductions?.reduce((acc, item) => acc + (item?.amount || 0), 0)) || 0) + appFeeAmount;
+    return sum + parsePaidAmount(edit.paidAmount, netAmount);
+  }, 0), [driversWithDeliveries, driverEdits, calculateAppFeeAmount]);
+  const ytdGrandTotalTax = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdTaxAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
+  const ytdGrandTotalDeductions = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdDeductionsAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
+  const ytdGrandTotalBonus = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdBonusAmount ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
+  const ytdGrandTotalNet = useMemo(() => driversWithDeliveries.reduce((sum, d) => sum + (ytdDataByDriver[d.driver.id]?.ytdNetPay ?? 0), 0), [driversWithDeliveries, ytdDataByDriver]);
 
   // Initialize and sync driver edits with payroll records
   useEffect(() => {
