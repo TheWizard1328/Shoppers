@@ -1688,7 +1688,36 @@ export default function PayrollSummaryCard({
                               <tr className="text-lg font-bold text-emerald-600">
                                 <td className="text-left pr-2">Net:</td>
                                 <td className="text-right pr-0.5">$</td>
-                                <td className="text-right" style={{ width: '60px' }}>{(grandTotalGross + grandTotalBonus + calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) + calculateAppFeeAmount('other-app-fee', otherAppFeePercent)).toFixed(2)}</td>
+                                <td className="text-right" style={{ width: '60px' }}>{((grandTotalGross + grandTotalBonus) + (() => {
+                                  const calendarMonth = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
+                                  const calendarMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
+                                  let totalBillableCount = 0;
+                                  deliveries.forEach((d) => {
+                                    if (!d || !d.store_id) return;
+                                    const matchedPatient = d.patient_id ?
+                                      patients?.find((p) => p && (p.id === d.patient_id || p.patient_id === d.patient_id)) :
+                                      null;
+                                    const isPatientReturn = String(matchedPatient?.address || '').toUpperCase().includes('(RTN)');
+                                    const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
+                                    if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
+                                    const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && (d.after_hours_pickup || isPatientReturn);
+                                    if (!validStatus) return;
+                                    if (!d.patient_id && !d.after_hours_pickup) return;
+                                    const store = stores.find((s) => s?.id === d.store_id);
+                                    if (!store) return;
+                                    let paysAppFees = store.pays_app_fees || false;
+                                    if (store.app_fee_history && store.app_fee_history.length > 0) {
+                                      const sortedHistory = [...store.app_fee_history].sort((a, b) =>
+                                        new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
+                                      );
+                                      if (sortedHistory[0]) {
+                                        paysAppFees = sortedHistory[0].pays_app_fees;
+                                      }
+                                    }
+                                    if (paysAppFees) totalBillableCount++;
+                                  });
+                                  return totalBillableCount * appFeesPerDelivery;
+                                })() - (calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) + calculateAppFeeAmount('other-app-fee', otherAppFeePercent))).toFixed(2)}</td>
                               </tr>
                               {isAdmin &&
                               <tr style={{ color: 'var(--text-slate-600)' }}>
