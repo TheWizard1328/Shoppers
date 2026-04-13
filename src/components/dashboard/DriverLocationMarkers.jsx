@@ -171,7 +171,8 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       return false;
     }
 
-      // RULE 1: Self marker on non-primary device - ALWAYS show if coordinates exist (shared from primary)
+      // RULE 1: Self marker on non-primary device - ALWAYS show if coordinates exist (shared from primary),
+      // regardless of whether the route is not started, in progress, or completed
       if (isSelf && !isPrimaryDevice) {
         return true;
       }
