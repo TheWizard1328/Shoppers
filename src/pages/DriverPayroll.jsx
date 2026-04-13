@@ -652,7 +652,7 @@ export default function DriverPayroll() {
   const fetchPayroll = useCallback(async (isAutoRefresh = false, forceFresh = false) => {
     if (!currentUser || !isPayrollPageActive) return;
 
-    const fetchSignature = `${selectedYear}-${isAutoRefresh}-${forceFresh}`;
+    const fetchSignature = `${selectedYear}-${selectedCityId}-${isAutoRefresh}-${forceFresh}`;
     const now = Date.now();
     if (!forceFresh && lastFetchSignatureRef.current === fetchSignature && now - lastFetchTimestampRef.current < 4000) {
       return fullYearPayrollDataRef.current;
@@ -710,7 +710,7 @@ export default function DriverPayroll() {
 
     fetchPayrollInFlightRef.current = runFetch();
     return fetchPayrollInFlightRef.current;
-  }, [selectedYear, currentUser, isPayrollPageActive]);
+  }, [selectedYear, selectedCityId, currentUser, isPayrollPageActive]);
 
   const handleManualRefresh = useCallback(async () => {
     setIsRefreshing(true);
