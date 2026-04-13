@@ -1713,7 +1713,7 @@ export default function PayrollSummaryCard({
                               <tr className="text-lg font-bold text-emerald-600">
                                 <td className="text-left pr-2">Net:</td>
                                 <td className="text-right pr-0.5">$</td>
-                                <td className="text-right" style={{ width: '60px' }}>{((grandTotalGross + grandTotalBonus) + (() => {
+                                <td className="text-right" style={{ width: '60px' }}>{(isPeriodEndOfMonth ? (grandTotalGross + grandTotalBonus) + (() => {
                                   const calendarMonth = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
                                   const calendarMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
                                   let totalBillableCount = 0;
@@ -1742,7 +1742,7 @@ export default function PayrollSummaryCard({
                                     if (paysAppFees) totalBillableCount++;
                                   });
                                   return totalBillableCount * appFeesPerDelivery;
-                                })() - (calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) + calculateAppFeeAmount('other-app-fee', otherAppFeePercent))).toFixed(2)}</td>
+                                })() - (calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) + calculateAppFeeAmount('other-app-fee', otherAppFeePercent)) : grandTotalGross + grandTotalBonus).toFixed(2)}</td>
                               </tr>
                               {isAdmin &&
                               <tr style={{ color: 'var(--text-slate-600)' }}>
