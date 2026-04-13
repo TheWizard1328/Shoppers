@@ -34,6 +34,8 @@ export async function syncPayrollRecordsWithLiveData(payrollData, getDriverPayro
     if (record.status !== 'draft') continue;
 
     // Build the set of fields we want to keep in sync
+    // IMPORTANT: do not auto-sync custom editable values like paid_amount, bonus_pay,
+    // app_fee_amount, app_fee_percentage, deductions, or total_deductions here.
     const liveValues = {
       total_deliveries: data.totalDeliveries,
       total_extra_km: round2(data.totalExtraKm),
@@ -42,7 +44,6 @@ export async function syncPayrollRecordsWithLiveData(payrollData, getDriverPayro
       gross_pay: round2(data.grossPay),
       net_pay: round2(data.grandTotal),
       tax_amount: round2(data.taxAmount),
-      total_deductions: round2(data.deductions),
       pay_rate_per_delivery: round2(data.payRate),
       extra_km_rate: round2(data.extraKmRate),
       extra_km_limit: round2(data.extraKmLimit),

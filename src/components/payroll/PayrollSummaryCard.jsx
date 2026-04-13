@@ -329,10 +329,12 @@ export default function PayrollSummaryCard({
         const newBonus = updates.bonus_pay !== undefined ? updates.bonus_pay : existingRecord.bonus_pay || 0;
         recalculatedUpdates.gross_pay = (driverData?.grandTotal || existingRecord.net_pay || 0) + (driverData?.taxAmount || 0) - newDed + newBonus;
       }
-      const updatedRecord = await base44.entities.Payroll.update(existingRecord.id, roundPayrollData(recalculatedUpdates));
-      setPayrollRecords((prev) => prev.map((r) => r.id === existingRecord.id ? { ...r, ...updatedRecord } : r));
-      if (onPayrollRecordsChange) onPayrollRecordsChange(payrollRecords.map((r) => r.id === existingRecord.id ? { ...r, ...updatedRecord } : r));
-      try {const { offlineDB } = await import('../utils/offlineDatabase');await offlineDB.save(offlineDB.STORES.PAYROLL, { ...existingRecord, ...updatedRecord });} catch (e) {/* ignore */}
+      const finalUpdates = roundPayrollData(recalculatedUpdates);
+      const updatedRecord = await base44.entities.Payroll.update(existingRecord.id, finalUpdates);
+      const mergedRecord = { ...existingRecord, ...finalUpdates, ...updatedRecord };
+      setPayrollRecords((prev) => prev.map((r) => r.id === existingRecord.id ? mergedRecord : r));
+      if (onPayrollRecordsChange) onPayrollRecordsChange(payrollRecords.map((r) => r.id === existingRecord.id ? mergedRecord : r));
+      try {const { offlineDB } = await import('../utils/offlineDatabase');await offlineDB.save(offlineDB.STORES.PAYROLL, mergedRecord);} catch (e) {/* ignore */}
       lastFetchRef.current.timestamp = 0;
       if (refreshPayrollRecords) await refreshPayrollRecords();
     } catch (error) {console.error('❌ [Payroll] Failed to save changes:', error);}
