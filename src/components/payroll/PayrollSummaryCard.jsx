@@ -315,9 +315,10 @@ export default function PayrollSummaryCard({
 
         const newRecord = await base44.entities.Payroll.create(roundPayrollData(newRecordData));
 
-        setPayrollRecords((prev) => [...prev, newRecord]);
+        const nextPayrollRecords = [...payrollRecords, newRecord];
+        setPayrollRecords(nextPayrollRecords);
         if (onPayrollRecordsChange) {
-          onPayrollRecordsChange([...payrollRecords, newRecord]);
+          onPayrollRecordsChange(nextPayrollRecords);
         }
         existingRecord = newRecord;
       }
@@ -332,8 +333,9 @@ export default function PayrollSummaryCard({
       const finalUpdates = roundPayrollData(recalculatedUpdates);
       const updatedRecord = await base44.entities.Payroll.update(existingRecord.id, finalUpdates);
       const mergedRecord = { ...existingRecord, ...finalUpdates, ...updatedRecord };
-      setPayrollRecords((prev) => prev.map((r) => r.id === existingRecord.id ? mergedRecord : r));
-      if (onPayrollRecordsChange) onPayrollRecordsChange(payrollRecords.map((r) => r.id === existingRecord.id ? mergedRecord : r));
+      const nextPayrollRecords = payrollRecords.map((r) => r.id === existingRecord.id ? mergedRecord : r);
+      setPayrollRecords(nextPayrollRecords);
+      if (onPayrollRecordsChange) onPayrollRecordsChange(nextPayrollRecords);
       try {const { offlineDB } = await import('../utils/offlineDatabase');await offlineDB.save(offlineDB.STORES.PAYROLL, mergedRecord);} catch (e) {/* ignore */}
       lastFetchRef.current.timestamp = 0;
       if (refreshPayrollRecords) await refreshPayrollRecords();

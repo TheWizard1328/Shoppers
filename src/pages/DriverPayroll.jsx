@@ -1241,6 +1241,13 @@ export default function DriverPayroll() {
             }}
             onPayrollRecordsChange={(records) => {
               setPayrollRecords(records);
+              setPayrollData((prev) => prev ? { ...prev, payrollRecords: records } : prev);
+              if (fullYearPayrollDataRef.current) {
+                fullYearPayrollDataRef.current = {
+                  ...fullYearPayrollDataRef.current,
+                  payrollRecords: records
+                };
+              }
             }}
             payrollRecords={payrollRecords}
             refreshPayrollRecords={refreshPayrollRecords}
