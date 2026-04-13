@@ -1215,7 +1215,7 @@ export default function PayrollSummaryCard({
                                   <Input
                                     type="number"
                                     step="0.01"
-                                    value={edit.paidAmount ?? ''}
+                                    value={edit.paidAmount === '' ? '' : parsePaidAmount(edit.paidAmount, Math.round(data.grandTotal * 100) / 100 + Math.round(data.taxAmount * 100) / 100 + (edit.bonusPay || 0) - (edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) + (edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0))).toFixed(2)}
                                     onChange={(e) => updateEdit({ paidAmount: e.target.value })}
                                     onBlur={() => savePayrollChanges(driverKey, {
                                       paid_amount: parsePaidAmount(
@@ -1223,7 +1223,7 @@ export default function PayrollSummaryCard({
                                         Math.round(data.grandTotal * 100) / 100 + Math.round(data.taxAmount * 100) / 100 + (edit.bonusPay || 0) - (edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) + (edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0))
                                       )
                                     })}
-                                    className="h-7 min-h-0 w-[88px] text-right no-spinner"
+                                    className="h-7 min-h-0 w-[60px] text-right no-spinner font-semibold"
                                   />
                                 ) : (
                                   <div className="h-7 min-h-0 w-[88px] flex items-center justify-end text-right font-semibold">
