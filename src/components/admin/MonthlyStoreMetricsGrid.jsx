@@ -211,7 +211,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
   }
 
   return (
-    <Card className="bg-card text-card-foreground rounded-xl border shadow flex min-h-0 flex-col max-h-[300pv] lg:max-h-[46vh] overflow-hidden">
+    <Card className="bg-card text-card-foreground rounded-xl border shadow flex min-h-0 flex-col max-h-[50vh] lg:max-h-[350 px] overflow-hidden">
       <CardHeader className="pb-3 shrink-0">
         <p className="text-xs text-slate-500 mb-2">💡 Click a month row name to filter all charts, or click a store value to see day-by-day breakdown</p>
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -354,7 +354,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
                 </td>
               </tr>
               {/* Average Row - Smart average: completed months use actual totals,
-                   current month is projected (dailyAvg * daysInMonth), then divide by current month number */}
+                    current month is projected (dailyAvg * daysInMonth), then divide by current month number */}
               <tr className="bg-slate-50">
                 <td className="px-1.5 py-0.5 text-slate-600 sticky left-0 bg-slate-50 z-10">AVG</td>
                 {stores.map((store) => {
