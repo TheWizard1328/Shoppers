@@ -98,6 +98,7 @@ import { useLocalPerformanceStats } from "@/components/dashboard/useLocalPerform
 import { StatBadge, calculateDistance, generateUniqueSID, addMinutesToTime, roundCompletionTime, populateTemporaryStartTimes } from "@/components/dashboard/DashboardHelpers";import { shouldRefreshUserFromAppUser } from "@/components/utils/appUserRefreshUtils";
 import { saveDriverChangedDelivery } from "@/components/utils/saveDriverChangedDelivery";
 import { getFabTargetDriverMapLocation, isDriverOffDuty, getSelfDriverLocationForBounds } from "@/components/dashboard/mapViewPhaseHelpers";
+import { collectPhase3SingleDriverCoordinates } from "@/components/dashboard/phase3BoundsHelper";
 import { centerDeliveryCard, centerNextDeliveryCard, getNextDeliveryCard } from '@/components/utils/deliveryCardUtils';
 import { loadDashboardOfflineDateData, mergeDeliveriesForDate, hasDeliveryDataForSelection } from '@/components/dashboard/dashboardInitialLoadHelpers';
 
@@ -2201,31 +2202,23 @@ function Dashboard() {
         } else {
           // MODE 2: Single Driver - include selected driver's incomplete + pending stops
           const targetDriverId = selectedDriverId !== 'all' ? selectedDriverId : currentUser?.id;
-
-          const incompleteAndPendingActiveDriver = deliveriesWithStopOrder.filter((d) => {
-            if (!d || d.delivery_date !== selectedDateStrPhase3) return false;
-            if (finishedStatuses.includes(d.status)) return false;
-            // INCLUDE pending deliveries
-            return true;
-          });
-
-          // Add incomplete + pending stop coordinates
-          incompleteAndPendingActiveDriver.forEach((delivery) => {
-            if (delivery.patient_id) {
-              const patient = patients.find((p) => p?.id === delivery.patient_id);
-              if (patient?.latitude && patient?.longitude) {
-                allCoordinatesPhase3.push([patient.latitude, patient.longitude]);
-              }
-            } else if (delivery.store_id) {
-              const store = stores.find((s) => s?.id === delivery.store_id);
-              if (store?.latitude && store?.longitude) {
-                allCoordinatesPhase3.push([store.latitude, store.longitude]);
-              }
-            }
-          });
-
-          // Add driver marker when on duty (today only) - include GPS fallback if AppUser lacks coords
-          if (isViewingTodayPhase3) {const driverAppUser3 = appUsers?.find((au) => au?.user_id === targetDriverId);if (driverAppUser3?.driver_status === 'on_duty') {if (driverAppUser3?.current_latitude && driverAppUser3?.current_longitude) {allCoordinatesPhase3.push([driverAppUser3.current_latitude, driverAppUser3.current_longitude]);} else if (targetDriverId === currentUser?.id && driverLocation?.latitude && driverLocation?.longitude) {allCoordinatesPhase3.push([driverLocation.latitude, driverLocation.longitude]);}}}
+          allCoordinatesPhase3.push(
+            ...collectPhase3SingleDriverCoordinates({
+              deliveriesWithStopOrder,
+              selectedDateStr: selectedDateStrPhase3,
+              patients,
+              stores,
+              isViewingTodayPhase3,
+              getFabTargetDriverMapLocation,
+              targetDriverId,
+              currentUser,
+              isDriver,
+              appUsers,
+              driverLocation,
+              allDriverLocations,
+              isPrimaryDevice,
+            })
+          );
         }
 
         // 3. Only fit bounds if we have actual markers to show (NO city center fallback)
@@ -2283,7 +2276,7 @@ function Dashboard() {
       default:
         break;
     }
-  }, [mapViewPhase, driverLocation, nextStopCoordinates, deliveriesWithStopOrder, patients, stores, isDriver, mapViewTrigger, isDispatcher, currentUser, getMapPadding, allDriverLocations, showAllDriverMarkers, appUsers, selectedDriverId, selectedDate, cities, deliveries, isPrimaryDevice]);
+  }, [mapViewPhase, driverLocation, nextStopCoordinates, deliveriesWithStopOrder, patients, stores, isDriver, mapViewTrigger, isDispatcher, currentUser, getMapPadding, allDriverLocations, showAllDriverMarkers, appUsers, selectedDriverId, selectedDate, cities, deliveries, isPrimaryDevice, getFabTargetDriverMapLocation]);
 
   // RENDER SEQUENCE EFFECT 1: Track StatsCard & StopCards ready
   useEffect(() => {
