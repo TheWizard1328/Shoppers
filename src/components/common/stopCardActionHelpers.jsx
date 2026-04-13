@@ -397,6 +397,8 @@ export async function rehydrateLiveBreadcrumbsForRestart(delivery) {
   }
 }
 
+const routeOptimizationInflight = new Map();
+
 export async function optimizeRouteAndApplyNextDelivery({
   driverId,
   deliveryDate,
@@ -406,32 +408,47 @@ export async function optimizeRouteAndApplyNextDelivery({
   forceRefreshDriverDeliveries,
   generatePolyline = false
 }) {
-  const optimizeResponse = await base44.functions.invoke('optimizeRouteRealTime', {
-    driverId,
-    deliveryDate,
-    currentLocalTime,
-    generatePolyline
-  });
-  const optimizeData = optimizeResponse?.data || optimizeResponse;
-  const optimizedRoute = Array.isArray(optimizeData?.optimizedRoute) ? optimizeData.optimizedRoute : [];
-  const nextOptimizedStopId = optimizedRoute[0]?.deliveryId || optimizedRoute[0]?.delivery_id || null;
+  const optimizationKey = `${driverId || 'unknown'}:${deliveryDate || 'unknown'}`;
+  if (routeOptimizationInflight.has(optimizationKey)) {
+    return routeOptimizationInflight.get(optimizationKey);
+  }
 
-  await refreshDriverRoute({ driverId, deliveryDate, forceRefreshDriverDeliveries, triggeredBy: 'optimizedNextDeliverySync' });
+  const optimizationPromise = (async () => {
+    const optimizeResponse = await base44.functions.invoke('optimizeRouteRealTime', {
+      driverId,
+      deliveryDate,
+      currentLocalTime,
+      generatePolyline
+    });
+    const optimizeData = optimizeResponse?.data || optimizeResponse;
+    const optimizedRoute = Array.isArray(optimizeData?.optimizedRoute) ? optimizeData.optimizedRoute : [];
+    const nextOptimizedStopId = optimizedRoute[0]?.deliveryId || optimizeData?.nextDeliveryId || optimizedRoute[0]?.delivery_id || null;
 
-  const refreshedDriverDeliveries = await base44.entities.Delivery.filter({ driver_id: driverId, delivery_date: deliveryDate });
-  await setAndCenterNextDelivery({
-    driverDeliveries: refreshedDriverDeliveries,
-    targetDeliveryId: nextOptimizedStopId,
-    updateDeliveryLocal,
-    updateDeliveriesLocally,
-    driverId,
-    deliveryDate
-  });
+    await refreshDriverRoute({ driverId, deliveryDate, forceRefreshDriverDeliveries, triggeredBy: 'optimizedNextDeliverySync' });
 
-  return {
-    optimizeData,
-    optimizedRoute,
-    nextOptimizedStopId,
-    refreshedDriverDeliveries
-  };
+    const refreshedDriverDeliveries = await base44.entities.Delivery.filter({ driver_id: driverId, delivery_date: deliveryDate });
+    await setAndCenterNextDelivery({
+      driverDeliveries: refreshedDriverDeliveries,
+      targetDeliveryId: nextOptimizedStopId,
+      updateDeliveryLocal,
+      updateDeliveriesLocally,
+      driverId,
+      deliveryDate
+    });
+
+    return {
+      optimizeData,
+      optimizedRoute,
+      nextOptimizedStopId,
+      refreshedDriverDeliveries
+    };
+  })();
+
+  routeOptimizationInflight.set(optimizationKey, optimizationPromise);
+
+  try {
+    return await optimizationPromise;
+  } finally {
+    routeOptimizationInflight.delete(optimizationKey);
+  }
 }

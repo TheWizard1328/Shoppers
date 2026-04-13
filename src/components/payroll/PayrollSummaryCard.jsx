@@ -808,7 +808,7 @@ export default function PayrollSummaryCard({
               <Button
                 size="sm"
                 onClick={() => setShowConfirmDialog(true)}
-                disabled={isFinalizing || isLoadingData || !canFinalize || isCurrentDriverFinalized}
+                disabled={isFinalizing || !canFinalize || isCurrentDriverFinalized}
                 className="gap-2 bg-emerald-600 hover:bg-emerald-700"
                 title={isCurrentDriverFinalized ? 'Already confirmed' : !canFinalize ? 'Cannot finalize until pay period ends' : ''}>
 
@@ -1190,7 +1190,7 @@ export default function PayrollSummaryCard({
                     <Button
                       size="sm"
                       onClick={() => handleDriverFinalize(data)}
-                      disabled={isFinalizing || isLoadingData || driverHasConfirmed}
+                      disabled={isFinalizing || driverHasConfirmed}
                       className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-xs h-7 px-2"
                       title={driverHasConfirmed ? 'Already confirmed' : ''}>
 

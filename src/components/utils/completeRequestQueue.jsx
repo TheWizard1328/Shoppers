@@ -5,7 +5,7 @@ const queueState = {
   appUserUpdates: new Map()
 };
 
-const COMPLETION_DEBOUNCE_MS = 600;
+const COMPLETION_DEBOUNCE_MS = 1500;
 
 const stableStringify = (value) => {
   if (value === null || typeof value !== 'object') return JSON.stringify(value);
@@ -100,17 +100,6 @@ const flushCompletionJob = async (entry) => {
         scope: 'active_only'
       })
     );
-
-    if (driverId && deliveryDate && nextDeliveryId) {
-      tasks.push(
-        base44.functions.invoke('optimizeRouteRealTime', {
-          driverId,
-          deliveryDate,
-          completedDeliveryId: lastCompletedDeliveryId || undefined,
-          nextDeliveryId
-        })
-      );
-    }
   }
 
   if (setOffDuty && entry.payload.appUserId) {
