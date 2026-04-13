@@ -1206,24 +1206,33 @@ export default function PayrollSummaryCard({
                               <td className="text-right pr-0.5">$</td>
                               <td className="text-right" style={{ width: '60px' }}>{(Math.round(data.grandTotal * 100) / 100 + Math.round(data.taxAmount * 100) / 100 + (edit.bonusPay || 0) - (edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) + (edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0))).toFixed(2)}</td>
                             </tr>
-                            {isAdmin &&
+                            {(isAdmin || selectedDriverId === currentUser?.id) &&
                             <tr style={{ color: 'var(--text-slate-600)' }}>
                               <td className="text-left pr-2">Paid:</td>
                               <td className="text-right pr-0.5">$</td>
                               <td>
-                                <Input
-                                  type="number"
-                                  step="0.01"
-                                  value={edit.paidAmount ?? ''}
-                                  onChange={(e) => updateEdit({ paidAmount: e.target.value })}
-                                  onBlur={() => savePayrollChanges(driverKey, {
-                                    paid_amount: parsePaidAmount(
+                                {isAdmin ? (
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={edit.paidAmount ?? ''}
+                                    onChange={(e) => updateEdit({ paidAmount: e.target.value })}
+                                    onBlur={() => savePayrollChanges(driverKey, {
+                                      paid_amount: parsePaidAmount(
+                                        edit.paidAmount,
+                                        Math.round(data.grandTotal * 100) / 100 + Math.round(data.taxAmount * 100) / 100 + (edit.bonusPay || 0) - (edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) + (edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0))
+                                      )
+                                    })}
+                                    className="h-7 min-h-0 w-[88px] text-right no-spinner"
+                                  />
+                                ) : (
+                                  <div className="h-7 min-h-0 w-[88px] flex items-center justify-end text-right font-semibold">
+                                    {parsePaidAmount(
                                       edit.paidAmount,
                                       Math.round(data.grandTotal * 100) / 100 + Math.round(data.taxAmount * 100) / 100 + (edit.bonusPay || 0) - (edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) + (edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0))
-                                    )
-                                  })}
-                                  className="h-7 min-h-0 w-[88px] text-right no-spinner"
-                                />
+                                    ).toFixed(2)}
+                                  </div>
+                                )}
                               </td>
                             </tr>
                             }
