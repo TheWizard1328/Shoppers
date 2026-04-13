@@ -55,7 +55,6 @@ export default function PayrollSummaryCard({
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [payrollRecords, setPayrollRecords] = useState([]);
-  const [isLoadingRecords, setIsLoadingRecords] = useState(false);
   const [driverEdits, setDriverEdits] = useState({});
   const [deductionOverlayDriverId, setDeductionOverlayDriverId] = useState(null);
   const [bonusOverlayDriverId, setBonusOverlayDriverId] = useState(null);
@@ -164,7 +163,6 @@ export default function PayrollSummaryCard({
     });
   }, [deliveries, drivers, appUsers, patients, cities, selectedYear, selectedDriverId, currentPeriod]);
 
-  const lastFetchRef = React.useRef({ timestamp: 0 });
   const lastAutoCreatePeriodRef = React.useRef(null);
   const autoCreateInProgressRef = React.useRef(false);
   const initialYtdCalculationDone = React.useRef(false);
@@ -180,26 +178,14 @@ export default function PayrollSummaryCard({
     base44.entities.Payroll.filter({ pay_period_end: { $gte: yearStart, $lte: periodEnd } }).then((records) => {setPayrollRecords(records || []);if (onPayrollRecordsChange) onPayrollRecordsChange(records || []);}).catch(() => {});
   }, [currentPeriod, periodStartStr, periodEndStr]);
 
-  // Fetch payroll records (external or local with 15-sec refresh)
+  // Use payroll records provided by the parent page, which already loads the full year once.
   useEffect(() => {
-    if (externalPayrollRecords) {setPayrollRecords(externalPayrollRecords);setIsLoadingRecords(false);return;}
-    if (!currentPeriod) return;
-    const fetch = async (force = false) => {
-      const now = Date.now();
-      if (!force && now - lastFetchRef.current.timestamp < 15000) return;
-      setIsLoadingRecords(true);
-      try {
-        const ys = new Date(currentPeriod.start.getFullYear(), 0, 1).toISOString().split('T')[0];
-        const pe = currentPeriod.end.toISOString().split('T')[0];
-        const records = await base44.entities.Payroll.filter({ pay_period_end: { $gte: ys, $lte: pe } });
-        setPayrollRecords(records || []);if (onPayrollRecordsChange) onPayrollRecordsChange(records || []);
-        lastFetchRef.current.timestamp = now;
-      } catch (e) {/* ignore */} finally {setIsLoadingRecords(false);}
-    };
-    fetch(true);
-    const interval = setInterval(() => fetch(), 15000);
-    return () => clearInterval(interval);
-  }, [currentPeriod, externalPayrollRecords, periodStartStr, periodEndStr]);
+    if (externalPayrollRecords) {
+      setPayrollRecords(externalPayrollRecords);
+      return;
+    }
+    setPayrollRecords([]);
+  }, [externalPayrollRecords]);
 
   // Auto-create missing Payroll records - ONLY when period changes
   useEffect(() => {
@@ -337,7 +323,6 @@ export default function PayrollSummaryCard({
       setPayrollRecords(nextPayrollRecords);
       if (onPayrollRecordsChange) onPayrollRecordsChange(nextPayrollRecords);
       try {const { offlineDB } = await import('../utils/offlineDatabase');await offlineDB.save(offlineDB.STORES.PAYROLL, mergedRecord);} catch (e) {/* ignore */}
-      lastFetchRef.current.timestamp = 0;
       if (refreshPayrollRecords) await refreshPayrollRecords();
     } catch (error) {console.error('❌ [Payroll] Failed to save changes:', error);}
   };
@@ -750,7 +735,7 @@ export default function PayrollSummaryCard({
                     <Button
                     size="sm"
                     onClick={() => setShowConfirmDialog(true)}
-                    disabled={isFinalizing || isLoadingRecords || !canFinalize || isAdminFinalized}
+                    disabled={isFinalizing || !canFinalize || isAdminFinalized}
                     className={`gap-2 h-8 ${allDriversFinalized && canFinalize ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'}`}
                     title={isAdminFinalized ? 'Already finalized' : !canFinalize ? 'Cannot finalize until pay period ends' : ''}>
 
@@ -785,7 +770,7 @@ export default function PayrollSummaryCard({
                 <Button
                   size="sm"
                   onClick={() => setShowConfirmDialog(true)}
-                  disabled={isFinalizing || isLoadingRecords || !canFinalize || isCurrentDriverFinalized}
+                  disabled={isFinalizing || !canFinalize || isCurrentDriverFinalized}
                   className="gap-2 bg-emerald-600 hover:bg-emerald-700 h-8 ml-auto"
                   title={isCurrentDriverFinalized ? 'Already confirmed' : !canFinalize ? 'Cannot finalize until pay period ends' : ''}>
 
@@ -854,7 +839,7 @@ export default function PayrollSummaryCard({
                     <Button
                     size="sm"
                     onClick={() => setShowConfirmDialog(true)}
-                    disabled={isFinalizing || isLoadingRecords || !canFinalize || isAdminFinalized}
+                    disabled={isFinalizing || !canFinalize || isAdminFinalized}
                     className={`gap-2 ${allDriversFinalized && canFinalize ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'}`}
                     title={isAdminFinalized ? 'Already finalized' : !canFinalize ? 'Cannot finalize until pay period ends' : ''}>
 
