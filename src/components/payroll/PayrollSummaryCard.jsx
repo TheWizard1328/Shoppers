@@ -1210,7 +1210,7 @@ export default function PayrollSummaryCard({
                                 <tr style={{ color: 'var(--text-slate-600)' }}>
                               <td className="text-left pr-2">Paid:</td>
                               <td className="text-right pr-0.5">$</td>
-                              <td className="px-1">
+                              <td className="">
                                 {isAdmin ?
                                     <Input
                                       type="number"
@@ -1222,7 +1222,7 @@ export default function PayrollSummaryCard({
                                           edit.paidAmount,
                                           Math.round(data.grandTotal * 100) / 100 + Math.round(data.taxAmount * 100) / 100 + (edit.bonusPay || 0) - (edit.deductions?.reduce((sum, d) => sum + (d?.amount || 0), 0) || 0) + (edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0))
                                         )
-                                      })} className="flex rounded-md border px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-7 min-h-0 w-[75px] text-right no-spinner font-semibold" /> :
+                                      })} className="flex rounded-md border px-1 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-7 min-h-0 w-[8px] text-right no-spinner font-semibold" /> :
 
 
 
