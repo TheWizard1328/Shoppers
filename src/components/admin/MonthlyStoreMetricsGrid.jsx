@@ -69,7 +69,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
             value = totalDeliveries + envelopeAdjustment;
           } else {
             // Fees view: prefer inline fees, fallback to monthlyStoreFees structure
-            const fallback = (monthlyStoreFees[month] || []).find((s) => (s.abbreviation === storeData.abbreviation) || (s.storeAbbr === storeData.abbreviation));
+            const fallback = (monthlyStoreFees[month] || []).find((s) => s.abbreviation === storeData.abbreviation || s.storeAbbr === storeData.abbreviation);
             value = storeData.fees ?? fallback?.fees ?? fallback?.total_fees ?? 0;
           }
           totals[storeData.abbreviation] += value;
@@ -101,7 +101,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
         0;
         value = totalDeliveries + envelopeAdjustment;
       } else {
-        const fallback = (monthlyStoreFees[month] || []).find((s) => (s.abbreviation === store.abbreviation) || (s.storeAbbr === store.abbreviation));
+        const fallback = (monthlyStoreFees[month] || []).find((s) => s.abbreviation === store.abbreviation || s.storeAbbr === store.abbreviation);
         value = store.fees ?? fallback?.fees ?? fallback?.total_fees ?? 0;
       }
       return sum + value;
@@ -131,8 +131,8 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
         value = totalDeliveries;
       }
     } else {
-     const fallback = (monthlyStoreFees[month] || []).find((s) => (s.abbreviation === storeData.abbreviation) || (s.storeAbbr === storeData.abbreviation));
-     value = storeData.fees ?? fallback?.fees ?? fallback?.total_fees ?? 0;
+      const fallback = (monthlyStoreFees[month] || []).find((s) => s.abbreviation === storeData.abbreviation || s.storeAbbr === storeData.abbreviation);
+      value = storeData.fees ?? fallback?.fees ?? fallback?.total_fees ?? 0;
     }
     return value;
   };
@@ -171,31 +171,31 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1; // 1-12
     const today = now.getDate();
-    
+
     // Determine how many months to average over
     const isCurrentYear = year === currentYear;
     const monthsToAverage = isCurrentYear ? currentMonth : 12;
-    
+
     if (monthsToAverage === 0) return 0;
-    
+
     let totalSum = 0;
-    
+
     for (let month = 1; month <= monthsToAverage; month++) {
       const monthData = monthlyStoreData[month] || [];
       const storeData = monthData.find((s) => s.abbreviation === store.abbreviation);
       if (!storeData) continue;
-      
+
       let value;
       if (viewMode === 'deliveries') {
         const totalDeliveries = (storeData.completed || 0) + (storeData.afterHours || 0) + (storeData.failed || 0);
         const envelopeInfo = metricsData.envelopeMetrics?.byStoreAndMonth?.[storeData.storeId]?.[month];
         const envelopeAdjustment = envelopeToggle && envelopeInfo?.totalEnvelopeValue > 0 ?
-          envelopeInfo.totalEnvelopeValue - envelopeInfo.envelopeDeliveriesCount : 0;
+        envelopeInfo.totalEnvelopeValue - envelopeInfo.envelopeDeliveriesCount : 0;
         value = totalDeliveries + envelopeAdjustment;
       } else {
         value = storeData.fees || 0;
       }
-      
+
       // Current month of current year: project the full month
       if (isCurrentYear && month === currentMonth && today > 0) {
         const daysInMonth = new Date(year, month, 0).getDate();
@@ -206,12 +206,12 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
         totalSum += value;
       }
     }
-    
+
     return totalSum / monthsToAverage;
   }
 
   return (
-    <Card className="bg-card text-card-foreground rounded-xl border shadow flex min-h-0 flex-col max-h-[50vh] lg:max-h-[42vh] overflow-hidden">
+    <Card className="bg-card text-card-foreground rounded-xl border shadow flex min-h-0 flex-col max-h-[300pv] lg:max-h-[46vh] overflow-hidden">
       <CardHeader className="pb-3 shrink-0">
         <p className="text-xs text-slate-500 mb-2">💡 Click a month row name to filter all charts, or click a store value to see day-by-day breakdown</p>
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -354,7 +354,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
                 </td>
               </tr>
               {/* Average Row - Smart average: completed months use actual totals,
-                  current month is projected (dailyAvg * daysInMonth), then divide by current month number */}
+                   current month is projected (dailyAvg * daysInMonth), then divide by current month number */}
               <tr className="bg-slate-50">
                 <td className="px-1.5 py-0.5 text-slate-600 sticky left-0 bg-slate-50 z-10">AVG</td>
                 {stores.map((store) => {
