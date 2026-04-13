@@ -1209,7 +1209,7 @@ export default function PayrollSummaryCard({
                             {canFinalize && (isAdmin || selectedDriverId === currentUser?.id) &&
                                 <tr style={{ color: 'var(--text-slate-600)' }}>
                               <td className="text-left pr-2">Paid:</td>
-                              <td className="mr-1 pr-0.5 text-right">$</td>
+                              <td className="text-right">$</td>
                               <td className="pr-1">
                                 {isAdmin ?
                                     <Input
