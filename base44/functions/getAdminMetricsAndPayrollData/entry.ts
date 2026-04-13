@@ -551,11 +551,10 @@ Deno.serve(async (req) => {
       const patients = (patientsRaw || []).map((patient) => pickFields(patient, PATIENT_FIELDS));
 
       const relevantCityIds = Array.from(new Set(stores.map((store) => store.city_id).filter(Boolean)));
-      const citiesRaw = relevantCityIds.length
-        ? await base44.asServiceRole.entities.City.filter({ id: { $in: cityId && cityId !== 'all' ? Array.from(new Set([...relevantCityIds, cityId])) : relevantCityIds } }, '', 500)
-        : (cityId && cityId !== 'all')
-          ? await base44.asServiceRole.entities.City.filter({ id: cityId }, '', 1)
-          : [];
+      const citiesRaw = await base44.asServiceRole.entities.City.list('', 500).catch((error) => {
+        if (isNotFoundError(error)) return [];
+        throw error;
+      });
       const cities = (citiesRaw || []).map((city) => pickFields(city, CITY_FIELDS));
       const cityName = cityId && cityId !== 'all'
         ? (cities.find((city) => city.id === cityId)?.name || '')

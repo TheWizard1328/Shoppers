@@ -260,8 +260,8 @@ export default function DriverPayroll() {
   }, [allPeriods, selectedPeriodIndex]);
 
   const sortedCities = useMemo(() => {
-    if (!payrollData?.cities) return [];
-    return [...payrollData.cities].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+    const allCities = Array.isArray(payrollData?.cities) ? payrollData.cities : [];
+    return [...allCities].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
   }, [payrollData?.cities]);
 
   const filteredStores = useMemo(() => {
