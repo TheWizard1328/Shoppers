@@ -652,9 +652,13 @@ export default function PayrollSummaryCard({
 
   // Auto-sync payroll entity records with live-calculated data whenever payrollData or records change
   const syncInProgressRef = useRef(false);
+  const skipNextAutoSyncRef = useRef(false);
   useEffect(() => {
     if (!payrollData || payrollData.length === 0 || !periodStartStr || !periodEndStr) return;
-    if (syncInProgressRef.current) return;
+    if (syncInProgressRef.current || skipNextAutoSyncRef.current) {
+      skipNextAutoSyncRef.current = false;
+      return;
+    }
     const driversWithData = payrollData.filter((d) => d.totalDeliveries > 0);
     if (driversWithData.length === 0) return;
     const hasRecords = driversWithData.some((d) => getDriverPayrollRecord(d.driver.id));
@@ -663,7 +667,6 @@ export default function PayrollSummaryCard({
     syncPayrollRecordsWithLiveData(payrollData, getDriverPayrollRecord, (updated) => {
       if (updated.length > 0) {
         console.log(`✅ [PayrollSync] Auto-synced ${updated.length} records`);
-        // Update local payrollRecords state with the synced values
         setPayrollRecords((prev) => {
           const updatedMap = {};
           updated.forEach((u) => {updatedMap[u.recordId] = u.updates;});
@@ -1302,6 +1305,7 @@ export default function PayrollSummaryCard({
                                           [driverKey]: { ...prev[driverKey], paidAmount: formattedPaidAmount }
                                         }));
                                         paidRefreshPauseRef.current[driverKey] = false;
+                                        skipNextAutoSyncRef.current = true;
                                         await savePayrollChanges(driverKey, {
                                           paid_amount: nextPaidAmount
                                         });
