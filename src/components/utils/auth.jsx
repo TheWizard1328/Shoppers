@@ -17,20 +17,6 @@ const clearLegacyHereLocalStorageCache = () => {
 
 clearLegacyHereLocalStorageCache();
 
-// If an access_token is present in the URL (e.g. "act as user" impersonation),
-// clear all user caches so the new token is used instead of stale cached data.
-(function() {
-  try {
-    const _urlParams = new URLSearchParams(window.location.search);
-    if (_urlParams.has('access_token')) {
-      sessionStorage.removeItem('effectiveUserCache');
-      localStorage.removeItem('effectiveUserCache');
-      sessionStorage.removeItem('rxdeliver_auth_boot_cache');
-      localStorage.removeItem('rxdeliver_auth_boot_cache');
-    }
-  } catch {}
-})();
-
 // Global cache for user data to prevent repeated API calls
 let userCache = {
   data: null,
