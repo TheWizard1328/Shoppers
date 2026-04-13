@@ -103,7 +103,11 @@ const isAdminNonBillableDelivery = (delivery, storePaysFees) => {
 };
 
 const isAppFeePayableDelivery = (delivery) => {
-  return isDriverPayableDelivery(delivery);
+  if (!delivery || delivery.no_charge === true) return false;
+  if (isAfterHoursPickupDelivery(delivery)) {
+    return isCompletedStatus(delivery) || isCancelledStatus(delivery);
+  }
+  return isPatientOrTransferDelivery(delivery) && (isCompletedStatus(delivery) || isFailedStatus(delivery));
 };
 
 const STORE_FIELDS = [
