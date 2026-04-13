@@ -498,14 +498,21 @@ Deno.serve(async (req) => {
         cityStoreIds = new Set((cityStores || []).map((store) => store.id));
         const cityStoreIdsArray = Array.from(cityStoreIds);
         if (!cityStoreIdsArray.length) {
+          const [appSettingsForEmpty, allCitiesRaw] = await Promise.all([
+            base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }),
+            base44.asServiceRole.entities.City.list('', 500).catch((error) => {
+              if (isNotFoundError(error)) return [];
+              throw error;
+            })
+          ]);
           const emptyData = {
             deliveries: [],
             stores: [],
             appUsers: [],
             patients: [],
-            cities: [],
+            cities: (allCitiesRaw || []).map((city) => pickFields(city, CITY_FIELDS)),
             cityName: '',
-            appFeeRate: parseFloat((await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }))?.[0]?.setting_value?.app_fees_per_delivery) || 0,
+            appFeeRate: parseFloat(appSettingsForEmpty?.[0]?.setting_value?.app_fees_per_delivery) || 0,
             payrollRecords: []
           };
           statsCache.set(cacheKey, { data: emptyData, timestamp: Date.now() });
