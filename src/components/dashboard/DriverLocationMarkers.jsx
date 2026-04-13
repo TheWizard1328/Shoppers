@@ -123,7 +123,11 @@ const mergeVisibleDriversByFreshness = (current = [], incoming = []) => {
     const existing = merged.get(key);
     const existingTs = new Date(existing?.location_updated_at || existing?.updated_date || 0).getTime();
     const nextTs = new Date(user?.location_updated_at || user?.updated_date || 0).getTime();
-    if (!existing || nextTs >= existingTs) {
+    const coordsChanged = !!existing && (
+      Number(existing?.current_latitude) !== Number(user?.current_latitude) ||
+      Number(existing?.current_longitude) !== Number(user?.current_longitude)
+    );
+    if (!existing || coordsChanged || nextTs >= existingTs) {
       merged.set(key, user);
     }
   });
