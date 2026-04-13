@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
-const SUMMARY_VERSION = '2';
+const SUMMARY_VERSION = '3';
 const LIVE_SYNC_WINDOW_DAYS = 7;
 const BATCH_LIMIT = 1000;
 
