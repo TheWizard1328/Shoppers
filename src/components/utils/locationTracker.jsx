@@ -737,12 +737,13 @@ class LocationTracker {
                 });
 
                 this._pendingEventUpdate = false;
+                const shouldRefreshTimestampOnly = this.driverStatus !== 'off_duty';
                 this.updateLocationInDatabase(
                   this.lastPosition.latitude,
                   this.lastPosition.longitude,
                   this.lastPosition.accuracy,
                   false,
-                  false,
+                  shouldRefreshTimestampOnly,
                   this.isPrimaryDevice
                 );
               } else {

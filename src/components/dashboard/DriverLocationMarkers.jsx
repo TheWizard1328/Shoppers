@@ -12,15 +12,13 @@ import { generateDriverColor, getContrastColor } from '../utils/colorGenerator';
 const createDriverIcon = (driverColor = '#2563EB', driverStatus = 'on_duty', initial = '', staleness = 'fresh', deliveryStatus = 'incomplete') => {
   const size = 15;
 
-  let fillColor = driverColor;
-  if (staleness === 'very_stale') {
-    fillColor = '#7F1D1D';
-  } else if (staleness === 'stale') {
-    fillColor = '#B45309';
-  } else if (staleness === 'aging' || staleness === 'heartbeat_stale') {
-    fillColor = '#C2410C';
+  let fillColor = '#16A34A';
+  if (staleness === 'very_stale' || staleness === 'stale' || staleness === 'aging' || staleness === 'heartbeat_stale') {
+    fillColor = '#F59E0B';
   } else if (driverStatus === 'on_break') {
-    fillColor = '#475569';
+    fillColor = '#2563EB';
+  } else if (driverStatus === 'online' || driverStatus === 'on_duty') {
+    fillColor = '#16A34A';
   }
 
   let borderColor = '#FFFFFF';
@@ -190,15 +188,15 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       return true;
     }
 
-    // RULE 3: Admin (non-AppOwner) - hide if driver is off_duty OR on_break
+    // RULE 3: Admin (non-AppOwner) - hide only if driver is off_duty
     if (isAdmin && !isAppOwner) {
-      if (user.driver_status === 'off_duty' || user.driver_status === 'on_break') return false;
+      if (user.driver_status === 'off_duty') return false;
       return true;
     }
 
-    // RULE 4: Dispatcher - hide if assigned driver is off_duty OR on_break
+    // RULE 4: Dispatcher - hide only if assigned driver is off_duty
     if (isDispatcher && !isSelf) {
-      if (user.driver_status === 'off_duty' || user.driver_status === 'on_break') return false;
+      if (user.driver_status === 'off_duty') return false;
 
       // Dispatcher must have assigned stores
       const rawDispatcherStoreIds = currentUser?.store_ids || [];

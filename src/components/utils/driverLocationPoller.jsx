@@ -230,10 +230,10 @@ class DriverLocationPoller {
        }
 
        // ========================================
-       // RULE 3: Admins (non-AppOwners) - can see on-duty drivers in their city
+       // RULE 3: Admins (non-AppOwners) - can see online, on-duty, and on-break drivers in their city
        // ========================================
        if (isAdmin && !isAppOwner(this.currentUser)) {
-         if (user.driver_status !== 'on_duty') return false;
+         if (!['online', 'on_duty', 'on_break'].includes(user.driver_status)) return false;
          return true;
        }
 
@@ -241,8 +241,8 @@ class DriverLocationPoller {
        // RULE 4: Dispatchers viewing assigned drivers
        // ========================================
        if (isDispatcher && !isDriver) {
-         // 1. Driver must be On Duty
-         if (user.driver_status !== 'on_duty') {
+         // 1. Driver must be online, on duty, or on break
+         if (!['online', 'on_duty', 'on_break'].includes(user.driver_status)) {
            return false;
          }
 
