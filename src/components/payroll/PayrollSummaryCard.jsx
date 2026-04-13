@@ -67,6 +67,7 @@ export default function PayrollSummaryCard({
   const [otherAppFeePercent, setOtherAppFeePercent] = useState(0);
   const [appFeeOverlayAllDriversId, setAppFeeOverlayAllDriversId] = useState(null);
   const [activeInputField, setActiveInputField] = useState(null);
+  const [paidDrafts, setPaidDrafts] = useState({});
   const [bonusDraftValue, setBonusDraftValue] = useState('');
   const [deductionDraftName, setDeductionDraftName] = useState('');
   const [deductionDraftAmount, setDeductionDraftAmount] = useState('');
@@ -479,6 +480,10 @@ export default function PayrollSummaryCard({
   };
 
   const formatCurrency = (amount, decimals = 2) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(amount);
+  const getPaidDraftValue = (driverId, fallback) => {
+    if (Object.prototype.hasOwnProperty.call(paidDrafts, driverId)) return paidDrafts[driverId];
+    return fallback.toFixed(2);
+  };
   const roundPayrollData = (data) => {
     const rounded = { ...data };
     ['gross_pay', 'net_pay', 'total_deductions', 'bonus_pay', 'app_fee_amount', 'paid_amount', 'tax_amount', 'pay_rate_per_delivery', 'extra_km_rate', 'extra_km_limit', 'oversized_item_rate', 'total_extra_km'].forEach((f) => {if (rounded[f] != null) rounded[f] = Math.round(rounded[f] * 100) / 100;});
@@ -589,6 +594,7 @@ export default function PayrollSummaryCard({
   // Initialize and sync driver edits with payroll records
   useEffect(() => {
     const newEdits = {};
+    const newPaidDrafts = {};
     payrollData.filter((d) => d.totalDeliveries > 0).forEach((data) => {
       const k = data.driver.id;
       const pr = getDriverPayrollRecord(k);
@@ -599,16 +605,19 @@ export default function PayrollSummaryCard({
         deductions: pr?.deductions || data.deductionsArray || [],
         appFeeAmount: pr?.app_fee_amount ?? 0
       });
+      const paidAmount = pr?.paid_amount != null ? pr.paid_amount : netAmount;
       newEdits[k] = {
         deductions: pr?.deductions || data.deductionsArray || [],
         bonusPay: pr?.bonus_pay !== undefined ? pr.bonus_pay : 0,
         appFeePercent: pr?.app_fee_percentage ?? 0,
         appFeeAmount: pr?.app_fee_amount ?? 0,
-        paidAmount: pr?.paid_amount != null ? pr.paid_amount : netAmount,
+        paidAmount,
         showDeductionManager: false, newDeductionName: '', newDeductionAmount: ''
       };
+      newPaidDrafts[k] = String(paidAmount.toFixed(2));
     });
     setDriverEdits(newEdits);
+    setPaidDrafts(newPaidDrafts);
   }, [payrollData, payrollRecords, calculateAppFeeAmount]);
 
   // Auto-sync payroll entity records with live-calculated data whenever payrollData or records change
@@ -1241,16 +1250,26 @@ export default function PayrollSummaryCard({
                               <td className="pr-1">
                                 {isAdmin ?
                                     <Input
-                                      type="number"
-                                      step="0.01"
-                                      value={edit.paidAmount === '' ? '' : parsePaidAmount(edit.paidAmount, getDefaultPaidAmount({ grandTotal: data.grandTotal, taxAmount: data.taxAmount, bonusPay: edit.bonusPay || 0, deductions: edit.deductions || [] })).toFixed(2)}
-                                      onChange={(e) => updateEdit({ paidAmount: e.target.value })}
-                                      onBlur={() => savePayrollChanges(driverKey, {
-                                        paid_amount: parsePaidAmount(
-                                          edit.paidAmount,
-                                          getDefaultPaidAmount({ grandTotal: data.grandTotal, taxAmount: data.taxAmount, bonusPay: edit.bonusPay || 0, deductions: edit.deductions || [] })
-                                        )
-                                      })} className="flex rounded-md border px-1 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-md h-7 min-h-0 w-[70px] text-right no-spinner font-semibold" /> :
+                                      type="text"
+                                      inputMode="decimal"
+                                      value={getPaidDraftValue(driverKey, parsePaidAmount(edit.paidAmount, getDefaultPaidAmount({ grandTotal: data.grandTotal, taxAmount: data.taxAmount, bonusPay: edit.bonusPay || 0, deductions: edit.deductions || [] })))}
+                                      onChange={(e) => {
+                                        const rawValue = e.target.value;
+                                        if (/^\d*(\.\d{0,2})?$/.test(rawValue) || rawValue === '') {
+                                          setPaidDrafts((prev) => ({ ...prev, [driverKey]: rawValue }));
+                                          updateEdit({ paidAmount: rawValue });
+                                        }
+                                      }}
+                                      onBlur={async () => {
+                                        const fallbackAmount = getDefaultPaidAmount({ grandTotal: data.grandTotal, taxAmount: data.taxAmount, bonusPay: edit.bonusPay || 0, deductions: edit.deductions || [] });
+                                        const nextPaidAmount = parsePaidAmount(paidDrafts[driverKey], fallbackAmount);
+                                        const formattedPaidAmount = nextPaidAmount.toFixed(2);
+                                        setPaidDrafts((prev) => ({ ...prev, [driverKey]: formattedPaidAmount }));
+                                        updateEdit({ paidAmount: formattedPaidAmount });
+                                        await savePayrollChanges(driverKey, {
+                                          paid_amount: nextPaidAmount
+                                        });
+                                      }} className="flex rounded-md border px-1 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-md h-7 min-h-0 w-[70px] text-right font-semibold" /> :
 
 
 
