@@ -1241,13 +1241,21 @@ export default function DriverPayroll() {
             }}
             onPayrollRecordsChange={(records) => {
               setPayrollRecords(records);
-              setPayrollData((prev) => prev ? { ...prev, payrollRecords: records } : prev);
-              if (fullYearPayrollDataRef.current) {
-                fullYearPayrollDataRef.current = {
-                  ...fullYearPayrollDataRef.current,
-                  payrollRecords: records
-                };
-              }
+              setPayrollData((prev) => {
+                if (!prev) return prev;
+                const incomingById = new Map((records || []).map((record) => [record.id, record]));
+                const mergedPayrollRecords = (prev.payrollRecords || []).map((record) => incomingById.get(record.id) || record);
+                (records || []).forEach((record) => {
+                  if (!mergedPayrollRecords.some((existing) => existing.id === record.id)) {
+                    mergedPayrollRecords.push(record);
+                  }
+                });
+                const next = { ...prev, payrollRecords: mergedPayrollRecords };
+                if (fullYearPayrollDataRef.current) {
+                  fullYearPayrollDataRef.current = next;
+                }
+                return next;
+              });
             }}
             payrollRecords={payrollRecords}
             refreshPayrollRecords={refreshPayrollRecords}

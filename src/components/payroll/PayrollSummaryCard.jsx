@@ -615,7 +615,7 @@ export default function PayrollSummaryCard({
           taxAmount: data.taxAmount,
           bonusPay: pr?.bonus_pay || 0,
           deductions: pr?.deductions || data.deductionsArray || [],
-          appFeeAmount: pr?.app_fee_amount ?? 0
+          appFeeAmount: isPeriodEndOfMonth ? pr?.app_fee_amount ?? 0 : 0
         });
         const paidAmount = pr?.paid_amount != null ? pr.paid_amount : netAmount;
         next[k] = {
@@ -643,7 +643,7 @@ export default function PayrollSummaryCard({
           taxAmount: data.taxAmount,
           bonusPay: pr?.bonus_pay || 0,
           deductions: pr?.deductions || data.deductionsArray || [],
-          appFeeAmount: pr?.app_fee_amount ?? 0
+          appFeeAmount: isPeriodEndOfMonth ? pr?.app_fee_amount ?? 0 : 0
         });
         const paidAmount = pr?.paid_amount != null ? pr.paid_amount : netAmount;
         next[k] = paidRefreshPauseRef.current[k] ? (prev[k] ?? String(paidAmount.toFixed(2))) : String(paidAmount.toFixed(2));
@@ -1276,7 +1276,7 @@ export default function PayrollSummaryCard({
                             <tr className="text-lg font-bold text-emerald-600">
                               <td className="text-left pr-2">Net:</td>
                               <td className="text-right pr-0.5">$</td>
-                              <td className="text-right" style={{ width: '60px' }}>{getPeriodNetAmount({ grandTotal: data.grandTotal, taxAmount: data.taxAmount, bonusPay: edit.bonusPay || 0, deductions: edit.deductions || [], appFeeAmount: edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0) }).toFixed(2)}</td>
+                              <td className="text-right" style={{ width: '60px' }}>{getPeriodNetAmount({ grandTotal: data.grandTotal, taxAmount: data.taxAmount, bonusPay: edit.bonusPay || 0, deductions: edit.deductions || [], appFeeAmount: isPeriodEndOfMonth ? edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0) : 0 }).toFixed(2)}</td>
                             </tr>
                             {canFinalize && (isAdmin || selectedDriverId === currentUser?.id) &&
                                 <tr style={{ color: 'var(--text-slate-600)' }}>
