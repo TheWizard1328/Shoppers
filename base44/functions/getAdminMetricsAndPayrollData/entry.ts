@@ -1018,15 +1018,13 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
       if (isCompletedAfterHoursPickup(delivery) || isCancelledAfterHoursPickup(delivery)) dailyStoreEntry.afterHours++;
       if (delivery.patient_id && (isCompletedPatientForStore(delivery) || isFailedPatientForStore(delivery))) dailyStoreEntry.extra_km += calculateExtraKm(delivery);
 
-      if (appFeeRate > 0 && isDriverPayable && wasPayingOnDeliveryDate) {
+      if (appFeeRate > 0 && wasPayingOnDeliveryDate && isAppFeePayableDelivery(delivery)) {
         storesPayingFeesSet.add(store.id);
-        if (isAppFeePayableDelivery(delivery)) {
-          if (!storeMonthlyFees.has(store.id)) storeMonthlyFees.set(store.id, Array(12).fill(0));
-          storeMonthlyFees.get(store.id)[monthIndex] += appFeeRate;
-          metrics.storeFeeTotals.monthlyFees[monthIndex] += appFeeRate;
-          metrics.storeFeeTotals.total_fees_owed += appFeeRate;
-          metrics.storeFeeTotals.total_billable_while_paying++;
-        }
+        if (!storeMonthlyFees.has(store.id)) storeMonthlyFees.set(store.id, Array(12).fill(0));
+        storeMonthlyFees.get(store.id)[monthIndex] += appFeeRate;
+        metrics.storeFeeTotals.monthlyFees[monthIndex] += appFeeRate;
+        metrics.storeFeeTotals.total_fees_owed += appFeeRate;
+        metrics.storeFeeTotals.total_billable_while_paying++;
       }
     }
   }
