@@ -39,8 +39,9 @@ const getNextDate = (dateStr) => {
   return date.toISOString().split('T')[0];
 };
 
-const fetchDateRangeRecords = async (entityApi, dateField, startStr, endStr, sort = '-created_date') => {
+const fetchDateRangeRecords = async (entityApi, dateField, startStr, endStr, sort = '-created_date', extraFilter = {}) => {
   const records = await entityApi.filter({
+    ...extraFilter,
     [dateField]: { $gte: startStr, $lte: endStr }
   }, sort, BATCH_LIMIT);
 
@@ -50,8 +51,8 @@ const fetchDateRangeRecords = async (entityApi, dateField, startStr, endStr, sor
   const midpoint = getMidpointDate(startStr, endStr);
   if (midpoint <= startStr || midpoint >= endStr) return records;
 
-  const leftRecords = await fetchDateRangeRecords(entityApi, dateField, startStr, midpoint, sort);
-  const rightRecords = await fetchDateRangeRecords(entityApi, dateField, getNextDate(midpoint), endStr, sort);
+  const leftRecords = await fetchDateRangeRecords(entityApi, dateField, startStr, midpoint, sort, extraFilter);
+  const rightRecords = await fetchDateRangeRecords(entityApi, dateField, getNextDate(midpoint), endStr, sort, extraFilter);
   return dedupeById([...leftRecords, ...rightRecords]);
 };
 
@@ -491,9 +492,26 @@ Deno.serve(async (req) => {
 
       let cityStoreIds = null;
       let cityStores = [];
+      let deliveryFilter = {};
       if (cityId && cityId !== 'all') {
         cityStores = await base44.asServiceRole.entities.Store.filter({ city_id: cityId }, '', 5000);
         cityStoreIds = new Set((cityStores || []).map((store) => store.id));
+        const cityStoreIdsArray = Array.from(cityStoreIds);
+        if (!cityStoreIdsArray.length) {
+          const emptyData = {
+            deliveries: [],
+            stores: [],
+            appUsers: [],
+            patients: [],
+            cities: [],
+            cityName: '',
+            appFeeRate: parseFloat((await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }))?.[0]?.setting_value?.app_fees_per_delivery) || 0,
+            payrollRecords: []
+          };
+          statsCache.set(cacheKey, { data: emptyData, timestamp: Date.now() });
+          return emptyData;
+        }
+        deliveryFilter = { store_id: { $in: cityStoreIdsArray } };
       }
 
       const yearStart = options.startDate || `${year}-01-01`;
@@ -501,14 +519,11 @@ Deno.serve(async (req) => {
 
       const [appSettings, allYearDeliveriesRaw, allYearPayrollRaw] = await Promise.all([
         base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }),
-        fetchDateRangeRecords(base44.asServiceRole.entities.Delivery, 'delivery_date', yearStart, yearEnd, '-delivery_date'),
+        fetchDateRangeRecords(base44.asServiceRole.entities.Delivery, 'delivery_date', yearStart, yearEnd, '-delivery_date', deliveryFilter),
         options.includePayroll ? fetchDateRangeRecords(base44.asServiceRole.entities.Payroll, 'pay_period_start', yearStart, yearEnd, '-pay_period_start') : Promise.resolve([])
       ]);
 
-      let deliveries = dedupeById(allYearDeliveriesRaw || []);
-      if (cityStoreIds) {
-        deliveries = deliveries.filter((delivery) => cityStoreIds.has(delivery.store_id));
-      }
+      const deliveries = dedupeById(allYearDeliveriesRaw || []);
 
       const relevantStoreIds = Array.from(new Set(deliveries.map((delivery) => delivery.store_id).filter(Boolean)));
       const relevantDriverIds = Array.from(new Set(deliveries.map((delivery) => delivery.driver_id).filter(Boolean)));
