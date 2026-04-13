@@ -362,10 +362,22 @@ class DriverLocationPoller {
         detail: { 
           appUsers: activeDriversWithLocation,
           forceAll: forceNotify,
-          singleUpdate: activeDriversWithLocation.length === 1 && !forceNotify, // CRITICAL: Single driver update
-          fromPoller: true // CRITICAL: Flag to prevent infinite recursion
+          singleUpdate: activeDriversWithLocation.length === 1 && !forceNotify,
+          fromPoller: true
         }
       }));
+
+      const selfLocation = activeDriversWithLocation.find((driver) => driver?._isSelf === true);
+      if (selfLocation?.current_latitude && selfLocation?.current_longitude) {
+        window.dispatchEvent(new CustomEvent('driverSharedSelfLocationUpdated', {
+          detail: {
+            driver: selfLocation,
+            latitude: selfLocation.current_latitude,
+            longitude: selfLocation.current_longitude,
+            location_updated_at: selfLocation.location_updated_at
+          }
+        }));
+      }
     }
   }
 

@@ -159,9 +159,8 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
                    userId === currentUserUserId ||
                    user.user_id === currentUserId;
 
-    // RULE 0: Drivers on primary device on MOBILE should NOT see their own shared location marker
-    // (Mobile primary device has live blue GPS dot instead)
-    // On DESKTOP, there is no blue GPS dot, so we MUST show the shared marker
+    // RULE 0: Only the primary mobile driver device hides its own shared marker
+    // Secondary devices should still show the shared self marker coming from the primary device
     if (isSelf && isPrimaryDevice && isDriver && isMobile) {
       return false;
     }
@@ -433,7 +432,6 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         return;
       }
       
-      // Don't show past date markers
       const todayStr = format(new Date(), 'yyyy-MM-dd');
       const isViewingPastDate = selectedDate && selectedDate < todayStr;
       
@@ -459,8 +457,31 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       }
     };
 
+    const handleSharedSelfLocationUpdate = (event) => {
+      const { driver, latitude, longitude, location_updated_at } = event.detail || {};
+      if (!driver || !latitude || !longitude) return;
+
+      const driverKey = getDriverIdentityKey(driver);
+      if (!driverKey) return;
+
+      setVisibleDrivers(prev => {
+        const nextDriver = normalizeDriverRecord({
+          ...driver,
+          current_latitude: latitude,
+          current_longitude: longitude,
+          location_updated_at
+        });
+        const withoutDriver = prev.filter(item => (getDriverIdentityKey(item) || item?.id) !== driverKey);
+        return dedupeVisibleDrivers([...withoutDriver, nextDriver]);
+      });
+    };
+
     window.addEventListener('driverLocationUpdated', handleLocationUpdate);
-    return () => window.removeEventListener('driverLocationUpdated', handleLocationUpdate);
+    window.addEventListener('driverSharedSelfLocationUpdated', handleSharedSelfLocationUpdate);
+    return () => {
+      window.removeEventListener('driverLocationUpdated', handleLocationUpdate);
+      window.removeEventListener('driverSharedSelfLocationUpdated', handleSharedSelfLocationUpdate);
+    };
   }, [users, currentUser, isMobile, isAdmin, isDispatcher, isDriver, deliveries, selectedDate, isPrimaryDevice]);
 
   const getLocationAge = (locationUpdatedAt) => {

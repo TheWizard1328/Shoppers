@@ -119,7 +119,11 @@ export const AppDataProvider = ({ children, value }) => {
       appUserUpserts.forEach((item) => {
         if (!item?.id) return;
         const current = byId.get(item.id);
-        if (!current || ts(item) >= ts(current)) {
+        const coordsChanged = !!current && (
+          Number(current?.current_latitude) !== Number(item?.current_latitude) ||
+          Number(current?.current_longitude) !== Number(item?.current_longitude)
+        );
+        if (!current || coordsChanged || ts(item) >= ts(current)) {
           byId.set(item.id, item);
         }
       });
