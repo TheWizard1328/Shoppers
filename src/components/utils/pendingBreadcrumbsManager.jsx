@@ -75,7 +75,10 @@ export async function getPendingBreadcrumbsForDelivery({ driverUserId, deliveryI
   if (driverUserId && deliveryId) {
     try {
       const liveRecords = await base44.entities.PendingBreadcrumbLive.filter({ driver_id: driverUserId, delivery_id: deliveryId });
-      const liveRecord = (liveRecords || [])[0];
+      const liveRecord = (liveRecords || [])
+        .filter((record) => Array.isArray(record?.breadcrumbs) && record.breadcrumbs.length > 0)
+        .sort((a, b) => Number(a?.stop_order || 0) - Number(b?.stop_order || 0))
+        .slice(-1)[0];
       if (liveRecord?.breadcrumbs?.length) return JSON.stringify(liveRecord.breadcrumbs);
     } catch (_) {}
   }
@@ -98,6 +101,25 @@ export async function clearPendingBreadcrumbsForDriver({ driverUserId, appUsers 
   } catch (_) {}
   const records = await listPendingBreadcrumbRecordsForDriver({ driverUserId, appUsers });
   await Promise.all(records.map((record) => offlineDB.deleteRecord(offlineDB.STORES.PENDING_BREADCRUMBS, record.id)));
+}
+
+export async function clearPendingBreadcrumbsForDelivery({ driverUserId, deliveryId, stopOrder, appUsers = [], force = false }) {
+  if (!force || !driverUserId) return;
+  try {
+    const liveRecords = deliveryId
+      ? await base44.entities.PendingBreadcrumbLive.filter({ driver_id: driverUserId, delivery_id: deliveryId })
+      : [];
+    if (liveRecords?.length) {
+      await Promise.all(liveRecords.map((record) => base44.entities.PendingBreadcrumbLive.delete(record.id)));
+    }
+  } catch (_) {}
+
+  const records = await listPendingBreadcrumbRecordsForDriver({ driverUserId, appUsers });
+  const matchingRecords = (records || []).filter((record) =>
+    (deliveryId && record?.delivery_id === deliveryId) ||
+    (!deliveryId && Number(record?.stop_order) === Number(stopOrder))
+  );
+  await Promise.all(matchingRecords.map((record) => offlineDB.deleteRecord(offlineDB.STORES.PENDING_BREADCRUMBS, record.id)));
 }
 
 export async function clearLegacyPendingBreadcrumbsForDriver({ driverUserId, appUsers = [], currentDateStr }) {
