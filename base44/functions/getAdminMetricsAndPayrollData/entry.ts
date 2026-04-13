@@ -715,6 +715,9 @@ Deno.serve(async (req) => {
       } else if (!summaryRecords.length) {
         const backfill = await buildSummaryBackfill(adminMetricsYear, normalizedCityId, { force: false, includePayroll: false });
         summaryRecords = backfill.summaryRecords;
+      } else if (forceRefreshCurrentYear) {
+        const backfill = await buildSummaryBackfill(adminMetricsYear, normalizedCityId, { force: true, includePayroll: false });
+        summaryRecords = backfill.summaryRecords;
       }
 
       const now = new Date();

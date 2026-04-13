@@ -96,11 +96,12 @@ export default function AdminMetrics() {
     setError(null);
 
     try {
+      const isForceRefresh = isInitial === 'force-refresh';
       const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
         adminMetricsYear: parseInt(year),
         adminMetricsCityId: cityId === 'all' ? null : cityId,
-        forceRefreshCurrentYear: isInitial === 'force-refresh',
-        refreshCurrentMonthSummary: isInitial === 'force-refresh',
+        forceRefreshCurrentYear: isForceRefresh,
+        refreshCurrentMonthSummary: isForceRefresh,
         payrollYear: null,
         payrollCityId: null,
         payrollDriverId: null
@@ -161,6 +162,7 @@ export default function AdminMetrics() {
 
   const handleManualRefresh = async () => {
     setIsManualRefreshing(true);
+    backgroundSyncStartedRef.current = true;
     await fetchMetrics(selectedYear, selectedCityId, 'force-refresh');
     setIsManualRefreshing(false);
   };
