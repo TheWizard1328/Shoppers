@@ -335,10 +335,6 @@ export default function DriverPayroll() {
 
   const driversInPayCycle = useMemo(() => {
     if (!payrollData?.appUsers || !payrollData?.drivers) {
-      console.log('⚠️ [driversInPayCycle] Missing appUsers or drivers', {
-        appUsers: payrollData?.appUsers?.length || 0,
-        drivers: payrollData?.drivers?.length || 0
-      });
       return [];
     }
 
