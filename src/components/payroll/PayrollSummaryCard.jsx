@@ -1630,7 +1630,7 @@ export default function PayrollSummaryCard({
                               <tr style={{ color: 'var(--text-slate-600)' }}>
                                 <td className="text-left pr-2">Paid:</td>
                                 <td className="text-right pr-0.5">$</td>
-                                <td className="text-right font-semibold" style={{ width: '60px' }}>{totalPeriodPaidAmount.toFixed(2)}</td>
+                                <td className="text-right font-md font-semibold" style={{ width: '60px' }}>{totalPeriodPaidAmount.toFixed(2)}</td>
                               </tr>
                               }
                             </tbody>
