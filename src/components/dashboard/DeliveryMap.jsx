@@ -99,9 +99,35 @@ const mergeAppUsersByFreshness = (currentUsers = [], incomingUsers = []) => {
     const key = user?.id || user?.user_id;
     if (!key) return;
     const existing = merged.get(key);
-    if (!existing || getAppUserTimestamp(user) >= getAppUserTimestamp(existing)) {
-      merged.set(key, existing ? { ...existing, ...user } : user);
+    if (!existing) {
+      merged.set(key, user);
+      return;
     }
+    if (getAppUserTimestamp(user) < getAppUserTimestamp(existing)) return;
+
+    const movedEnough = hasDriverMovedEnoughForPhase2(
+      {
+        latitude: Number(existing?.current_latitude),
+        longitude: Number(existing?.current_longitude)
+      },
+      {
+        latitude: Number(user?.current_latitude),
+        longitude: Number(user?.current_longitude)
+      },
+      50
+    );
+
+    if (!movedEnough) {
+      merged.set(key, {
+        ...existing,
+        ...user,
+        current_latitude: existing?.current_latitude,
+        current_longitude: existing?.current_longitude
+      });
+      return;
+    }
+
+    merged.set(key, { ...existing, ...user });
   });
   return Array.from(merged.values());
 };

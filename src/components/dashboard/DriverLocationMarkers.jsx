@@ -1,4 +1,15 @@
 import React, { useEffect, useState, useRef } from 'react';
+
+const MIN_DRIVER_MOVE_METERS = 50;
+const toRadians = (value) => (value * Math.PI) / 180;
+const getDistanceMeters = (lat1, lon1, lat2, lon2) => {
+  if (![lat1, lon1, lat2, lon2].every(Number.isFinite)) return Infinity;
+  const earthRadiusMeters = 6371000;
+  const dLat = toRadians(lat2 - lat1);
+  const dLon = toRadians(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * earthRadiusMeters * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
 import L from 'leaflet';
 import { Circle, Marker, Popup } from 'react-leaflet';
 import { formatDistanceToNow, format } from 'date-fns';
@@ -115,28 +126,54 @@ const dedupeVisibleDrivers = (drivers = []) => {
 };
 
 const mergeVisibleDriversByFreshness = (current = [], incoming = []) => {
-  const merged = new Map();
-  [...(current || []), ...(incoming || [])].filter(Boolean).forEach((item) => {
+  const merged = new Map((current || []).filter(Boolean).map((item) => {
+    const user = normalizeDriverRecord(item);
+    return [getDriverIdentityKey(user), user];
+  }).filter(([key]) => !!key));
+
+  (incoming || []).filter(Boolean).forEach((item) => {
     const user = normalizeDriverRecord(item);
     const key = getDriverIdentityKey(user);
     if (!key) return;
     const existing = merged.get(key);
     const existingTs = new Date(existing?.location_updated_at || existing?.updated_date || 0).getTime();
     const nextTs = new Date(user?.location_updated_at || user?.updated_date || 0).getTime();
-    const coordsChanged = !!existing && (
-      Number(existing?.current_latitude) !== Number(user?.current_latitude) ||
-      Number(existing?.current_longitude) !== Number(user?.current_longitude)
-    );
-    if (!existing || coordsChanged || nextTs >= existingTs) {
+    const moveDistance = existing
+      ? getDistanceMeters(
+          Number(existing?.current_latitude),
+          Number(existing?.current_longitude),
+          Number(user?.current_latitude),
+          Number(user?.current_longitude)
+        )
+      : Infinity;
+
+    if (!existing) {
+      merged.set(key, user);
+      return;
+    }
+
+    if (nextTs < existingTs) return;
+
+    if (moveDistance < MIN_DRIVER_MOVE_METERS) {
       merged.set(key, {
         ...existing,
         ...user,
-        current_latitude: user?.current_latitude ?? existing?.current_latitude,
-        current_longitude: user?.current_longitude ?? existing?.current_longitude,
+        current_latitude: existing?.current_latitude,
+        current_longitude: existing?.current_longitude,
         location_updated_at: user?.location_updated_at || existing?.location_updated_at || user?.updated_date || existing?.updated_date
       });
+      return;
     }
+
+    merged.set(key, {
+      ...existing,
+      ...user,
+      current_latitude: user?.current_latitude ?? existing?.current_latitude,
+      current_longitude: user?.current_longitude ?? existing?.current_longitude,
+      location_updated_at: user?.location_updated_at || existing?.location_updated_at || user?.updated_date || existing?.updated_date
+    });
   });
+
   return Array.from(merged.values());
 };
 
@@ -429,6 +466,18 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         setVisibleDrivers(prev => {
           const exists = prev.find(d => d && d.id === userId);
           if (exists) {
+            const moveDistance = getDistanceMeters(
+              Number(exists.current_latitude),
+              Number(exists.current_longitude),
+              Number(latitude),
+              Number(longitude)
+            );
+            if (moveDistance < MIN_DRIVER_MOVE_METERS) {
+              return prev.map(d => d && d.id === userId ? {
+                ...d,
+                location_updated_at: new Date(timestamp).toISOString()
+              } : d);
+            }
             return prev.map(d => d && d.id === userId ? { 
               ...d, 
               current_latitude: latitude, 
@@ -486,6 +535,38 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
   if (!visibleDrivers || visibleDrivers.length === 0) {
     return null;
   }
+
+  useEffect(() => {
+    const animateMarker = (stableKey, targetLat, targetLng) => {
+      const marker = markerRefs.current[stableKey];
+      if (!marker?.setLatLng || !Number.isFinite(targetLat) || !Number.isFinite(targetLng)) return;
+      const start = marker.getLatLng?.();
+      if (!start) {
+        marker.setLatLng([targetLat, targetLng]);
+        return;
+      }
+      const startLat = Number(start.lat);
+      const startLng = Number(start.lng);
+      const durationMs = 450;
+      const startedAt = performance.now();
+      const step = (now) => {
+        const progress = Math.min((now - startedAt) / durationMs, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        const nextLat = startLat + (targetLat - startLat) * eased;
+        const nextLng = startLng + (targetLng - startLng) * eased;
+        marker.setLatLng([nextLat, nextLng]);
+        if (progress < 1) {
+          window.requestAnimationFrame(step);
+        }
+      };
+      window.requestAnimationFrame(step);
+    };
+
+    visibleDrivers.forEach((user) => {
+      const stableKey = getDriverIdentityKey(user) || user.id;
+      animateMarker(stableKey, Number(user.current_latitude), Number(user.current_longitude));
+    });
+  }, [visibleDrivers]);
 
   return (
     <>
@@ -550,6 +631,9 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
             position={position}
             icon={createDriverIcon(driverColor, user.driver_status, displayName.charAt(0).toUpperCase(), staleness, deliveryStatus)}
             zIndexOffset={zIndexValue}
+            ref={(ref) => {
+              if (ref) markerRefs.current[stableKey] = ref;
+            }}
           >
             <Popup>
               <div className="text-sm">
