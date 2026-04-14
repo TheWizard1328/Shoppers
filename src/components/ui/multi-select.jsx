@@ -35,28 +35,27 @@ export const MultiSelect = React.forwardRef((props, ref) => {
             <PopoverTrigger asChild>
                 <Button
           ref={ref}
-          type="button"
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={`flex min-h-11 w-full items-center justify-between rounded-md border px-3 py-2 text-sm shadow-sm ${className || ''}`}
-          style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}
+          className={`w-full justify-between h-auto min-h-[32px] border-black ${className}`}
+          onClick={() => setOpen(!open)}
           id={id}
           {...rest}>
           
-                    <div className="flex min-w-0 flex-1 flex-wrap gap-1 text-left">
+                    <div className="flex gap-1 flex-wrap">
                         {selectedOptions && selectedOptions.length > 0 ?
             selectedOptions.map((option) => {
               if (!option) return null;
               return (
                 <Badge
                   key={option.value}
-                  variant="secondary" className="mr-1 inline-flex h-6 items-center rounded-md border border-transparent bg-slate-100 px-2 py-0 text-xs font-semibold leading-none text-slate-800 hover:bg-slate-200">
+                  variant="secondary" className="inline-flex items-center rounded-md border px-1.0 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent mr-1 bg-slate-100 text-slate-800 hover:bg-slate-200">
 
                   
                                         {option.label || 'Unknown'}
                                         <button
-                    className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full hover:bg-slate-300"
+                    className="ml-1 hover:bg-slate-300 rounded-full p-0.5"
                     onClick={(e) => handleRemove(e, option.value)}
                     type="button"
                     aria-label={`Remove ${option.label || 'item'}`}>
@@ -67,15 +66,14 @@ export const MultiSelect = React.forwardRef((props, ref) => {
 
             }) :
 
-            <span className="truncate text-slate-500">{placeholder}</span>
+            <span className="text-slate-500">{placeholder}</span>
             }
                     </div>
                     <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
                 </Button>
             </PopoverTrigger>
-            <PopoverContent className="z-[10003] w-[--radix-popover-trigger-width] p-0" sideOffset={4} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+            <PopoverContent className="w-[--radix-popover-trigger-width] p-0 z-[10003]">
                 <Command>
-                    <CommandInput placeholder="Search dispatchers..." />
                     <CommandList>
                         <CommandEmpty>No results found.</CommandEmpty>
                         <CommandGroup>
@@ -84,12 +82,10 @@ export const MultiSelect = React.forwardRef((props, ref) => {
                 return (
                   <CommandItem
                     key={option.value}
-                    value={String(option.value)}
-                    className="min-h-11 cursor-pointer"
                     onSelect={() => {
                       handleSelect(option.value);
                     }}>
-
+                    
                                         <Check
                       className={`mr-2 h-4 w-4 ${
                       value.includes(option.value) ? "opacity-100" : "opacity-0"}`

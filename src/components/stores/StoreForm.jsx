@@ -3,7 +3,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MultiSelect } from '@/components/ui/multi-select';
 import { formatPhoneNumber } from '../utils/phoneFormatter';
 import { Building, MapPin, X, CreditCard, Plus, Trash2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
@@ -90,7 +89,6 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
       color: "", // This field was removed from the outline, but keeping it in defaultData and `store` merge for robustness.
       dispatcher_name: "",
       dispatcher_id: null,
-      dispatcher_ids: [],
       square_location_config_id: null,
       status: "active",
       pays_app_fees: false,
@@ -139,13 +137,21 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
       initialData.latitude = store.latitude ?? null;
       initialData.longitude = store.longitude ?? null;
 
-      // Handle dispatcher IDs resolution
-      if (Array.isArray(store.dispatcher_ids)) {
-        initialData.dispatcher_ids = store.dispatcher_ids;
-      } else if (initialData.dispatcher_id) {
-        initialData.dispatcher_ids = [initialData.dispatcher_id];
-      } else {
-        initialData.dispatcher_ids = [];
+      // Handle dispatcher ID resolution
+      if (initialData.dispatcher_id) {
+        const foundDispatcher = findDispatcherFromStore(initialData.dispatcher_id, allUsers);
+        if (foundDispatcher) {
+          initialData.dispatcher_id = foundDispatcher.id;
+          initialData.dispatcher_name = foundDispatcher.user_name || foundDispatcher.full_name;
+        } else if (initialData.dispatcher_name) {
+          initialData.dispatcher_id = findDispatcherIdFromName(initialData.dispatcher_name, allUsers);
+          if (!initialData.dispatcher_id) initialData.dispatcher_id = null;
+        } else {
+          initialData.dispatcher_id = null;
+          initialData.dispatcher_name = "";
+        }
+      } else if (initialData.dispatcher_name) {
+        initialData.dispatcher_id = findDispatcherIdFromName(initialData.dispatcher_name, allUsers);
       }
 
       // CRITICAL FIX: Load driver IDs from correct schema field names
@@ -249,10 +255,19 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
     });
   };
 
-  const handleDispatcherSelect = (dispatcherIds) => {
+  const handleDispatcherSelect = (dispatcherId) => {
+    const selectedDispatcher = sortedUsers.find((u) => u && u.id === dispatcherId);
+
+    console.log('[StoreForm] Dispatcher selected:', {
+      userId: selectedDispatcher?.id,
+      userName: selectedDispatcher?.user_name || selectedDispatcher?.full_name,
+      dispatcherId: dispatcherId
+    });
+
     setFormData((prev) => ({
       ...prev,
-      dispatcher_ids: Array.isArray(dispatcherIds) ? dispatcherIds : []
+      dispatcher_id: dispatcherId === "null" ? null : dispatcherId,
+      dispatcher_name: selectedDispatcher ? selectedDispatcher.user_name || selectedDispatcher.full_name : ""
     }));
   };
 
@@ -262,9 +277,6 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
     // Prepare data for saving
     const dataToSave = {
       ...formData,
-      dispatcher_id: null,
-      dispatcher_name: '',
-      dispatcher_ids: Array.isArray(formData.dispatcher_ids) ? formData.dispatcher_ids : [],
       sort_order: formData.sort_order !== null && formData.sort_order !== '' ? parseInt(formData.sort_order, 10) : null,
       latitude: formData.latitude !== null && formData.latitude !== '' ? parseFloat(formData.latitude) : null,
       longitude: formData.longitude !== null && formData.longitude !== '' ? parseFloat(formData.longitude) : null
@@ -433,6 +445,31 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                         </div>
 
                         <div>
+                            <Label htmlFor="dispatcher_id" style={{ color: 'var(--text-slate-900)' }}>Assigned Dispatcher</Label>
+                            <Select
+                              value={formData.dispatcher_id || 'null'}
+                              onValueChange={handleDispatcherSelect}>
+                                <SelectTrigger style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
+                                    <SelectValue placeholder="Select dispatcher...">
+                                        {formData.dispatcher_id ?
+                                          sortedUsers.find((u) => u.id === formData.dispatcher_id)?.user_name || sortedUsers.find((u) => u.id === formData.dispatcher_id)?.full_name :
+                                          "Select dispatcher..."}
+                                    </SelectValue>
+                                </SelectTrigger>
+                                <SelectContent className="z-[10001]" position="popper" sideOffset={4} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                                    <SelectItem value="null" style={{ color: 'var(--text-slate-900)' }}>No Dispatcher</SelectItem>
+                                    {sortedUsers
+                                        .filter((u) => u && u.app_roles && u.app_roles.includes('dispatcher'))
+                                        .map((dispatcher) =>
+                                            <SelectItem key={dispatcher.id} value={dispatcher.id} style={{ color: 'var(--text-slate-900)' }}>
+                                                {dispatcher.user_name || dispatcher.full_name}
+                                            </SelectItem>
+                                        )}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div>
                           <Label htmlFor="patient_scan_day" style={{ color: 'var(--text-slate-900)' }}>Patient Scan Day</Label>
                           <Select
                             value={formData.patient_scan_day !== null && formData.patient_scan_day !== undefined ? String(formData.patient_scan_day) : 'null'}
@@ -479,22 +516,6 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                               ))}
                             </SelectContent>
                           </Select>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-4">
-                        <div>
-                            <Label style={{ color: 'var(--text-slate-900)' }}>Assigned Dispatchers</Label>
-                            <MultiSelect
-                              options={sortedUsers
-                                .filter((u) => u && u.app_roles && u.app_roles.includes('dispatcher'))
-                                .map((dispatcher) => ({
-                                  label: dispatcher.user_name || dispatcher.full_name,
-                                  value: dispatcher.id
-                                }))}
-                              value={formData.dispatcher_ids || []}
-                              onChange={handleDispatcherSelect}
-                              placeholder="Select dispatchers..." />
                         </div>
                     </div>
 
