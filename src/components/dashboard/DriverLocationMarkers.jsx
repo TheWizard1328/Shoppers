@@ -184,26 +184,18 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         return true;
       }
 
-    // RULE 2: AppOwner sees drivers UNLESS they are off_duty AND timestamp > 5 min old
+    // RULE 2: Admin/AppOwner can see all shared driver markers except their own on their primary device,
+    // as long as the shared marker still has a recent heartbeat (about 62 seconds)
     const isAppOwner = currentUser?.email && 
                       (currentUser.email.endsWith('@rxdeliver.com') || 
                        currentUser.email === 'dan@dcscripts.ca');
+    const updatedAt = user.location_updated_at ? new Date(user.location_updated_at).getTime() : 0;
+    const hasRecentHeartbeat = updatedAt > 0 && (Date.now() - updatedAt) <= 62 * 1000;
+    const allowedDriverStatuses = ['on_duty', 'off_duty', 'on_break'];
 
-    if (isAppOwner) {
-      if (user.driver_status === 'off_duty') {
-        const updatedAt = user.location_updated_at ? new Date(user.location_updated_at).getTime() : 0;
-        const ageMs = Date.now() - updatedAt;
-        if (ageMs > 5 * 60 * 1000) {
-          return false; // Off duty + location older than 5 min
-        }
-      }
-      return true;
-    }
-
-    // RULE 3: Admin (non-AppOwner) - hide only if driver is off_duty
-    if (isAdmin && !isAppOwner) {
-      if (user.driver_status === 'off_duty') return false;
-      return true;
+    if (isAppOwner || isAdmin) {
+      if (!allowedDriverStatuses.includes(user.driver_status)) return false;
+      return hasRecentHeartbeat;
     }
 
     // RULE 4: Dispatcher - hide only if assigned driver is off_duty
