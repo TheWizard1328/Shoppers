@@ -51,12 +51,12 @@ export const MultiSelect = React.forwardRef((props, ref) => {
               return (
                 <Badge
                   key={option.value}
-                  variant="secondary" className="mr-1 inline-flex items-center rounded-md border border-transparent bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-800 hover:bg-slate-200">
+                  variant="secondary" className="mr-1 inline-flex h-6 items-center rounded-md border border-transparent bg-slate-100 px-2 py-0 text-xs font-semibold leading-none text-slate-800 hover:bg-slate-200">
 
                   
                                         {option.label || 'Unknown'}
                                         <button
-                    className="ml-1 hover:bg-slate-300 rounded-full p-0.5"
+                    className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full hover:bg-slate-300"
                     onClick={(e) => handleRemove(e, option.value)}
                     type="button"
                     aria-label={`Remove ${option.label || 'item'}`}>
