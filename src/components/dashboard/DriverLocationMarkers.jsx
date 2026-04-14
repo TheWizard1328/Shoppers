@@ -181,7 +181,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
   const isMobile = isMobileDevice();
   const [visibleDrivers, setVisibleDrivers] = useState([]);
   const lastPropUpdateRef = useRef(0);
-  const driverMarkerRefs = useRef({});
+  const markerRefs = useRef({});
   const prevVisibleIdsRef = useRef(new Set());
   const [isPrimaryDevice, setIsPrimaryDevice] = useState(true);
 
@@ -534,7 +534,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
 
   useEffect(() => {
     const animateMarker = (stableKey, targetLat, targetLng) => {
-      const marker = driverMarkerRefs.current[stableKey];
+      const marker = markerRefs.current[stableKey];
       if (!marker?.setLatLng || !Number.isFinite(targetLat) || !Number.isFinite(targetLng)) return;
       const start = marker.getLatLng?.();
       if (!start) {
@@ -630,7 +630,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
             icon={createDriverIcon(driverColor, user.driver_status, displayName.charAt(0).toUpperCase(), staleness, deliveryStatus)}
             zIndexOffset={zIndexValue}
             ref={(ref) => {
-              if (ref) driverMarkerRefs.current[stableKey] = ref;
+              if (ref) markerRefs.current[stableKey] = ref;
             }}
           >
             <Popup>
