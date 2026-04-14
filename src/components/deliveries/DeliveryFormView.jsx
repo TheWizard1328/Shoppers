@@ -815,21 +815,23 @@ export default function DeliveryFormView({
                   const previousDriverId = delivery?.driver_id;
                   const previousDeliveryDate = delivery?.delivery_date;
                   const shouldOptimizeInBackground = hasTimeWindowChanges;
-                  let didSave = false;
+                  let saveFailed = false;
                   const submitEvent = { preventDefault: () => {}, stopPropagation: () => {} };
 
                   await runLockedAction('update_delivery', async () => {
                     const { smartRefreshManager } = await import('../utils/smartRefreshManager');
                     smartRefreshManager.pause();
                     try {
-                      const result = await handleSubmit(submitEvent);
-                      didSave = result === true;
+                      await handleSubmit(submitEvent);
+                    } catch (error) {
+                      saveFailed = true;
+                      throw error;
                     } finally {
                       smartRefreshManager.resume();
                     }
                   });
 
-                  if (!didSave) return;
+                  if (saveFailed) return;
 
                   try {
                     const { closeDeliveryFormAfterSave } = await import('../utils/deliveryFormActionHelpers');
