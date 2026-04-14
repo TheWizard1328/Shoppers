@@ -25,6 +25,38 @@ export function getStopCoordinates(delivery, patient, store) {
   return { latitude, longitude };
 }
 
+export async function syncDriverLocationToStop({ currentUser, delivery, patient, store }) {
+  if (!currentUser?.id || !delivery) return null;
+  const stopCoordinates = getStopCoordinates(delivery, patient, store);
+  if (!stopCoordinates) return null;
+
+  const { offlineDB } = await import('../utils/offlineDatabase');
+  const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
+  const appUser = appUsers?.[0];
+  if (!appUser?.id) return stopCoordinates;
+
+  const locationUpdatedAt = new Date().toISOString();
+  const updatedAppUser = {
+    ...appUser,
+    current_latitude: stopCoordinates.latitude,
+    current_longitude: stopCoordinates.longitude,
+    location_updated_at: locationUpdatedAt
+  };
+
+  await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [updatedAppUser]);
+  window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+    detail: { appUsers: [updatedAppUser], singleUpdate: updatedAppUser }
+  }));
+
+  await base44.entities.AppUser.update(appUser.id, {
+    current_latitude: stopCoordinates.latitude,
+    current_longitude: stopCoordinates.longitude,
+    location_updated_at: locationUpdatedAt
+  });
+
+  return stopCoordinates;
+}
+
 export function getFinishedLegOrigin({ delivery, allDeliveries, driver, patients = [], stores = [], finishedStatuses = [] }) {
   const previousStop = (allDeliveries || [])
     .filter((item) =>
