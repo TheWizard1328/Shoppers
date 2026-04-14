@@ -124,7 +124,10 @@ export default function PullToSync({
 
       // Save fresh records from server
       if (freshDeliveries?.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+        await offlineDB.bulkSave(
+          offlineDB.STORES.DELIVERIES,
+          Array.from(new Map(freshDeliveries.filter(Boolean).map((delivery) => [delivery.id, delivery])).values())
+        );
       }
       await offlineDB.updateSyncMetadata(
         'Delivery',
@@ -169,15 +172,14 @@ export default function PullToSync({
       }
 
       // ─── STEP 3: Load from offline DB + update UI ─────────────────────────
-      const [offlineDeliveriesRaw, freshAppUsers, freshCities, freshStores] = await Promise.all([
-        offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr),
+      const [freshAppUsers, freshCities, freshStores] = await Promise.all([
         offlineDB.getAll(offlineDB.STORES.APP_USERS).then(r => (r || []).filter(u => u?.user_id && u.user_id !== 'undefined')),
         offlineDB.getAll(offlineDB.STORES.CITIES),
         offlineDB.getAll(offlineDB.STORES.STORES)
       ]);
 
-      const offlineDeliveries = Array.isArray(offlineDeliveriesRaw)
-        ? offlineDeliveriesRaw
+      const offlineDeliveries = Array.isArray(freshDeliveries)
+        ? Array.from(new Map(freshDeliveries.filter(Boolean).map((delivery) => [delivery.id, delivery])).values())
         : [];
 
       const safeAppUsers = Array.isArray(freshAppUsers)
@@ -208,7 +210,7 @@ export default function PullToSync({
         selectedDateStr,
         currentCityId,
         currentDriverId,
-        serverCount: freshDeliveries?.length || 0,
+        serverCount: offlineDeliveries?.length || 0,
         offlineCount: offlineDeliveries?.length || 0,
         drivers: Array.from(new Set((offlineDeliveries || []).map((delivery) => delivery?.driver_id).filter(Boolean)))
       });
