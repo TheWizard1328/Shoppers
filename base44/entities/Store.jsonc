@@ -1,0 +1,232 @@
+{
+  "name": "Store",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Name of the pharmacy store"
+    },
+    "abbreviation": {
+      "type": "string",
+      "description": "A 2-character abbreviation for the store"
+    },
+    "address": {
+      "type": "string",
+      "description": "Physical address of the store"
+    },
+    "phone": {
+      "type": "string",
+      "description": "Store phone number"
+    },
+    "latitude": {
+      "type": "number",
+      "description": "Store latitude for distance calculations"
+    },
+    "longitude": {
+      "type": "number",
+      "description": "Store longitude for distance calculations"
+    },
+    "city_id": {
+      "type": "string",
+      "description": "The ID of the city this store belongs to"
+    },
+    "sort_order": {
+      "type": "number",
+      "description": "A number to manually sort the store list"
+    },
+    "color": {
+      "type": "string",
+      "description": "Hex color code for the store, used for map pins and UI elements."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "inactive"
+      ],
+      "default": "active",
+      "description": "Store status - active or inactive"
+    },
+    "base_tracking_number": {
+      "type": "number",
+      "description": "Base tracking number for this store - all pickup TR#s start from this number (multiples of 20)",
+      "default": 0
+    },
+    "dispatcher_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Array of assigned dispatcher user IDs for this store"
+    },
+    "square_location_config_id": {
+      "type": "string",
+      "description": "Reference to the SquareLocationConfig for COD processing"
+    },
+    "pays_app_fees": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this store pays app fees per delivery"
+    },
+    "app_fee_history": {
+      "type": "array",
+      "description": "History of when app fee status changed",
+      "items": {
+        "type": "object",
+        "properties": {
+          "effective_date": {
+            "type": "string",
+            "format": "date",
+            "description": "Date when this status became effective"
+          },
+          "pays_app_fees": {
+            "type": "boolean",
+            "description": "App fee status at this time"
+          },
+          "changed_by": {
+            "type": "string",
+            "description": "User who made this change"
+          }
+        },
+        "required": [
+          "effective_date",
+          "pays_app_fees"
+        ]
+      }
+    },
+    "patient_scan_day": {
+      "type": "number",
+      "description": "Day of week to run patient activity scan for this store (0=Sunday, 1=Monday, ... 6=Saturday)",
+      "enum": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ]
+    },
+    "weekday_am_enabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "weekday_am_driver": {
+      "type": "string",
+      "description": "Driver name for weekday AM (legacy, use weekday_am_driver_id)"
+    },
+    "weekday_am_driver_id": {
+      "type": "string",
+      "description": "Driver ID for weekday AM slot"
+    },
+    "weekday_am_start": {
+      "type": "string"
+    },
+    "weekday_am_end": {
+      "type": "string"
+    },
+    "weekday_pm_enabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "weekday_pm_driver": {
+      "type": "string",
+      "description": "Driver name for weekday PM (legacy, use weekday_pm_driver_id)"
+    },
+    "weekday_pm_driver_id": {
+      "type": "string",
+      "description": "Driver ID for weekday PM slot"
+    },
+    "weekday_pm_start": {
+      "type": "string"
+    },
+    "weekday_pm_end": {
+      "type": "string"
+    },
+    "saturday_am_enabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "saturday_am_driver": {
+      "type": "string",
+      "description": "Driver name for Saturday AM (legacy, use driver_saturday_am_id)"
+    },
+    "saturday_am_driver_id": {
+      "type": "string",
+      "description": "Driver ID for Saturday AM slot"
+    },
+    "saturday_am_start": {
+      "type": "string"
+    },
+    "saturday_am_end": {
+      "type": "string"
+    },
+    "saturday_pm_enabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "saturday_pm_driver": {
+      "type": "string",
+      "description": "Driver name for Saturday PM (legacy, use driver_saturday_pm_id)"
+    },
+    "saturday_pm_driver_id": {
+      "type": "string",
+      "description": "Driver ID for Saturday PM slot"
+    },
+    "saturday_pm_start": {
+      "type": "string"
+    },
+    "saturday_pm_end": {
+      "type": "string"
+    },
+    "sunday_am_enabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "sunday_am_driver": {
+      "type": "string",
+      "description": "Driver name for Sunday PM (legacy, use sunday_am_driver_id)"
+    },
+    "sunday_am_driver_id": {
+      "type": "string",
+      "description": "Driver ID for Sunday AM slot"
+    },
+    "sunday_am_start": {
+      "type": "string"
+    },
+    "sunday_am_end": {
+      "type": "string"
+    },
+    "sunday_pm_enabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "sunday_pm_driver": {
+      "type": "string",
+      "description": "Driver name for Sunday PM (legacy, use sunday_pm_driver_id)"
+    },
+    "sunday_pm_driver_id": {
+      "type": "string",
+      "description": "Driver ID for Sunday PM slot"
+    },
+    "sunday_pm_start": {
+      "type": "string"
+    },
+    "sunday_pm_end": {
+      "type": "string"
+    },
+    "route_export_emails": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Email addresses available for route export communication for this store"
+    }
+  },
+  "required": [
+    "name",
+    "address",
+    "phone"
+  ],
+  "rls": {}
+}

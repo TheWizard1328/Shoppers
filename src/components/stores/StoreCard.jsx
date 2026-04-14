@@ -31,7 +31,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
   const [editingColor, setEditingColor] = useState(false);
   const [editableStore, setEditableStore] = useState({ ...store });
   const [copiedId, setCopiedId] = useState(false);
-  const [copiedDispatcherId, setCopiedDispatcherId] = useState(false);
+  const [copiedDispatcherIds, setCopiedDispatcherIds] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [editingDateType, setEditingDateType] = useState(null); // 'start' or 'end'
   const [editingSlot, setEditingSlot] = useState(null);
@@ -76,13 +76,13 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
     }
   };
 
-  const handleCopyDispatcherId = async () => {
+  const handleCopyDispatcherIds = async () => {
     try {
-      await navigator.clipboard.writeText(store.dispatcher_id);
-      setCopiedDispatcherId(true);
-      setTimeout(() => setCopiedDispatcherId(false), 2000);
+      await navigator.clipboard.writeText((store.dispatcher_ids || []).join(', '));
+      setCopiedDispatcherIds(true);
+      setTimeout(() => setCopiedDispatcherIds(false), 2000);
     } catch (err) {
-      console.error('Failed to copy Dispatcher ID:', err);
+      console.error('Failed to copy Dispatcher IDs:', err);
     }
   };
 
@@ -620,12 +620,12 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
               </Button>
             </div>
 
-            {/* Dispatcher ID with Copy */}
-            {store.dispatcher_id &&
+            {/* Dispatcher IDs with Copy */}
+            {Array.isArray(store.dispatcher_ids) && store.dispatcher_ids.length > 0 &&
             <div className="flex items-center">
-              <span className="text-xs font-mono w-28 flex-shrink-0" style={{ color: 'var(--text-slate-500)' }}>Dispatcher ID:</span>
-              <span className="text-xs font-mono truncate flex-1 mr-2" style={{ color: 'var(--text-slate-500)' }} title={store.dispatcher_id}>
-                {store.dispatcher_id}
+              <span className="text-xs font-mono w-28 flex-shrink-0" style={{ color: 'var(--text-slate-500)' }}>Dispatcher IDs:</span>
+              <span className="text-xs font-mono truncate flex-1 mr-2" style={{ color: 'var(--text-slate-500)' }} title={store.dispatcher_ids.join(', ')}>
+                {store.dispatcher_ids.join(', ')}
               </span>
               <Button
                 variant="ghost"
@@ -633,11 +633,11 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                 className="h-6 w-6 flex-shrink-0"
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleCopyDispatcherId();
+                  handleCopyDispatcherIds();
                 }}
-                title="Copy Dispatcher ID">
+                title="Copy Dispatcher IDs">
 
-                {copiedDispatcherId ?
+                {copiedDispatcherIds ?
                 <Check className="w-3 h-3 text-emerald-600" /> :
 
                 <Copy className="w-3 h-3" style={{ color: 'var(--text-slate-400)' }} />
