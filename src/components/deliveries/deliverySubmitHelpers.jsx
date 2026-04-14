@@ -1,4 +1,4 @@
-export const prepareDeliverySaveData = ({ formData, delivery, isCompletionStatus, completionTime }) => {
+export const prepareDeliverySaveData = ({ formData, delivery, isCompletionStatus, completionTime, currentTravelMode = 'driving' }) => {
   const isHistoricalDelivery = Boolean(
     delivery?.delivery_date && delivery.delivery_date < new Date().toISOString().split('T')[0]
   );
@@ -49,6 +49,8 @@ export const prepareDeliverySaveData = ({ formData, delivery, isCompletionStatus
     } else if (delivery?.arrival_time) {
       dataToSave.arrival_time = '';
     }
+
+    dataToSave.finished_leg_transport_mode = currentTravelMode;
   }
 
   if (!delivery?.id && !dataToSave.patient_id) {

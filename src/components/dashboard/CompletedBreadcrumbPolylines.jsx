@@ -145,6 +145,7 @@ export default function CompletedBreadcrumbPolylines({
       .filter((stop) => isAllDriversMode || selectedDriverId === "all" || stop.driver_id === selectedDriverId);
 
     return allFinishedStops.map((stop) => ({
+      finishedLegTransportMode: normalizeTravelMode(stop.finished_leg_transport_mode),
       id: `stored-${stop.id}`,
       stopId: stop.id,
       driverId: stop.driver_id,
@@ -306,9 +307,9 @@ export default function CompletedBreadcrumbPolylines({
       <Polyline
         key={`stored-finished-${segment.id}-${polylineRenderKey}-${highlightedDeliveryId || "none"}`}
         positions={coords}
-        pathOptions={getDriverRouteStyle(segment.driverId, driverTravelModes, Math.max(segment.opacity, 0.35))}
+        pathOptions={getTravelModeLineStyle(segment.finishedLegTransportMode, getDriverPolylineColor(segment.driverId))}
         pane="completedBreadcrumbPane"
-      />
+        />
     );
   });
 

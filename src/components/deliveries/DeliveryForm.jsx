@@ -15,6 +15,7 @@ import { base44 } from "@/api/base44Client";
 import { useAppData } from '../utils/AppDataContext';
 import { getUserAgentInfo } from '../utils/deviceUtils';
 import { shouldShowStoreBadges, isAppOwner } from '../utils/userRoles';
+import { getPreferredTravelMode } from '../dashboard/travelModeHelpers';
 import {
   createPatient as createPatientLocal,
   updatePatient as updatePatientLocal,
@@ -99,7 +100,7 @@ export default function DeliveryForm({
   openMode = null,
   forceOpenDriverOnLoad = false
 }) {
-  const { setIsFormOverlayOpen } = useAppData();
+  const { setIsFormOverlayOpen, appUsers } = useAppData();
   const freshStores = useFreshStores(stores);
 
   const allDrivers = useMemo(() => {
@@ -1325,7 +1326,8 @@ export default function DeliveryForm({
     setError(null);
 
     try {
-      const dataToSave = await buildInTransitDirectSaveData({ prepareDeliverySaveData, formData, delivery, isCompletionStatus, completionTime, selectedPatient, stores, allDeliveries, stagedDeliveries });
+      const currentTravelMode = getPreferredTravelMode(appUsers || [], currentUser?.id);
+      const dataToSave = await buildInTransitDirectSaveData({ prepareDeliverySaveData, formData, delivery, isCompletionStatus, completionTime, selectedPatient, stores, allDeliveries, stagedDeliveries, currentTravelMode });
       if (delivery?.id && !delivery?.patient_id && buildPickupSnapshot(delivery) === buildPickupSnapshot(dataToSave)) {
         import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(() => { handleClearForm(); onCancel(); });
         return true;
