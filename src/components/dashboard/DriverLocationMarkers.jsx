@@ -532,10 +532,6 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     }
   };
 
-  if (!visibleDrivers || visibleDrivers.length === 0) {
-    return null;
-  }
-
   useEffect(() => {
     const animateMarker = (stableKey, targetLat, targetLng) => {
       const marker = markerRefs.current[stableKey];
@@ -567,6 +563,10 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       animateMarker(stableKey, Number(user.current_latitude), Number(user.current_longitude));
     });
   }, [visibleDrivers]);
+
+  if (!visibleDrivers || visibleDrivers.length === 0) {
+    return null;
+  }
 
   return (
     <>
@@ -611,8 +611,6 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         // Use user.id as stable key to prevent flickering during updates
         const stableKey = getDriverIdentityKey(user) || user.id;
 
-        markersRef.current[stableKey] = true;
-        
         // Get staleness info from poller
         const staleness = user._staleness || 'fresh';
         const ageMinutes = user._ageMinutes || 0;
