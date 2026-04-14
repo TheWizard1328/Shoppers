@@ -39,14 +39,16 @@ class LightweightRefreshManager {
 
     // Minimal intervals - only for non-WebSocket entities and offline sync
     this.intervals = {
-      cities: 1800000,       // 30min - Cities dataset (less frequent to avoid 429)
-      stores: 1800000,       // 30min - Stores dataset (less frequent to avoid 429)
-      appUsers: 60000,       // 60sec - Backup poll ONLY if no recent WebSocket update
-      offlineSync: 0,        // DISABLED - offlineDB reads, not syncs
-      cacheRefresh: 600000   // 10min - Cache consistency check
+      companies: 1800000,
+      cities: 1800000,
+      stores: 1800000,
+      appUsers: 1800000,
+      offlineSync: 0,
+      cacheRefresh: 600000
     };
 
     this.lastRefreshTimes = {
+      companies: 0,
       cities: 0,
       stores: 0,
       appUsers: 0,
@@ -394,18 +396,15 @@ class LightweightRefreshManager {
    * AppUser syncs every 15 seconds as backup for WebSocket
    * These don't have real-time subscriptions, so periodic refresh is needed
    */
-  async performLightweightRefresh(currentData) {
+  async performLightweightRefresh(currentData, options = {}) {
     if (!this._enabled || this._paused || this.isRefreshing) {
       return null;
     }
 
     try {
       touchUserCache();
-    } catch (e) {
-      // Ignore
-    }
+    } catch (e) {}
 
-    // Global cooldown guard: if we're within error cooldown window, skip this cycle entirely
     const __now = Date.now();
     if (__now < (this.errorCooldownUntil || 0)) {
       return null;
@@ -413,88 +412,85 @@ class LightweightRefreshManager {
 
     this.isRefreshing = true;
     const updates = {};
+    const { forcePrimary = false, selectedDate = null, selectedCityId = null, includeRouteData = false } = options;
 
     try {
-      // Refresh Cities every 5 minutes
-      if (this.shouldRefresh('cities') && currentData.cities) {
-        try {
-          console.log('🏙️ [LightweightRefresh] Syncing Cities (every 5min)');
-          await this.waitForRateLimit();
-          const allCities = await queueEntityRequest(
-            () => base44.entities.City.list(),
-            'City list'
-          );
+      const { offlineDB } = await import('./offlineDatabase');
 
+      const maybeSyncPrimaryEntity = async (key, entityName, currentList, listFn, storeName) => {
+        const metadata = await offlineDB.getSyncMetadata(entityName, 'global');
+        const lastSyncTime = metadata?.last_sync_time ? new Date(metadata.last_sync_time).getTime() : 0;
+        const shouldRun = forcePrimary || !lastSyncTime || Date.now() - lastSyncTime >= this.intervals[key];
+        if (!shouldRun) return null;
+
+        await this.waitForRateLimit();
+        const fresh = await queueEntityRequest(listFn, `${entityName} list`);
+        if (Array.isArray(fresh) && fresh.length > 0) {
+          await offlineDB.replaceAllRecords(storeName, fresh);
+          await offlineDB.updateSyncMetadata(entityName, fresh[0]?.updated_date || new Date().toISOString(), new Date().toISOString(), {
+            scope_key: 'global'
+          });
+          this.markRefreshed(key);
           this.recordSuccess();
+          if (Array.isArray(currentList)) {
+            const diff = diffEntityArrays(currentList, fresh);
+            return diff.toUpdate.length > 0 || diff.toAdd.length > 0 ? mergeEntityChanges(currentList, diff) : fresh;
+          }
+          return fresh;
+        }
+        this.markRefreshed(key);
+        return null;
+      };
 
-          if (allCities && allCities.length > 0) {
-            const diff = diffEntityArrays(currentData.cities, allCities);
-            if (diff.toUpdate.length > 0 || diff.toAdd.length > 0) {
-              updates.cities = mergeEntityChanges(currentData.cities, diff);
-              console.log(`✅ [LightweightRefresh] Cities updated: +${diff.toAdd.length} ~${diff.toUpdate.length}`);
+      updates.companies = await maybeSyncPrimaryEntity('companies', 'Company', currentData.companies, () => base44.entities.Company.list(), offlineDB.STORES.COMPANIES) || updates.companies;
+      updates.cities = await maybeSyncPrimaryEntity('cities', 'City', currentData.cities, () => base44.entities.City.list(), offlineDB.STORES.CITIES) || updates.cities;
+      updates.stores = await maybeSyncPrimaryEntity('stores', 'Store', currentData.stores, () => base44.entities.Store.list(), offlineDB.STORES.STORES) || updates.stores;
+      updates.appUsers = await maybeSyncPrimaryEntity('appUsers', 'AppUser', currentData.appUsers, () => offlineDB.getAll(offlineDB.STORES.APP_USERS), offlineDB.STORES.APP_USERS) || updates.appUsers;
+
+      if (includeRouteData && selectedDate) {
+        const allStores = updates.stores || currentData.stores || await offlineDB.getAll(offlineDB.STORES.STORES);
+        const cityStoreIds = selectedCityId ? (allStores || []).filter((store) => store?.city_id === selectedCityId).map((store) => store.id) : [];
+        const deliveryFilter = {
+          delivery_date: selectedDate,
+          ...(cityStoreIds.length > 0 ? { store_id: { $in: cityStoreIds } } : {})
+        };
+
+        await this.waitForRateLimit();
+        const freshDeliveries = await queueEntityRequest(
+          () => base44.entities.Delivery.filter(deliveryFilter, '-updated_date', 5000),
+          'Delivery slice'
+        );
+
+        if (Array.isArray(freshDeliveries)) {
+          await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDate, freshDeliveries);
+          await offlineDB.updateSyncMetadata('Delivery', freshDeliveries[0]?.updated_date || new Date().toISOString(), new Date().toISOString(), {
+            scope_key: `date:${selectedDate}`
+          });
+          updates.deliveries = freshDeliveries;
+
+          const patientIds = Array.from(new Set((freshDeliveries || []).filter((item) => item?.patient_id).map((item) => item.patient_id)));
+          if (patientIds.length > 0) {
+            await this.waitForRateLimit();
+            const freshPatients = await queueEntityRequest(
+              () => base44.entities.Patient.filter({ id: { $in: patientIds } }, '-updated_date', 5000),
+              'Patient slice'
+            );
+            if (Array.isArray(freshPatients) && freshPatients.length > 0) {
+              await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
+              await offlineDB.updateSyncMetadata('Patient', freshPatients[0]?.updated_date || new Date().toISOString(), new Date().toISOString(), {
+                scope_key: `date:${selectedDate}`
+              });
+              updates.patients = freshPatients;
             }
           }
-          this.markRefreshed('cities');
-        } catch (e) {
-          this.recordError(e);
-          console.warn('⚠️ [LightweightRefresh] Cities refresh failed:', e.message);
         }
       }
 
-      // Refresh Stores every 5 minutes
-      if (this.shouldRefresh('stores') && currentData.stores) {
-        try {
-          console.log('🏪 [LightweightRefresh] Syncing Stores (every 5min)');
-          await this.waitForRateLimit();
-          const allStores = await queueEntityRequest(
-            () => base44.entities.Store.list(),
-            'Store list'
-          );
-
-          this.recordSuccess();
-
-          if (allStores && allStores.length > 0) {
-            const diff = diffEntityArrays(currentData.stores, allStores);
-            if (diff.toUpdate.length > 0 || diff.toAdd.length > 0) {
-              updates.stores = mergeEntityChanges(currentData.stores, diff);
-              console.log(`✅ [LightweightRefresh] Stores updated: +${diff.toAdd.length} ~${diff.toUpdate.length}`);
-            }
-          }
-          this.markRefreshed('stores');
-        } catch (e) {
-          this.recordError(e);
-          console.warn('⚠️ [LightweightRefresh] Stores refresh failed:', e.message);
-        }
-      }
-
-      // CRITICAL: Skip AppUser polling entirely - AppUser.list() has RLS rules and returns only current user
-      // ONLY rely on WebSocket real-time subscriptions for cross-device AppUser syncing
-      if (this.shouldRefresh('appUsers')) {
-        console.log(`👥 [LightweightRefresh] Skipping AppUser API poll - WebSocket subscriptions handle all cross-device sync`);
-        this.markRefreshed('appUsers');
-      }
-
-      // Offline sync reconciliation every 1 minute
       if (this.shouldRefresh('offlineSync')) {
-        try {
-          console.log('💾 [LightweightRefresh] Offline sync reconciliation');
-          const { offlineDB } = await import('./offlineDatabase');
-          
-          // Verify offline DB consistency
-          const offlineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-          const offlinePatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
-          const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-
-          console.log(`💾 [LightweightRefresh] Offline DB: ${offlineDeliveries?.length || 0} deliveries, ${offlinePatients?.length || 0} patients, ${offlineAppUsers?.length || 0} users`);
-          
-          this.markRefreshed('offlineSync');
-        } catch (e) {
-          console.warn('⚠️ [LightweightRefresh] Offline sync failed:', e.message);
-        }
+        this.markRefreshed('offlineSync');
       }
 
       return Object.keys(updates).length > 0 ? updates : null;
-
     } catch (error) {
       console.warn('⚠️ [LightweightRefresh] Error during refresh:', error.message);
       return null;
