@@ -980,11 +980,11 @@ export const localUpdateAppUser = async (appUserId, updates, options = {}) => {
     notifyMutation({ type: 'update', entity: 'AppUser', id: appUserId, data: result });
     console.log(`🔔 [EntityMutations] UI notified of AppUser update`);
     
-    // STEP 4: CRITICAL: Broadcast to other devices for real-time sync
-    // This ensures driver location/status changes are instantly visible on all devices
-    broadcastMutation('AppUser', 'update', appUserId, result);
+    // STEP 4: CRITICAL: Broadcast FULL AppUser record to other devices for real-time sync
+    // This ensures all AppUser fields propagate, not just location/status-style updates
+    await broadcastMutation('AppUser', 'update', appUserId, result);
     
-    console.log(`✅ [EntityMutations] AppUser ${appUserId} updated, synced to offline DB, and broadcast to other devices`);
+    console.log(`✅ [EntityMutations] AppUser ${appUserId} full record broadcast to other devices`);
     return result;
   } catch (error) {
     console.error(`❌ [EntityMutations] Failed to update AppUser ${appUserId}:`, error);

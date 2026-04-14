@@ -85,7 +85,8 @@ async function flushBuffered(entityName) {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent(`realtimeUpdate_${entityName}`, { detail: { type: eventType, id, data, updatedBy, changedFields } }));
       if (entityName === 'AppUser' && (eventType === 'create' || eventType === 'update') && data) {
-        window.dispatchEvent(new CustomEvent('appUserUpdated', { detail: { appUser: data, fromRealtime: true } }));
+        window.dispatchEvent(new CustomEvent('appUserUpdated', { detail: { appUser: data, appUsers: fullReplacementData, fromRealtime: true, fullReplacement: true } }));
+        window.dispatchEvent(new CustomEvent('appUsersUpdated', { detail: { appUsers: fullReplacementData, fromRealtime: true, fullReplacement: true } }));
       }
     }
   });
@@ -157,6 +158,13 @@ async function flushBuffered(entityName) {
 
   if (typeof window !== 'undefined' && entityName === 'AppUser' && Array.isArray(fullReplacementData)) {
     window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+      detail: {
+        appUsers: fullReplacementData,
+        fromRealtime: true,
+        fullReplacement: true
+      }
+    }));
+    window.dispatchEvent(new CustomEvent('appUsersUpdated', {
       detail: {
         appUsers: fullReplacementData,
         fromRealtime: true,
