@@ -1,7 +1,28 @@
 // Redeployed on 2026-04-09
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
-const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+const flushDeliveryUpdates = async (base44, deliveries, stagedUpdates) => {
+  if (!Array.isArray(stagedUpdates) || stagedUpdates.length === 0) return [];
+
+  const deliveryMap = new Map((deliveries || []).filter(Boolean).map((delivery) => [delivery.id, delivery]));
+  const mergedUpdates = new Map();
+
+  stagedUpdates.forEach((update) => {
+    if (!update?.id) return;
+    mergedUpdates.set(update.id, {
+      ...(mergedUpdates.get(update.id) || {}),
+      ...update
+    });
+  });
+
+  const payload = Array.from(mergedUpdates.values()).map((update) => ({
+    ...(deliveryMap.get(update.id) || {}),
+    ...update
+  }));
+
+  await base44.asServiceRole.entities.Delivery.bulkCreate(payload);
+  return payload;
+};
 
 /**
  * Calculate crow-flies distance between two coordinates (Haversine formula)
@@ -336,6 +357,7 @@ Deno.serve(async (req) => {
     // STEP 5: Calculate ETAs for current stage
     let cumulativeTime = currentMinutes;
     const currentStageETAs = [];
+    const stagedDeliveryUpdates = [];
 
     for (let i = 0; i < optimizedCurrentStage.length; i++) {
       const stop = optimizedCurrentStage[i];
@@ -394,10 +416,7 @@ Deno.serve(async (req) => {
         }
       }
       
-      await base44.asServiceRole.entities.Delivery.update(deliveryId, updateData).catch((error) => {
-        if (isNotFoundError(error)) return null;
-        throw error;
-      });
+      stagedDeliveryUpdates.push({ id: deliveryId, ...updateData });
     }
 
     // STEP 7: Calculate ETAs for remaining stages (without Google API)
@@ -450,7 +469,7 @@ Deno.serve(async (req) => {
           }
         }
         
-        await base44.asServiceRole.entities.Delivery.update(stop.delivery.id, updateData);
+        stagedDeliveryUpdates.push({ id: stop.delivery.id, ...updateData });
 
         const serviceTime = stop.delivery.extra_time || (stop.isPickup ? 15 : 5);
         cumulativeTime += serviceTime;
@@ -532,12 +551,11 @@ Deno.serve(async (req) => {
         }
       }
       
-      await base44.asServiceRole.entities.Delivery.update(stop.id, updateData).catch((error) => {
-        if (isNotFoundError(error)) return null;
-        throw error;
-      });
+      stagedDeliveryUpdates.push({ id: stop.id, ...updateData });
       console.log(`  🔢 [optimizeRemainingStops] Stop #${newOrder}: ${stop.patient_name || 'Pickup'}${updateData.delivery_time_start ? ` (start: ${updateData.delivery_time_start})` : ''}`);
     }
+
+    await flushDeliveryUpdates(base44, allDeliveries, stagedDeliveryUpdates);
 
     try {
       await base44.asServiceRole.functions.invoke('recalculateTrackingNumbers', {

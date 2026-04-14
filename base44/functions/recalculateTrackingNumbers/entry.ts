@@ -1,8 +1,29 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
-const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
-
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
+
+const flushDeliveryUpdates = async (base44, deliveries, stagedUpdates) => {
+  if (!Array.isArray(stagedUpdates) || stagedUpdates.length === 0) return [];
+
+  const deliveryMap = new Map((deliveries || []).filter(Boolean).map((delivery) => [delivery.id, delivery]));
+  const mergedUpdates = new Map();
+
+  stagedUpdates.forEach((update) => {
+    if (!update?.id) return;
+    mergedUpdates.set(update.id, {
+      ...(mergedUpdates.get(update.id) || {}),
+      ...update
+    });
+  });
+
+  const payload = Array.from(mergedUpdates.values()).map((update) => ({
+    ...(deliveryMap.get(update.id) || {}),
+    ...update
+  }));
+
+  await base44.asServiceRole.entities.Delivery.bulkCreate(payload);
+  return payload;
+};
 
 function parseTrackingNumber(value) {
   if (value === null || value === undefined) return null;
@@ -119,18 +140,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (updates.length > 0) {
-      await Promise.all(
-        updates.map((update) =>
-          base44.asServiceRole.entities.Delivery.update(update.id, { tracking_number: update.tracking_number }).catch((error) => {
-            if (isNotFoundError(error)) return null;
-            throw error;
-          })
-        )
-      );
-    }
+    const flushedUpdates = await flushDeliveryUpdates(base44, deliveries, updates);
 
-    return Response.json({ success: true, updated: updates.length, updates });
+    return Response.json({ success: true, updated: flushedUpdates.length, updates: flushedUpdates.map(({ id, tracking_number }) => ({ id, tracking_number })) });
   } catch (error) {
     console.error('[recalculateTrackingNumbers] Error:', error?.message || error);
     return Response.json({ error: error?.message || 'Internal error' }, { status: 500 });
