@@ -596,10 +596,7 @@ export default function Layout({ children, currentPageName }) {
       if (currentUser && changedAppUsers.some((u) => u.user_id === currentUser.id)) {
         const updatedCurrentUser = changedAppUsers.find((u) => u.user_id === currentUser.id);
         if (updatedCurrentUser) {
-          setCurrentUser({
-            ...currentUser,
-            app_roles: updatedCurrentUser.app_roles
-          });
+          setCurrentUser({ ...currentUser, ...updatedCurrentUser, id: currentUser.id, app_roles: updatedCurrentUser.app_roles || [], store_ids: updatedCurrentUser.store_ids || [], city_id: updatedCurrentUser.city_id || null, status: updatedCurrentUser.status || currentUser.status, user_name: updatedCurrentUser.user_name || currentUser.user_name });
         }
       }
 

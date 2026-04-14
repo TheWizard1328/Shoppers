@@ -53,13 +53,17 @@ export default function AppUsers() {
 
   const handleSave = async (appUserData) => {
     try {
+      let savedAppUser;
       if (editingAppUser) {
-        await base44.entities.AppUser.update(editingAppUser.id, appUserData);
+        savedAppUser = await base44.entities.AppUser.update(editingAppUser.id, appUserData);
       } else {
-        await base44.entities.AppUser.create(appUserData);
+        savedAppUser = await base44.entities.AppUser.create(appUserData);
       }
 
       clearUserCache();
+      window.dispatchEvent(new CustomEvent('userRolesChanged', {
+        detail: { appUsers: [savedAppUser] }
+      }));
       window.dispatchEvent(new CustomEvent('forceDataRefresh'));
       await loadData();
       setShowForm(false);
