@@ -992,7 +992,7 @@ function Dashboard() {
     return isDriver && !userHasRole(currentUser, 'dispatcher');
   }, [isDriver, currentUser]);
 
-  const isFiltersReady = useMemo(() => globalFilters.isReadyForDataFetch(), []);
+  const isFiltersReady = useMemo(() => globalFilters.isReadyForDataFetch(), [selectedDate, selectedDriverId, currentUser?.id, cities.length]);
 
   const isDriverDropdownDisabled = useMemo(() => {
     if (!currentUser) return false;
@@ -1210,7 +1210,6 @@ function Dashboard() {
 
   // Subscribe to global filter changes AND URL params
   useEffect(() => {
-    // Check URL params on mount AND on location changes
     const urlParams = new URLSearchParams(window.location.search);
     const dateParam = urlParams.get('date');
 
@@ -1218,22 +1217,20 @@ function Dashboard() {
     const driverParam = urlParams.get('driver');if (driverParam && driverParam !== selectedDriverId) {setSelectedDriverId(driverParam);globalFilters.setSelectedDriverId(driverParam);}
     const unsubscribe = globalFilters.subscribe((newFilters) => {
       if (newFilters.selectedDate) {
-        const dateObj = typeof newFilters.selectedDate === 'string' ?
-        new Date(newFilters.selectedDate + 'T00:00:00') :
-        new Date(newFilters.selectedDate);
-        setSelectedDate(dateObj);
-        setCalendarMonth(dateObj);
+        const nextDate = typeof newFilters.selectedDate === 'string' ? newFilters.selectedDate : format(newFilters.selectedDate, 'yyyy-MM-dd');
+        if (nextDate !== format(selectedDate, 'yyyy-MM-dd')) {
+          const dateObj = new Date(nextDate + 'T00:00:00');
+          setSelectedDate(dateObj);
+          setCalendarMonth(dateObj);
+        }
       }
 
-      if (newFilters.selectedDriverId !== undefined) {
-
-
-
-
-
-
-        // This subscription handles changes from other components
-      }});return unsubscribe;}, [window.location.search, selectedDate]); // Listen for driver status break/resume events from DriverStatusToggle
+      if (newFilters.selectedDriverId !== undefined && newFilters.selectedDriverId !== selectedDriverId) {
+        setSelectedDriverId(newFilters.selectedDriverId || 'all');
+      }
+    });
+    return unsubscribe;
+  }, [selectedDate, selectedDriverId]); // Listen for driver status break/resume events from DriverStatusToggle
   useEffect(() => {const clearLock = () => {if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}mapLockExpiresAtRef.current = null;};const pulsePhaseOne = (ms, options = {}) => {clearLock();const x = Date.now() + ms;mapLockExpiresAtRef.current = x;setMapViewPhase(1);setIsMapViewLocked(true);if (!options.skipTrigger) {lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);}mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, ms);};const unsubscribe = fabControlEvents.subscribe((event) => {if (event.type === 'BREAK_START') {phaseBeforeBreakRef.current = event.previousPhase;clearLock();setIsMapViewLocked(false);setMapViewPhase(1);setMapViewTrigger((prev) => prev + 1);} else if (event.type === 'BREAK_END') {const phaseToRestore = event.phaseToRestore || 1;setMapViewPhase(phaseToRestore);setIsMapViewLocked(phaseToRestore !== 1);setMapViewTrigger((prev) => prev + 1);clearLock();phaseBeforeBreakRef.current = null;} else if (event.type === 'DONE_BUTTON_CLICKED') {if (mapViewPhaseRef.current !== 1) pulsePhaseOne(3000);} else if (event.type === 'ACCEPT_ALL_CLICKED') pulsePhaseOne(500);else if (event.type === 'REACTIVATE_FAB') {clearLock();setIsMapViewLocked(false);setTimeout(() => {const isPhaseOne = mapViewPhaseRef.current === 1;const unlockMs = isPhaseOne ? 500 : null;const shouldSuppressTrigger = isPhaseOne && event?.suppressIfPhase1 === true;if (shouldSuppressTrigger) {setIsMapViewLocked(false);return;}setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);if (unlockMs != null) {const x = Date.now() + unlockMs;mapLockExpiresAtRef.current = x;mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, unlockMs);}}, 100);} else if (event.type === 'DELIVERY_REALTIME_CREATE_DELETE_PULSE' && mapViewPhaseRef.current === 1) {const eventMatchesDriver = !selectedDriverId || selectedDriverId === 'all' || event.driverId === selectedDriverId;const eventMatchesDate = !selectedDate || !event.deliveryDate || event.deliveryDate === format(selectedDate, 'yyyy-MM-dd');if (event.relevantToCurrentSelection === true && eventMatchesDriver && eventMatchesDate) pulsePhaseOne(500, { skipTrigger: event?.skipMapPhaseOneRefresh === true });} else if (event.type === 'REACTIVATE_PHASE_TWO_IF_AVAILABLE') {if (mapViewPhase !== 2 || isMapViewLocked) return;clearLock();setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);} else if (event.type === 'PHASE2_TEMP_UNLOCK' && mapViewPhase === 2 && isMapViewLocked) {clearLock();setIsMapViewLocked(false);} else if (event.type === 'PHASE2_COMPLETE_RECENTER' && mapViewPhase === 2) {clearLock();setTimeout(() => {const x = Date.now() + 900;setMapViewPhase(2);setIsMapViewLocked(true);lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();setMapViewTrigger((prev) => prev + 1);mapLockExpiresAtRef.current = x;mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === x) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, 900);}, 140);}});return unsubscribe;}, [deliveriesWithStopOrder, mapViewPhase, isMapViewLocked]);
 
   useEffect(() => {
