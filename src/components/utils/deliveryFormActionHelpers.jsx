@@ -115,8 +115,14 @@ export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindo
         ]);
 
         const [driverRecords, deliveryRecords] = await Promise.all([
-          base44.entities.AppUser.filter({ user_id: driverId }),
-          base44.entities.Delivery.filter({ driver_id: driverId, delivery_date: deliveryDate })
+          base44.entities.AppUser.filter({ user_id: driverId }).catch((error) => {
+            console.warn('⚠️ [DeliveryForm] Driver refresh skipped:', error?.message || error);
+            return [];
+          }),
+          base44.entities.Delivery.filter({ driver_id: driverId, delivery_date: deliveryDate }).catch((error) => {
+            console.warn('⚠️ [DeliveryForm] Delivery refresh skipped:', error?.message || error);
+            return [];
+          })
         ]);
 
         const driverRecord = driverRecords?.[0];
@@ -138,6 +144,8 @@ export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindo
               lng: driverRecord.current_longitude
             },
             deliveries: etaDeliveries
+          }).catch((error) => {
+            console.warn('⚠️ [DeliveryForm] ETA refresh skipped:', error?.message || error);
           });
         }
       }
