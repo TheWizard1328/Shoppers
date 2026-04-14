@@ -25,13 +25,14 @@ export function getStopCoordinates(delivery, patient, store) {
   return { latitude, longitude };
 }
 
-export async function syncDriverLocationToStop({ currentUser, delivery, patient, store }) {
-  if (!currentUser?.id || !delivery) return null;
+export async function syncDriverLocationToStop({ currentUser, delivery, patient, store, targetDriverId }) {
+  const resolvedDriverId = targetDriverId || delivery?.driver_id || currentUser?.id;
+  if (!resolvedDriverId || !delivery) return null;
   const stopCoordinates = getStopCoordinates(delivery, patient, store);
   if (!stopCoordinates) return null;
 
   const { offlineDB } = await import('../utils/offlineDatabase');
-  const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
+  const appUsers = await base44.entities.AppUser.filter({ user_id: resolvedDriverId });
   const appUser = appUsers?.[0];
   if (!appUser?.id) return stopCoordinates;
 

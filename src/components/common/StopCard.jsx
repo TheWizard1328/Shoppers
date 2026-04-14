@@ -691,7 +691,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
             try {
               setShowFailureReasonDialog(false);setPendingFailureStatus(null);setIsFailing(true);fabControlEvents.deactivateFAB();fabControlEvents.notifyPhaseTwoTempUnlock();smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);await collapseDriverStopCards();await new Promise((resolve) => setTimeout(resolve, 50));
               const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });if (!deliveryExists || deliveryExists.length === 0) {console.warn('⚠️ [FAILURE] Delivery no longer exists - aborting');toast.error('This delivery has been deleted. Please refresh the page.');return;}
-              await syncDriverLocationToStop({ currentUser, delivery, patient, store });
+              await syncDriverLocationToStop({ currentUser, delivery, patient, store, targetDriverId: delivery.driver_id });
               await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
               const existingNotes = delivery.delivery_notes || '';const updatedNotes = existingNotes ? `${existingNotes}\n[${status.toUpperCase()}] ${reason}` : `[${status.toUpperCase()}] ${reason}`;
               const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
@@ -805,7 +805,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                         try {
                           const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });if (!deliveryExists || deliveryExists.length === 0) {console.warn('⚠️ [COMPLETE] Delivery no longer exists - aborting');toast.error('This delivery has been deleted. Please refresh the page.');return;}
                           await ensureDriverOnline();
-                          await syncDriverLocationToStop({ currentUser, delivery, patient, store });
+                          await syncDriverLocationToStop({ currentUser, delivery, patient, store, targetDriverId: delivery.driver_id });
                           const autoCODPayment = hasCODRequired && codPayments.length === 0 && onCODUpdate ? [{ type: 'Cash', amount: codTotalRequired }] : null;if (autoCODPayment) setCodPayments(autoCODPayment);
                           let pendingBreadcrumbsString = null;
                           try {pendingBreadcrumbsString = await getPendingBreadcrumbsForDelivery({ driverUserId: delivery.driver_id, deliveryId: delivery.id, stopOrder: delivery.stop_order, appUsers });} catch (breadcrumbErr) {console.warn('⚠️ [COMPLETE] Breadcrumb fetch failed, continuing without:', breadcrumbErr.message);}
