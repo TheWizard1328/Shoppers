@@ -311,12 +311,6 @@ export async function handleBatchSave({
 
     Promise.resolve().then(async () => {
       try {
-        const squarePromises = deliveriesReadyForDB.filter(d => d.cod_total_amount_required > 0 && d.patient_id && d.driver_id && d.status === 'in_transit').map(delivery => {
-          const store = stores?.find(s => s && s.id === delivery.store_id);
-          return base44.functions.invoke('squareCreateCodItem', { deliveryId: delivery.id || delivery._tempId, patientName: delivery.patient_name, storeAbbreviation: store?.abbreviation || '', codAmount: delivery.cod_total_amount_required, deliveryDate: delivery.delivery_date, storeId: delivery.store_id }).then(() => null).catch(() => null);
-        });
-        if (squarePromises.length > 0) await Promise.allSettled(squarePromises);
-
         await restartBatchSmartRefresh(() => setBatchFormSaving(false));
 
         if (deliveriesToUpdate.length > 0 && newDeliveries.length === 0) {
