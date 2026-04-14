@@ -1240,8 +1240,8 @@ async function handleSyncCatalogItems(base44) {
       || settledTransactionItemSignatures.has(signature)
       || settledTransactionComparableSignatures.has(buildComparableLocationSignature(itemName, amountCents, activeConfig?.square_location_id))
       || deliveryDateSignatures.some((signatureKey) => settledTransactionDateLocationAmountSignatures.has(signatureKey));
-    const shouldDeleteForInvalidState = !activeConfig || !store?.square_location_config_id || !activeConfig?.square_location_id || ['pending', 'failed', 'cancelled'].includes(delivery?.status);
-    const shouldDeleteCatalogItem = shouldDeleteForInvalidState || hasSquareConfirmedPayment;
+    const shouldDeleteForInvalidState = !activeConfig || !store?.square_location_config_id || !activeConfig?.square_location_id || delivery?.status === 'failed';
+    const shouldDeleteCatalogItem = shouldDeleteForInvalidState || hasSquareConfirmedPayment || (delivery?.status === 'completed' && hasCollectedOfflinePayment(delivery));
 
     if (catalogItem && !isCatalogItemAtLocation(catalogItem, activeConfig?.square_location_id)) {
       itemsToDelete.push(catalogItem.id);
@@ -1450,9 +1450,20 @@ async function handleSyncSquareCods(base44, payload) {
     }
 
     try {
-      if (delivery.status === 'pending' || delivery.status === 'failed' || delivery.status === 'cancelled') {
-        const result = await handleDeleteCodItem(base44, { deliveryId: delivery.id, reason: delivery.status });
+      const hasOfflinePayment = hasCollectedOfflinePayment(delivery);
+      const hasSquareManagedPayment = hasCollectedCardPayment(delivery);
+
+      if (delivery.status === 'failed' || (delivery.status === 'completed' && hasOfflinePayment)) {
+        const result = await handleDeleteCodItem(base44, { deliveryId: delivery.id, reason: delivery.status === 'failed' ? 'failed' : 'offline_payment_collected' });
         return { success: true, processed: 1, results: [{ deliveryId: delivery.id, action: 'delete', status: 'ok', result }] };
+      }
+
+      if (delivery.status === 'completed' && hasSquareManagedPayment) {
+        return { success: true, processed: 1, results: [{ deliveryId: delivery.id, action: 'noop', status: 'skipped', reason: 'square_managed_payment_kept_open_for_collection' }] };
+      }
+
+      if (delivery.status === 'pending') {
+        return { success: true, processed: 1, results: [{ deliveryId: delivery.id, action: 'noop', status: 'skipped', reason: 'pending_deliveries_do_not_create_square_items' }] };
       }
 
       const result = await handleCreateCodItem(base44, {
@@ -1464,7 +1475,8 @@ async function handleSyncSquareCods(base44, payload) {
       });
       return { success: true, processed: 1, results: [{ deliveryId: delivery.id, action: 'upsert', status: result?.skipped ? 'skipped' : 'ok', result }] };
     } catch (error) {
-      return { success: false, processed: 1, results: [{ deliveryId: delivery.id, action: delivery.status === 'pending' || delivery.status === 'failed' || delivery.status === 'cancelled' ? 'delete' : 'upsert', status: 'error', error: error?.message || 'Square COD sync failed' }] };
+      const action = delivery.status === 'failed' || (delivery.status === 'completed' && hasCollectedOfflinePayment(delivery)) ? 'delete' : 'upsert';
+      return { success: false, processed: 1, results: [{ deliveryId: delivery.id, action, status: 'error', error: error?.message || 'Square COD sync failed' }] };
     }
   }
 
