@@ -815,30 +815,25 @@ export default function DeliveryFormView({
                   const previousDriverId = delivery?.driver_id;
                   const previousDeliveryDate = delivery?.delivery_date;
                   const shouldOptimizeInBackground = hasTimeWindowChanges;
-                  let saveFailed = false;
+                  let didSave = false;
                   const submitEvent = { preventDefault: () => {}, stopPropagation: () => {} };
 
                   await runLockedAction('update_delivery', async () => {
                     const { smartRefreshManager } = await import('../utils/smartRefreshManager');
                     smartRefreshManager.pause();
                     try {
-                      await handleSubmit(submitEvent);
-                    } catch (error) {
-                      saveFailed = true;
-                      throw error;
+                      const result = await handleSubmit(submitEvent);
+                      didSave = result === true;
                     } finally {
                       smartRefreshManager.resume();
                     }
                   });
 
-                  if (saveFailed) return;
+                  if (!didSave) return;
 
-                  try {
-                    const { closeDeliveryFormAfterSave } = await import('../utils/deliveryFormActionHelpers');
-                    await closeDeliveryFormAfterSave({ handleClearForm, onCancel });
-                  } catch (_) {
-                    handleCancelClick();
-                  }
+                  import('../utils/deliveryFormActionHelpers')
+                    .then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel }))
+                    .catch(() => handleCancelClick());
                   window.dispatchEvent(new CustomEvent('collapseSelectedStopCard'));
 
                   const affectedRoutes = [
