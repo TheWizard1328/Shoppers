@@ -738,12 +738,14 @@ export default function DeliveryMap({
 
   const phase2FollowKeyRef = useRef("");
   const phase2OwnDriverAnchorRef = useRef(null);
+  const phase2LastFitDriverLocationRef = useRef(null);
   const phase2PaddingRef = useRef("");
   const phase2OverlayStabilizeUntilRef = useRef(0);
   useEffect(() => {
     if (!map || mapViewPhase !== 2 || !isMapViewLocked) {
       phase2FollowKeyRef.current = "";
       phase2OwnDriverAnchorRef.current = null;
+      phase2LastFitDriverLocationRef.current = null;
       return;
     }
 
@@ -801,21 +803,30 @@ export default function DeliveryMap({
       isMobile ? effectiveTopOverlayHeight + 25 : 60,
       areStopCardsVisible ? stopCardsHeight + 10 : 60
     ].join(":");
+    const currentDriverFitLocation = {
+      latitude: Number(targetDriverMarker.latitude),
+      longitude: Number(targetDriverMarker.longitude)
+    };
+    const hasMovedEnoughForMapFit = hasDriverMovedEnoughForPhase2(
+      phase2LastFitDriverLocationRef.current,
+      currentDriverFitLocation,
+      50
+    );
     const nextKey = [
-      Number(targetDriverMarker.latitude).toFixed(6),
-      Number(targetDriverMarker.longitude).toFixed(6),
       Number(nextStop.latitude).toFixed(6),
       Number(nextStop.longitude).toFixed(6)
     ].join(":");
 
     const now = Date.now();
-    if (phase2FollowKeyRef.current === nextKey) {
+    const destinationChanged = phase2FollowKeyRef.current !== nextKey;
+    if (!destinationChanged && !hasMovedEnoughForMapFit) {
       if (isMobile && phase2PaddingRef.current !== paddingKey && now < phase2OverlayStabilizeUntilRef.current) {
         phase2PaddingRef.current = paddingKey;
       }
       return;
     }
     phase2FollowKeyRef.current = nextKey;
+    phase2LastFitDriverLocationRef.current = currentDriverFitLocation;
     phase2PaddingRef.current = paddingKey;
     if (isMobile) {
       phase2OverlayStabilizeUntilRef.current = now + 350;
@@ -838,13 +849,14 @@ export default function DeliveryMap({
 
   useEffect(() => {
     if (!map || !Array.isArray(center) || center.length !== 2 || !Number.isFinite(zoom)) return;
+    if (mapViewPhase === 2 && isMapViewLocked) return;
     const currentCenter = map.getCenter();
     const sameCenter = Math.abs(currentCenter.lat - center[0]) < 0.000001 && Math.abs(currentCenter.lng - center[1]) < 0.000001;
     const sameZoom = Math.abs(map.getZoom() - zoom) < 0.01;
     if (sameCenter && sameZoom) return;
     window._lastProgrammaticMapMove = Date.now();
     map.setView(center, zoom, { animate: false });
-  }, [map, center, zoom]);
+  }, [map, center, zoom, mapViewPhase, isMapViewLocked]);
 
   useEffect(() => {
     if (!map) return;
