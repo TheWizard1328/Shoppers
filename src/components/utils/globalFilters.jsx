@@ -1,5 +1,6 @@
 import React from 'react';
 import { format } from 'date-fns';
+import { base44 } from '@/api/base44Client';
 
 // Global filter state manager for consistent filters across all pages
 // CRITICAL: These are stored in localStorage which is device-specific
@@ -13,6 +14,31 @@ const STORAGE_KEYS = {
   lastAutoSetDate: 'app_lastAutoSetDate',
   dashboardSessionInitializedAt: 'app_dashboardSessionInitializedAt',
   lastSeenAt: 'app_lastSeenAt'
+};
+
+let appUserPreferenceSyncTimeout = null;
+
+const syncPreferencesToAppUser = (overrides = {}) => {
+  if (appUserPreferenceSyncTimeout) {
+    clearTimeout(appUserPreferenceSyncTimeout);
+  }
+
+  appUserPreferenceSyncTimeout = setTimeout(async () => {
+    try {
+      const cachedUserRaw = sessionStorage.getItem('effectiveUserCache') || localStorage.getItem('effectiveUserCache');
+      const cachedUser = cachedUserRaw ? JSON.parse(cachedUserRaw)?.user : null;
+      const appUserId = cachedUser?.id;
+
+      if (!appUserId) return;
+
+      await base44.entities.AppUser.update(appUserId, {
+        last_selected_date: overrides.last_selected_date ?? globalState.selectedDate,
+        last_selected_driver_id: overrides.last_selected_driver_id ?? globalState.selectedDriverId
+      });
+    } catch (error) {
+      console.warn('Failed to sync dashboard preferences:', error);
+    }
+  }, 400);
 };
 
 // Global state object
@@ -45,23 +71,40 @@ const initializeGlobalFilters = () => {
       isDispatcherUser = false;
     }
 
-    if (isDispatcherUser && savedDate && savedDate !== today) {
+    let serverSelectedDate = null;
+    let serverSelectedDriverId = null;
+
+    try {
+      const cachedUserRaw = sessionStorage.getItem('effectiveUserCache') || localStorage.getItem('effectiveUserCache');
+      const cachedUser = cachedUserRaw ? JSON.parse(cachedUserRaw)?.user : null;
+      serverSelectedDate = cachedUser?.last_selected_date || null;
+      serverSelectedDriverId = cachedUser?.last_selected_driver_id || null;
+    } catch (error) {
+      serverSelectedDate = null;
+      serverSelectedDriverId = null;
+    }
+
+    const preferredDate = serverSelectedDate || savedDate;
+
+    if (isDispatcherUser && preferredDate && preferredDate !== today) {
       globalState.selectedDate = today;
       localStorage.setItem(STORAGE_KEYS.selectedDate, today);
       console.log(`📅 [GlobalFilters] Dispatcher fresh load using today instead of saved date: ${today}`);
-    } else if (savedDate && !shouldTreatAsFreshSession) {
-      globalState.selectedDate = savedDate;
-      console.log(`📅 [GlobalFilters] Using saved date from active session: ${savedDate}`);
-    } else if (savedDate) {
-      globalState.selectedDate = savedDate;
-      console.log(`📅 [GlobalFilters] Preserving saved date on init until dashboard decides otherwise: ${savedDate}`);
+    } else if (preferredDate && !shouldTreatAsFreshSession) {
+      globalState.selectedDate = preferredDate;
+      localStorage.setItem(STORAGE_KEYS.selectedDate, preferredDate);
+      console.log(`📅 [GlobalFilters] Using saved date from active session: ${preferredDate}`);
+    } else if (preferredDate) {
+      globalState.selectedDate = preferredDate;
+      localStorage.setItem(STORAGE_KEYS.selectedDate, preferredDate);
+      console.log(`📅 [GlobalFilters] Preserving saved date on init until dashboard decides otherwise: ${preferredDate}`);
     } else {
       globalState.selectedDate = today;
       localStorage.setItem(STORAGE_KEYS.selectedDate, today);
       console.log(`📅 [GlobalFilters] No saved date, using today: ${today}`);
     }
 
-    globalState.selectedDriverId = localStorage.getItem(STORAGE_KEYS.selectedDriverId) || 'all';
+    globalState.selectedDriverId = serverSelectedDriverId || localStorage.getItem(STORAGE_KEYS.selectedDriverId) || 'all';
     globalState.selectedCityId = localStorage.getItem(STORAGE_KEYS.selectedCityId) || 'all';
     globalState.selectedStoreId = localStorage.getItem(STORAGE_KEYS.selectedStoreId) || 'all';
 
@@ -122,6 +165,15 @@ const updateAndSave = (key, value) => {
   } catch (error) {
     console.warn('Failed to save to localStorage:', error);
   }
+
+  if (key === 'selectedDate') {
+    syncPreferencesToAppUser({ last_selected_date: value });
+  }
+
+  if (key === 'selectedDriverId') {
+    syncPreferencesToAppUser({ last_selected_driver_id: value });
+  }
+
   notifyListeners();
   return true; // Indicate change occurred
 };
