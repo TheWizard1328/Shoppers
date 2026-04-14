@@ -1218,7 +1218,7 @@ export default function Layout({ children, currentPageName }) {
         forceRefresh,
         // Instant UI callback
         (initialDeliveries) => {
-          setDeliveries(initialDeliveries);
+          updateDeliveriesLocally(initialDeliveries, true);
           setDataLoaded(true);
 
           setTimeout(async () => {
@@ -1228,12 +1228,7 @@ export default function Layout({ children, currentPageName }) {
         },
         // Background callback
         (fullMonthDeliveries) => {
-          setDeliveries((prevDeliveries) => {
-            const map = new Map();
-            fullMonthDeliveries.forEach((d) => map.set(d.id, d));
-            prevDeliveries.forEach((d) => map.set(d.id, d));
-            return Array.from(map.values());
-          });
+          updateDeliveriesLocally(fullMonthDeliveries, true);
         }
       );
 
