@@ -77,16 +77,20 @@ export async function handleBatchSave({
 
   const { newDeliveries, existingDeliveries } = splitStagedDeliveriesForBatch(filterValidStagedDeliveries(stagedDeliveries, allDeliveries));
   const deliveriesToUpdate = existingDeliveries.filter(d => d.status === 'Staged');
+  const deliveriesAlreadyCreated = newDeliveries.filter((delivery) => !!delivery?.id);
+  const deliveriesStillPendingCreate = newDeliveries.filter((delivery) => !delivery?.id);
 
   console.log('[AddToRoute] handleBatchSave:split', {
     newCount: newDeliveries.length,
+    alreadyCreatedCount: deliveriesAlreadyCreated.length,
+    pendingCreateCount: deliveriesStillPendingCreate.length,
     existingCount: existingDeliveries.length,
     updateCount: deliveriesToUpdate.length,
     newStatuses: newDeliveries.map((delivery) => delivery?.status || null),
     existingStatuses: existingDeliveries.map((delivery) => delivery?.status || null)
   });
 
-  if (newDeliveries.length === 0 && deliveriesToUpdate.length === 0) {
+  if (deliveriesStillPendingCreate.length === 0 && deliveriesToUpdate.length === 0) {
     setStagedDeliveries([]);
     setProjectedDeliveries([]);
     hasLoadedPending.current = false;
@@ -97,7 +101,7 @@ export async function handleBatchSave({
   }
 
   const { deliveriesWithTRs, existingDeliveriesWithTRs } = attachTrackingNumbers({
-    newDeliveries,
+    newDeliveries: deliveriesStillPendingCreate,
     existingDeliveries,
     stores,
     allDeliveries,
@@ -128,7 +132,7 @@ export async function handleBatchSave({
       (()=>{try{const __todayLocal=format(new Date(),'yyyy-MM-dd');const ids=Array.from(new Set(deliveriesToUpdate.filter(d=>(d.status==='completed'||d.status==='failed')&&d.patient_id).map(d=>d.patient_id)));ids.forEach(pid=>{updatePatientLocal(pid,{last_delivery_date:__todayLocal});});}catch(_){}})();
     }
 
-    const deliveriesReadyForDB = getDeliveriesReadyForDB(newDeliveries, deliveriesWithTRs);
+    const deliveriesReadyForDB = getDeliveriesReadyForDB(newDeliveries.filter((delivery) => !delivery?.id), deliveriesWithTRs);
     console.log('[AddToRoute] handleBatchSave:deliveriesReadyForDB', deliveriesReadyForDB.map((delivery) => ({
       patient_id: delivery?.patient_id || null,
       store_id: delivery?.store_id || null,
