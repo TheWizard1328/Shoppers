@@ -596,7 +596,10 @@ export default function Layout({ children, currentPageName }) {
       if (currentUser && changedAppUsers.some((u) => u.user_id === currentUser.id)) {
         const updatedCurrentUser = changedAppUsers.find((u) => u.user_id === currentUser.id);
         if (updatedCurrentUser) {
-          setCurrentUser({ ...currentUser, ...updatedCurrentUser, id: currentUser.id, app_roles: updatedCurrentUser.app_roles || [], store_ids: updatedCurrentUser.store_ids || [], city_id: updatedCurrentUser.city_id || null, status: updatedCurrentUser.status || currentUser.status, user_name: updatedCurrentUser.user_name || currentUser.user_name });
+          setCurrentUser({
+            ...currentUser,
+            app_roles: updatedCurrentUser.app_roles
+          });
         }
       }
 
@@ -731,9 +734,19 @@ export default function Layout({ children, currentPageName }) {
       // Wait for data to settle
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      const hasValidData = stores.length > 0 && cities.length > 0;
+      // CRITICAL: Validate we have complete data BEFORE updating UI
+      const hasValidData =
+      users.length > 0 &&
+      drivers.length > 0 &&
+      stores.length > 0 &&
+      cities.length > 0 &&
+      appUsers.length > 0;
+
       if (!hasValidData) {
-        console.warn('⚠️ [Recovery] Data still settling - skipping retry loop');
+        console.warn('⚠️ [Recovery] Data incomplete after reload - retrying...');
+        // Retry once
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        await triggerFullDataLoadRef.current(true);
       }
 
       // Refresh stats after data is loaded
@@ -742,7 +755,11 @@ export default function Layout({ children, currentPageName }) {
       // CRITICAL: Force refresh ALL UI elements including COD data
       console.log('🎨 [Recovery] Refreshing all UI elements...');
 
-      // Skip COD refresh during connection recovery to avoid extra rate limits
+      // Refresh COD data
+      base44.functions.invoke('squareSyncCatalogItems', {}).then((response) => {
+        const items = response?.data?.items || response?.items || [];
+        setCatalogItems(items);
+      }).catch(() => {});
 
       // Force dispatch driverLocationsUpdated to update map markers
       setTimeout(async () => {

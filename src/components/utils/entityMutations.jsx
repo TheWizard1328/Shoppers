@@ -948,35 +948,9 @@ export const updateCity = (id, updates, options) => updateEntity('City', id, upd
 export const deleteCity = (id, options) => deleteEntity('City', id, options);
 
 // AppUser mutations
-export const createAppUser = async (data, options) => {
-  const result = await createEntity('AppUser', data, options);
-  await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [result]);
-  await broadcastMutation('AppUser', 'create', result.id, result);
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('appUserUpdated', { detail: { appUser: result, fromMutation: true } }));
-    window.dispatchEvent(new CustomEvent('forceDataRefresh'));
-  }
-  return result;
-};
-export const updateAppUser = async (id, updates, options) => {
-  const result = await updateEntity('AppUser', id, updates, options);
-  await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [result]);
-  await broadcastMutation('AppUser', 'update', id, result);
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('appUserUpdated', { detail: { appUser: result, fromMutation: true } }));
-    window.dispatchEvent(new CustomEvent('forceDataRefresh'));
-  }
-  return result;
-};
-export const deleteAppUser = async (id, options) => {
-  const result = await deleteEntity('AppUser', id, options);
-  await offlineDB.deleteRecord(offlineDB.STORES.APP_USERS, id).catch(() => null);
-  await broadcastMutation('AppUser', 'delete', id, null);
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('forceDataRefresh'));
-  }
-  return result;
-};
+export const createAppUser = (data, options) => createEntity('AppUser', data, options);
+export const updateAppUser = (id, updates, options) => updateEntity('AppUser', id, updates, options);
+export const deleteAppUser = (id, options) => deleteEntity('AppUser', id, options);
 
 /**
  * Update AppUser with immediate UI refresh, offline sync, and real-time broadcast
@@ -1006,11 +980,11 @@ export const localUpdateAppUser = async (appUserId, updates, options = {}) => {
     notifyMutation({ type: 'update', entity: 'AppUser', id: appUserId, data: result });
     console.log(`🔔 [EntityMutations] UI notified of AppUser update`);
     
-    // STEP 4: CRITICAL: Broadcast FULL AppUser record to other devices for real-time sync
-    // This ensures all AppUser fields propagate, not just location/status-style updates
-    await broadcastMutation('AppUser', 'update', appUserId, result);
+    // STEP 4: CRITICAL: Broadcast to other devices for real-time sync
+    // This ensures driver location/status changes are instantly visible on all devices
+    broadcastMutation('AppUser', 'update', appUserId, result);
     
-    console.log(`✅ [EntityMutations] AppUser ${appUserId} full record broadcast to other devices`);
+    console.log(`✅ [EntityMutations] AppUser ${appUserId} updated, synced to offline DB, and broadcast to other devices`);
     return result;
   } catch (error) {
     console.error(`❌ [EntityMutations] Failed to update AppUser ${appUserId}:`, error);

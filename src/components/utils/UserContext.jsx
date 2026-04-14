@@ -27,13 +27,12 @@ export const UserProvider = ({ children, initialUser = null }) => {
   };
 
   useEffect(() => {
-    if (initialUser) {
-      setCurrentUser(initialUser);
+    // Only load user if not provided initially
+    if (!initialUser) {
+      refreshUser();
+    } else {
       setIsLoadingUser(false);
-      return;
     }
-
-    refreshUser();
   }, [initialUser]);
 
   return (

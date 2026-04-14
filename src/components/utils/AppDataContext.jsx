@@ -89,9 +89,7 @@ export const AppDataProvider = ({ children, value }) => {
 
       if (appUsersChanged) {
         const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-        nextAppUsers = Array.isArray(offlineAppUsers)
-          ? offlineAppUsers.filter((item) => item?.id && item?.user_id)
-          : [];
+        nextAppUsers = Array.isArray(offlineAppUsers) ? offlineAppUsers : [];
       }
     } catch (error) {
       console.warn('[AppDataContext] Realtime offline sync batch failed:', error.message);
@@ -121,23 +119,13 @@ export const AppDataProvider = ({ children, value }) => {
       appUserUpserts.forEach((item) => {
         if (!item?.id) return;
         const current = byId.get(item.id);
-        if (!current) {
+        const coordsChanged = !!current && (
+          Number(current?.current_latitude) !== Number(item?.current_latitude) ||
+          Number(current?.current_longitude) !== Number(item?.current_longitude)
+        );
+        if (!current || coordsChanged || ts(item) >= ts(current)) {
           byId.set(item.id, item);
-          return;
         }
-
-        const merged = {
-          ...current,
-          ...item,
-          app_roles: Array.isArray(item?.app_roles) ? item.app_roles : current.app_roles,
-          city_ids: Array.isArray(item?.city_ids) ? item.city_ids : current.city_ids,
-          store_ids: Array.isArray(item?.store_ids) ? item.store_ids : current.store_ids,
-          square_location_ids: Array.isArray(item?.square_location_ids) ? item.square_location_ids : current.square_location_ids,
-          pay_rate_history: Array.isArray(item?.pay_rate_history) ? item.pay_rate_history : current.pay_rate_history,
-          deductions: Array.isArray(item?.deductions) ? item.deductions : current.deductions
-        };
-
-        byId.set(item.id, ts(item) >= ts(current) ? merged : { ...item, ...current });
       });
 
       nextAppUsers = Array.from(byId.values());

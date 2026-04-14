@@ -19,8 +19,11 @@ Deno.serve(async (req) => {
 
     const deviceIdentifier = payload.deviceIdentifier;
 
-    const [devices, appSettings] = await Promise.all([
+    const [devices, cities, stores, appUsers, appSettings] = await Promise.all([
       deviceIdentifier ? base44.asServiceRole.entities.UserDevice.filter({ user_id: user.id, device_identifier: deviceIdentifier }) : Promise.resolve([]),
+      base44.asServiceRole.entities.City.list(),
+      base44.asServiceRole.entities.Store.list(),
+      base44.asServiceRole.entities.AppUser.list(),
       base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }),
     ]);
 
@@ -29,9 +32,9 @@ Deno.serve(async (req) => {
     return Response.json({
       success: true,
       deviceRegistered: (devices || []).length > 0,
-      cities: [],
-      stores: [],
-      appUsers: [],
+      cities: cities || [],
+      stores: stores || [],
+      appUsers: appUsers || [],
       appSettings: {
         smartRefreshEnabled: refreshConfig.smartRefreshEnabled !== false,
         adminImportEnabled: refreshConfig.adminImportEnabled === true,
@@ -39,6 +42,6 @@ Deno.serve(async (req) => {
       },
     });
   } catch (error) {
-    return Response.json({ success: false, error: error.message, deviceRegistered: false, cities: [], stores: [], appUsers: [], appSettings: { smartRefreshEnabled: true, adminImportEnabled: false, appVersion: null } }, { status: 200 });
+    return Response.json({ error: error.message }, { status: 500 });
   }
 });

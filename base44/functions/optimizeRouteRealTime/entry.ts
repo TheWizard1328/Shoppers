@@ -155,29 +155,6 @@ const estimateCrowFliesTravelMinutes = (fromLat, fromLng, toLat, toLng) => {
 const isValidEntityId = (value) => /^[a-f0-9]{24}$/i.test(String(value || ''));
 const isActiveRouteStatus = (status) => ACTIVE_ROUTE_STATUSES.includes(status);
 
-const flushDeliveryUpdates = async (base44, deliveries, stagedUpdates) => {
-  if (!Array.isArray(stagedUpdates) || stagedUpdates.length === 0) return [];
-
-  const deliveryMap = new Map((deliveries || []).filter(Boolean).map((delivery) => [delivery.id, delivery]));
-  const mergedUpdates = new Map();
-
-  stagedUpdates.forEach((update) => {
-    if (!update?.id) return;
-    mergedUpdates.set(update.id, {
-      ...(mergedUpdates.get(update.id) || {}),
-      ...update
-    });
-  });
-
-  const payload = Array.from(mergedUpdates.values()).map((update) => ({
-    ...(deliveryMap.get(update.id) || {}),
-    ...update
-  }));
-
-  await base44.asServiceRole.entities.Delivery.bulkCreate(payload);
-  return payload;
-};
-
 const getStopCoordinates = (delivery, patientMap, storeMap) => {
   if (delivery.patient_id) {
     const patient = patientMap.get(delivery.patient_id);
@@ -480,7 +457,6 @@ Deno.serve(async (req) => {
     let previousPosition = currentPosition;
 
     const deliveryUpdates = [];
-    const stagedDeliveryUpdates = [];
 
     for (let index = 0; index < arrangedStops.length; index += 1) {
       const { stop, waypoint, leg, locked } = arrangedStops[index];
@@ -513,7 +489,12 @@ Deno.serve(async (req) => {
       const stopNeedsUpdate = currentStopOrder !== stopOrder || currentDisplayStopOrder !== stopOrder || currentEta !== eta;
 
       if (stopNeedsUpdate) {
-        stagedDeliveryUpdates.push({ id: stop.delivery.id, ...updateData });
+        await base44.asServiceRole.entities.Delivery.update(stop.delivery.id, updateData).catch((error) => {
+          if (error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found')) {
+            return null;
+          }
+          throw error;
+        });
       }
 
       deliveryUpdates.push({
@@ -553,8 +534,6 @@ Deno.serve(async (req) => {
       });
     } catch (_logError) {}
 
-    await flushDeliveryUpdates(base44, allDeliveries, stagedDeliveryUpdates);
-
     try {
       await base44.functions.invoke('recalculateTrackingNumbers', { driverId, deliveryDate });
     } catch (_trackingError) {}
@@ -585,12 +564,17 @@ Deno.serve(async (req) => {
             .map((delivery) => {
               const shouldBeNext = delivery.id === targetId;
               if (delivery.isNextDelivery === shouldBeNext) return null;
-              return { id: delivery.id, isNextDelivery: shouldBeNext };
+              return base44.asServiceRole.entities.Delivery.update(delivery.id, { isNextDelivery: shouldBeNext }).catch((error) => {
+                if (error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found')) {
+                  return null;
+                }
+                throw error;
+              });
             })
             .filter(Boolean);
 
           if (nextUpdates.length > 0) {
-            await flushDeliveryUpdates(base44, allForDriverDate, nextUpdates);
+            await Promise.all(nextUpdates);
           }
         }
       }

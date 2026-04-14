@@ -23,9 +23,6 @@ const eventBuffers = {
   Delivery: new Map(),
   Patient: new Map(),
   AppUser: new Map(),
-  City: new Map(),
-  Store: new Map(),
-  Company: new Map(),
   Message: new Map(),
   DriverRoutePolyline: new Map(),
 };
@@ -88,9 +85,7 @@ async function flushBuffered(entityName) {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent(`realtimeUpdate_${entityName}`, { detail: { type: eventType, id, data, updatedBy, changedFields } }));
       if (entityName === 'AppUser' && (eventType === 'create' || eventType === 'update') && data) {
-        window.dispatchEvent(new CustomEvent('appUserUpdated', { detail: { appUser: data, appUsers: fullReplacementData, fromRealtime: true, fullReplacement: true } }));
-        window.dispatchEvent(new CustomEvent('appUsersUpdated', { detail: { appUsers: fullReplacementData, fromRealtime: true, fullReplacement: true } }));
-        window.dispatchEvent(new CustomEvent('forceDataRefresh'));
+        window.dispatchEvent(new CustomEvent('appUserUpdated', { detail: { appUser: data, fromRealtime: true } }));
       }
     }
   });
@@ -168,14 +163,6 @@ async function flushBuffered(entityName) {
         fullReplacement: true
       }
     }));
-    window.dispatchEvent(new CustomEvent('appUsersUpdated', {
-      detail: {
-        appUsers: fullReplacementData,
-        fromRealtime: true,
-        fullReplacement: true
-      }
-    }));
-    window.dispatchEvent(new CustomEvent('forceDataRefresh'));
   }
 
   if (typeof window !== 'undefined' && entityName === 'Patient' && Array.isArray(fullReplacementData)) {
@@ -383,7 +370,6 @@ const subscribeToEntity = (entityName) => {
                             entityName === 'Patient' ? offlineDB.STORES.PATIENTS :
                             entityName === 'City' ? offlineDB.STORES.CITIES :
                             entityName === 'Store' ? offlineDB.STORES.STORES :
-                            entityName === 'Company' ? offlineDB.STORES.COMPANIES :
                             entityName === 'DriverRoutePolyline' ? offlineDB.STORES.DRIVER_ROUTE_POLYLINES :
                             entityName === 'Message' ? null : null;
 
@@ -395,10 +381,6 @@ const subscribeToEntity = (entityName) => {
 
           if (storeName) {
             await offlineDB.save(storeName, data);
-            await offlineDB.updateSyncMetadata(entityName, data?.updated_date || new Date().toISOString(), new Date().toISOString(), {
-              scope_key: 'global',
-              realtime_updated: true
-            });
             if (entityName === 'DriverRoutePolyline') {
               console.log(`💾 [RealtimeSync] Saved DriverRoutePolyline to offline DB: ${data.driver_id} segment ${data.segment_origin_lat},${data.segment_origin_lon} -> ${data.segment_dest_lat},${data.segment_dest_lon}`);
             } else {
@@ -414,18 +396,11 @@ const subscribeToEntity = (entityName) => {
           const storeName = entityName === 'AppUser' ? offlineDB.STORES.APP_USERS :
                             entityName === 'Delivery' ? offlineDB.STORES.DELIVERIES :
                             entityName === 'Patient' ? offlineDB.STORES.PATIENTS :
-                            entityName === 'City' ? offlineDB.STORES.CITIES :
-                            entityName === 'Store' ? offlineDB.STORES.STORES :
-                            entityName === 'Company' ? offlineDB.STORES.COMPANIES :
                             entityName === 'DriverRoutePolyline' ? offlineDB.STORES.DRIVER_ROUTE_POLYLINES :
                             null;
 
           if (storeName) {
             await offlineDB.deleteRecord(storeName, id);
-            await offlineDB.updateSyncMetadata(entityName, new Date().toISOString(), new Date().toISOString(), {
-              scope_key: 'global',
-              realtime_updated: true
-            });
             const deletedLabel = entityName === 'Patient' ? (data?.full_name || id) : id;
             console.log(`💾 [RealtimeSync] Deleted ${entityName} from offline DB: ${deletedLabel}`);
           }
@@ -459,9 +434,6 @@ export const connect = () => {
     subscribeToEntity('Delivery');
     subscribeToEntity('Patient');
     subscribeToEntity('AppUser');
-    subscribeToEntity('City');
-    subscribeToEntity('Store');
-    subscribeToEntity('Company');
     subscribeToEntity('Message');
 
     // Instantly cascade Patient changes to related Deliveries in OFFLINE DB + UI
