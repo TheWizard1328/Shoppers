@@ -503,8 +503,7 @@ export const handleBatchSaveDelivery = async ({
     }
 
     // NOTE: Route optimizer is NOT run here - deliveries are saved as 'pending'.
-    // Square COD items are also NOT created here.
-    // Both happen only when stops are transitioned to 'in_transit' status.
+    // Optimization runs when stops are transitioned to 'in_transit' status.
   }
 
   invalidate('Delivery');

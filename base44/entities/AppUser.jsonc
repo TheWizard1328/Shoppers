@@ -209,15 +209,6 @@
       "type": "object",
       "description": "Stores the user's last used CSV to patient field mapping for imports",
       "additionalProperties": true
-    },
-    "last_selected_date": {
-      "type": "string",
-      "format": "date",
-      "description": "Last selected dashboard date for this user"
-    },
-    "last_selected_driver_id": {
-      "type": "string",
-      "description": "Last selected dashboard driver ID for this user"
     }
   },
   "required": [

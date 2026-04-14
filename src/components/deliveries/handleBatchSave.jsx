@@ -77,20 +77,16 @@ export async function handleBatchSave({
 
   const { newDeliveries, existingDeliveries } = splitStagedDeliveriesForBatch(filterValidStagedDeliveries(stagedDeliveries, allDeliveries));
   const deliveriesToUpdate = existingDeliveries.filter(d => d.status === 'Staged');
-  const deliveriesAlreadyCreated = newDeliveries.filter((delivery) => !!delivery?.id);
-  const deliveriesStillPendingCreate = newDeliveries.filter((delivery) => !delivery?.id);
 
   console.log('[AddToRoute] handleBatchSave:split', {
     newCount: newDeliveries.length,
-    alreadyCreatedCount: deliveriesAlreadyCreated.length,
-    pendingCreateCount: deliveriesStillPendingCreate.length,
     existingCount: existingDeliveries.length,
     updateCount: deliveriesToUpdate.length,
     newStatuses: newDeliveries.map((delivery) => delivery?.status || null),
     existingStatuses: existingDeliveries.map((delivery) => delivery?.status || null)
   });
 
-  if (deliveriesStillPendingCreate.length === 0 && deliveriesToUpdate.length === 0) {
+  if (newDeliveries.length === 0 && deliveriesToUpdate.length === 0) {
     setStagedDeliveries([]);
     setProjectedDeliveries([]);
     hasLoadedPending.current = false;
@@ -101,7 +97,7 @@ export async function handleBatchSave({
   }
 
   const { deliveriesWithTRs, existingDeliveriesWithTRs } = attachTrackingNumbers({
-    newDeliveries: deliveriesStillPendingCreate,
+    newDeliveries,
     existingDeliveries,
     stores,
     allDeliveries,
@@ -132,7 +128,7 @@ export async function handleBatchSave({
       (()=>{try{const __todayLocal=format(new Date(),'yyyy-MM-dd');const ids=Array.from(new Set(deliveriesToUpdate.filter(d=>(d.status==='completed'||d.status==='failed')&&d.patient_id).map(d=>d.patient_id)));ids.forEach(pid=>{updatePatientLocal(pid,{last_delivery_date:__todayLocal});});}catch(_){}})();
     }
 
-    const deliveriesReadyForDB = getDeliveriesReadyForDB(newDeliveries.filter((delivery) => !delivery?.id), deliveriesWithTRs);
+    const deliveriesReadyForDB = getDeliveriesReadyForDB(newDeliveries, deliveriesWithTRs);
     console.log('[AddToRoute] handleBatchSave:deliveriesReadyForDB', deliveriesReadyForDB.map((delivery) => ({
       patient_id: delivery?.patient_id || null,
       store_id: delivery?.store_id || null,
@@ -311,6 +307,12 @@ export async function handleBatchSave({
 
     Promise.resolve().then(async () => {
       try {
+        const squarePromises = deliveriesReadyForDB.filter(d => d.cod_total_amount_required > 0 && d.patient_id && d.driver_id && d.status === 'in_transit').map(delivery => {
+          const store = stores?.find(s => s && s.id === delivery.store_id);
+          return base44.functions.invoke('squareCreateCodItem', { deliveryId: delivery.id || delivery._tempId, patientName: delivery.patient_name, storeAbbreviation: store?.abbreviation || '', codAmount: delivery.cod_total_amount_required, deliveryDate: delivery.delivery_date, storeId: delivery.store_id }).then(() => null).catch(() => null);
+        });
+        if (squarePromises.length > 0) await Promise.allSettled(squarePromises);
+
         await restartBatchSmartRefresh(() => setBatchFormSaving(false));
 
         if (deliveriesToUpdate.length > 0 && newDeliveries.length === 0) {
