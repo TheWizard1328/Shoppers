@@ -400,9 +400,9 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       prevVisibleIdsRef.current = newVisibleIds;
     }
     
-    Object.keys(markersRef.current).forEach(userId => {
+    Object.keys(markerRefs.current).forEach(userId => {
       if (!mergedDrivers.find(d => (getDriverIdentityKey(d) || d.id) === userId)) {
-        delete markersRef.current[userId];
+        delete markerRefs.current[userId];
       }
     });
     
@@ -435,9 +435,9 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
   useEffect(() => {
     const handleLocationCleared = (event) => {
       const userId = event.detail?.userId;
-      if (userId && markersRef.current[userId]) {
+      if (userId && markerRefs.current[userId]) {
         setVisibleDrivers(prev => prev.filter(d => d.id !== userId));
-        delete markersRef.current[userId];
+        delete markerRefs.current[userId];
       }
     };
 
