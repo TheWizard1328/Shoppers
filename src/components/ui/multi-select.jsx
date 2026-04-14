@@ -39,7 +39,7 @@ export const MultiSelect = React.forwardRef((props, ref) => {
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={`flex min-h-8 w-full items-center justify-between rounded-md border px-3 py-2 text-sm shadow-sm ${className || ''}`}
+          className={`flex min-h-11 w-full items-center justify-between rounded-md border px-3 py-2 text-sm shadow-sm ${className || ''}`}
           style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}
           id={id}
           {...rest}>
