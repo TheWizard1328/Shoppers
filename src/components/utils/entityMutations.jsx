@@ -948,9 +948,35 @@ export const updateCity = (id, updates, options) => updateEntity('City', id, upd
 export const deleteCity = (id, options) => deleteEntity('City', id, options);
 
 // AppUser mutations
-export const createAppUser = (data, options) => createEntity('AppUser', data, options);
-export const updateAppUser = (id, updates, options) => updateEntity('AppUser', id, updates, options);
-export const deleteAppUser = (id, options) => deleteEntity('AppUser', id, options);
+export const createAppUser = async (data, options) => {
+  const result = await createEntity('AppUser', data, options);
+  await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [result]);
+  await broadcastMutation('AppUser', 'create', result.id, result);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('appUserUpdated', { detail: { appUser: result, fromMutation: true } }));
+    window.dispatchEvent(new CustomEvent('forceDataRefresh'));
+  }
+  return result;
+};
+export const updateAppUser = async (id, updates, options) => {
+  const result = await updateEntity('AppUser', id, updates, options);
+  await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [result]);
+  await broadcastMutation('AppUser', 'update', id, result);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('appUserUpdated', { detail: { appUser: result, fromMutation: true } }));
+    window.dispatchEvent(new CustomEvent('forceDataRefresh'));
+  }
+  return result;
+};
+export const deleteAppUser = async (id, options) => {
+  const result = await deleteEntity('AppUser', id, options);
+  await offlineDB.deleteRecord(offlineDB.STORES.APP_USERS, id).catch(() => null);
+  await broadcastMutation('AppUser', 'delete', id, null);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('forceDataRefresh'));
+  }
+  return result;
+};
 
 /**
  * Update AppUser with immediate UI refresh, offline sync, and real-time broadcast

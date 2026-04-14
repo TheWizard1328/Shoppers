@@ -87,6 +87,7 @@ async function flushBuffered(entityName) {
       if (entityName === 'AppUser' && (eventType === 'create' || eventType === 'update') && data) {
         window.dispatchEvent(new CustomEvent('appUserUpdated', { detail: { appUser: data, appUsers: fullReplacementData, fromRealtime: true, fullReplacement: true } }));
         window.dispatchEvent(new CustomEvent('appUsersUpdated', { detail: { appUsers: fullReplacementData, fromRealtime: true, fullReplacement: true } }));
+        window.dispatchEvent(new CustomEvent('forceDataRefresh'));
       }
     }
   });
@@ -171,6 +172,7 @@ async function flushBuffered(entityName) {
         fullReplacement: true
       }
     }));
+    window.dispatchEvent(new CustomEvent('forceDataRefresh'));
   }
 
   if (typeof window !== 'undefined' && entityName === 'Patient' && Array.isArray(fullReplacementData)) {
