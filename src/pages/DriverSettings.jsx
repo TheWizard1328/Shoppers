@@ -70,18 +70,31 @@ export default function DriverSettings() {
     return appUsers;
   }, [freshAppUsers, appUsers]);
 
-  // Get all users with driver role - show ALL drivers regardless of status (deduplicated by ID)
+  // Build drivers from fresh AppUser data so role/status edits show immediately
   const drivers = useMemo(() => {
     const seen = new Set();
-    const driverUsers = users.filter((user) => {
-      if (!user || !user.app_roles || !Array.isArray(user.app_roles)) return false;
-      if (seen.has(user.id)) return false; // Skip duplicates
-      seen.add(user.id);
-      // Show ALL drivers regardless of duty status or location sharing
-      return user.app_roles.includes('driver');
+    const authUsersById = new Map((users || []).filter(Boolean).map((user) => [user.id, user]));
+
+    const driverUsers = (mergedAppUsers || []).filter((appUser) => {
+      if (!appUser || !Array.isArray(appUser.app_roles)) return false;
+      if (!appUser.app_roles.includes('driver')) return false;
+      if (seen.has(appUser.user_id)) return false;
+      seen.add(appUser.user_id);
+      return true;
+    }).map((appUser) => {
+      const authUser = authUsersById.get(appUser.user_id);
+      return {
+        ...authUser,
+        ...appUser,
+        id: appUser.user_id,
+        email: authUser?.email || appUser.email,
+        full_name: authUser?.full_name || appUser.user_name,
+        user_name: appUser.user_name || authUser?.full_name || 'Unknown'
+      };
     });
+
     return sortUsers(driverUsers);
-  }, [users]);
+  }, [mergedAppUsers, users]);
 
   // Filter drivers based on search and city
   const filteredDrivers = useMemo(() => {

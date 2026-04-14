@@ -2129,7 +2129,7 @@ export default function AdminUtilities() {
     initialData: contextAppUsers?.length > 0 ? contextAppUsers : undefined,
     ...queryOptions
   });
-  const appUsers = dataViewMode.users === 'offline' ? offlineAppUsers : contextAppUsers?.length > 0 ? contextAppUsers : fetchedAppUsers || [];
+  const appUsers = dataViewMode.users === 'online' ? offlineAppUsers : contextAppUsers?.length > 0 ? contextAppUsers : fetchedAppUsers || [];
 
   // CRITICAL: Log appUsers when loaded to debug driver dropdown issue
   useEffect(() => {

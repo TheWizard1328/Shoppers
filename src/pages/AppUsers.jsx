@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Pencil, Trash2, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { getEffectiveUser } from '../components/utils/auth';
+import { getEffectiveUser, clearUserCache } from '../components/utils/auth';
 import AppUserForm from '../components/users/AppUserForm';
 import { sortUsers } from '../components/utils/sorting';
 import { getDriverDisplayName } from '../components/utils/driverUtils';
@@ -55,13 +55,13 @@ export default function AppUsers() {
     try {
       if (editingAppUser) {
         await base44.entities.AppUser.update(editingAppUser.id, appUserData);
-        // Update local state immediately
-        setAppUsers(prev => prev.map(u => u.id === editingAppUser.id ? { ...u, ...appUserData, updated_date: new Date().toISOString() } : u));
       } else {
-        const newAppUser = await base44.entities.AppUser.create(appUserData);
-        // Add to local state immediately
-        setAppUsers(prev => [...prev, newAppUser]);
+        await base44.entities.AppUser.create(appUserData);
       }
+
+      clearUserCache();
+      window.dispatchEvent(new CustomEvent('forceDataRefresh'));
+      await loadData();
       setShowForm(false);
       setEditingAppUser(null);
     } catch (error) {
