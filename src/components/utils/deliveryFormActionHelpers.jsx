@@ -104,8 +104,15 @@ export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindo
 
         const optimizationError = optimizationResponse?.response?.data?.error || optimizationResponse?.data?.error;
         const optimizationStatus = optimizationResponse?.response?.status || optimizationResponse?.status;
-        if (optimizationStatus === 404 || optimizationError === 'Driver not found' || optimizationError === 'Driver location not available - no GPS, last completed, or home location set') {
-          console.warn('⚠️ [DeliveryForm] Skipping background route optimization:', optimizationError || 'Route data no longer available');
+        if (
+          optimizationStatus === 404 ||
+          optimizationStatus === 429 ||
+          optimizationStatus >= 500 ||
+          optimizationError === 'Driver not found' ||
+          optimizationError === 'Driver location not available - no GPS, last completed, or home location set' ||
+          optimizationError === 'Rate limit exceeded'
+        ) {
+          console.warn('⚠️ [DeliveryForm] Skipping background route optimization:', optimizationError || `Request skipped (${optimizationStatus || 'unknown status'})`);
           return;
         }
       } else {
