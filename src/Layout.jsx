@@ -731,19 +731,9 @@ export default function Layout({ children, currentPageName }) {
       // Wait for data to settle
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      // CRITICAL: Validate we have complete data BEFORE updating UI
-      const hasValidData =
-      users.length > 0 &&
-      drivers.length > 0 &&
-      stores.length > 0 &&
-      cities.length > 0 &&
-      appUsers.length > 0;
-
+      const hasValidData = stores.length > 0 && cities.length > 0;
       if (!hasValidData) {
-        console.warn('⚠️ [Recovery] Data incomplete after reload - retrying...');
-        // Retry once
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        await triggerFullDataLoadRef.current(true);
+        console.warn('⚠️ [Recovery] Data still settling - skipping retry loop');
       }
 
       // Refresh stats after data is loaded
@@ -752,11 +742,7 @@ export default function Layout({ children, currentPageName }) {
       // CRITICAL: Force refresh ALL UI elements including COD data
       console.log('🎨 [Recovery] Refreshing all UI elements...');
 
-      // Refresh COD data
-      base44.functions.invoke('squareSyncCatalogItems', {}).then((response) => {
-        const items = response?.data?.items || response?.items || [];
-        setCatalogItems(items);
-      }).catch(() => {});
+      // Skip COD refresh during connection recovery to avoid extra rate limits
 
       // Force dispatch driverLocationsUpdated to update map markers
       setTimeout(async () => {
