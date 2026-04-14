@@ -457,6 +457,7 @@ Deno.serve(async (req) => {
     let previousPosition = currentPosition;
 
     const deliveryUpdates = [];
+    const pendingDeliveryWriteBatch = [];
 
     for (let index = 0; index < arrangedStops.length; index += 1) {
       const { stop, waypoint, leg, locked } = arrangedStops[index];
@@ -489,11 +490,9 @@ Deno.serve(async (req) => {
       const stopNeedsUpdate = currentStopOrder !== stopOrder || currentDisplayStopOrder !== stopOrder || currentEta !== eta;
 
       if (stopNeedsUpdate) {
-        await base44.asServiceRole.entities.Delivery.update(stop.delivery.id, updateData).catch((error) => {
-          if (error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found')) {
-            return null;
-          }
-          throw error;
+        pendingDeliveryWriteBatch.push({
+          id: stop.delivery.id,
+          data: updateData
         });
       }
 
@@ -508,6 +507,19 @@ Deno.serve(async (req) => {
 
       previousPosition = { lat: stop.lat, lng: stop.lng };
       rollingMinutes += Math.max(0, Number(stop.serviceMinutes || 0));
+    }
+
+    if (pendingDeliveryWriteBatch.length > 0) {
+      await Promise.all(
+        pendingDeliveryWriteBatch.map(({ id, data }) =>
+          base44.asServiceRole.entities.Delivery.update(id, data).catch((error) => {
+            if (error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found')) {
+              return null;
+            }
+            throw error;
+          })
+        )
+      );
     }
 
     try {
