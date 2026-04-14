@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { MultiSelect } from '@/components/ui/multi-select';
 import { formatPhoneNumber } from '../utils/phoneFormatter';
 import { Building, MapPin, X, CreditCard, Plus, Trash2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
@@ -445,28 +446,17 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                         </div>
 
                         <div>
-                            <Label htmlFor="dispatcher_id" style={{ color: 'var(--text-slate-900)' }}>Assigned Dispatcher</Label>
-                            <Select
-                              value={formData.dispatcher_id || 'null'}
-                              onValueChange={handleDispatcherSelect}>
-                                <SelectTrigger style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
-                                    <SelectValue placeholder="Select dispatcher...">
-                                        {formData.dispatcher_id ?
-                                          sortedUsers.find((u) => u.id === formData.dispatcher_id)?.user_name || sortedUsers.find((u) => u.id === formData.dispatcher_id)?.full_name :
-                                          "Select dispatcher..."}
-                                    </SelectValue>
-                                </SelectTrigger>
-                                <SelectContent className="z-[10001]" position="popper" sideOffset={4} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                                    <SelectItem value="null" style={{ color: 'var(--text-slate-900)' }}>No Dispatcher</SelectItem>
-                                    {sortedUsers
-                                        .filter((u) => u && u.app_roles && u.app_roles.includes('dispatcher'))
-                                        .map((dispatcher) =>
-                                            <SelectItem key={dispatcher.id} value={dispatcher.id} style={{ color: 'var(--text-slate-900)' }}>
-                                                {dispatcher.user_name || dispatcher.full_name}
-                                            </SelectItem>
-                                        )}
-                                </SelectContent>
-                            </Select>
+                            <Label style={{ color: 'var(--text-slate-900)' }}>Assigned Dispatchers</Label>
+                            <MultiSelect
+                              options={sortedUsers
+                                .filter((u) => u && u.app_roles && u.app_roles.includes('dispatcher'))
+                                .map((dispatcher) => ({
+                                  label: dispatcher.user_name || dispatcher.full_name,
+                                  value: dispatcher.id
+                                }))}
+                              value={formData.dispatcher_ids || []}
+                              onChange={handleDispatcherSelect}
+                              placeholder="Select dispatchers..." />
                         </div>
 
                         <div>
