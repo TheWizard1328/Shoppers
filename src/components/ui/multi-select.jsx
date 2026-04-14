@@ -82,8 +82,9 @@ export const MultiSelect = React.forwardRef((props, ref) => {
                 return (
                   <CommandItem
                     key={option.value}
-                    onSelect={() => {
-                      handleSelect(option.value);
+                    value={String(option.value)}
+                    onSelect={(selectedValue) => {
+                      handleSelect(selectedValue);
                     }}>
                     
                                         <Check
