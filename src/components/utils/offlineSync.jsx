@@ -27,6 +27,8 @@ import {
 } from './dataSyncCoordinator';
 import { getOfflineStoreName, OFFLINE_SYNC_ENTITY_CLIENTS } from './offlineEntityRegistry';
 import { getLocalDateString } from './localTimeHelper';
+import { getEffectiveUser } from './auth';
+import { userHasRole } from './userRoles';
 import { isMobileDevice } from './deviceUtils';
 import { userActivityMonitor } from './userActivityMonitor';
 
@@ -333,6 +335,8 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
   if (syncPaused) return { skipped: true };
   
   try {
+    const currentUser = await getEffectiveUser();
+    const isAdminUser = userHasRole(currentUser, 'admin');
     const allStores = await offlineDB.getAll(offlineDB.STORES.STORES);
     const cityStoreIds = cityId ? (allStores || []).filter((store) => store?.city_id === cityId).map((store) => store.id) : [];
 
@@ -352,40 +356,43 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
       console.log('⏭️ [PrioritySyncBeforeRefresh] STEP 1: Skipping AppUser sync (synced recently)');
       allAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
     } else {
-      console.log('👤 [PrioritySyncBeforeRefresh] STEP 1: Fetching ALL AppUsers (deduplicated)...');
-      allAppUsers = await fetchAppUsersDedup();
-      console.log(`👤 [PrioritySyncBeforeRefresh] Fetched ${allAppUsers?.length || 0} AppUsers (Mode: ${fetchAllDriversDeliveries ? 'ALL DRIVERS' : 'Individual'})`);
+      console.log('👤 [PrioritySyncBeforeRefresh] STEP 1: Fetching AppUsers (deduplicated)...');
+      const fetchedAppUsers = await fetchAppUsersDedup();
+      console.log(`👤 [PrioritySyncBeforeRefresh] Fetched ${fetchedAppUsers?.length || 0} AppUsers (Mode: ${isAdminUser ? 'ADMIN FULL' : 'CURRENT USER ONLY'})`);
 
-      if (allAppUsers && allAppUsers.length > 0) {
-        // CRITICAL: Deduplicate by user_id (keep most recent by location_updated_at, then updated_date)
-        const appUsersByUserId = new Map();
-        allAppUsers.forEach(au => {
-          if (!au || !au.user_id) return;
-          const existing = appUsersByUserId.get(au.user_id);
+      if (fetchedAppUsers && fetchedAppUsers.length > 0) {
+        if (isAdminUser) {
+          const appUsersByUserId = new Map();
+          fetchedAppUsers.forEach(au => {
+            if (!au || !au.user_id) return;
+            const existing = appUsersByUserId.get(au.user_id);
 
-          if (!existing) {
-            appUsersByUserId.set(au.user_id, au);
-          } else {
-            const newLocationTime = au.location_updated_at ? new Date(au.location_updated_at).getTime() : 0;
-            const existingLocationTime = existing.location_updated_at ? new Date(existing.location_updated_at).getTime() : 0;
-            const newUpdatedTime = au.updated_date ? new Date(au.updated_date).getTime() : 0;
-            const existingUpdatedTime = existing.updated_date ? new Date(existing.updated_date).getTime() : 0;
-
-            if (newLocationTime > existingLocationTime) {
+            if (!existing) {
               appUsersByUserId.set(au.user_id, au);
-            } else if (newLocationTime === existingLocationTime && newUpdatedTime > existingUpdatedTime) {
-              appUsersByUserId.set(au.user_id, au);
+            } else {
+              const newLocationTime = au.location_updated_at ? new Date(au.location_updated_at).getTime() : 0;
+              const existingLocationTime = existing.location_updated_at ? new Date(existing.location_updated_at).getTime() : 0;
+              const newUpdatedTime = au.updated_date ? new Date(au.updated_date).getTime() : 0;
+              const existingUpdatedTime = existing.updated_date ? new Date(existing.updated_date).getTime() : 0;
+
+              if (newLocationTime > existingLocationTime) {
+                appUsersByUserId.set(au.user_id, au);
+              } else if (newLocationTime === existingLocationTime && newUpdatedTime > existingUpdatedTime) {
+                appUsersByUserId.set(au.user_id, au);
+              }
             }
+          });
+          allAppUsers = Array.from(appUsersByUserId.values());
+          const saveResult = await offlineDB.replaceAllRecords(offlineDB.STORES.APP_USERS, allAppUsers);
+          console.log(`✅ [PrioritySyncBeforeRefresh] Saved ${allAppUsers.length} AppUsers to offline DB:`, saveResult);
+        } else {
+          const currentAppUserRecord = fetchedAppUsers.find((au) => au?.user_id === currentUser?.id) || fetchedAppUsers[0];
+          if (currentAppUserRecord) {
+            await offlineDB.save(offlineDB.STORES.APP_USERS, currentAppUserRecord);
           }
-        });
-        const deduplicatedAppUsers = Array.from(appUsersByUserId.values());
-        const duplicatesRemoved = allAppUsers.length - deduplicatedAppUsers.length;
-        if (duplicatesRemoved > 0) {
-          console.warn(`⚠️ [PrioritySyncBeforeRefresh] Removed ${duplicatesRemoved} duplicate AppUsers`);
+          allAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+          console.log(`✅ [PrioritySyncBeforeRefresh] Preserved offline AppUsers and refreshed current user record only (${allAppUsers.length} cached)`);
         }
-
-        const saveResult = await offlineDB.replaceAllRecords(offlineDB.STORES.APP_USERS, deduplicatedAppUsers);
-        console.log(`✅ [PrioritySyncBeforeRefresh] Saved ${deduplicatedAppUsers.length} AppUsers to offline DB:`, saveResult);
         invalidateEntityCache('AppUser');
         await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString());
         if (smartRefreshMgr) {
@@ -589,6 +596,9 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
   notifySyncStatus({ status: 'loading_priority', date: selectedDateStr });
   
   try {
+    const currentUser = await getEffectiveUser();
+    const isAdminUser = userHasRole(currentUser, 'admin');
+
     // CRITICAL: Validate offline DB is actually populated
     // If any core entity is missing/empty, force a full fresh sync
     const [existingAppUsers, existingPatients, existingDeliveries, existingCities] = await Promise.all([
@@ -618,8 +628,17 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
       }
     }
     
-    // Step 1: AppUsers with timestamp check (or fresh if underpopulated)
-    const appUserResult = await syncEntityWithTimestampCheck('AppUser', AppUser, {}, {});
+    // Step 1: AppUsers with timestamp check (admins) or current-user-only refresh (non-admins)
+    if (isAdminUser) {
+      await syncEntityWithTimestampCheck('AppUser', AppUser, {}, {});
+    } else {
+      const fetchedAppUsers = await fetchAppUsersDedup();
+      const currentAppUserRecord = fetchedAppUsers.find((au) => au?.user_id === currentUser?.id) || fetchedAppUsers[0];
+      if (currentAppUserRecord) {
+        await offlineDB.save(offlineDB.STORES.APP_USERS, currentAppUserRecord);
+        await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString());
+      }
+    }
     invalidateEntityCache('AppUser');
     const appUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
     
@@ -1232,6 +1251,8 @@ export const processPendingMutations = async () => {
 export const forceSyncAll = async () => {
   if (syncPaused) return { skipped: true };
   
+  const currentUser = await getEffectiveUser();
+  const isAdminUser = userHasRole(currentUser, 'admin');
   syncInProgress = true;
   notifySyncStatus({ status: 'force_syncing', entity: 'Starting...', progress: 0 });
   
@@ -1239,29 +1260,39 @@ export const forceSyncAll = async () => {
     const selectedDateStr = getLocalDateString();
 
     notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 5 });
-    const appUsersRaw = await fetchAppUsersDedup();
-    const appUsersByUserId = new Map();
-    appUsersRaw.forEach(au => {
-      if (!au || !au.user_id) return;
-      const existing = appUsersByUserId.get(au.user_id);
+    let appUsers = [];
+    if (isAdminUser) {
+      const appUsersRaw = await fetchAppUsersDedup();
+      const appUsersByUserId = new Map();
+      appUsersRaw.forEach(au => {
+        if (!au || !au.user_id) return;
+        const existing = appUsersByUserId.get(au.user_id);
 
-      if (!existing) {
-        appUsersByUserId.set(au.user_id, au);
-      } else {
-        const newLocationTime = au.location_updated_at ? new Date(au.location_updated_at).getTime() : 0;
-        const existingLocationTime = existing.location_updated_at ? new Date(existing.location_updated_at).getTime() : 0;
-        const newUpdatedTime = au.updated_date ? new Date(au.updated_date).getTime() : 0;
-        const existingUpdatedTime = existing.updated_date ? new Date(existing.updated_date).getTime() : 0;
+        if (!existing) {
+          appUsersByUserId.set(au.user_id, au);
+        } else {
+          const newLocationTime = au.location_updated_at ? new Date(au.location_updated_at).getTime() : 0;
+          const existingLocationTime = existing.location_updated_at ? new Date(existing.location_updated_at).getTime() : 0;
+          const newUpdatedTime = au.updated_date ? new Date(au.updated_date).getTime() : 0;
+          const existingUpdatedTime = existing.updated_date ? new Date(existing.updated_date).getTime() : 0;
 
-        if (newLocationTime > existingLocationTime) {
-          appUsersByUserId.set(au.user_id, au);
-        } else if (newLocationTime === existingLocationTime && newUpdatedTime > existingUpdatedTime) {
-          appUsersByUserId.set(au.user_id, au);
+          if (newLocationTime > existingLocationTime) {
+            appUsersByUserId.set(au.user_id, au);
+          } else if (newLocationTime === existingLocationTime && newUpdatedTime > existingUpdatedTime) {
+            appUsersByUserId.set(au.user_id, au);
+          }
         }
+      });
+      appUsers = Array.from(appUsersByUserId.values());
+      await offlineDB.replaceAllRecords(offlineDB.STORES.APP_USERS, appUsers);
+    } else {
+      const fetchedAppUsers = await fetchAppUsersDedup();
+      const currentAppUserRecord = fetchedAppUsers.find((au) => au?.user_id === currentUser?.id) || fetchedAppUsers[0];
+      if (currentAppUserRecord) {
+        await offlineDB.save(offlineDB.STORES.APP_USERS, currentAppUserRecord);
       }
-    });
-    const appUsers = Array.from(appUsersByUserId.values());
-    await offlineDB.replaceAllRecords(offlineDB.STORES.APP_USERS, appUsers);
+      appUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+    }
     invalidateEntityCache('AppUser');
     notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 10, count: appUsers.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
@@ -1330,30 +1361,42 @@ export const forceSyncAll = async () => {
 
 export const manualSyncSelected = async (selectedDateStr, selectedCityId = null) => {
   if (syncInProgress || syncPaused) return { skipped: true };
+  const currentUser = await getEffectiveUser();
+  const isAdminUser = userHasRole(currentUser, 'admin');
   syncInProgress = true;
   notifySyncStatus({ status: 'force_syncing', entity: 'Starting...', progress: 0 });
   try {
-    // 1) AppUsers (entire entity)
+    // 1) AppUsers (entire entity for admins, current user only for non-admins)
     notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 10 });
-    const appUsersRaw = await fetchAppUsersDedup();
-    const appUsersByUserId = new Map();
-    appUsersRaw.forEach(au => {
-      if (!au || !au.user_id) return;
-      const existing = appUsersByUserId.get(au.user_id);
-      if (!existing) {
-        appUsersByUserId.set(au.user_id, au);
-      } else {
-        const newLoc = au.location_updated_at ? new Date(au.location_updated_at).getTime() : 0;
-        const exLoc = existing.location_updated_at ? new Date(existing.location_updated_at).getTime() : 0;
-        const newUpd = au.updated_date ? new Date(au.updated_date).getTime() : 0;
-        const exUpd = existing.updated_date ? new Date(existing.updated_date).getTime() : 0;
-        if (newLoc > exLoc || (newLoc === exLoc && newUpd > exUpd)) {
+    let appUsers = [];
+    if (isAdminUser) {
+      const appUsersRaw = await fetchAppUsersDedup();
+      const appUsersByUserId = new Map();
+      appUsersRaw.forEach(au => {
+        if (!au || !au.user_id) return;
+        const existing = appUsersByUserId.get(au.user_id);
+        if (!existing) {
           appUsersByUserId.set(au.user_id, au);
+        } else {
+          const newLoc = au.location_updated_at ? new Date(au.location_updated_at).getTime() : 0;
+          const exLoc = existing.location_updated_at ? new Date(existing.location_updated_at).getTime() : 0;
+          const newUpd = au.updated_date ? new Date(au.updated_date).getTime() : 0;
+          const exUpd = existing.updated_date ? new Date(existing.updated_date).getTime() : 0;
+          if (newLoc > exLoc || (newLoc === exLoc && newUpd > exUpd)) {
+            appUsersByUserId.set(au.user_id, au);
+          }
         }
+      });
+      appUsers = Array.from(appUsersByUserId.values());
+      await offlineDB.replaceAllRecords(offlineDB.STORES.APP_USERS, appUsers);
+    } else {
+      const fetchedAppUsers = await fetchAppUsersDedup();
+      const currentAppUserRecord = fetchedAppUsers.find((au) => au?.user_id === currentUser?.id) || fetchedAppUsers[0];
+      if (currentAppUserRecord) {
+        await offlineDB.save(offlineDB.STORES.APP_USERS, currentAppUserRecord);
       }
-    });
-    const appUsers = Array.from(appUsersByUserId.values());
-    await offlineDB.replaceAllRecords(offlineDB.STORES.APP_USERS, appUsers);
+      appUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+    }
     invalidateEntityCache('AppUser');
     notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 20, count: appUsers.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
