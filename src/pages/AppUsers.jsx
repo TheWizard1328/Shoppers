@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, Pencil, Trash2, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { getEffectiveUser, clearUserCache } from '../components/utils/auth';
+import { createAppUser, updateAppUser, deleteAppUser } from '../components/utils/entityMutations';
 import AppUserForm from '../components/users/AppUserForm';
 import { sortUsers } from '../components/utils/sorting';
 import { getDriverDisplayName } from '../components/utils/driverUtils';
@@ -25,6 +26,41 @@ export default function AppUsers() {
 
   useEffect(() => {
     loadData();
+
+    const handleAppUserUpdated = (event) => {
+      const updatedAppUser = event?.detail?.appUser;
+      const updatedAppUsers = event?.detail?.appUsers;
+      if (Array.isArray(updatedAppUsers) && updatedAppUsers.length > 0) {
+        setAppUsers(updatedAppUsers);
+        return;
+      }
+      if (!updatedAppUser?.id) return;
+      setAppUsers((prev) => {
+        const exists = prev.some((user) => user.id === updatedAppUser.id);
+        return exists
+          ? prev.map((user) => user.id === updatedAppUser.id ? { ...user, ...updatedAppUser } : user)
+          : [...prev, updatedAppUser];
+      });
+    };
+
+    const handleAppUserDeleted = (event) => {
+      const deletedId = event?.detail?.id;
+      if (!deletedId) return;
+      setAppUsers((prev) => prev.filter((user) => user.id !== deletedId));
+    };
+
+    window.addEventListener('appUserUpdated', handleAppUserUpdated);
+    window.addEventListener('appUsersUpdated', handleAppUserUpdated);
+    window.addEventListener('realtimeUpdate_AppUser', (event) => {
+      if (event?.detail?.type === 'delete') {
+        handleAppUserDeleted({ detail: { id: event.detail.id } });
+      }
+    });
+
+    return () => {
+      window.removeEventListener('appUserUpdated', handleAppUserUpdated);
+      window.removeEventListener('appUsersUpdated', handleAppUserUpdated);
+    };
   }, []);
 
   const loadData = async () => {
@@ -55,9 +91,9 @@ export default function AppUsers() {
     try {
       let savedAppUser;
       if (editingAppUser) {
-        savedAppUser = await base44.entities.AppUser.update(editingAppUser.id, appUserData);
+        savedAppUser = await updateAppUser(editingAppUser.id, appUserData);
       } else {
-        savedAppUser = await base44.entities.AppUser.create(appUserData);
+        savedAppUser = await createAppUser(appUserData);
       }
 
       clearUserCache();
@@ -77,8 +113,7 @@ export default function AppUsers() {
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this user? This will not delete their login credentials.')) {
       try {
-        await base44.entities.AppUser.delete(id);
-        // Update local state immediately
+        await deleteAppUser(id);
         setAppUsers(prev => prev.filter(u => u.id !== id));
       } catch (error) {
         console.error('Error deleting app user:', error);
