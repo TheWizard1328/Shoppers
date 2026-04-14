@@ -96,9 +96,13 @@ export default function RealTimeRouteOptimizer({
     }
 
     try {
-      const response = await base44.functions.invoke('optimizeRouteRealTime', {
+      const now = new Date();
+      const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const response = await base44.functions.invoke('optimizeRemainingStops', {
         driverId: selectedDriverId,
         deliveryDate: selectedDate,
+        currentLocalTime,
+        deviceTime: now.toISOString()
       });
 
       const data = response?.data || response;

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Navigation } from "lucide-react";
 import { format } from "date-fns";
 import { base44 } from "@/api/base44Client";
-import { isAppOwner } from "@/components/utils/userRoles";
+import { userHasRole, isAppOwner } from "@/components/utils/userRoles";
 import { pauseOfflineMutations, resumeOfflineMutations } from "@/components/utils/offlineMutations";
 import { pauseOfflineSync, resumeOfflineSync } from "@/components/utils/offlineSync";
 import { isMobileDevice } from "@/components/utils/deviceUtils";
@@ -26,7 +26,7 @@ export default function RouteActionButtons({
   setIsMapViewLocked,
   setMapViewTrigger,
 }) {
-  if (!isAppOwner(currentUser) || selectedDriverId === "all") {
+  if ((!isAppOwner(currentUser) && !userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) || selectedDriverId === "all") {
     return null;
   }
 
@@ -58,7 +58,7 @@ export default function RouteActionButtons({
             const deliveryDate = format(selectedDate, "yyyy-MM-dd");
             const now = new Date();
             const currentLocalTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-            const response = await base44.functions.invoke("optimizeRouteRealTime", {
+            const response = await base44.functions.invoke("optimizeRemainingStops", {
               driverId: selectedDriverId,
               deliveryDate,
               currentLocalTime,
@@ -107,8 +107,8 @@ export default function RouteActionButtons({
             setIsReoptimizing(false);
           }
         }}
-        disabled={isReoptimizing || isDateFinished || !filteredDeliveries.some((delivery) => delivery && delivery.status === "in_transit")}
-        title="Re-optimize entire route using Google Maps"
+        disabled={isReoptimizing || isDateFinished || !filteredDeliveries.some((delivery) => delivery && ["in_transit", "en_route"].includes(delivery.status))}
+        title="Re-optimize remaining route"
         className={`inline-flex items-center justify-center h-10 w-10 rounded-lg shadow-2xl p-0 transition-all duration-200 ${
           isReoptimizing ? "bg-amber-500 hover:bg-amber-600" : "bg-emerald-600 hover:bg-emerald-700"
         }`}
