@@ -807,6 +807,10 @@ export default function DeliveryMap({
       latitude: Number(targetDriverMarker.latitude),
       longitude: Number(targetDriverMarker.longitude)
     };
+    const currentStopFitLocation = {
+      latitude: Number(nextStop.latitude),
+      longitude: Number(nextStop.longitude)
+    };
     const hasMovedEnoughForMapFit = hasDriverMovedEnoughForPhase2(
       phase2LastFitDriverLocationRef.current,
       currentDriverFitLocation,
@@ -819,7 +823,10 @@ export default function DeliveryMap({
 
     const now = Date.now();
     const destinationChanged = phase2FollowKeyRef.current !== nextKey;
-    if (!destinationChanged && !hasMovedEnoughForMapFit) {
+    const currentMapBounds = map.getBounds();
+    const driverAlreadyInView = currentMapBounds?.contains?.([currentDriverFitLocation.latitude, currentDriverFitLocation.longitude]);
+    const stopAlreadyInView = currentMapBounds?.contains?.([currentStopFitLocation.latitude, currentStopFitLocation.longitude]);
+    if ((!destinationChanged && !hasMovedEnoughForMapFit) || (!destinationChanged && driverAlreadyInView && stopAlreadyInView)) {
       if (isMobile && phase2PaddingRef.current !== paddingKey && now < phase2OverlayStabilizeUntilRef.current) {
         phase2PaddingRef.current = paddingKey;
       }
