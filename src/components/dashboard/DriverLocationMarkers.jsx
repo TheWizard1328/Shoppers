@@ -172,9 +172,11 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     }
 
       // RULE 1: Self marker on non-primary device - ALWAYS show if coordinates exist (shared from primary),
-      // regardless of whether the route is not started, in progress, or completed
+      // regardless of route state or driver status, as long as heartbeat/location updates are still present
       if (isSelf && !isPrimaryDevice) {
-        return true;
+        const updatedAt = user.location_updated_at ? new Date(user.location_updated_at).getTime() : 0;
+        const heartbeatIsActive = updatedAt > 0 && (Date.now() - updatedAt) <= 5 * 60 * 1000;
+        return heartbeatIsActive;
       }
 
       // RULE 2: Non-driver self markers (dispatchers, admins) on primary device
@@ -529,7 +531,9 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         const currentUserUserId = currentUser?.user_id;
         const userId = user.id || user.user_id;
         const isSelf = user.isSelf === true || user._isSelf === true || userId === currentUserId || userId === currentUserUserId || user.user_id === currentUserId;
-        const isSharedLocation = isSelf && !isPrimaryDevice;
+        const updatedAtMs = user.location_updated_at ? new Date(user.location_updated_at).getTime() : 0;
+        const hasRecentHeartbeat = updatedAtMs > 0 && (Date.now() - updatedAtMs) <= 5 * 60 * 1000;
+        const isSharedLocation = isSelf && !isPrimaryDevice && hasRecentHeartbeat;
 
         // Use user.id as stable key to prevent flickering during updates
         const stableKey = getDriverIdentityKey(user) || user.id;
