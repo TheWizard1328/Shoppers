@@ -433,20 +433,6 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                         </div>
 
                         <div>
-                            <Label style={{ color: 'var(--text-slate-900)' }}>Assigned Dispatchers</Label>
-                            <MultiSelect
-                              options={sortedUsers
-                                .filter((u) => u && u.app_roles && u.app_roles.includes('dispatcher'))
-                                .map((dispatcher) => ({
-                                  label: dispatcher.user_name || dispatcher.full_name,
-                                  value: dispatcher.id
-                                }))}
-                              value={formData.dispatcher_ids || []}
-                              onChange={handleDispatcherSelect}
-                              placeholder="Select dispatchers..." />
-                        </div>
-
-                        <div>
                           <Label htmlFor="patient_scan_day" style={{ color: 'var(--text-slate-900)' }}>Patient Scan Day</Label>
                           <Select
                             value={formData.patient_scan_day !== null && formData.patient_scan_day !== undefined ? String(formData.patient_scan_day) : 'null'}
@@ -493,6 +479,22 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                               ))}
                             </SelectContent>
                           </Select>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4">
+                        <div>
+                            <Label style={{ color: 'var(--text-slate-900)' }}>Assigned Dispatchers</Label>
+                            <MultiSelect
+                              options={sortedUsers
+                                .filter((u) => u && u.app_roles && u.app_roles.includes('dispatcher'))
+                                .map((dispatcher) => ({
+                                  label: dispatcher.user_name || dispatcher.full_name,
+                                  value: dispatcher.id
+                                }))}
+                              value={formData.dispatcher_ids || []}
+                              onChange={handleDispatcherSelect}
+                              placeholder="Select dispatchers..." />
                         </div>
                     </div>
 
