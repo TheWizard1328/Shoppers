@@ -483,6 +483,14 @@ export const createDelivery = async (deliveryData, options = {}) => {
       });
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [backendDelivery]);
       await refreshOfflineEntitySnapshots('Delivery', backendDelivery);
+      if (backendDelivery?.driver_id && backendDelivery?.delivery_date) {
+        await base44.functions.invoke('purgeAndRegeneratePolylines', {
+          driverId: backendDelivery.driver_id,
+          deliveryDate: backendDelivery.delivery_date,
+          scope: 'active_only',
+          reason: 'stops_added'
+        }).catch(() => null);
+      }
       
       // STEP 4: CRITICAL - Update cache directly (will be added via notifyMutation)
       // For creates, the cache will be updated through the mutation listener
@@ -580,6 +588,22 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
       updateCache('Delivery', deliveryId, backendDelivery);
       console.log('⚡ [EntityMutations] Updated Delivery cache');
       
+      const routeShapeChanged = (
+        sanitizedUpdates.stop_order !== undefined ||
+        sanitizedUpdates.driver_id !== undefined ||
+        sanitizedUpdates.delivery_date !== undefined ||
+        sanitizedUpdates.patient_id !== undefined ||
+        sanitizedUpdates.store_id !== undefined
+      );
+      if (routeShapeChanged && backendDelivery?.driver_id && backendDelivery?.delivery_date) {
+        await base44.functions.invoke('purgeAndRegeneratePolylines', {
+          driverId: backendDelivery.driver_id,
+          deliveryDate: backendDelivery.delivery_date,
+          scope: 'active_only',
+          reason: 'route_reordered'
+        }).catch(() => null);
+      }
+
       // STEP 5: Notify UI with backend version (most up-to-date)
       notifyMutation({ type: 'update', entity: 'Delivery', id: deliveryId, data: backendDelivery });
       
@@ -661,6 +685,15 @@ export const deleteDelivery = async (deliveryId, options = {}) => {
       console.log('⏭️ [EntityMutations] Delivery not found in offline or online DB, skipping:', deliveryId);
       await restartSmartRefresh();
       return false; // Indicate it was already deleted
+    }
+
+    if (deletedDeliverySnapshot?.driver_id && deletedDeliverySnapshot?.delivery_date) {
+      await base44.functions.invoke('purgeAndRegeneratePolylines', {
+        driverId: deletedDeliverySnapshot.driver_id,
+        deliveryDate: deletedDeliverySnapshot.delivery_date,
+        scope: 'active_only',
+        reason: 'stops_deleted'
+      }).catch(() => null);
     }
 
     // STEP 3: CRITICAL - Remove from cache (prevents deleted item from showing)
@@ -746,6 +779,15 @@ export const batchCreateDeliveries = async (deliveriesData, options = {}) => {
       console.log(`💾 [EntityMutations] Updated IndexedDB with ${backendDeliveries.length} real deliveries`);
       
       await refreshOfflineEntitySnapshots('Delivery', backendDeliveries[0]);
+      const firstRouteDelivery = backendDeliveries.find((delivery) => delivery?.driver_id && delivery?.delivery_date);
+      if (firstRouteDelivery) {
+        await base44.functions.invoke('purgeAndRegeneratePolylines', {
+          driverId: firstRouteDelivery.driver_id,
+          deliveryDate: firstRouteDelivery.delivery_date,
+          scope: 'active_only',
+          reason: 'stops_added'
+        }).catch(() => null);
+      }
 
       // STEP 4: CRITICAL - Invalidate dataManager cache
       const { invalidate } = await import('./dataManager');
@@ -849,6 +891,16 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
       return false;
     }
     
+    const firstDeletedDelivery = offlineDeliveries.find(d => idsToDeleteOffline.includes(d.id));
+    if (firstDeletedDelivery?.driver_id && firstDeletedDelivery?.delivery_date) {
+      await base44.functions.invoke('purgeAndRegeneratePolylines', {
+        driverId: firstDeletedDelivery.driver_id,
+        deliveryDate: firstDeletedDelivery.delivery_date,
+        scope: 'active_only',
+        reason: 'stops_deleted'
+      }).catch(() => null);
+    }
+
     // STEP 3: CRITICAL - Remove deleted items from cache (prevents deleted items from showing)
     const { removeDeletedFromCache } = await import('./dataManager');
     removeDeletedFromCache('Delivery', deliveryIds);

@@ -317,7 +317,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { driverId, deliveryDate, scope = 'active_only' } = body || {};
+    const { driverId, deliveryDate, scope = 'active_only', reason = 'manual' } = body || {};
 
     if (!driverId || !deliveryDate) {
       return Response.json({ error: 'driverId and deliveryDate are required' }, { status: 400 });
@@ -349,6 +349,20 @@ Deno.serve(async (req) => {
       driver_id: driverId,
       delivery_date: deliveryDate
     }, '-updated_date', 50000);
+
+    const structuralReason = ['stops_added', 'stops_deleted', 'route_reordered', 'manual'];
+    if (!structuralReason.includes(reason)) {
+      return Response.json({
+        success: true,
+        skipped: true,
+        reason: 'non_structural_request',
+        scope,
+        deleted: 0,
+        created: 0,
+        apiCallsMade: 0,
+        repairedStopOrders: stopOrderRepairUpdates.length
+      });
+    }
 
     console.log('existingPolylines:', existingPolylines);
     console.log('Type of existingPolylines:', typeof existingPolylines, Array.isArray(existingPolylines));

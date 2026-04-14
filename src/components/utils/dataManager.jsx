@@ -122,31 +122,7 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
       const storeName = getOfflineStoreName(offlineDB, entityName) || (entityName === 'SquareLocationConfig' ? offlineDB.STORES.SQUARE_LOCATION_CONFIGS : offlineDB.STORES.SQUARE_TRANSACTIONS);
       let offlineData = await offlineDB.getAll(storeName);
       
-      if (offlineData && offlineData.length > 0) {
-        // Check staleness: refresh in background if stale or forceRefresh
-        const meta = await offlineDB.getSyncMetadata(entityName);
-        const lastSync = meta?.last_sync_time ? new Date(meta.last_sync_time).getTime() : 0;
-        const isStale = (Date.now() - lastSync) > (60 * 60 * 1000); // 60 min
-        
-        if (forceRefresh || isStale) {
-          (async () => {
-            try {
-              await waitForRateLimit();
-              const Entity = entities[entityName];
-              let freshData;
-              if (query) {
-                freshData = await Entity.filter(query, sortKey, limit);
-              } else {
-                freshData = await Entity.list(sortKey, limit);
-              }
-              if (freshData && freshData.length > 0) {
-                await offlineDB.bulkSave(storeName, freshData);
-                await offlineDB.updateSyncMetadata(entityName, new Date().toISOString());
-              }
-            } catch (bgError) {}
-          })();
-        }
-        
+      if (offlineData && offlineData.length > 0 && !forceRefresh) {
         return offlineData;
       }
     } catch (offlineError) {}
@@ -339,27 +315,7 @@ export const loadDeliveriesForDate = async (dateStr, filters = {}, forceRefresh 
       offlineData = offlineData.filter(d => storeIds.includes(d.store_id));
     }
     
-    if (offlineData && offlineData.length > 0) {
-      // Check staleness: refresh in background if stale or forceRefresh
-      const meta = await offlineDB.getSyncMetadata('Delivery');
-      const lastSync = meta?.last_sync_time ? new Date(meta.last_sync_time).getTime() : 0;
-      const isStale = (Date.now() - lastSync) > (60 * 60 * 1000); // 60 min
-      
-      if (forceRefresh || isStale) {
-        (async () => {
-          try {
-            await waitForRateLimit();
-            const dateFilters = { ...filtersWithoutDriver, delivery_date: dateStr };
-            const freshDeliveries = await base44.entities.Delivery.filter(dateFilters, '-updated_date');
-            
-            if (freshDeliveries && freshDeliveries.length > 0) {
-              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-              await offlineDB.updateSyncMetadata('Delivery', new Date().toISOString());
-            }
-          } catch (bgError) {}
-        })();
-      }
-      
+    if (offlineData && offlineData.length > 0 && !forceRefresh) {
       return offlineData;
     }
   } catch (offlineError) {}

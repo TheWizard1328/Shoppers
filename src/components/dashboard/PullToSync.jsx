@@ -244,8 +244,8 @@ export default function PullToSync({
           const now = new Date();
           const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-          // Polyline repair for active stops only
-          Promise.resolve(repairMissingPolylines({ driverId: targetDriverId, deliveryDate: selectedDateStr }))
+          // Polyline repair only on manual sync
+          Promise.resolve(repairMissingPolylines({ driverId: targetDriverId, deliveryDate: selectedDateStr, reason: 'manual' }))
             .catch(e => console.warn('⚠️ [Pull to Sync] Background polyline repair failed:', e?.message || e));
 
           // ETA recalculation for active stops only

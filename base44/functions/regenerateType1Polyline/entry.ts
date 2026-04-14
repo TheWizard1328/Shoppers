@@ -11,8 +11,8 @@ const HERE_POLYLINE_DECODER = HERE_POLYLINE_ALPHABET.split('').reduce((acc, char
   acc[char] = index;
   return acc;
 }, {});
-const DEFAULT_MIN_MOVE_METERS = 75;
-const DEFAULT_MIN_INTERVAL_MS = 30000;
+const DEFAULT_MIN_MOVE_METERS = 100;
+const DEFAULT_MIN_INTERVAL_MS = 120000;
 
 function round5(value) {
   return Number(Number(value).toFixed(5));
@@ -352,11 +352,7 @@ Deno.serve(async (req) => {
     ) || null;
 
     if (exactExistingType1) {
-      const lastGeneratedAt = exactExistingType1?.last_generated_at ? new Date(exactExistingType1.last_generated_at).getTime() : 0;
-      const movedSinceLastGenerate = distanceMeters(currentLat, currentLon, Number(exactExistingType1.segment_origin_lat), Number(exactExistingType1.segment_origin_lon));
-      if (Date.now() - lastGeneratedAt < DEFAULT_MIN_INTERVAL_MS || movedSinceLastGenerate < minMoveMeters) {
-        return Response.json({ success: true, skipped: true, reason: 'cached_exact_segment', driverId, deliveryDate, nextStopId: nextActiveStop.id, repairedStopOrders: stopOrderRepairUpdates.length });
-      }
+      return Response.json({ success: true, skipped: true, reason: 'cached_exact_segment', driverId, deliveryDate, nextStopId: nextActiveStop.id, repairedStopOrders: stopOrderRepairUpdates.length });
     }
 
     const existingType1 = (existingPolylines || []).find((row) =>
