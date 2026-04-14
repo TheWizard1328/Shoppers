@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { Polyline } from "react-leaflet";
 import { getHerePolyline } from "../utils/hereRouting";
-import { generateDriverColor } from "../utils/colorGenerator";
+import { getDriverColor } from "../utils/driverUtils";
 import { getTravelModeLineStyle, normalizeTravelMode } from "./travelModeHelpers";
 
 const FINISHED = ["completed", "failed", "cancelled"];
@@ -77,7 +77,7 @@ export default function HereType2Polylines({
     return false;
     };
 
-    const getDriverPolylineColor = (driverId) => generateDriverColor(String(driverId || 'driver'));
+    const getDriverPolylineColor = (driverId) => getDriverColor({ id: String(driverId || 'driver') });
     const getDriverRouteStyle = (driverId, opacityOverride) => {
       const mode = normalizeTravelMode(driverTravelModes[driverId]);
       const base = getTravelModeLineStyle(mode, getDriverPolylineColor(driverId));
