@@ -90,6 +90,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
       color: "", // This field was removed from the outline, but keeping it in defaultData and `store` merge for robustness.
       dispatcher_name: "",
       dispatcher_id: null,
+      dispatcher_ids: [],
       square_location_config_id: null,
       status: "active",
       pays_app_fees: false,
@@ -138,21 +139,13 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
       initialData.latitude = store.latitude ?? null;
       initialData.longitude = store.longitude ?? null;
 
-      // Handle dispatcher ID resolution
-      if (initialData.dispatcher_id) {
-        const foundDispatcher = findDispatcherFromStore(initialData.dispatcher_id, allUsers);
-        if (foundDispatcher) {
-          initialData.dispatcher_id = foundDispatcher.id;
-          initialData.dispatcher_name = foundDispatcher.user_name || foundDispatcher.full_name;
-        } else if (initialData.dispatcher_name) {
-          initialData.dispatcher_id = findDispatcherIdFromName(initialData.dispatcher_name, allUsers);
-          if (!initialData.dispatcher_id) initialData.dispatcher_id = null;
-        } else {
-          initialData.dispatcher_id = null;
-          initialData.dispatcher_name = "";
-        }
-      } else if (initialData.dispatcher_name) {
-        initialData.dispatcher_id = findDispatcherIdFromName(initialData.dispatcher_name, allUsers);
+      // Handle dispatcher IDs resolution
+      if (Array.isArray(store.dispatcher_ids)) {
+        initialData.dispatcher_ids = store.dispatcher_ids;
+      } else if (initialData.dispatcher_id) {
+        initialData.dispatcher_ids = [initialData.dispatcher_id];
+      } else {
+        initialData.dispatcher_ids = [];
       }
 
       // CRITICAL FIX: Load driver IDs from correct schema field names
@@ -256,19 +249,10 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
     });
   };
 
-  const handleDispatcherSelect = (dispatcherId) => {
-    const selectedDispatcher = sortedUsers.find((u) => u && u.id === dispatcherId);
-
-    console.log('[StoreForm] Dispatcher selected:', {
-      userId: selectedDispatcher?.id,
-      userName: selectedDispatcher?.user_name || selectedDispatcher?.full_name,
-      dispatcherId: dispatcherId
-    });
-
+  const handleDispatcherSelect = (dispatcherIds) => {
     setFormData((prev) => ({
       ...prev,
-      dispatcher_id: dispatcherId === "null" ? null : dispatcherId,
-      dispatcher_name: selectedDispatcher ? selectedDispatcher.user_name || selectedDispatcher.full_name : ""
+      dispatcher_ids: Array.isArray(dispatcherIds) ? dispatcherIds : []
     }));
   };
 
@@ -278,6 +262,9 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
     // Prepare data for saving
     const dataToSave = {
       ...formData,
+      dispatcher_id: null,
+      dispatcher_name: '',
+      dispatcher_ids: Array.isArray(formData.dispatcher_ids) ? formData.dispatcher_ids : [],
       sort_order: formData.sort_order !== null && formData.sort_order !== '' ? parseInt(formData.sort_order, 10) : null,
       latitude: formData.latitude !== null && formData.latitude !== '' ? parseFloat(formData.latitude) : null,
       longitude: formData.longitude !== null && formData.longitude !== '' ? parseFloat(formData.longitude) : null
