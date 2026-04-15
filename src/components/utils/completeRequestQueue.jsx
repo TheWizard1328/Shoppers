@@ -102,11 +102,13 @@ const flushCompletionJob = async (entry) => {
     );
   }
 
-  if (setOffDuty && entry.payload.appUserId) {
-    tasks.push(scheduleAppUserUpdate(entry.payload.appUserId, {
-      driver_status: 'off_duty',
-      location_tracking_enabled: false
-    }, 0));
+  if (setOffDuty && entry.payload.appUserId && /^[a-f0-9]{24}$/i.test(String(entry.payload.appUserId))) {
+    tasks.push(
+      scheduleAppUserUpdate(entry.payload.appUserId, {
+        driver_status: 'off_duty',
+        location_tracking_enabled: false
+      }, 0).catch(() => null)
+    );
   }
 
   entry.inFlight = Promise.allSettled(tasks);

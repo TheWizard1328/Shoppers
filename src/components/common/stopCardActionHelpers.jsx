@@ -32,9 +32,8 @@ export async function syncDriverLocationToStop({ currentUser, delivery, patient,
   if (!stopCoordinates) return null;
 
   const { offlineDB } = await import('../utils/offlineDatabase');
-  const appUsers = await base44.entities.AppUser.filter({ user_id: resolvedDriverId });
-  const appUser = appUsers?.[0];
-  if (!appUser?.id) return stopCoordinates;
+  const appUser = await offlineDB.getByIndex(offlineDB.STORES.APP_USERS, 'user_id', resolvedDriverId).then((rows) => rows?.[0] || null).catch(() => null);
+  if (!appUser?.id || !/^[a-f0-9]{24}$/i.test(String(appUser.id))) return stopCoordinates;
 
   const locationUpdatedAt = new Date().toISOString();
   const updatedAppUser = {
@@ -407,6 +406,7 @@ export async function rehydrateLiveBreadcrumbsForRestart(delivery) {
   if (!Array.isArray(parsedBreadcrumbs) || parsedBreadcrumbs.length === 0) return;
 
   try {
+    if (!base44.entities.PendingBreadcrumbLive) return;
     const existing = await base44.entities.PendingBreadcrumbLive.filter({
       driver_id: delivery.driver_id,
       delivery_id: delivery.id

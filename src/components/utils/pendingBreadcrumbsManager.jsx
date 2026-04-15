@@ -55,6 +55,7 @@ export async function listPendingBreadcrumbRecordsForDriver({ driverUserId, appU
 export async function getPendingBreadcrumbsForDriver({ driverUserId, appUsers = [] }) {
   if (!driverUserId) return null;
   try {
+    if (!base44.entities.PendingBreadcrumbLive) throw new Error('PendingBreadcrumbLive unavailable');
     const liveRecords = await base44.entities.PendingBreadcrumbLive.filter({ driver_id: driverUserId });
     const latestLiveRecord = (liveRecords || [])
       .filter((record) => Array.isArray(record?.breadcrumbs) && record.breadcrumbs.length > 0)
@@ -74,6 +75,7 @@ export async function getPendingBreadcrumbsForDriver({ driverUserId, appUsers = 
 export async function getPendingBreadcrumbsForDelivery({ driverUserId, deliveryId, stopOrder, appUsers = [] }) {
   if (driverUserId && deliveryId) {
     try {
+      if (!base44.entities.PendingBreadcrumbLive) throw new Error('PendingBreadcrumbLive unavailable');
       const liveRecords = await base44.entities.PendingBreadcrumbLive.filter({ driver_id: driverUserId, delivery_id: deliveryId });
       const liveRecord = (liveRecords || [])
         .filter((record) => Array.isArray(record?.breadcrumbs) && record.breadcrumbs.length > 0)
