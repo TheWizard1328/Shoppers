@@ -1,7 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
-import { isAppOwner } from '@/components/utils/userRoles';
 
 export default function AdminNavigationSection({
   adminNavigationItems,
@@ -17,7 +16,7 @@ export default function AdminNavigationSection({
         Admin
       </div>
       <div className="space-y-1">
-        {adminNavigationItems.filter((item) => item.pageName !== 'Companies' || isAppOwner(currentUser)).map((item) => (
+        {adminNavigationItems.map((item) => (
           <Link
             key={item.title}
             to={constructUrlWithParams(item.url)}
