@@ -284,7 +284,55 @@ export default function PayrollSummaryCard({
     try {
       let existingRecord = getDriverPayrollRecord(driverId);
       if (!existingRecord) {
-...
+        const driverData = payrollData.find((d) => d.driver.id === driverId);
+        if (!driverData) return;
+        const saveAppFeeAmount = countBillableDeliveries(driverId) * (driverData.appFeePercentage || 0) / 100;
+
+        const newRecordData = {
+          driver_id: driverId,
+          city_id: selectedCityId && selectedCityId !== 'all' ? selectedCityId : currentUser?.city_id || null,
+          pay_period_start: periodStartStr,
+          pay_period_end: periodEndStr,
+          pay_period_type: payPeriod,
+          total_deliveries: driverData.totalDeliveries,
+          total_extra_km: driverData.totalExtraKm,
+          total_oversized_deliveries: driverData.oversizedCount,
+          total_after_hours_deliveries: driverData.afterHoursCount || 0,
+          gross_pay: driverData.grossPay,
+          net_pay: driverData.grandTotal,
+          total_deductions: driverData.deductions,
+          deductions: driverData.deductionsArray,
+          bonus_pay: 0,
+          app_fee_percentage: 0,
+          app_fee_amount: saveAppFeeAmount,
+          paid_amount: driverData.grandTotal,
+          tax_amount: driverData.taxAmount,
+          pay_rate_per_delivery: driverData.payRate,
+          extra_km_rate: driverData.extraKmRate,
+          extra_km_limit: driverData.extraKmLimit,
+          oversized_item_rate: driverData.oversizedRate,
+          gst_hst_enabled: driverData.gstHstEnabled,
+          status: 'draft'
+        };
+
+        const newRecord = await base44.entities.Payroll.create(roundPayrollData(newRecordData));
+
+        const nextPayrollRecords = [...payrollRecords, newRecord];
+        setPayrollRecords(nextPayrollRecords);
+        if (onPayrollRecordsChange) {
+          onPayrollRecordsChange(nextPayrollRecords);
+        }
+        existingRecord = newRecord;
+      }
+
+      const driverData = payrollData.find((d) => d.driver.id === driverId);
+      let recalculatedUpdates = { ...updates };
+      if (updates.deductions !== undefined || updates.bonus_pay !== undefined) {
+        const newDed = updates.total_deductions !== undefined ? updates.total_deductions : existingRecord.total_deductions || 0;
+        const newBonus = updates.bonus_pay !== undefined ? updates.bonus_pay : existingRecord.bonus_pay || 0;
+        recalculatedUpdates.gross_pay = (driverData?.grandTotal || existingRecord.net_pay || 0) + (driverData?.taxAmount || 0) - newDed + newBonus;
+      }
+
       const finalUpdates = roundPayrollData(recalculatedUpdates);
       const updatedRecord = await base44.entities.Payroll.update(existingRecord.id, finalUpdates);
       const mergedRecord = { ...existingRecord, ...finalUpdates, ...updatedRecord };
@@ -308,7 +356,10 @@ export default function PayrollSummaryCard({
         }));
       }
 
-      try {const { offlineDB } = await import('../utils/offlineDatabase');await offlineDB.save(offlineDB.STORES.PAYROLL, mergedRecord);} catch (e) {/* ignore */}
+      try {
+        const { offlineDB } = await import('../utils/offlineDatabase');
+        await offlineDB.save(offlineDB.STORES.PAYROLL, mergedRecord);
+      } catch (e) {/* ignore */}
     } catch (error) {console.error('❌ [Payroll] Failed to save changes:', error);}
   };
 
