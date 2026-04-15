@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
+import { X } from "lucide-react";
 import { isAppOwner } from '../utils/userRoles';
 import { getPickupStopIdForDelivery } from '../utils/ampmUtils';
 import { clearDeliveryActionLock } from '../utils/deliveryActionLock';
@@ -119,17 +120,29 @@ export default function DeliveryStatusAndTiming({
     </div>
   );
 
-  const renderTimeInput = (value, onChange, _onClear, ref = null) => (
-    <Input
-      ref={ref}
-      type="time"
-      step="60"
-      value={value || ''}
-      onChange={onChange}
-      disabled={isSaving}
-      data-hotkey-add="true"
-      className="h-9 w-full px-2 text-sm"
-    />
+  const renderTimeInput = (value, onChange, onClear, ref = null) => (
+    <div className="relative">
+      <Input
+        ref={ref}
+        type="time"
+        step="60"
+        value={value || ''}
+        onChange={onChange}
+        disabled={isSaving}
+        data-hotkey-add="true"
+        className="compact-time-input h-9 w-full px-2 pr-10 text-sm"
+      />
+      {value && !isSaving && (
+        <button
+          type="button"
+          onClick={onClear}
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-1 text-slate-500 hover:text-slate-900"
+          aria-label="Clear time"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      )}
+    </div>
   );
 
   return (
@@ -142,6 +155,9 @@ export default function DeliveryStatusAndTiming({
         .compact-time-input::-webkit-clear-button,
         .compact-time-input::-webkit-inner-spin-button {
           display: none;
+        }
+        .compact-time-input::-moz-focus-inner {
+          border: 0;
         }
       `}</style>
 
