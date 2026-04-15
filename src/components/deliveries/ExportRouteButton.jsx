@@ -116,7 +116,8 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
       const relevantDeliveries = exportConfig.manifestType === 'post-route' ?
       dispatcherDayDeliveries :
       dispatcherDayDeliveries.filter((d) => d && d.ampm_deliveries === exportConfig.ampm && !finishedStatuses.includes(d.status));
-      const driverNames = getDriverNamesForSubject(relevantDeliveries);
+      const firstStoreId = relevantDeliveries.find((delivery) => delivery?.store_id)?.store_id || dispatcherStoreIds[0];
+      const storeName = (stores || []).find((store) => store?.id === firstStoreId)?.name || 'Store';
       const validRecipientEmails = [...new Set((recipientEmails || []).map((email) => typeof email === 'string' ? email.trim().toLowerCase() : '').filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))];
 
       if (validRecipientEmails.length === 0) {
@@ -131,7 +132,7 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
         storeIds: dispatcherStoreIds,
         selectedCityId,
         recipientEmails: validRecipientEmails,
-        emailSubject: `RxDeliver Route logs for: ${exportDate}`
+        emailSubject: `RxDeliver Route logs for: ${storeName} - ${exportDate}`
       });
       const data = res?.data || res;
 
@@ -160,7 +161,7 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
         const storeRecipientEmails = [...new Set(((perStoreEmails?.[storeId]) || []).map((email) => typeof email === 'string' ? email.trim().toLowerCase() : '').filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))];
         if (storeRecipientEmails.length === 0) return;
 
-        const storeName = dayDeliveries.find((delivery) => delivery?.store_id === storeId)?.store_name || storeId;
+        const storeName = (stores || []).find((store) => store?.id === storeId)?.name || dayDeliveries.find((delivery) => delivery?.store_id === storeId)?.store_name || storeId;
 
         emailJobs.push(
           base44.functions.invoke('generateRouteManifest', {
@@ -169,7 +170,7 @@ export default function ExportRouteButton({ currentUser, driverFilter, selectedD
             manifestType: 'post-route',
             storeIds: [storeId],
             recipientEmails: storeRecipientEmails,
-            emailSubject: `RxDeliver Route logs for: ${exportDate} (${storeName})`
+            emailSubject: `RxDeliver Route logs for: ${storeName} - ${exportDate}`
           })
         );
       });

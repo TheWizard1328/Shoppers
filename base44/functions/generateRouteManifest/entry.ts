@@ -46,11 +46,24 @@ Deno.serve(async (req) => {
 
     const finished = ['completed','failed','cancelled','returned'];
     let items = (deliveries || []).filter(Boolean);
-    const creatorIds = [...new Set(items.map((item) => item?.created_by_app_user_id).filter(Boolean))];
-    const creatorAppUsers = creatorIds.length > 0
-      ? await base44.asServiceRole.entities.AppUser.filter({ id: { $in: creatorIds } })
-      : [];
-    const creatorNameMap = new Map((creatorAppUsers || []).map((appUser) => [appUser.id, appUser.user_name || appUser.id]));
+    const creatorAppUserIds = [...new Set(items.map((item) => item?.created_by_app_user_id).filter(Boolean))];
+    const creatorAuthUserIds = [...new Set(items.map((item) => item?.created_by_id).filter(Boolean))];
+    const [creatorAppUsers, creatorAuthUsers] = await Promise.all([
+      creatorAppUserIds.length > 0
+        ? base44.asServiceRole.entities.AppUser.filter({ id: { $in: creatorAppUserIds } })
+        : [],
+      creatorAuthUserIds.length > 0
+        ? base44.asServiceRole.entities.User.filter({ id: { $in: creatorAuthUserIds } })
+        : []
+    ]);
+    const creatorNameMap = new Map();
+    (creatorAppUsers || []).forEach((appUser) => {
+      creatorNameMap.set(appUser.id, appUser.user_name || appUser.id);
+      if (appUser.user_id) creatorNameMap.set(appUser.user_id, appUser.user_name || appUser.user_id);
+    });
+    (creatorAuthUsers || []).forEach((authUser) => {
+      creatorNameMap.set(authUser.id, authUser.full_name || authUser.email || authUser.id);
+    });
     const driverIds = [...new Set(items.map((item) => item?.driver_id).filter(Boolean))];
     const driverAppUsers = driverIds.length > 0
       ? await base44.asServiceRole.entities.AppUser.filter({ user_id: { $in: driverIds } })
@@ -520,7 +533,7 @@ Deno.serve(async (req) => {
         const year = String(parsed.getFullYear()).slice(-2);
         return `${month} ${day}, ${year}`;
       })();
-      const subject = emailSubject || `RxDeliver Route logs for: ${storeName || 'All Stores'} ${formattedEmailDate}`;
+      const subject = emailSubject || `RxDeliver Route logs for: ${storeName || 'All Stores'} - ${formattedEmailDate}`;
       const body = `Attached is your route manifest PDF for ${deliveryDate}.`;
 
       const emailStartedAt = Date.now();
