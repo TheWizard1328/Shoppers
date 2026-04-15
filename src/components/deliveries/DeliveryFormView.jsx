@@ -481,15 +481,7 @@ export default function DeliveryFormView({
                   </div>
 
                   <div className={`${useMobileLayout ? 'flex-1' : (!delivery && !isPickupMode ? 'min-w-0' : 'min-w-0 flex-1')} space-y-1 p-3 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                    <div className="flex items-start justify-between gap-3">
-                      <Label className="text-sm font-semibold pt-2" style={{ color: 'var(--text-slate-900)' }}>Driver {delivery ? '*' : ''}</Label>
-                      <TravelModeButtons
-                        value={formData.preferred_travel_mode || 'driving'}
-                        onChange={(mode) => setFormData((prev) => ({ ...prev, preferred_travel_mode: mode }))}
-                        isMobile={useMobileLayout}
-                        disabled={isSaving}
-                      />
-                    </div>
+                    <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver {delivery ? '*' : ''}</Label>
                     <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
                       const newDriverId = driverId === 'all' ? '' : driverId;
                       const driver = driverId === 'all' ? null : allDrivers.find((d) => d.id === driverId);
@@ -507,6 +499,15 @@ export default function DeliveryFormView({
                         {allDrivers.map((driver) => <SelectItem key={driver.id} value={driver.id}>{getDriverDisplayName(driver)}</SelectItem>)}
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <div className={`${useMobileLayout ? 'w-auto' : (!delivery && !isPickupMode ? 'w-fit' : 'w-fit')} p-3 rounded-lg border flex items-center justify-center`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                    <TravelModeButtons
+                      value={formData.preferred_travel_mode || 'driving'}
+                      onChange={(mode) => setFormData((prev) => ({ ...prev, preferred_travel_mode: mode }))}
+                      isMobile={useMobileLayout}
+                      disabled={isSaving}
+                    />
                   </div>
                 </div>
               </div>
