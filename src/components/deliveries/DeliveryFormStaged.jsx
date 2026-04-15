@@ -325,9 +325,9 @@ export default function DeliveryFormStaged({
             key={`proj-${projected.patient_id}`} className="bg-yellow-50 px-2 py-2 text-xs rounded flex border-2 border-yellow-400 transition-colors">
             
 
-            <div className="flex-1 min-w-0 flex flex-col gap-0.0">
-              <div className="flex items-center gap-1.5">
-                <span className="font-medium truncate flex-1 min-w-0 text-slate-900 gap-0.0">{projected.patient_name}</span>
+            <div className="flex-1 min-w-0 flex flex-col gap-[1px] leading-none">
+              <div className="flex items-center gap-1.5 min-h-0">
+                <span className="font-medium truncate flex-1 min-w-0 text-slate-900 leading-none">{projected.patient_name}</span>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   {projectedStore?.abbreviation && shouldShowStoreBadges(currentUser) &&
                   <Badge className="text-white text-[10px] px-1.5 py-0 h-4" style={{ backgroundColor: storeColor }}>
@@ -337,8 +337,8 @@ export default function DeliveryFormStaged({
                   <Badge className="bg-yellow-500 text-white text-[10px] px-1.5 py-0 h-4">PROJ</Badge>
                 </div>
               </div>
-              <div className="flex items-center gap-1">
-                <div className="truncate flex-1 min-w-0 text-slate-600 text-[10px] gap-0.0">
+              <div className="flex items-center gap-1 min-h-0">
+                <div className="truncate flex-1 min-w-0 text-slate-600 text-[10px] leading-none">
                   {projectedAddress}
                   {projectedUnitNumber ? ` #${projectedUnitNumber}` : ''}
                 </div>
@@ -351,7 +351,7 @@ export default function DeliveryFormStaged({
                   
                 </div>
               </div>
-              <div className="text-slate-600 text-[10px] truncate pr-1 gap-0.0">
+              <div className="text-slate-600 text-[10px] truncate pr-1 leading-none min-h-0">
                 {projectedRecurrence}
               </div>
             </div>
