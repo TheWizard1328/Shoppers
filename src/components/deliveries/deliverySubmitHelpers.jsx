@@ -35,6 +35,10 @@ export const prepareDeliverySaveData = ({ formData, delivery, isCompletionStatus
     }
   }
 
+  if (formData.finished_leg_transport_mode || delivery?.finished_leg_transport_mode) {
+    dataToSave.finished_leg_transport_mode = formData.finished_leg_transport_mode || delivery?.finished_leg_transport_mode || 'driving';
+  }
+
   if (isCompletionStatus) {
     const originalArrivalTime = delivery?.arrival_time ? delivery.arrival_time.substring(11, 16) : '';
     const arrivalTimeValue = formData.arrival_time !== undefined
@@ -49,8 +53,6 @@ export const prepareDeliverySaveData = ({ formData, delivery, isCompletionStatus
     } else if (delivery?.arrival_time) {
       dataToSave.arrival_time = '';
     }
-
-    dataToSave.finished_leg_transport_mode = delivery?.finished_leg_transport_mode || formData.finished_leg_transport_mode || 'driving';
   }
 
   if (!delivery?.id && !dataToSave.patient_id) {
