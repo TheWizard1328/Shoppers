@@ -552,13 +552,8 @@ Deno.serve(async (req) => {
       });
     } catch (_logError) {}
 
-    try {
-      await base44.functions.invoke('recalculateTrackingNumbers', { driverId, deliveryDate });
-    } catch (_trackingError) {}
-
-    try {
-      await base44.functions.invoke('purgeAndRegeneratePolylines', { driverId, deliveryDate, scope: 'active_only' });
-    } catch (_polylineError) {}
+    // Post-optimization follow-up functions are triggered by the Assign All / Accept All flow only,
+    // so they run exactly once after optimization completes.
 
     try {
       const allForDriverDate = await base44.asServiceRole.entities.Delivery.filter({

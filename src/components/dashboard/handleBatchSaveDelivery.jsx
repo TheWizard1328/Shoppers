@@ -475,13 +475,6 @@ export const handleBatchSaveDelivery = async ({
       tracking_number: delivery?.tracking_number || null
     })));
 
-    if (driverId !== 'unassigned' && deliveryDate) {
-      await base44.functions.invoke('recalculateTrackingNumbers', {
-        driverId,
-        deliveryDate
-      }).catch(() => null);
-    }
-
     createdDeliveries.forEach((delivery) => {
       if (!delivery?.patient_id && delivery?.store_id && delivery?.delivery_date) {
         createdDeliveryMap.set(`pickup__${delivery.store_id}__${delivery.delivery_date}__${delivery.driver_id || ''}__${delivery.ampm_deliveries || ''}`, delivery);
@@ -569,6 +562,15 @@ export const handleBatchSaveDelivery = async ({
             deviceTime: now.toISOString(),
             generatePolyline: true
           });
+          await base44.functions.invoke('recalculateTrackingNumbers', {
+            driverId: batchDriverId,
+            deliveryDate: batchDeliveryDate
+          }).catch(() => null);
+          await base44.functions.invoke('purgeAndRegeneratePolylines', {
+            driverId: batchDriverId,
+            deliveryDate: batchDeliveryDate,
+            scope: 'active_only'
+          }).catch(() => null);
           if (invalidateDeliveriesForDate) invalidateDeliveriesForDate(batchDeliveryDate);
           await refreshData();
         }
