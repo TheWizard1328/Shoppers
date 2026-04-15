@@ -213,5 +213,16 @@ export const fabControlEvents = {
         console.error('Error in FAB event listener:', error);
       }
     });
+  },
+
+  notifyDriverSelectionChanged: () => {
+    console.log('📢 [FAB Events] Broadcasting driver selection change - activating phase 1');
+    fabControlListeners.forEach(callback => {
+      try {
+        callback({ type: 'DRIVER_SELECTION_CHANGED' });
+      } catch (error) {
+        console.error('Error in FAB event listener:', error);
+      }
+    });
   }
   };

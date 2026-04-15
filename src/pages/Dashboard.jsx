@@ -2845,7 +2845,7 @@ function Dashboard() {
       }
       mapLockExpiresAtRef.current = null;
 
-      setIsMapViewLocked(mapViewPhase !== 1);
+      setMapViewPhase(1); setIsMapViewLocked(true);
       lastProgrammaticMapMoveRef.current = Date.now();
       window._lastProgrammaticMapMove = Date.now();
       setMapViewTrigger(nextTrigger);
