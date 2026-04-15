@@ -16,6 +16,15 @@ export async function withPausedDriverLocationPoller(callback) {
   }
 }
 
+export async function waitForRouteTransitionSettle(count = 0) {
+  const baseDelay = 350;
+  const perStopDelay = 180;
+  const maxDelay = 2500;
+  const delayMs = Math.min(maxDelay, baseDelay + Math.max(0, count) * perStopDelay);
+  await new Promise((resolve) => setTimeout(resolve, delayMs));
+  return delayMs;
+}
+
 
 export function getStopCoordinates(delivery, patient, store) {
   if (!delivery) return null;

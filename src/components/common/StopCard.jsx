@@ -47,7 +47,7 @@ import StopCardReturnDialog from './StopCardReturnDialog';
 import StopCardPOD from './StopCardPOD';
 import { useDeliveryDisplayInfo } from './StopCardRedaction';
 import { updatePatientGPS } from "../utils/patientGPSUpdater";
-import { buildRetryDelivery, collapseExpandedStopCardsForDriver, getCurrentLocalTimeString, getDriverRouteDeliveries, getFinishedLegEncodedPolyline, getNextActiveDelivery, getNextTrackingNumberInGroup, incrementTrackingNumber, optimizeRouteAndApplyNextDelivery, refreshDriverRoute, rehydrateLiveBreadcrumbsForRestart, reorderActiveRouteLocally, setAndCenterNextDelivery, syncDriverLocationToStop, withPausedDriverLocationPoller } from "./stopCardActionHelpers";
+import { buildRetryDelivery, collapseExpandedStopCardsForDriver, getCurrentLocalTimeString, getDriverRouteDeliveries, getFinishedLegEncodedPolyline, getNextActiveDelivery, getNextTrackingNumberInGroup, incrementTrackingNumber, optimizeRouteAndApplyNextDelivery, refreshDriverRoute, rehydrateLiveBreadcrumbsForRestart, reorderActiveRouteLocally, setAndCenterNextDelivery, syncDriverLocationToStop, waitForRouteTransitionSettle, withPausedDriverLocationPoller } from "./stopCardActionHelpers";
 import { clearPendingBreadcrumbsForDelivery, getPendingBreadcrumbsForDelivery } from '../utils/pendingBreadcrumbsManager';
 import { runTerminalDeliverySideEffects, triggerSquareCodUpsert } from '../utils/directDeliverySideEffects';
 import { getActiveDeliveryAction, runWithDeliveryActionLock, subscribeDeliveryActionLock } from '../utils/deliveryActionLock';
@@ -811,6 +811,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           const hasPendingPickupTransitions = isPickup && pendingPickups && pendingPickups.some((p) => p.status === 'pending');
                           if (hasPendingPickupTransitions) {
                             await executeAcceptAllStops();
+                            await waitForRouteTransitionSettle(pendingPickups?.length || 0);
                           }
                           const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
                           const useRetroactiveTiming = !shouldUseRegularTiming({
