@@ -1,5 +1,5 @@
 import { createPageUrl } from '@/utils';
-import { Building, Building2, BarChart3, Truck, Users2, FileText, CreditCard } from 'lucide-react';
+import { Building, Building2, BarChart3, Truck, Users2, FileText, CreditCard, MapPinned, ReceiptText } from 'lucide-react';
 import { canAccessImports, isAppOwner } from '@/components/utils/userRoles';
 
 export default function getAdminNavigationItems({
@@ -25,7 +25,7 @@ export default function getAdminNavigationItems({
       pageName: 'Cities',
       count: entityCounts.cities,
       url: createPageUrl('Cities'),
-      icon: Building2
+      icon: MapPinned
     },
     {
       title: 'Stores',
@@ -62,7 +62,7 @@ export default function getAdminNavigationItems({
         title: 'Store Invoices',
         pageName: 'StoreInvoices',
         url: createPageUrl('StoreInvoices'),
-        icon: FileText
+        icon: ReceiptText
       }
     );
   }
