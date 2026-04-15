@@ -7,6 +7,33 @@ import { isAppOwner } from '../utils/userRoles';
 import { getPickupStopIdForDelivery } from '../utils/ampmUtils';
 import { clearDeliveryActionLock } from '../utils/deliveryActionLock';
 
+const TimeField = React.forwardRef(function TimeField({ value, onChange, onClear, isSaving }, ref) {
+  return (
+    <div className="relative">
+      <input
+        ref={ref}
+        type="time"
+        step="60"
+        value={value || ''}
+        onChange={onChange}
+        disabled={isSaving}
+        data-hotkey-add="true"
+        className="compact-time-input flex min-h-11 w-full rounded-md border border-input bg-transparent px-2 pr-10 py-2 text-sm shadow-sm ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+      />
+      {value && !isSaving && (
+        <button
+          type="button"
+          onClick={onClear}
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-1 text-slate-500 hover:text-slate-900"
+          aria-label="Clear time"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      )}
+    </div>
+  );
+});
+
 export default function DeliveryStatusAndTiming({
   formData,
   setFormData,
@@ -119,30 +146,6 @@ export default function DeliveryStatusAndTiming({
     </div>
   );
 
-  const renderTimeInput = (value, onChange, onClear, inputRef = null) => (
-    <div className="relative">
-      <input
-        ref={inputRef}
-        type="time"
-        step="60"
-        value={value || ''}
-        onChange={onChange}
-        disabled={isSaving}
-        data-hotkey-add="true"
-        className="compact-time-input flex min-h-11 w-full rounded-md border border-input bg-transparent px-2 pr-10 py-2 text-sm shadow-sm ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-      />
-      {value && !isSaving && (
-        <button
-          type="button"
-          onClick={onClear}
-          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-1 text-slate-500 hover:text-slate-900"
-          aria-label="Clear time"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      )}
-    </div>
-  );
 
   return (
     <>
@@ -174,42 +177,46 @@ export default function DeliveryStatusAndTiming({
               <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                 {isPickupMode ? 'Start Time' : 'Delivery Start'}
               </Label>
-              {renderTimeInput(
-                formData.delivery_time_start,
-                (e) => setFormData(prev => ({ ...prev, delivery_time_start: e.target.value })),
-                () => setFormData(prev => ({ ...prev, delivery_time_start: '' }))
-              )}
+              <TimeField
+                value={formData.delivery_time_start}
+                onChange={(e) => setFormData(prev => ({ ...prev, delivery_time_start: e.target.value }))}
+                onClear={() => setFormData(prev => ({ ...prev, delivery_time_start: '' }))}
+                isSaving={isSaving}
+              />
             </div>
 
             <div className="space-y-1">
               <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                 {isPickupMode ? 'End Time' : 'Delivery End'}
               </Label>
-              {renderTimeInput(
-                formData.delivery_time_end,
-                (e) => setFormData(prev => ({ ...prev, delivery_time_end: e.target.value })),
-                () => setFormData(prev => ({ ...prev, delivery_time_end: '' }))
-              )}
+              <TimeField
+                value={formData.delivery_time_end}
+                onChange={(e) => setFormData(prev => ({ ...prev, delivery_time_end: e.target.value }))}
+                onClear={() => setFormData(prev => ({ ...prev, delivery_time_end: '' }))}
+                isSaving={isSaving}
+              />
             </div>
 
             {!isPickupMode && (
               <>
                 <div className="space-y-1">
                   <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Start</Label>
-                  {renderTimeInput(
-                    formData.time_window_start,
-                    (e) => setFormData(prev => ({ ...prev, time_window_start: e.target.value })),
-                    () => setFormData(prev => ({ ...prev, time_window_start: '' }))
-                  )}
+                  <TimeField
+                    value={formData.time_window_start}
+                    onChange={(e) => setFormData(prev => ({ ...prev, time_window_start: e.target.value }))}
+                    onClear={() => setFormData(prev => ({ ...prev, time_window_start: '' }))}
+                    isSaving={isSaving}
+                  />
                 </div>
 
                 <div className="space-y-1">
                   <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient End</Label>
-                  {renderTimeInput(
-                    formData.time_window_end,
-                    (e) => setFormData(prev => ({ ...prev, time_window_end: e.target.value })),
-                    () => setFormData(prev => ({ ...prev, time_window_end: '' }))
-                  )}
+                  <TimeField
+                    value={formData.time_window_end}
+                    onChange={(e) => setFormData(prev => ({ ...prev, time_window_end: e.target.value }))}
+                    onClear={() => setFormData(prev => ({ ...prev, time_window_end: '' }))}
+                    isSaving={isSaving}
+                  />
                 </div>
               </>
             )}
@@ -224,23 +231,25 @@ export default function DeliveryStatusAndTiming({
                 <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                   Arrival Time
                 </Label>
-                {renderTimeInput(
-                  formData.arrival_time !== undefined ? formData.arrival_time : (delivery?.arrival_time ? format(new Date(delivery.arrival_time), 'HH:mm') : ''),
-                  (e) => setFormData(prev => ({ ...prev, arrival_time: e.target.value })),
-                  () => setFormData(prev => ({ ...prev, arrival_time: '' }))
-                )}
+                <TimeField
+                  value={formData.arrival_time !== undefined ? formData.arrival_time : (delivery?.arrival_time ? format(new Date(delivery.arrival_time), 'HH:mm') : '')}
+                  onChange={(e) => setFormData(prev => ({ ...prev, arrival_time: e.target.value }))}
+                  onClear={() => setFormData(prev => ({ ...prev, arrival_time: '' }))}
+                  isSaving={isSaving}
+                />
               </div>
             )}
             <div className="flex-1 space-y-1">
               <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                 Completion Time *
               </Label>
-              {renderTimeInput(
-                completionTime,
-                (e) => setCompletionTime(e.target.value),
-                () => setCompletionTime(''),
-                completionTimeRef
-              )}
+              <TimeField
+                ref={completionTimeRef}
+                value={completionTime}
+                onChange={(e) => setCompletionTime(e.target.value)}
+                onClear={() => setCompletionTime('')}
+                isSaving={isSaving}
+              />
             </div>
           </div>
         )}
