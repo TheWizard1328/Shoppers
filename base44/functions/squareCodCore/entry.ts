@@ -722,98 +722,33 @@ async function handleFetchPayments(base44, payload) {
   const allPayments = [];
   const soldCatalogItems = [];
   const soldCatalogItemKeys = new Set();
+  const completedOrders = await listCompletedOrders(locationIds, startDate.toISOString(), accessToken).catch(() => []);
+  const paidOrderItems = flattenPaidOrderItems(completedOrders || []);
 
-  for (const locationId of locationIds) {
-    let cursor = null;
-    let processedForLocation = 0;
-    const locationCap = Number.isFinite(Number(maxPerLocation)) && Number(maxPerLocation) > 0 ? Number(maxPerLocation) : null;
+  for (const item of paidOrderItems) {
+    const amountCents = toAmountCents(item?.amount_cents);
+    const dedupeKey = [
+      item?.square_transaction_id || item?.order_id || 'order',
+      item?.order_id || 'order',
+      item?.catalog_object_id || item?.item_name,
+      amountCents,
+      soldCatalogItems.length,
+    ].join('::');
+    if (soldCatalogItemKeys.has(dedupeKey)) continue;
+    soldCatalogItemKeys.add(dedupeKey);
 
-    do {
-      const queryParams = new URLSearchParams({
-        location_id: locationId,
-        begin_time: startDate.toISOString(),
-        end_time: endDate.toISOString(),
-        sort_order: 'DESC',
-        limit: '100',
-      });
-      if (cursor) queryParams.set('cursor', cursor);
-
-      const paymentsResponse = await fetch(`${SQUARE_BASE_URL}/v2/payments?${queryParams.toString()}`, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Square-Version': SQUARE_VERSION,
-        },
-      });
-
-      if (!paymentsResponse.ok) break;
-      const paymentsData = await paymentsResponse.json().catch(() => ({}));
-      const payments = Array.isArray(paymentsData.payments) ? paymentsData.payments : [];
-
-      for (const payment of payments) {
-        if (locationCap && processedForLocation >= locationCap) break;
-        if (payment.status !== 'COMPLETED') continue;
-
-        processedForLocation += 1;
-        allPayments.push(payment);
-
-        if (payment.order_id) {
-          await sleep(throttleMs);
-          try {
-            const orderResponse = await fetch(`${SQUARE_BASE_URL}/v2/orders/${payment.order_id}`, {
-              method: 'GET',
-              headers: {
-                Authorization: `Bearer ${accessToken}`,
-                'Content-Type': 'application/json',
-                'Square-Version': SQUARE_VERSION,
-              },
-            });
-
-            if (orderResponse.ok) {
-              const orderData = await orderResponse.json().catch(() => ({}));
-              const order = orderData.order;
-              if (order?.line_items?.length) {
-                for (const lineItem of order.line_items) {
-                  const quantityValue = Number(lineItem?.quantity || 1);
-                  const quantity = Number.isFinite(quantityValue) && quantityValue > 0 ? Math.round(quantityValue) : 1;
-                  const explicitUnitAmount = toAmountCents(lineItem?.base_price_money?.amount);
-                  const grossAmount = toAmountCents(lineItem?.gross_sales_money?.amount || lineItem?.total_money?.amount);
-                  const unitAmountCents = explicitUnitAmount || (quantity > 0 ? Math.round(grossAmount / quantity) : grossAmount);
-
-                  for (let index = 0; index < quantity; index += 1) {
-                    const dedupeKey = [
-                      payment.id,
-                      payment.order_id,
-                      lineItem.uid || lineItem.catalog_object_id || lineItem.name,
-                      unitAmountCents,
-                      index,
-                    ].join('::');
-                    if (soldCatalogItemKeys.has(dedupeKey)) continue;
-                    soldCatalogItemKeys.add(dedupeKey);
-
-                    soldCatalogItems.push({
-                      catalog_object_id: lineItem.catalog_object_id || null,
-                      location_id: payment.location_id,
-                      payment_id: payment.id,
-                      square_transaction_id: payment.id,
-                      square_payment_id: payment.id,
-                      order_id: payment.order_id,
-                      item_name: lineItem.name,
-                      amount: unitAmountCents / 100,
-                      payment_date: payment.created_at,
-                      payment_method: payment.payment_source_type || 'UNKNOWN',
-                    });
-                  }
-                }
-              }
-            }
-          } catch {}
-        }
-      }
-
-      if (locationCap && processedForLocation >= locationCap) break;
-      cursor = paymentsData.cursor || null;
-    } while (cursor);
+    soldCatalogItems.push({
+      catalog_object_id: item?.catalog_object_id || null,
+      location_id: item?.location_id || null,
+      payment_id: item?.order_id || null,
+      square_transaction_id: item?.order_id || null,
+      square_payment_id: item?.order_id || null,
+      order_id: item?.order_id || null,
+      item_name: item?.item_name || '',
+      amount: amountCents / 100,
+      payment_date: null,
+      payment_method: 'CARD',
+    });
   }
 
   const existingTransactions = await base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 2000).catch(() => []);
@@ -901,7 +836,7 @@ async function handleFetchPayments(base44, payload) {
 
   return {
     success: true,
-    paymentsCount: allPayments.length,
+    paymentsCount: normalizedTransactions.length,
     transactions: normalizedTransactions,
     soldItems,
     soldCatalogItems,
