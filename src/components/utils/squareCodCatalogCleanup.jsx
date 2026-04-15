@@ -1,6 +1,14 @@
 import { base44 } from '@/api/base44Client';
 import { deleteCODWithTimeout } from './squareCODHandler';
 
+const hasDebitOrCreditCod = (delivery) => {
+  const payments = delivery?.cod_payments;
+  if (Array.isArray(payments) && payments.some((payment) => ['Debit', 'Credit'].includes(payment?.type) && Number(payment?.amount || 0) > 0)) {
+    return true;
+  }
+  return ['Debit', 'Credit'].includes(delivery?.cod_payment_type);
+};
+
 export async function cleanupSquareCodCatalogForDate(deliveryDate) {
   if (!deliveryDate) return;
 
@@ -9,7 +17,8 @@ export async function cleanupSquareCodCatalogForDate(deliveryDate) {
     const deliveriesToCleanup = (deliveries || []).filter((delivery) => {
       if (!delivery) return false;
       if (delivery.status !== 'completed') return false;
-      return Number(delivery.cod_total_amount_required || 0) > 0;
+      if (Number(delivery.cod_total_amount_required || 0) <= 0) return false;
+      return hasDebitOrCreditCod(delivery);
     });
 
     if (deliveriesToCleanup.length === 0) return;
