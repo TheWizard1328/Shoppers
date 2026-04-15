@@ -94,7 +94,7 @@ export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindo
 
     try {
       if (hasTimeWindowChanges) {
-        const { optimizeRemainingStops } = await import('@/functions/optimizeRemainingStops');
+        const { optimizeRemainingStops } = await import('../../src/functions/optimizeRemainingStops');
         const optimizationResponse = await optimizeRemainingStops({
           driverId,
           deliveryDate,
