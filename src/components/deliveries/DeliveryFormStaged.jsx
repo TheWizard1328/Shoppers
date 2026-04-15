@@ -313,6 +313,12 @@ export default function DeliveryFormStaged({
         const projectedStore = stores?.find((s) => s && s.id === projected.store_id);
         const storeColor = projectedStore ? getStoreColor(projectedStore) : '#64748b';
         const projectedPatient = patients?.find((p) => p && p.id === projected.patient_id);
+        const projectedAddress = projected.delivery_address || projectedPatient?.address || '';
+        const projectedUnitNumber = projected.unit_number || projectedPatient?.unit_number || '';
+        const projectedRecurrence = [
+          projected.frequency || projected.reason,
+          formatLastDelivered(projectedPatient?.last_delivery_date || projected.last_delivery_date, projected.frequency)
+        ].filter(Boolean).join(' • ');
 
         return (
           <div
@@ -333,7 +339,8 @@ export default function DeliveryFormStaged({
               </div>
               <div className="flex items-center gap-1">
                 <div className="truncate flex-1 min-w-0 text-slate-600 text-[10px]">
-                  {[projected.frequency || projected.reason, formatLastDelivered(projectedPatient?.last_delivery_date || projected.last_delivery_date, projected.frequency)].filter(Boolean).join(' • ')}
+                  {projectedAddress}
+                  {projectedUnitNumber ? ` #${projectedUnitNumber}` : ''}
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <SpecialSymbolsBadges
@@ -343,6 +350,9 @@ export default function DeliveryFormStaged({
                     size="sm"
                   />
                 </div>
+              </div>
+              <div className="text-slate-600 text-[10px] truncate pr-1">
+                {projectedRecurrence}
               </div>
             </div>
 
