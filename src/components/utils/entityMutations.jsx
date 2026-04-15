@@ -942,8 +942,13 @@ export const createEntity = async (entityName, data, options = {}) => {
   
   try {
     const result = await base44.entities[entityName].create(data);
+
+    if (entityName === 'AppUser') {
+      await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [result]);
+    }
+
     notifyMutation({ type: 'create', entity: entityName, id: result.id, data: result });
-    // Broadcast removed
+    await broadcastMutation(entityName, 'create', result.id, result);
     return result;
   } catch (error) {
     console.error(`❌ [EntityMutations] Failed to create ${entityName}:`, error);
@@ -959,8 +964,13 @@ export const updateEntity = async (entityName, entityId, updates, options = {}) 
   
   try {
     const result = await base44.entities[entityName].update(entityId, updates);
+
+    if (entityName === 'AppUser') {
+      await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [result]);
+    }
+
     notifyMutation({ type: 'update', entity: entityName, id: entityId, data: result });
-    // Broadcast removed
+    await broadcastMutation(entityName, 'update', entityId, result);
     return result;
   } catch (error) {
     console.error(`❌ [EntityMutations] Failed to update ${entityName}:`, error);
@@ -975,9 +985,13 @@ export const deleteEntity = async (entityName, entityId, options = {}) => {
   if (mutationsPaused) throw new Error('Mutations are paused');
   
   try {
+    if (entityName === 'AppUser') {
+      await offlineDB.deleteRecord(offlineDB.STORES.APP_USERS, entityId).catch(() => null);
+    }
+
     await base44.entities[entityName].delete(entityId);
     notifyMutation({ type: 'delete', entity: entityName, id: entityId, data: null });
-    // Broadcast removed
+    await broadcastMutation(entityName, 'delete', entityId, null);
     return true;
   } catch (error) {
     console.error(`❌ [EntityMutations] Failed to delete ${entityName}:`, error);

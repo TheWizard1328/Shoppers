@@ -156,6 +156,13 @@ async function flushBuffered(entityName) {
   }
 
   if (typeof window !== 'undefined' && entityName === 'AppUser' && Array.isArray(fullReplacementData)) {
+    window.dispatchEvent(new CustomEvent('appUsersUpdated', {
+      detail: {
+        appUsers: fullReplacementData,
+        fromRealtime: true,
+        fullReplacement: true
+      }
+    }));
     window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
       detail: {
         appUsers: fullReplacementData,
@@ -675,6 +682,14 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
     }
 
     if (entity === 'AppUser') {
+      window.dispatchEvent(new CustomEvent('appUsersUpdated', {
+        detail: {
+          appUsers: data ? [data] : undefined,
+          deletedId: action === 'delete' ? id : undefined,
+          singleUpdate: data,
+          fromRealtime: true
+        }
+      }));
       window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
         detail: {
           appUsers: data ? [data] : undefined,
