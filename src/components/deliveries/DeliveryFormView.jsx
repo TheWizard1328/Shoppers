@@ -17,7 +17,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { getPickupStopIdForDelivery, determineDeliveryAMPM, getStoreAssignedTimeSlot } from '../utils/ampmUtils';
 import { isAppOwner } from '../utils/userRoles';
-import { updatePreferredTravelMode } from '../dashboard/travelModeHelpers';
 import SmartBarcodeScanner from './SmartBarcodeScanner';
 import PatientMatchPopup from './PatientMatchPopup';
 import DeliveryPatientSearch from './DeliveryPatientSearch';
@@ -510,10 +509,9 @@ export default function DeliveryFormView({
                         <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Travel Mode</Label>
                       )}
                       <TravelModeButtons
-                        value={formData.preferred_travel_mode || 'driving'}
-                        onChange={async (mode, user, appUsersList) => {
-                          await updatePreferredTravelMode(appUsersList, user?.id, mode);
-                          setFormData((prev) => ({ ...prev, preferred_travel_mode: mode }));
+                        value={formData.finished_leg_transport_mode || delivery?.finished_leg_transport_mode || 'driving'}
+                        onChange={async (mode) => {
+                          setFormData((prev) => ({ ...prev, finished_leg_transport_mode: mode }));
                         }}
                         currentUser={currentUser}
                         appUsers={appUsers}
