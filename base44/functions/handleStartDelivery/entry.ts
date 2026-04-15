@@ -71,6 +71,22 @@ Deno.serve(async (req) => {
 
     console.log(`🔄 [handleStartDelivery] Notifying frontend - distance transferred: ${distanceToTransfer} km`);
 
+    let optimization = null;
+    try {
+      const now = new Date();
+      const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const optimizationResponse = await base44.functions.invoke('optimizeRouteRealTime', {
+        driverId,
+        deliveryDate,
+        currentLocalTime,
+        deviceTime: now.toISOString(),
+        generatePolyline: true
+      });
+      optimization = optimizationResponse?.data || optimizationResponse || null;
+    } catch (error) {
+      console.warn(`⚠️ [handleStartDelivery] optimizeRouteRealTime failed:`, error?.message || error);
+    }
+
     console.log(`✅ [handleStartDelivery] Started new delivery: ${deliveryId}, transferred ${distanceToTransfer} km`);
 
     return Response.json({
@@ -78,8 +94,8 @@ Deno.serve(async (req) => {
       distanceTransferred: distanceToTransfer,
       newNextDeliveryId: deliveryId,
       oldNextDeliveryId,
-      routeChanged: false,
-      optimization: null
+      routeChanged: !!optimization?.routeChanged,
+      optimization
     });
 
   } catch (error) {

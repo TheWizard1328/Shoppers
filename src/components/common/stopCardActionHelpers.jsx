@@ -344,9 +344,7 @@ export async function setAndCenterNextDelivery({
         driverId,
         deliveryDate,
         targetDeliveryId
-      }).catch((error) => {
-        console.warn('[stopCardActionHelpers] Background next-delivery sync failed:', error?.message || error);
-      })
+      }).catch(() => null)
     );
   }
 

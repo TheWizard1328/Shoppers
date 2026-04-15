@@ -566,15 +566,6 @@ Deno.serve(async (req) => {
       });
     } catch (_logError) {}
 
-    if (activeSegmentChanged) {
-      await base44.functions.invoke('purgeAndRegeneratePolylines', {
-        driverId,
-        deliveryDate,
-        scope: 'active_only',
-        reason: 'route_reordered'
-      }).catch(() => null);
-    }
-
     // Tracking numbers are intentionally delayed until Assign All / Accept All.
 
     try {
@@ -634,6 +625,15 @@ Deno.serve(async (req) => {
       sameSegmentPoint(activeRouteOrigin, previousType1Origin) &&
       sameSegmentPoint(firstActiveCoords, previousType1Destination)
     );
+
+    if (activeSegmentChanged) {
+      await base44.functions.invoke('purgeAndRegeneratePolylines', {
+        driverId,
+        deliveryDate,
+        scope: 'active_only',
+        reason: 'route_reordered'
+      }).catch(() => null);
+    }
 
     return Response.json({
       success: true,
