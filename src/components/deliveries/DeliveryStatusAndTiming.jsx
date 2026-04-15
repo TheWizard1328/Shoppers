@@ -122,15 +122,13 @@ export default function DeliveryStatusAndTiming({
   const renderTimeInput = (value, onChange, _onClear, ref = null) => (
     <Input
       ref={ref}
-      type="text"
-      inputMode="numeric"
-      pattern="^([01]\d|2[0-3]):([0-5]\d)$"
-      placeholder="HH:mm"
+      type="time"
+      step="60"
       value={value || ''}
       onChange={onChange}
       disabled={isSaving}
       data-hotkey-add="true"
-      className="compact-time-input h-9 w-full px-2 text-sm"
+      className="h-9 w-full px-2 text-sm"
     />
   );
 
