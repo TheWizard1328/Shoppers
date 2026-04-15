@@ -1,5 +1,4 @@
 import React, { useRef, useEffect } from "react";
-import { X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -120,31 +119,19 @@ export default function DeliveryStatusAndTiming({
     </div>
   );
 
-  const renderTimeInput = (value, onChange, onClear, ref = null) => (
-    <div className="relative">
-      <Input
-        ref={ref}
-        type="text"
-        inputMode="numeric"
-        pattern="^([01]\d|2[0-3]):([0-5]\d)$"
-        placeholder="HH:mm"
-        value={value || ''}
-        onChange={onChange}
-        disabled={isSaving}
-        data-hotkey-add="true"
-        className="compact-time-input h-9 w-full px-2 pr-8 text-sm"
-      />
-      {value && !isSaving && (
-        <button
-          type="button"
-          onClick={onClear}
-          className="absolute right-1 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-sm text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-          aria-label="Clear time"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
-      )}
-    </div>
+  const renderTimeInput = (value, onChange, _onClear, ref = null) => (
+    <Input
+      ref={ref}
+      type="text"
+      inputMode="numeric"
+      pattern="^([01]\d|2[0-3]):([0-5]\d)$"
+      placeholder="HH:mm"
+      value={value || ''}
+      onChange={onChange}
+      disabled={isSaving}
+      data-hotkey-add="true"
+      className="compact-time-input h-9 w-full px-2 text-sm"
+    />
   );
 
   return (
