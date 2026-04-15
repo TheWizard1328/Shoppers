@@ -120,17 +120,22 @@ export default function DeliveryStatusAndTiming({
     </div>
   );
 
-  const renderTimeInput = (value, onChange, onClear, ref = null) => (
+  const renderTimeInput = (value, onChange, onClear, inputRef = null) => (
     <div className="relative">
-      <Input
-        ref={ref}
+      <input
+        ref={inputRef}
         type="time"
         step="60"
         value={value || ''}
         onChange={onChange}
         disabled={isSaving}
         data-hotkey-add="true"
-        className="compact-time-input h-9 w-full px-2 pr-10 text-sm"
+        className="compact-time-input flex h-9 w-full rounded-md border px-2 pr-10 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+        style={{
+          background: 'var(--bg-white)',
+          borderColor: 'var(--border-slate-200)',
+          color: 'var(--text-slate-900)'
+        }}
       />
       {value && !isSaving && (
         <button
