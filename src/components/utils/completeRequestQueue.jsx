@@ -19,6 +19,7 @@ const mergeAppUserPayload = (current = {}, incoming = {}) => ({ ...current, ...i
 const flushAppUserUpdate = async (entry) => {
   const { appUserId, payload } = entry;
   entry.timer = null;
+  if (!appUserId || !/^[a-f0-9]{24}$/i.test(String(appUserId))) return null;
   entry.inFlight = base44.entities.AppUser.update(appUserId, payload);
   try {
     const result = await entry.inFlight;
