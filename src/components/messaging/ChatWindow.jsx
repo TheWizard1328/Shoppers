@@ -10,6 +10,7 @@ import {
   isHiddenSystemBroadcastMessageForThisDevice,
   hasSystemBroadcastBeenAckedForThisDevice,
   markSystemBroadcastAckedForThisDevice,
+  buildDeviceUpdatedMessage,
 } from './updateBroadcastConfig';
 
 function ChatWindow({
@@ -92,13 +93,7 @@ function ChatWindow({
           latestSystemBroadcast?.id &&
           !hasSystemBroadcastBeenAckedForThisDevice(latestSystemBroadcast.id)
         ) {
-          const dispatcherStores = Array.isArray(currentUser?.store_ids) ? currentUser.store_ids.length : 0;
-          const storeSuffix = dispatcherStores > 1
-            ? ` — Stores: ${currentUser.store_ids.join(', ')}`
-            : dispatcherStores === 1
-              ? ` — Store: ${currentUser.store_ids[0]}`
-              : '';
-          const ackContent = `Device updated: ${currentUser?.user_name || currentUser?.full_name || 'Unknown User'}${storeSuffix}`;
+          const ackContent = buildDeviceUpdatedMessage(currentUser);
 
           await base44.entities.Message.create({
             sender_id: currentUser.id,
