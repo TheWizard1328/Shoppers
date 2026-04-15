@@ -555,7 +555,7 @@ export const handleBatchSaveDelivery = async ({
         if (allActive && hasIncompleteStops) {
           const now = new Date();
           const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-          await base44.functions.invoke('optimizeRouteRealTime', {
+          const optimizationResponse = await base44.functions.invoke('optimizeRouteRealTime', {
             driverId: batchDriverId,
             deliveryDate: batchDeliveryDate,
             currentLocalTime: localTimeString,
@@ -566,11 +566,14 @@ export const handleBatchSaveDelivery = async ({
             driverId: batchDriverId,
             deliveryDate: batchDeliveryDate
           }).catch(() => null);
-          await base44.functions.invoke('purgeAndRegeneratePolylines', {
-            driverId: batchDriverId,
-            deliveryDate: batchDeliveryDate,
-            scope: 'active_only'
-          }).catch(() => null);
+          const shouldRefreshPolylines = optimizationResponse?.data?.polylineRefresh?.shouldRefresh ?? optimizationResponse?.polylineRefresh?.shouldRefresh;
+          if (shouldRefreshPolylines) {
+            await base44.functions.invoke('purgeAndRegeneratePolylines', {
+              driverId: batchDriverId,
+              deliveryDate: batchDeliveryDate,
+              scope: 'active_only'
+            }).catch(() => null);
+          }
           if (invalidateDeliveriesForDate) invalidateDeliveriesForDate(batchDeliveryDate);
           await refreshData();
         }

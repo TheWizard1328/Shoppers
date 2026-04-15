@@ -154,6 +154,11 @@ const estimateCrowFliesTravelMinutes = (fromLat, fromLng, toLat, toLng) => {
 
 const isValidEntityId = (value) => /^[a-f0-9]{24}$/i.test(String(value || ''));
 const isActiveRouteStatus = (status) => ACTIVE_ROUTE_STATUSES.includes(status);
+const round5 = (value) => Number(Number(value).toFixed(5));
+const sameSegmentPoint = (a, b) => {
+  if (!a || !b) return false;
+  return round5(a.lat) === round5(b.lat) && round5(a.lng) === round5(b.lng);
+};
 
 const getStopCoordinates = (delivery, patientMap, storeMap) => {
   if (delivery.patient_id) {
@@ -605,6 +610,11 @@ Deno.serve(async (req) => {
       sequence: locked ? 0 : waypoint?.sequence
     }));
 
+    const firstActiveStop = arrangedStops.find((item) => !item?.stop?.isPending)?.stop || null;
+    const firstActiveCoords = firstActiveStop ? { lat: Number(firstActiveStop.lat), lng: Number(firstActiveStop.lng) } : null;
+    const activeRouteOrigin = currentPosition ? { lat: Number(currentPosition.lat), lng: Number(currentPosition.lng) } : null;
+    const activeSegmentChanged = !(sameSegmentPoint(activeRouteOrigin, firstActiveCoords) && nextDeliveryStop && firstActiveStop?.delivery?.id === nextDeliveryStop.id);
+
     return Response.json({
       success: true,
       driverId,
@@ -618,6 +628,12 @@ Deno.serve(async (req) => {
       hereSummary: {
         distanceMeters: Number(result?.distance || 0),
         durationSeconds: Number(result?.time || 0)
+      },
+      polylineRefresh: {
+        shouldRefresh: !!activeSegmentChanged,
+        origin: activeRouteOrigin,
+        destination: firstActiveCoords,
+        nextStopId: firstActiveStop?.delivery?.id || null
       }
     });
   } catch (error) {
