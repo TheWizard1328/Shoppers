@@ -643,11 +643,16 @@ export default function DriverPayroll() {
   const fullYearPayrollDataRef = useRef(null);
 
   const fetchPayroll = useCallback(async (isAutoRefresh = false, forceFresh = false) => {
-    if (!currentUser || !isPayrollPageActive) return;
+    if (!currentUser || !isPayrollPageActive || !selectedCityId) return;
 
-    const fetchSignature = `${selectedYear}-${selectedCityId}-${isAutoRefresh}-${forceFresh}`;
+    const cacheKey = `${selectedYear}-${selectedCityId}`;
+    const fetchSignature = `${cacheKey}-${isAutoRefresh}-${forceFresh}`;
     const now = Date.now();
     if (!forceFresh && lastFetchSignatureRef.current === fetchSignature && now - lastFetchTimestampRef.current < 4000) {
+      return fullYearPayrollDataRef.current;
+    }
+
+    if (!forceFresh && fullYearPayrollDataRef.current?.__cacheKey === cacheKey) {
       return fullYearPayrollDataRef.current;
     }
 
@@ -657,21 +662,14 @@ export default function DriverPayroll() {
 
     const runFetch = async () => {
       if (!isAutoRefresh) setIsLoadingPayroll(true);
-
-
       try {
-        if (fullYearPayrollDataRef.current && !forceFresh) {
-          console.log(`📊 [DriverPayroll] Using cached full-year data`);
-          setPayrollData(fullYearPayrollDataRef.current);
-          return fullYearPayrollDataRef.current;
-        }
-
         console.log(`📥 [DriverPayroll] Fetching FULL YEAR payroll data - Year: ${selectedYear}`);
-      const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
+        const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
           payrollYear: selectedYear,
           payrollCityId: selectedCityId
         });
-        const data = response?.data?.payrollData || response?.payrollData;
+        const rawData = response?.data?.payrollData || response?.payrollData;
+        const data = rawData ? { ...rawData, __cacheKey: cacheKey } : rawData;
 
         fullYearPayrollDataRef.current = data;
         lastFetchSignatureRef.current = fetchSignature;
@@ -684,10 +682,7 @@ export default function DriverPayroll() {
         });
 
         setPayrollData(data);
-        if (data?.payrollRecords?.length > 0) {
-          setPayrollRecords(data.payrollRecords);
-        }
-
+        setPayrollRecords(data?.payrollRecords || []);
         return data;
       } catch (error) {
         console.error('Failed to fetch payroll data:', error);
@@ -752,9 +747,9 @@ export default function DriverPayroll() {
   // Trigger fetch when filters change (after initialization)
   useEffect(() => {
     if (hasInitialized && isPayrollPageActive && selectedCityId) {
-      fetchPayroll(false, false);
+      fetchPayroll(false, false).catch(() => {});
     }
-  }, [hasInitialized, isPayrollPageActive, selectedCityId, fetchPayroll]);
+  }, [hasInitialized, isPayrollPageActive, selectedCityId, selectedYear, fetchPayroll]);
 
   // Initialize defaults based on user role - runs ONCE on mount
   // CRITICAL: Reads offline Payroll records to determine the correct pay cycle + period BEFORE rendering data
