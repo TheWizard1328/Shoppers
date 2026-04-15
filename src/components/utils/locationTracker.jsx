@@ -250,15 +250,12 @@ class LocationTracker {
       );
     }
 
-    const hasMovedEnough = !this.lastPosition || distance >= this.minDistanceChange;
-    const shouldUploadCoordinates = forceUpdate || !timestampOnly || hasMovedEnough;
+    const shouldUploadCoordinates = true;
 
-    if (!shouldUploadCoordinates) {
-      console.log(`💓 [LocationTracker] HEARTBEAT UPDATE - movement ${distance.toFixed(0)}m below ${this.minDistanceChange}m, refreshing timestamp only`);
-    } else if (forceUpdate) {
+    if (forceUpdate) {
       console.log(`💓 [LocationTracker] EVENT-DRIVEN UPDATE - uploading coordinates + timestamp`);
     } else {
-      console.log(`⏰ [LocationTracker] GPS update - moved ${distance.toFixed(0)}m, uploading coordinates + timestamp (threshold ${this.minDistanceChange}m)`);
+      console.log(`⏰ [LocationTracker] GPS update - moved ${distance.toFixed(0)}m, uploading coordinates + timestamp`);
     }
 
     // CRITICAL: Set lastUpdate BEFORE attempting upload for deduplication
