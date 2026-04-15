@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import { optimizeRouteRealTime } from '@/functions/optimizeRouteRealTime';
-import { optimizeRouteRealTime } from '@/functions/optimizeRouteRealTime';
 import { useAppData } from './AppDataContext';
 import { centerDeliveryCard } from './deliveryCardUtils';
 
