@@ -385,8 +385,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     });
     if (lockResult?.skipped) return;
   };
-  const handleAcceptAllStops = async () => {
-    const lockResult = await runWithDeliveryActionLock('accept_all_delivery', async () => {
+  const executeAcceptAllStops = async () => {
     pauseOfflineSync('delivery_actions');
     setIsAcceptingAll(true);const { driverLocationPoller } = await import('../utils/driverLocationPoller');
     try {
@@ -394,7 +393,6 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
       const allPendingDeliveries = pendingPickups.filter((p) => p.status === 'pending');const now = new Date();const currentMinutes = now.getHours() * 60 + now.getMinutes();const startMinutes = currentMinutes + 5;const deliveryTimeStart = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       const sortedPending = [...allPendingDeliveries].sort((a, b) => (a.patient_name || '').localeCompare(b.patient_name || ''));
 
-      // OFFLINE-FIRST: Update all deliveries locally in parallel (fire and forget)
       const localUpdates = sortedPending.map((pendingDelivery, i) => ({
         id: pendingDelivery.id,
         status: 'in_transit',
@@ -404,22 +402,19 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
         ...(pendingDelivery.active === false ? { active: true } : {})
       }));
 
-      Promise.all(localUpdates.map((update) => updateDeliveryLocal(update.id, update, { skipSmartRefresh: true }))).catch((err) => console.warn('Local update failed:', err));
+      await Promise.all(localUpdates.map((update) => updateDeliveryLocal(update.id, update, { skipSmartRefresh: true })));
 
-      // Dispatch events immediately for UI responsiveness
       fabControlEvents.notifyAcceptAllClicked();
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAll', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true } }));
       window.dispatchEvent(new CustomEvent('pendingToInTransit', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
 
       const codBatch = allPendingDeliveries.filter((pd) => pd.cod_total_amount_required > 0 && pd.patient_id).map((pendingDelivery) => {const storeForCod = stores.find((s) => s && s.id === pendingDelivery.store_id);return { deliveryId: pendingDelivery.id, patientName: pendingDelivery.patient_name, storeAbbreviation: storeForCod?.abbreviation || '', codAmount: pendingDelivery.cod_total_amount_required, deliveryDate: pendingDelivery.delivery_date, storeId: pendingDelivery.store_id };});
 
-      // Background: Sync updates to server (no await in main thread)
       sortedPending.forEach((pendingDelivery, i) => {queueDeliveryUpdate(pendingDelivery.id, { status: 'in_transit', delivery_time_start: deliveryTimeStart, tracking_number: incrementTrackingNumber(delivery.tracking_number, i + 1), ...(pendingDelivery.active === false ? { active: true } : {}) });});
       await flushQueuedDeliveryUpdates();
       invalidate('Delivery');
       await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
 
-      // Background: Route optimization (final UI update only after optimization completes)
       Promise.resolve().then(async () => {
         window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
         try {
@@ -449,15 +444,18 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
         }
       });
 
-      // Background: Square COD sync
       if (typeof codBatch !== 'undefined' && codBatch.length > 0) {console.log(`📦 [Square] Queuing ${codBatch.length} COD items to backend...`, codBatch);base44.functions.invoke('syncSquareCods', { items: codBatch }).then(() => {try {toast?.success?.(`Queued ${codBatch.length} CODs to Square`);} catch (_) {}}).catch((e) => console.warn('⚠️ [Square] Batch COD sync failed to start:', e));}
 
-      // Background: Notifications
       const isDriverAction = userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id;
       if (isDriverAction) notifyDriverAcceptedAll({ driver: currentUser, store, appUsers }).catch((err) => console.warn('Notification failed:', err));else
       {const assignedDriver = drivers.find((d) => d?.id === delivery.driver_id);if (assignedDriver) notifyDispatcherAssignedAll({ dispatcher: currentUser, driver: assignedDriver, store, deliveries: allPendingDeliveries, patients }).catch((err) => console.warn('Notification failed:', err));}
-    } catch (error) {console.error('❌ [Accept All] Error:', error);toast.error(`Failed to accept all: ${error.message}`);} finally
+    } catch (error) {console.error('❌ [Accept All] Error:', error);toast.error(`Failed to accept all: ${error.message}`);throw error;} finally
     {resumeOfflineSync('delivery_actions');driverLocationPoller.resume();smartRefreshManager.resume();setIsEntityUpdating(false);setIsAcceptingAll(false);if (onClick) onClick(null);}
+  };
+
+  const handleAcceptAllStops = async () => {
+    const lockResult = await runWithDeliveryActionLock('accept_all_delivery', async () => {
+      await executeAcceptAllStops();
     });
     if (lockResult?.skipped) return;
   };
@@ -811,8 +809,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           try {pendingBreadcrumbsString = await getPendingBreadcrumbsForDelivery({ driverUserId: delivery.driver_id, deliveryId: delivery.id, stopOrder: delivery.stop_order, appUsers });} catch (breadcrumbErr) {console.warn('⚠️ [COMPLETE] Breadcrumb fetch failed, continuing without:', breadcrumbErr.message);}
                           const hasPendingPickupTransitions = isPickup && pendingPickups && pendingPickups.some((p) => p.status === 'pending');
                           if (hasPendingPickupTransitions) {
-                            await handleAcceptAllStops();
-                            await new Promise((resolve) => setTimeout(resolve, 250));
+                            await executeAcceptAllStops();
                           }
                           const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
                           const useRetroactiveTiming = !shouldUseRegularTiming({
