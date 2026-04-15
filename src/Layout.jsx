@@ -115,9 +115,9 @@ import { getLayoutStyles } from './components/layout/layoutStyles';
 // App version will be loaded from AppSettings
 const DEFAULT_APP_VERSION = 'v1.0.0';
 
-const createMergedUser=(authUser,appUser)=>{if(!authUser&&!appUser)return null;if(!authUser&&appUser)return{id:appUser.user_id,user_id:appUser.user_id,email:null,full_name:appUser.user_name||'Unknown User',user_name:appUser.user_name||'Unknown User',display_name:appUser.user_name||'Unknown User',app_roles:Array.isArray(appUser.app_roles)?appUser.app_roles:[],status:appUser.status||'inactive',driver_status:appUser.driver_status,city_id:appUser.city_id,store_ids:appUser.store_ids,sort_order:appUser.sort_order,phone:appUser.phone,home_latitude:appUser.home_latitude,home_longitude:appUser.home_longitude,current_latitude:appUser.current_latitude,current_longitude:appUser.current_longitude,location_updated_at:appUser.location_updated_at,location_tracking_enabled:appUser.location_tracking_enabled};let merged={...authUser,id:authUser.id,user_name:authUser.full_name,display_name:authUser.full_name,app_roles:[],status:'inactive'};if(appUser){merged={...merged,...appUser,id:authUser.id,user_name:appUser.user_name ?? merged.user_name,display_name:appUser.user_name ?? merged.display_name,app_roles:Array.isArray(appUser.app_roles)?appUser.app_roles:merged.app_roles,status:appUser.status ?? merged.status};}return merged;};
-const CURRENT_USER_REFRESH_KEYS=['app_roles','store_ids','city_id','status','user_name','company_id','square_location_ids'];
-const hasCurrentUserRefreshImpact=(currentUser,updateData={})=>!!currentUser&&!!updateData&&CURRENT_USER_REFRESH_KEYS.some((key)=>key in updateData&&JSON.stringify(currentUser[key]??null)!==JSON.stringify(updateData[key]??null));
+const createMergedUser = (authUser, appUser) => {if (!authUser && !appUser) return null;if (!authUser && appUser) return { id: appUser.user_id, user_id: appUser.user_id, email: null, full_name: appUser.user_name || 'Unknown User', user_name: appUser.user_name || 'Unknown User', display_name: appUser.user_name || 'Unknown User', app_roles: Array.isArray(appUser.app_roles) ? appUser.app_roles : [], status: appUser.status || 'inactive', driver_status: appUser.driver_status, city_id: appUser.city_id, store_ids: appUser.store_ids, sort_order: appUser.sort_order, phone: appUser.phone, home_latitude: appUser.home_latitude, home_longitude: appUser.home_longitude, current_latitude: appUser.current_latitude, current_longitude: appUser.current_longitude, location_updated_at: appUser.location_updated_at, location_tracking_enabled: appUser.location_tracking_enabled };let merged = { ...authUser, id: authUser.id, user_name: authUser.full_name, display_name: authUser.full_name, app_roles: [], status: 'inactive' };if (appUser) {merged = { ...merged, ...appUser, id: authUser.id, user_name: appUser.user_name ?? merged.user_name, display_name: appUser.user_name ?? merged.display_name, app_roles: Array.isArray(appUser.app_roles) ? appUser.app_roles : merged.app_roles, status: appUser.status ?? merged.status };}return merged;};
+const CURRENT_USER_REFRESH_KEYS = ['app_roles', 'store_ids', 'city_id', 'status', 'user_name', 'company_id', 'square_location_ids'];
+const hasCurrentUserRefreshImpact = (currentUser, updateData = {}) => !!currentUser && !!updateData && CURRENT_USER_REFRESH_KEYS.some((key) => key in updateData && JSON.stringify(currentUser[key] ?? null) !== JSON.stringify(updateData[key] ?? null));
 
 import QuickStats from './components/layout/DashboardQuickStats';
 
@@ -298,12 +298,12 @@ export default function Layout({ children, currentPageName }) {
 
 
 
+
+
         // Silent fail
       }}; // Initial check
-    pollAdminImportSetting();
-    // Poll every 60 seconds to prevent rate limits
-    const interval = setInterval(pollAdminImportSetting, 60000);
-    return () => clearInterval(interval);
+    pollAdminImportSetting(); // Poll every 60 seconds to prevent rate limits
+    const interval = setInterval(pollAdminImportSetting, 60000);return () => clearInterval(interval);
   }, [currentUser, adminImportEnabled]);
 
   // ATOMIC INIT: Unified loading state - keeps spinner until device+auth+data confirmed
@@ -312,71 +312,71 @@ export default function Layout({ children, currentPageName }) {
       setIsLoadingLayout(true);
       try {
         setDeviceTypeDetected(getDeviceType());
-        const fetchedUser = await requestThrottler.queue(()=>getEffectiveUser(),'critical','getEffectiveUser');
-        if (!fetchedUser) { setHasAccess(false);setCurrentUser(null);setIsLoadingLayout(false);setDataLoaded(true);return; }
+        const fetchedUser = await requestThrottler.queue(() => getEffectiveUser(), 'critical', 'getEffectiveUser');
+        if (!fetchedUser) {setHasAccess(false);setCurrentUser(null);setIsLoadingLayout(false);setDataLoaded(true);return;}
         const deviceIdentifier = getDeviceIdentifier();
-        const todayStr = format(new Date(),'yyyy-MM-dd');
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
         const cachedReg = localStorage.getItem(`rxdeliver_device_registered_${deviceIdentifier}`);
-        let manifest = {}, isDeviceRegistered = false;
+        let manifest = {},isDeviceRegistered = false;
         try {
-          const mr = await requestThrottler.queue(()=>base44.functions.invoke('getBootstrapManifest',{deviceIdentifier,todayStr}),'critical','getBootstrapManifest');
-          manifest = mr?.data||mr||{};
-          isDeviceRegistered = manifest.deviceRegistered===true;
-        } catch(e) { if(cachedReg==='true'){isDeviceRegistered=true;}else throw e; }
+          const mr = await requestThrottler.queue(() => base44.functions.invoke('getBootstrapManifest', { deviceIdentifier, todayStr }), 'critical', 'getBootstrapManifest');
+          manifest = mr?.data || mr || {};
+          isDeviceRegistered = manifest.deviceRegistered === true;
+        } catch (e) {if (cachedReg === 'true') {isDeviceRegistered = true;} else throw e;}
         // KEEP LOADING SPINNER while waiting for device registration
-        if (!isDeviceRegistered && cachedReg!=='true') { setCurrentUser(fetchedUser); return; }
-        localStorage.setItem(`rxdeliver_device_registered_${deviceIdentifier}`,'true');
+        if (!isDeviceRegistered && cachedReg !== 'true') {setCurrentUser(fetchedUser);return;}
+        localStorage.setItem(`rxdeliver_device_registered_${deviceIdentifier}`, 'true');
         setDeviceRegistered(true);
         try {
-          const s = await requestThrottler.queue(()=>loadUserSettings(fetchedUser.id),'critical','loadUserSettings');
-          if(s.sidebar_width) setSidebarWidth(s.sidebar_width);
-          if(s.theme_preference&&isMobileDeviceForTheme()) setThemePreference(s.theme_preference); else setThemePreference('light');
-          if(s.data_source) setDataSource(s.data_source);
+          const s = await requestThrottler.queue(() => loadUserSettings(fetchedUser.id), 'critical', 'loadUserSettings');
+          if (s.sidebar_width) setSidebarWidth(s.sidebar_width);
+          if (s.theme_preference && isMobileDeviceForTheme()) setThemePreference(s.theme_preference);else setThemePreference('light');
+          if (s.data_source) setDataSource(s.data_source);
           setUserSettingsLoaded(true);
-        } catch { setUserSettingsLoaded(true); }
-        const ms = manifest.appSettings||{};
-        smartRefreshManager._enabled = ms.smartRefreshEnabled!==false;
+        } catch {setUserSettingsLoaded(true);}
+        const ms = manifest.appSettings || {};
+        smartRefreshManager._enabled = ms.smartRefreshEnabled !== false;
         smartRefreshManager._initialized = true;
-        if(ms.appVersion){const v=ms.appVersion;setAppVersion(`v${v.major}.${v.minor}.${v.build}`);}
-        setAdminImportEnabled(ms.adminImportEnabled===true);
-        if(userHasRole(fetchedUser,'dispatcher')&&fetchedUser.status==='inactive'){
+        if (ms.appVersion) {const v = ms.appVersion;setAppVersion(`v${v.major}.${v.minor}.${v.build}`);}
+        setAdminImportEnabled(ms.adminImportEnabled === true);
+        if (userHasRole(fetchedUser, 'dispatcher') && fetchedUser.status === 'inactive') {
           sessionStorage.clear();clearUserCache();clearSettingsCache();
           alert('Access Denied: Your account is currently inactive. Please contact an administrator.');
-          try{await base44.auth.logout();}catch(e){}
-          window.location.href='/';return;
+          try {await base44.auth.logout();} catch (e) {}
+          window.location.href = '/';return;
         }
         setCurrentUser(fetchedUser);setHasAccess(true);
-        if(fetchedUser?.company_id){try{const b=await getCompanyBranding(fetchedUser.company_id);setBranding(b);applyBrandingStyles(b);}catch{}}
-        const citiesData=(Array.isArray(manifest.cities)?[...manifest.cities]:[]).sort((a,b)=>(a.sort_order??Infinity)-(b.sort_order??Infinity));
+        if (fetchedUser?.company_id) {try {const b = await getCompanyBranding(fetchedUser.company_id);setBranding(b);applyBrandingStyles(b);} catch {}}
+        const citiesData = (Array.isArray(manifest.cities) ? [...manifest.cities] : []).sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
         setCities(citiesData);
-        let initialCityId=citiesData.find(c=>c&&c.id===fetchedUser.city_id)?.id||null;
-        if(!initialCityId&&userHasRole(fetchedUser,'admin')&&citiesData.length>0) initialCityId=citiesData[0].id;
-        if(!initialCityId){setShowCitySelectionPopup(true);globalFilters.setSelectedCityId('waiting-for-selection');setIsLoadingLayout(false);return;}
+        let initialCityId = citiesData.find((c) => c && c.id === fetchedUser.city_id)?.id || null;
+        if (!initialCityId && userHasRole(fetchedUser, 'admin') && citiesData.length > 0) initialCityId = citiesData[0].id;
+        if (!initialCityId) {setShowCitySelectionPopup(true);globalFilters.setSelectedCityId('waiting-for-selection');setIsLoadingLayout(false);return;}
         globalFilters.setSelectedCityId(initialCityId);
-        const {offlineDB:odb}=await import('./components/utils/offlineDatabase');
-        setSquareLocationConfigs(await odb.getAll(odb.STORES.SQUARE_LOCATION_CONFIGS)||[]);
-        setCatalogItems(await odb.getAll(odb.STORES.SQUARE_CATALOG_ITEMS)||[]);
-        setSquareTransactions(await odb.getAll(odb.STORES.SQUARE_TRANSACTIONS)||[]);
-        const today=new Date();if(!globalFilters.getSelectedDate())globalFilters.setSelectedDate(today);
-        if(!globalFilters.getSelectedDriverId())globalFilters.setSelectedDriverId('all');
+        const { offlineDB: odb } = await import('./components/utils/offlineDatabase');
+        setSquareLocationConfigs((await odb.getAll(odb.STORES.SQUARE_LOCATION_CONFIGS)) || []);
+        setCatalogItems((await odb.getAll(odb.STORES.SQUARE_CATALOG_ITEMS)) || []);
+        setSquareTransactions((await odb.getAll(odb.STORES.SQUARE_TRANSACTIONS)) || []);
+        const today = new Date();if (!globalFilters.getSelectedDate()) globalFilters.setSelectedDate(today);
+        if (!globalFilters.getSelectedDriverId()) globalFilters.setSelectedDriverId('all');
         try {
-          const dd=await offlineDB.getByDate(offlineDB.STORES.DELIVERIES,todayStr).catch(()=>[]);
-          const pd=await offlineDB.getAll(offlineDB.STORES.PATIENTS).catch(()=>[]);
-          const aud=Array.isArray(manifest.appUsers)?manifest.appUsers:[];
-          const sd=Array.isArray(manifest.stores)?[...manifest.stores]:[];
-          if(dd?.length){await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES,dd);setDeliveries(dd);}
-          if(pd?.length){await offlineDB.bulkSave(offlineDB.STORES.PATIENTS,pd);setPatients(pd);}
-          if(aud?.length){await offlineDB.bulkSave(offlineDB.STORES.APP_USERS,aud);setAppUsers(aud);}
-          if(sd?.length){sd.sort((a,b)=>(a.sort_order??Infinity)-(b.sort_order??Infinity));await offlineDB.bulkSave(offlineDB.STORES.STORES,sd);setStores(sd);}
-          if(!dd?.length||!pd?.length||!aud?.length)window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));
-        } catch(e){console.warn('⚠️ Offline DB prime failed:',e.message);window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));}
-        const {markOfflineDBLoadComplete}=await import('./components/utils/dataManager');
+          const dd = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, todayStr).catch(() => []);
+          const pd = await offlineDB.getAll(offlineDB.STORES.PATIENTS).catch(() => []);
+          const aud = Array.isArray(manifest.appUsers) ? manifest.appUsers : [];
+          const sd = Array.isArray(manifest.stores) ? [...manifest.stores] : [];
+          if (dd?.length) {await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, dd);setDeliveries(dd);}
+          if (pd?.length) {await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, pd);setPatients(pd);}
+          if (aud?.length) {await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, aud);setAppUsers(aud);}
+          if (sd?.length) {sd.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));await offlineDB.bulkSave(offlineDB.STORES.STORES, sd);setStores(sd);}
+          if (!dd?.length || !pd?.length || !aud?.length) window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));
+        } catch (e) {console.warn('⚠️ Offline DB prime failed:', e.message);window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));}
+        const { markOfflineDBLoadComplete } = await import('./components/utils/dataManager');
         markOfflineDBLoadComplete();
         setInitialGlobalFiltersSet(true);setDataLoaded(true);
         setIsLoadingLayout(false); // Release loading gate ONLY after all prerequisites confirmed
-      } catch(error){
-        const isAuth=error.response?.status===401||error.response?.status===403||error.message?.includes('Unauthorized')||error.message?.includes('Forbidden');
-        if(isAuth){setHasAccess(false);}else{console.warn('⚠️ Init error:',error.message);setHasAccess(true);}
+      } catch (error) {
+        const isAuth = error.response?.status === 401 || error.response?.status === 403 || error.message?.includes('Unauthorized') || error.message?.includes('Forbidden');
+        if (isAuth) {setHasAccess(false);} else {console.warn('⚠️ Init error:', error.message);setHasAccess(true);}
         setIsLoadingLayout(false);setDataLoaded(true);
       }
     };
@@ -504,7 +504,7 @@ export default function Layout({ children, currentPageName }) {
         const idsToDelete = new Set(mutation.ids || []);
         if (mutation.entity === 'Delivery') {
           await Promise.all((mutation.ids || []).map((id) =>
-            offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(() => {})
+          offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(() => {})
           ));
           setDeliveries((prev) => prev.filter((d) => !idsToDelete.has(d?.id)));
         }
@@ -699,7 +699,7 @@ export default function Layout({ children, currentPageName }) {
       const skipReloadTriggers = ['batchSaveImmediate', 'driver_location_update', 'driverLocationUpdate', 'pullToSyncDataReady', 'pullToSyncComplete', 'initialDataReady'];
       if (preserveLocalState || skipReloadTriggers.includes(triggeredBy)) {
         if (freshDeliveries?.length > 0) {
-          setDeliveries((prev) => { const map = new Map(prev.map((d) => [d?.id, d]).filter(([id]) => !!id)); freshDeliveries.forEach((d) => { if (d?.id) map.set(d.id, d); }); return Array.from(map.values()); });
+          setDeliveries((prev) => {const map = new Map(prev.map((d) => [d?.id, d]).filter(([id]) => !!id));freshDeliveries.forEach((d) => {if (d?.id) map.set(d.id, d);});return Array.from(map.values());});
         }
         return;
       }
@@ -707,7 +707,7 @@ export default function Layout({ children, currentPageName }) {
       if (freshDeliveries?.length > 0) {
         setDeliveries((prev) => {
           const map = new Map((prev || []).filter(Boolean).map((d) => [d?.id, d]).filter(([id]) => !!id));
-          freshDeliveries.forEach((d) => { if (d?.id) map.set(d.id, d); });
+          freshDeliveries.forEach((d) => {if (d?.id) map.set(d.id, d);});
           return Array.from(map.values());
         });
       }
@@ -880,7 +880,7 @@ export default function Layout({ children, currentPageName }) {
   // Granular delivery update function for immediate UI synchronization
   const updateDeliveriesLocally = useCallback((newDeliveries, isFullReplacement = false) => {
     if (isFullReplacement) {
-      setDeliveries((prev) => (newDeliveries?.filter(Boolean).length || !prev.length) ? [...(newDeliveries || []).filter(Boolean)] : prev);
+      setDeliveries((prev) => newDeliveries?.filter(Boolean).length || !prev.length ? [...(newDeliveries || []).filter(Boolean)] : prev);
     } else {
       setDeliveries((prevDeliveries) => {
         const merged = new Map((prevDeliveries || []).filter(Boolean).map((delivery) => [delivery.id, delivery]));
@@ -897,7 +897,7 @@ export default function Layout({ children, currentPageName }) {
   // Granular AppUser update function for immediate UI synchronization
   const updateAppUsersLocally = useCallback((newAppUsers, isFullReplacement = false) => {
     if (isFullReplacement) {
-      setAppUsers((prev) => (newAppUsers?.filter(Boolean).length || !prev.length) ? [...newAppUsers.filter(Boolean)] : prev);
+      setAppUsers((prev) => newAppUsers?.filter(Boolean).length || !prev.length ? [...newAppUsers.filter(Boolean)] : prev);
     } else {
       setAppUsers((prevAppUsers) => {
         const updatesMap = new Map(newAppUsers.map((u) => [u.id, u]));
@@ -1138,10 +1138,10 @@ export default function Layout({ children, currentPageName }) {
         currentLocation: nextLocation
       });
     } catch (error) {
-      // Silent fail
-    }
-  };
 
+
+      // Silent fail
+    }};
   //const currentUser = currentUser;
 
   const handleCitySelected = useCallback(async (cityId) => {
@@ -1190,7 +1190,7 @@ export default function Layout({ children, currentPageName }) {
 
       // CRITICAL: Stagger initial data loads to prevent rate limiting
       const { offlineDB: offlineDBForCities } = await import('./components/utils/offlineDatabase');
-      const citiesData = workingCities?.length > 0 ? workingCities : await (async () => { const cached = await offlineDBForCities.getAll(offlineDBForCities.STORES.CITIES); return cached?.length ? cached : await getData('City', null, null, forceRefresh); })();
+      const citiesData = workingCities?.length > 0 ? workingCities : await (async () => {const cached = await offlineDBForCities.getAll(offlineDBForCities.STORES.CITIES);return cached?.length ? cached : await getData('City', null, null, forceRefresh);})();
 
       // Small delay before next batch
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -1369,15 +1369,15 @@ export default function Layout({ children, currentPageName }) {
     }
 
     if (userHasRole(currentUser, 'admin')) {
+
+
       // Admins see all
-    } else if (userHasRole(currentUser, 'dispatcher')) {
-      const sIds = currentUser.store_ids || [];
-      if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];
+    } else if (userHasRole(currentUser, 'dispatcher')) {const sIds = currentUser.store_ids || [];if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];
       const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;
-      const pIds = new Set(patients.filter(p => p && relIds.includes(p.store_id)).map(p => p.id));
-      data = data.filter(d => d && (d.patient_id ? pIds.has(d.patient_id) : relIds.includes(d.store_id)));
+      const pIds = new Set(patients.filter((p) => p && relIds.includes(p.store_id)).map((p) => p.id));
+      data = data.filter((d) => d && (d.patient_id ? pIds.has(d.patient_id) : relIds.includes(d.store_id)));
     } else if (userHasRole(currentUser, 'driver')) {
-      data = data.filter(d => d && d.driver_id === currentUser.id);
+      data = data.filter((d) => d && d.driver_id === currentUser.id);
       if (selectedStoreId && selectedStoreId !== 'all' && currentUser.store_id !== selectedStoreId) return [];
     }
 
@@ -1393,12 +1393,12 @@ export default function Layout({ children, currentPageName }) {
     }
 
     if (userHasRole(currentUser, 'admin')) {
+
+
       // Admins see all
-    } else if (userHasRole(currentUser, 'dispatcher')) {
-      const sIds = currentUser.store_ids || [];
-      if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];
+    } else if (userHasRole(currentUser, 'dispatcher')) {const sIds = currentUser.store_ids || [];if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];
       const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;
-      data = data.filter(p => p && relIds.includes(p.store_id));
+      data = data.filter((p) => p && relIds.includes(p.store_id));
     }
     return data;
   }, [patients, currentUser, selectedStoreId]);
@@ -1475,7 +1475,7 @@ export default function Layout({ children, currentPageName }) {
     let relevantPatients = patients;
     if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
       const sIds = new Set(currentUser.store_ids || []);
-      relevantPatients = patients.filter(p => p && sIds.has(p.store_id));
+      relevantPatients = patients.filter((p) => p && sIds.has(p.store_id));
     }
 
     return sortedStores.map((store) => ({
@@ -1751,7 +1751,7 @@ export default function Layout({ children, currentPageName }) {
 
       {/* Connection Recovery Banner - auto-shows on connection issues */}
       <ConnectionRecoveryBanner />
-      <MobileOverlayBackHandler isMobile={isMobile} isTabletPortrait={isTabletPortrait} isOverlayOpen={sidebarOpen || showMessaging || showInviteQRModal || showCitySelectionPopup || isFormOverlayOpen} onRequestCloseOverlay={() => { if (sidebarOpen) setSidebarOpen(false); if (showMessaging) { setShowMessaging(false); setInitialConversation(null); } if (showInviteQRModal) setShowInviteQRModal(false); if (isFormOverlayOpen) window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true })); }} />
+      <MobileOverlayBackHandler isMobile={isMobile} isTabletPortrait={isTabletPortrait} isOverlayOpen={sidebarOpen || showMessaging || showInviteQRModal || showCitySelectionPopup || isFormOverlayOpen} onRequestCloseOverlay={() => {if (sidebarOpen) setSidebarOpen(false);if (showMessaging) {setShowMessaging(false);setInitialConversation(null);}if (showInviteQRModal) setShowInviteQRModal(false);if (isFormOverlayOpen) window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));}} />
 
       {/* PWA Install Prompt */}
       <PWAInstallPrompt />
@@ -1841,10 +1841,10 @@ export default function Layout({ children, currentPageName }) {
            <AppDataProvider value={{
           deliveries: deliveries || [], patients: patients || [], stores: stores || [], drivers: drivers || [], users: users || [], appUsers: appUsers || [], cities: cities || [], currentUser,
           isDataLoaded: dataLoaded, refreshData: triggerFullDataLoadRef.current, updateDeliveriesLocally, updateAppUsersLocally,
-          applyDeliveryChangesLocally: ({ upserts = [], deleteIds = [] }) => setDeliveries((prev) => { const map = new Map((prev || []).filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id)); (deleteIds || []).forEach((id) => map.delete(id)); (upserts || []).forEach((item) => { if (item?.id) map.set(item.id, map.has(item.id) ? { ...map.get(item.id), ...item } : item); }); return Array.from(map.values()); }),
-          applyAppUserChangesLocally: ({ upserts = [], deleteIds = [] }) => setAppUsers((prev) => { const map = new Map((prev || []).filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id)); (deleteIds || []).forEach((id) => map.delete(id)); (upserts || []).forEach((item) => { if (item?.id) map.set(item.id, map.has(item.id) ? { ...map.get(item.id), ...item } : item); }); return Array.from(map.values()); }),
-          applyPatientChangesLocally: ({ upserts = [], deleteIds = [] }) => setPatients((prev) => { const map = new Map((prev || []).filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id)); (deleteIds || []).forEach((id) => map.delete(id)); (upserts || []).forEach((item) => { if (item?.id) map.set(item.id, map.has(item.id) ? { ...map.get(item.id), ...item } : item); }); return Array.from(map.values()); }),
-          updatePatientsLocally: ({ upserts = [], deleteIds = [] }) => setPatients((prev) => { const map = new Map((prev || []).filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id)); (deleteIds || []).forEach((id) => map.delete(id)); (upserts || []).forEach((item) => { if (item?.id) map.set(item.id, map.has(item.id) ? { ...map.get(item.id), ...item } : item); }); return Array.from(map.values()); }),
+          applyDeliveryChangesLocally: ({ upserts = [], deleteIds = [] }) => setDeliveries((prev) => {const map = new Map((prev || []).filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id));(deleteIds || []).forEach((id) => map.delete(id));(upserts || []).forEach((item) => {if (item?.id) map.set(item.id, map.has(item.id) ? { ...map.get(item.id), ...item } : item);});return Array.from(map.values());}),
+          applyAppUserChangesLocally: ({ upserts = [], deleteIds = [] }) => setAppUsers((prev) => {const map = new Map((prev || []).filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id));(deleteIds || []).forEach((id) => map.delete(id));(upserts || []).forEach((item) => {if (item?.id) map.set(item.id, map.has(item.id) ? { ...map.get(item.id), ...item } : item);});return Array.from(map.values());}),
+          applyPatientChangesLocally: ({ upserts = [], deleteIds = [] }) => setPatients((prev) => {const map = new Map((prev || []).filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id));(deleteIds || []).forEach((id) => map.delete(id));(upserts || []).forEach((item) => {if (item?.id) map.set(item.id, map.has(item.id) ? { ...map.get(item.id), ...item } : item);});return Array.from(map.values());}),
+          updatePatientsLocally: ({ upserts = [], deleteIds = [] }) => setPatients((prev) => {const map = new Map((prev || []).filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id));(deleteIds || []).forEach((id) => map.delete(id));(upserts || []).forEach((item) => {if (item?.id) map.set(item.id, map.has(item.id) ? { ...map.get(item.id), ...item } : item);});return Array.from(map.values());}),
           isFormOverlayOpen: isFormOverlayOpen, setIsFormOverlayOpen: setIsFormOverlayOpen, isEntityUpdating: isEntityUpdating, setIsEntityUpdating: setIsEntityUpdating,
           smartRefreshActivity: smartRefreshActivity, setSmartRefreshActivity: setSmartRefreshActivity, setOnSmartRefreshComplete: (callback) => {onSmartRefreshCompleteRef.current = callback;},
           dataReadyForSelectedDate: dataLoaded, isSnapshotModeActive: isSnapshotModeActive, setIsSnapshotModeActive: setIsSnapshotModeActive, dataSource: dataSource
@@ -1954,16 +1954,16 @@ export default function Layout({ children, currentPageName }) {
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-3 custom-scrollbar" style={{ background: 'var(--bg-white)' }} onClickCapture={(e) => { if ((isMobile || isTabletPortrait) && e.target?.closest?.('a')) { window.dispatchEvent(new CustomEvent('overlayNavigateClose')); } }}>
+                <div className="pt-1 pr-3 pb-3 pl-3 flex-1 overflow-y-auto custom-scrollbar" style={{ background: 'var(--bg-white)' }} onClickCapture={(e) => {if ((isMobile || isTabletPortrait) && e.target?.closest?.('a')) {window.dispatchEvent(new CustomEvent('overlayNavigateClose'));}}}>
                   <div className="">
                     <Link
                     to={constructUrlWithParams("Dashboard")}
-                    onClick={() => setSidebarOpen(false)}
-                    className={`px-4 rounded-xl flex items-center gap-3 transition-all duration-200 ${
-                    currentPageName === 'Dashboard' ?
-                    'shadow-sm' :
-                    'hover:opacity-80'}`
-                    }
+                    onClick={() => setSidebarOpen(false)} className="px-4 py-2 rounded-xl flex items-center gap-3 transition-all duration-200 hover:opacity-80"
+
+
+
+
+
                     style={currentPageName === 'Dashboard' ? {
                       background: 'var(--bg-slate-100)',
                       color: 'var(--text-slate-900)'
@@ -2173,8 +2173,8 @@ export default function Layout({ children, currentPageName }) {
                   adminNavigationItems={adminNavigationItems}
                   currentPageName={currentPageName}
                   constructUrlWithParams={constructUrlWithParams}
-                  setSidebarOpen={setSidebarOpen} currentUser={currentUser}
-                />
+                  setSidebarOpen={setSidebarOpen} currentUser={currentUser} />
+
                 }
 
                   {currentPageName === 'Dashboard' &&
