@@ -188,7 +188,30 @@ function buildStopOrderRepairUpdates(deliveries) {
     }));
 }
 
-async function getSegmentDirections(base44, from, to, transportMode = 'driving') {
+function findExactStoredPolyline(rows, driverId, deliveryDate, from, to) {
+  return (rows || []).find((row) =>
+    row?.driver_id === driverId &&
+    row?.delivery_date === deliveryDate &&
+    round5(row?.segment_origin_lat) === round5(from.lat) &&
+    round5(row?.segment_origin_lon) === round5(from.lon) &&
+    round5(row?.segment_dest_lat) === round5(to.lat) &&
+    round5(row?.segment_dest_lon) === round5(to.lon) &&
+    typeof row?.encoded_polyline === 'string' && row.encoded_polyline.trim().length > 0
+  ) || null;
+}
+
+async function getSegmentDirections(base44, from, to, transportMode = 'driving', existingPolylines = [], driverId = null, deliveryDate = null) {
+  const cachedPolyline = findExactStoredPolyline(existingPolylines, driverId, deliveryDate, from, to);
+  if (cachedPolyline) {
+    return {
+      encoded_polyline: cachedPolyline.encoded_polyline,
+      estimated_distance_km: cachedPolyline.estimated_distance_km ?? null,
+      estimated_duration_minutes: cachedPolyline.estimated_duration_minutes ?? null,
+      transport_mode: cachedPolyline.transport_mode || transportMode || 'driving',
+      from_cache: true
+    };
+  }
+
   const response = await base44.functions.invoke('getHereDirections', {
     origin: { lat: from.lat, lng: from.lon },
     destination: { lat: to.lat, lng: to.lon },
@@ -219,7 +242,8 @@ async function getSegmentDirections(base44, from, to, transportMode = 'driving')
     encoded_polyline: polyline,
     estimated_distance_km: data?.estimated_distance_km ?? null,
     estimated_duration_minutes: data?.estimated_duration_minutes ?? null,
-    transport_mode: data?.transport_mode || transportMode || 'driving'
+    transport_mode: data?.transport_mode || transportMode || 'driving',
+    from_cache: false
   };
 }
 
@@ -410,7 +434,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const directions = await getSegmentDirections(base44, originCoords, nextStopCoords, preferredTravelMode);
+    const directions = await getSegmentDirections(base44, originCoords, nextStopCoords, preferredTravelMode, existingPolylines, driverId, deliveryDate);
 
     const payload = {
       driver_id: driverId,
@@ -423,8 +447,8 @@ Deno.serve(async (req) => {
       estimated_distance_km: directions.estimated_distance_km,
       estimated_duration_minutes: directions.estimated_duration_minutes,
       transport_mode: directions.transport_mode || preferredTravelMode,
-      daily_generation_count: Number(existingType1?.daily_generation_count || 0) + 1,
-      last_generated_at: new Date().toISOString()
+      daily_generation_count: directions.from_cache ? Number(existingType1?.daily_generation_count || 0) : Number(existingType1?.daily_generation_count || 0) + 1,
+      last_generated_at: directions.from_cache ? (existingType1?.last_generated_at || new Date().toISOString()) : new Date().toISOString()
     };
 
     // Validation handled by determining originCoords; if we reach here, coordinates are considered valid.
@@ -448,16 +472,18 @@ Deno.serve(async (req) => {
       }
     }
 
-    if (polylineRecordToUpdate?.id) {
-      await base44.asServiceRole.entities.DriverRoutePolyline.update(polylineRecordToUpdate.id, payload).catch(async (error) => {
-        if (isNotFoundError(error)) {
-          await base44.asServiceRole.entities.DriverRoutePolyline.create(payload);
-          return null;
-        }
-        throw error;
-      });
-    } else {
-      await base44.asServiceRole.entities.DriverRoutePolyline.create(payload);
+    if (!directions.from_cache) {
+      if (polylineRecordToUpdate?.id) {
+        await base44.asServiceRole.entities.DriverRoutePolyline.update(polylineRecordToUpdate.id, payload).catch(async (error) => {
+          if (isNotFoundError(error)) {
+            await base44.asServiceRole.entities.DriverRoutePolyline.create(payload);
+            return null;
+          }
+          throw error;
+        });
+      } else {
+        await base44.asServiceRole.entities.DriverRoutePolyline.create(payload);
+      }
     }
 
     return Response.json({

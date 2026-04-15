@@ -164,23 +164,31 @@ async function persistGeneratedPolyline(driverId, deliveryDate, fromStop, toStop
   return tempRecord;
 }
 
-function findLatestExactOfflineSegment(rows, fromStop, toStop) {
+function findLatestExactOfflineSegment(rows, fromStop, toStop, driverId = null, deliveryDate = null) {
   const targetKey = buildSegmentKey(fromStop, toStop);
   return (rows || [])
-    .filter((row) => row?.encoded_polyline && `${round5(row.segment_origin_lat)}_${round5(row.segment_origin_lon)}_${round5(row.segment_dest_lat)}_${round5(row.segment_dest_lon)}` === targetKey)
+    .filter((row) => {
+      if (!row?.encoded_polyline) return false;
+      if (driverId && row?.driver_id !== driverId) return false;
+      if (deliveryDate && row?.delivery_date !== deliveryDate) return false;
+      return `${round5(row.segment_origin_lat)}_${round5(row.segment_origin_lon)}_${round5(row.segment_dest_lat)}_${round5(row.segment_dest_lon)}` === targetKey;
+    })
     .sort((a, b) => new Date(b.last_generated_at || b.updated_date || 0).getTime() - new Date(a.last_generated_at || a.updated_date || 0).getTime())[0] || null;
 }
 
-async function getOfflineSegmentPolyline(fromStop, toStop, deliveryDate = null) {
+async function getOfflineSegmentPolyline(fromStop, toStop, deliveryDate = null, driverId = null) {
   const rows = deliveryDate
     ? await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', deliveryDate)
     : await offlineDB.getAll(offlineDB.STORES.DRIVER_ROUTE_POLYLINES);
 
-  const record = findLatestExactOfflineSegment(rows, fromStop, toStop);
+  const record = findLatestExactOfflineSegment(rows, fromStop, toStop, driverId, deliveryDate);
   if (!record?.encoded_polyline) return null;
 
   const coords = decodeGooglePolyline(record.encoded_polyline);
-  return Array.isArray(coords) && coords.length > 1 ? coords : null;
+  if (Array.isArray(coords) && coords.length > 1) return coords;
+
+  const flexibleCoords = decodeHereFlexiblePolyline(record.encoded_polyline);
+  return Array.isArray(flexibleCoords) && flexibleCoords.length > 1 ? flexibleCoords : null;
 }
 
 // Clear route cache for a specific segment
@@ -532,7 +540,7 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
 
   // Try offline DB cache first; only use HERE for missing segments.
   try {
-    const coords = await getOfflineSegmentPolyline(fromStop, toStop, deliveryDate);
+    const coords = await getOfflineSegmentPolyline(fromStop, toStop, deliveryDate, driverId);
     if (coords) {
       memoryCache.set(cacheKey, coords);
       fetchingKeys.delete(cacheKey);
