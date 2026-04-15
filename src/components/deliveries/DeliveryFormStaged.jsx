@@ -325,7 +325,7 @@ export default function DeliveryFormStaged({
             key={`proj-${projected.patient_id}`} className="bg-yellow-50 px-2 py-2 text-xs rounded flex border-2 border-yellow-400 transition-colors">
             
 
-            <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+            <div className="flex-1 min-w-0 flex flex-col gap-0.0">
               <div className="flex items-center gap-1.5">
                 <span className="font-medium truncate flex-1 min-w-0 text-slate-900">{projected.patient_name}</span>
                 <div className="flex items-center gap-1 flex-shrink-0">
@@ -338,7 +338,7 @@ export default function DeliveryFormStaged({
                 </div>
               </div>
               <div className="flex items-center gap-1">
-                <div className="truncate flex-1 min-w-0 text-slate-600 text-[10px]">
+                <div className="truncate flex-1 min-w-0 text-slate-600 text-[10px] gap-0.0">
                   {projectedAddress}
                   {projectedUnitNumber ? ` #${projectedUnitNumber}` : ''}
                 </div>
