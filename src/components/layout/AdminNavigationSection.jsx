@@ -1,6 +1,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
+import SidebarDivider from '@/components/layout/SidebarDivider';
+import SidebarSectionLabel from '@/components/layout/SidebarSectionLabel';
 
 export default function AdminNavigationSection({
   adminNavigationItems,
@@ -11,10 +13,8 @@ export default function AdminNavigationSection({
 }) {
   return (
     <div className="mt-2">
-      <div className="border-t mb-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
-      <div className="text-xs font-semibold uppercase tracking-wider px-3 py-1" style={{ color: 'var(--text-slate-500)' }}>
-        Admin
-      </div>
+      <SidebarDivider />
+      <SidebarSectionLabel>Admin</SidebarSectionLabel>
       <div className="space-y-1">
         {adminNavigationItems.map((item) => (
           <Link

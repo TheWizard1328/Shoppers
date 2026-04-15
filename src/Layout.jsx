@@ -108,6 +108,8 @@ import MobileOverlayBackHandler from './components/layout/MobileOverlayBackHandl
 import SidebarUserFooter from './components/layout/SidebarUserFooter';
 import AdminNavigationSection from './components/layout/AdminNavigationSection';
 import AppLoadingScreen from './components/layout/AppLoadingScreen';
+import SidebarDivider from './components/layout/SidebarDivider';
+import SidebarSectionLabel from './components/layout/SidebarSectionLabel';
 import { getLayoutStyles } from './components/layout/layoutStyles';
 
 
@@ -2028,7 +2030,7 @@ export default function Layout({ children, currentPageName }) {
                       <span className="font-semibold">Dashboard</span>
                     </Link>
 
-                    <div className="border-t my-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
+                    <SidebarDivider />
 
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
                   <Link
@@ -2234,9 +2236,7 @@ export default function Layout({ children, currentPageName }) {
                   {currentPageName === 'Dashboard' &&
                 <div className="mt-2">
                         <div className="border-t mb-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
-                        <div className="text-xs font-semibold uppercase tracking-wider px-3 py-1" style={{ color: 'var(--text-slate-500)' }}>
-                          Quick Stats
-                        </div>
+                        <SidebarSectionLabel>Quick Stats</SidebarSectionLabel>
                         <QuickStats
                     currentUser={currentUser}
                     storeIds={stores.filter((s) => s && s.city_id === globalFilters.getSelectedCityId()).map((s) => s.id)}
