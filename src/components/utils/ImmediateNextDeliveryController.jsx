@@ -1,9 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { optimizeRouteRealTime } from '@/functions/optimizeRouteRealTime';
-import { handleStartDelivery } from '@/functions/handleStartDelivery';
-import { updateDeliveryLocal } from './offlineMutations';
-import { getLocalTimestamp } from './localTimeHelper';
-import { parseLocalTimestamp } from './timeRoundingHelper';
+import { optimizeRouteRealTime } from '@/functions/optimizeRouteRealTime';
 import { useAppData } from './AppDataContext';
 import { centerDeliveryCard } from './deliveryCardUtils';
 
@@ -32,20 +29,7 @@ const getNextActiveDelivery = (routeDeliveries, currentDeliveryId) =>
     )
     .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0] || null;
 
-const getActionFromTarget = (target) => {
-  const button = target?.closest?.('button');
-  const stopCard = target?.closest?.('[id^="stop-card-"]');
-  if (!button || !stopCard) return null;
-
-  const deliveryId = stopCard.id.replace('stop-card-', '');
-  if (!deliveryId) return null;
-
-  if (button.dataset.stopcardAction === 'start') {
-    return { type: 'start', deliveryId };
-  }
-
-  return null;
-};
+const getActionFromTarget = () => null;
 
 const getTodayDateString = () => {
   const now = new Date();
@@ -84,42 +68,6 @@ export default function ImmediateNextDeliveryController() {
 
       const routeDeliveries = getRouteDeliveries(currentDeliveries, delivery);
       const routeKey = `${delivery.driver_id}:${delivery.delivery_date}`;
-
-      if (action.type === 'start') {
-        const startUpdate = {
-          status: delivery.patient_id ? 'in_transit' : 'en_route',
-          delivery_time_start: getCurrentLocalTimeString(),
-          isNextDelivery: true
-        };
-
-        const optimistic = currentDeliveries.map((item) => {
-          if (!item || item.driver_id !== delivery.driver_id || item.delivery_date !== delivery.delivery_date) {
-            return item;
-          }
-          if (item.id === delivery.id) {
-            return { ...item, ...startUpdate };
-          }
-          return { ...item, isNextDelivery: false };
-        });
-
-        updateDeliveriesLocally?.(optimistic, true);
-        centerDeliveryCard(delivery.id);
-
-        try {
-          await handleStartDelivery({
-            deliveryId: delivery.id,
-            driverId: delivery.driver_id,
-            deliveryDate: delivery.delivery_date
-          });
-        } catch (error) {
-          console.warn('[ImmediateNextDeliveryController] Start delivery fallback failed:', error?.message || error);
-        }
-
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { triggeredBy: 'nextDeliveryImmediate', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true }
-        }));
-        return;
-      }
 
       if (action.type === 'complete') {
         console.warn('[ImmediateNextDeliveryController] Skipping immediate complete handoff', {
