@@ -124,7 +124,10 @@ export default function DeliveryStatusAndTiming({
     <div className="relative">
       <Input
         ref={ref}
-        type="time"
+        type="text"
+        inputMode="numeric"
+        pattern="^([01]\d|2[0-3]):([0-5]\d)$"
+        placeholder="HH:mm"
         value={value || ''}
         onChange={onChange}
         disabled={isSaving}
