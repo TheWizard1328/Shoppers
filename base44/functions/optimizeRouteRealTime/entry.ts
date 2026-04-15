@@ -205,6 +205,8 @@ Deno.serve(async (req) => {
 
     let currentPosition = null;
     let locationSource = null;
+    let previousType1Origin = null;
+    let previousType1Destination = null;
 
     if (startLocation?.lat != null && startLocation?.lng != null) {
       currentPosition = { lat: Number(startLocation.lat), lng: Number(startLocation.lng) };
@@ -242,13 +244,20 @@ Deno.serve(async (req) => {
       .map((delivery) => delivery.patient_id))];
     const storeIds = [...new Set(optimizationDeliveries.map((delivery) => delivery.store_id).filter(Boolean))];
 
-    const [patients, stores] = await Promise.all([
+    const [patients, stores, existingPolylines] = await Promise.all([
       patientIds.length > 0 ? base44.asServiceRole.entities.Patient.filter({ id: { $in: patientIds } }) : [],
-      storeIds.length > 0 ? base44.asServiceRole.entities.Store.filter({ id: { $in: storeIds } }) : []
+      storeIds.length > 0 ? base44.asServiceRole.entities.Store.filter({ id: { $in: storeIds } }) : [],
+      base44.asServiceRole.entities.DriverRoutePolyline.filter({
+        driver_id: driverId,
+        delivery_date: deliveryDate
+      }, '-updated_date', 50000)
     ]);
 
     const patientMap = new Map((patients || []).map((patient) => [patient.id, patient]));
     const storeMap = new Map((stores || []).map((store) => [store.id, store]));
+    const existingType1Row = (existingPolylines || []).find((row) => typeof row?.encoded_polyline === 'string' && row.encoded_polyline.trim().length > 0);
+    previousType1Origin = existingType1Row ? { lat: Number(existingType1Row.segment_origin_lat), lng: Number(existingType1Row.segment_origin_lon) } : null;
+    previousType1Destination = existingType1Row ? { lat: Number(existingType1Row.segment_dest_lat), lng: Number(existingType1Row.segment_dest_lon) } : null;
 
     if (!currentPosition && completedDeliveries.length > 0) {
       const lastCompleted = completedDeliveries[completedDeliveries.length - 1];
@@ -557,8 +566,16 @@ Deno.serve(async (req) => {
       });
     } catch (_logError) {}
 
-    // Post-optimization follow-up functions are triggered by the Assign All / Accept All flow only,
-    // so they run exactly once after optimization completes.
+    if (activeSegmentChanged) {
+      await base44.functions.invoke('purgeAndRegeneratePolylines', {
+        driverId,
+        deliveryDate,
+        scope: 'active_only',
+        reason: 'route_reordered'
+      }).catch(() => null);
+    }
+
+    // Tracking numbers are intentionally delayed until Assign All / Accept All.
 
     try {
       const allForDriverDate = await base44.asServiceRole.entities.Delivery.filter({
@@ -613,7 +630,10 @@ Deno.serve(async (req) => {
     const firstActiveStop = arrangedStops.find((item) => !item?.stop?.isPending)?.stop || null;
     const firstActiveCoords = firstActiveStop ? { lat: Number(firstActiveStop.lat), lng: Number(firstActiveStop.lng) } : null;
     const activeRouteOrigin = currentPosition ? { lat: Number(currentPosition.lat), lng: Number(currentPosition.lng) } : null;
-    const activeSegmentChanged = !(sameSegmentPoint(activeRouteOrigin, firstActiveCoords) && nextDeliveryStop && firstActiveStop?.delivery?.id === nextDeliveryStop.id);
+    const activeSegmentChanged = !(
+      sameSegmentPoint(activeRouteOrigin, previousType1Origin) &&
+      sameSegmentPoint(firstActiveCoords, previousType1Destination)
+    );
 
     return Response.json({
       success: true,
