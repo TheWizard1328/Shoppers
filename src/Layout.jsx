@@ -2032,7 +2032,7 @@ export default function Layout({ children, currentPageName }) {
 
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
                   <Link
-                    to={createPageUrl('Patients')}
+                    to={createPageUrl(currentPageName === 'Companies' ? 'Patients' : 'Companies')}
                     onClick={(e) => {
                       if (isSnapshotModeActive) {
                         e.preventDefault();
@@ -2041,23 +2041,19 @@ export default function Layout({ children, currentPageName }) {
                       setSidebarOpen(false);
                     }}
                     className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
-                    currentPageName === 'Patients' ?
+                    currentPageName === 'Companies' || currentPageName === 'Patients' ?
                     'shadow-sm' :
                     'hover:opacity-80'} ${isSnapshotModeActive ? 'opacity-50 cursor-not-allowed' : ''}`
                     }
-                    style={currentPageName === 'Patients' ? {
+                    style={currentPageName === 'Companies' || currentPageName === 'Patients' ? {
                       background: 'var(--bg-slate-100)',
                       color: 'var(--text-slate-900)'
                     } : {
                       color: 'var(--text-slate-600)'
                     }}>
-                          <Users className="w-5 h-5" />
-                          <span className="font-semibold">Patients</span>
-                          <Badge variant="secondary" className="ml-auto justify-center w-[45px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>
-                            {userHasRole(currentUser, 'admin') ?
-                      entityCounts.patients :
-                      patients.filter((p) => p && currentUser?.store_ids?.includes(p.store_id)).length}
-                          </Badge>
+                          {currentPageName === 'Companies' ? <Users className="w-5 h-5" /> : <Building2 className="w-5 h-5" />}
+                          <span className="font-semibold">{currentPageName === 'Companies' ? 'Patients' : 'Companies'}</span>
+                          {currentPageName !== 'Companies' && <Badge variant="secondary" className="ml-auto justify-center w-[45px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{userHasRole(currentUser, 'admin') ? entityCounts.patients : patients.filter((p) => p && currentUser?.store_ids?.includes(p.store_id)).length}</Badge>}
                           </Link>
                   }
 
