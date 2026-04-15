@@ -37,7 +37,7 @@ function extractStoredTime(value) {
   return null;
 }
 
-function formatTime12Hour(timeString) {
+function formatTime24Hour(timeString) {
   if (!timeString || ["--:--", "null", "undefined", "NaN:NaN"].includes(String(timeString))) return "--:--";
   try {
     const normalized = extractStoredTime(timeString) || String(timeString);
@@ -45,9 +45,7 @@ function formatTime12Hour(timeString) {
     const hours = parseInt(h, 10);
     const minutes = parseInt(m, 10);
     if (isNaN(hours) || isNaN(minutes)) return "--:--";
-    const period = hours >= 12 ? "PM" : "AM";
-    const displayHours = hours % 12 || 12;
-    return `${displayHours}:${String(minutes).padStart(2, "0")} ${period}`;
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
   } catch {
     return "--:--";
   }
@@ -88,8 +86,8 @@ export default function StopCardHeader({
 
   const timeDisplay = (() => {
     if (isFinished) {
-      const actual = formatTime12Hour(delivery?.actual_delivery_time);
-      const arrival = formatTime12Hour(delivery?.arrival_time);
+      const actual = formatTime24Hour(delivery?.actual_delivery_time);
+      const arrival = formatTime24Hour(delivery?.arrival_time);
       const hasActual = actual !== "--:--";
       const hasArrival = arrival !== "--:--";
 
@@ -103,7 +101,7 @@ export default function StopCardHeader({
       delivery?.id,
       delivery?.delivery_time_eta || (isPickup ? delivery?.delivery_time_start : null) || delivery?.delivery_time_start || "--:--"
     );
-    return <span className="text-sm font-bold">ETA: {formatTime12Hour(eta)}</span>;
+    return <span className="text-sm font-bold">ETA: {formatTime24Hour(eta)}</span>;
   })();
 
   const statusLabel = isReturnDelivery
@@ -201,12 +199,12 @@ export default function StopCardHeader({
           <div className="text-xs font-bold" style={{ color: "var(--text-slate-500)" }}>
               {delivery?.delivery_time_start && delivery?.delivery_time_end ?
             <>
-                  {formatTime12Hour(delivery.delivery_time_start)} → {formatTime12Hour(delivery.delivery_time_end)}
+                  {formatTime24Hour(delivery.delivery_time_start)} → {formatTime24Hour(delivery.delivery_time_end)}
                 </> :
             delivery?.delivery_time_start ?
-            <>{formatTime12Hour(delivery.delivery_time_start)} →</> :
+            <>{formatTime24Hour(delivery.delivery_time_start)} →</> :
             delivery?.delivery_time_end ?
-            <>← {formatTime12Hour(delivery.delivery_time_end)}</> :
+            <>← {formatTime24Hour(delivery.delivery_time_end)}</> :
             null}
             </div>
           }
