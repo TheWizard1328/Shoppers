@@ -274,15 +274,7 @@ Deno.serve(async (req) => {
       }
     });
 
-    try {
-      await base44.asServiceRole.functions.invoke('recalculateTrackingNumbers', {
-        driverId,
-        deliveryDate
-      });
-      console.log('🔢 [optimizeDriverRoute] Tracking numbers recalculated');
-    } catch (trackingError) {
-      console.warn('[optimizeDriverRoute] recalculateTrackingNumbers failed (non-fatal):', trackingError?.message || trackingError);
-    }
+    // Tracking numbers are intentionally delayed until Assign All / Accept All.
 
     try {
       await base44.asServiceRole.functions.invoke('purgeAndRegeneratePolylines', {

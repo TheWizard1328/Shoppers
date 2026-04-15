@@ -477,15 +477,7 @@ Deno.serve(async (req) => {
       console.log(`  🔢 [optimizeRemainingStops] Stop #${data.stop_order}: ${label}${data.delivery_time_start ? ` (start: ${data.delivery_time_start})` : ''}`);
     });
 
-    try {
-      await base44.asServiceRole.functions.invoke('recalculateTrackingNumbers', {
-        driverId,
-        deliveryDate
-      });
-      console.log('🔢 [optimizeRemainingStops] Tracking numbers recalculated');
-    } catch (trackingError) {
-      console.warn('[optimizeRemainingStops] recalculateTrackingNumbers failed (non-fatal):', trackingError?.message || trackingError);
-    }
+    // Tracking numbers are intentionally delayed until Assign All / Accept All.
 
     try {
       await base44.asServiceRole.functions.invoke('purgeAndRegeneratePolylines', {
