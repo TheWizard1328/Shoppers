@@ -107,7 +107,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const isStrippedForDispatcher = useMemo(() => {if (!currentUser || !delivery) return false;if (!userHasRole(currentUser, 'dispatcher')) return false;if (userHasRole(currentUser, 'admin')) return false;const dispatcherStoreIds = currentUser.store_ids || [];return !dispatcherStoreIds.includes(delivery.store_id);}, [delivery?.store_id, currentUser]);
   const isStrippedDelivery = isStrippedForDriver || isStrippedForDispatcher;
   const ensureDriverOnline = async () => {
-    if (!currentUser?.id) return;
+    if (!currentUser?.id || currentUser.id !== delivery?.driver_id) return;
     try {
       const { data } = await setDriverStatus({ newStatus: 'on_duty' });
       try { await locationTracker.startTracking({ ...currentUser, appUserId: data?.appUserId }); } catch (trackingError) { console.warn('Could not start location tracking:', trackingError.message); }
@@ -379,7 +379,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
         } catch (optErr) {console.warn('⚠️ [Start] background optimization failed:', optErr?.message || optErr);} finally
         {window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));}
       });
-      Promise.all([ensureDriverOnline(), userHasRole(currentUser, 'driver') ? notifyDriverStarted({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name, delivery, store, appUsers }) : Promise.resolve()]).catch((err) => console.warn('Background tasks failed:', err));
+      Promise.all([ensureDriverOnline(), userHasRole(currentUser, 'driver') && currentUser.id === delivery.driver_id ? notifyDriverStarted({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name, delivery, store, appUsers }) : Promise.resolve()]).catch((err) => console.warn('Background tasks failed:', err));
     } catch (error) {console.error('❌ [START] Error:', error);toast.error(`Failed to start: ${error.message}`);} finally
     {resumeOfflineSync('delivery_actions');driverLocationPoller.resume();smartRefreshManager.resume();resetActionLocks(true);}
     });
