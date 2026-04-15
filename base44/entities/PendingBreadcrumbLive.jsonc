@@ -1,0 +1,32 @@
+{
+  "name": "PendingBreadcrumbLive",
+  "type": "object",
+  "properties": {
+    "driver_id": {
+      "type": "string",
+      "description": "Driver user ID that owns this live breadcrumb stream"
+    },
+    "delivery_id": {
+      "type": "string",
+      "description": "Delivery ID this breadcrumb stream belongs to"
+    },
+    "stop_order": {
+      "type": "number",
+      "description": "Stop order for fallback matching and sorting"
+    },
+    "breadcrumbs": {
+      "type": "array",
+      "description": "Live breadcrumb points as [latitude, longitude, timestamp_ms] tuples",
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "number"
+        }
+      }
+    }
+  },
+  "required": [
+    "driver_id",
+    "delivery_id"
+  ]
+}
