@@ -17,6 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { getPickupStopIdForDelivery, determineDeliveryAMPM, getStoreAssignedTimeSlot } from '../utils/ampmUtils';
 import { isAppOwner } from '../utils/userRoles';
+import { updatePreferredTravelMode } from '../dashboard/travelModeHelpers';
 import SmartBarcodeScanner from './SmartBarcodeScanner';
 import PatientMatchPopup from './PatientMatchPopup';
 import DeliveryPatientSearch from './DeliveryPatientSearch';
@@ -40,7 +41,7 @@ const CheckboxField = ({ id, label, checked, onChange, disabled }) =>
     <Label htmlFor={id} className={`text-sm font-medium leading-none ${disabled ? 'text-slate-400' : ''}`}>{label}</Label>
   </div>;
 
-const TravelModeButtons = ({ value, onChange, isMobile, disabled }) => {
+const TravelModeButtons = ({ value, onChange, isMobile, disabled, currentUser, appUsers = [] }) => {
   const options = [
     { value: 'driving', label: 'Driving', icon: Car },
     { value: 'cycling', label: 'Cycling', icon: Bike }
@@ -56,7 +57,9 @@ const TravelModeButtons = ({ value, onChange, isMobile, disabled }) => {
           <button
             key={option.value}
             type="button"
-            onClick={() => onChange(option.value)}
+            onClick={async () => {
+              await onChange(option.value, currentUser, appUsers);
+            }}
             disabled={disabled}
             className={`border transition-all ${isMobile ? 'h-10 w-10 rounded-2xl' : 'h-9 px-3 rounded-full'} ${isActive ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white text-slate-700'}`}>
             <span className={`flex items-center justify-center ${isMobile ? '' : 'gap-2'}`}>
@@ -102,7 +105,7 @@ export default function DeliveryFormView({
   setShowMatchPopup, setScanMatches, setExtractedData,
   // Stores/drivers
   availableStores, allDrivers, stores, patients, currentUser,
-  allDeliveries, selectedPickupOption, setSelectedPickupOption,
+  appUsers, allDeliveries, selectedPickupOption, setSelectedPickupOption,
   getDriverDisplayName, getDriverNameForStorage,
   editingStagedId, setStagedDeliveries, setHasChanges,
   // Completion time
@@ -508,7 +511,12 @@ export default function DeliveryFormView({
                       )}
                       <TravelModeButtons
                         value={formData.preferred_travel_mode || 'driving'}
-                        onChange={(mode) => setFormData((prev) => ({ ...prev, preferred_travel_mode: mode }))}
+                        onChange={async (mode, user, appUsersList) => {
+                          await updatePreferredTravelMode(appUsersList, user?.id, mode);
+                          setFormData((prev) => ({ ...prev, preferred_travel_mode: mode }));
+                        }}
+                        currentUser={currentUser}
+                        appUsers={appUsers}
                         isMobile={useMobileLayout}
                         disabled={isSaving}
                       />
