@@ -14,6 +14,7 @@ export default function StopCardBody({
   isExpanded,
   isStrippedForDispatcher,
   finalDisplayPhone,
+  alternateDisplayPhone,
   isFinishedDelivery,
   isPickup,
   hasCODRequired,
@@ -123,10 +124,30 @@ export default function StopCardBody({
           
             <div className="pt-1 space-y-2 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
               {/* Phone number - HIDE for finished deliveries and past date */}
-              {finalDisplayPhone && !(isFinishedDelivery && !isPickup) && !isPastDate &&
-            <div className="flex items-center text-lg" style={{ color: 'var(--text-slate-600)' }}>
-                  <Phone className="w-4 h-4 mr-2 text-slate-500" />
-                  <span className="text-xl font-medium">{formatPhoneNumber(finalDisplayPhone)}</span>
+              {(finalDisplayPhone || alternateDisplayPhone) && !(isFinishedDelivery && !isPickup) && !isPastDate &&
+            <div className="flex items-center gap-2 text-lg flex-wrap" style={{ color: 'var(--text-slate-600)' }}>
+                  <Phone className="w-4 h-4 text-slate-500" />
+                  {finalDisplayPhone && (
+                    <a
+                      href={`tel:${String(finalDisplayPhone).replace(/\D/g, '')}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-xl font-medium underline-offset-2 hover:underline"
+                    >
+                      {formatPhoneNumber(finalDisplayPhone)}
+                    </a>
+                  )}
+                  {alternateDisplayPhone && (
+                    <>
+                      {finalDisplayPhone && <span className="text-slate-400">•</span>}
+                      <a
+                        href={`tel:${String(alternateDisplayPhone).replace(/\D/g, '')}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-lg font-medium underline-offset-2 hover:underline text-blue-600"
+                      >
+                        {formatPhoneNumber(alternateDisplayPhone)}
+                      </a>
+                    </>
+                  )}
                 </div>
             }
 
