@@ -58,7 +58,7 @@ const TravelModeButtons = ({ value, onChange, isMobile, disabled }) => {
             type="button"
             onClick={() => onChange(option.value)}
             disabled={disabled}
-            className={`rounded-full border transition-all ${isMobile ? 'h-9 w-9' : 'h-9 px-3'} ${isActive ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white text-slate-700'}`}>
+            className={`border transition-all ${isMobile ? 'h-10 w-10 rounded-2xl' : 'h-9 px-3 rounded-full'} ${isActive ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white text-slate-700'}`}>
             <span className={`flex items-center justify-center ${isMobile ? '' : 'gap-2'}`}>
               <Icon className="w-4 h-4" />
               {!isMobile && <span className="text-sm font-medium">{option.label}</span>}
@@ -501,7 +501,10 @@ export default function DeliveryFormView({
                     </Select>
                   </div>
 
-                  <div className={`${useMobileLayout ? 'w-auto' : (!delivery && !isPickupMode ? 'w-fit' : 'w-fit')} p-3 rounded-lg border flex items-center justify-center`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                  <div className={`${useMobileLayout ? 'w-auto' : (!delivery && !isPickupMode ? 'w-fit' : 'w-fit')} p-3 rounded-lg border flex ${useMobileLayout ? 'items-center justify-center' : 'flex-col items-start justify-start'} gap-2`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                    {!useMobileLayout && (
+                      <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Travel Mode</Label>
+                    )}
                     <TravelModeButtons
                       value={formData.preferred_travel_mode || 'driving'}
                       onChange={(mode) => setFormData((prev) => ({ ...prev, preferred_travel_mode: mode }))}
