@@ -4,6 +4,12 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 const TIME_ZONE = 'America/Edmonton';
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
 const ACTIVE_ROUTE_STATUSES = ['in_transit', 'en_route'];
+
+const isRateLimitError = (error) => {
+  const status = error?.status || error?.response?.status;
+  const message = String(error?.message || '').toLowerCase();
+  return status === 429 || message.includes('rate limit');
+};
 const WEEKDAY_CODES = ['su', 'mo', 'tu', 'we', 'th', 'fr', 'sa'];
 
 const normalizeTimeString = (timeStr, fallback) => {
@@ -410,6 +416,17 @@ Deno.serve(async (req) => {
       }
 
       if (!hereResponse.ok) {
+        if (hereResponse.status === 429) {
+          return Response.json({
+            success: false,
+            routeChanged: false,
+            optimizedRoute: [],
+            totalStops: 0,
+            apiCallsMade: 0,
+            deferred: true,
+            reason: 'rate_limited'
+          });
+        }
         return Response.json({
           error: 'HERE Waypoints Sequence API request failed',
           details: hereData,
@@ -658,6 +675,18 @@ Deno.serve(async (req) => {
     });
   } catch (error) {
     const isAbort = error?.name === 'TimeoutError' || error?.name === 'AbortError';
+    if (isRateLimitError(error)) {
+      console.warn('⚠️ [optimizeRouteRealTime] Deferred due to rate limit');
+      return Response.json({
+        success: false,
+        routeChanged: false,
+        optimizedRoute: [],
+        totalStops: 0,
+        apiCallsMade: 0,
+        deferred: true,
+        reason: 'rate_limited'
+      });
+    }
     console.error('❌ [optimizeRouteRealTime] ERROR:', error?.message || error);
     return Response.json({
       error: error?.message || 'Unexpected server error',

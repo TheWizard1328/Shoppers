@@ -84,8 +84,13 @@ Deno.serve(async (req) => {
       });
       optimization = optimizationResponse?.data || optimizationResponse || null;
     } catch (error) {
-      console.warn(`⚠️ [handleStartDelivery] optimizeRouteRealTime failed:`, error?.message || error);
-      optimization = null;
+      if (error?.status === 429 || error?.response?.status === 429 || String(error?.message || '').toLowerCase().includes('rate limit')) {
+        console.warn('⚠️ [handleStartDelivery] Optimization skipped due to rate limit');
+        optimization = { deferred: true, reason: 'rate_limited', routeChanged: false };
+      } else {
+        console.warn(`⚠️ [handleStartDelivery] optimizeRouteRealTime failed:`, error?.message || error);
+        optimization = null;
+      }
     }
 
     console.log(`✅ [handleStartDelivery] Started new delivery: ${deliveryId}, transferred ${distanceToTransfer} km`);
