@@ -49,3 +49,13 @@ export const hasSystemBroadcastBeenAckedForThisDevice = (messageId) => {
   const ackedIds = JSON.parse(localStorage.getItem(ACKED_SYSTEM_BROADCAST_IDS_KEY) || '[]');
   return ackedIds.includes(messageId);
 };
+
+export const buildDeviceUpdatedMessage = (currentUser) => {
+  const dispatcherStores = Array.isArray(currentUser?.store_ids) ? currentUser.store_ids.length : 0;
+  const storeSuffix = dispatcherStores > 1
+    ? ` — Stores: ${currentUser.store_ids.join(', ')}`
+    : dispatcherStores === 1
+      ? ` — Store: ${currentUser.store_ids[0]}`
+      : '';
+  return `Device updated: ${currentUser?.user_name || currentUser?.full_name || 'Unknown User'}${storeSuffix}`;
+};
