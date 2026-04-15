@@ -140,19 +140,34 @@ export async function deleteSquareCODOnCompletion({
   delivery,
   currentStatus,
   currentCodCents,
-  base44
+  base44,
+  codPayments
 }) {
   if (!delivery?.id) return;
-  if (currentCodCents === 0) return; // No COD to delete
-  
+  if (currentCodCents === 0) return;
+
   const statusChangedToCompletion = ['completed', 'cancelled', 'failed', 'returned'].includes(currentStatus) &&
     delivery.status !== currentStatus;
 
-  const hasDebitOrCreditCollection = (Array.isArray(delivery?.cod_payments) && delivery.cod_payments.some(payment => ['Debit', 'Credit'].includes(payment?.type) && Number(payment?.amount || 0) > 0)) || ['Debit', 'Credit'].includes(delivery?.cod_payment_type);
+  const effectiveCodPayments = Array.isArray(codPayments) ? codPayments : delivery?.cod_payments;
+  const hasDebitOrCreditCollection =
+    (Array.isArray(effectiveCodPayments) && effectiveCodPayments.some((payment) =>
+      ['Debit', 'Credit'].includes(payment?.type) && Number(payment?.amount || 0) > 0
+    )) ||
+    ['Debit', 'Credit'].includes(delivery?.cod_payment_type);
 
-  if (statusChangedToCompletion && (currentStatus === 'failed' || (currentStatus === 'completed' && hasDebitOrCreditCollection))) {
+  const shouldDeleteCatalogItem =
+    currentStatus === 'failed' ||
+    currentStatus === 'cancelled' ||
+    currentStatus === 'returned' ||
+    (currentStatus === 'completed' && hasDebitOrCreditCollection);
+
+  if (statusChangedToCompletion && shouldDeleteCatalogItem) {
     try {
-      console.log('💳 [Square] Deleting COD item for completed/failed delivery:', delivery.id);
+      console.log('💳 [Square] Deleting COD item for terminal delivery:', delivery.id, {
+        currentStatus,
+        hasDebitOrCreditCollection
+      });
       await Promise.race([
         base44.functions.invoke('squareDeleteCodItem', {
           deliveryId: delivery.id,
@@ -163,7 +178,6 @@ export async function deleteSquareCODOnCompletion({
       console.log('✅ [Square] COD item deleted');
     } catch (squareError) {
       console.warn('⚠️ [Square] Failed to delete COD item:', squareError.message);
-      // Don't block the delivery update if Square fails
     }
   }
 }
