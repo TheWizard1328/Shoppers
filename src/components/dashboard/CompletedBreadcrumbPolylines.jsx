@@ -6,8 +6,8 @@ import { getTravelModeLineStyle, normalizeTravelMode } from "./travelModeHelpers
 
 const FINISHED = ["completed", "failed", "cancelled"];
 const getDriverPolylineColor = (driverId) => generateDriverColor(String(driverId || 'driver'));
-const getDriverRouteStyle = (driverId, driverTravelModes, opacityOverride) => {
-  const mode = normalizeTravelMode(driverTravelModes[driverId]);
+const getFinishedLegRouteStyle = (driverId, deliveryTravelMode, opacityOverride) => {
+  const mode = normalizeTravelMode(deliveryTravelMode || 'driving');
   const base = getTravelModeLineStyle(mode, getDriverPolylineColor(driverId));
   return {
     ...base,
@@ -201,6 +201,7 @@ export default function CompletedBreadcrumbPolylines({
           end,
           destinationStopId: toStop.id,
           destinationPointKey: getPointKey(end),
+          finishedLegTransportMode: normalizeTravelMode(toStop.finished_leg_transport_mode || 'driving'),
           storedEncodedPolyline: typeof toStop.finished_leg_encoded_polyline === "string" ? toStop.finished_leg_encoded_polyline.trim() : "",
           breadcrumbPoints,
           routePoints,
@@ -328,7 +329,7 @@ export default function CompletedBreadcrumbPolylines({
         <Polyline
           key={`completed-stored-${segment.id}-${polylineRenderKey}-${highlightedDeliveryId || "none"}`}
           positions={coords}
-          pathOptions={getDriverRouteStyle(segment.driverId, driverTravelModes, Math.max(segment.opacity, 0.35))}
+          pathOptions={getFinishedLegRouteStyle(segment.driverId, segment.finishedLegTransportMode, Math.max(segment.opacity, 0.35))}
           pane="completedBreadcrumbPane"
         />
       );
@@ -351,7 +352,7 @@ export default function CompletedBreadcrumbPolylines({
           <Polyline
             key={`completed-breadcrumb-line-${leg.id}-${polylineRenderKey}`}
             positions={positions}
-            pathOptions={getDriverRouteStyle(segment.driverId, driverTravelModes, Math.max(segment.opacity, 0.35))}
+            pathOptions={getFinishedLegRouteStyle(segment.driverId, segment.finishedLegTransportMode, Math.max(segment.opacity, 0.35))}
             pane="completedBreadcrumbPane"
           />
         );
