@@ -1192,10 +1192,12 @@ export default function PayrollSummaryCard({
                     patients={patients}
                     currentPeriod={currentPeriod}
                     bonusAmount={driverEdits[data.driver.id]?.bonusPay || 0}
-                    appFeeAmount={calculateAppFeeAmount(data.driver.id, driverEdits[data.driver.id]?.appFeePercent || 0)}
+                    appFeeAmount={isPeriodEndOfMonth ? calculateAppFeeAmount(data.driver.id, driverEdits[data.driver.id]?.appFeePercent || 0) : 0}
                     appFeePercent={driverEdits[data.driver.id]?.appFeePercent || 0}
                     ytdDataByDriver={ytdDataByDriver}
-                    isPeriodEndOfMonth={isPeriodEndOfMonth} />);
+                    isPeriodEndOfMonth={isPeriodEndOfMonth}
+                    onDeductionsClick={setDeductionOverlayDriverId}
+                    onBonusClick={setBonusOverlayDriverId} />);
 
 
               }
@@ -1747,39 +1749,7 @@ export default function PayrollSummaryCard({
                               <tr className="text-lg font-bold text-emerald-600">
                                 <td className="text-left pr-2">Net:</td>
                                 <td className="text-right pr-0.5">$</td>
-                                <td className="text-right" style={{ width: '60px' }}>{(isPeriodEndOfMonth ? (grandTotalGross + grandTotalBonus) + (() => {
-                                  const calendarMonth = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth(), 1);
-                                  const calendarMonthEnd = new Date(currentPeriod.start.getFullYear(), currentPeriod.start.getMonth() + 1, 0);
-                                  let totalBillableCount = 0;
-                                  deliveries.forEach((d) => {
-                                    if (!d || !d.store_id) return;
-                                    const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-                                    if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
-                                    const store = stores.find((s) => s?.id === d.store_id);
-                                    if (!store) return;
-                                    let paysAppFees = store.pays_app_fees || false;
-                                    if (store.app_fee_history?.length > 0) {
-                                      const sortedHistory = [...store.app_fee_history].sort((a, b) => new Date(a.effective_date) - new Date(b.effective_date));
-                                      for (const entry of sortedHistory) {
-                                        if (entry.effective_date <= d.delivery_date) paysAppFees = entry.pays_app_fees;
-                                        else break;
-                                      }
-                                    }
-                                    if (!paysAppFees || d.no_charge === true) return;
-                                    const patientName = String(d.patient_name || '').toUpperCase();
-                                    const isInterStore = patientName.includes('INTERSTORE') || patientName.includes('(ISD)') || patientName.includes('(ISP)');
-                                    const isPatientOrTransfer = !!d.patient_id;
-                                    const isAfterHours = d.after_hours_pickup === true;
-                                    const isRegularPickup = !isAfterHours && !isPatientOrTransfer && !isInterStore;
-                                    if (isRegularPickup) return;
-                                    const isCompleted = d.status === 'completed';
-                                    const isFailed = d.status === 'failed';
-                                    const isCancelled = d.status === 'cancelled';
-                                    const isAppFeePayable = isAfterHours ? (isCompleted || isCancelled) : (isPatientOrTransfer && (isCompleted || isFailed));
-                                    if (isAppFeePayable) totalBillableCount++;
-                                  });
-                                  return totalBillableCount * appFeesPerDelivery;
-                                })() - (calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) + calculateAppFeeAmount('other-app-fee', otherAppFeePercent)) : grandTotalGross + grandTotalBonus).toFixed(2)}</td>
+                                <td className="text-right" style={{ width: '60px' }}>{(grandTotalGross + grandTotalBonus - (isPeriodEndOfMonth ? (calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) + calculateAppFeeAmount('other-app-fee', otherAppFeePercent)) : 0)).toFixed(2)}</td>
                               </tr>
                               {isAdmin &&
                               <tr style={{ color: 'var(--text-slate-600)' }}>
@@ -1871,13 +1841,13 @@ export default function PayrollSummaryCard({
                       <div className="text-right">YTD</div>
                     </div>
 
-                    {/* Net */}
+                    {/* Gross */}
                     <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-slate-600)' }}>
                       <div className="text-left">Gross:</div>
                       <div className="text-right pr-0.5">$</div>
                       <div className="text-right font-semibold">{grandTotalAllDrivers.toFixed(2)}</div>
                       <div className="text-right pr-0.5">$</div>
-                      <div className="text-right font-semibold">{ytdGrandTotalNet.toFixed(2)}</div>
+                      <div className="text-right font-semibold">{ytdGrandTotalGross.toFixed(2)}</div>
                     </div>
 
                     {/* Tax */}
@@ -1922,7 +1892,7 @@ export default function PayrollSummaryCard({
                     </div>
                     }
 
-                    {/* Gross (bold, divider) */}
+                    {/* Net (bold, divider) */}
                     <div className="grid gap-1 pt-1 border-t font-bold" style={{
                       gridTemplateColumns: '1fr 22px 60px 22px 60px',
                       borderColor: 'var(--border-slate-200)',
@@ -1930,9 +1900,9 @@ export default function PayrollSummaryCard({
                     }}>
                       <div className="text-left">Net:</div>
                       <div className="text-right pr-0.5">$</div>
-                      <div className="text-right">{(grandTotalGross + grandTotalBonus).toFixed(2)}</div>
+                      <div className="text-right">{(grandTotalGross + grandTotalBonus - (isPeriodEndOfMonth ? (calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) + calculateAppFeeAmount('other-app-fee', otherAppFeePercent)) : 0)).toFixed(2)}</div>
                       <div className="text-right pr-0.5">$</div>
-                      <div className="text-right">{ytdGrandTotalGross.toFixed(2)}</div>
+                      <div className="text-right">{ytdGrandTotalNet.toFixed(2)}</div>
                     </div>
                   </div>
                 </div>

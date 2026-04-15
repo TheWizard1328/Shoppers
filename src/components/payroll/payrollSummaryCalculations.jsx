@@ -8,7 +8,7 @@ export const getPeriodNetAmount = ({ grandTotal = 0, taxAmount = 0, bonusPay = 0
     roundCurrency(grandTotal) +
     roundCurrency(taxAmount) +
     (bonusPay || 0) -
-    sumDeductionAmounts(deductions) +
+    sumDeductionAmounts(deductions) -
     (appFeeAmount || 0)
   );
 
