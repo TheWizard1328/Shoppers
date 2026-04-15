@@ -220,6 +220,8 @@ Deno.serve(async (req) => {
 
     const completedDeliveries = allDeliveries.filter((delivery) => FINISHED_STATUSES.includes(delivery.status));
     const activeDeliveries = allDeliveries.filter((delivery) => isActiveRouteStatus(delivery.status));
+    const pendingDeliveries = allDeliveries.filter((delivery) => delivery.status === 'pending');
+    const optimizationDeliveries = [...activeDeliveries, ...pendingDeliveries];
 
     completedDeliveries.sort((a, b) => {
       if (!a.actual_delivery_time || !b.actual_delivery_time) return 0;
@@ -230,10 +232,10 @@ Deno.serve(async (req) => {
       return Response.json({ message: 'No active deliveries to optimize', routeChanged: false, optimizedRoute: [], totalStops: 0, apiCallsMade: 0 });
     }
 
-    const patientIds = [...new Set(activeDeliveries
+    const patientIds = [...new Set(optimizationDeliveries
       .filter((delivery) => delivery.patient_id && isValidEntityId(delivery.patient_id))
       .map((delivery) => delivery.patient_id))];
-    const storeIds = [...new Set(activeDeliveries.map((delivery) => delivery.store_id).filter(Boolean))];
+    const storeIds = [...new Set(optimizationDeliveries.map((delivery) => delivery.store_id).filter(Boolean))];
 
     const [patients, stores] = await Promise.all([
       patientIds.length > 0 ? base44.asServiceRole.entities.Patient.filter({ id: { $in: patientIds } }) : [],
@@ -257,7 +259,7 @@ Deno.serve(async (req) => {
       locationSource = 'home';
     }
 
-    const stops = activeDeliveries
+    const stops = optimizationDeliveries
       .map((delivery, index) => {
         const { lat, lng, patient } = getStopCoordinates(delivery, patientMap, storeMap);
         const isPickup = !delivery.patient_id;
@@ -272,6 +274,7 @@ Deno.serve(async (req) => {
           lat: lat != null ? Number(lat) : null,
           lng: lng != null ? Number(lng) : null,
           isPickup,
+          isPending: delivery.status === 'pending',
           windowStart,
           windowEnd,
           serviceMinutes,
@@ -461,11 +464,6 @@ Deno.serve(async (req) => {
 
     for (let index = 0; index < arrangedStops.length; index += 1) {
       const { stop, waypoint, leg, locked } = arrangedStops[index];
-      const stopOrder = availableActiveOrders[index] || nextGeneratedOrder++;
-      if (stop.delivery.isNextDelivery && assignedNextDeliveryStopOrder === null) {
-        assignedNextDeliveryStopOrder = stopOrder;
-      }
-
       const resolvedLeg = waypoint ? interconnectionByToWaypoint.get(waypoint.id) : (leg || null);
       const fallbackTravelMinutes = previousPosition
         ? estimateCrowFliesTravelMinutes(previousPosition.lat, previousPosition.lng, stop.lat, stop.lng)
@@ -479,21 +477,29 @@ Deno.serve(async (req) => {
       }
 
       const eta = formatMinutesToHHMM(rollingMinutes);
-      const updateData = {
-        stop_order: stopOrder,
-        display_stop_order: stopOrder,
-        delivery_time_eta: eta
-      };
-      const currentStopOrder = Number(stop.delivery.stop_order || 0);
-      const currentDisplayStopOrder = Number(stop.delivery.display_stop_order || 0);
-      const currentEta = String(stop.delivery.delivery_time_eta || '');
-      const stopNeedsUpdate = currentStopOrder !== stopOrder || currentDisplayStopOrder !== stopOrder || currentEta !== eta;
+      const stopOrder = stop.isPending ? null : (availableActiveOrders[index] || nextGeneratedOrder++);
 
-      if (stopNeedsUpdate) {
-        pendingDeliveryWriteBatch.push({
-          id: stop.delivery.id,
-          data: updateData
-        });
+      if (!stop.isPending) {
+        if (stop.delivery.isNextDelivery && assignedNextDeliveryStopOrder === null) {
+          assignedNextDeliveryStopOrder = stopOrder;
+        }
+
+        const updateData = {
+          stop_order: stopOrder,
+          display_stop_order: stopOrder,
+          delivery_time_eta: eta
+        };
+        const currentStopOrder = Number(stop.delivery.stop_order || 0);
+        const currentDisplayStopOrder = Number(stop.delivery.display_stop_order || 0);
+        const currentEta = String(stop.delivery.delivery_time_eta || '');
+        const stopNeedsUpdate = currentStopOrder !== stopOrder || currentDisplayStopOrder !== stopOrder || currentEta !== eta;
+
+        if (stopNeedsUpdate) {
+          pendingDeliveryWriteBatch.push({
+            id: stop.delivery.id,
+            data: updateData
+          });
+        }
       }
 
       deliveryUpdates.push({
@@ -563,7 +569,8 @@ Deno.serve(async (req) => {
       const activeStopsOnly = (allForDriverDate || []).filter((delivery) => delivery && isActiveRouteStatus(delivery.status));
 
       if (activeStopsOnly.length > 0) {
-        const targetId = lockedNextStop?.delivery?.id || arrangedStops[0]?.stop?.delivery?.id || [...activeStopsOnly].sort((a, b) => {
+        const firstActiveArrangedStop = arrangedStops.find((item) => !item?.stop?.isPending);
+        const targetId = lockedNextStop?.delivery?.id || firstActiveArrangedStop?.stop?.delivery?.id || [...activeStopsOnly].sort((a, b) => {
           const stopOrderDiff = (a.stop_order || 999) - (b.stop_order || 999);
           if (stopOrderDiff !== 0) return stopOrderDiff;
           const etaA = String(a.delivery_time_eta || a.delivery_time_start || '99:99');
