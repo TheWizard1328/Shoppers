@@ -7,7 +7,7 @@ import { format } from "date-fns";
 import { userHasRole } from "../utils/userRoles";
 import { globalFilters } from "@/components/utils/globalFilters";
 
-export default function ExportRouteButton({ currentUser, driverFilter, selectedDate, driverFilteredDeliveries }) {
+export default function ExportRouteButton({ currentUser, driverFilter, selectedDate, driverFilteredDeliveries, stores = [] }) {
   const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned', 'picked_up'];
   const allDeliveries = driverFilteredDeliveries || [];
 
