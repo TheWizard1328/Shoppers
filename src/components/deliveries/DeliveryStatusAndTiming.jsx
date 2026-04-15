@@ -1,5 +1,4 @@
 import React, { useRef, useEffect } from "react";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
@@ -122,7 +121,7 @@ export default function DeliveryStatusAndTiming({
 
   const renderTimeInput = (value, onChange, onClear, inputRef = null) => (
     <div className="relative">
-      <Input
+      <input
         ref={inputRef}
         type="time"
         step="60"
@@ -130,7 +129,7 @@ export default function DeliveryStatusAndTiming({
         onChange={onChange}
         disabled={isSaving}
         data-hotkey-add="true"
-        className="compact-time-input h-9 px-2 pr-10 text-sm"
+        className="compact-time-input flex min-h-11 w-full rounded-md border border-input bg-transparent px-2 pr-10 py-2 text-sm shadow-sm ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
       />
       {value && !isSaving && (
         <button
