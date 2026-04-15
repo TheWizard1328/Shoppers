@@ -250,8 +250,11 @@ class LocationTracker {
       );
     }
 
-    if (timestampOnly) {
-      console.log(`💓 [LocationTracker] HEARTBEAT UPDATE - refreshing timestamp only (keeping driver online)`);
+    const hasMovedEnough = !this.lastPosition || distance >= this.minDistanceChange;
+    const shouldUploadCoordinates = forceUpdate || !timestampOnly || hasMovedEnough;
+
+    if (!shouldUploadCoordinates) {
+      console.log(`💓 [LocationTracker] HEARTBEAT UPDATE - movement ${distance.toFixed(0)}m below ${this.minDistanceChange}m, refreshing timestamp only`);
     } else if (forceUpdate) {
       console.log(`💓 [LocationTracker] EVENT-DRIVEN UPDATE - uploading coordinates + timestamp`);
     } else {
@@ -295,12 +298,12 @@ class LocationTracker {
         localTime: now.toISOString()
       });
 
-      // CRITICAL: Timestamp-only updates just refresh location_updated_at (keep coordinates)
-      const updateData = timestampOnly ? {
-        location_updated_at: nowISO
-      } : {
+      // CRITICAL: If moved 100m+ since last saved coordinates, update coordinates too; otherwise heartbeat timestamp only
+      const updateData = shouldUploadCoordinates ? {
         current_latitude: latitude,
         current_longitude: longitude,
+        location_updated_at: nowISO
+      } : {
         location_updated_at: nowISO
       };
 
@@ -380,7 +383,7 @@ class LocationTracker {
 
       // NOTE: lastUpdate already set BEFORE upload to prevent double-uploads
       this.lastSuccessfulUpdate = now;
-      if (!timestampOnly) {
+      if (shouldUploadCoordinates) {
         this.lastCoordinateUpdate = now;
         this.lastPosition = { latitude, longitude, accuracy };
       }
@@ -403,8 +406,8 @@ class LocationTracker {
         );
       }
 
-      // CRITICAL: Trigger Type 1 polyline regeneration on location upload (backend will check deviation/origin change)
-      if (!timestampOnly && this.driverStatus === 'on_duty' && this.currentUser?.id && this.currentDeliveryDate) {
+      // CRITICAL: Trigger Type 1 polyline regeneration only when coordinates were actually uploaded
+      if (shouldUploadCoordinates && this.driverStatus === 'on_duty' && this.currentUser?.id && this.currentDeliveryDate) {
         base44.functions.invoke('regenerateType1Polyline', {
           driverId: this.currentUser.id,
           deliveryDate: this.currentDeliveryDate,
@@ -414,7 +417,7 @@ class LocationTracker {
         });
       }
 
-      if (!timestampOnly && this.driverStatus === 'on_duty' && this.currentDeliveryDate && this.currentUser?.id) {
+      if (shouldUploadCoordinates && this.driverStatus === 'on_duty' && this.currentDeliveryDate && this.currentUser?.id) {
         const previousEtaPosition = this.lastEtaRefreshPosition;
         const distanceSinceEtaRefresh = previousEtaPosition
           ? this.calculateDistanceInMeters(
@@ -738,13 +741,12 @@ class LocationTracker {
                 });
 
                 this._pendingEventUpdate = false;
-                const shouldRefreshTimestampOnly = this.driverStatus !== 'off_duty';
                 this.updateLocationInDatabase(
                   this.lastPosition.latitude,
                   this.lastPosition.longitude,
                   this.lastPosition.accuracy,
                   false,
-                  shouldRefreshTimestampOnly,
+                  true,
                   this.isPrimaryDevice
                 );
               } else {
