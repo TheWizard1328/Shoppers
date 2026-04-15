@@ -61,20 +61,39 @@ const getPatientById = async (base44, patientId) => {
 };
 
 const syncSingleDelivery = async (base44, delivery) => {
+  console.log('ℹ️ [syncPatientLastDeliveryDate] syncSingleDelivery:start', {
+    deliveryId: delivery?.id,
+    patientId: delivery?.patient_id,
+    status: delivery?.status,
+    deliveryDate: delivery?.delivery_date,
+    actualDeliveryTime: delivery?.actual_delivery_time,
+    arrivalTime: delivery?.arrival_time,
+    updatedDate: delivery?.updated_date
+  });
+
   if (!delivery?.patient_id) {
+    console.log('ℹ️ [syncPatientLastDeliveryDate] syncSingleDelivery:skip:no_patient');
     return { updated: false, reason: 'No patient linked' };
   }
 
   if (!TERMINAL_STATUSES.has(delivery.status)) {
+    console.log('ℹ️ [syncPatientLastDeliveryDate] syncSingleDelivery:skip:not_terminal', { status: delivery?.status });
     return { updated: false, reason: 'Status not terminal' };
   }
 
   const resolvedDate = resolvePatientLastDeliveryDate(delivery);
+  console.log('ℹ️ [syncPatientLastDeliveryDate] syncSingleDelivery:resolved_date', { resolvedDate });
   if (!resolvedDate) {
     return { updated: false, reason: 'No usable date found' };
   }
 
   const patient = await getPatientById(base44, delivery.patient_id);
+  console.log('ℹ️ [syncPatientLastDeliveryDate] syncSingleDelivery:patient_lookup', {
+    requestedPatientId: delivery.patient_id,
+    foundPatientId: patient?.id,
+    foundPatientName: patient?.full_name,
+    currentLastDeliveryDateRaw: patient?.last_delivery_date
+  });
   if (!patient) {
     return { updated: false, reason: 'Patient not found' };
   }
@@ -85,15 +104,40 @@ const syncSingleDelivery = async (base44, delivery) => {
       ? resolvedDate
       : currentLastDeliveryDate;
 
+  console.log('ℹ️ [syncPatientLastDeliveryDate] syncSingleDelivery:date_compare', {
+    currentLastDeliveryDate,
+    nextLastDeliveryDate,
+    rawPatientLastDeliveryDate: patient.last_delivery_date
+  });
+
   if (patient.last_delivery_date === nextLastDeliveryDate) {
+    console.log('ℹ️ [syncPatientLastDeliveryDate] syncSingleDelivery:skip:already_current');
     return { updated: false, reason: 'Patient already has same/newer date', date: nextLastDeliveryDate };
   }
+
+  console.log('ℹ️ [syncPatientLastDeliveryDate] syncSingleDelivery:updating_patient', {
+    patientId: patient.id,
+    nextLastDeliveryDate
+  });
 
   await base44.asServiceRole.entities.Patient.update(patient.id, {
     last_delivery_date: nextLastDeliveryDate
   }).catch((error) => {
+    console.error('❌ [syncPatientLastDeliveryDate] syncSingleDelivery:update_failed', {
+      patientId: patient.id,
+      nextLastDeliveryDate,
+      error: error?.message,
+      status: error?.status,
+      responseStatus: error?.response?.status
+    });
     if (isNotFoundError(error)) return null;
     throw error;
+  });
+
+  console.log('✅ [syncPatientLastDeliveryDate] syncSingleDelivery:updated', {
+    patientId: patient.id,
+    fullName: patient.full_name,
+    nextLastDeliveryDate
   });
 
   return {
@@ -169,8 +213,22 @@ Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req);
     const payload = await req.json().catch(() => ({}));
 
+    console.log('ℹ️ [syncPatientLastDeliveryDate] request_received', {
+      hasBackfillDays: !!payload?.backfillDays,
+      eventType: payload?.event?.type,
+      deliveryId: payload?.data?.id,
+      patientId: payload?.data?.patient_id,
+      status: payload?.data?.status,
+      oldStatus: payload?.old_data?.status
+    });
+
     if (payload?.backfillDays) {
       const user = await base44.auth.me();
+      console.log('ℹ️ [syncPatientLastDeliveryDate] backfill_requested', {
+        backfillDays: payload?.backfillDays,
+        userId: user?.id,
+        userRole: user?.role
+      });
       if (!user || !['admin', 'App Owner'].includes(user.role)) {
         return Response.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
       }
@@ -182,21 +240,34 @@ Deno.serve(async (req) => {
     const eventType = payload?.event?.type;
 
     if (!delivery) {
+      console.log('ℹ️ [syncPatientLastDeliveryDate] skip:no_delivery_payload');
       return Response.json({ skipped: true, reason: 'No delivery payload' });
     }
 
     if (!TERMINAL_STATUSES.has(delivery.status)) {
+      console.log('ℹ️ [syncPatientLastDeliveryDate] skip:not_terminal', { status: delivery.status });
       return Response.json({ skipped: true, reason: 'Delivery not completed or failed' });
     }
 
     if (eventType === 'update' && oldDelivery?.status === delivery.status) {
+      console.log('ℹ️ [syncPatientLastDeliveryDate] skip:status_unchanged', {
+        eventType,
+        status: delivery.status,
+        oldStatus: oldDelivery?.status
+      });
       return Response.json({ skipped: true, reason: 'Status did not change into terminal state' });
     }
 
     const result = await syncSingleDelivery(base44, delivery);
+    console.log('✅ [syncPatientLastDeliveryDate] request_complete', result);
     return Response.json({ success: true, mode: 'delivery_sync', ...result });
   } catch (error) {
-    console.error('❌ [syncPatientLastDeliveryDate] Error:', error);
+    console.error('❌ [syncPatientLastDeliveryDate] Error:', {
+      message: error?.message,
+      status: error?.status,
+      responseStatus: error?.response?.status,
+      stack: error?.stack
+    });
     return Response.json({ error: error.message }, { status: 500 });
   }
 });
