@@ -37,8 +37,14 @@ export async function updateCompletionPolylines({
           breadcrumbPayload
         });
 
-        if (finishedPolyline) {
-          // Skip direct Delivery update here to avoid duplicate realtime updates for the same completed stop.
+        if (finishedPolyline && completedDelivery?.id) {
+          updates.push(
+            base44.entities.Delivery.update(completedDelivery.id, {
+              finished_leg_encoded_polyline: finishedPolyline,
+              finished_leg_transport_mode: completedDelivery?.finished_leg_transport_mode || 'driving',
+              PolylineUpdated: true
+            })
+          );
         }
       } catch (err) {
         console.warn('⚠️ [updateCompletionPolylines] Failed to generate finished leg polyline:', err.message);

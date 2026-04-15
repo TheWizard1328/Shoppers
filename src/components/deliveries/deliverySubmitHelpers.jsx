@@ -50,7 +50,7 @@ export const prepareDeliverySaveData = ({ formData, delivery, isCompletionStatus
       dataToSave.arrival_time = '';
     }
 
-    dataToSave.finished_leg_transport_mode = currentTravelMode;
+    dataToSave.finished_leg_transport_mode = delivery?.finished_leg_transport_mode || formData.finished_leg_transport_mode || 'driving';
   }
 
   if (!delivery?.id && !dataToSave.patient_id) {

@@ -475,6 +475,7 @@ Deno.serve(async (req) => {
         deliveryUpdatesById.set(stop.id, {
           ...(deliveryUpdatesById.get(stop.id) || {}),
           finished_leg_encoded_polyline: directions.encoded_polyline,
+          finished_leg_transport_mode: stop?.finished_leg_transport_mode || 'driving',
           travel_dist: directions.estimated_distance_km ?? null,
           PolylineUpdated: true
         });
