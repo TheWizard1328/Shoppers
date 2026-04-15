@@ -65,6 +65,7 @@ export default function SquareManagement() {
   const [navHeight, setNavHeight] = useState(0);
   const [bgSyncProgress, setBgSyncProgress] = useState({ stage: 'idle' });
   const realtimeRefreshTimeoutRef = React.useRef(null);
+  const lastRealtimeRefreshAtRef = React.useRef(0);
   const locationConfigsRef = React.useRef([]);
   const initialLoadKeyRef = React.useRef(null);
 
@@ -622,7 +623,10 @@ export default function SquareManagement() {
 
     let isActive = true;
 
-    const scheduleFullRealtimeRefresh = () => {
+    const scheduleLocalRealtimeRefresh = () => {
+      const now = Date.now();
+      if (now - lastRealtimeRefreshAtRef.current < 15000) return;
+
       if (realtimeRefreshTimeoutRef.current) {
         clearTimeout(realtimeRefreshTimeoutRef.current);
       }
@@ -630,29 +634,26 @@ export default function SquareManagement() {
       realtimeRefreshTimeoutRef.current = setTimeout(async () => {
         if (!isActive || isSyncing || isUpdatingReconciliationCatalog) return;
 
+        lastRealtimeRefreshAtRef.current = Date.now();
+
         try {
-          setBgSyncProgress({ stage: 'catalog_sync', detail: 'Refreshing COD snapshot…' });
-          const { transactionCount } = await runFullOfflineSnapshotSync({
-            onStageChange: setBgSyncProgress,
-            refreshLocations: false,
-            forceDeliveryRefresh: false,
-          });
-          setBgSyncProgress({ stage: 'complete', detail: `${transactionCount} transactions refreshed` });
-          setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 4000);
+          setBgSyncProgress({ stage: 'catalog_sync', detail: 'Refreshing local COD view…' });
+          await refreshUiFromOfflineOnly();
+          setBgSyncProgress({ stage: 'complete', detail: 'COD view updated' });
+          setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 2500);
         } catch (error) {
-          console.error('❌ [SquareManagement] Realtime Square sync failed:', error);
-          setBgSyncProgress({ stage: 'error', error: error.message });
-          setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 8000);
+          console.error('❌ [SquareManagement] Local COD refresh failed:', error);
+          setBgSyncProgress({ stage: 'idle' });
         }
-      }, 1200);
+      }, 800);
     };
 
     const unsubscribeCatalogItems = base44.entities.SquareCatalogItems.subscribe(() => {
-      scheduleFullRealtimeRefresh();
+      scheduleLocalRealtimeRefresh();
     });
 
     const unsubscribeTransactions = base44.entities.SquareTransaction.subscribe(() => {
-      scheduleFullRealtimeRefresh();
+      scheduleLocalRealtimeRefresh();
     });
 
     return () => {
@@ -663,7 +664,7 @@ export default function SquareManagement() {
       unsubscribeCatalogItems?.();
       unsubscribeTransactions?.();
     };
-  }, [hasInitialLoadCompleted, isSyncing, isUpdatingReconciliationCatalog, runFullOfflineSnapshotSync]);
+  }, [hasInitialLoadCompleted, isSyncing, isUpdatingReconciliationCatalog, refreshUiFromOfflineOnly]);
 
 
 
