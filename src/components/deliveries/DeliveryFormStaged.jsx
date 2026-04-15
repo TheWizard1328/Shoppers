@@ -338,7 +338,7 @@ export default function DeliveryFormStaged({
                 </div>
               </div>
               <div className="flex items-center gap-1">
-                <div className="truncate flex-1 min-w-0 text-slate-600 text-[10px] gap-0.0">
+                <div className="truncate flex-1 min-w-0 text-slate-600 text-[10px]">
                   {projectedAddress}
                   {projectedUnitNumber ? ` #${projectedUnitNumber}` : ''}
                 </div>
