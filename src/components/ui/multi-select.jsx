@@ -50,18 +50,26 @@ export const MultiSelect = React.forwardRef((props, ref) => {
               return (
                 <Badge
                   key={option.value}
-                  variant="secondary" className="inline-flex items-center rounded-md border px-1.0 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent mr-1 bg-slate-100 text-slate-800 hover:bg-slate-200">
+                  variant="secondary" className="inline-flex items-center rounded-md border px-1.0 text-xs font-semibold transition-colors border-transparent mr-1 bg-slate-100 text-slate-800 hover:bg-slate-200">
 
                   
                                         {option.label || 'Unknown'}
-                                        <button
-                    className="ml-1 hover:bg-slate-300 rounded-full p-0.5"
+                                        <span
+                    className="ml-1 inline-flex cursor-pointer hover:bg-slate-300 rounded-full p-0.5"
                     onClick={(e) => handleRemove(e, option.value)}
-                    type="button"
-                    aria-label={`Remove ${option.label || 'item'}`}>
+                    onMouseDown={(e) => e.stopPropagation()}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Remove ${option.label || 'item'}`}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleRemove(e, option.value);
+                      }
+                    }}>
                     
                                             <X className="h-3 w-3" />
-                                        </button>
+                                        </span>
                                     </Badge>);
 
             }) :
