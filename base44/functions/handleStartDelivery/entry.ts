@@ -85,6 +85,7 @@ Deno.serve(async (req) => {
       optimization = optimizationResponse?.data || optimizationResponse || null;
     } catch (error) {
       console.warn(`⚠️ [handleStartDelivery] optimizeRouteRealTime failed:`, error?.message || error);
+      optimization = null;
     }
 
     console.log(`✅ [handleStartDelivery] Started new delivery: ${deliveryId}, transferred ${distanceToTransfer} km`);

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { optimizeRouteRealTime } from '@/functions/optimizeRouteRealTime';
+import { handleStartDelivery } from '@/functions/handleStartDelivery';
 import { updateDeliveryLocal } from './offlineMutations';
 import { getLocalTimestamp } from './localTimeHelper';
 import { parseLocalTimestamp } from './timeRoundingHelper';
@@ -91,14 +92,6 @@ export default function ImmediateNextDeliveryController() {
           isNextDelivery: true
         };
 
-        await Promise.all(
-          routeDeliveries.map((item) => {
-            const shouldBeNext = item.id === delivery.id;
-            const payload = shouldBeNext ? startUpdate : { isNextDelivery: false };
-            return updateDeliveryLocal(item.id, payload, { skipSmartRefresh: true });
-          })
-        );
-
         const optimistic = currentDeliveries.map((item) => {
           if (!item || item.driver_id !== delivery.driver_id || item.delivery_date !== delivery.delivery_date) {
             return item;
@@ -111,8 +104,19 @@ export default function ImmediateNextDeliveryController() {
 
         updateDeliveriesLocally?.(optimistic, true);
         centerDeliveryCard(delivery.id);
+
+        try {
+          await handleStartDelivery({
+            deliveryId: delivery.id,
+            driverId: delivery.driver_id,
+            deliveryDate: delivery.delivery_date
+          });
+        } catch (error) {
+          console.warn('[ImmediateNextDeliveryController] Start delivery fallback failed:', error?.message || error);
+        }
+
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { triggeredBy: 'nextDeliveryImmediate', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+          detail: { triggeredBy: 'nextDeliveryImmediate', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true }
         }));
         return;
       }
