@@ -16,7 +16,6 @@ import {
   Bell,
   HeartPulse,
   Building,
-  Users2,
   Building2,
   BarChart3,
   LogOut,
@@ -33,14 +32,12 @@ import {
   BellRing,
   Settings,
   Home,
-  FileText,
   Wrench,
   UserCog,
   Stethoscope,
   MoreVertical,
   MessageCircle,
   DollarSign,
-  CreditCard,
   Smartphone } from
 "lucide-react";
 import {
@@ -58,7 +55,7 @@ import { Switch } from "@/components/ui/switch";
 import { getEffectiveUser, clearUserCache } from "./components/utils/auth";
 import { base44 } from '@/api/base44Client';
 import { motion, AnimatePresence } from "framer-motion";
-import { userHasRole, getPrimaryRole, formatRoles, isAppOwner, canAccessImports } from './components/utils/userRoles';
+import { userHasRole, getPrimaryRole, formatRoles, isAppOwner } from './components/utils/userRoles';
 import { getDriverDisplayName } from './components/utils/driverUtils';
 import { formatPhoneNumber } from './components/utils/phoneFormatter';
 import { sortUsers, sortStores } from './components/utils/sorting';
@@ -110,6 +107,7 @@ import AdminNavigationSection from './components/layout/AdminNavigationSection';
 import AppLoadingScreen from './components/layout/AppLoadingScreen';
 import SidebarDivider from './components/layout/SidebarDivider';
 import SidebarSectionLabel from './components/layout/SidebarSectionLabel';
+import getAdminNavigationItems from './components/layout/getAdminNavigationItems';
 import { getLayoutStyles } from './components/layout/layoutStyles';
 
 
@@ -1604,69 +1602,15 @@ export default function Layout({ children, currentPageName }) {
     };
   }, [appUsers, stores]);
 
-  const adminNavigationItems = useMemo(() => {
-    const isAdmin = currentUser && userHasRole(currentUser, 'admin');
-    const items = [
-    {
-      title: 'Cities',
-      pageName: 'Cities',
-      count: entityCounts.cities,
-      url: createPageUrl("Cities"),
-      icon: Building2
-    },
-    {
-      title: 'Stores',
-      pageName: 'Stores',
-      count: isAdmin ? `${onlineCounts.onlineStoresCount}/${stores.length}` : entityCounts.stores,
-      url: createPageUrl("Stores"),
-      icon: Building
-    },
-    {
-      title: 'Drivers',
-      pageName: 'DriverSettings',
-      count: isAdmin ? `${onlineCounts.onlineDriversCount}/${drivers.length}` : drivers.length,
-      url: createPageUrl("DriverSettings"),
-      icon: Truck
-    },
-    {
-      title: 'Users',
-      pageName: 'AppUsers',
-      count: isAdmin ? `${onlineCounts.onlineNonDriverNonDispatcherUsersCount}/${users.length}` : entityCounts.users,
-      url: createPageUrl("AppUsers"),
-      icon: Users2
-    }];
-
-    if (currentUser && (isAppOwner(currentUser) || userHasRole(currentUser, 'admin'))) {
-      items.push({
-        title: "Admin Metrics",
-        pageName: 'AdminMetrics',
-        url: createPageUrl("AdminMetrics"),
-        icon: BarChart3
-      });
-      items.push({
-        title: "Store Invoices",
-        pageName: 'StoreInvoices',
-        url: createPageUrl("StoreInvoices"),
-        icon: FileText
-      });
-    }
-
-    if (currentUser && canAccessImports(currentUser, adminImportEnabled)) {
-      items.push({
-        title: "Admin Utilities",
-        pageName: 'AdminUtilities',
-        url: createPageUrl("AdminUtilities"),
-        icon: BarChart3
-      });
-    }
-
-    // Square Locations - App Owner only
-    if (currentUser && isAppOwner(currentUser)) items.push(
-      { title: "Square Locations", pageName: 'SquareLocationConfigs', url: createPageUrl("SquareLocationConfigs"), icon: CreditCard },
-      { title: "Square COD Audit", pageName: 'SquareSyncAudit', url: createPageUrl("SquareSyncAudit"), icon: FileText }
-    );
-    return items;
-  }, [entityCounts.cities, entityCounts.stores, entityCounts.users, currentUser, adminImportEnabled, drivers.length]);
+  const adminNavigationItems = useMemo(() => getAdminNavigationItems({
+    currentUser,
+    entityCounts,
+    onlineCounts,
+    stores,
+    drivers,
+    users,
+    adminImportEnabled
+  }), [currentUser, entityCounts, onlineCounts, stores, drivers, users, adminImportEnabled]);
 
   const constructUrlWithParams = useCallback((baseUrl) => {
     const currentParams = new URLSearchParams(location.search);
