@@ -2054,7 +2054,7 @@ export default function Layout({ children, currentPageName }) {
                     } : {
                       color: 'var(--text-slate-600)'
                     }}>
-                          <CreditCard className="w-5 h-5" />
+                          <DollarSign className="w-5 h-5" />
                           <span className="font-semibold">Square COD</span>
                           <Badge variant="secondary" className="ml-auto justify-center w-auto px-2 rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>
                             ${totalCodsDue.toFixed(2)}
