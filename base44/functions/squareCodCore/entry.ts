@@ -1325,54 +1325,11 @@ async function handleSyncOnlineSquareEntities(base44, payload) {
   const catalogRecords = Array.isArray(payload?.catalogRecords) ? payload.catalogRecords : [];
   const transactionRecords = Array.isArray(payload?.transactionRecords) ? payload.transactionRecords : [];
 
-  const existingCatalogRecords = await base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 5000).catch(() => []);
-  const existingTransactions = await base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 5000).catch(() => []);
-
-  await Promise.all([
-    ...existingCatalogRecords.map((record) => base44.asServiceRole.entities.SquareCatalogItems.delete(record.id).catch(() => null)),
-    ...existingTransactions.map((record) => base44.asServiceRole.entities.SquareTransaction.delete(record.id).catch(() => null)),
-  ]);
-
-  const safeCatalogRecords = catalogRecords
-    .filter((record) => record && typeof record.item_name === 'string' && record.item_name.trim().length > 0)
-    .map((record) => {
-      const normalized = { ...record };
-      if (!(typeof normalized.square_catalog_object_id === 'string' && normalized.square_catalog_object_id.trim().length > 0)) {
-        delete normalized.square_catalog_object_id;
-      }
-      if (!(typeof normalized.delivery_id === 'string' && /^[a-f0-9]{24}$/i.test(normalized.delivery_id))) delete normalized.delivery_id;
-      if (!(typeof normalized.patient_id === 'string' && /^[a-f0-9]{24}$/i.test(normalized.patient_id))) delete normalized.patient_id;
-      if (!(typeof normalized.store_id === 'string' && /^[a-f0-9]{24}$/i.test(normalized.store_id))) delete normalized.store_id;
-      if (!(typeof normalized.location_id === 'string' && normalized.location_id.trim().length > 0)) delete normalized.location_id;
-      return normalized;
-    })
-    .filter((record) => typeof record.square_catalog_object_id === 'string' && record.square_catalog_object_id.trim().length > 0)
-    .filter((record) => typeof record.location_id === 'string' && record.location_id.trim().length > 0);
-
-  const safeTransactionRecords = transactionRecords
-    .filter((record) => record && typeof record.item_name === 'string' && record.item_name.trim().length > 0)
-    .map((record) => {
-      const normalized = { ...record };
-      if (!(typeof normalized.delivery_id === 'string' && /^[a-f0-9]{24}$/i.test(normalized.delivery_id))) delete normalized.delivery_id;
-      if (!(typeof normalized.patient_id === 'string' && /^[a-f0-9]{24}$/i.test(normalized.patient_id))) delete normalized.patient_id;
-      if (!(typeof normalized.store_id === 'string' && /^[a-f0-9]{24}$/i.test(normalized.store_id))) delete normalized.store_id;
-      if (!(typeof normalized.driver_id === 'string' && /^[a-f0-9]{24}$/i.test(normalized.driver_id))) delete normalized.driver_id;
-      if (!(typeof normalized.dispatcher_id === 'string' && /^[a-f0-9]{24}$/i.test(normalized.dispatcher_id))) delete normalized.dispatcher_id;
-      return normalized;
-    });
-  if (safeCatalogRecords.length > 0) {
-    await base44.asServiceRole.entities.SquareCatalogItems.bulkCreate(safeCatalogRecords);
-  }
-
-  if (safeTransactionRecords.length > 0) {
-    await base44.asServiceRole.entities.SquareTransaction.bulkCreate(safeTransactionRecords);
-  }
-
   return {
     success: true,
-    processed: safeCatalogRecords.length + safeTransactionRecords.length,
-    catalogCount: safeCatalogRecords.length,
-    transactionCount: safeTransactionRecords.length,
+    processed: catalogRecords.length + transactionRecords.length,
+    catalogCount: catalogRecords.length,
+    transactionCount: transactionRecords.length,
   };
 }
 
