@@ -1,12 +1,18 @@
 import { determineDeliveryAMPM, getStoreAssignedTimeSlot } from '../utils/ampmUtils';
 
+const isSoleDriverUser = (currentUser) => {
+  const roles = Array.isArray(currentUser?.app_roles) ? currentUser.app_roles : [];
+  return roles.includes('driver') && !roles.includes('admin') && !roles.includes('dispatcher');
+};
+
 export const resolvePatientDriverAssignment = ({
   patient,
   patientStore,
   deliveryDate,
   drivers,
   allDeliveries,
-  getDriverNameForStorage
+  getDriverNameForStorage,
+  currentUser
 }) => {
   if (!patientStore || !deliveryDate || !drivers) {
     return { autoSelectedDriverId: '', autoSelectedDriverName: '', deliveryAMPM: determineDeliveryAMPM(patient) };
@@ -27,7 +33,10 @@ export const resolvePatientDriverAssignment = ({
 
   const preferredField = deliveryAMPM === 'PM' ? fields.pm : fields.am;
   const fallbackField = deliveryAMPM === 'PM' ? fields.am : fields.pm;
-  const driverId = patientStore[preferredField] || patientStore[fallbackField] || '';
+  const resolvedDriverId = isSoleDriverUser(currentUser)
+    ? (currentUser.id || currentUser.user_id || '')
+    : (patientStore[preferredField] || patientStore[fallbackField] || '');
+  const driverId = resolvedDriverId;
   const driver = driverId ? drivers.find((item) => item && item.id === driverId) : null;
 
   return {

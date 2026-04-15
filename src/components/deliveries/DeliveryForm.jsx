@@ -594,7 +594,8 @@ export default function DeliveryForm({
       deliveryDate: formData.delivery_date,
       drivers,
       allDeliveries,
-      getDriverNameForStorage
+      getDriverNameForStorage,
+      currentUser
     });
 
     const updatedFormData = buildSelectedPatientFormData({

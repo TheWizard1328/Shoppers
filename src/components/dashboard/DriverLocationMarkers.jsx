@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 
 const MIN_DRIVER_MOVE_METERS = 50;
 const toRadians = (value) => (value * Math.PI) / 180;
@@ -177,12 +177,31 @@ const mergeVisibleDriversByFreshness = (current = [], incoming = []) => {
   return Array.from(merged.values());
 };
 
+const mergeDriversWithCache = (current = [], incoming = [], cacheMap = new Map()) => {
+  const merged = mergeVisibleDriversByFreshness(current, incoming);
+  const result = new Map(merged.map((user) => [getDriverIdentityKey(user), user]).filter(([key]) => !!key));
+  const now = Date.now();
+
+  cacheMap.forEach((cachedUser, key) => {
+    if (!key || result.has(key)) return;
+    const updatedAt = new Date(cachedUser?.location_updated_at || cachedUser?.updated_date || 0).getTime();
+    if (updatedAt > 0 && now - updatedAt <= MARKER_CACHE_TTL_MS) {
+      result.set(key, { ...cachedUser, _fromLastKnownCache: true });
+    }
+  });
+
+  return Array.from(result.values());
+};
+
+const MARKER_CACHE_TTL_MS = 3 * 60 * 1000;
+
 const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = [], selectedDate = null }) => {
   const isMobile = isMobileDevice();
   const [visibleDrivers, setVisibleDrivers] = useState([]);
   const lastPropUpdateRef = useRef(0);
   const markerRefs = useRef({});
   const prevVisibleIdsRef = useRef(new Set());
+  const lastKnownDriversRef = useRef(new Map());
   const [isPrimaryDevice, setIsPrimaryDevice] = useState(true);
 
   const isAdmin = currentUser && userHasRole(currentUser, 'admin');
@@ -303,6 +322,26 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     checkPrimary();
   }, [currentUser?.id]);
 
+  useEffect(() => {
+    const now = Date.now();
+    visibleDrivers.forEach((user) => {
+      const key = getDriverIdentityKey(user) || user.id;
+      if (!key) return;
+      lastKnownDriversRef.current.set(key, {
+        ...user,
+        _fromLastKnownCache: false,
+        _lastSeenAt: now
+      });
+    });
+
+    lastKnownDriversRef.current.forEach((cachedUser, key) => {
+      const updatedAt = new Date(cachedUser?.location_updated_at || cachedUser?.updated_date || 0).getTime();
+      if (updatedAt > 0 && now - updatedAt > MARKER_CACHE_TTL_MS) {
+        lastKnownDriversRef.current.delete(key);
+      }
+    });
+  }, [visibleDrivers]);
+
   // Listen for driverLocationsUpdated events to force marker refresh
   useEffect(() => {
     const handleLocationUpdates = (event) => {
@@ -338,7 +377,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
           return dedupeVisibleDrivers(visibleIncoming);
         }
 
-        const merged = mergeVisibleDriversByFreshness(prevList, visibleIncoming);
+        const merged = mergeDriversWithCache(prevList, visibleIncoming, lastKnownDriversRef.current);
         return dedupeVisibleDrivers(merged.filter(shouldShowMarker));
       });
     };
@@ -376,7 +415,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     
     // CRITICAL: Deduplicate self markers on primary device - only keep ONE (the live one)
     const deduplicatedDrivers = dedupeVisibleDrivers(validDrivers);
-    const mergedDrivers = mergeVisibleDriversByFreshness(visibleDrivers, deduplicatedDrivers).filter(shouldShowMarker);
+    const mergedDrivers = mergeDriversWithCache(visibleDrivers, deduplicatedDrivers, lastKnownDriversRef.current).filter(shouldShowMarker);
     
     const newVisibleIds = new Set(mergedDrivers.map(d => getDriverIdentityKey(d) || d.id));
     const prevIds = prevVisibleIdsRef.current;
@@ -644,6 +683,11 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
                 {staleness !== 'fresh' && staleness !== 'unknown' && (
                   <p className="text-xs text-orange-600 mt-1 font-medium">
                     ⚠️ Location {ageMinutes}min old
+                  </p>
+                )}
+                {user._fromLastKnownCache && (
+                  <p className="text-xs text-slate-500 mt-1 italic">
+                    📍 Showing last known location
                   </p>
                 )}
                 {staleness === 'unknown' && !user.location_updated_at && (
