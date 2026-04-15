@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
-import { X, Save, Package, Plus, CheckCircle, Edit2, AlertCircle } from "lucide-react";
+import { X, Save, Package, Plus, CheckCircle, Edit2, AlertCircle, Car, Bike } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PhoneInput } from "@/components/ui/phone-input";
@@ -40,6 +40,35 @@ const CheckboxField = ({ id, label, checked, onChange, disabled }) =>
     <Label htmlFor={id} className={`text-sm font-medium leading-none ${disabled ? 'text-slate-400' : ''}`}>{label}</Label>
   </div>;
 
+const TravelModeButtons = ({ value, onChange, isMobile, disabled }) => {
+  const options = [
+    { value: 'driving', label: 'Driving', icon: Car },
+    { value: 'cycling', label: 'Cycling', icon: Bike }
+  ];
+
+  return (
+    <div className={`flex ${isMobile ? 'flex-col gap-2' : 'flex-row gap-2'} shrink-0`}>
+      {options.map((option) => {
+        const Icon = option.icon;
+        const isActive = value === option.value;
+
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onChange(option.value)}
+            disabled={disabled}
+            className={`rounded-full border transition-all ${isMobile ? 'h-9 w-9' : 'h-9 px-3'} ${isActive ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white text-slate-700'}`}>
+            <span className={`flex items-center justify-center ${isMobile ? '' : 'gap-2'}`}>
+              <Icon className="w-4 h-4" />
+              {!isMobile && <span className="text-sm font-medium">{option.label}</span>}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+};
 
 const userHasRole = (user, role) => {
   if (!user || !role) return false;
@@ -452,7 +481,15 @@ export default function DeliveryFormView({
                   </div>
 
                   <div className={`${useMobileLayout ? 'flex-1' : (!delivery && !isPickupMode ? 'min-w-0' : 'min-w-0 flex-1')} space-y-1 p-3 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                    <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver {delivery ? '*' : ''}</Label>
+                    <div className="flex items-start justify-between gap-3">
+                      <Label className="text-sm font-semibold pt-2" style={{ color: 'var(--text-slate-900)' }}>Driver {delivery ? '*' : ''}</Label>
+                      <TravelModeButtons
+                        value={formData.preferred_travel_mode || 'driving'}
+                        onChange={(mode) => setFormData((prev) => ({ ...prev, preferred_travel_mode: mode }))}
+                        isMobile={useMobileLayout}
+                        disabled={isSaving}
+                      />
+                    </div>
                     <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
                       const newDriverId = driverId === 'all' ? '' : driverId;
                       const driver = driverId === 'all' ? null : allDrivers.find((d) => d.id === driverId);
