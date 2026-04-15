@@ -108,6 +108,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const isStrippedDelivery = isStrippedForDriver || isStrippedForDispatcher;
   const ensureDriverOnline = async () => {
     if (!currentUser?.id || currentUser.id !== delivery?.driver_id) return;
+    if (delivery?.delivery_date !== localDeviceTodayStr) return;
     try {
       const { data } = await setDriverStatus({ newStatus: 'on_duty' });
       try { await locationTracker.startTracking({ ...currentUser, appUserId: data?.appUserId }); } catch (trackingError) { console.warn('Could not start location tracking:', trackingError.message); }
