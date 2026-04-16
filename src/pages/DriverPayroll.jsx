@@ -885,32 +885,7 @@ export default function DriverPayroll() {
   // Re-select period when live payroll records arrive (may override offline-based initial selection)
   const periodSelectionDoneWithRecordsRef = useRef(false);
 
-  // Ensure period index matches the current pay cycle whenever payPeriod changes
-  useEffect(() => {
-    if (!hasInitialized || !payPeriod) return;
-    if (isManualChangeRef.current) return;
-
-    // Use the already-computed periods list for the selectedYear (weekly/biweekly are classification-filtered)
-    const periods = allPeriods;
-    // Robust index detection using local date strings
-    const today = new Date();
-    const todayStr = toLocalYMD(today);
-    let idx = -1;
-    for (let i = 0; i < periods.length; i++) {
-      const s = toLocalYMD(periods[i].start);
-      const e = toLocalYMD(periods[i].end);
-      if (todayStr >= s && todayStr <= e) {idx = i;break;}
-    }
-    if (idx === -1) {
-      let lastPastIdx = -1;let lastPastEnd = '0000-00-00';
-      for (let i = 0; i < periods.length; i++) {
-        const e = toLocalYMD(periods[i].end);
-        if (e < todayStr && e > lastPastEnd) {lastPastIdx = i;lastPastEnd = e;}
-      }
-      idx = lastPastIdx !== -1 ? lastPastIdx : 0;
-    }
-    if (idx !== selectedPeriodIndex) setSelectedPeriodIndex(idx);
-  }, [payPeriod, selectedYear, hasInitialized, selectedPeriodIndex, allPeriods]);
+  // Keep the selected period stable after initialization; dedicated effects handle choosing the correct period.
 
   useEffect(() => {
     if (!hasInitialized || !payrollData || allPeriods.length === 0) return;
