@@ -130,6 +130,7 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
     } catch (error) {
       console.error('Error fetching address suggestions:', error);
       setSuggestions([]);
+      setOpen(false);
       onSearchStateChange?.(false);
     } finally {
       setIsLoading(false);
@@ -225,7 +226,8 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
       }, 400);
     } catch (error) {
       console.error('[GoogleAddressAutocomplete] Error fetching place details:', error);
-      // Fallback to using the prediction description
+      const status = error?.response?.status || error?.status;
+      const isPlaceNotFound = status === 404;
       const streetAddress = prediction.description.split(',')[0]?.trim() || prediction.description;
       onChange(streetAddress);
       if (onAddressSelect) {
@@ -233,7 +235,12 @@ export const GoogleAddressAutocomplete = forwardRef(function GoogleAddressAutoco
           full_address: prediction.description,
           street_address: streetAddress,
           place_id: prediction.place_id,
-          distance: prediction.distance
+          distance: prediction.distance,
+          latitude: null,
+          longitude: null,
+          lat: null,
+          lng: null,
+          place_details_unavailable: isPlaceNotFound
         });
       }
       

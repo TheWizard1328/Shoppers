@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Google Places API error:', errorText);
-      return Response.json({ error: 'Places API error: ' + errorText }, { status: 500 });
+      return Response.json({ error: 'Places API error: ' + errorText }, { status: response.status || 500 });
     }
     
     const result = await response.json();
