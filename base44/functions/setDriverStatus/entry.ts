@@ -114,14 +114,16 @@ Deno.serve(async (req) => {
 
       const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
       const flaggedDeliveries = allTodayDeliveries.filter(d => d?.isNextDelivery === true);
-      for (const delivery of flaggedDeliveries) {
-        await base44.asServiceRole.entities.Delivery.update(delivery.id, { isNextDelivery: false }).catch((error) => {
-          if (isNotFoundError(error)) return null;
-          throw error;
-        });
-      }
+      const activeFlaggedDelivery = flaggedDeliveries.find(d => !finishedStatuses.includes(d.status) && d.status !== 'pending') || null;
 
       if (previousStatus === 'on_break') {
+        for (const delivery of flaggedDeliveries) {
+          await base44.asServiceRole.entities.Delivery.update(delivery.id, { isNextDelivery: false }).catch((error) => {
+            if (isNotFoundError(error)) return null;
+            throw error;
+          });
+        }
+
         console.log(`🔄 [setDriverStatus] Driver returning from break - finding closest delivery (non-pending only, respecting time windows)`);
 
         const now = new Date();
@@ -232,9 +234,8 @@ Deno.serve(async (req) => {
         }
       } else {
         if (previousStatus === 'on_duty') {
-          const existingStartedDelivery = allTodayDeliveries.find((d) => d?.isNextDelivery === true && !finishedStatuses.includes(d.status) && d.status !== 'pending');
-          if (existingStartedDelivery) {
-            console.log(`ℹ️ [setDriverStatus] Driver already on duty - preserving current next stop: ${existingStartedDelivery.patient_name || 'Pickup'}`);
+          if (activeFlaggedDelivery) {
+            console.log(`ℹ️ [setDriverStatus] Driver already on duty - preserving current next stop: ${activeFlaggedDelivery.patient_name || 'Pickup'}`);
           } else {
             console.log(`🔄 [setDriverStatus] Driver already on duty with no next stop - restoring next stop by order`);
             const nextDelivery = allTodayDeliveries
