@@ -32,6 +32,19 @@ const parseTimeToMinutes = (timeStr) => {
   return (hours * 60) + minutes;
 };
 
+const getEffectiveWindowStart = (delivery, patient = null) => {
+  return delivery?.time_window_start || patient?.time_window_start || delivery?.delivery_time_start || null;
+};
+
+const getEffectiveWindowEnd = (delivery, patient = null) => {
+  return delivery?.time_window_end || patient?.time_window_end || delivery?.delivery_time_end || null;
+};
+
+const isLateWindowStop = (windowStart, currentMinutes) => {
+  const startMinutes = parseTimeToMinutes(windowStart);
+  return startMinutes !== null && startMinutes > currentMinutes;
+};
+
 const getWeekdayCode = (dateStr) => {
   const [year, month, day] = String(dateStr).split('-').map(Number);
   const utcDate = new Date(Date.UTC(year, (month || 1) - 1, day || 1, 12, 0, 0));
@@ -279,16 +292,19 @@ Deno.serve(async (req) => {
       locationSource = 'home';
     }
 
+    const currentRouteMinutes = parseTimeToMinutes(resolveCurrentTime({ currentLocalTime, deviceTime })) ?? parseTimeToMinutes(getEdmontonCurrentTime()) ?? 0;
+
     const stops = optimizationDeliveries
       .map((delivery, index) => {
         const { lat, lng, patient } = getStopCoordinates(delivery, patientMap, storeMap);
         const isPickup = !delivery.patient_id;
-        const windowStart = delivery.time_window_start || delivery.delivery_time_start || patient?.time_window_start || null;
-        const windowEnd = delivery.time_window_end || delivery.delivery_time_end || patient?.time_window_end || null;
+        const windowStart = getEffectiveWindowStart(delivery, patient);
+        const windowEnd = getEffectiveWindowEnd(delivery, patient);
         const serviceMinutes = isPickup
           ? Math.max(Number(delivery.extra_time || 0), 15)
           : Math.max(Number(delivery.extra_time || 0), 5);
         const priorityRank = ACTIVE_ROUTE_STATUSES.includes(delivery.status) ? 0 : 1;
+        const hasLateWindow = isLateWindowStop(windowStart, currentRouteMinutes);
 
         return {
           delivery,
@@ -300,6 +316,7 @@ Deno.serve(async (req) => {
           windowEnd,
           serviceMinutes,
           priorityRank,
+          hasLateWindow,
           waypointId: `destination${index + 1}`,
           waypointLabel: delivery.stop_id || delivery.delivery_id || delivery.id
         };
@@ -311,7 +328,8 @@ Deno.serve(async (req) => {
     }
 
     const nextDeliveryStop = stops.find((stop) => stop.delivery.isNextDelivery === true) || null;
-    const lockedNextStop = nextDeliveryStop;
+    const canKeepLockedNextStop = !!nextDeliveryStop && !nextDeliveryStop.hasLateWindow;
+    const lockedNextStop = canKeepLockedNextStop ? nextDeliveryStop : null;
     const stopsToSequence = lockedNextStop
       ? stops.filter((stop) => stop.delivery.id !== lockedNextStop.delivery.id)
       : stops;
@@ -336,10 +354,12 @@ Deno.serve(async (req) => {
 
     const sequencedStops = [...stopsToSequence]
       .sort((a, b) => {
+        if (a.hasLateWindow !== b.hasLateWindow) return a.hasLateWindow ? 1 : -1;
         if (a.priorityRank !== b.priorityRank) return a.priorityRank - b.priorityRank;
         const windowA = parseTimeToMinutes(a.windowStart);
         const windowB = parseTimeToMinutes(b.windowStart);
         if ((windowA ?? Infinity) !== (windowB ?? Infinity)) return (windowA ?? Infinity) - (windowB ?? Infinity);
+        if (a.isPickup !== b.isPickup) return a.isPickup ? -1 : 1;
         return (Number(a.delivery.stop_order) || 9999) - (Number(b.delivery.stop_order) || 9999);
       })
       .map((stop, index) => ({

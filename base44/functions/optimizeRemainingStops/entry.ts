@@ -66,6 +66,19 @@ const formatMinutesToTime = (minutes) => {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 };
 
+const getEffectiveWindowStart = (delivery, patient = null) => {
+  return delivery?.time_window_start || patient?.time_window_start || delivery?.delivery_time_start || null;
+};
+
+const getEffectiveWindowEnd = (delivery, patient = null) => {
+  return delivery?.time_window_end || patient?.time_window_end || delivery?.delivery_time_end || null;
+};
+
+const isLateWindowStop = (windowStart, currentMinutes) => {
+  const startMinutes = parseTimeToMinutes(windowStart);
+  return Number.isFinite(startMinutes) && startMinutes > currentMinutes;
+};
+
 /**
  * Optimize Remaining Stops - staged optimization for driver's route
  */
@@ -175,27 +188,33 @@ Deno.serve(async (req) => {
     // Build stops with coordinates
     const stops = incompleteDeliveries.map(delivery => {
       const coords = getDeliveryCoords(delivery, patientMap, storeMap);
+      const patient = delivery.patient_id ? patientMap.get(delivery.patient_id) : null;
+      const windowStart = getEffectiveWindowStart(delivery, patient);
+      const windowEnd = getEffectiveWindowEnd(delivery, patient);
       return {
         delivery,
         lat: coords?.lat,
         lng: coords?.lng,
         isPickup: !delivery.patient_id,
-        timeMinutes: parseTimeToMinutes(delivery.delivery_time_start)
+        windowStart,
+        windowEnd,
+        hasLateWindow: isLateWindowStop(windowStart, currentMinutes),
+        timeMinutes: parseTimeToMinutes(windowStart || delivery.delivery_time_start)
       };
     }).filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lng));
 
     // STEP 1: CRITICAL - Sort by isNextDelivery FIRST, then by time_window_start (NOT delivery_time_start)
     stops.sort((a, b) => {
-      // CRITICAL: isNextDelivery ALWAYS comes first (regardless of time)
-      if (a.delivery.isNextDelivery && !b.delivery.isNextDelivery) return -1;
-      if (!a.delivery.isNextDelivery && b.delivery.isNextDelivery) return 1;
-      
-      // Then sort by time_window_start (patient time window takes priority over delivery_time_start)
-      const timeA = parseTimeToMinutes(a.delivery.time_window_start) ?? a.timeMinutes;
-      const timeB = parseTimeToMinutes(b.delivery.time_window_start) ?? b.timeMinutes;
+      if (a.hasLateWindow !== b.hasLateWindow) return a.hasLateWindow ? 1 : -1;
+      if (a.delivery.isNextDelivery !== b.delivery.isNextDelivery) {
+        const aCanLead = a.delivery.isNextDelivery && !a.hasLateWindow;
+        const bCanLead = b.delivery.isNextDelivery && !b.hasLateWindow;
+        if (aCanLead && !bCanLead) return -1;
+        if (!aCanLead && bCanLead) return 1;
+      }
+      const timeA = parseTimeToMinutes(a.windowStart) ?? a.timeMinutes;
+      const timeB = parseTimeToMinutes(b.windowStart) ?? b.timeMinutes;
       if (timeA !== timeB) return timeA - timeB;
-      
-      // Pickups before deliveries at same time
       if (a.isPickup && !b.isPickup) return -1;
       if (!a.isPickup && b.isPickup) return 1;
       return 0;
@@ -235,15 +254,19 @@ Deno.serve(async (req) => {
       })
       .filter(Boolean)
       .sort((a, b) => {
+        if (a.hasLateWindow !== b.hasLateWindow) return a.hasLateWindow ? 1 : -1;
         const aIsActive = ACTIVE_STATUSES.includes(a.delivery.status);
         const bIsActive = ACTIVE_STATUSES.includes(b.delivery.status);
         if (aIsActive && !bIsActive) return -1;
         if (!aIsActive && bIsActive) return 1;
-        if (a.delivery.isNextDelivery && !b.delivery.isNextDelivery) return -1;
-        if (!a.delivery.isNextDelivery && b.delivery.isNextDelivery) return 1;
-        const windowA = parseTimeToMinutes(a.delivery.time_window_start || a.delivery.delivery_time_start);
-        const windowB = parseTimeToMinutes(b.delivery.time_window_start || b.delivery.delivery_time_start);
+        const aCanLead = a.delivery.isNextDelivery && !a.hasLateWindow;
+        const bCanLead = b.delivery.isNextDelivery && !b.hasLateWindow;
+        if (aCanLead && !bCanLead) return -1;
+        if (!aCanLead && bCanLead) return 1;
+        const windowA = parseTimeToMinutes(a.windowStart || a.delivery.delivery_time_start);
+        const windowB = parseTimeToMinutes(b.windowStart || b.delivery.delivery_time_start);
         if ((windowA ?? Infinity) !== (windowB ?? Infinity)) return (windowA ?? Infinity) - (windowB ?? Infinity);
+        if (a.isPickup !== b.isPickup) return a.isPickup ? -1 : 1;
         const orderDiff = (Number(a.delivery.stop_order) || 9999) - (Number(b.delivery.stop_order) || 9999);
         if (orderDiff !== 0) return orderDiff;
         return a.timeMinutes - b.timeMinutes;
@@ -329,8 +352,14 @@ Deno.serve(async (req) => {
 
     // STEP 7: Re-sort activeStops after full optimization is complete
     activeStops.sort((a, b) => {
-      if (a.isNextDelivery && !b.isNextDelivery) return -1;
-      if (!a.isNextDelivery && b.isNextDelivery) return 1;
+      const aHasLateWindow = isLateWindowStop(a.time_window_start || a.delivery_time_start, currentMinutes);
+      const bHasLateWindow = isLateWindowStop(b.time_window_start || b.delivery_time_start, currentMinutes);
+      if (aHasLateWindow !== bHasLateWindow) return aHasLateWindow ? 1 : -1;
+
+      const aCanLead = a.isNextDelivery && !aHasLateWindow;
+      const bCanLead = b.isNextDelivery && !bHasLateWindow;
+      if (aCanLead && !bCanLead) return -1;
+      if (!aCanLead && bCanLead) return 1;
 
       const timeA = parseTimeToMinutes(a.time_window_start) ?? parseTimeToMinutes(a.delivery_time_start);
       const timeB = parseTimeToMinutes(b.time_window_start) ?? parseTimeToMinutes(b.delivery_time_start);
