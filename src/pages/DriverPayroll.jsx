@@ -211,6 +211,35 @@ const findCurrentPeriodIndex = (periods, today) => {
   return 0;
 };
 
+const isPayrollAdminFinalized = (record) => {
+  if (!record) return false;
+  return !!record.admin_finalized_at && !!record.admin_finalized_by;
+};
+
+const determinePreferredPayrollPeriodIndex = ({ periods, payrollRecords = [], selectedCityId = '', selectedDriverId = 'all', today = new Date() }) => {
+  if (!Array.isArray(periods) || periods.length === 0) return 0;
+
+  const todayIdx = findCurrentPeriodIndex(periods, today);
+  const previousIdx = todayIdx > 0 ? todayIdx - 1 : -1;
+  if (previousIdx < 0) return todayIdx;
+
+  const previousPeriod = periods[previousIdx];
+  const startStr = toLocalYMD(previousPeriod.start);
+  const endStr = toLocalYMD(previousPeriod.end);
+  const scopedRecords = (payrollRecords || []).filter((record) => {
+    const matchPeriod = record.pay_period_start === startStr && record.pay_period_end === endStr;
+    const matchCity = !selectedCityId || selectedCityId === 'all' || record.city_id === selectedCityId;
+    const matchDriver = selectedDriverId === 'all' || record.driver_id === selectedDriverId;
+    return matchPeriod && matchCity && matchDriver;
+  });
+
+  if (scopedRecords.length > 0 && scopedRecords.every((record) => !isPayrollAdminFinalized(record))) {
+    return previousIdx;
+  }
+
+  return todayIdx;
+};
+
 export default function DriverPayroll() {
   // CRITICAL: ALL hooks must be at the top, before any conditional logic
   const { currentUser } = useUser();
@@ -454,50 +483,29 @@ export default function DriverPayroll() {
   const handlePayPeriodChange = useCallback((newPayPeriod) => {
     isManualChangeRef.current = true;
 
-    // Determine effective year when switching to weekly/biweekly (majority-of-days rule)
     const shouldClassify = newPayPeriod === 'weekly' || newPayPeriod === 'biweekly';
     const effectiveYear = shouldClassify ? getClassificationYearForDate(new Date(), newPayPeriod) : selectedYear;
-
-    // Pre-compute the periods for the target settings so we can select the right cycle immediately
     const nextPeriods = calculateAllPeriods(effectiveYear, newPayPeriod);
+    const nextIdx = determinePreferredPayrollPeriodIndex({
+      periods: nextPeriods,
+      payrollRecords: payrollData?.payrollRecords || [],
+      selectedCityId,
+      selectedDriverId: 'all',
+      today: new Date()
+    });
 
-    // Select today's period (or closest past) WITHOUT shifting to previous unfinalized
-    const today = new Date();
-    const todayStr = toLocalYMD(today);
-    let nextIdx = -1;
-    for (let i = 0; i < nextPeriods.length; i++) {
-      const s = toLocalYMD(nextPeriods[i].start);
-      const e = toLocalYMD(nextPeriods[i].end);
-      if (todayStr >= s && todayStr <= e) {nextIdx = i;break;}
-    }
-    if (nextIdx === -1) {
-      let lastPastIdx = -1;
-      let lastPastEnd = '0000-00-00';
-      for (let i = 0; i < nextPeriods.length; i++) {
-        const e = toLocalYMD(nextPeriods[i].end);
-        if (e < todayStr && e > lastPastEnd) {lastPastIdx = i;lastPastEnd = e;}
-      }
-      nextIdx = lastPastIdx !== -1 ? lastPastIdx : 0;
-    }
-
-    // Avoid the "no data -> jump previous" effect right after a cycle change
     triedPreviousPeriodRef.current = true;
-    // Also prevent the live-records auto-selection from overriding our choice
     periodSelectionDoneWithRecordsRef.current = true;
 
-    // Batch all state updates together in a single synchronous block
     React.startTransition(() => {
       setPayPeriod(newPayPeriod);
 
-      // Adjust year for weekly/biweekly so the period list uses the correct classification year
       if (shouldClassify && effectiveYear !== selectedYear) {
         setSelectedYear(effectiveYear);
       }
 
-      // Immediately select the correct period index for the new cycle (today or closest past)
       setSelectedPeriodIndex(nextIdx);
 
-      // Reset selected driver to 'all' to force refresh with new pay cycle filter
       if (selectedDriverId !== 'all') {
         setSelectedDriverId('all');
       }
@@ -520,7 +528,7 @@ export default function DriverPayroll() {
     });
 
     setTimeout(() => {isManualChangeRef.current = false;}, 200);
-  }, [selectedDriverId, selectedYear]);
+  }, [selectedCityId, selectedDriverId, selectedYear, payrollData?.payrollRecords]);
 
   const refreshPayrollRecords = useCallback(async () => {
     if (!currentPeriod || !payrollData?.payrollRecords) {
@@ -821,33 +829,16 @@ export default function DriverPayroll() {
         isInRange = todayStr >= s && todayStr <= e;
       }
 
-      // Step 3: Read offline Payroll records to check ONLY previous (or closest past) cycle completeness
+      // Step 3: Read offline Payroll records and prefer previous period only when the whole cycle is still not admin finalized
       try {
         const offlinePayrolls = (await offlineDB.getAll('payroll_records')) || [];
-        const prevIdx = isInRange ? idxClose > 0 ? idxClose - 1 : -1 : idxClose;
-        let targetIdx = isInRange ? idxClose : idxClose; // default to current or closest past
-
-        if (prevIdx >= 0) {
-          const startStr = periods[prevIdx].start.toISOString().split('T')[0];
-          const endStr = periods[prevIdx].end.toISOString().split('T')[0];
-
-          // Apply city/driver filters
-          const filtered = offlinePayrolls.filter((r) => {
-            const matchPeriod = r.pay_period_start === startStr && r.pay_period_end === endStr;
-            const matchCity = selectedCityId === 'all' || r.city_id === selectedCityId;
-            const matchDriver = selectedDriverId === 'all' || r.driver_id === selectedDriverId;
-            return matchPeriod && matchCity && matchDriver;
-          });
-
-          // If previous (or closest past) period has any unfinalized, select it; otherwise keep current/closest
-          const anyUnfinalized = filtered.length > 0 && !filtered.every((r) =>
-          r.status === 'admin_finalized' || r.status === 'paid' || !!r.admin_finalized_at
-          );
-
-          targetIdx = anyUnfinalized ? prevIdx : idxClose;
-        }
-
-        determinedPeriodIndex = targetIdx;
+        determinedPeriodIndex = determinePreferredPayrollPeriodIndex({
+          periods,
+          payrollRecords: offlinePayrolls,
+          selectedCityId: defaultCityId,
+          selectedDriverId: 'all',
+          today
+        });
       } catch (e) {
         determinedPeriodIndex = idxClose;
         console.warn('⚠️ [DriverPayroll] Could not read offline payroll records:', e);
@@ -928,38 +919,13 @@ export default function DriverPayroll() {
     const allRecords = payrollData?.payrollRecords || payrollRecords || [];
     if (periodSelectionDoneWithRecordsRef.current) return;
 
-    const today = new Date();
-    let todayPeriodIdx = -1;
-    const todayStr = toLocalYMD(today);
-    for (let i = 0; i < allPeriods.length; i++) {
-      const startStr = allPeriods[i].start.toISOString().split('T')[0];
-      const endStr = allPeriods[i].end.toISOString().split('T')[0];
-      if (todayStr >= startStr && todayStr <= endStr) {todayPeriodIdx = i;break;}
-    }
-
-    const prevIdx = todayPeriodIdx > 0 ? todayPeriodIdx - 1 : -1;
-
-    let targetIdx = todayPeriodIdx !== -1 ? todayPeriodIdx : 0;
-
-    if (prevIdx >= 0) {
-      const startStr = allPeriods[prevIdx].start.toISOString().split('T')[0];
-      const endStr = allPeriods[prevIdx].end.toISOString().split('T')[0];
-
-      const filtered = allRecords.filter((r) => {
-        const matchPeriod = r.pay_period_start === startStr && r.pay_period_end === endStr;
-        const matchCity = selectedCityId === 'all' || r.city_id === selectedCityId;
-        const matchDriver = selectedDriverId === 'all' || r.driver_id === selectedDriverId;
-        return matchPeriod && matchCity && matchDriver;
-      });
-
-      const allFinalized = filtered.length > 0 && filtered.every((r) =>
-      r.status === 'admin_finalized' || r.status === 'paid' || !!r.admin_finalized_at
-      );
-
-      if (!allFinalized) {
-        targetIdx = prevIdx;
-      }
-    }
+    const targetIdx = determinePreferredPayrollPeriodIndex({
+      periods: allPeriods,
+      payrollRecords: allRecords,
+      selectedCityId,
+      selectedDriverId: 'all',
+      today: new Date()
+    });
 
     if (targetIdx !== selectedPeriodIndex) {
       setSelectedPeriodIndex(targetIdx);
