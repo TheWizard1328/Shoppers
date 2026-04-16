@@ -7,6 +7,7 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, D
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { getPickupStopIdForDelivery } from "@/components/utils/ampmUtils";
 import { userHasRole } from "@/components/utils/userRoles";
+import { X } from "lucide-react";
 
 const getStoreSlotOptions = (store, deliveryDate, driverId = null) => {
   if (!store || !deliveryDate) return [];
@@ -32,6 +33,31 @@ const getStoreSlotOptions = (store, deliveryDate, driverId = null) => {
       label: `${store.name} [${slot}]`
     }));
 };
+
+function TimeField({ value, onChange, onClear, disabled, style }) {
+  return (
+    <div className="relative">
+      <Input
+        type="time"
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        className="pr-10"
+        style={style}
+      />
+      {value && !disabled && (
+        <button
+          type="button"
+          onClick={onClear}
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-1 text-slate-500 hover:text-slate-900"
+          aria-label="Clear time"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      )}
+    </div>
+  );
+}
 
 function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, currentUser, values, setValues, onApply, onCancel, isSaving, initialValues }) {
   const isAdmin = userHasRole(currentUser, "admin");
@@ -213,19 +239,21 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label style={{ color: "var(--text-slate-900)" }}>Time Window Start</Label>
-              <Input
-                type="time"
+              <TimeField
                 value={values.delivery_time_start}
                 onChange={(event) => setValues((current) => ({ ...current, delivery_time_start: event.target.value }))}
+                onClear={() => setValues((current) => ({ ...current, delivery_time_start: '' }))}
+                disabled={isSaving}
                 style={getFieldStyle('delivery_time_start')}
               />
             </div>
             <div className="space-y-2">
               <Label style={{ color: "var(--text-slate-900)" }}>Time Window End</Label>
-              <Input
-                type="time"
+              <TimeField
                 value={values.delivery_time_end}
                 onChange={(event) => setValues((current) => ({ ...current, delivery_time_end: event.target.value }))}
+                onClear={() => setValues((current) => ({ ...current, delivery_time_end: '' }))}
+                disabled={isSaving}
                 style={getFieldStyle('delivery_time_end')}
               />
             </div>
