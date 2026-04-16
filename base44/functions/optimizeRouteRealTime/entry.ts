@@ -288,6 +288,7 @@ Deno.serve(async (req) => {
         const serviceMinutes = isPickup
           ? Math.max(Number(delivery.extra_time || 0), 15)
           : Math.max(Number(delivery.extra_time || 0), 5);
+        const priorityRank = ACTIVE_ROUTE_STATUSES.includes(delivery.status) ? 0 : 1;
 
         return {
           delivery,
@@ -298,6 +299,7 @@ Deno.serve(async (req) => {
           windowStart,
           windowEnd,
           serviceMinutes,
+          priorityRank,
           waypointId: `destination${index + 1}`,
           waypointLabel: delivery.stop_id || delivery.delivery_id || delivery.id
         };
@@ -332,10 +334,18 @@ Deno.serve(async (req) => {
       }, { status: 400 });
     }
 
-    const sequencedStops = stopsToSequence.map((stop, index) => ({
-      ...stop,
-      hereWaypointId: `destination${index + 1}`
-    }));
+    const sequencedStops = [...stopsToSequence]
+      .sort((a, b) => {
+        if (a.priorityRank !== b.priorityRank) return a.priorityRank - b.priorityRank;
+        const windowA = parseTimeToMinutes(a.windowStart);
+        const windowB = parseTimeToMinutes(b.windowStart);
+        if ((windowA ?? Infinity) !== (windowB ?? Infinity)) return (windowA ?? Infinity) - (windowB ?? Infinity);
+        return (Number(a.delivery.stop_order) || 9999) - (Number(b.delivery.stop_order) || 9999);
+      })
+      .map((stop, index) => ({
+        ...stop,
+        hereWaypointId: `destination${index + 1}`
+      }));
 
     const fallbackDepartureTime = resolveCurrentTime({ currentLocalTime, deviceTime });
     const departureTime = resolveEtaBaseTime(deliveryDate, completedDeliveries, fallbackDepartureTime);

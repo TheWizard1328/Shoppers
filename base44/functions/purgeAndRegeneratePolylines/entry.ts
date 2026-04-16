@@ -453,7 +453,7 @@ Deno.serve(async (req) => {
 
     const latestFinishedStop = finishedStops[finishedStops.length - 1] || null;
     const activeStops = deliveries
-      .filter((delivery) => ACTIVE_STATUSES.has(delivery.status) || delivery.status === 'pending')
+      .filter((delivery) => ACTIVE_STATUSES.has(delivery.status))
       .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
     let apiCallsMade = 0;

@@ -235,8 +235,15 @@ Deno.serve(async (req) => {
       })
       .filter(Boolean)
       .sort((a, b) => {
+        const aIsActive = ACTIVE_STATUSES.includes(a.delivery.status);
+        const bIsActive = ACTIVE_STATUSES.includes(b.delivery.status);
+        if (aIsActive && !bIsActive) return -1;
+        if (!aIsActive && bIsActive) return 1;
         if (a.delivery.isNextDelivery && !b.delivery.isNextDelivery) return -1;
         if (!a.delivery.isNextDelivery && b.delivery.isNextDelivery) return 1;
+        const windowA = parseTimeToMinutes(a.delivery.time_window_start || a.delivery.delivery_time_start);
+        const windowB = parseTimeToMinutes(b.delivery.time_window_start || b.delivery.delivery_time_start);
+        if ((windowA ?? Infinity) !== (windowB ?? Infinity)) return (windowA ?? Infinity) - (windowB ?? Infinity);
         const orderDiff = (Number(a.delivery.stop_order) || 9999) - (Number(b.delivery.stop_order) || 9999);
         if (orderDiff !== 0) return orderDiff;
         return a.timeMinutes - b.timeMinutes;
@@ -256,7 +263,13 @@ Deno.serve(async (req) => {
         origin: { lat: currentPosition.lat, lng: currentPosition.lng },
         destination: { lat: destinationStop.lat, lng: destinationStop.lng },
         waypoints: viaWaypoints,
-        transportMode: preferredTravelMode
+        transportMode: preferredTravelMode,
+        routeContext: routeStops.map((stop) => ({
+          id: stop.delivery.id,
+          status: stop.delivery.status,
+          time_window_start: stop.delivery.time_window_start || stop.delivery.delivery_time_start || null,
+          time_window_end: stop.delivery.time_window_end || stop.delivery.delivery_time_end || null
+        }))
       }).catch((error) => {
         console.warn('[optimizeRemainingStops] HERE route call failed:', error?.message || error);
         return null;
