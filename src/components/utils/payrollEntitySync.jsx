@@ -24,6 +24,8 @@ export async function syncPayrollRecordsWithLiveData(payrollData, getDriverPayro
 
   const updatedRecords = [];
 
+  const updatesToApply = [];
+
   for (const data of payrollData) {
     if (data.totalDeliveries === 0) continue;
 
@@ -63,13 +65,17 @@ export async function syncPayrollRecordsWithLiveData(payrollData, getDriverPayro
     }
 
     if (hasDrift) {
-      try {
-        await base44.entities.Payroll.update(record.id, updates);
-        updatedRecords.push({ driverId: data.driver.id, recordId: record.id, updates });
-        console.log(`🔄 [PayrollSync] Updated record for ${data.driver.user_name || data.driver.id}:`, Object.keys(updates).join(', '));
-      } catch (err) {
-        console.warn(`⚠️ [PayrollSync] Failed to update record ${record.id}:`, err);
-      }
+      updatesToApply.push({ data, record, updates });
+    }
+  }
+
+  for (const item of updatesToApply) {
+    try {
+      await base44.entities.Payroll.update(item.record.id, item.updates);
+      updatedRecords.push({ driverId: item.data.driver.id, recordId: item.record.id, updates: item.updates });
+      console.log(`🔄 [PayrollSync] Updated record for ${item.data.driver.user_name || item.data.driver.id}:`, Object.keys(item.updates).join(', '));
+    } catch (err) {
+      console.warn(`⚠️ [PayrollSync] Failed to update record ${item.record.id}:`, err);
     }
   }
 

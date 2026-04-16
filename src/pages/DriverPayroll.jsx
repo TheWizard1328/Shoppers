@@ -658,7 +658,7 @@ export default function DriverPayroll() {
     const cacheKey = `${selectedYear}-${selectedCityId}`;
     const fetchSignature = `${cacheKey}-${isAutoRefresh}-${forceFresh}`;
     const now = Date.now();
-    if (!forceFresh && lastFetchSignatureRef.current === fetchSignature && now - lastFetchTimestampRef.current < 4000) {
+    if (lastFetchSignatureRef.current === fetchSignature && now - lastFetchTimestampRef.current < 5000) {
       return fullYearPayrollDataRef.current;
     }
 
