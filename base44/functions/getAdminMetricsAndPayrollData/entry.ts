@@ -69,6 +69,7 @@ const DELIVERY_FIELDS = [
   'oversized',
   'no_charge',
   'patient_name',
+  'address',
   'delivery_notes',
   'actual_delivery_time'
 ];
@@ -80,17 +81,23 @@ const isAfterHoursPickupDelivery = (delivery) => delivery?.after_hours_pickup ==
 const isPatientOrTransferDelivery = (delivery) => !!delivery?.patient_id;
 const isReturnDelivery = (delivery) => String(delivery?.patient_name || '').toUpperCase().includes('(RTN)');
 const isInterStoreDelivery = (delivery) => {
-  const name = String(delivery?.patient_name || '').toUpperCase();
-  return name.includes('INTERSTORE') || name.includes('(ISD)') || name.includes('(ISP)');
+  const haystack = [delivery?.patient_name, delivery?.address, delivery?.delivery_notes]
+    .map((value) => String(value || '').toUpperCase())
+    .join(' ');
+  return haystack.includes('INTERSTORE') || haystack.includes('(ISD)') || haystack.includes('(ISP)');
 };
-const isRegularPickupDelivery = (delivery) => !isAfterHoursPickupDelivery(delivery) && !isPatientOrTransferDelivery(delivery) && !isInterStoreDelivery(delivery);
+const isStandardOrInterStoreDelivery = (delivery) => isPatientOrTransferDelivery(delivery) || isInterStoreDelivery(delivery);
+const isRegularPickupDelivery = (delivery) => !isAfterHoursPickupDelivery(delivery) && !isStandardOrInterStoreDelivery(delivery);
 
 const isDriverPayableDelivery = (delivery) => {
   if (!delivery || delivery.no_charge === true) return false;
   if (isAfterHoursPickupDelivery(delivery)) {
     return isCompletedStatus(delivery) || isCancelledStatus(delivery);
   }
-  return isCompletedStatus(delivery) || isFailedStatus(delivery);
+  if (isStandardOrInterStoreDelivery(delivery)) {
+    return isCompletedStatus(delivery) || isFailedStatus(delivery);
+  }
+  return false;
 };
 
 const isAdminBillableDelivery = (delivery, storePaysFees) => {
@@ -103,14 +110,7 @@ const isAdminNonBillableDelivery = (delivery, storePaysFees) => {
   return isDriverPayableDelivery(delivery);
 };
 
-const isAppFeePayableDelivery = (delivery) => {
-  if (!delivery || delivery.no_charge === true) return false;
-  if (isRegularPickupDelivery(delivery)) return false;
-  if (isAfterHoursPickupDelivery(delivery)) {
-    return isCompletedStatus(delivery) || isCancelledStatus(delivery);
-  }
-  return isPatientOrTransferDelivery(delivery) && (isCompletedStatus(delivery) || isFailedStatus(delivery));
-};
+const isAppFeePayableDelivery = (delivery) => isDriverPayableDelivery(delivery);
 
 const STORE_FIELDS = [
   'id',
