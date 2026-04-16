@@ -1,5 +1,10 @@
 export const centerDeliveryCard = (deliveryId) => {
   if (!deliveryId || typeof window === 'undefined') return false;
+
+  window.dispatchEvent(new CustomEvent('centerStopCard', {
+    detail: { deliveryId }
+  }));
+
   const scroll = () => {
     const card = document.getElementById(`stop-card-${deliveryId}`);
     if (card) {
