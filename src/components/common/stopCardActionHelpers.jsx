@@ -202,6 +202,52 @@ function buildFinishedLegPoints(origin, breadcrumbPoints, destination) {
   });
 }
 
+function sampleFinishedLegWaypoints(points, maxWaypoints = 20) {
+  if (!Array.isArray(points) || points.length <= 2) return [];
+
+  const interiorPoints = points.slice(1, -1);
+  if (interiorPoints.length <= maxWaypoints) return interiorPoints;
+
+  const step = (interiorPoints.length - 1) / (maxWaypoints - 1);
+  const sampled = [];
+
+  for (let index = 0; index < maxWaypoints; index += 1) {
+    const point = interiorPoints[Math.round(index * step)];
+    if (!point) continue;
+    const previousPoint = sampled[sampled.length - 1];
+    if (!previousPoint || previousPoint[0] !== point[0] || previousPoint[1] !== point[1]) {
+      sampled.push(point);
+    }
+  }
+
+  return sampled;
+}
+
+async function getHereFinishedLegPolyline({ delivery, origin, destination, finishedLegPoints, transportMode }) {
+  if (!delivery?.driver_id || !delivery?.delivery_date || !Array.isArray(finishedLegPoints) || finishedLegPoints.length < 2) return null;
+
+  const waypointPoints = sampleFinishedLegWaypoints(finishedLegPoints, 20);
+
+  const response = await base44.functions.invoke('getHereDirections', {
+    origin: { lat: Number(origin.latitude), lng: Number(origin.longitude) },
+    destination: { lat: Number(destination.latitude), lng: Number(destination.longitude) },
+    waypoints: waypointPoints.map((point) => ({ lat: Number(point[0]), lng: Number(point[1]) })),
+    transportMode
+  }).catch(() => null);
+
+  const data = response?.data || response;
+  if (!Array.isArray(data?.polylines) && !data?.polyline) return null;
+
+  return await getHereEncodedPolyline(
+    delivery.driver_id,
+    origin,
+    destination,
+    delivery.delivery_date,
+    transportMode,
+    waypointPoints.map((point) => ({ lat: Number(point[0]), lng: Number(point[1]) }))
+  ).catch(() => null);
+}
+
 export async function getFinishedLegEncodedPolyline({
   delivery,
   allDeliveries,
@@ -225,6 +271,16 @@ export async function getFinishedLegEncodedPolyline({
   if (breadcrumbPoints.length > 0) {
     const finishedLegPoints = buildFinishedLegPoints(origin, breadcrumbPoints, destination);
     if (finishedLegPoints.length > 1) {
+      const hereFinishedLegPolyline = await getHereFinishedLegPolyline({
+        delivery,
+        origin,
+        destination,
+        finishedLegPoints,
+        transportMode
+      });
+      if (hereFinishedLegPolyline) {
+        return hereFinishedLegPolyline;
+      }
       return encodeGooglePolyline(finishedLegPoints);
     }
   }

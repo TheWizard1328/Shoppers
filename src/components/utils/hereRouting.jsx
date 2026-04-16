@@ -626,7 +626,7 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
   return null;
 };
 
-export const getHereEncodedPolyline = async (driverId, fromStop, toStop, deliveryDate) => {
+export const getHereEncodedPolyline = async (driverId, fromStop, toStop, deliveryDate, _transportMode = 'driving', _waypoints = []) => {
   const coords = await getHerePolyline(driverId, fromStop, toStop, deliveryDate);
   if (!Array.isArray(coords) || coords.length < 2) return null;
   const encoded = encodeGooglePolyline(coords);
