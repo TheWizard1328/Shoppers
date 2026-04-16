@@ -233,7 +233,7 @@ const determinePreferredPayrollPeriodIndex = ({ periods, payrollRecords = [], se
     return matchPeriod && matchCity && matchDriver;
   });
 
-  if (scopedRecords.length > 0 && scopedRecords.every((record) => !isPayrollAdminFinalized(record))) {
+  if (scopedRecords.some((record) => !isPayrollAdminFinalized(record))) {
     return previousIdx;
   }
 
