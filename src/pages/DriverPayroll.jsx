@@ -216,7 +216,7 @@ const isPayrollAdminFinalized = (record) => {
   return !!record.admin_finalized_at && !!record.admin_finalized_by;
 };
 
-const determinePreferredPayrollPeriodIndex = ({ periods, payrollRecords = [], selectedCityId = '', selectedDriverId = 'all', today = new Date() }) => {
+const determinePreferredPayrollPeriodIndex = ({ periods, payrollRecords = [], selectedCityId = '', selectedDriverId = 'all', payPeriodType = '', today = new Date() }) => {
   if (!Array.isArray(periods) || periods.length === 0) return 0;
 
   const todayIdx = findCurrentPeriodIndex(periods, today);
@@ -230,7 +230,8 @@ const determinePreferredPayrollPeriodIndex = ({ periods, payrollRecords = [], se
     const matchPeriod = record.pay_period_start === startStr && record.pay_period_end === endStr;
     const matchCity = !selectedCityId || selectedCityId === 'all' || record.city_id === selectedCityId;
     const matchDriver = selectedDriverId === 'all' || record.driver_id === selectedDriverId;
-    return matchPeriod && matchCity && matchDriver;
+    const matchPayCycleType = !payPeriodType || record.pay_period_type === payPeriodType;
+    return matchPeriod && matchCity && matchDriver && matchPayCycleType;
   });
 
   if (scopedRecords.some((record) => !isPayrollAdminFinalized(record))) {
@@ -491,6 +492,7 @@ export default function DriverPayroll() {
       payrollRecords: payrollData?.payrollRecords || [],
       selectedCityId,
       selectedDriverId: 'all',
+      payPeriodType: newPayPeriod,
       today: new Date()
     });
 
@@ -837,6 +839,7 @@ export default function DriverPayroll() {
           payrollRecords: offlinePayrolls,
           selectedCityId: defaultCityId,
           selectedDriverId: 'all',
+          payPeriodType: determinedPayCycle,
           today
         });
       } catch (e) {
@@ -924,6 +927,7 @@ export default function DriverPayroll() {
       payrollRecords: allRecords,
       selectedCityId,
       selectedDriverId: 'all',
+      payPeriodType: payPeriod,
       today: new Date()
     });
 
