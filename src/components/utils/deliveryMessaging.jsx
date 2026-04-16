@@ -343,7 +343,7 @@ export async function notifyDispatcherAssignedAll({
   let deliveryList = '';
   for (const delivery of deliveries) {
     const patient = patients?.find(p => p?.id === delivery.patient_id);
-    const patientName = patient?.full_name || delivery.patient_name || 'Unknown';
+    const patientName = patient?.full_name || 'Unknown';
     const badges = buildSpecialBadges(delivery, patient);
     const distance = buildDistanceBadge(patient, store);
     deliveryList += `\n• ${patientName}${badges}${distance}`;

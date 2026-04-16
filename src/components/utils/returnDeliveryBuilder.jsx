@@ -1,10 +1,8 @@
-export function buildReturnDeliveryData({ originalDelivery, returnPatient, store, routeDate, routeDateDeliveries, finalStoreId, finalAmpm, currentUser, generateUniqueSID, nextTrackingNumber }) {
+export function buildReturnDeliveryData({ originalDelivery, originalPatient, returnPatient, store, routeDate, routeDateDeliveries, finalStoreId, finalAmpm, currentUser, generateUniqueSID, nextTrackingNumber }) {
   const puid = originalDelivery?.puid || originalDelivery?.stop_id || null;
   const extractedPatientName = originalDelivery?.delivery_notes?.match(/For:\s*(.+?)(?:\n|$)/)?.[1]?.trim();
   const failedPatientName = [
-    originalDelivery?.patient_name,
-    originalDelivery?.patient_full_name,
-    originalDelivery?.full_name,
+    originalPatient?.full_name,
     extractedPatientName && extractedPatientName !== 'Unknown' ? extractedPatientName : null
   ].find((value) => typeof value === 'string' && value.trim()) || 'Unknown';
   const driverNotes = `From: ${originalDelivery?.delivery_date}\nFor: ${failedPatientName}\n(RTN)`;

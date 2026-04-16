@@ -513,7 +513,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
             });
           })());
           if (userHasRole(currentUser, 'driver')) {
-            backgroundTasks.push(notifyDriverReturn({ driver: currentUser, patientName: patient?.full_name, delivery, store, appUsers }));
+            backgroundTasks.push(notifyDriverReturn({ driver: currentUser, patientName: displayName, delivery, store, appUsers }));
           }
           await Promise.allSettled(backgroundTasks);
         } catch (_) {}
@@ -557,7 +557,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
           if (retryDeliveryId && !isPickup) {
             triggerSquareCodUpsert({
               deliveryId: retryDeliveryId,
-              patientName: patient?.full_name || delivery.patient_name || 'Patient',
+              patientName: patient?.full_name || 'Patient',
               storeAbbreviation: store?.abbreviation || '',
               codAmount: delivery.cod_total_amount_required,
               deliveryDate: retryDate,
@@ -577,7 +577,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
             generatePolyline: false
           });
         } catch (optimizeError) {console.warn('⚠️ [Retry] Route optimizer failed:', optimizeError);}
-        if (userHasRole(currentUser, 'driver')) await notifyDriverRetry({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name, delivery, store, appUsers });
+        if (userHasRole(currentUser, 'driver')) await notifyDriverRetry({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : displayName, delivery, store, appUsers });
       });
     } finally {resumeOfflineSync('delivery_actions');resetActionLocks(true);}
     });
@@ -661,7 +661,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
         }
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'restart', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true, suppressFabIfPhase1: true } }));
         window.dispatchEvent(new CustomEvent('deliveryStatusChanged', { detail: { triggeredBy: 'restart', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, maxStops: 5 } }));
-        if (userHasRole(currentUser, 'driver')) await notifyDriverRetry({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name, delivery, store, appUsers });
+        if (userHasRole(currentUser, 'driver')) await notifyDriverRetry({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : displayName, delivery, store, appUsers });
       });
     } finally {resumeOfflineSync('delivery_actions');resetActionLocks(true);}
     });
@@ -795,7 +795,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
               }
               onClick?.(null);
               fabControlEvents.notifyPhaseTwoCompleteRecenter();
-              if (userHasRole(currentUser, 'driver')) await notifyDriverFailed({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name, delivery: { ...delivery, delivery_notes: updatedNotes }, store, appUsers, failureReason: reason });
+              if (userHasRole(currentUser, 'driver')) await notifyDriverFailed({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : displayName, delivery: { ...delivery, delivery_notes: updatedNotes }, store, appUsers, failureReason: reason });
               toast.success(`${isPickup ? 'Pickup' : 'Delivery'} marked as ${status}`, { description: `Dispatch has been notified. Reason: ${reason}` });
             } catch (error) {console.error('❌ [FAILURE] Error:', error);toast.error(`Failed to mark as ${status}: ${error.message}`);} finally
             {resumeOfflineSync('delivery_actions');resetActionLocks(true);}
@@ -894,7 +894,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           backgroundTasks.push(cleanupSquareCodCatalogForDate(delivery.delivery_date));
                           const currentDriverAppUserId = currentDriverAppUser?.id || null;
                           backgroundTasks.push(scheduleCompletionSideEffects({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, nextDeliveryId: nextStop?.id || null, lastCompletedDeliveryId: delivery.id, setOffDuty: !nextStop, appUserId: currentDriverAppUserId }));
-                          backgroundTasks.push(userHasRole(currentUser, 'driver') ? notifyDriverCompleted({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name, delivery, store, appUsers }) : Promise.resolve());
+                          backgroundTasks.push(userHasRole(currentUser, 'driver') ? notifyDriverCompleted({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : displayName, delivery, store, appUsers }) : Promise.resolve());
                           await Promise.allSettled(backgroundTasks);
                         } catch (error) {console.error('❌ [COMPLETE] Error:', error);toast.error(`Failed to complete: ${error.message}`);throw error;} finally {
                           resumeOfflineSync('delivery_actions');
