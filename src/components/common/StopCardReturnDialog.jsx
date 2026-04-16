@@ -23,9 +23,15 @@ export default function StopCardReturnDialog({
       className="fixed inset-0 flex items-center justify-center"
       style={{ background: 'rgba(0, 0, 0, 0.6)', zIndex: 999999, pointerEvents: 'auto' }}
       onClick={handleCancelReturn}
+      onMouseDown={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
     >
       <div
+        role="dialog"
+        aria-modal="true"
         onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
         className="rounded-lg shadow-xl p-6 max-w-md w-full mx-4"
         style={{ background: 'var(--bg-white)' }}
       >
