@@ -1,4 +1,6 @@
 export const prepareDeliverySaveData = ({ formData, delivery, isCompletionStatus, completionTime, currentTravelMode = 'driving' }) => {
+  const now = new Date();
+  const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
   const isHistoricalDelivery = Boolean(
     delivery?.delivery_date && delivery.delivery_date < new Date().toISOString().split('T')[0]
   );
@@ -57,6 +59,13 @@ export const prepareDeliverySaveData = ({ formData, delivery, isCompletionStatus
 
   if (!delivery?.id && !dataToSave.patient_id) {
     dataToSave.status = 'en_route';
+  }
+
+  const isInterstoreStop = !dataToSave.patient_id && !!dataToSave.store_id;
+  const transitionedToInTransit = dataToSave.status === 'in_transit' && delivery?.status !== 'in_transit';
+  if (isInterstoreStop && transitionedToInTransit) {
+    dataToSave.delivery_time_start = currentLocalTime;
+    dataToSave.delivery_time_end = '';
   }
 
   return dataToSave;
