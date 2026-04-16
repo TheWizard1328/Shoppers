@@ -99,15 +99,22 @@ export default function PayrollSummaryCard({
         null;
         const isPatientReturn = String(matchedPatient?.address || '').toUpperCase().includes('(RTN)');
 
-        if (!d.patient_id && !d.after_hours_pickup) return false;
+        const patientName = String(d.patient_name || '').toUpperCase();
+        const isInterStore = patientName.includes('INTERSTORE') || patientName.includes('(ISD)') || patientName.includes('(ISP)');
+        const isPatientOrTransfer = !!d.patient_id;
+        const isAfterHours = d.after_hours_pickup === true;
+        const isRegularPickup = !isAfterHours && !isPatientOrTransfer && !isInterStore;
+
         if (d.status === 'completed' || d.status === 'failed') {/* valid */} else
         if (d.status === 'cancelled') {
-          if (!d.after_hours_pickup && !isPatientReturn) {
+          if (!isAfterHours && !isPatientReturn && !isRegularPickup) {
             return false;
           }
         } else {
           return false;
         }
+
+        if (!isPatientOrTransfer && !isAfterHours && !isRegularPickup) return false;
 
         const date = new Date(d.delivery_date + 'T00:00:00');
         const inPeriod = date >= currentPeriod.start && date <= currentPeriod.end;
@@ -263,9 +270,14 @@ export default function PayrollSummaryCard({
       const isPatientReturn = String(matchedPatient?.address || '').toUpperCase().includes('(RTN)');
       const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
       if (deliveryDate < new Date(periodStartStr + 'T00:00:00') || deliveryDate > new Date(periodEndStr + 'T00:00:00')) return;
-      const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && (d.after_hours_pickup || isPatientReturn);
+      const patientName = String(d.patient_name || '').toUpperCase();
+      const isInterStore = patientName.includes('INTERSTORE') || patientName.includes('(ISD)') || patientName.includes('(ISP)');
+      const isPatientOrTransfer = !!d.patient_id;
+      const isAfterHours = d.after_hours_pickup === true;
+      const isRegularPickup = !isAfterHours && !isPatientOrTransfer && !isInterStore;
+      const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && (isAfterHours || isPatientReturn || isRegularPickup);
       if (!validStatus) return;
-      if (!d.patient_id && !d.after_hours_pickup) return;
+      if (!isPatientOrTransfer && !isAfterHours && !isRegularPickup) return;
       const store = stores.find((s) => s?.id === d.store_id);
       if (!store) return;
       let paysAppFees = store.pays_app_fees || false;
@@ -600,12 +612,11 @@ export default function PayrollSummaryCard({
       const isPatientOrTransfer = !!d.patient_id;
       const isAfterHours = d.after_hours_pickup === true;
       const isRegularPickup = !isAfterHours && !isPatientOrTransfer && !isInterStore;
-      if (isRegularPickup) return;
 
       const isCompleted = d.status === 'completed';
       const isFailed = d.status === 'failed';
       const isCancelled = d.status === 'cancelled';
-      const isAppFeePayable = isAfterHours ? (isCompleted || isCancelled) : (isPatientOrTransfer && (isCompleted || isFailed));
+      const isAppFeePayable = isAfterHours ? (isCompleted || isCancelled) : isRegularPickup ? isCancelled : (isPatientOrTransfer && (isCompleted || isFailed));
       if (isAppFeePayable) total++;
     });
     return total * appFeesPerDelivery * appFeePercent / 100;
@@ -1455,9 +1466,14 @@ export default function PayrollSummaryCard({
                                       const isPatientReturn = String(matchedPatient?.address || '').toUpperCase().includes('(RTN)');
                                       const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
                                       if (deliveryDate < calendarMonth || deliveryDate > calendarMonthEnd) return;
-                                      const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && (d.after_hours_pickup || isPatientReturn);
+                                      const patientName = String(d.patient_name || '').toUpperCase();
+                                      const isInterStore = patientName.includes('INTERSTORE') || patientName.includes('(ISD)') || patientName.includes('(ISP)');
+                                      const isPatientOrTransfer = !!d.patient_id;
+                                      const isAfterHours = d.after_hours_pickup === true;
+                                      const isRegularPickup = !isAfterHours && !isPatientOrTransfer && !isInterStore;
+                                      const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && (isAfterHours || isPatientReturn || isRegularPickup);
                                       if (!validStatus) return;
-                                      if (!d.patient_id && !d.after_hours_pickup) return;
+                                      if (!isPatientOrTransfer && !isAfterHours && !isRegularPickup) return;
                                       const store = stores.find((s) => s?.id === d.store_id);
                                       if (!store) return;
                                       let paysAppFees = store.pays_app_fees || false;
