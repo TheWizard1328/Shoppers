@@ -97,6 +97,12 @@ export const buildPickupSnapshot = (data) => JSON.stringify({
 export const getDeliverySubmitFlags = ({ delivery, formData, dataToSave }) => {
   const driverChanged = delivery && delivery.driver_id !== formData.driver_id;
   const dateChanged = delivery && delivery.delivery_date !== formData.delivery_date;
+  const timeWindowChanged = !!(
+    delivery && (
+      (dataToSave.delivery_time_start || '') !== (delivery.delivery_time_start || '') ||
+      (dataToSave.delivery_time_end || '') !== (delivery.delivery_time_end || '')
+    )
+  );
   const statusChangedToInTransit = !!(
     delivery &&
     formData.status === 'in_transit' &&
@@ -121,6 +127,7 @@ export const getDeliverySubmitFlags = ({ delivery, formData, dataToSave }) => {
   return {
     driverChanged,
     dateChanged,
+    timeWindowChanged,
     statusChangedToInTransit,
     statusChangedToCompletion,
     actualDeliveryTimeChanged,

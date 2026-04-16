@@ -15,6 +15,7 @@ export async function runDeliverySubmitSideEffects({
   isCurrentUserDriver,
   statusChangedToCompletion,
   actualDeliveryTimeChanged,
+  timeWindowChanged,
   t,
   allDeliveries,
   isPickupMode,
@@ -88,7 +89,7 @@ export async function runDeliverySubmitSideEffects({
     }
   }
 
-  if (delivery && formData.driver_id && formData.delivery_date && !isPickupMode) {
+  if (delivery && formData.driver_id && formData.delivery_date && !isPickupMode && (driverChanged || dateChanged || timeWindowChanged || statusChangedToCompletion || actualDeliveryTimeChanged)) {
     try {
       setTimeout(() => {
         reorderStops(formData.driver_id, formData.delivery_date, allDeliveries)
