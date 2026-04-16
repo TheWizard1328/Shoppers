@@ -51,12 +51,14 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
   }, [allowedStores, effectiveDriverId, values.delivery_date]);
 
   useEffect(() => {
+    if (values.storeChoice === "unchanged") return;
+
     if (pickupOptions.length === 1 && values.storeChoice !== pickupOptions[0].value) {
       setValues((current) => ({ ...current, storeChoice: pickupOptions[0].value }));
       return;
     }
 
-    if (values.storeChoice !== "unchanged" && pickupOptions.length > 0 && !pickupOptions.some((option) => option.value === values.storeChoice)) {
+    if (pickupOptions.length > 0 && !pickupOptions.some((option) => option.value === values.storeChoice)) {
       setValues((current) => ({ ...current, storeChoice: "unchanged", puid: isAdmin ? "" : current.puid }));
     }
   }, [isAdmin, pickupOptions, setValues, values.storeChoice]);
@@ -161,13 +163,13 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
             <Select
               value={values.storeChoice}
               onValueChange={(value) => setValues((current) => ({ ...current, storeChoice: value }))}
-              disabled={isSaving || pickupOptions.length === 0 || pickupOptions.length === 1}
+              disabled={isSaving || pickupOptions.length === 0}
             >
               <SelectTrigger style={getFieldStyle('storeChoice')}>
                 <SelectValue placeholder={pickupOptions.length === 0 ? "No store slots available" : "Select store [AM/PM]"} />
               </SelectTrigger>
               <SelectContent className="z-[50060]">
-                {pickupOptions.length > 1 && <SelectItem value="unchanged">Keep current</SelectItem>}
+                <SelectItem value="unchanged">Keep current</SelectItem>
                 {pickupOptions.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
