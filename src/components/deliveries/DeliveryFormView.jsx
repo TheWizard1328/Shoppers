@@ -824,15 +824,16 @@ export default function DeliveryFormView({
               </div>
               <div className="flex gap-2 ml-auto">
                 <Button type="button" variant="outline" size="sm" onClick={() => {
+                  const shouldClear = cancelButtonState === 'clear' || !!editingStagedId;
                   if (delivery) {handleCancelClick();return;}
-                  if (cancelButtonState === 'clear') {
+                  if (shouldClear) {
                     setFormData((prev) => ({ ...prev, barcode_values: [], receipt_barcode_values: [], _preview_barcode: null }));
                     handleClearForm();
                   } else {
                     handleCancelClick();
                   }
                 }} disabled={isSaving || effectiveDeliveryActionBusy} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} className="inline-flex min-h-11 min-w-20 items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-8 rounded-md px-3 text-xs">
-                  {delivery ? 'Cancel' : cancelButtonState === 'clear' ? 'Clear' : 'Cancel'}
+                  {delivery ? 'Cancel' : cancelButtonState === 'clear' || editingStagedId ? 'Clear' : 'Cancel'}
                 </Button>
 
                 {buttonState === 'done' ?
