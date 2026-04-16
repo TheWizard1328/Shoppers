@@ -551,7 +551,7 @@ export default function DeliveryForm({
     formData.recurring_weekly_sun;
   }, [formData]);
 
-  const currentFrequency = useMemo(() => !formData.recurring ? '' : formData.recurring_daily ? 'daily' : formData.recurring_biweekly && hasAnyDaySelected ? 'bi-weekly' : hasAnyDaySelected ? 'weekly' : formData.recurring_weekly_x4 ? 'weekly-x4' : formData.recurring_monthly ? 'monthly' : formData.recurring_bimonthly ? 'bi-monthly' : '', [formData, hasAnyDaySelected]);
+  const currentFrequency = useMemo(() => !formData.recurring ? '' : formData.recurring_daily ? 'daily' : formData.recurring_biweekly && hasAnyDaySelected ? 'bi-weekly' : formData.recurring_weekly_x4 ? 'weekly-x4' : hasAnyDaySelected ? 'weekly' : formData.recurring_monthly ? 'monthly' : formData.recurring_bimonthly ? 'bi-monthly' : '', [formData, hasAnyDaySelected]);
 
   const weeklyLabel = useMemo(() => currentFrequency === 'weekly' && hasAnyDaySelected ? buildRecurringLabel(formData, 'Weekly') : 'Weekly', [currentFrequency, hasAnyDaySelected, formData]);
   const biWeeklyLabel = useMemo(() => currentFrequency === 'bi-weekly' && hasAnyDaySelected ? buildRecurringLabel(formData, 'Bi-Weekly') : 'Bi-Weekly', [currentFrequency, hasAnyDaySelected, formData]);
