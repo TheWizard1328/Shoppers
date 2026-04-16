@@ -1,4 +1,5 @@
-import { isRouteCompleted } from '@/components/utils/routeCompletionChecker';import { motion } from 'framer-motion';
+import { isRouteCompleted } from '@/components/utils/routeCompletionChecker';
+import { motion } from 'framer-motion';
 import { scheduleCompletionSideEffects } from '../utils/completeRequestQueue';
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
