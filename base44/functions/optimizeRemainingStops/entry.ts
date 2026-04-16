@@ -2,6 +2,31 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
+const ACTIVE_STATUSES = ['in_transit', 'en_route'];
+
+const getLatestFinishedDelivery = (deliveries) => [...(deliveries || [])]
+  .filter((delivery) => FINISHED_STATUSES.includes(delivery?.status))
+  .sort((a, b) => {
+    const aTime = new Date(a?.actual_delivery_time || a?.updated_date || a?.created_date || 0).getTime();
+    const bTime = new Date(b?.actual_delivery_time || b?.updated_date || b?.created_date || 0).getTime();
+    return bTime - aTime;
+  })[0] || null;
+
+const getDeliveryCoords = (delivery, patientMap, storeMap) => {
+  if (!delivery) return null;
+  if (delivery.patient_id) {
+    const patient = patientMap.get(delivery.patient_id);
+    if (patient?.latitude != null && patient?.longitude != null) {
+      return { lat: Number(patient.latitude), lng: Number(patient.longitude) };
+    }
+  }
+  const store = storeMap.get(delivery.store_id);
+  if (store?.latitude != null && store?.longitude != null) {
+    return { lat: Number(store.latitude), lng: Number(store.longitude) };
+  }
+  return null;
+};
 
 /**
  * Calculate crow-flies distance between two coordinates (Haversine formula)
@@ -117,9 +142,10 @@ Deno.serve(async (req) => {
     console.log(`📦 [optimizeRemainingStops] Found ${allDeliveries.length} deliveries`);
 
     // Separate completed and incomplete deliveries
-    const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-    const completedDeliveries = allDeliveries.filter(d => finishedStatuses.includes(d.status));
-    const incompleteDeliveries = allDeliveries.filter(d => !finishedStatuses.includes(d.status));
+    const completedDeliveries = allDeliveries.filter(d => FINISHED_STATUSES.includes(d.status));
+    const incompleteDeliveries = allDeliveries.filter(d => !FINISHED_STATUSES.includes(d.status));
+    const activeRouteDeliveries = incompleteDeliveries.filter((delivery) => ACTIVE_STATUSES.includes(delivery.status));
+    const pendingRouteDeliveries = incompleteDeliveries.filter((delivery) => delivery.status === 'pending');
 
     if (incompleteDeliveries.length === 0) {
       return Response.json({ 
@@ -148,26 +174,15 @@ Deno.serve(async (req) => {
 
     // Build stops with coordinates
     const stops = incompleteDeliveries.map(delivery => {
-      let lat, lng;
-      
-      if (delivery.patient_id) {
-        const patient = patientMap.get(delivery.patient_id);
-        lat = patient?.latitude;
-        lng = patient?.longitude;
-      } else {
-        const store = storeMap.get(delivery.store_id);
-        lat = store?.latitude;
-        lng = store?.longitude;
-      }
-
+      const coords = getDeliveryCoords(delivery, patientMap, storeMap);
       return {
         delivery,
-        lat,
-        lng,
+        lat: coords?.lat,
+        lng: coords?.lng,
         isPickup: !delivery.patient_id,
         timeMinutes: parseTimeToMinutes(delivery.delivery_time_start)
       };
-    }).filter(s => s.lat && s.lng);
+    }).filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lng));
 
     // STEP 1: CRITICAL - Sort by isNextDelivery FIRST, then by time_window_start (NOT delivery_time_start)
     stops.sort((a, b) => {
@@ -188,66 +203,19 @@ Deno.serve(async (req) => {
 
     console.log(`📋 [optimizeRemainingStops] Sorted ${stops.length} stops (isNextDelivery first, then by time)`);
 
-    // STEP 2: Divide route into stages (each stage ends at a pickup)
-    const stages = [];
-    let currentStageStops = [];
-    
-    for (const stop of stops) {
-      if (stop.isPickup && currentStageStops.length > 0) {
-        // End current stage, pickup becomes end of this stage
-        currentStageStops.push(stop);
-        stages.push([...currentStageStops]);
-        currentStageStops = [];
-      } else {
-        currentStageStops.push(stop);
-      }
-    }
-    
-    // Add remaining stops as final stage
-    if (currentStageStops.length > 0) {
-      stages.push(currentStageStops);
-    }
+    const latestFinishedDelivery = getLatestFinishedDelivery(completedDeliveries);
 
-    console.log(`📊 [optimizeRemainingStops] Divided into ${stages.length} stages`);
-
-    // STEP 2.5: Check if first stage needs combining
-    if (stages.length > 1 && stages[0].length === 1 && stages[0][0].isPickup) {
-      console.log('🔗 [optimizeRemainingStops] First stage has only pickup - combining with next stage');
-      const combinedStage = [...stages[0], ...stages[1]];
-      stages.splice(0, 2, combinedStage);
-      console.log(`📊 [optimizeRemainingStops] After combining: ${stages.length} stages`);
-    }
-
-    // STEP 3: Determine starting location for current stage
+    // STEP 2: Determine origin for the incomplete section only
     let currentPosition;
     let locationSource;
-    
-    if (driverAppUser.current_latitude && driverAppUser.current_longitude) {
-      currentPosition = { lat: driverAppUser.current_latitude, lng: driverAppUser.current_longitude };
-      locationSource = 'current_gps';
-    } else if (completedDeliveries.length > 0) {
-      // Use last completed delivery location
-      const lastCompleted = completedDeliveries.sort((a, b) => 
-        new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time)
-      )[0];
-      
-      if (lastCompleted.patient_id) {
-        const patient = patientMap.get(lastCompleted.patient_id);
-        if (patient?.latitude && patient?.longitude) {
-          currentPosition = { lat: patient.latitude, lng: patient.longitude };
-          locationSource = 'last_completed';
-        }
-      } else {
-        const store = storeMap.get(lastCompleted.store_id);
-        if (store?.latitude && store?.longitude) {
-          currentPosition = { lat: store.latitude, lng: store.longitude };
-          locationSource = 'last_completed';
-        }
-      }
+
+    if (latestFinishedDelivery) {
+      currentPosition = getDeliveryCoords(latestFinishedDelivery, patientMap, storeMap);
+      locationSource = currentPosition ? 'last_finished_stop' : null;
     }
-    
-    if (!currentPosition && driverAppUser.home_latitude && driverAppUser.home_longitude) {
-      currentPosition = { lat: driverAppUser.home_latitude, lng: driverAppUser.home_longitude };
+
+    if (!currentPosition && driverAppUser.home_latitude != null && driverAppUser.home_longitude != null) {
+      currentPosition = { lat: Number(driverAppUser.home_latitude), lng: Number(driverAppUser.home_longitude) };
       locationSource = 'home';
     }
     
@@ -259,87 +227,68 @@ Deno.serve(async (req) => {
 
     console.log(`📍 [optimizeRemainingStops] Starting from: ${locationSource} (${currentPosition.lat}, ${currentPosition.lng})`);
 
-    // STEP 4: Optimize ONLY the current (first) stage using HERE Routing API
-    const currentStage = stages[0];
-    console.log(`\n🎯 [optimizeRemainingStops] Optimizing current stage: ${currentStage.length} stops`);
+    // STEP 3: Optimize the full incomplete route in one HERE call
+    const routeStops = [...activeRouteDeliveries, ...pendingRouteDeliveries]
+      .map((delivery) => {
+        const stop = stops.find((item) => item.delivery.id === delivery.id);
+        return stop || null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => {
+        if (a.delivery.isNextDelivery && !b.delivery.isNextDelivery) return -1;
+        if (!a.delivery.isNextDelivery && b.delivery.isNextDelivery) return 1;
+        const orderDiff = (Number(a.delivery.stop_order) || 9999) - (Number(b.delivery.stop_order) || 9999);
+        if (orderDiff !== 0) return orderDiff;
+        return a.timeMinutes - b.timeMinutes;
+      });
 
-    const hereApiKey = Deno.env.get('HERE_API_KEY');
-    let optimizedCurrentStage = [];
+    console.log(`\n🎯 [optimizeRemainingStops] Optimizing remaining route: ${routeStops.length} stops`);
+
     let directionsLegs = [];
-    let totalApiCalls = 0;
     let attemptedHereCalls = 0;
 
-    // CRITICAL: Current stage is already sorted by delivery_time_start from STEP 1
-    // Just use it as-is for HERE API (no re-sorting, no optimize:true)
-    const currentStageSorted = currentStage;
+    if (routeStops.length > 0) {
+      const destinationStop = routeStops[routeStops.length - 1];
+      const viaWaypoints = routeStops.slice(0, -1).map((stop) => ({ lat: stop.lat, lng: stop.lng }));
 
-    console.log(`📋 [optimizeRemainingStops] Using time-sorted order for current stage`);
+      attemptedHereCalls += 1;
+      const directionsResponse = await base44.functions.invoke('getHereDirections', {
+        origin: { lat: currentPosition.lat, lng: currentPosition.lng },
+        destination: { lat: destinationStop.lat, lng: destinationStop.lng },
+        waypoints: viaWaypoints,
+        transportMode: preferredTravelMode
+      }).catch((error) => {
+        console.warn('[optimizeRemainingStops] HERE route call failed:', error?.message || error);
+        return null;
+      });
 
-    // Get travel times from HERE Routing API (with time-based pre-ordering)
-    if (currentStageSorted.length > 0) {
-      const routeCoords = [currentPosition, ...currentStageSorted.map(s => ({ lat: s.lat, lng: s.lng }))];
-      
-      if (routeCoords.length >= 2) {
-        const origin = `${routeCoords[0].lat},${routeCoords[0].lng}`;
-        const destination = `${routeCoords[routeCoords.length - 1].lat},${routeCoords[routeCoords.length - 1].lng}`;
-        
-        let hereWaypoints = `origin=${origin}&destination=${destination}`;
-        routeCoords.slice(1, -1).forEach(c => {
-          hereWaypoints += `&via=${c.lat},${c.lng}`;
-        });
-
-        // CRITICAL: Don't use optimize:true - respect the time-based order
-        const directionsUrl = `https://router.hereapi.com/v8/routes?${hereWaypoints}&return=summary&transportMode=${hereTransportMode}&routingMode=short&apiKey=${hereApiKey}`;
-
-        let directionsData = null;
-        for (let attempt = 0; attempt < 3; attempt++) {
-          try {
-            if (attempt > 0) await new Promise(r => setTimeout(r, Math.min(1000 * Math.pow(2, attempt), 5000)));
-            attemptedHereCalls += 1;
-            const response = await fetch(directionsUrl, { signal: AbortSignal.timeout(15000) });
-            directionsData = await response.json();
-            if (directionsData.routes && directionsData.routes.length > 0) {
-              totalApiCalls++;
-              break;
-            }
-          } catch (err) {
-            console.warn(`[optimizeRemainingStops] Directions API attempt ${attempt + 1} failed:`, err.message);
-          }
-        }
-
-        if (directionsData?.routes && directionsData.routes.length > 0) {
-          directionsLegs = directionsData.routes[0].sections.map(section => ({
-            duration: section.summary.duration || 0,
-            distance: section.summary.length || 0
-          }));
-          console.log('✅ [optimizeRemainingStops] HERE Routing API success');
-          
-          // Use the pre-sorted order
-          optimizedCurrentStage = currentStageSorted;
-        } else {
-          // Fallback to crow-flies
-          console.log('⚠️ [optimizeRemainingStops] HERE API failed - using crow-flies fallback');
-          optimizedCurrentStage = currentStageSorted;
-          let prevPos = currentPosition;
-          for (const stop of optimizedCurrentStage) {
-            const distKm = calculateCrowFliesDistance(prevPos.lat, prevPos.lng, stop.lat, stop.lng);
-            directionsLegs.push({
-              duration: Math.ceil((distKm / 40) * 60 * 60 * 1.3), // 40 km/h + 30% buffer
-              distance: distKm * 1000
-            });
-            prevPos = { lat: stop.lat, lng: stop.lng };
-          }
+      const directionsData = directionsResponse?.data || directionsResponse || null;
+      if (Array.isArray(directionsData?.sections) && directionsData.sections.length > 0) {
+        directionsLegs = directionsData.sections.map((section) => ({
+          duration: Number(section?.estimated_duration_minutes || 0) * 60,
+          distance: Number(section?.estimated_distance_km || 0) * 1000
+        }));
+        console.log('✅ [optimizeRemainingStops] HERE Routing API success');
+      } else {
+        console.log('⚠️ [optimizeRemainingStops] HERE API failed - using crow-flies fallback');
+        let prevPos = currentPosition;
+        for (const stop of routeStops) {
+          const distKm = calculateCrowFliesDistance(prevPos.lat, prevPos.lng, stop.lat, stop.lng);
+          directionsLegs.push({
+            duration: Math.ceil((distKm / 40) * 60 * 60 * 1.3),
+            distance: distKm * 1000
+          });
+          prevPos = { lat: stop.lat, lng: stop.lng };
         }
       }
     }
 
-    // STEP 5: Calculate all ETAs and final ordering fully in memory
+    // STEP 4: Calculate all ETAs in memory from the single remaining-route response
     let cumulativeTime = currentMinutes;
     const stageEtaMap = new Map();
 
-    for (let i = 0; i < optimizedCurrentStage.length; i++) {
-      const stop = optimizedCurrentStage[i];
-      
+    for (let i = 0; i < routeStops.length; i++) {
+      const stop = routeStops[i];
       const travelSeconds = directionsLegs[i] ? directionsLegs[i].duration : 300;
       const travelMinutes = Math.ceil(travelSeconds / 60);
       cumulativeTime += travelMinutes;
@@ -358,29 +307,6 @@ Deno.serve(async (req) => {
       cumulativeTime += serviceTime;
 
       console.log(`  ✅ [optimizeRemainingStops] ${stop.delivery.patient_name || 'Pickup'} - ETA: ${eta}`);
-    }
-
-    // STEP 6: Calculate ETAs for remaining stages in memory only
-    for (let stageIdx = 1; stageIdx < stages.length; stageIdx++) {
-      const stageStops = stages[stageIdx];
-      
-      for (const stop of stageStops) {
-        const travelMinutes = 10;
-        cumulativeTime += travelMinutes;
-
-        if (stop.delivery.time_window_start) {
-          const windowStart = parseTimeToMinutes(stop.delivery.time_window_start);
-          if (cumulativeTime < windowStart) {
-            cumulativeTime = windowStart;
-          }
-        }
-
-        const eta = formatMinutesToTime(cumulativeTime);
-        stageEtaMap.set(stop.delivery.id, eta);
-
-        const serviceTime = stop.delivery.extra_time || (stop.isPickup ? 15 : 5);
-        cumulativeTime += serviceTime;
-      }
     }
 
     const activeStops = incompleteDeliveries.map((delivery) => ({
@@ -521,7 +447,7 @@ Deno.serve(async (req) => {
       deliveryDate,
       routeChanged: true,
       optimizedCount: activeStops.length,
-      stagesCount: stages.length,
+      stagesCount: 1,
       apiCallsMade: attemptedHereCalls,
       locationSource
     });

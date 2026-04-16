@@ -263,48 +263,68 @@ function getEdmontonDateString(value = new Date()) {
 }
 
 async function getSegmentDirections(base44, from, to) {
-  let data = {};
+  const route = await getMultiStopRoute(base44, [from, to]);
+  return route.sections[0] || {
+    encoded_polyline: encodeGooglePolyline([[from.lat, from.lon], [to.lat, to.lon]]),
+    estimated_distance_km: null,
+    estimated_duration_minutes: null
+  };
+}
+
+async function getMultiStopRoute(base44, points) {
+  const validPoints = (points || []).filter((point) => Number.isFinite(point?.lat) && Number.isFinite(point?.lon));
+  if (validPoints.length < 2) {
+    return { sections: [] };
+  }
 
   try {
     const response = await base44.functions.invoke('getHereDirections', {
-      origin: { lat: from.lat, lng: from.lon },
-      destination: { lat: to.lat, lng: to.lon }
+      origin: { lat: validPoints[0].lat, lng: validPoints[0].lon },
+      destination: { lat: validPoints[validPoints.length - 1].lat, lng: validPoints[validPoints.length - 1].lon },
+      waypoints: validPoints.slice(1, -1).map((point) => ({ lat: point.lat, lng: point.lon }))
     });
+    const data = response?.data || response || {};
+    const sections = Array.isArray(data?.sections) ? data.sections : [];
 
-    data = response?.data || response || {};
-  } catch (error) {
-    console.warn('[purgeAndRegeneratePolylines] Directions unavailable, using fallback segment:', error?.message || error);
     return {
-      encoded_polyline: encodeGooglePolyline([[from.lat, from.lon], [to.lat, to.lon]]),
-      estimated_distance_km: null,
-      estimated_duration_minutes: null
+      sections: validPoints.slice(0, -1).map((fromPoint, index) => {
+        const section = sections[index] || {};
+        let polyline = null;
+
+        if (section?.polyline_format === 'flexible' && typeof section?.polyline === 'string') {
+          const coords = decodeHereFlexiblePolyline(section.polyline);
+          if (coords.length > 1) {
+            polyline = encodeGooglePolyline(coords);
+          }
+        } else if (typeof section?.polyline === 'string' && section.polyline) {
+          polyline = section.polyline;
+        }
+
+        if (!polyline) {
+          const toPoint = validPoints[index + 1];
+          polyline = encodeGooglePolyline([[fromPoint.lat, fromPoint.lon], [toPoint.lat, toPoint.lon]]);
+        }
+
+        return {
+          encoded_polyline: polyline,
+          estimated_distance_km: section?.estimated_distance_km ?? null,
+          estimated_duration_minutes: section?.estimated_duration_minutes ?? null
+        };
+      })
+    };
+  } catch (error) {
+    console.warn('[purgeAndRegeneratePolylines] Multi-stop directions unavailable, using fallback route:', error?.message || error);
+    return {
+      sections: validPoints.slice(0, -1).map((fromPoint, index) => {
+        const toPoint = validPoints[index + 1];
+        return {
+          encoded_polyline: encodeGooglePolyline([[fromPoint.lat, fromPoint.lon], [toPoint.lat, toPoint.lon]]),
+          estimated_distance_km: null,
+          estimated_duration_minutes: null
+        };
+      })
     };
   }
-
-  let polyline = null;
-
-  if (Array.isArray(data?.coordinates) && data.coordinates.length > 1) {
-    polyline = encodeGooglePolyline(
-      data.coordinates.map((point) => [Number(point?.lat ?? point?.latitude), Number(point?.lng ?? point?.longitude)])
-    );
-  } else if (data?.polyline_format === 'flexible' && typeof data?.polyline === 'string') {
-    const coords = decodeHereFlexiblePolyline(data.polyline);
-    if (coords.length > 1) {
-      polyline = encodeGooglePolyline(coords);
-    }
-  } else if (typeof data?.polyline === 'string' && data.polyline) {
-    polyline = data.polyline;
-  }
-
-  if (!polyline) {
-    polyline = encodeGooglePolyline([[from.lat, from.lon], [to.lat, to.lon]]);
-  }
-
-  return {
-    encoded_polyline: polyline,
-    estimated_distance_km: data?.estimated_distance_km ?? null,
-    estimated_duration_minutes: data?.estimated_duration_minutes ?? null
-  };
 }
 
 Deno.serve(async (req) => {
@@ -549,6 +569,8 @@ Deno.serve(async (req) => {
           segmentsToKeep.add(preservedType1Row.id);
         }
 
+        const uncachedSpecs = [];
+
         for (const spec of segmentSpecs) {
           const cachedSegment = findExactCachedSegment(existingPolylines, spec.from, spec.to);
           const matchingStop = activeStops.find((stop) => {
@@ -565,28 +587,43 @@ Deno.serve(async (req) => {
               });
             }
           } else {
-            const directions = await getSegmentDirections(base44, spec.from, spec.to);
-            apiCallsMade += 1;
-            if (matchingStop) {
-              deliveryUpdatesById.set(matchingStop.id, {
-                ...(deliveryUpdatesById.get(matchingStop.id) || {}),
+            uncachedSpecs.push({ spec, matchingStop });
+          }
+        }
+
+        if (uncachedSpecs.length > 0) {
+          const routePoints = [uncachedSpecs[0].spec.from, ...uncachedSpecs.map((item) => item.spec.to)];
+          const multiStopRoute = await getMultiStopRoute(base44, routePoints);
+          apiCallsMade += 1;
+
+          uncachedSpecs.forEach((item, index) => {
+            const directions = multiStopRoute.sections[index] || {
+              encoded_polyline: encodeGooglePolyline([[item.spec.from.lat, item.spec.from.lon], [item.spec.to.lat, item.spec.to.lon]]),
+              estimated_distance_km: null,
+              estimated_duration_minutes: null
+            };
+
+            if (item.matchingStop) {
+              deliveryUpdatesById.set(item.matchingStop.id, {
+                ...(deliveryUpdatesById.get(item.matchingStop.id) || {}),
                 travel_dist: directions.estimated_distance_km ?? null
               });
             }
+
             createdSegments.push({
               driver_id: driverId,
               delivery_date: deliveryDate,
               encoded_polyline: directions.encoded_polyline,
-              segment_origin_lat: round5(spec.from.lat),
-              segment_origin_lon: round5(spec.from.lon),
-              segment_dest_lat: round5(spec.to.lat),
-              segment_dest_lon: round5(spec.to.lon),
+              segment_origin_lat: round5(item.spec.from.lat),
+              segment_origin_lon: round5(item.spec.from.lon),
+              segment_dest_lat: round5(item.spec.to.lat),
+              segment_dest_lon: round5(item.spec.to.lon),
               estimated_distance_km: directions.estimated_distance_km,
               estimated_duration_minutes: directions.estimated_duration_minutes,
               daily_generation_count: previousGenerationCount + apiCallsMade,
               last_generated_at: new Date().toISOString()
             });
-          }
+          });
         }
 
         const rowsToDelete = (existingPolylines || []).filter((row) => !segmentsToKeep.has(row.id));

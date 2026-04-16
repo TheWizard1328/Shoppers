@@ -6,6 +6,7 @@ const buildFallback = (origin, destination, extra = {}) => Response.json({
     { lat: Number(origin?.lat), lng: Number(origin?.lng) },
     { lat: Number(destination?.lat), lng: Number(destination?.lng) }
   ].filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng)),
+  sections: [],
   estimated_distance_km: 0,
   estimated_duration_minutes: 0,
   polyline_format: 'fallback',
@@ -28,6 +29,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     origin = body?.origin || null;
     destination = body?.destination || null;
+    const waypoints = Array.isArray(body?.waypoints) ? body.waypoints : [];
     const requestedTransportMode = String(body?.transportMode || body?.transport_mode || 'driving').toLowerCase();
     const hereTransportMode = requestedTransportMode === 'cycling'
       ? 'bicycle'
@@ -61,6 +63,14 @@ Deno.serve(async (req) => {
       apikey: hereApiKey,
     });
 
+    waypoints.forEach((point) => {
+      const lat = Number(point?.lat);
+      const lng = Number(point?.lng);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        params.append('via', `${lat},${lng}`);
+      }
+    });
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 12000);
     const resp = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, {
@@ -85,6 +95,11 @@ Deno.serve(async (req) => {
     }
 
     const polylines = sections.map((section) => section?.polyline).filter(Boolean);
+    const normalizedSections = sections.map((section) => ({
+      polyline: section?.polyline || null,
+      estimated_distance_km: Number.isFinite(section?.summary?.length) ? Math.round((section.summary.length / 1000) * 10) / 10 : null,
+      estimated_duration_minutes: Number.isFinite(section?.summary?.duration) ? Math.round(section.summary.duration / 60) : null
+    }));
     const totalMeters = sections.reduce((sum, section) => sum + (section?.summary?.length || 0), 0);
     const totalSeconds = sections.reduce((sum, section) => sum + (section?.summary?.duration || 0), 0);
     const estimated_distance_km = Math.round((totalMeters / 1000) * 10) / 10;
@@ -106,6 +121,7 @@ Deno.serve(async (req) => {
       polyline_format: 'flexible',
       polyline: polylines[0],
       polylines,
+      sections: normalizedSections,
       estimated_distance_km,
       estimated_duration_minutes,
       transport_mode: normalizedTransportMode
