@@ -1,5 +1,6 @@
 import { base44 } from "@/api/base44Client";
 import { invalidate } from "../utils/dataManager";
+import { offlineDB } from '../utils/offlineDatabase';
 import { encodeGooglePolyline, getHereEncodedPolyline } from "../utils/hereRouting";
 
 export function getCurrentLocalTimeString(date = new Date()) {
@@ -119,6 +120,73 @@ function parseBreadcrumbPoints(deliveryRouteBreadcrumbs) {
     .filter((point) => Array.isArray(point) && Number.isFinite(point[0]) && Number.isFinite(point[1]));
 }
 
+async function getPendingLiveBreadcrumbPoints({ delivery, driverId }) {
+  const resolvedDriverId = driverId || delivery?.driver_id;
+  if (!resolvedDriverId || !delivery?.id) return [];
+
+  try {
+    const matches = await offlineDB.getByIndex(offlineDB.STORES.PENDING_BREADCRUMB_LIVE, 'delivery_id', delivery.id).catch(() => []);
+    const matchingRecord = (matches || []).find((item) => item?.driver_id === resolvedDriverId) || matches?.[0] || null;
+    const parsed = parseBreadcrumbPoints(matchingRecord?.breadcrumbs || null);
+    if (parsed.length > 0) return parsed;
+  } catch {}
+
+  try {
+    const serverMatches = await base44.entities.PendingBreadcrumbLive.filter({
+      driver_id: resolvedDriverId,
+      delivery_id: delivery.id
+    });
+    const parsed = parseBreadcrumbPoints(serverMatches?.[0]?.breadcrumbs || null);
+    if (parsed.length > 0) return parsed;
+  } catch {}
+
+  return [];
+}
+
+async function getCachedFinishedLegPolyline({ delivery, origin, destination, preferredTransportMode }) {
+  if (!delivery?.driver_id || !delivery?.delivery_date || !origin || !destination) return null;
+
+  try {
+    const localMatches = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'driver_id', delivery.driver_id).catch(() => []);
+    const localMatch = (localMatches || []).find((item) =>
+      item?.delivery_date === delivery.delivery_date &&
+      Number(item?.segment_origin_lat) === Number(origin.latitude) &&
+      Number(item?.segment_origin_lon) === Number(origin.longitude) &&
+      Number(item?.segment_dest_lat) === Number(destination.latitude) &&
+      Number(item?.segment_dest_lon) === Number(destination.longitude) &&
+      !!item?.encoded_polyline
+    );
+    if (localMatch?.encoded_polyline) {
+      return {
+        encodedPolyline: localMatch.encoded_polyline,
+        transportMode: localMatch.transport_mode || preferredTransportMode || 'driving'
+      };
+    }
+  } catch {}
+
+  try {
+    const serverMatches = await base44.entities.DriverRoutePolyline.filter({
+      driver_id: delivery.driver_id,
+      delivery_date: delivery.delivery_date
+    });
+    const serverMatch = (serverMatches || []).find((item) =>
+      Number(item?.segment_origin_lat) === Number(origin.latitude) &&
+      Number(item?.segment_origin_lon) === Number(origin.longitude) &&
+      Number(item?.segment_dest_lat) === Number(destination.latitude) &&
+      Number(item?.segment_dest_lon) === Number(destination.longitude) &&
+      !!item?.encoded_polyline
+    );
+    if (serverMatch?.encoded_polyline) {
+      return {
+        encodedPolyline: serverMatch.encoded_polyline,
+        transportMode: serverMatch.transport_mode || preferredTransportMode || 'driving'
+      };
+    }
+  } catch {}
+
+  return null;
+}
+
 function buildFinishedLegPoints(origin, breadcrumbPoints, destination) {
   const routePoints = [
     [Number(origin.latitude), Number(origin.longitude)],
@@ -143,13 +211,17 @@ export async function getFinishedLegEncodedPolyline({
   patients = [],
   stores = [],
   finishedStatuses = [],
-  breadcrumbPayload = null
+  breadcrumbPayload = null,
+  transportMode = 'driving'
 }) {
   const origin = getFinishedLegOrigin({ delivery, allDeliveries, driver, patients, stores, finishedStatuses });
   const destination = getStopCoordinates(delivery, patient, store);
   if (!origin || !destination) return null;
 
-  const breadcrumbPoints = parseBreadcrumbPoints(breadcrumbPayload ?? delivery?.delivery_route_breadcrumbs);
+  const pendingLiveBreadcrumbPoints = await getPendingLiveBreadcrumbPoints({ delivery, driverId: delivery?.driver_id });
+  const payloadBreadcrumbPoints = parseBreadcrumbPoints(breadcrumbPayload ?? delivery?.delivery_route_breadcrumbs);
+  const breadcrumbPoints = pendingLiveBreadcrumbPoints.length > 0 ? pendingLiveBreadcrumbPoints : payloadBreadcrumbPoints;
+
   if (breadcrumbPoints.length > 0) {
     const finishedLegPoints = buildFinishedLegPoints(origin, breadcrumbPoints, destination);
     if (finishedLegPoints.length > 1) {
@@ -157,7 +229,17 @@ export async function getFinishedLegEncodedPolyline({
     }
   }
 
-  return await getHereEncodedPolyline(delivery.driver_id, origin, destination, delivery.delivery_date);
+  const cachedPolyline = await getCachedFinishedLegPolyline({
+    delivery,
+    origin,
+    destination,
+    preferredTransportMode: transportMode
+  });
+  if (cachedPolyline?.encodedPolyline) {
+    return cachedPolyline.encodedPolyline;
+  }
+
+  return await getHereEncodedPolyline(delivery.driver_id, origin, destination, delivery.delivery_date, transportMode);
 }
 
 function parseTrackingNumberParts(trackingNumber) {

@@ -726,7 +726,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                 status: status,
                 delivery_notes: updatedNotes,
                 actual_delivery_time: forcedFailureTimestamp,
-                finished_leg_transport_mode: delivery?.finished_leg_transport_mode || 'driving',
+                finished_leg_transport_mode: 'driving',
                 isNextDelivery: false,
                 PolylineUpdated: true,
                 ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}),
@@ -760,8 +760,8 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                 // Background: generate polyline and patch it in after critical save
                 Promise.resolve().then(async () => {
                   try {
-                    const finishedLegEncodedPolyline = await getFinishedLegEncodedPolyline({ delivery, allDeliveries, driver: safeDriver, patient, store, patients, stores, finishedStatuses: FINISHED_STATUSES, breadcrumbPayload: pendingBreadcrumbsString });
-                    if (finishedLegEncodedPolyline) await updateDeliveryLocal(delivery.id, { finished_leg_encoded_polyline: finishedLegEncodedPolyline, finished_leg_transport_mode: delivery?.finished_leg_transport_mode || 'driving', PolylineUpdated: true }, { skipSmartRefresh: true });
+                    const finishedLegEncodedPolyline = await getFinishedLegEncodedPolyline({ delivery, allDeliveries, driver: safeDriver, patient, store, patients, stores, finishedStatuses: FINISHED_STATUSES, breadcrumbPayload: pendingBreadcrumbsString, transportMode: 'driving' });
+                    if (finishedLegEncodedPolyline) await updateDeliveryLocal(delivery.id, { finished_leg_encoded_polyline: finishedLegEncodedPolyline, finished_leg_transport_mode: 'driving', PolylineUpdated: true }, { skipSmartRefresh: true });
                   } catch (_) {}
                 });
               } catch (statusError) {console.error('❌ [FAILURE] Update failed:', statusError);toast.error(`Failed to update status: ${statusError.message}`);fabControlEvents.reactivateFAB(true);return;}
@@ -825,7 +825,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           const shouldOverwriteArrivalTime = useRetroactiveTiming ? !!forcedArrivalTimestamp : !delivery.arrival_time;
                           const patientSavedSignatureUrl = patient?.signature_image_url || patient?.saved_signature_image_url || null;
                           const fallbackSignatureUrl = patientSavedSignatureUrl || null;
-                          const completionUpdate = { status: 'completed', actual_delivery_time: forcedCompletionTimestamp || localTimeString, finished_leg_transport_mode: delivery?.finished_leg_transport_mode || 'driving', isNextDelivery: false, finished_leg_encoded_polyline: null, PolylineUpdated: true, ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}), ...(completionCodPayments.length > 0 ? { cod_payments: completionCodPayments } : {}), ...(fallbackSignatureUrl ? { signature_image_url: fallbackSignatureUrl } : {}), ...(shouldOverwriteArrivalTime && forcedArrivalTimestamp ? { arrival_time: forcedArrivalTimestamp } : {}), ...(typeof retroactiveTiming?.travel_dist === 'number' ? { travel_dist: retroactiveTiming.travel_dist } : {}) };
+                          const completionUpdate = { status: 'completed', actual_delivery_time: forcedCompletionTimestamp || localTimeString, finished_leg_transport_mode: 'driving', isNextDelivery: false, finished_leg_encoded_polyline: null, PolylineUpdated: true, ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}), ...(completionCodPayments.length > 0 ? { cod_payments: completionCodPayments } : {}), ...(fallbackSignatureUrl ? { signature_image_url: fallbackSignatureUrl } : {}), ...(shouldOverwriteArrivalTime && forcedArrivalTimestamp ? { arrival_time: forcedArrivalTimestamp } : {}), ...(typeof retroactiveTiming?.travel_dist === 'number' ? { travel_dist: retroactiveTiming.travel_dist } : {}) };
                           const shouldDeleteSquareCodBeforeComplete = Number(delivery?.cod_total_amount_required || 0) > 0 && hasDebitOrCreditCod(delivery, completionCodPayments);
                           const shouldRecalculateCompletionEtas = shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, completionUpdate.actual_delivery_time);
                           console.warn('[StopCard][complete] timing before save', {
