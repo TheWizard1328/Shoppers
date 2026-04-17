@@ -588,13 +588,13 @@ Deno.serve(async (req) => {
         const segmentSpecs = [];
         const seen = new Set();
 
-        const pushSegment = (from, to) => {
+        const pushSegment = (from, to, force = false) => {
           if (!from || !to) return;
           if (![from.lat, from.lon, to.lat, to.lon].every((value) => Number.isFinite(value))) return;
           const key = makeSegmentKey(driverId, deliveryDate, from, to);
           if (seen.has(key)) return;
           seen.add(key);
-          segmentSpecs.push({ from, to });
+          segmentSpecs.push({ from, to, force });
         };
 
         const currentLat = Number(driverAppUser?.current_latitude);
@@ -627,9 +627,14 @@ Deno.serve(async (req) => {
         const lastActive = getLatLon(activeStops[activeStops.length - 1]);
         const homeLat = Number(driverAppUser?.home_latitude);
         const homeLon = Number(driverAppUser?.home_longitude);
+        const hasHomeCoords = Number.isFinite(homeLat) && Number.isFinite(homeLon);
 
-        if (Number.isFinite(homeLat) && Number.isFinite(homeLon) && lastActive) {
-          pushSegment(lastActive, { lat: homeLat, lon: homeLon });
+        if (hasHomeCoords && firstActive) {
+          pushSegment({ lat: homeLat, lon: homeLon }, firstActive, true);
+        }
+
+        if (hasHomeCoords && lastActive) {
+          pushSegment(lastActive, { lat: homeLat, lon: homeLon }, true);
         }
 
         const segmentsToKeep = new Set();
@@ -641,7 +646,7 @@ Deno.serve(async (req) => {
         const uncachedSegments = [];
 
         for (const spec of segmentSpecs) {
-          const cachedSegment = findExactCachedSegment(existingPolylines, spec.from, spec.to);
+          const cachedSegment = !spec.force ? findExactCachedSegment(existingPolylines, spec.from, spec.to) : null;
           if (cachedSegment) {
             cachedSegments.push({ spec, cachedSegment });
           } else {
@@ -719,12 +724,31 @@ Deno.serve(async (req) => {
       } else {
         const homeLat = Number(driverAppUser?.home_latitude);
         const homeLon = Number(driverAppUser?.home_longitude);
-        const completedRouteHomeSegment = latestFinishedStop && Number.isFinite(homeLat) && Number.isFinite(homeLon)
-          ? [{
-              from: getLatLon(latestFinishedStop),
-              to: { lat: homeLat, lon: homeLon }
-            }].filter((segment) => segment.from && segment.to)
-          : [];
+        const firstFinishedStop = finishedStops[0] || null;
+        const hasHomeCoords = Number.isFinite(homeLat) && Number.isFinite(homeLon);
+        const completedRouteHomeSegment = [];
+
+        if (hasHomeCoords && firstFinishedStop) {
+          const firstFinishedCoords = getLatLon(firstFinishedStop);
+          if (firstFinishedCoords) {
+            completedRouteHomeSegment.push({
+              from: { lat: homeLat, lon: homeLon },
+              to: firstFinishedCoords,
+              force: true
+            });
+          }
+        }
+
+        if (latestFinishedStop && hasHomeCoords) {
+          const latestFinishedCoords = getLatLon(latestFinishedStop);
+          if (latestFinishedCoords) {
+            completedRouteHomeSegment.push({
+              from: latestFinishedCoords,
+              to: { lat: homeLat, lon: homeLon },
+              force: true
+            });
+          }
+        }
 
         const segmentsToKeep = new Set();
         if (preservedType1Row) {
@@ -735,7 +759,7 @@ Deno.serve(async (req) => {
         const uncachedSegments = [];
 
         for (const spec of completedRouteHomeSegment) {
-          const cachedSegment = findExactCachedSegment(existingPolylines, spec.from, spec.to);
+          const cachedSegment = !spec.force ? findExactCachedSegment(existingPolylines, spec.from, spec.to) : null;
           if (cachedSegment) {
             cachedSegments.push({ spec, cachedSegment });
           } else {
