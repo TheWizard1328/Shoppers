@@ -292,9 +292,18 @@ export default function DeliveryMap({
   }, [selectedDate, selectedDriverId, showOtherDriverDeliveries]);
 
   const safeUsers = useMemo(() => {
-    if (Array.isArray(realtimeAppUsers) && realtimeAppUsers.length > 0) return realtimeAppUsers;
-    return Array.isArray(users) ? users : [];
-  }, [realtimeAppUsers, users]);
+    const mergedUsers = Array.isArray(realtimeAppUsers) && realtimeAppUsers.length > 0 ? [...realtimeAppUsers] : [...(Array.isArray(users) ? users : [])];
+    if (currentUser?.id) {
+      const currentUserKey = currentUser.id;
+      const existingIndex = mergedUsers.findIndex((user) => user?.id === currentUserKey || user?.user_id === currentUserKey);
+      if (existingIndex >= 0) {
+        mergedUsers[existingIndex] = { ...mergedUsers[existingIndex], ...currentUser };
+      } else {
+        mergedUsers.push(currentUser);
+      }
+    }
+    return mergedUsers;
+  }, [realtimeAppUsers, users, currentUser]);
 
   const driverTravelModes = useMemo(() => {
     const modes = {};
@@ -580,13 +589,14 @@ export default function DeliveryMap({
     byDriver.forEach((state, driverId) => {
       const driver = safeUsers.find((user) => (user?.id || user?.user_id) === driverId);
       const isOnDuty = ['on_duty', 'online'].includes(String(driver?.driver_status || '').toLowerCase());
+      const isCurrentDriver = driverId === currentUser?.id;
       visibilityMap.set(driverId, {
         ...state,
-        shouldShowHomeMarker: isOnDuty || state.completed === 0 || (state.remainingPickups === 0)
+        shouldShowHomeMarker: isCurrentDriver || isOnDuty || state.completed === 0 || (state.remainingPickups === 0)
       });
     });
     return visibilityMap;
-  }, [deliveryMarkers, pickupMarkers, safeUsers]);
+  }, [deliveryMarkers, pickupMarkers, safeUsers, currentUser?.id]);
 
   const driverHomeMarkers = useMemo(() => {
     const isPureDriver = currentUser && userHasRole(currentUser, "driver") && !userHasRole(currentUser, "admin") && !userHasRole(currentUser, "dispatcher");
