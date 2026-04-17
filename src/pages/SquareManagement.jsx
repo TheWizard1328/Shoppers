@@ -778,9 +778,72 @@ export default function SquareManagement() {
     });
   };
 
+  const normalizePatientName = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  const getPatientNameTokens = (value) => normalizePatientName(value)
+    .split(' ')
+    .map((part) => part.trim())
+    .filter((part) => part.length >= 2);
+
+  const getLevenshteinDistance = (a, b) => {
+    const left = String(a || '');
+    const right = String(b || '');
+    if (!left) return right.length;
+    if (!right) return left.length;
+
+    const matrix = Array.from({ length: left.length + 1 }, () => Array(right.length + 1).fill(0));
+    for (let i = 0; i <= left.length; i += 1) matrix[i][0] = i;
+    for (let j = 0; j <= right.length; j += 1) matrix[0][j] = j;
+
+    for (let i = 1; i <= left.length; i += 1) {
+      for (let j = 1; j <= right.length; j += 1) {
+        const cost = left[i - 1] === right[j - 1] ? 0 : 1;
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j - 1] + cost,
+        );
+      }
+    }
+
+    return matrix[left.length][right.length];
+  };
+
+  const patientNamesMatch = (patientName, transactionItemName) => {
+    const normalizedPatient = normalizePatientName(patientName);
+    const normalizedTransaction = normalizePatientName(transactionItemName);
+    if (!normalizedPatient || !normalizedTransaction) return false;
+
+    if (normalizedTransaction.includes(normalizedPatient) || normalizedPatient.includes(normalizedTransaction)) {
+      return true;
+    }
+
+    const patientTokens = getPatientNameTokens(normalizedPatient);
+    const transactionTokens = getPatientNameTokens(normalizedTransaction);
+    if (!patientTokens.length || !transactionTokens.length) return false;
+
+    const partialMatch = patientTokens.every((patientToken) =>
+      transactionTokens.some((transactionToken) =>
+        transactionToken.includes(patientToken) || patientToken.includes(transactionToken)
+      )
+    );
+
+    if (partialMatch) return true;
+
+    return patientTokens.every((patientToken) =>
+      transactionTokens.some((transactionToken) => {
+        const distance = getLevenshteinDistance(patientToken, transactionToken);
+        const maxLength = Math.max(patientToken.length, transactionToken.length);
+        return maxLength >= 4 && distance <= 1;
+      })
+    );
+  };
+
   const hasMatchingSquareTransaction = (delivery, locationId) => {
     const deliveryAmount = Number(delivery?.cod_total_amount_required || 0);
     const deliveryAmountCents = Math.round(deliveryAmount * 100);
+    const patient = patients.find((p) => p?.id === delivery?.patient_id || p?.patient_id === delivery?.patient_id);
+    const patientName = patient?.full_name || '';
 
     return (allTransactions || []).some((transaction) => {
       if (!transaction || isTransferTransaction(transaction)) return false;
@@ -791,10 +854,16 @@ export default function SquareManagement() {
       if (transaction.delivery_id && transaction.delivery_id === delivery.id) return true;
 
       const transactionAmountCents = Math.round(Number(transaction.amount || 0) * 100);
-      return transaction.location_id === locationId &&
+      if (transactionAmountCents !== deliveryAmountCents) return false;
+
+      const sameStoreSameDay =
+        transaction.location_id === locationId &&
         transaction.store_id === delivery.store_id &&
-        transactionAmountCents === deliveryAmountCents &&
         transaction.created_date?.slice(0, 10) === delivery.delivery_date;
+
+      if (sameStoreSameDay) return true;
+
+      return patientNamesMatch(patientName, transaction.item_name);
     });
   };
 
