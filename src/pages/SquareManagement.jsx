@@ -258,7 +258,7 @@ export default function SquareManagement() {
       });
     }
 
-    const [windowDeliveries, allOfflineDeliveries] = await Promise.all([
+    const [windowDeliveries, allOfflineDeliveries, offlineCatalogSnapshot] = await Promise.all([
       loadDeliveriesFromOffline(offlineDB, startDateStr, endDateStr),
       offlineDB.getAll(offlineDB.STORES.DELIVERIES),
       loadSquareViewFromOffline(),
@@ -268,7 +268,10 @@ export default function SquareManagement() {
       ? (windowDeliveries || [])
       : (allOfflineDeliveries || []);
 
-    setDeliveries(deliveriesToUse);
+    setDeliveries([...(deliveriesToUse || [])]);
+    setCatalogItems([...(offlineCatalogSnapshot?.items || [])]);
+    setAllTransactions([...(offlineCatalogSnapshot?.transactions || [])]);
+    setSoldCatalogItems([...(offlineCatalogSnapshot?.sold || [])]);
     return deliveriesToUse;
   }, [loadDeliveriesFromOffline, loadSquareViewFromOffline]);
 
@@ -577,13 +580,9 @@ export default function SquareManagement() {
           await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr);
         }
 
-        if ((offlineSquareSnapshot?.transactions || []).length > 0) {
-          setAllTransactions(offlineSquareSnapshot.transactions || []);
-          setSoldCatalogItems(offlineSquareSnapshot.sold || []);
-        }
-        if ((offlineSquareSnapshot?.items || []).length > 0) {
-          setCatalogItems(offlineSquareSnapshot.items || []);
-        }
+        setAllTransactions([...(offlineSquareSnapshot?.transactions || [])]);
+        setSoldCatalogItems([...(offlineSquareSnapshot?.sold || [])]);
+        setCatalogItems([...(offlineSquareSnapshot?.items || [])]);
         const status = await loadSyncStatus();
         setIsLoading(false);
         setHasInitialLoadCompleted(true);
@@ -1763,7 +1762,7 @@ export default function SquareManagement() {
           rows={filteredCatalogRows}
           isLoading={isLoading}
           emptyTitle="No Square catalog items found"
-          emptyDescription="Recent Square catalog items for the active city will appear here."
+          emptyDescription={`Offline catalog loaded: ${catalogItems.length} items. Recent Square catalog items for the active city will appear here.`}
           showLocationColumn={currentUser && isAppOwner(currentUser)}
           navHeight={navHeight}
         />
