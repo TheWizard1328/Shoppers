@@ -566,7 +566,7 @@ Deno.serve(async (req) => {
         const homeLat = Number(driverAppUser?.home_latitude);
         const homeLon = Number(driverAppUser?.home_longitude);
 
-        if (!latestFinishedStop && Number.isFinite(homeLat) && Number.isFinite(homeLon) && lastActive) {
+        if (Number.isFinite(homeLat) && Number.isFinite(homeLon) && lastActive) {
           pushSegment(lastActive, { lat: homeLat, lon: homeLon });
         }
 
@@ -655,7 +655,57 @@ Deno.serve(async (req) => {
           deliveries = afterPolylineCreateDeliveries;
         }
       } else {
-        const rowsToDelete = (existingPolylines || []).filter((row) => row?.id !== preservedType1Row?.id);
+        const homeLat = Number(driverAppUser?.home_latitude);
+        const homeLon = Number(driverAppUser?.home_longitude);
+        const completedRouteHomeSegment = latestFinishedStop && Number.isFinite(homeLat) && Number.isFinite(homeLon)
+          ? [{
+              from: getLatLon(latestFinishedStop),
+              to: { lat: homeLat, lon: homeLon }
+            }].filter((segment) => segment.from && segment.to)
+          : [];
+
+        const segmentsToKeep = new Set();
+        if (preservedType1Row) {
+          segmentsToKeep.add(preservedType1Row.id);
+        }
+
+        const cachedSegments = [];
+        const uncachedSegments = [];
+
+        for (const spec of completedRouteHomeSegment) {
+          const cachedSegment = findExactCachedSegment(existingPolylines, spec.from, spec.to);
+          if (cachedSegment) {
+            cachedSegments.push({ spec, cachedSegment });
+          } else {
+            uncachedSegments.push(spec);
+          }
+        }
+
+        cachedSegments.forEach(({ cachedSegment }) => {
+          segmentsToKeep.add(cachedSegment.id);
+        });
+
+        const uncachedDirections = await getMultiSegmentDirections(base44, uncachedSegments);
+        if (uncachedSegments.length > 0) apiCallsMade += 1;
+
+        uncachedSegments.forEach((spec, index) => {
+          const directions = uncachedDirections[index];
+          createdSegments.push({
+            driver_id: driverId,
+            delivery_date: deliveryDate,
+            encoded_polyline: directions?.encoded_polyline || encodeGooglePolyline([[spec.from.lat, spec.from.lon], [spec.to.lat, spec.to.lon]]),
+            segment_origin_lat: round5(spec.from.lat),
+            segment_origin_lon: round5(spec.from.lon),
+            segment_dest_lat: round5(spec.to.lat),
+            segment_dest_lon: round5(spec.to.lon),
+            estimated_distance_km: directions?.estimated_distance_km ?? null,
+            estimated_duration_minutes: directions?.estimated_duration_minutes ?? null,
+            daily_generation_count: previousGenerationCount + apiCallsMade,
+            last_generated_at: new Date().toISOString()
+          });
+        });
+
+        const rowsToDelete = (existingPolylines || []).filter((row) => !segmentsToKeep.has(row.id));
         if (rowsToDelete.length > 0) {
           await processInChunks(rowsToDelete, 5, (row) =>
             base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id).catch((error) => {
@@ -665,6 +715,10 @@ Deno.serve(async (req) => {
           );
         }
         deletedPolylineCount = rowsToDelete.length;
+
+        if (createdSegments.length > 0) {
+          await base44.asServiceRole.entities.DriverRoutePolyline.bulkCreate(createdSegments);
+        }
       }
     }
 

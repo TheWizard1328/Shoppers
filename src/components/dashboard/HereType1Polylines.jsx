@@ -497,13 +497,14 @@ export default function HereType1Polylines({
   };
   const seenKeys = new Set();
 
-  // Pre-route: home -> first stop (only when NO completed stops yet)
+  // Pre-route: home -> first stop (visibility follows home marker visibility)
   driverStops.forEach((stops, driverId) => {
     if (!showAll && selectedDriverId && selectedDriverId !== 'all' && driverId !== selectedDriverId) return;
     const hasCompleted = (stops?.complete?.length || 0) > 0;
     const hasIncomplete = (stops?.incomplete?.length || 0) > 0;
+    const homeVisible = driverHomeMarkers.some((h) => h && h.driverId === driverId);
     
-    // Only show home->first when there are NO completed stops yet
+    if (!homeVisible) return;
     if (!hasCompleted && hasIncomplete) {
       const next = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
       
@@ -610,8 +611,10 @@ export default function HereType1Polylines({
     }
   });
 
-  // Render last-completed -> home for completed routes
+  // Render last-completed -> home for completed routes (visibility follows home marker visibility)
   driversWithCompleteRoute.forEach((driverId) => {
+    const homeVisible = driverHomeMarkers.some((h) => h && h.driverId === driverId);
+    if (!homeVisible) return;
     const all = driverStops.get(driverId) || { complete: [] };
     const lastCompleted = [...(all.complete || [])]
       .filter((s) => s.actual_delivery_time)

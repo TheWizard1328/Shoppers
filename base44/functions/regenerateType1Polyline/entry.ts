@@ -323,9 +323,10 @@ Deno.serve(async (req) => {
       .filter((delivery) => ACTIVE_STATUSES.has(delivery.status))
       .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
-    if (activeStops.length === 0) {
-      return Response.json({ success: true, skipped: true, reason: 'no_active_route', repairedStopOrders: stopOrderRepairUpdates.length });
-    }
+    const finishedStatuses = new Set(['completed', 'failed', 'cancelled', 'returned']);
+    const mostRecentFinishedStop = (deliveries || [])
+      .filter((delivery) => finishedStatuses.has(delivery.status))
+      .sort((a, b) => Number(b?.stop_order || 0) - Number(a?.stop_order || 0))[0] || null;
 
     const patientIds = [...new Set(activeStops.filter((d) => d?.patient_id).map((d) => d.patient_id))];
     const storeIds = [...new Set(activeStops.filter((d) => d?.store_id).map((d) => d.store_id))];
@@ -356,23 +357,20 @@ Deno.serve(async (req) => {
       return null;
     };
 
-    const nextActiveStop = activeStops.find((stop) => stop.isNextDelivery === true);
-    if (!nextActiveStop) {
-      return Response.json({ success: true, skipped: true, reason: 'no_next_delivery_marked', repairedStopOrders: stopOrderRepairUpdates.length });
-    }
-
-    const nextStopCoords = getLatLon(nextActiveStop);
-    if (!nextStopCoords) {
-      return Response.json({ success: true, skipped: true, reason: 'missing_next_stop_coordinates', repairedStopOrders: stopOrderRepairUpdates.length });
-    }
-
-    const finishedStatuses = new Set(['completed', 'failed', 'cancelled', 'returned']);
+    const nextActiveStop = activeStops.find((stop) => stop.isNextDelivery === true) || null;
     const incompleteStops = (deliveries || [])
       .filter((delivery) => ACTIVE_STATUSES.has(delivery.status))
       .sort((a, b) => Number(a?.stop_order || 0) - Number(b?.stop_order || 0));
-    const mostRecentFinishedStop = (deliveries || [])
-      .filter((delivery) => finishedStatuses.has(delivery.status))
-      .sort((a, b) => Number(b?.stop_order || 0) - Number(a?.stop_order || 0))[0] || null;
+
+    const nextStopCoords = nextActiveStop
+      ? getLatLon(nextActiveStop)
+      : (mostRecentFinishedStop && Number.isFinite(homeLat) && Number.isFinite(homeLon)
+          ? { lat: homeLat, lon: homeLon }
+          : null);
+
+    if (!nextStopCoords) {
+      return Response.json({ success: true, skipped: true, reason: 'missing_next_stop_coordinates', repairedStopOrders: stopOrderRepairUpdates.length });
+    }
 
     let baseOriginCoords = null;
     if (mostRecentFinishedStop) {
@@ -527,7 +525,7 @@ Deno.serve(async (req) => {
       updated: true,
       driverId,
       deliveryDate,
-      nextStopId: nextActiveStop.id,
+      nextStopId: nextActiveStop?.id || 'HOME_LOCATION',
       originStopId: mostRecentFinishedStop?.id || null,
       repairedStopOrders: stopOrderRepairUpdates.length
     });

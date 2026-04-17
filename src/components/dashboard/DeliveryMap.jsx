@@ -621,10 +621,10 @@ export default function DeliveryMap({
       const isSelectedDriver = !!(selectedDriverId && selectedDriverId !== "all" && driverKey === selectedDriverId);
       const isAdminViewer = currentUser && userHasRole(currentUser, "admin");
       if (isCurrentDriverUser) {
-        return !homeVisibility || homeVisibility.shouldShowHomeMarker;
+        return true;
       }
       if (isAdminViewer && isSelectedDriver) {
-        return !homeVisibility || homeVisibility.shouldShowHomeMarker;
+        return true;
       }
       if (!homeVisibility?.shouldShowHomeMarker) return false;
       if (isPureDriver && driverKey !== currentUser.id && !(showOtherDriverDeliveries || isAllDriversMode)) return false;
