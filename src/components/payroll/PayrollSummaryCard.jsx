@@ -171,13 +171,15 @@ export default function PayrollSummaryCard({
       });
       const graphDeliveryCount = graphPayableDeliveries.length;
       const graphBasePay = graphDeliveryCount * payRate;
+      const graphGrandTotal = graphBasePay + extraKmPay + oversizedPay;
+      const graphGrossPay = graphGrandTotal > 0 ? graphGrandTotal + taxAmount - totalDeductions : 0;
 
       return {
         driver: { ...driver, id: driverId }, payRate, extraKmRate, extraKmLimit, oversizedRate,
         totalDeliveries: deliveryCount, totalBasePay: basePay, graphDeliveryCount, graphBasePay, totalExtraKm, totalExtraKmPay: extraKmPay,
         oversizedCount, totalOversizedPay: oversizedPay, afterHoursCount, failedCount, returnsCount,
-        storeReturnCount, grandTotal: totalPay, gstHstEnabled, taxRate, taxAmount, provinceCode,
-        deductions: totalDeductions, deductionsArray, grossPay, appFeePercentage, storedPaidAmount
+        storeReturnCount, grandTotal: graphGrandTotal, gstHstEnabled, taxRate, taxAmount, provinceCode,
+        deductions: totalDeductions, deductionsArray, grossPay: graphGrossPay, appFeePercentage, storedPaidAmount
       };
     });
   }, [deliveries, drivers, appUsers, patients, cities, selectedYear, selectedDriverId, currentPeriod]);
@@ -216,7 +218,7 @@ export default function PayrollSummaryCard({
     const autoCreateMissingRecords = async () => {
       try {
         const latestRecords = await base44.entities.Payroll.filter({ pay_period_start: periodStartStr, pay_period_end: periodEndStr });
-        const driversWithDeliveries = payrollData.filter((data) => data.totalDeliveries > 0).map((data) => data.driver.id);
+        const driversWithDeliveries = payrollData.filter((data) => data.graphDeliveryCount > 0).map((data) => data.driver.id);
         if (driversWithDeliveries.length === 0) return;
         const existingDriverIds = new Set(latestRecords.map((r) => r.driver_id));
         const driversNeedingRecords = driversWithDeliveries.filter((driverId) => !existingDriverIds.has(driverId));
@@ -545,7 +547,7 @@ export default function PayrollSummaryCard({
     return rounded;
   };
 
-  const driversWithDeliveries = useMemo(() => payrollData.filter((d) => d.totalDeliveries > 0), [payrollData]);
+  const driversWithDeliveries = useMemo(() => payrollData.filter((d) => d.graphDeliveryCount > 0), [payrollData]);
   const grandTotalAllDrivers = driversWithDeliveries.reduce((sum, d) => sum + d.grandTotal, 0);
   const grandTotalTax = driversWithDeliveries.reduce((sum, d) => sum + d.taxAmount, 0);
   const grandTotalDeductions = driversWithDeliveries.reduce((sum, d) => sum + sumDeductionAmounts(driverEdits[d.driver.id]?.deductions || d.deductionsArray || []), 0);
@@ -713,7 +715,7 @@ export default function PayrollSummaryCard({
       skipNextAutoSyncRef.current = false;
       return;
     }
-    const driversWithData = payrollData.filter((d) => d.totalDeliveries > 0);
+    const driversWithData = payrollData.filter((d) => d.graphDeliveryCount > 0);
     if (driversWithData.length === 0) return;
     const hasRecords = driversWithData.some((d) => getDriverPayrollRecord(d.driver.id));
     if (!hasRecords) return;
@@ -1168,7 +1170,7 @@ export default function PayrollSummaryCard({
 
       <CardContent ref={contentRef} className="px-3 py-6">
         <div className="space-y-4">
-          {payrollData.filter((data) => data.totalDeliveries > 0).map((data, idx) => {
+          {payrollData.filter((data) => data.graphDeliveryCount > 0).map((data, idx) => {
               const hasTaxOrDeductions = data.taxAmount > 0 || data.deductions > 0;
               const driverPayrollRecord = getDriverPayrollRecord(data.driver.id);
               const driverHasConfirmed = driverPayrollRecord?.status === 'driver_finalized' ||
