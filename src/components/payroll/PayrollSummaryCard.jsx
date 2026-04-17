@@ -1325,7 +1325,7 @@ export default function PayrollSummaryCard({
                             <tr className="text-lg font-bold text-emerald-600">
                               <td className="text-left pr-2">Net:</td>
                               <td className="text-right pr-0.5">$</td>
-                              <td className="text-right" style={{ width: '60px' }}>{((data.grandTotal || 0) + (data.taxAmount || 0) - sumDeductionAmounts(edit.deductions || []) + (edit.bonusPay || 0) + (isPeriodEndOfMonth ? edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0) : 0)).toFixed(2)}</td>
+                              <td className="text-right" style={{ width: '60px' }}>{getPeriodNetAmount({ grandTotal: data.grandTotal || 0, taxAmount: data.taxAmount || 0, deductions: edit.deductions || [], bonusPay: edit.bonusPay || 0, appFeeAmount: isPeriodEndOfMonth ? edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0) : 0 }).toFixed(2)}</td>
                             </tr>
                             {canFinalize && (isAdmin || selectedDriverId === currentUser?.id) &&
                                 <tr style={{ color: 'var(--text-slate-600)' }}>

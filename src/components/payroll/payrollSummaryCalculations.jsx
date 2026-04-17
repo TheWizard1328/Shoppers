@@ -6,10 +6,10 @@ export const sumDeductionAmounts = (deductions = []) =>
 export const getPeriodNetAmount = ({ grandTotal = 0, taxAmount = 0, bonusPay = 0, deductions = [], appFeeAmount = 0 }) =>
   roundCurrency(
     roundCurrency(grandTotal) +
-    roundCurrency(taxAmount) +
-    (bonusPay || 0) -
-    sumDeductionAmounts(deductions) -
-    (appFeeAmount || 0)
+    roundCurrency(taxAmount) -
+    roundCurrency(sumDeductionAmounts(deductions)) +
+    roundCurrency(bonusPay) +
+    roundCurrency(appFeeAmount)
   );
 
 export const getDefaultPaidAmount = ({ grandTotal = 0, taxAmount = 0, bonusPay = 0, deductions = [] }) =>
