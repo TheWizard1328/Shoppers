@@ -562,6 +562,17 @@ export default function PayrollSummaryCard({
 
   const isAdminFinalized = useMemo(() => driversWithDeliveriesIds.length > 0 && driversWithDeliveriesIds.every((id) => {const r = getDriverPayrollRecord(id);return r?.status === 'admin_finalized' || r?.status === 'paid';}), [driversWithDeliveriesIds, payrollRecords]);
 
+  const selectedMonthIndex = currentPeriod?.start?.getMonth?.() ?? null;
+  const monthlyAppFeeBaseTotal = useMemo(() => {
+    if (selectedMonthIndex == null) return 0;
+    return adminMetricsFeeTotals?.monthlyFees?.[selectedMonthIndex] || 0;
+  }, [adminMetricsFeeTotals, selectedMonthIndex]);
+
+  const ytdAppFeeBaseTotal = useMemo(() => {
+    if (!adminMetricsFeeTotals?.monthlyFees || selectedMonthIndex == null) return 0;
+    return adminMetricsFeeTotals.monthlyFees.slice(0, selectedMonthIndex + 1).reduce((sum, value) => sum + (Number(value) || 0), 0);
+  }, [adminMetricsFeeTotals, selectedMonthIndex]);
+
   // Calculate YTD data from payroll records
   const ytdDataByDriver = useMemo(() => {
     const ytdMap = {};
@@ -609,17 +620,6 @@ export default function PayrollSummaryCard({
     if (!currentPeriod || appFeePercent <= 0) return 0;
     return monthlyAppFeeBaseTotal * appFeePercent / 100;
   }, [currentPeriod, monthlyAppFeeBaseTotal]);
-
-  const selectedMonthIndex = currentPeriod?.start?.getMonth?.() ?? null;
-  const monthlyAppFeeBaseTotal = useMemo(() => {
-    if (selectedMonthIndex == null) return 0;
-    return adminMetricsFeeTotals?.monthlyFees?.[selectedMonthIndex] || 0;
-  }, [adminMetricsFeeTotals, selectedMonthIndex]);
-
-  const ytdAppFeeBaseTotal = useMemo(() => {
-    if (!adminMetricsFeeTotals?.monthlyFees || selectedMonthIndex == null) return 0;
-    return adminMetricsFeeTotals.monthlyFees.slice(0, selectedMonthIndex + 1).reduce((sum, value) => sum + (Number(value) || 0), 0);
-  }, [adminMetricsFeeTotals, selectedMonthIndex]);
 
   const sumAllDriversAppFeePercent = useMemo(() => driversWithDeliveries.reduce((sum, d) => d.driver.id === currentUser?.id && isAppOwner(currentUser) ? sum : sum + (driverEdits[d.driver.id]?.appFeePercent || 0), 0), [driversWithDeliveries, driverEdits, currentUser]);
   const appOwnerAppFeePercent = useMemo(() => Math.max(0, 100 - sumAllDriversAppFeePercent - otherAppFeePercent), [sumAllDriversAppFeePercent, otherAppFeePercent]);
