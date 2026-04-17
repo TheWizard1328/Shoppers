@@ -576,34 +576,10 @@ export default function SquareManagement() {
         if ((offlineSquareSnapshot?.items || []).length > 0) {
           setCatalogItems(offlineSquareSnapshot.items || []);
         }
-        const status = await loadSyncStatus();
+        await loadSyncStatus();
         setIsLoading(false);
         setHasInitialLoadCompleted(true);
-
-        const lastFullSync = status?.transactions?.lastSync || status?.catalog?.lastSync;
-        const lastFullSyncMs = lastFullSync ? new Date(lastFullSync).getTime() : 0;
-        const syncedRecently = lastFullSyncMs && Date.now() - lastFullSyncMs < 60 * 60 * 1000;
-
-        if (syncedRecently) {
-          setBgSyncProgress({ stage: 'idle' });
-          return;
-        }
-
-        setBgSyncProgress({ stage: 'catalog_sync', detail: 'Refreshing COD views…' });
-
-        try {
-          const { transactionCount } = await runFullOfflineSnapshotSync({
-            onStageChange: setBgSyncProgress,
-            refreshLocations: true,
-            forceDeliveryRefresh: false,
-          });
-          setBgSyncProgress({ stage: 'complete', detail: `${transactionCount} transactions refreshed` });
-          setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 4000);
-        } catch (bgError) {
-          console.warn('⚠️ [SquareManagement] Background COD refresh failed:', bgError.message);
-          await refreshUiFromOfflineOnly();
-          setBgSyncProgress({ stage: 'idle' });
-        }
+        setBgSyncProgress({ stage: 'idle' });
       } catch (err) {
         console.error('Failed to load COD data:', err);
         setIsLoading(false);
