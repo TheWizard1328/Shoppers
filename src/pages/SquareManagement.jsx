@@ -450,14 +450,19 @@ export default function SquareManagement() {
         return;
       }
 
+      setBgSyncProgress({ stage: 'cleanup', detail: 'Purging Square catalog…' });
       await base44.functions.invoke('squareCodCore', {
         action: 'syncSquareCods',
         purgeCatalogFirst: true,
         items,
       });
+      setBgSyncProgress({ stage: 'catalog_sync', detail: 'Updating Square catalog…' });
       await quickRefreshCatalogView();
+      await loadSyncStatus();
       setActiveView('catalog');
-      toast.success(`Synced ${items.length} reconciliation items to Square catalog`);
+      setBgSyncProgress({ stage: 'complete', detail: `${items.length} reconciliation items synced` });
+      setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 4000);
+      toast.success(`Purged and updated Square catalog with ${items.length} reconciliation items`);
     } finally {
       setIsUpdatingReconciliationCatalog(false);
     }
