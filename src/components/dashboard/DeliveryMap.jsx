@@ -1064,7 +1064,7 @@ export default function DeliveryMap({
         <Pane name="routeBasePane" style={{ zIndex: 430 }} />
         <Pane name="completedBreadcrumbPane" style={{ zIndex: 460 }} />
 
-        {(showRoutes || showBreadcrumbs || (typeof window !== "undefined" && localStorage.getItem("rxdeliver_show_routes") === "true")) && (
+        {(showRoutes || (typeof window !== "undefined" && localStorage.getItem("rxdeliver_show_routes") === "true")) && (
           <CompletedBreadcrumbPolylines
             driverRoutes={completedRouteDriverRoutes}
             deliveryMarkers={completedRouteDeliveryMarkers}
@@ -1074,7 +1074,7 @@ export default function DeliveryMap({
             highlightedDeliveryId={highlightedDeliveryId}
             polylineRenderKey={polylineRenderKey}
             showStoredPolylines={showRoutes}
-            showBreadcrumbPolylines={showBreadcrumbs}
+            showBreadcrumbPolylines={false}
             driverTravelModes={driverTravelModes}
           />
         )}
