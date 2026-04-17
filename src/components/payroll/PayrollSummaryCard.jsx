@@ -1627,7 +1627,7 @@ export default function PayrollSummaryCard({
                               <tr className="text-lg font-bold text-emerald-600">
                                 <td className="text-left pr-2">Net:</td>
                                 <td className="text-right pr-0.5">$</td>
-                                <td className="text-right" style={{ width: '60px' }}>{(grandTotalGross + grandTotalBonus - (isPeriodEndOfMonth ? (calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) + calculateAppFeeAmount('other-app-fee', otherAppFeePercent)) : 0)).toFixed(2)}</td>
+                                <td className="text-right" style={{ width: '60px' }}>{(grandTotalAllDrivers + grandTotalTax - grandTotalDeductions + grandTotalBonus + (isPeriodEndOfMonth ? (calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) + calculateAppFeeAmount('other-app-fee', otherAppFeePercent)) : 0)).toFixed(2)}</td>
                               </tr>
                               {isAdmin &&
                               <tr style={{ color: 'var(--text-slate-600)' }}>
@@ -1778,7 +1778,7 @@ export default function PayrollSummaryCard({
                     }}>
                       <div className="text-left">Net:</div>
                       <div className="text-right pr-0.5">$</div>
-                      <div className="text-right">{(grandTotalGross + grandTotalBonus - (isPeriodEndOfMonth ? (calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) + calculateAppFeeAmount('other-app-fee', otherAppFeePercent)) : 0)).toFixed(2)}</div>
+                      <div className="text-right">{(grandTotalAllDrivers + grandTotalTax - grandTotalDeductions + grandTotalBonus + (isPeriodEndOfMonth ? (calculateAppFeeAmount('extra-app-fee', extraAppFeePercent) + calculateAppFeeAmount('other-app-fee', otherAppFeePercent)) : 0)).toFixed(2)}</div>
                       <div className="text-right pr-0.5">$</div>
                       <div className="text-right">{ytdGrandTotalNet.toFixed(2)}</div>
                     </div>
