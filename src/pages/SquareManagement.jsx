@@ -1171,6 +1171,17 @@ export default function SquareManagement() {
         });
         const collectedByName = matchedDelivery?.driver_name || drivers.find((driver) => driver?.user_id === matchedDelivery?.driver_id)?.user_name || null;
 
+        const collectionType = (() => {
+          if (Array.isArray(matchedDelivery?.cod_payments) && matchedDelivery.cod_payments.length > 0) {
+            const types = Array.from(new Set(matchedDelivery.cod_payments.map((payment) => payment?.type).filter(Boolean)));
+            return types.join(', ');
+          }
+          if (matchedDelivery?.cod_payment_type && matchedDelivery.cod_payment_type !== 'No Payment') {
+            return matchedDelivery.cod_payment_type;
+          }
+          return null;
+        })();
+
         return {
           id: transaction.id,
           rawStatus: transaction.status,
@@ -1182,6 +1193,7 @@ export default function SquareManagement() {
           catalogId: transaction.square_catalog_object_id || '—',
           deliveryDate: transactionDeliveryDate || transaction.created_date,
           collectionDate,
+          collectionType,
           subtext: collectedByName ? `Collected by ${collectedByName}` : (transaction.payment_method || transaction.status || null),
           notes: transaction.raw_square_data?.note || transaction.raw_square_data?.notes || null,
           actions: (
