@@ -162,8 +162,14 @@ export default function PayrollSummaryCard({
       const grossPay = totalPay > 0 ? totalPay + taxAmount - totalDeductions : 0;
       const storedPaidAmount = payrollRecord?.paid_amount;
 
-      const driverStatsForPeriod = currentPeriod?.label ? driverStats?.[currentPeriod.label]?.[driverId] : null;
-      const graphDeliveryCount = Number(driverStatsForPeriod?.deliveries_completed ?? driverStatsForPeriod?.completed_deliveries ?? deliveryCount);
+      const graphPayableDeliveries = periodDeliveries.filter((delivery) => {
+        if (!delivery) return false;
+        const validStatus = delivery.status === 'completed' || delivery.status === 'failed' || (delivery.status === 'cancelled' && delivery.after_hours_pickup);
+        if (!validStatus) return false;
+        if (!delivery.patient_id && !delivery.after_hours_pickup) return false;
+        return true;
+      });
+      const graphDeliveryCount = graphPayableDeliveries.length;
       const graphBasePay = graphDeliveryCount * payRate;
 
       return {
