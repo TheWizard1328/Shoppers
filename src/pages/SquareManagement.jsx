@@ -1138,7 +1138,9 @@ export default function SquareManagement() {
   const filteredCatalogRows = React.useMemo(() => {
     return (catalogItems || [])
       .filter((item) => {
-        if (driverScopedLocationIds && !driverScopedLocationIds.has(item.location_id)) return false;
+        if (driverScopedLocationIds && item.location_id && !driverScopedLocationIds.has(item.location_id)) return false;
+        if (visibleLocationIds.size > 0 && item.location_id && !visibleLocationIds.has(item.location_id)) return false;
+        if (visibleStoreIds.size > 0 && item.store_id && !visibleStoreIds.has(item.store_id)) return false;
         return true;
       })
       .map((item) => {
@@ -1147,12 +1149,12 @@ export default function SquareManagement() {
         return {
           id: item.catalog_object_id || item.id,
           itemName: item.name || item.item_name || 'Catalog Item',
-          amount: Number(item.price_dollars || 0),
+          amount: Number(item.price_dollars || item.amount || 0),
           storeName: store?.name || config?.name || 'Unknown',
           locationId: item.location_id || '—',
           catalogId: item.catalog_object_id || item.id || '—',
           deliveryDate: item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate,
-          subtext: item.description || null,
+          subtext: item.description || item.status || null,
           actions: (
             <Button
               variant="ghost"
@@ -1686,7 +1688,7 @@ export default function SquareManagement() {
           rows={filteredCatalogRows}
           isLoading={isLoading}
           emptyTitle="No Square catalog items found"
-          emptyDescription={`Offline catalog loaded: ${catalogItems.length} items, visible after filters: ${filteredCatalogRows.length}. Recent Square catalog items for the active city will appear here.`}
+          emptyDescription={`Offline catalog loaded: ${catalogItems.length} items, visible after filters: ${filteredCatalogRows.length}. If this stays at 0, the current store/driver filters do not match the offline catalog records.`}
           showLocationColumn={currentUser && isAppOwner(currentUser)}
           navHeight={navHeight}
         />
