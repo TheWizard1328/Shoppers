@@ -326,6 +326,10 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     if (isGlobalStartLocked && !isStarting) return;
     startTapLockRef.current = true;setIsStarting(true);setIsEntityUpdating(true);setIsProcessingBackground(true);fabControlEvents.deactivateFAB();const { driverLocationPoller } = await import('../utils/driverLocationPoller');driverLocationPoller.pause();smartRefreshManager.pause();
     const lockResult = await runWithDeliveryActionLock(START_ACTION_NAME, async () => {
+    if (!delivery?.id || !delivery?.driver_id || !delivery?.delivery_date) {
+      resetActionLocks(true);
+      return;
+    }
     pauseOfflineSync('delivery_actions');
     try {
       const now = new Date();const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -366,6 +370,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
       Promise.resolve().then(async () => {
         window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
         try {
+          if (!delivery?.id || !delivery?.driver_id || !delivery?.delivery_date) return;
           const startResponse = await base44.functions.invoke('handleStartDelivery', { deliveryId: delivery.id, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
           const startData = startResponse?.data || startResponse || {};
           const backendOptimizedRoute = Array.isArray(startData?.optimization?.optimizedRoute) ? startData.optimization.optimizedRoute : [];
@@ -374,7 +379,10 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
           }
           fabControlEvents.reactivatePhaseTwoIfAvailable();
           window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true } }));
-        } catch (optErr) {console.warn('⚠️ [Start] background optimization failed:', optErr?.message || optErr);} finally
+        } catch (optErr) {
+          const isNotFound = optErr?.status === 404 || optErr?.response?.status === 404 || String(optErr?.message || '').includes('404');
+          if (!isNotFound) console.warn('⚠️ [Start] background optimization failed:', optErr?.message || optErr);
+        } finally
         {window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));}
       });
       Promise.all([ensureDriverOnline(), userHasRole(currentUser, 'driver') && currentUser.id === delivery.driver_id ? notifyDriverStarted({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name, delivery, store, appUsers }) : Promise.resolve()]).catch((err) => console.warn('Background tasks failed:', err));
