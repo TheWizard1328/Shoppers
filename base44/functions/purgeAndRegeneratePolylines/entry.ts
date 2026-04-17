@@ -64,6 +64,59 @@ function encodeGooglePolyline(points) {
   return encoded;
 }
 
+function distanceMeters(lat1, lon1, lat2, lon2) {
+  const toRad = (value) => (value * Math.PI) / 180;
+  const R = 6371000;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function parseBreadcrumbPolyline(rawBreadcrumbs) {
+  if (!rawBreadcrumbs) return null;
+
+  let parsed = rawBreadcrumbs;
+  if (typeof rawBreadcrumbs === 'string') {
+    try {
+      parsed = JSON.parse(rawBreadcrumbs);
+    } catch {
+      return null;
+    }
+  }
+
+  if (!Array.isArray(parsed) || parsed.length < 2) return null;
+
+  const coordinates = parsed
+    .map((point) => {
+      if (!Array.isArray(point) || point.length < 2) return null;
+      const lat = Number(point[0]);
+      const lon = Number(point[1]);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+      return [lat, lon];
+    })
+    .filter(Boolean);
+
+  if (coordinates.length < 2) return null;
+
+  let totalMeters = 0;
+  for (let index = 1; index < coordinates.length; index += 1) {
+    const [prevLat, prevLon] = coordinates[index - 1];
+    const [nextLat, nextLon] = coordinates[index];
+    totalMeters += distanceMeters(prevLat, prevLon, nextLat, nextLon);
+  }
+
+  return {
+    encoded_polyline: encodeGooglePolyline(coordinates),
+    estimated_distance_km: Number((totalMeters / 1000).toFixed(3)),
+    estimated_duration_minutes: null,
+    source: 'breadcrumbs'
+  };
+}
+
 const HERE_POLYLINE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 const HERE_POLYLINE_DECODER = HERE_POLYLINE_ALPHABET.split('').reduce((acc, char, index) => {
   acc[char] = index;
@@ -484,14 +537,23 @@ Deno.serve(async (req) => {
         })();
         const to = getLatLon(stop);
         if (!from || !to) continue;
-        finishedSegmentSpecs.push({ stop, from, to });
+        finishedSegmentSpecs.push({
+          stop,
+          from,
+          to,
+          breadcrumbDirections: parseBreadcrumbPolyline(stop?.delivery_route_breadcrumbs)
+        });
       }
 
-      const finishedDirections = await getMultiSegmentDirections(base44, finishedSegmentSpecs.map((segment) => ({ from: segment.from, to: segment.to })));
-      if (finishedSegmentSpecs.length > 0) apiCallsMade += 1;
+      const finishedSegmentsNeedingApi = finishedSegmentSpecs.filter((segment) => !segment.breadcrumbDirections);
+      const finishedDirectionsFromApi = finishedSegmentsNeedingApi.length > 0
+        ? await getMultiSegmentDirections(base44, finishedSegmentsNeedingApi.map((segment) => ({ from: segment.from, to: segment.to })))
+        : [];
+      if (finishedSegmentsNeedingApi.length > 0) apiCallsMade += 1;
 
-      finishedSegmentSpecs.forEach((segment, index) => {
-        const directions = finishedDirections[index];
+      let apiDirectionIndex = 0;
+      finishedSegmentSpecs.forEach((segment) => {
+        const directions = segment.breadcrumbDirections || finishedDirectionsFromApi[apiDirectionIndex++] || null;
         regeneratedFinishedLegStopIds.push(segment.stop.id);
         deliveryUpdatesById.set(segment.stop.id, {
           ...(deliveryUpdatesById.get(segment.stop.id) || {}),
