@@ -1089,6 +1089,17 @@ export default function SquareManagement() {
         const config = locationConfigs.find((c) => c?.id === store?.square_location_config_id);
         const linkedCatalog = catalogItems.find((item) => item?.delivery_id === delivery.id);
         const hasMatch = config?.square_location_id ? hasMatchingSquareTransaction(delivery, config.square_location_id) : false;
+        const collectionType = (() => {
+          if (Array.isArray(delivery?.cod_payments) && delivery.cod_payments.length > 0) {
+            const types = Array.from(new Set(delivery.cod_payments.map((payment) => payment?.type).filter(Boolean)));
+            return types.join(', ');
+          }
+          if (delivery?.cod_payment_type && delivery.cod_payment_type !== 'No Payment') {
+            return delivery.cod_payment_type;
+          }
+          return null;
+        })();
+
         return {
           id: delivery.id,
           rawStoreId: delivery.store_id || null,
@@ -1098,6 +1109,7 @@ export default function SquareManagement() {
           locationId: config?.square_location_id || '—',
           catalogId: linkedCatalog?.catalog_object_id || '—',
           deliveryDate: delivery.delivery_date,
+          collectionType,
           subtext: delivery.driver_name || null,
           actions: hasMatch ? (
             <Badge className="border border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
