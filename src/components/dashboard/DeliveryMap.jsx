@@ -577,9 +577,11 @@ export default function DeliveryMap({
 
     const visibilityMap = new Map();
     byDriver.forEach((state, driverId) => {
+      const driver = safeUsers.find((user) => (user?.id || user?.user_id) === driverId);
+      const isOnDuty = ['on_duty', 'online'].includes(String(driver?.driver_status || '').toLowerCase());
       visibilityMap.set(driverId, {
         ...state,
-        shouldShowHomeMarker: state.completed === 0 || (state.completed > 0 && state.remainingPickups === 0)
+        shouldShowHomeMarker: isOnDuty || state.completed === 0 || (state.completed > 0 && state.remainingPickups === 0 && state.remainingDeliveries === 0)
       });
     });
     return visibilityMap;

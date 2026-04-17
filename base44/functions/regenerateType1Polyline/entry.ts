@@ -387,6 +387,8 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, skipped: true, reason: 'missing_origin_coordinates', repairedStopOrders: stopOrderRepairUpdates.length });
     }
 
+    const effectiveOriginCoords = baseOriginCoords;
+
     const exactExistingType1 = (existingPolylines || []).find((row) =>
       round5(row?.segment_origin_lat) === round5(effectiveOriginCoords.lat) &&
       round5(row?.segment_origin_lon) === round5(effectiveOriginCoords.lon) &&
@@ -457,10 +459,6 @@ Deno.serve(async (req) => {
     const driverDeviationMeters = existingType1
       ? distanceMeters(currentLat, currentLon, Number(existingType1.segment_origin_lat), Number(existingType1.segment_origin_lon))
       : 0;
-    const shouldUseDriverLocationAsOrigin = !!mostRecentFinishedStop && driverDeviationMeters > minMoveMeters;
-    const effectiveOriginCoords = shouldUseDriverLocationAsOrigin
-      ? { lat: currentLat, lon: currentLon }
-      : baseOriginCoords;
     const remainingRoutePoints = [
       effectiveOriginCoords,
       ...incompleteStops.map((stop) => {

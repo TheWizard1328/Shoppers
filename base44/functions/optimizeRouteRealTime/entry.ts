@@ -373,6 +373,10 @@ Deno.serve(async (req) => {
     const endLocation = (driverAppUser.home_latitude != null && driverAppUser.home_longitude != null)
       ? { lat: Number(driverAppUser.home_latitude), lng: Number(driverAppUser.home_longitude) }
       : null;
+    const shouldStartFromHome = locationSource === 'home' || (!completedDeliveries.length && !!endLocation);
+    const activeRouteOrigin = shouldStartFromHome && endLocation
+      ? { lat: Number(endLocation.lat), lng: Number(endLocation.lng) }
+      : (currentPosition ? { lat: Number(currentPosition.lat), lng: Number(currentPosition.lng) } : null);
 
     const executeHereSequence = async (includeTimeWindows) => {
       const params = new URLSearchParams();
@@ -667,7 +671,6 @@ Deno.serve(async (req) => {
 
     const firstActiveStop = arrangedStops.find((item) => !item?.stop?.isPending)?.stop || null;
     const firstActiveCoords = firstActiveStop ? { lat: Number(firstActiveStop.lat), lng: Number(firstActiveStop.lng) } : null;
-    const activeRouteOrigin = currentPosition ? { lat: Number(currentPosition.lat), lng: Number(currentPosition.lng) } : null;
     const activeSegmentChanged = !(
       sameSegmentPoint(activeRouteOrigin, previousType1Origin) &&
       sameSegmentPoint(firstActiveCoords, previousType1Destination)
