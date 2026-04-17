@@ -65,7 +65,10 @@ export default function SquareCodDatasetTable({
                         <div className="font-medium text-sm text-slate-900 dark:text-slate-50">{row.itemName || 'N/A'}</div>
                         {row.subtext && <div className="text-xs mt-1 text-slate-600 dark:text-slate-400">{row.subtext}</div>}
                       </td>
-                      <td className="p-3 text-sm font-semibold text-emerald-600 dark:text-emerald-400">{formatAmount(row.amount)}</td>
+                      <td className="p-3">
+                        <div className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{formatAmount(row.amount)}</div>
+                        {row.collectionType && <div className="text-xs mt-1 text-slate-600 dark:text-slate-400">{row.collectionType}</div>}
+                      </td>
                       <td className="p-3 text-sm text-slate-900 dark:text-slate-50">{row.storeName || 'Unknown'}</td>
                       {showLocationColumn && (
                         <td className="p-3">
