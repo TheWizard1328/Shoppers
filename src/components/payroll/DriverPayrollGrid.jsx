@@ -33,7 +33,7 @@ export default function DriverPayrollGrid({
   const [viewMode, setViewMode] = useState('deliveries'); // 'deliveries' or 'extraKm'
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [headerLayout, setHeaderLayout] = useState('desktop-three-column'); // 'desktop-three-column', 'single', 'title-viewmode', 'title-paycycle', 'viewmode-paycycle', 'three'
-  const { smartRefreshActivity } = useAppData();
+  const { refreshData } = useAppData();
   const navigate = useNavigate();
   const { currentUser } = useUser();
   const isOwner = currentUser && isAppOwner(currentUser);
@@ -102,20 +102,12 @@ export default function DriverPayrollGrid({
     navigate(url);
   };
 
-  // Track smart refresh activity - pulse animation when actively refreshing
-  useEffect(() => {
-    // Only show spinner if we're on this page (DriverPayroll)
-    if (smartRefreshActivity?.active) {
-      setIsRefreshing(true);
-    } else {
-      setIsRefreshing(false);
-    }
-  }, [smartRefreshActivity?.active]);
-
   // Manual refresh handler
-  const handleManualRefresh = () => {
+  const handleManualRefresh = async () => {
     if (isRefreshing) return;
-    // Reset smart refresh timers to force immediate refresh
+
+    setIsRefreshing(true);
+
     smartRefreshManager.lastRefreshTimes = {
       driverLocation: 0,
       activeDeliveries: 0,
@@ -124,7 +116,14 @@ export default function DriverPayrollGrid({
       patients: 0,
       stores: 0
     };
-    setIsRefreshing(true);
+
+    try {
+      await refreshData?.(true);
+    } finally {
+      setTimeout(() => {
+        setIsRefreshing(false);
+      }, 600);
+    }
   };
 
   // Generate days array from the current period's start to end date
