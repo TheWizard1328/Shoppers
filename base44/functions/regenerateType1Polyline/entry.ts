@@ -230,14 +230,21 @@ async function getMultiStopRoute(base44, points, transportMode = 'driving') {
     return { sections: [] };
   }
 
-  const response = await base44.functions.invoke('getHereDirections', {
-    origin: { lat: validPoints[0].lat, lng: validPoints[0].lon },
-    destination: { lat: validPoints[validPoints.length - 1].lat, lng: validPoints[validPoints.length - 1].lon },
-    waypoints: validPoints.slice(1, -1).map((point) => ({ lat: point.lat, lng: point.lon })),
-    transportMode
+  const response = await fetch(`${Deno.env.get('BASE44_APP_ID') ? `https://${Deno.env.get('BASE44_APP_ID')}.base44.app` : ''}/functions/getHereDirections`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': req.headers.get('Authorization') || ''
+    },
+    body: JSON.stringify({
+      origin: { lat: validPoints[0].lat, lng: validPoints[0].lon },
+      destination: { lat: validPoints[validPoints.length - 1].lat, lng: validPoints[validPoints.length - 1].lon },
+      waypoints: validPoints.slice(1, -1).map((point) => ({ lat: point.lat, lng: point.lon })),
+      transportMode
+    })
   });
 
-  const data = response?.data || response || {};
+  const data = await response.json().catch(() => ({}));
   const sections = Array.isArray(data?.sections) ? data.sections : [];
 
   return {

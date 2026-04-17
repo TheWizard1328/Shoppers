@@ -75,17 +75,11 @@ Deno.serve(async (req) => {
     try {
       const now = new Date();
       const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      const optimizationResponse = await base44.functions.invoke('optimizeRouteRealTime', {
-        driverId,
-        deliveryDate,
-        currentLocalTime,
-        deviceTime: now.toISOString(),
-        generatePolyline: true,
-        startLocation: startResult?.current_latitude != null && startResult?.current_longitude != null
-          ? { lat: Number(startResult.current_latitude), lng: Number(startResult.current_longitude) }
-          : undefined
-      });
-      optimization = optimizationResponse?.data || optimizationResponse || null;
+      optimization = {
+        deferred: true,
+        reason: 'start_completed',
+        routeChanged: false
+      };
     } catch (error) {
       if (error?.status === 429 || error?.response?.status === 429 || String(error?.message || '').toLowerCase().includes('rate limit')) {
         console.warn('⚠️ [handleStartDelivery] Optimization skipped due to rate limit');
