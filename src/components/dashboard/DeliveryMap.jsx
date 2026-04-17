@@ -581,7 +581,7 @@ export default function DeliveryMap({
       const isOnDuty = ['on_duty', 'online'].includes(String(driver?.driver_status || '').toLowerCase());
       visibilityMap.set(driverId, {
         ...state,
-        shouldShowHomeMarker: isOnDuty || state.completed === 0 || (state.completed > 0 && state.remainingPickups === 0 && state.remainingDeliveries === 0)
+        shouldShowHomeMarker: isOnDuty || state.completed === 0 || (state.remainingPickups === 0)
       });
     });
     return visibilityMap;
@@ -596,11 +596,12 @@ export default function DeliveryMap({
     }
 
     const visibleDriverIds = new Set([...deliveryMarkers, ...pickupMarkers].map((stop) => stop?.driver_id).filter(Boolean));
+    const routeDriverIds = new Set(Array.from(driverHomeVisibilityById.entries()).filter(([, state]) => (state.completed > 0 || state.remainingPickups > 0 || state.remainingDeliveries > 0)).map(([driverId]) => driverId));
     const isDispatcher = currentUser && userHasRole(currentUser, "dispatcher") && !userHasRole(currentUser, "admin") && !userHasRole(currentUser, "driver");
     const items = safeUsers.filter((user) => user.home_latitude && user.home_longitude).filter((user) => {
       const driverKey = user?.id || user?.user_id;
       const homeVisibility = driverHomeVisibilityById.get(driverKey);
-      const hasVisibleStops = visibleDriverIds.has(driverKey);
+      const hasVisibleStops = visibleDriverIds.has(driverKey) || routeDriverIds.has(driverKey);
       const isCurrentDriverUser = driverKey === currentUser.id && userHasRole(currentUser, "driver");
       if (isCurrentDriverUser) {
         return !homeVisibility || homeVisibility.shouldShowHomeMarker;
