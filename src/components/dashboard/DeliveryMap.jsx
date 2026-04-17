@@ -618,7 +618,12 @@ export default function DeliveryMap({
       const homeVisibility = driverHomeVisibilityById.get(driverKey);
       const hasVisibleStops = visibleDriverIds.has(driverKey) || routeDriverIds.has(driverKey);
       const isCurrentDriverUser = driverKey === currentUser.id && userHasRole(currentUser, "driver");
+      const isSelectedDriver = !!(selectedDriverId && selectedDriverId !== "all" && driverKey === selectedDriverId);
+      const isAdminViewer = currentUser && userHasRole(currentUser, "admin");
       if (isCurrentDriverUser) {
+        return !homeVisibility || homeVisibility.shouldShowHomeMarker;
+      }
+      if (isAdminViewer && isSelectedDriver) {
         return !homeVisibility || homeVisibility.shouldShowHomeMarker;
       }
       if (!homeVisibility?.shouldShowHomeMarker) return false;
