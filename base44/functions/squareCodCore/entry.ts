@@ -195,6 +195,58 @@ function normalizeMatchName(value) {
     .toLowerCase();
 }
 
+function tokenizeName(value) {
+  return normalizeMatchName(value)
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(' ')
+    .map((part) => part.trim())
+    .filter((part) => part.length >= 2);
+}
+
+function levenshteinDistance(a, b) {
+  const left = String(a || '');
+  const right = String(b || '');
+  if (!left) return right.length;
+  if (!right) return left.length;
+
+  const matrix = Array.from({ length: left.length + 1 }, () => Array(right.length + 1).fill(0));
+  for (let i = 0; i <= left.length; i += 1) matrix[i][0] = i;
+  for (let j = 0; j <= right.length; j += 1) matrix[0][j] = j;
+
+  for (let i = 1; i <= left.length; i += 1) {
+    for (let j = 1; j <= right.length; j += 1) {
+      const cost = left[i - 1] === right[j - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + cost,
+      );
+    }
+  }
+
+  return matrix[left.length][right.length];
+}
+
+function notesContainPatientName(notesValue, patientName) {
+  const normalizedNotes = normalizeMatchName(notesValue).replace(/[^a-z0-9\s]/g, ' ');
+  const normalizedPatient = normalizeMatchName(patientName).replace(/[^a-z0-9\s]/g, ' ');
+  if (!normalizedNotes || !normalizedPatient) return false;
+  if (normalizedNotes.includes(normalizedPatient)) return true;
+
+  const patientTokens = tokenizeName(normalizedPatient);
+  const noteTokens = tokenizeName(normalizedNotes);
+  if (!patientTokens.length || !noteTokens.length) return false;
+
+  const exactOrPartial = patientTokens.every((patientToken) => noteTokens.some((noteToken) => noteToken.includes(patientToken) || patientToken.includes(noteToken)));
+  if (exactOrPartial) return true;
+
+  return patientTokens.every((patientToken) => noteTokens.some((noteToken) => {
+    const distance = levenshteinDistance(patientToken, noteToken);
+    const maxLength = Math.max(patientToken.length, noteToken.length);
+    return maxLength >= 4 && distance <= 1;
+  }));
+}
+
 function buildComparableLocationSignature(itemName, amountCents, locationId) {
   return `${normalizeText(locationId)}::${normalizeMatchName(itemName)}::${toAmountCents(amountCents)}`;
 }
@@ -796,44 +848,28 @@ async function handleFetchPayments(base44, payload) {
 
   const soldItems = Array.from(soldItemCounts.entries()).map(([catalogId, count]) => ({ catalog_object_id: catalogId, times_sold: count }));
 
-  let catalogItems = [];
-  let catalogItemCount = 0;
-  try {
-    const catalogResponse = await fetch(`${SQUARE_BASE_URL}/v2/catalog/list?types=ITEM,ITEM_VARIATION`, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Square-Version': SQUARE_VERSION,
-      },
-    });
+  const liveCatalogItems = await listActiveCatalogItems(accessToken).catch(() => []);
+  const catalogItems = (liveCatalogItems || []).flatMap((item) => {
+    const itemName = normalizeText(item?.item_data?.name);
+    if (!itemName) return [];
 
-    if (catalogResponse.ok) {
-      const catalogData = await catalogResponse.json().catch(() => ({}));
-      if (catalogData.objects) {
-        for (const obj of catalogData.objects) {
-          if (obj.type === 'ITEM' && obj.item_data?.variations) {
-            for (const variation of obj.item_data.variations) {
-              if (!variation.item_variation_data) continue;
-              const priceMoney = variation.item_variation_data.price_money;
-              const priceDollars = priceMoney ? priceMoney.amount / 100 : 0;
-              for (const locationId of locationIds) {
-                catalogItems.push({
-                  catalog_object_id: variation.id,
-                  name: obj.item_data.name || variation.item_variation_data.name || 'Unnamed',
-                  description: variation.item_variation_data.name,
-                  price_dollars: priceDollars,
-                  price_cents: priceMoney ? priceMoney.amount : 0,
-                  location_id: locationId,
-                  updated_at: obj.updated_at,
-                });
-                catalogItemCount += 1;
-              }
-            }
-          }
-        }
-      }
-    }
-  } catch {}
+    const amountCents = getCatalogItemAmountCents(item);
+    const itemLocationIds = Array.from(new Set([
+      ...(item?.present_at_location_ids || []),
+      ...(item?.item_data?.variations || []).flatMap((variation) => variation?.present_at_location_ids || []),
+    ].filter(Boolean)));
+
+    return itemLocationIds.map((locationId) => ({
+      catalog_object_id: item?.id,
+      name: itemName,
+      description: item?.item_data?.description || '',
+      price_dollars: amountCents / 100,
+      price_cents: amountCents,
+      location_id: locationId,
+      updated_at: item?.updated_at,
+    }));
+  });
+  const catalogItemCount = catalogItems.length;
 
   return {
     success: true,

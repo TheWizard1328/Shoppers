@@ -1258,6 +1258,55 @@ export default function SquareManagement() {
     };
 
     const normalizeName = (value) => String(value || '').trim().toLowerCase();
+    const tokenizeName = (value) => normalizeName(value)
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(' ')
+      .map((part) => part.trim())
+      .filter((part) => part.length >= 2);
+
+    const levenshteinDistance = (a, b) => {
+      const left = String(a || '');
+      const right = String(b || '');
+      if (!left) return right.length;
+      if (!right) return left.length;
+
+      const matrix = Array.from({ length: left.length + 1 }, () => Array(right.length + 1).fill(0));
+      for (let i = 0; i <= left.length; i += 1) matrix[i][0] = i;
+      for (let j = 0; j <= right.length; j += 1) matrix[0][j] = j;
+
+      for (let i = 1; i <= left.length; i += 1) {
+        for (let j = 1; j <= right.length; j += 1) {
+          const cost = left[i - 1] === right[j - 1] ? 0 : 1;
+          matrix[i][j] = Math.min(
+            matrix[i - 1][j] + 1,
+            matrix[i][j - 1] + 1,
+            matrix[i - 1][j - 1] + cost,
+          );
+        }
+      }
+
+      return matrix[left.length][right.length];
+    };
+
+    const notesContainPatientName = (notesValue, patientName) => {
+      const normalizedNotes = normalizeName(notesValue).replace(/[^a-z0-9\s]/g, ' ');
+      const normalizedPatient = normalizeName(patientName).replace(/[^a-z0-9\s]/g, ' ');
+      if (!normalizedNotes || !normalizedPatient) return false;
+      if (normalizedNotes.includes(normalizedPatient)) return true;
+
+      const patientTokens = tokenizeName(normalizedPatient);
+      const noteTokens = tokenizeName(normalizedNotes);
+      if (!patientTokens.length || !noteTokens.length) return false;
+
+      const exactOrPartial = patientTokens.every((patientToken) => noteTokens.some((noteToken) => noteToken.includes(patientToken) || patientToken.includes(noteToken)));
+      if (exactOrPartial) return true;
+
+      return patientTokens.every((patientToken) => noteTokens.some((noteToken) => {
+        const distance = levenshteinDistance(patientToken, noteToken);
+        const maxLength = Math.max(patientToken.length, noteToken.length);
+        return maxLength >= 4 && distance <= 1;
+      }));
+    };
     const buildAmountKey = (row) => `${Math.round(Number(row.amount || 0) * 100)}`;
     const buildAmountStoreKey = (row) => `${row.rawStoreId || row.locationId || row.storeName || 'Unknown'}::${buildAmountKey(row)}`;
     const buildAmountDateKey = (row) => `${normalizeDate(row.deliveryDate)}::${buildAmountKey(row)}`;
@@ -1305,6 +1354,11 @@ export default function SquareManagement() {
         transactionMatchKeys.has(amountDateKey) ||
         transactionMatchKeys.has(nameAmountKey);
 
+      const hasTransactionNotesMatch = filteredTransactionRows.some((transactionRow) => {
+        if (Number(transactionRow.amount || 0) !== Number(deliveryRow.amount || 0)) return false;
+        return notesContainPatientName(transactionRow.notes, deliveryRow.itemName);
+      });
+
       const hasCatalogMatch =
         catalogMatchKeys.has(dateAmountStoreLocationKey) ||
         catalogMatchKeys.has(amountStoreDateKey) ||
@@ -1312,7 +1366,7 @@ export default function SquareManagement() {
         catalogMatchKeys.has(amountDateKey) ||
         catalogMatchKeys.has(nameAmountKey);
 
-      if (hasTransactionMatch || hasCatalogMatch) return;
+      if (hasTransactionMatch || hasTransactionNotesMatch || hasCatalogMatch) return;
 
       missingDeliveryRows.push({
         ...deliveryRow,
