@@ -1,6 +1,8 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+const isRateLimitError = (error) => error?.status === 429 || error?.response?.status === 429 || String(error?.message || '').toLowerCase().includes('rate limit');
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const isValidObjectId = (value) => typeof value === 'string' && /^[a-f0-9]{24}$/i.test(value);
 
@@ -43,27 +45,31 @@ Deno.serve(async (req) => {
       console.log(`🔄 [handleStartDelivery] Transferring ${distanceToTransfer} km from ${oldNextDelivery.patient_name}`);
     }
 
-    const resetPromises = oldNextDeliveriesToReset.map((delivery) =>
-      base44.asServiceRole.entities.Delivery.update(delivery.id, {
-        isNextDelivery: false,
-        travel_dist: 0
-      }).catch((error) => {
-        if (isNotFoundError(error)) return null;
-        console.warn(`⚠️ [handleStartDelivery] Failed resetting old next delivery ${delivery.id}:`, error?.message || error);
-        return null;
-      })
-    );
+    for (const delivery of oldNextDeliveriesToReset) {
+      try {
+        await base44.asServiceRole.entities.Delivery.update(delivery.id, {
+          isNextDelivery: false,
+          travel_dist: 0
+        });
+      } catch (error) {
+        if (!isNotFoundError(error) && !isRateLimitError(error)) {
+          console.warn(`⚠️ [handleStartDelivery] Failed resetting old next delivery ${delivery.id}:`, error?.message || error);
+        }
+        if (isRateLimitError(error)) {
+          return Response.json({ error: 'Start was delayed by too many requests. Please tap Start again.' }, { status: 429 });
+        }
+      }
+    }
 
     const startResult = await base44.asServiceRole.entities.Delivery.update(deliveryId, {
       isNextDelivery: true,
       travel_dist: distanceToTransfer
     }).catch((error) => {
       if (isNotFoundError(error)) return null;
+      if (isRateLimitError(error)) throw error;
       console.error(`❌ [handleStartDelivery] Failed updating selected delivery ${deliveryId}:`, error?.message || error);
       return null;
     });
-
-    await Promise.allSettled(resetPromises);
 
     if (!startResult) {
       return Response.json({ error: 'Failed to mark selected delivery as started' }, { status: 409 });
@@ -73,15 +79,10 @@ Deno.serve(async (req) => {
 
     let optimization = null;
     try {
-      const now = new Date();
-      const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      optimization = {
-        deferred: true,
-        reason: 'start_completed',
-        routeChanged: false
-      };
+      await wait(350);
+      optimization = { deferred: true, reason: 'start_completed', routeChanged: false };
     } catch (error) {
-      if (error?.status === 429 || error?.response?.status === 429 || String(error?.message || '').toLowerCase().includes('rate limit')) {
+      if (isRateLimitError(error)) {
         console.warn('⚠️ [handleStartDelivery] Optimization skipped due to rate limit');
         optimization = { deferred: true, reason: 'rate_limited', routeChanged: false };
       } else {
