@@ -80,7 +80,10 @@ Deno.serve(async (req) => {
         deliveryDate,
         currentLocalTime,
         deviceTime: now.toISOString(),
-        generatePolyline: true
+        generatePolyline: true,
+        startLocation: startResult?.current_latitude != null && startResult?.current_longitude != null
+          ? { lat: Number(startResult.current_latitude), lng: Number(startResult.current_longitude) }
+          : undefined
       });
       optimization = optimizationResponse?.data || optimizationResponse || null;
     } catch (error) {

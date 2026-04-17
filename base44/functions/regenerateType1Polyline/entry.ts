@@ -436,8 +436,8 @@ Deno.serve(async (req) => {
       if (!hasDeviated) {
         // Check if origin point has changed (completed a new stop)
         const originChanged = !(
-          round5(existingType1.segment_origin_lat) === round5(originCoords.lat) &&
-          round5(existingType1.segment_origin_lon) === round5(originCoords.lon)
+          round5(existingType1.segment_origin_lat) === round5(effectiveOriginCoords.lat) &&
+          round5(existingType1.segment_origin_lon) === round5(effectiveOriginCoords.lon)
         );
         
         if (!originChanged) {
