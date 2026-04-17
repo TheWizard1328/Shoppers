@@ -71,10 +71,13 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
   const handleSave = async () => {
     saveSettings(settings);
     if (currentUser?.id) {
-      await base44.auth.updateMe({
-        home_latitude: settings.useDriverHome ? settings.driverHomeLatitude : null,
-        home_longitude: settings.useDriverHome ? settings.driverHomeLongitude : null
-      });
+      const home_latitude = settings.useDriverHome ? settings.driverHomeLatitude : null;
+      const home_longitude = settings.useDriverHome ? settings.driverHomeLongitude : null;
+      const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id }, '-updated_date', 1);
+      const appUser = appUsers?.[0];
+      if (appUser?.id) {
+        await base44.entities.AppUser.update(appUser.id, { home_latitude, home_longitude });
+      }
     }
     setHasUnsavedChanges(false);
     if (onClose) onClose();

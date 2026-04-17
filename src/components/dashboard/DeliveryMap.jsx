@@ -561,7 +561,8 @@ export default function DeliveryMap({
 
     safeUsers.forEach((user) => {
       const driverKey = user?.id || user?.user_id;
-      if (driverKey && user.home_latitude && user.home_longitude) {
+      const hasHomeCoords = Number.isFinite(Number(user?.home_latitude)) && Number.isFinite(Number(user?.home_longitude));
+      if (driverKey && hasHomeCoords) {
         byDriver.set(driverKey, { completed: 0, remainingPickups: 0, remainingDeliveries: 0 });
       }
     });
@@ -598,8 +599,10 @@ export default function DeliveryMap({
     const visibleDriverIds = new Set([...deliveryMarkers, ...pickupMarkers].map((stop) => stop?.driver_id).filter(Boolean));
     const routeDriverIds = new Set(Array.from(driverHomeVisibilityById.entries()).filter(([, state]) => (state.completed > 0 || state.remainingPickups > 0 || state.remainingDeliveries > 0)).map(([driverId]) => driverId));
     const isDispatcher = currentUser && userHasRole(currentUser, "dispatcher") && !userHasRole(currentUser, "admin") && !userHasRole(currentUser, "driver");
-    const items = safeUsers.filter((user) => user.home_latitude && user.home_longitude).filter((user) => {
+    const items = safeUsers.filter((user) => {
       const driverKey = user?.id || user?.user_id;
+      const hasHomeCoords = Number.isFinite(Number(user?.home_latitude)) && Number.isFinite(Number(user?.home_longitude));
+      if (!driverKey || !hasHomeCoords) return false;
       const homeVisibility = driverHomeVisibilityById.get(driverKey);
       const hasVisibleStops = visibleDriverIds.has(driverKey) || routeDriverIds.has(driverKey);
       const isCurrentDriverUser = driverKey === currentUser.id && userHasRole(currentUser, "driver");
@@ -620,8 +623,8 @@ export default function DeliveryMap({
         id: `home-${driverKey}`,
         driverId: driverKey,
         driver: user,
-        latitude: user.home_latitude,
-        longitude: user.home_longitude,
+        latitude: Number(user.home_latitude),
+        longitude: Number(user.home_longitude),
         driverColor: getDriverColor(user),
         driverName: user.user_name || user.full_name || "Unknown Driver",
         excludeFromBounds: false,
