@@ -1731,23 +1731,7 @@ export default function DeliveriesPage() {
 
     const pickupTrackingBase = pickupDelivery ? pickupDelivery.tracking_number : `${storeAbbr}00`;
 
-    const patientMap = new Map((allPatients || []).map((p) => [p.id, p]));
-
-    patientDeliveries.sort((a, b) => {
-      const patientA = patientMap.get(a.patient_id);
-      const patientB = patientMap.get(b.patient_id);
-
-      if (!patientA || !patientB) return 0;
-
-      const addressA = (patientA.address || '').toLowerCase();
-      const addressB = (patientB.address || '').toLowerCase();
-      const addressCompare = addressA.localeCompare(addressB);
-      if (addressCompare !== 0) return addressCompare;
-
-      const distanceA = patientA.distance_from_store || Infinity;
-      const distanceB = patientB.distance_from_store || Infinity;
-      return distanceA - distanceB;
-    });
+    patientDeliveries.sort((a, b) => (a.stop_order ?? Infinity) - (b.stop_order ?? Infinity));
 
     const updates = [];
 
