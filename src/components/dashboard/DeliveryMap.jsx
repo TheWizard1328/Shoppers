@@ -293,9 +293,9 @@ export default function DeliveryMap({
 
   const safeUsers = useMemo(() => {
     const mergedUsers = Array.isArray(realtimeAppUsers) && realtimeAppUsers.length > 0 ? [...realtimeAppUsers] : [...(Array.isArray(users) ? users : [])];
-    if (currentUser?.id) {
-      const currentUserKey = currentUser.id;
-      const existingIndex = mergedUsers.findIndex((user) => user?.id === currentUserKey || user?.user_id === currentUserKey);
+    const selectedDriverKey = selectedDriverId && selectedDriverId !== "all" ? selectedDriverId : null;
+    if (selectedDriverKey && currentUser?.id === selectedDriverKey) {
+      const existingIndex = mergedUsers.findIndex((user) => user?.id === selectedDriverKey || user?.user_id === selectedDriverKey);
       if (existingIndex >= 0) {
         mergedUsers[existingIndex] = { ...mergedUsers[existingIndex], ...currentUser };
       } else {
@@ -303,7 +303,7 @@ export default function DeliveryMap({
       }
     }
     return mergedUsers;
-  }, [realtimeAppUsers, users, currentUser]);
+  }, [realtimeAppUsers, users, currentUser, selectedDriverId]);
 
   const driverTravelModes = useMemo(() => {
     const modes = {};
