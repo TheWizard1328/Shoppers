@@ -446,6 +446,7 @@ function flattenPaidOrderItems(orders) {
           item_name: itemName,
           amount_cents: amountCents,
           catalog_object_id: lineItem?.catalog_object_id || null,
+          payment_date: order?.closed_at || order?.updated_at || order?.created_at || null,
         });
       }
     }
@@ -746,7 +747,7 @@ async function handleFetchPayments(base44, payload) {
       order_id: item?.order_id || null,
       item_name: item?.item_name || '',
       amount: amountCents / 100,
-      payment_date: null,
+      payment_date: item?.payment_date || null,
       payment_method: 'CARD',
     });
   }
