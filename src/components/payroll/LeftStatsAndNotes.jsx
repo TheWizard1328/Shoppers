@@ -40,7 +40,7 @@ export default function LeftStatsAndNotes({
         {/* Row 2: Totals */}
         <div className="flex items-center">
           <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Del:</span>
-          <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.totalDeliveries} = {formatCurrency(data.totalBasePay)}</span>
+          <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.graphDeliveryCount ?? data.totalDeliveries} = {formatCurrency(data.graphBasePay ?? data.totalBasePay)}</span>
         </div>
         <div className="flex items-center">
           <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>KM:</span>

@@ -49,7 +49,8 @@ export default function PayrollSummaryCard({
   onFinalizePayroll,
   onPayrollRecordsChange,
   payrollRecords: externalPayrollRecords,
-  refreshPayrollRecords
+  refreshPayrollRecords,
+  driverStats = {}
 }) {
   const { currentUser } = useUser();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -161,9 +162,13 @@ export default function PayrollSummaryCard({
       const grossPay = totalPay > 0 ? totalPay + taxAmount - totalDeductions : 0;
       const storedPaidAmount = payrollRecord?.paid_amount;
 
+      const driverStatsForPeriod = currentPeriod?.label ? driverStats?.[currentPeriod.label]?.[driverId] : null;
+      const graphDeliveryCount = Number(driverStatsForPeriod?.deliveries_completed ?? driverStatsForPeriod?.completed_deliveries ?? deliveryCount);
+      const graphBasePay = graphDeliveryCount * payRate;
+
       return {
         driver: { ...driver, id: driverId }, payRate, extraKmRate, extraKmLimit, oversizedRate,
-        totalDeliveries: deliveryCount, totalBasePay: basePay, totalExtraKm, totalExtraKmPay: extraKmPay,
+        totalDeliveries: deliveryCount, totalBasePay: basePay, graphDeliveryCount, graphBasePay, totalExtraKm, totalExtraKmPay: extraKmPay,
         oversizedCount, totalOversizedPay: oversizedPay, afterHoursCount, failedCount, returnsCount,
         storeReturnCount, grandTotal: totalPay, gstHstEnabled, taxRate, taxAmount, provinceCode,
         deductions: totalDeductions, deductionsArray, grossPay, appFeePercentage, storedPaidAmount
