@@ -290,9 +290,12 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'driverId, deliveryDate, and currentLocation are required' }, { status: 400 });
     }
 
-    const driverAppUser = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
-    const homeLat = Number(driverAppUser[0]?.home_latitude);
-    const homeLon = Number(driverAppUser[0]?.home_longitude);
+    const [driverAppUser, driverUser] = await Promise.all([
+      base44.asServiceRole.entities.AppUser.filter({ user_id: driverId }),
+      base44.asServiceRole.entities.User.filter({ id: driverId }, '-updated_date', 1)
+    ]);
+    const homeLat = Number(driverAppUser[0]?.home_latitude ?? driverUser?.[0]?.home_latitude);
+    const homeLon = Number(driverAppUser[0]?.home_longitude ?? driverUser?.[0]?.home_longitude);
     const preferredTravelMode = String(driverAppUser[0]?.preferred_travel_mode || 'driving').toLowerCase();
 
     const deliveries = await base44.asServiceRole.entities.Delivery.filter({

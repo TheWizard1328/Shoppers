@@ -211,12 +211,16 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'HERE_API_KEY secret is not set' }, { status: 500 });
     }
 
-    const [driverAppUsers, callerAppUsers] = await Promise.all([
+    const [driverAppUsers, callerAppUsers, driverUsers] = await Promise.all([
       base44.asServiceRole.entities.AppUser.filter({ user_id: driverId }),
-      base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }, '-updated_date', 1)
+      base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }, '-updated_date', 1),
+      base44.asServiceRole.entities.User.filter({ id: driverId }, '-updated_date', 1)
     ]);
     const driverAppUser = driverAppUsers?.[0];
     const callerAppUser = callerAppUsers?.[0];
+    const driverUser = driverUsers?.[0];
+    const resolvedHomeLat = driverAppUser?.home_latitude ?? driverUser?.home_latitude ?? null;
+    const resolvedHomeLng = driverAppUser?.home_longitude ?? driverUser?.home_longitude ?? null;
 
     if (!driverAppUser) {
       return Response.json({ error: 'Driver not found' }, { status: 404 });
@@ -287,8 +291,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    if (!currentPosition && driverAppUser.home_latitude != null && driverAppUser.home_longitude != null) {
-      currentPosition = { lat: Number(driverAppUser.home_latitude), lng: Number(driverAppUser.home_longitude) };
+    if (!currentPosition && resolvedHomeLat != null && resolvedHomeLng != null) {
+      currentPosition = { lat: Number(resolvedHomeLat), lng: Number(resolvedHomeLng) };
       locationSource = 'home';
     }
 
@@ -370,8 +374,8 @@ Deno.serve(async (req) => {
     const fallbackDepartureTime = resolveCurrentTime({ currentLocalTime, deviceTime });
     const departureTime = resolveEtaBaseTime(deliveryDate, completedDeliveries, fallbackDepartureTime);
     const departureIso = buildLocalIso(deliveryDate, departureTime);
-    const endLocation = (driverAppUser.home_latitude != null && driverAppUser.home_longitude != null)
-      ? { lat: Number(driverAppUser.home_latitude), lng: Number(driverAppUser.home_longitude) }
+    const endLocation = (resolvedHomeLat != null && resolvedHomeLng != null)
+      ? { lat: Number(resolvedHomeLat), lng: Number(resolvedHomeLng) }
       : null;
     const shouldStartFromHome = locationSource === 'home' || (!completedDeliveries.length && !!endLocation);
     const activeRouteOrigin = shouldStartFromHome && endLocation

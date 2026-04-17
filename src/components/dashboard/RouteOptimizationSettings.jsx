@@ -68,8 +68,14 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
     setHasUnsavedChanges(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     saveSettings(settings);
+    if (currentUser?.id) {
+      await base44.auth.updateMe({
+        home_latitude: settings.useDriverHome ? settings.driverHomeLatitude : null,
+        home_longitude: settings.useDriverHome ? settings.driverHomeLongitude : null
+      });
+    }
     setHasUnsavedChanges(false);
     if (onClose) onClose();
   };
@@ -122,6 +128,25 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
       }));
     }
   }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentUser?.home_latitude || !currentUser?.home_longitude) return;
+    try {
+      const stored = getStoredSettings();
+      if (!stored.driverHomeLatitude || !stored.driverHomeLongitude) {
+        saveSettings({
+          ...stored,
+          driverHomeLatitude: currentUser.home_latitude,
+          driverHomeLongitude: currentUser.home_longitude
+        });
+        setSettings((prev) => ({
+          ...prev,
+          driverHomeLatitude: prev.driverHomeLatitude || currentUser.home_latitude,
+          driverHomeLongitude: prev.driverHomeLongitude || currentUser.home_longitude
+        }));
+      }
+    } catch (_) {}
+  }, [currentUser?.home_latitude, currentUser?.home_longitude]);
 
   // Load breadcrumbs settings from UserSettings and check if primary device
   useEffect(() => {
