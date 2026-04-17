@@ -98,10 +98,10 @@ export default function SquareManagement() {
 
     const sold = (offlineTransactions || []).filter(tx => ['completed', 'refunded'].includes(tx.status));
 
-    setCatalogItems(offlineCatalog || []);
-    setSoldCatalogItems(sold);
-    setAllTransactions(offlineTransactions || []);
-    setSyncStatus(updatedSyncStatus);
+    setCatalogItems([...(offlineCatalog || [])]);
+    setSoldCatalogItems([...(sold || [])]);
+    setAllTransactions([...(offlineTransactions || [])]);
+    setSyncStatus(updatedSyncStatus ? { ...updatedSyncStatus } : updatedSyncStatus);
 
     return {
       items: offlineCatalog || [],
@@ -277,8 +277,9 @@ export default function SquareManagement() {
     const { offlineDB } = await import('@/components/utils/offlineDatabase');
 
     await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr);
+    await loadSquareViewFromOffline();
     await loadSyncStatus();
-  }, [getSourceWindow, loadReconciliationFromOffline, loadSyncStatus]);
+  }, [getSourceWindow, loadReconciliationFromOffline, loadSquareViewFromOffline, loadSyncStatus]);
 
   const syncDeliveriesWindowOffline = React.useCallback(async (offlineDB, startDateStr, endDateStr, deliveryRecords = []) => {
     const existingDeliveries = await loadDeliveriesFromOffline(offlineDB, startDateStr, endDateStr);
@@ -457,6 +458,7 @@ export default function SquareManagement() {
         items,
       });
       setBgSyncProgress({ stage: 'catalog_sync', detail: 'Updating Square catalog…' });
+      await refreshUiFromOfflineOnly();
       await quickRefreshCatalogView();
       await loadSyncStatus();
       setActiveView('catalog');
@@ -480,6 +482,7 @@ export default function SquareManagement() {
         forceDeliveryRefresh: false,
       });
 
+      await refreshUiFromOfflineOnly();
       toast.success(`Square payments refreshed: ${syncResult.transactionCount} transactions`);
       setBgSyncProgress({ stage: 'complete', detail: `${syncResult.transactionCount} transactions refreshed` });
       setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 5000);
