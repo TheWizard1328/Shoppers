@@ -526,7 +526,24 @@ export default function SquareManagement() {
         const authUser = appCurrentUser;
         const { startDateStr, endDateStr } = getSourceWindow();
         const { offlineDB } = await import('@/components/utils/offlineDatabase');
-...
+
+        const nextLocationConfigs = await offlineDB.getAll(offlineDB.STORES.SQUARE_LOCATION_CONFIGS) || [];
+        const nextStores = (appDataStores || []).filter(Boolean);
+        const nextPatients = (appDataPatients || []).filter(Boolean);
+        const nextDrivers = (appDataAppUsers || []).filter((user) => Array.isArray(user?.app_roles) && user.app_roles.includes('driver'));
+        const currentAppUserRecord = (appDataAppUsers || []).find((user) => user?.user_id === authUser?.id) || null;
+
+        setCurrentUser(authUser || null);
+        setCurrentAppUser(currentAppUserRecord);
+        setStores(nextStores);
+        setPatients(nextPatients);
+        setDrivers(nextDrivers);
+        setLocationConfigs(nextLocationConfigs);
+        locationConfigsRef.current = nextLocationConfigs;
+        setLocationIds(nextLocationConfigs.map((config) => config?.square_location_id).filter(Boolean));
+
+        await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr);
+        await loadSquareViewFromOffline();
         await loadSyncStatus();
         setBgSyncProgress({ stage: 'idle' });
         setIsLoading(false);
