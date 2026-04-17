@@ -590,13 +590,15 @@ export default function DeliveryMap({
       const driver = safeUsers.find((user) => (user?.id || user?.user_id) === driverId);
       const isOnDuty = ['on_duty', 'online'].includes(String(driver?.driver_status || '').toLowerCase());
       const isCurrentDriver = driverId === currentUser?.id;
+      const isSelectedDriver = selectedDriverId && selectedDriverId !== "all" && driverId === selectedDriverId;
+      const isAdminViewer = currentUser && userHasRole(currentUser, "admin");
       visibilityMap.set(driverId, {
         ...state,
-        shouldShowHomeMarker: isCurrentDriver || isOnDuty || state.completed === 0 || (state.remainingPickups === 0)
+        shouldShowHomeMarker: (isAdminViewer && isSelectedDriver) || isCurrentDriver || isOnDuty || state.completed === 0 || (state.remainingPickups === 0)
       });
     });
     return visibilityMap;
-  }, [deliveryMarkers, pickupMarkers, safeUsers, currentUser?.id]);
+  }, [deliveryMarkers, pickupMarkers, safeUsers, currentUser, selectedDriverId]);
 
   const driverHomeMarkers = useMemo(() => {
     const isPureDriver = currentUser && userHasRole(currentUser, "driver") && !userHasRole(currentUser, "admin") && !userHasRole(currentUser, "dispatcher");
