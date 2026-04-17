@@ -63,7 +63,9 @@ class LocationTracker {
         this.minEtaRefreshDistance = 500;
         this.minTimeBetweenEtaRefresh = 120000;
         this.lastBreadcrumbSavedAt = 0;
-        this.breadcrumbSaveInterval = 30000;
+        this.breadcrumbSaveInterval = 15000;
+        this.lastHeartbeatAt = 0;
+        this.lastFocusLostAt = 0;
 
       // Load settings from RouteOptimizationSettings
       this.loadSettings();
@@ -80,12 +82,14 @@ class LocationTracker {
 
       // 100m minimum movement threshold
       this.minDistanceChange = 100;
+      this.breadcrumbSaveInterval = 15000;
 
-      console.log(`📍 [LocationTracker] Interval: ${this.updateInterval / 1000}s, distance threshold: ${this.minDistanceChange}m`);
+      console.log(`📍 [LocationTracker] Interval: ${this.updateInterval / 1000}s, breadcrumb interval: ${this.breadcrumbSaveInterval / 1000}s, distance threshold: ${this.minDistanceChange}m`);
     } catch (error) {
       console.warn('⚠️ Could not load route optimization settings, using defaults');
       this.updateInterval = 15000; // Default 15 seconds
       this.minDistanceChange = 100; // Default 100m
+      this.breadcrumbSaveInterval = 15000;
     }
   }
 
@@ -385,6 +389,7 @@ class LocationTracker {
         this.lastPosition = { latitude, longitude, accuracy };
       }
       this.lastTimestampUpdate = now; // Track timestamp updates separately
+      this.lastHeartbeatAt = now;
       this.failedUpdateCount = 0;
       this.backoffTime = 0;
 
@@ -810,6 +815,8 @@ class LocationTracker {
     this.lastBreadcrumbSavedAt = 0;
     this.lastEtaRefreshPosition = null;
     this.lastEtaRefreshAt = 0;
+    this.lastHeartbeatAt = 0;
+    this.lastFocusLostAt = 0;
     
     // Clear arrival detection state
     arrivalTimeDetector.clearRecordedArrivals();
@@ -923,7 +930,7 @@ class LocationTracker {
     }
 
     if (this.lastBreadcrumbSavedAt && timestamp - this.lastBreadcrumbSavedAt < this.breadcrumbSaveInterval) {
-      console.log(`🍞 [LocationTracker] Skipping breadcrumb - waiting ${Math.ceil((this.breadcrumbSaveInterval - (timestamp - this.lastBreadcrumbSavedAt)) / 1000)}s for 30s interval`);
+      console.log(`🍞 [LocationTracker] Skipping breadcrumb - waiting ${Math.ceil((this.breadcrumbSaveInterval - (timestamp - this.lastBreadcrumbSavedAt)) / 1000)}s for 15s interval`);
       return;
     }
 
@@ -1131,3 +1138,29 @@ class LocationTracker {
 }
 
 export const locationTracker = new LocationTracker();
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      locationTracker.lastFocusLostAt = Date.now();
+      return;
+    }
+
+    const now = Date.now();
+    const referenceTime = Math.max(
+      locationTracker.lastFocusLostAt || 0,
+      locationTracker.lastHeartbeatAt || 0,
+      locationTracker.lastBreadcrumbSavedAt || 0,
+      locationTracker.lastCoordinateUpdate || 0
+    );
+
+    if (
+      locationTracker.isTracking &&
+      locationTracker.driverStatus === 'on_duty' &&
+      referenceTime > 0 &&
+      now - referenceTime > 15000
+    ) {
+      locationTracker.refreshNow({ source: 'visibility-return' });
+    }
+  });
+}
