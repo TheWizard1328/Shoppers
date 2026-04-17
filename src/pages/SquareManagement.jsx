@@ -576,10 +576,30 @@ export default function SquareManagement() {
         if ((offlineSquareSnapshot?.items || []).length > 0) {
           setCatalogItems(offlineSquareSnapshot.items || []);
         }
-        await loadSyncStatus();
+        const status = await loadSyncStatus();
         setIsLoading(false);
         setHasInitialLoadCompleted(true);
-        setBgSyncProgress({ stage: 'idle' });
+
+        const lastCatalogSync = status?.catalog?.lastSync;
+        const lastCatalogSyncMs = lastCatalogSync ? new Date(lastCatalogSync).getTime() : 0;
+        const catalogSyncedRecently = lastCatalogSyncMs && Date.now() - lastCatalogSyncMs < 60 * 60 * 1000;
+
+        if (!catalogSyncedRecently) {
+          try {
+            setBgSyncProgress({ stage: 'catalog_sync', detail: 'Refreshing Square catalog…' });
+            const response = await base44.functions.invoke('squareSyncCatalogItems', {});
+            const result = response?.data || response || {};
+            await hydrateSquareViewFromEntities();
+            await loadSyncStatus();
+            setBgSyncProgress({ stage: 'complete', detail: `${result.created_catalog_items || 0} catalog items synced` });
+            setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 4000);
+          } catch (catalogError) {
+            console.warn('⚠️ [SquareManagement] Initial catalog sync failed:', catalogError.message);
+            setBgSyncProgress({ stage: 'idle' });
+          }
+        } else {
+          setBgSyncProgress({ stage: 'idle' });
+        }
       } catch (err) {
         console.error('Failed to load COD data:', err);
         setIsLoading(false);
