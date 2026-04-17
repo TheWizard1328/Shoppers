@@ -12,7 +12,7 @@ import { isMobileDevice } from "../utils/deviceUtils";
 import { createDeliveryLocal } from "../utils/entityMutations";
 import { invalidate } from "../utils/dataManager";
 import { userHasRole } from "../utils/userRoles";
-import { applyBulkEditStops } from "./bulkEditHelpers.js";
+import { applyBulkEditStops } from "./bulkEditHelpers.jsx";
 
 export default function RouteManagementContent({
   deliveries,
