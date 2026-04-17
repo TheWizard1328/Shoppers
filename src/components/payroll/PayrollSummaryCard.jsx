@@ -172,13 +172,14 @@ export default function PayrollSummaryCard({
       const graphDeliveryCount = graphPayableDeliveries.length;
       const graphBasePay = graphDeliveryCount * payRate;
       const graphGrandTotal = graphBasePay + extraKmPay + oversizedPay;
-      const graphGrossPay = graphGrandTotal > 0 ? graphGrandTotal + taxAmount - totalDeductions : 0;
+      const graphTaxAmount = gstHstEnabled && taxRate > 0 ? graphGrandTotal * taxRate : 0;
+      const graphGrossPay = graphGrandTotal > 0 ? graphGrandTotal + graphTaxAmount - totalDeductions : 0;
 
       return {
         driver: { ...driver, id: driverId }, payRate, extraKmRate, extraKmLimit, oversizedRate,
         totalDeliveries: deliveryCount, totalBasePay: basePay, graphDeliveryCount, graphBasePay, totalExtraKm, totalExtraKmPay: extraKmPay,
         oversizedCount, totalOversizedPay: oversizedPay, afterHoursCount, failedCount, returnsCount,
-        storeReturnCount, grandTotal: graphGrandTotal, gstHstEnabled, taxRate, taxAmount, provinceCode,
+        storeReturnCount, grandTotal: graphGrandTotal, gstHstEnabled, taxRate, taxAmount: graphTaxAmount, provinceCode,
         deductions: totalDeductions, deductionsArray, grossPay: graphGrossPay, appFeePercentage, storedPaidAmount
       };
     });
