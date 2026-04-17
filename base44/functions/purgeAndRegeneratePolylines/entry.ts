@@ -117,6 +117,15 @@ function parseBreadcrumbPolyline(rawBreadcrumbs) {
   };
 }
 
+function buildFallbackBreadcrumbs(from, to, timestampSeed = Date.now()) {
+  if (!from || !to) return null;
+  if (![from.lat, from.lon, to.lat, to.lon].every((value) => Number.isFinite(value))) return null;
+  return JSON.stringify([
+    [Number(from.lat), Number(from.lon), Number(timestampSeed)],
+    [Number(to.lat), Number(to.lon), Number(timestampSeed) + 60000]
+  ]);
+}
+
 const HERE_POLYLINE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 const HERE_POLYLINE_DECODER = HERE_POLYLINE_ALPHABET.split('').reduce((acc, char, index) => {
   acc[char] = index;
@@ -537,11 +546,19 @@ Deno.serve(async (req) => {
         })();
         const to = getLatLon(stop);
         if (!from || !to) continue;
+        const existingBreadcrumbs = stop?.delivery_route_breadcrumbs || null;
+        const fallbackBreadcrumbs = existingBreadcrumbs || buildFallbackBreadcrumbs(
+          from,
+          to,
+          new Date(stop?.actual_delivery_time || stop?.arrival_time || stop?.updated_date || stop?.created_date || Date.now()).getTime()
+        );
         finishedSegmentSpecs.push({
           stop,
           from,
           to,
-          breadcrumbDirections: parseBreadcrumbPolyline(stop?.delivery_route_breadcrumbs)
+          breadcrumbDirections: parseBreadcrumbPolyline(existingBreadcrumbs),
+          fallbackBreadcrumbs,
+          usedFallbackBreadcrumbs: !existingBreadcrumbs && !!fallbackBreadcrumbs
         });
       }
 
@@ -557,6 +574,7 @@ Deno.serve(async (req) => {
         regeneratedFinishedLegStopIds.push(segment.stop.id);
         deliveryUpdatesById.set(segment.stop.id, {
           ...(deliveryUpdatesById.get(segment.stop.id) || {}),
+          delivery_route_breadcrumbs: segment.usedFallbackBreadcrumbs ? segment.fallbackBreadcrumbs : (deliveryUpdatesById.get(segment.stop.id)?.delivery_route_breadcrumbs || segment.stop?.delivery_route_breadcrumbs),
           finished_leg_encoded_polyline: directions?.encoded_polyline || null,
           finished_leg_transport_mode: segment.stop?.finished_leg_transport_mode || 'driving',
           travel_dist: directions?.estimated_distance_km ?? null,
@@ -629,7 +647,8 @@ Deno.serve(async (req) => {
         const homeLon = Number(driverAppUser?.home_longitude);
         const hasHomeCoords = Number.isFinite(homeLat) && Number.isFinite(homeLon);
 
-        if (hasHomeCoords && firstActive) {
+        const shouldAddHomeStartLeg = hasHomeCoords && firstActive && !originFromFinishedStop;
+        if (shouldAddHomeStartLeg) {
           pushSegment({ lat: homeLat, lon: homeLon }, firstActive, true);
         }
 
@@ -698,7 +717,12 @@ Deno.serve(async (req) => {
           });
         });
 
-        const rowsToDelete = (existingPolylines || []).filter((row) => !segmentsToKeep.has(row.id));
+        const allowedActiveSegmentKeys = new Set(segmentSpecs.map((spec) => makeSegmentKey(driverId, deliveryDate, spec.from, spec.to)));
+        const rowsToDelete = (existingPolylines || []).filter((row) => {
+          if (segmentsToKeep.has(row.id)) return false;
+          const rowKey = makeSegmentKey(driverId, deliveryDate, { lat: row?.segment_origin_lat, lon: row?.segment_origin_lon }, { lat: row?.segment_dest_lat, lon: row?.segment_dest_lon });
+          return !allowedActiveSegmentKeys.has(rowKey);
+        });
         if (rowsToDelete.length > 0) {
           console.log(`#[purgeAndRegeneratePolylines] BEFORE delete old polylines | driver=${driverDisplayName} | date=${deliveryDate} | rowsToDelete=${rowsToDelete.length} | totalStops=${deliveries?.length || 0}`);
           await processInChunks(rowsToDelete, 5, (row) =>
@@ -791,7 +815,12 @@ Deno.serve(async (req) => {
           });
         });
 
-        const rowsToDelete = (existingPolylines || []).filter((row) => !segmentsToKeep.has(row.id));
+        const allowedCompletedSegmentKeys = new Set(completedRouteHomeSegment.map((spec) => makeSegmentKey(driverId, deliveryDate, spec.from, spec.to)));
+        const rowsToDelete = (existingPolylines || []).filter((row) => {
+          if (segmentsToKeep.has(row.id)) return false;
+          const rowKey = makeSegmentKey(driverId, deliveryDate, { lat: row?.segment_origin_lat, lon: row?.segment_origin_lon }, { lat: row?.segment_dest_lat, lon: row?.segment_dest_lon });
+          return !allowedCompletedSegmentKeys.has(rowKey);
+        });
         if (rowsToDelete.length > 0) {
           await processInChunks(rowsToDelete, 5, (row) =>
             base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id).catch((error) => {
