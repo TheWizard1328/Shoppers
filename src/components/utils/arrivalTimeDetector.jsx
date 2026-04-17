@@ -12,9 +12,9 @@ class ArrivalTimeDetector {
     this.locationTimeout = null;
     this.lastLocationCoords = null;
     this.stationaryStartTime = null;
+    this.currentTargetId = null;
     this.minStationaryDuration = 30000; // 30 seconds in ms
     this.geofenceRadius = 100; // meters
-    this.arrivalTimesRecorded = new Set(); // Track recorded arrivals to avoid duplicates
 
     // Cached offline data - refreshed at most once per minute
     this._cachedDeliveries = null;
@@ -166,20 +166,23 @@ class ArrivalTimeDetector {
         const target = sorted[0].d;
 
         // We are at target pickup location
-        if (!this.lastLocationCoords ||
-            this.calculateDistance(latitude, longitude, this.lastLocationCoords.lat, this.lastLocationCoords.lon) > 20) {
-          // New spot: start timer
+        const targetChanged = this.currentTargetId !== target.id;
+        const movedTooFar = !this.lastLocationCoords ||
+          this.calculateDistance(latitude, longitude, this.lastLocationCoords.lat, this.lastLocationCoords.lon) > 20;
+
+        if (targetChanged || movedTooFar) {
           this.stationaryStartTime = Date.now();
           this.lastLocationCoords = { lat: latitude, lon: longitude };
+          this.currentTargetId = target.id;
         } else if (this.stationaryStartTime) {
           const stationaryDuration = Date.now() - this.stationaryStartTime;
-          if (stationaryDuration >= this.minStationaryDuration && !this.arrivalTimesRecorded.has(target.id)) {
+          if (stationaryDuration >= this.minStationaryDuration) {
             const now = new Date();
             const arrivalTime = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
             console.log(`✅ [ARRIVAL] Picked target pickup ${target.id} (rule applied) after ${(stationaryDuration / 1000).toFixed(1)}s`);
             try {
               await base44.entities.Delivery.update(target.id, { arrival_time: arrivalTime });
-              this.arrivalTimesRecorded.add(target.id);
+              this.stationaryStartTime = Date.now();
               console.log(`💾 [ARRIVAL] Saved arrival_time for pickup ${target.id}`);
             } catch (error) {
               console.error('❌ [ARRIVAL] Failed to save pickup arrival_time:', error);
@@ -211,27 +214,30 @@ class ArrivalTimeDetector {
 
         const distance = this.calculateDistance(latitude, longitude, targetLat, targetLon);
         if (distance <= this.geofenceRadius) {
-          driverAtLocation = true;
-          if (!this.lastLocationCoords ||
-              this.calculateDistance(latitude, longitude, this.lastLocationCoords.lat, this.lastLocationCoords.lon) > 20) {
-            this.stationaryStartTime = Date.now();
-            this.lastLocationCoords = { lat: latitude, lon: longitude };
-          } else if (this.stationaryStartTime) {
-            const stationaryDuration = Date.now() - this.stationaryStartTime;
-            if (stationaryDuration >= this.minStationaryDuration && !this.arrivalTimesRecorded.has(delivery.id)) {
-              const _now = new Date();
-              const _arrivalTime = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}T${String(_now.getHours()).padStart(2,'0')}:${String(_now.getMinutes()).padStart(2,'0')}:${String(_now.getSeconds()).padStart(2,'0')}`;
-              console.log(`✅ [ARRIVAL] Detected at ${delivery.patient_id ? 'delivery' : 'pickup'} (${delivery.id}) after ${(stationaryDuration / 1000).toFixed(1)}s`);
-              try {
-                await base44.entities.Delivery.update(delivery.id, { arrival_time: _arrivalTime });
-                this.arrivalTimesRecorded.add(delivery.id);
-                console.log(`💾 [ARRIVAL] Saved arrival_time for ${delivery.id}`);
-              } catch (error) {
-                console.error('❌ [ARRIVAL] Failed to save arrival_time:', error);
-              }
+        driverAtLocation = true;
+        const targetChanged = this.currentTargetId !== delivery.id;
+        const movedTooFar = !this.lastLocationCoords ||
+            this.calculateDistance(latitude, longitude, this.lastLocationCoords.lat, this.lastLocationCoords.lon) > 20;
+        if (targetChanged || movedTooFar) {
+          this.stationaryStartTime = Date.now();
+          this.lastLocationCoords = { lat: latitude, lon: longitude };
+          this.currentTargetId = delivery.id;
+        } else if (this.stationaryStartTime) {
+          const stationaryDuration = Date.now() - this.stationaryStartTime;
+          if (stationaryDuration >= this.minStationaryDuration) {
+            const _now = new Date();
+            const _arrivalTime = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}T${String(_now.getHours()).padStart(2,'0')}:${String(_now.getMinutes()).padStart(2,'0')}:${String(_now.getSeconds()).padStart(2,'0')}`;
+            console.log(`✅ [ARRIVAL] Detected at ${delivery.patient_id ? 'delivery' : 'pickup'} (${delivery.id}) after ${(stationaryDuration / 1000).toFixed(1)}s`);
+            try {
+              await base44.entities.Delivery.update(delivery.id, { arrival_time: _arrivalTime });
+              this.stationaryStartTime = Date.now();
+              console.log(`💾 [ARRIVAL] Saved arrival_time for ${delivery.id}`);
+            } catch (error) {
+              console.error('❌ [ARRIVAL] Failed to save arrival_time:', error);
             }
           }
-          break; // only process the first matching stop
+        }
+        break; // only process the first matching stop
         }
       }
 
@@ -249,13 +255,13 @@ class ArrivalTimeDetector {
   resetStationary() {
     this.stationaryStartTime = null;
     this.lastLocationCoords = null;
+    this.currentTargetId = null;
   }
 
   /**
    * Clear recorded arrivals for the day (call on driver logout or day change)
    */
   clearRecordedArrivals() {
-    this.arrivalTimesRecorded.clear();
     this.resetStationary();
   }
 }

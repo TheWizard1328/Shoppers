@@ -398,12 +398,12 @@ class LocationTracker {
         await this.collectBreadcrumb(latitude, longitude, Date.now());
       }
 
-      // CRITICAL: Check for arrival at delivery locations when on_duty
-      if (!timestampOnly && this.driverStatus === 'on_duty' && this.currentDeliveryDate) {
+      // CRITICAL: Check for arrival at delivery locations on every GPS/heartbeat update while on duty
+      if (this.driverStatus === 'on_duty' && this.currentDeliveryDate) {
         await arrivalTimeDetector.processLocationUpdate(
-          latitude, 
-          longitude, 
-          this.currentUser?.id, 
+          latitude,
+          longitude,
+          this.currentUser?.id,
           this.currentDeliveryDate
         );
       }
