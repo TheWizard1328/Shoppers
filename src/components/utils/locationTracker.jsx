@@ -1016,12 +1016,13 @@ class LocationTracker {
 
       await offlineDB.save(offlineDB.STORES.PENDING_BREADCRUMBS, breadcrumbData);
       try {
-        const liveRecord = await base44.entities.PendingBreadcrumbLive.filter({
-          driver_id: this.currentUser.id,
-          delivery_id: activeDelivery.id
+        const liveRecords = await base44.entities.PendingBreadcrumbLive.filter({
+          driver_id: this.currentUser.id
         });
-        if (liveRecord && liveRecord[0]?.id) {
-          await base44.entities.PendingBreadcrumbLive.update(liveRecord[0].id, {
+        const liveRecord = (liveRecords || []).find((record) => Number(record?.stop_order) === Number(stopOrder));
+        if (liveRecord?.id) {
+          await base44.entities.PendingBreadcrumbLive.update(liveRecord.id, {
+            delivery_id: activeDelivery.id,
             stop_order: stopOrder,
             breadcrumbs: breadcrumbData.breadcrumbs
           });

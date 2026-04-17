@@ -8,11 +8,11 @@
     },
     "delivery_id": {
       "type": "string",
-      "description": "Delivery ID this breadcrumb stream belongs to"
+      "description": "Delivery ID this breadcrumb stream belongs to (optional context only)"
     },
     "stop_order": {
       "type": "number",
-      "description": "Stop order for fallback matching and sorting"
+      "description": "Stop order used as the unique live breadcrumb leg identifier per driver per day"
     },
     "breadcrumbs": {
       "type": "array",
@@ -27,6 +27,6 @@
   },
   "required": [
     "driver_id",
-    "delivery_id"
+    "stop_order"
   ]
 }
