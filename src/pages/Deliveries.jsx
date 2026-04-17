@@ -1700,11 +1700,10 @@ export default function DeliveriesPage() {
     }
 
     const defaultDeliveryStartTime = addMinutesToTime(earliestStorePickupEndTime, 5);
-    const defaultDeliveryEndTime = addMinutesToTime(defaultDeliveryStartTime, 15);
 
     return {
       delivery_time_start: defaultDeliveryStartTime,
-      delivery_time_end: defaultDeliveryEndTime
+      delivery_time_end: patient?.time_window_end || null
     };
   }, []);
 
@@ -1836,12 +1835,12 @@ export default function DeliveriesPage() {
 
           const timeWindows = patient ?
           calculateOptimalTimeWindow(patient, store, [], staged.delivery_date) :
-          { delivery_time_start: staged.time_window_start || '09:00', delivery_time_end: staged.time_window_end || '17:00' };
+          { delivery_time_start: staged.time_window_start || '09:00', delivery_time_end: staged.time_window_end || null };
 
           const finalDeliveryData = {
             ...staged,
             delivery_time_start: staged.delivery_time_start || timeWindows.delivery_time_start,
-            delivery_time_end: staged.delivery_time_end || timeWindows.delivery_time_end,
+            delivery_time_end: staged.delivery_time_end || timeWindows.delivery_time_end || null,
             store_id: store.id,
             dispatcher_id: dispatcher_id,
             driver_id: actualDriver?.id || null,
@@ -1967,7 +1966,7 @@ export default function DeliveriesPage() {
         const finalDeliveryData = {
           ...deliveryData,
           delivery_time_start: deliveryData.delivery_time_start || timeWindows.delivery_time_start,
-          delivery_time_end: deliveryData.delivery_time_end || timeWindows.delivery_time_end,
+          delivery_time_end: deliveryData.delivery_time_end || timeWindows.delivery_time_end || null,
           store_id: store.id,
           tracking_number: 'temp',
           stop_order: 9999
