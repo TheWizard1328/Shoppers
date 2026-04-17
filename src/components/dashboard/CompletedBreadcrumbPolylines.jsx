@@ -139,6 +139,7 @@ export default function CompletedBreadcrumbPolylines({
   const requestTimesRef = useRef({});
 
   const storedFinishedSegments = useMemo(() => {
+    if (!showStoredPolylines || showBreadcrumbPolylines) return [];
     const allFinishedStops = [...pickupMarkers, ...deliveryMarkers]
       .filter((stop) => stop && FINISHED.includes(stop.status))
       .filter((stop) => typeof stop.finished_leg_encoded_polyline === "string" && stop.finished_leg_encoded_polyline.trim().length > 0)
@@ -157,6 +158,7 @@ export default function CompletedBreadcrumbPolylines({
   const storedFinishedStopIds = useMemo(() => new Set(storedFinishedSegments.map((segment) => segment.stopId)), [storedFinishedSegments]);
 
   const completedSegments = useMemo(() => {
+    if (!showBreadcrumbPolylines) return [];
     return (driverRoutes || []).flatMap((route) => {
       if (!route?.driverId) return [];
 
@@ -225,6 +227,7 @@ export default function CompletedBreadcrumbPolylines({
   ), [completedSegments]);
 
   const directSegmentLegs = useMemo(() => {
+    if (!showStoredPolylines || showBreadcrumbPolylines) return [];
     return completedSegments
       .filter(() => showStoredPolylines)
       .filter((segment) => !segment.hasAnyBreadcrumbs)
