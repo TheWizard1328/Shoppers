@@ -526,87 +526,11 @@ export default function SquareManagement() {
         const authUser = appCurrentUser;
         const { startDateStr, endDateStr } = getSourceWindow();
         const { offlineDB } = await import('@/components/utils/offlineDatabase');
-
-        if (!authUser?.id) {
-          setIsLoading(false);
-          return;
-        }
-
-        let storesData = appDataStores || [];
-        if (storesData.length === 0) {
-          storesData = await offlineDB.getAll(offlineDB.STORES.STORES) || [];
-          if (storesData.length === 0) {
-            storesData = await base44.entities.Store.list();
-            await offlineDB.bulkSave(offlineDB.STORES.STORES, storesData);
-          }
-        }
-
-        let appUsersData = appDataAppUsers || [];
-        if (appUsersData.length === 0) {
-          appUsersData = await offlineDB.getAll(offlineDB.STORES.APP_USERS) || [];
-          if (appUsersData.length === 0) {
-            appUsersData = await base44.entities.AppUser.list();
-            await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsersData);
-          }
-        }
-
-        let patientsData = appDataPatients || [];
-        if (patientsData.length === 0) {
-          patientsData = await offlineDB.getAll(offlineDB.STORES.PATIENTS) || [];
-          if (patientsData.length === 0) {
-            patientsData = await base44.entities.Patient.list();
-            await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientsData);
-          }
-        }
-
-        const configs = await offlineDB.getAll(offlineDB.STORES.SQUARE_LOCATION_CONFIGS) || [];
-
-        const matchedAppUser = appUsersData.find((appUser) => appUser?.user_id === authUser?.id) || null;
-        setCurrentUser(authUser);
-        setCurrentAppUser(matchedAppUser);
-        setLocationConfigs(configs || []);
-        setStores(storesData || []);
-        setPatients(patientsData || []);
-
-        const driversList = appUsersData.filter((u) => u && u.app_roles && u.app_roles.includes('driver') && u.status === 'active');
-        setDrivers(driversList || []);
-        setLocationIds((configs || []).map((config) => config?.square_location_id).filter(Boolean));
-
-        const offlineSquareSnapshot = await loadSquareViewFromOffline();
-
-        if ((appDataDeliveries || []).length > 0) {
-          setDeliveries(appDataDeliveries.filter((delivery) => delivery && delivery.delivery_date >= startDateStr && delivery.delivery_date <= endDateStr));
-        } else {
-          await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr);
-        }
-
-        setAllTransactions([...(offlineSquareSnapshot?.transactions || [])]);
-        setSoldCatalogItems([...(offlineSquareSnapshot?.sold || [])]);
-        setCatalogItems([...(offlineSquareSnapshot?.items || [])]);
-        const status = await loadSyncStatus();
+...
+        await loadSyncStatus();
+        setBgSyncProgress({ stage: 'idle' });
         setIsLoading(false);
         setHasInitialLoadCompleted(true);
-
-        const lastCatalogSync = status?.catalog?.lastSync;
-        const lastCatalogSyncMs = lastCatalogSync ? new Date(lastCatalogSync).getTime() : 0;
-        const catalogSyncedRecently = lastCatalogSyncMs && Date.now() - lastCatalogSyncMs < 60 * 60 * 1000;
-
-        if (!catalogSyncedRecently) {
-          try {
-            setBgSyncProgress({ stage: 'catalog_sync', detail: 'Refreshing Square catalog…' });
-            const response = await base44.functions.invoke('squareSyncCatalogItems', {});
-            const result = response?.data || response || {};
-            await hydrateSquareViewFromEntities();
-            await loadSyncStatus();
-            setBgSyncProgress({ stage: 'complete', detail: `${result.created_catalog_items || 0} catalog items synced` });
-            setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 4000);
-          } catch (catalogError) {
-            console.warn('⚠️ [SquareManagement] Initial catalog sync failed:', catalogError.message);
-            setBgSyncProgress({ stage: 'idle' });
-          }
-        } else {
-          setBgSyncProgress({ stage: 'idle' });
-        }
       } catch (err) {
         console.error('Failed to load COD data:', err);
         setIsLoading(false);
@@ -614,7 +538,7 @@ export default function SquareManagement() {
     };
 
     loadData();
-  }, [appCurrentUser, appDataAppUsers, appDataStores, appDataPatients, appDataDeliveries, getSourceWindow, loadReconciliationFromOffline, loadSquareViewFromOffline, loadSyncStatus, runFullOfflineSnapshotSync]);
+  }, [appCurrentUser, appDataAppUsers, appDataStores, appDataPatients, appDataDeliveries, getSourceWindow, loadReconciliationFromOffline, loadSquareViewFromOffline, loadSyncStatus]);
 
   useEffect(() => {
     if (!hasInitialLoadCompleted) return;
@@ -1762,7 +1686,7 @@ export default function SquareManagement() {
           rows={filteredCatalogRows}
           isLoading={isLoading}
           emptyTitle="No Square catalog items found"
-          emptyDescription={`Offline catalog loaded: ${catalogItems.length} items. Recent Square catalog items for the active city will appear here.`}
+          emptyDescription={`Offline catalog loaded: ${catalogItems.length} items, visible after filters: ${filteredCatalogRows.length}. Recent Square catalog items for the active city will appear here.`}
           showLocationColumn={currentUser && isAppOwner(currentUser)}
           navHeight={navHeight}
         />
