@@ -292,9 +292,24 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, skipped: true, reason: 'no_drivers_to_process', delivery_date: deliveryDate });
     }
 
+    const driver = drivers[0];
+    const locationUpdatedAtMs = new Date(driver?.location_updated_at || 0).getTime();
+    if (locationUpdatedAtMs && (Date.now() - locationUpdatedAtMs) < 30000) {
+      return Response.json({ success: true, skipped: true, reason: 'recent_location_update_cooldown', delivery_date: deliveryDate, driver_id: explicitDriverId });
+    }
+
     const results = [];
     for (const driver of drivers) {
-      results.push(await processDriver(base44, driver, deliveryDate));
+      try {
+        results.push(await processDriver(base44, driver, deliveryDate));
+      } catch (error) {
+        const isRateLimited = error?.status === 429 || error?.response?.status === 429 || String(error?.message || '').toLowerCase().includes('rate limit');
+        if (isRateLimited) {
+          results.push({ skipped: true, reason: 'rate_limited', driver_id: driver?.user_id || null });
+          continue;
+        }
+        throw error;
+      }
     }
 
     return Response.json({
