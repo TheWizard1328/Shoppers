@@ -333,6 +333,77 @@ async function getSegmentDirections(base44, from, to) {
   };
 }
 
+async function reintegratePendingBreadcrumbLive(base44, driverId, deliveryDate, deliveries) {
+  const completedLikeStops = (Array.isArray(deliveries) ? deliveries : [])
+    .filter((delivery) => FINISHED_STATUSES.has(String(delivery?.status || '')))
+    .sort((a, b) => Number(a?.stop_order || 0) - Number(b?.stop_order || 0));
+
+  if (completedLikeStops.length === 0) {
+    return { mergedCount: 0, sourceRows: 0, updatedDeliveryIds: [] };
+  }
+
+  const pendingRows = await base44.asServiceRole.entities.PendingBreadcrumbLive.filter({ driver_id: driverId }, '-updated_date', 50000);
+  const rowsForDate = (pendingRows || []).filter((row) => {
+    const firstPointTs = Array.isArray(row?.breadcrumbs) && row.breadcrumbs[0]?.[2];
+    return getEdmontonDateString(firstPointTs || Date.now()) === deliveryDate;
+  });
+
+  if (rowsForDate.length === 0) {
+    return { mergedCount: 0, sourceRows: 0, updatedDeliveryIds: [] };
+  }
+
+  const deliveryByStopOrder = new Map(completedLikeStops.map((delivery) => [Number(delivery?.stop_order || 0), delivery]));
+  const rowsByStopOrder = new Map();
+  rowsForDate.forEach((row) => {
+    const stopOrder = Number(row?.stop_order || 0);
+    if (!stopOrder) return;
+    if (!rowsByStopOrder.has(stopOrder)) rowsByStopOrder.set(stopOrder, []);
+    rowsByStopOrder.get(stopOrder).push(row);
+  });
+
+  let mergedCount = 0;
+  let sourceRows = 0;
+  const updatedDeliveryIds = [];
+
+  for (const [stopOrder, rows] of rowsByStopOrder.entries()) {
+    const targetDelivery = deliveryByStopOrder.get(stopOrder);
+    if (!targetDelivery?.id) continue;
+
+    const points = rows
+      .flatMap((row) => Array.isArray(row?.breadcrumbs) ? row.breadcrumbs : [])
+      .map((point) => {
+        if (!Array.isArray(point) || point.length < 2) return null;
+        const lat = Number(point[0]);
+        const lon = Number(point[1]);
+        const ts = Number(point[2]);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+        return [lat, lon, Number.isFinite(ts) ? ts : Date.now()];
+      })
+      .filter(Boolean)
+      .sort((a, b) => a[2] - b[2]);
+
+    if (points.length === 0) continue;
+
+    await base44.asServiceRole.entities.Delivery.update(targetDelivery.id, {
+      delivery_route_breadcrumbs: JSON.stringify(points),
+      PolylineUpdated: true
+    });
+
+    await processInChunks(rows, 20, async (row) => {
+      return await base44.asServiceRole.entities.PendingBreadcrumbLive.delete(row.id).catch((error) => {
+        if (isNotFoundError(error)) return null;
+        throw error;
+      });
+    });
+
+    mergedCount += points.length;
+    sourceRows += rows.length;
+    updatedDeliveryIds.push(targetDelivery.id);
+  }
+
+  return { mergedCount, sourceRows, updatedDeliveryIds };
+}
+
 async function getMultiSegmentDirections(base44, segmentSpecs, transportMode = 'driving') {
   const safeSpecs = Array.isArray(segmentSpecs) ? segmentSpecs.filter((segment) => segment?.from && segment?.to) : [];
   if (safeSpecs.length === 0) return [];
@@ -839,6 +910,17 @@ Deno.serve(async (req) => {
       }
     }
 
+    let pendingBreadcrumbLiveMerge = { mergedCount: 0, sourceRows: 0, updatedDeliveryIds: [] };
+    if (routeSource === 'breadcrumbs') {
+      pendingBreadcrumbLiveMerge = await reintegratePendingBreadcrumbLive(base44, driverId, deliveryDate, deliveries);
+      if (pendingBreadcrumbLiveMerge.updatedDeliveryIds.length > 0) {
+        deliveries = await base44.asServiceRole.entities.Delivery.filter({
+          driver_id: driverId,
+          delivery_date: deliveryDate
+        }, 'stop_order', 50000);
+      }
+    }
+
     console.log(`# [purgeAndRegeneratePolylines] BEFORE markDeliveriesPolylineUpdated | driver=${driverDisplayName} | date=${deliveryDate} | totalStops=${deliveries?.length || 0}`);
     await markDeliveriesPolylineUpdated(base44, deliveries, true);
     const finalDeliveries = await base44.asServiceRole.entities.Delivery.filter({
@@ -879,7 +961,8 @@ Deno.serve(async (req) => {
       repairedStopOrders: stopOrderRepairUpdates.length,
       recalculatedTravelDistances: sortedForTravelDistance.length,
       originStrategy: latestFinishedStop ? 'last_finished_stop' : 'home_through_remaining_route',
-      consolidatedLegs
+      consolidatedLegs,
+      pendingBreadcrumbLiveMerge
     });
   } catch (error) {
     console.error('[purgeAndRegeneratePolylines] Error:', error?.message || error);
