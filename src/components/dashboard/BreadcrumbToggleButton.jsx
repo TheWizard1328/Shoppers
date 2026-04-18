@@ -29,7 +29,7 @@ export default function BreadcrumbToggleButton({
     }
 
     const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-    const driverIdToFetch = (showAllDriverMarkers || selectedDriverId === 'all') ? currentUser?.id : selectedDriverId;
+    const driverIdToFetch = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
     const loadedBreadcrumbs = await loadBreadcrumbsForDriver(driverIdToFetch, selectedDateStr, appUsers);
 
     if (loadedBreadcrumbs.historical.length === 0 && loadedBreadcrumbs.current.length === 0) {
