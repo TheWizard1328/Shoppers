@@ -11,6 +11,18 @@ const addDays = (date, days) => {
 };
 const formatDate = (date) => date.toISOString().split('T')[0];
 const toRadians = (degrees) => degrees * (Math.PI / 180);
+const normalizeAddress = (value = '') => value.toLowerCase().replace(/\s+/g, ' ').replace(/[.,]/g, '').trim();
+const getDistanceKm = (lat1, lon1, lat2, lon2) => {
+  const earthRadiusKm = 6371;
+  const dLat = toRadians(lat2 - lat1);
+  const dLon = toRadians(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Number((earthRadiusKm * c).toFixed(2));
+};
 const offsetCoordinates = (latitude, longitude, distanceKm, angleDegrees) => {
   const earthRadiusKm = 6371;
   const bearing = toRadians(angleDegrees);
@@ -45,8 +57,9 @@ const returnNotes = ['Returned to store', 'Retry required', 'Customer requested 
 const pharmacyPrefixes = ['Summit', 'Riverbend', 'Maple Leaf', 'Northgate', 'Cedar', 'Evergreen', 'Prairie', 'Vista', 'Harbour', 'Sunrise'];
 const pharmacySuffixes = ['Pharmacy', 'Care Pharmacy', 'Drugs', 'Rx Centre', 'Health Pharmacy'];
 const storeColors = ['#2563eb', '#16a34a', '#dc2626', '#7c3aed', '#ea580c'];
-const routeStatuses = ['completed', 'failed', 'returned'];
+const routeStatuses = ['completed', 'failed', 'cancelled'];
 const todayStatuses = ['completed', 'failed', 'en_route', 'in_transit', 'pending'];
+const followUpStatuses = ['retry', 'return'];
 const randomTime = (hour, minute = 0) => `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 const buildDateTime = (date, time) => `${formatDate(date)}T${time}:00`;
 const hoursToMinutes = (time) => {
@@ -69,6 +82,47 @@ const createFakePharmacyName = (usedNames) => {
   return name;
 };
 
+const buildRealAddress = async (base44, store, index) => {
+  const response = await base44.integrations.Core.InvokeLLM({
+    prompt: `Return one real residential mailing address within 25km of store at ${store.latitude}, ${store.longitude}. Include full street address, latitude, longitude, and ensure it is plausible in the local area.`,
+    add_context_from_internet: true,
+    response_json_schema: {
+      type: 'object',
+      properties: {
+        address: { type: 'string' },
+        latitude: { type: 'number' },
+        longitude: { type: 'number' }
+      },
+      required: ['address', 'latitude', 'longitude']
+    }
+  });
+
+  const llmAddress = response?.address || '';
+  const llmLat = Number(response?.latitude);
+  const llmLon = Number(response?.longitude);
+  const validDistance = !Number.isNaN(llmLat) && !Number.isNaN(llmLon)
+    ? getDistanceKm(store.latitude, store.longitude, llmLat, llmLon)
+    : 999;
+
+  if (llmAddress && validDistance <= 25) {
+    return {
+      address: llmAddress,
+      latitude: llmLat,
+      longitude: llmLon,
+      distance_from_store: validDistance
+    };
+  }
+
+  const fallbackDistance = randomBetween(0.25, 24.5);
+  const fallbackCoords = offsetCoordinates(store.latitude, store.longitude, fallbackDistance, randomBetween(0, 360));
+  return {
+    address: `${randomInt(100, 9999)} ${pick(streetNames)} ${pick(streetTypes)}`,
+    latitude: fallbackCoords.latitude,
+    longitude: fallbackCoords.longitude,
+    distance_from_store: Number(fallbackDistance.toFixed(2))
+  };
+};
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -83,6 +137,7 @@ Deno.serve(async (req) => {
     const latitude = Number(body.latitude);
     const longitude = Number(body.longitude);
     const cityId = body.city_id || null;
+    const shouldClearExisting = body.shouldClearExisting === true;
 
     if (!address || Number.isNaN(latitude) || Number.isNaN(longitude)) {
       return Response.json({ error: 'Address and coordinates are required' }, { status: 400 });
@@ -94,17 +149,22 @@ Deno.serve(async (req) => {
     const demoAppUsers = await base44.asServiceRole.entities.DemoAppUser.filter({ created_by: user.email });
     const settings = await base44.asServiceRole.entities.DemoSettings.filter({ user_id: user.id });
 
-    await Promise.all([
-      ...demoRoutes.map((item) => base44.asServiceRole.entities.DemoRoute.delete(item.id)),
-      ...demoPatients.map((item) => base44.asServiceRole.entities.DemoPatient.delete(item.id)),
-      ...demoStores.map((item) => base44.asServiceRole.entities.DemoStore.delete(item.id)),
-      ...demoAppUsers.map((item) => base44.asServiceRole.entities.DemoAppUser.delete(item.id))
-    ]);
+    if (shouldClearExisting) {
+      await Promise.all([
+        ...demoRoutes.map((item) => base44.asServiceRole.entities.DemoRoute.delete(item.id)),
+        ...demoPatients.map((item) => base44.asServiceRole.entities.DemoPatient.delete(item.id)),
+        ...demoStores.map((item) => base44.asServiceRole.entities.DemoStore.delete(item.id)),
+        ...demoAppUsers.map((item) => base44.asServiceRole.entities.DemoAppUser.delete(item.id))
+      ]);
+    }
+
+    const existingStores = shouldClearExisting ? [] : await base44.asServiceRole.entities.DemoStore.filter({ created_by: user.email });
+    const matchingStore = existingStores.find((item) => normalizeAddress(item.address) === normalizeAddress(address));
 
     const today = new Date();
-    const storeCount = randomInt(3, 5);
-    const usedPharmacyNames = new Set();
-    const stores = [];
+    const storeCount = matchingStore ? 0 : randomInt(3, 5);
+    const usedPharmacyNames = new Set(existingStores.map((item) => item.name));
+    const stores = matchingStore ? [matchingStore] : [];
     const patients = [];
     const demoDrivers = [];
     const demoDispatchers = [];
@@ -217,27 +277,23 @@ Deno.serve(async (req) => {
 
     for (let storeIndex = 0; storeIndex < stores.length; storeIndex += 1) {
       const store = stores[storeIndex];
-      const patientCount = randomInt(8, 14);
+      const patientCount = matchingStore && store.id === matchingStore.id ? randomInt(12, 20) : 50;
 
       for (let index = 0; index < patientCount; index += 1) {
-        const distanceKm = randomBetween(0.25, 18);
-        const angle = randomBetween(0, 360);
-        const coords = offsetCoordinates(store.latitude, store.longitude, distanceKm, angle);
         const fullName = `${pick(firstNames)} ${pick(lastNames)}`;
-        const streetNumber = randomInt(100, 9999);
-        const streetAddress = `${streetNumber} ${pick(streetNames)} ${pick(streetTypes)}`;
+        const realAddress = await buildRealAddress(base44, store, index);
 
         const patient = await base44.asServiceRole.entities.DemoPatient.create({
           store_id: store.id,
           dispatcher_id: demoDispatchers[storeIndex]?.user_id || '',
           full_name: fullName,
-          patient_id: `DEMO-${storeIndex + 1}-${index + 1}`,
-          address: streetAddress,
+          patient_id: `DEMO-${storeIndex + 1}-${Date.now()}-${index + 1}`,
+          address: realAddress.address,
           phone: `(780) 555-${String(randomInt(1000, 9999)).padStart(4, '0')}`,
           notes: pick(notes),
-          latitude: coords.latitude,
-          longitude: coords.longitude,
-          distance_from_store: Number(distanceKm.toFixed(2)),
+          latitude: realAddress.latitude,
+          longitude: realAddress.longitude,
+          distance_from_store: realAddress.distance_from_store,
           status: 'active',
           mailbox_ok: Math.random() > 0.5,
           call_upon_arrival: Math.random() > 0.6,
@@ -252,7 +308,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const daysBack = 7;
+    const daysBack = randomInt(3, 5);
 
     for (let dayOffset = daysBack - 1; dayOffset >= 0; dayOffset -= 1) {
       const routeDate = addDays(today, -dayOffset);
@@ -261,7 +317,7 @@ Deno.serve(async (req) => {
       for (let storeIndex = 0; storeIndex < stores.length; storeIndex += 1) {
         const store = stores[storeIndex];
         const storePatients = patients.filter((patient) => patient.store_id === store.id);
-        const patientsForDay = [...storePatients].sort(() => Math.random() - 0.5).slice(0, randomInt(3, Math.min(6, storePatients.length)));
+        const patientsForDay = [...storePatients].sort(() => Math.random() - 0.5).slice(0, randomInt(5, Math.min(10, storePatients.length)));
         const availableDrivers = demoDrivers.filter((driver) => (driver.store_ids || []).includes(store.id));
         const assignedDrivers = availableDrivers.length > 0 ? availableDrivers : demoDrivers;
         const driverBuckets = new Map();
@@ -279,75 +335,114 @@ Deno.serve(async (req) => {
           const assignedPatients = driverBuckets.get(driver.user_id) || [];
           if (assignedPatients.length === 0) continue;
 
-          const amStart = randomTime(9, 0);
-          const pickupStatus = dayOffset === 0 ? (Math.random() > 0.5 ? 'completed' : 'en_route') : 'completed';
-          const pickupActualTime = pickupStatus === 'completed' ? buildDateTime(routeDate, addMinutes(amStart, randomInt(5, 20))) : '';
-          const pickupStopId = `SID-DEMO-${store.id}-${driver.user_id}-${date}-PICKUP`;
-          const pickupTrackingNumber = '20';
+          const timeSlots = [
+            { label: 'AM', start: randomTime(10, 0), trackingBase: 20 },
+            { label: 'PM', start: randomTime(16, 0), trackingBase: 60 }
+          ];
 
-          await base44.asServiceRole.entities.DemoRoute.create({
-            delivery_id: `DEMO-PICKUP-${store.id}-${driver.user_id}-${date}`,
-            patient_id: '',
-            driver_id: driver.user_id,
-            driver_name: driver.user_name,
-            created_by_app_user_id: user.id,
-            delivery_date: date,
-            delivery_time_start: amStart,
-            delivery_time_end: addMinutes(amStart, 30),
-            delivery_time_eta: amStart,
-            actual_delivery_time: pickupActualTime,
-            status: pickupStatus,
-            store_id: store.id,
-            tracking_number: pickupTrackingNumber,
-            stop_order: 1,
-            stop_id: pickupStopId,
-            delivery_notes: pick(pickupNotes),
-            delivery_instructions: 'Store pickup',
-            ampm_deliveries: 'AM',
-            extra_time: 5,
-            is_demo: true
-          });
-
-          let lastCompletedMinutes = hoursToMinutes(addMinutes(amStart, 20));
-
-          for (let index = 0; index < assignedPatients.length; index += 1) {
-            const patient = assignedPatients[index];
-            const stopOrder = index + 2;
-            const windowStart = patient.time_window_start || addMinutes(amStart, 30 + index * 25);
-            const windowEnd = patient.time_window_end || addMinutes(windowStart, 120);
-            const trackingNumber = String(20 + stopOrder).padStart(2, '0');
-            const isToday = dayOffset === 0;
-            const status = isToday ? pick(todayStatuses) : pick(routeStatuses);
-            const actualTime = status === 'completed' || status === 'failed' || status === 'returned'
-              ? buildDateTime(routeDate, minutesToTime(lastCompletedMinutes + randomInt(12, 28)))
-              : '';
-
-            if (actualTime) {
-              lastCompletedMinutes = hoursToMinutes(actualTime.split('T')[1].slice(0, 5));
-            }
+          for (const timeSlot of timeSlots) {
+            const pickupStatus = dayOffset === 0 ? (timeSlot.label === 'AM' ? 'completed' : 'en_route') : pick(['completed', 'completed', 'cancelled']);
+            const pickupActualTime = pickupStatus === 'completed' ? buildDateTime(routeDate, addMinutes(timeSlot.start, randomInt(5, 20))) : '';
+            const pickupStopId = `SID-DEMO-${store.id}-${driver.user_id}-${date}-${timeSlot.label}-PICKUP`;
+            const pickupTrackingNumber = String(timeSlot.trackingBase);
 
             await base44.asServiceRole.entities.DemoRoute.create({
-              delivery_id: `DEMO-ROUTE-${store.id}-${driver.user_id}-${date}-${index + 1}`,
-              patient_id: patient.id,
+              delivery_id: `DEMO-PICKUP-${store.id}-${driver.user_id}-${date}-${timeSlot.label}`,
+              patient_id: '',
               driver_id: driver.user_id,
               driver_name: driver.user_name,
               created_by_app_user_id: user.id,
               delivery_date: date,
-              delivery_time_start: windowStart,
-              delivery_time_end: windowEnd,
-              delivery_time_eta: status === 'pending' ? windowStart : addMinutes(windowStart, randomInt(0, 20)),
-              actual_delivery_time: actualTime,
-              status,
+              delivery_time_start: timeSlot.start,
+              delivery_time_end: addMinutes(timeSlot.start, 30),
+              delivery_time_eta: timeSlot.start,
+              actual_delivery_time: pickupActualTime,
+              status: pickupStatus,
               store_id: store.id,
-              tracking_number: trackingNumber,
-              stop_order: stopOrder,
-              stop_id: `SID-DEMO-${store.id}-${driver.user_id}-${date}-${index + 1}`,
-              delivery_notes: status === 'failed' ? pick(failureNotes) : status === 'returned' ? pick(returnNotes) : patient.notes || '',
-              delivery_instructions: patient.notes || '',
-              ampm_deliveries: windowStart < '12:00' ? 'AM' : 'PM',
+              tracking_number: pickupTrackingNumber,
+              stop_order: timeSlot.label === 'AM' ? 1 : assignedPatients.length + 3,
+              stop_id: pickupStopId,
+              delivery_notes: pick(pickupNotes),
+              delivery_instructions: 'Store pickup',
+              ampm_deliveries: timeSlot.label,
               extra_time: 5,
               is_demo: true
             });
+
+            if (pickupStatus === 'cancelled') {
+              continue;
+            }
+
+            let lastCompletedMinutes = hoursToMinutes(addMinutes(timeSlot.start, 20));
+            const slotPatients = assignedPatients.filter((_, patientIndex) => patientIndex % 2 === (timeSlot.label === 'AM' ? 0 : 1));
+
+            for (let index = 0; index < slotPatients.length; index += 1) {
+              const patient = slotPatients[index];
+              const stopOrder = index + 2 + (timeSlot.label === 'PM' ? slotPatients.length + 1 : 0);
+              const windowStart = patient.time_window_start || addMinutes(timeSlot.start, 30 + index * 25);
+              const windowEnd = patient.time_window_end || addMinutes(windowStart, 120);
+              const trackingNumber = String(timeSlot.trackingBase + stopOrder).padStart(2, '0');
+              const isToday = dayOffset === 0;
+              const status = isToday ? pick(todayStatuses) : pick(routeStatuses);
+              const actualTime = status === 'completed' || status === 'failed' || status === 'cancelled'
+                ? buildDateTime(routeDate, minutesToTime(lastCompletedMinutes + randomInt(12, 28)))
+                : '';
+
+              if (actualTime) {
+                lastCompletedMinutes = hoursToMinutes(actualTime.split('T')[1].slice(0, 5));
+              }
+
+              const createdRoute = await base44.asServiceRole.entities.DemoRoute.create({
+                delivery_id: `DEMO-ROUTE-${store.id}-${driver.user_id}-${date}-${timeSlot.label}-${index + 1}`,
+                patient_id: patient.id,
+                driver_id: driver.user_id,
+                driver_name: driver.user_name,
+                created_by_app_user_id: user.id,
+                delivery_date: date,
+                delivery_time_start: windowStart,
+                delivery_time_end: windowEnd,
+                delivery_time_eta: status === 'pending' ? windowStart : addMinutes(windowStart, randomInt(0, 20)),
+                actual_delivery_time: actualTime,
+                status,
+                store_id: store.id,
+                tracking_number: trackingNumber,
+                stop_order: stopOrder,
+                stop_id: `SID-DEMO-${store.id}-${driver.user_id}-${date}-${timeSlot.label}-${index + 1}`,
+                puid: pickupStopId,
+                delivery_notes: status === 'failed' ? pick(failureNotes) : patient.notes || '',
+                delivery_instructions: patient.notes || '',
+                ampm_deliveries: timeSlot.label,
+                extra_time: 5,
+                is_demo: true
+              });
+
+              if (status === 'failed') {
+                const followUp = pick(followUpStatuses);
+                await base44.asServiceRole.entities.DemoRoute.create({
+                  delivery_id: `${createdRoute.delivery_id}-${followUp.toUpperCase()}`,
+                  patient_id: patient.id,
+                  driver_id: driver.user_id,
+                  driver_name: driver.user_name,
+                  created_by_app_user_id: user.id,
+                  delivery_date: followUp === 'retry' ? formatDate(addDays(routeDate, 1)) : date,
+                  delivery_time_start: followUp === 'retry' ? addMinutes(windowStart, 60) : windowStart,
+                  delivery_time_end: followUp === 'retry' ? addMinutes(windowEnd, 60) : windowEnd,
+                  delivery_time_eta: followUp === 'retry' ? addMinutes(windowStart, 60) : windowStart,
+                  actual_delivery_time: followUp === 'return' ? buildDateTime(routeDate, addMinutes(windowStart, 45)) : '',
+                  status: followUp === 'retry' ? 'pending' : 'cancelled',
+                  store_id: store.id,
+                  tracking_number: `${trackingNumber}${followUp === 'retry' ? 'R' : 'T'}`,
+                  stop_order: stopOrder + 100,
+                  stop_id: `SID-DEMO-${store.id}-${driver.user_id}-${date}-${followUp}-${index + 1}`,
+                  puid: pickupStopId,
+                  delivery_notes: followUp === 'retry' ? 'Retry scheduled after failed delivery' : 'Returned to store after failed delivery',
+                  delivery_instructions: patient.notes || '',
+                  ampm_deliveries: timeSlot.label,
+                  extra_time: 5,
+                  is_demo: true
+                });
+              }
+            }
           }
         }
       }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { RefreshCw, FlaskConical } from 'lucide-react';
 import DemoModeDialog from '@/components/demo/DemoModeDialog';
 import {
@@ -34,6 +34,20 @@ export default function SettingsMenu({
   const isMobileDeviceForUI = isMobile !== undefined ? isMobile : isMobileDevice();
   const isMobileForTheme = isMobileDeviceForTheme();
   const [showDemoModeDialog, setShowDemoModeDialog] = useState(false);
+  const [isDemoActive, setIsDemoActive] = useState(false);
+
+  useEffect(() => {
+    const loadDemoState = async () => {
+      const me = await base44.auth.me();
+      const rows = await base44.entities.DemoSettings.filter({ user_id: me.id });
+      setIsDemoActive(rows?.[0]?.is_demo_mode_active === true);
+    };
+
+    loadDemoState();
+    const handler = () => loadDemoState();
+    window.addEventListener('demoModeChanged', handler);
+    return () => window.removeEventListener('demoModeChanged', handler);
+  }, []);
   
   return (
     <>
@@ -180,7 +194,7 @@ export default function SettingsMenu({
             style={{ fontSize: isMobileDeviceForUI ? '16px' : '15px' }}
           >
             <FlaskConical className={`${isMobileDeviceForUI ? 'w-5 h-5' : 'w-4 h-4'} mr-2`} />
-            Demo Mode
+            {isDemoActive ? 'Exit Demo' : 'Demo Mode'}
           </DropdownMenuItem>
         </>
       )}

@@ -117,11 +117,12 @@ export default function DemoModeDialog({ open, onOpenChange }) {
   };
 
   const disableDemo = async () => {
+    await clearExistingDemoData();
     if (settings?.id) {
-      await base44.entities.DemoSettings.update(settings.id, { is_demo_mode_active: false });
+      await base44.entities.DemoSettings.update(settings.id, { is_demo_mode_active: false, demo_store_id: null });
     }
     window.dispatchEvent(new CustomEvent('demoModeChanged'));
-    onOpenChange(false);
+    window.location.reload();
   };
 
   const clearExistingDemoData = async () => {
@@ -144,27 +145,19 @@ export default function DemoModeDialog({ open, onOpenChange }) {
     setLoading(true);
 
     const hasSelectedAddress = selectedAddress?.latitude && selectedAddress?.longitude;
-
-    await clearExistingDemoData();
+    const normalizedSelectedAddress = (selectedAddress?.full_address || selectedAddress?.street_address || address || '').toLowerCase().trim();
+    const matchingStore = stores.find((item) => (item.address || '').toLowerCase().trim() === normalizedSelectedAddress);
 
     if (hasSelectedAddress) {
       await base44.functions.invoke('generateDemoData', {
         address: selectedAddress.full_address || selectedAddress.street_address || address,
         latitude: selectedAddress.latitude,
         longitude: selectedAddress.longitude,
-        city_id: cityCenter?.id || null
+        city_id: cityCenter?.id || null,
+        shouldClearExisting: !matchingStore
       });
       setAddress('');
       setSelectedAddress(null);
-    } else {
-      setAddress('');
-      setSelectedAddress(null);
-      if (settings?.id) {
-        await base44.entities.DemoSettings.update(settings.id, {
-          demo_store_id: null,
-          is_demo_mode_active: false
-        });
-      }
     }
 
     await loadData();
@@ -216,7 +209,7 @@ export default function DemoModeDialog({ open, onOpenChange }) {
               {loading ? 'Creating…' : selectedAddress?.latitude && selectedAddress?.longitude ? 'New Demo' : 'Clear Data'}
             </Button>
             <Button variant="outline" onClick={activateDemo} disabled={!stores.length}>
-              Continue Demo
+              Continue
             </Button>
           </div>
         </div>
