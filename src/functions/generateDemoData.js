@@ -82,9 +82,8 @@ const createFakePharmacyName = (usedNames) => {
   return name;
 };
 
-const generatePatientId = (existingIds = []) => {
+const generateAlphaNumericId = (existingIds = [], length = 5) => {
   const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-  const length = 5;
   const maxAttempts = 100;
   const existingSet = new Set(existingIds.map((id) => String(id).trim()));
 
@@ -98,9 +97,12 @@ const generatePatientId = (existingIds = []) => {
     }
   }
 
-  const timestamp = Date.now().toString(36).slice(-5);
+  const timestamp = Date.now().toString(36).slice(-length);
   return timestamp.padStart(length, characters.charAt(0));
 };
+
+const generatePatientId = (existingIds = []) => generateAlphaNumericId(existingIds, 5);
+const generateStopId = (existingIds = []) => generateAlphaNumericId(existingIds, 3);
 
 const buildRealAddress = async (base44, store, index) => {
   const response = await base44.integrations.Core.InvokeLLM({
@@ -169,6 +171,7 @@ Deno.serve(async (req) => {
     const demoAppUsers = await base44.asServiceRole.entities.DemoAppUser.filter({ created_by: user.email });
     const settings = await base44.asServiceRole.entities.DemoSettings.filter({ user_id: user.id });
     const existingPatientIds = demoPatients.map((item) => item.patient_id).filter(Boolean);
+    const existingStopIds = demoRoutes.map((item) => item.stop_id).filter(Boolean);
 
     if (shouldClearExisting) {
       await Promise.all([
@@ -367,7 +370,8 @@ Deno.serve(async (req) => {
           for (const timeSlot of timeSlots) {
             const pickupStatus = dayOffset === 0 ? (timeSlot.label === 'AM' ? 'completed' : 'en_route') : pick(['completed', 'completed', 'cancelled']);
             const pickupActualTime = pickupStatus === 'completed' ? buildDateTime(routeDate, addMinutes(timeSlot.start, randomInt(5, 20))) : '';
-            const pickupStopId = `SID-DEMO-${store.id}-${driver.user_id}-${date}-${timeSlot.label}-PICKUP`;
+            const pickupStopId = generateStopId(existingStopIds);
+            existingStopIds.push(pickupStopId);
             const pickupTrackingNumber = String(timeSlot.trackingBase);
 
             await base44.asServiceRole.entities.DemoRoute.create({
@@ -416,6 +420,9 @@ Deno.serve(async (req) => {
                 lastCompletedMinutes = hoursToMinutes(actualTime.split('T')[1].slice(0, 5));
               }
 
+              const deliveryStopId = generateStopId(existingStopIds);
+              existingStopIds.push(deliveryStopId);
+
               const createdRoute = await base44.asServiceRole.entities.DemoRoute.create({
                 delivery_id: `DEMO-ROUTE-${store.id}-${driver.user_id}-${date}-${timeSlot.label}-${index + 1}`,
                 patient_id: patient.id,
@@ -431,7 +438,7 @@ Deno.serve(async (req) => {
                 store_id: store.id,
                 tracking_number: trackingNumber,
                 stop_order: stopOrder,
-                stop_id: `SID-DEMO-${store.id}-${driver.user_id}-${date}-${timeSlot.label}-${index + 1}`,
+                stop_id: deliveryStopId,
                 puid: pickupStopId,
                 delivery_notes: status === 'failed' ? pick(failureNotes) : patient.notes || '',
                 delivery_instructions: patient.notes || '',
@@ -442,6 +449,9 @@ Deno.serve(async (req) => {
 
               if (status === 'failed') {
                 const followUp = pick(followUpStatuses);
+                const followUpStopId = generateStopId(existingStopIds);
+                existingStopIds.push(followUpStopId);
+
                 await base44.asServiceRole.entities.DemoRoute.create({
                   delivery_id: `${createdRoute.delivery_id}-${followUp.toUpperCase()}`,
                   patient_id: patient.id,
@@ -457,7 +467,7 @@ Deno.serve(async (req) => {
                   store_id: store.id,
                   tracking_number: `${trackingNumber}${followUp === 'retry' ? 'R' : 'T'}`,
                   stop_order: stopOrder + 100,
-                  stop_id: `SID-DEMO-${store.id}-${driver.user_id}-${date}-${followUp}-${index + 1}`,
+                  stop_id: followUpStopId,
                   puid: pickupStopId,
                   delivery_notes: followUp === 'retry' ? 'Retry scheduled after failed delivery' : 'Returned to store after failed delivery',
                   delivery_instructions: patient.notes || '',
