@@ -393,7 +393,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { driverId, deliveryDate, scope = 'active_only', reason = 'manual' } = body || {};
+    const { driverId, deliveryDate, scope = 'active_only', reason = 'manual', routeSource = 'polylines' } = body || {};
 
     if (!driverId || !deliveryDate) {
       return Response.json({ error: 'driverId and deliveryDate are required' }, { status: 400 });
@@ -426,7 +426,7 @@ Deno.serve(async (req) => {
       delivery_date: deliveryDate
     }, '-updated_date', 50000);
 
-    const structuralReason = ['stops_added', 'stops_deleted', 'route_reordered', 'manual'];
+    const structuralReason = ['stops_added', 'stops_deleted', 'route_reordered', 'manual', 'manual_breadcrumbs'];
     if (!structuralReason.includes(reason)) {
       return Response.json({
         success: true,
@@ -562,7 +562,7 @@ Deno.serve(async (req) => {
         });
       }
 
-      const finishedSegmentsNeedingApi = finishedSegmentSpecs.filter((segment) => !segment.breadcrumbDirections);
+      const finishedSegmentsNeedingApi = finishedSegmentSpecs.filter((segment) => routeSource === 'polylines' || !segment.breadcrumbDirections);
       const finishedDirectionsFromApi = finishedSegmentsNeedingApi.length > 0
         ? await getMultiSegmentDirections(base44, finishedSegmentsNeedingApi.map((segment) => ({ from: segment.from, to: segment.to })))
         : [];
@@ -570,7 +570,9 @@ Deno.serve(async (req) => {
 
       let apiDirectionIndex = 0;
       finishedSegmentSpecs.forEach((segment) => {
-        const directions = segment.breadcrumbDirections || finishedDirectionsFromApi[apiDirectionIndex++] || null;
+        const directions = routeSource === 'polylines'
+          ? finishedDirectionsFromApi[apiDirectionIndex++] || null
+          : segment.breadcrumbDirections || finishedDirectionsFromApi[apiDirectionIndex++] || null;
         regeneratedFinishedLegStopIds.push(segment.stop.id);
         deliveryUpdatesById.set(segment.stop.id, {
           ...(deliveryUpdatesById.get(segment.stop.id) || {}),
