@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/use-toast";
 
 import { offlineDB } from "@/components/utils/offlineDatabase";
 import { updateDeliveryLocal } from "@/components/utils/offlineMutations";
@@ -62,6 +63,7 @@ export default function ResetPolylinesButton({
 
     setIsResetting(true);
     smartRefreshManager.pause();
+    const breadcrumbIntegrationResults = [];
 
     try {
       // 1. Resort the stops (per driver) via completed times and update stop orders
@@ -96,6 +98,12 @@ export default function ResetPolylinesButton({
             throw new Error(result.error || 'Polyline regeneration failed');
           }
 
+          if (selectedPolylineOption === 'breadcrumbs') {
+            const mergedRows = Number(result?.pendingBreadcrumbLiveMerge?.sourceRows || 0);
+            const integratedStops = Number(result?.pendingBreadcrumbLiveMerge?.updatedDeliveryIds?.length || 0);
+            breadcrumbIntegrationResults.push({ driverId, mergedRows, integratedStops });
+          }
+
           await syncDriverDateDeliveriesFromBackend([driverId]);
 
           window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
@@ -106,6 +114,19 @@ export default function ResetPolylinesButton({
         } catch (err) {
           console.warn(`Failed to regenerate polylines for driver ${driverId}:`, err);
         }
+      }
+
+      if (selectedPolylineOption === 'breadcrumbs') {
+        const totalDrivers = breadcrumbIntegrationResults.length;
+        const successfulDrivers = breadcrumbIntegrationResults.filter((item) => item.integratedStops > 0).length;
+        const mergedRows = breadcrumbIntegrationResults.reduce((sum, item) => sum + item.mergedRows, 0);
+        const integratedStops = breadcrumbIntegrationResults.reduce((sum, item) => sum + item.integratedStops, 0);
+        const successRate = totalDrivers > 0 ? Math.round(successfulDrivers / totalDrivers * 100) : 0;
+
+        toast({
+          title: 'Breadcrumb integration complete',
+          description: `${successRate}% success rate • ${integratedStops} stop${integratedStops === 1 ? '' : 's'} updated • ${mergedRows} live breadcrumb row${mergedRows === 1 ? '' : 's'} merged`
+        });
       }
     } finally {
       smartRefreshManager.restart();
