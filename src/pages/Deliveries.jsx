@@ -72,7 +72,7 @@ import DeleteConfirmDialog from "../components/deliveries/DeleteConfirmDialog";
 import RouteMapView from "../components/deliveries/RouteMapView";
 import { debounce } from 'lodash';
 import { globalFilters } from "../components/utils/globalFilters";
-import { userHasRole, isAppOwner, canAccessImports } from '../components/utils/userRoles';
+import { userHasRole, isAppOwner, canAccessImports } from '../components/utils/userRoles'; import { optimizeRouteRealTime } from '@/functions/optimizeRouteRealTime';
 import { formatPhoneNumber } from "../components/utils/phoneFormatter";
 import { useUser } from '../components/utils/UserContext';
 import { isMobileDevice } from "../components/utils/deviceUtils";
