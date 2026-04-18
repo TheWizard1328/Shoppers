@@ -845,6 +845,25 @@ Deno.serve(async (req) => {
     }, 'stop_order', 50000);
     console.log(`# [purgeAndRegeneratePolylines] AFTER markDeliveriesPolylineUpdated | driver=${driverDisplayName} | date=${deliveryDate} | totalStops=${finalDeliveries?.length || 0}`);
 
+    const consolidatedLegs = [];
+    const completedLikeStops = (finalDeliveries || [])
+      .filter((delivery) => FINISHED_STATUSES.has(String(delivery?.status || '')))
+      .sort((a, b) => Number(a?.stop_order || 0) - Number(b?.stop_order || 0));
+
+    for (const stop of completedLikeStops) {
+      const consolidation = await base44.asServiceRole.functions.invoke('consolidateBreadcrumbs', {
+        driver_id: driverId,
+        delivery_date: deliveryDate,
+        stop_order: Number(stop.stop_order || 0),
+        delivery_status: stop.status
+      }).catch(() => null);
+      consolidatedLegs.push({
+        delivery_id: stop.id,
+        stop_order: Number(stop.stop_order || 0),
+        result: consolidation?.data || consolidation || null
+      });
+    }
+
     return Response.json({
       success: true,
       scope,
@@ -857,7 +876,8 @@ Deno.serve(async (req) => {
       regeneratedFinishedLegStopIds,
       repairedStopOrders: stopOrderRepairUpdates.length,
       recalculatedTravelDistances: sortedForTravelDistance.length,
-      originStrategy: latestFinishedStop ? 'last_finished_stop' : 'home_through_remaining_route'
+      originStrategy: latestFinishedStop ? 'last_finished_stop' : 'home_through_remaining_route',
+      consolidatedLegs
     });
   } catch (error) {
     console.error('[purgeAndRegeneratePolylines] Error:', error?.message || error);
