@@ -11,6 +11,7 @@ import { Loader2, RotateCcw } from "lucide-react";
 export default function ResetPolylinesButton({
   selectedDriverIds = [],
   selectedDate,
+  selectedPolylineOption = 'polylines',
   mode = "inline",
   disabled = false,
   className = "",
@@ -83,23 +84,27 @@ export default function ResetPolylinesButton({
       // 3. Update the polylines (per driver) sequentially
       for (const driverId of driverIds) {
         try {
-          const response = await base44.functions.invoke("purgeAndRegeneratePolylines", {
+          const functionName = selectedPolylineOption === 'breadcrumbs'
+            ? 'purgeAndRegeneratePolylines'
+            : 'purgeAndRegeneratePolylines';
+
+          const response = await base44.functions.invoke(functionName, {
             driverId,
             deliveryDate: selectedDate,
-            scope: "all",
+            scope: 'all',
+            reason: 'manual'
           });
           const result = response?.data || response || {};
           if (!result.success) {
-            throw new Error(result.error || "Polyline regeneration failed");
+            throw new Error(result.error || 'Polyline regeneration failed');
           }
-          
-          // Sync and update UI for this driver
+
           await syncDriverDateDeliveriesFromBackend([driverId]);
-          
-          window.dispatchEvent(new CustomEvent("deliveriesUpdated", {
-            detail: { driverId, deliveryDate: selectedDate, triggeredBy: "resetPolylines_chunk" }
+
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+            detail: { driverId, deliveryDate: selectedDate, triggeredBy: 'resetPolylines_chunk' }
           }));
-          
+
           await new Promise(resolve => setTimeout(resolve, 500));
         } catch (err) {
           console.warn(`Failed to regenerate polylines for driver ${driverId}:`, err);

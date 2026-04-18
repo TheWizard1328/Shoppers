@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { base44 } from "@/api/base44Client";
-import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import ResetPolylinesButton from "@/components/dashboard/ResetPolylinesButton";
 import { getApiLogProvider, sumApiLogCalls } from "@/components/utils/apiUsageLog";
 
@@ -8,7 +8,7 @@ import { getApiLogProvider, sumApiLogCalls } from "@/components/utils/apiUsageLo
 // Props:
 // - currentUser: object (used by parent to gate rendering)
 // - stopCardsHeight: number (px) to position the badge just above stop cards
-export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRoutes = true, showBreadcrumbs = false, showCompletedRouteControls = false, selectedDate = null, selectedDriverIds = [] }) {
+export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRoutes = true, showBreadcrumbs = false, showCompletedRouteControls = false, selectedDate = null, selectedDriverIds = [], selectedPolylineOption = 'polylines', onPolylineOptionChange }) {
   const [googleCount, setGoogleCount] = useState(null);
   const [hereCount, setHereCount] = useState(null);
 
@@ -70,17 +70,37 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
       {showCompletedRouteControls &&
       <div className="absolute top-4 right-4 z-[180] pointer-events-auto">
           <div className="px-2 py-2 rounded-xl border shadow-lg space-y-1" style={{ background: 'transparent', borderColor: 'var(--border-slate-200)' }}>
-            <div className="flex items-center justify-between gap-3">
-              <label className="flex items-start gap-3 cursor-pointer flex-1">
-                <Checkbox checked={showRoutes} onCheckedChange={(checked) => window.__dashboardCompletedRouteControls?.setShowRoutes?.(checked === true)} className="mt-0.5" />
-                <div className="space-y-1"><div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Show Polylines</div></div>
-              </label>
-              <ResetPolylinesButton selectedDriverIds={selectedDriverIds} selectedDate={selectedDate} />
+            <div className="flex items-start justify-between gap-3">
+              <RadioGroup
+                value={selectedPolylineOption}
+                onValueChange={onPolylineOptionChange}
+                className="gap-2"
+              >
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <RadioGroupItem
+                    value="polylines"
+                    id="completed-route-polylines"
+                    onClick={() => {
+                      window.__dashboardCompletedRouteControls?.setShowRoutes?.(true);
+                      window.__dashboardCompletedRouteControls?.setShowBreadcrumbs?.(false);
+                    }}
+                  />
+                  <div className="space-y-1"><div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Show Polylines</div></div>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <RadioGroupItem
+                    value="breadcrumbs"
+                    id="completed-route-breadcrumbs"
+                    onClick={() => {
+                      window.__dashboardCompletedRouteControls?.setShowRoutes?.(false);
+                      window.__dashboardCompletedRouteControls?.setShowBreadcrumbs?.(true);
+                    }}
+                  />
+                  <div className="space-y-1"><div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Show Breadcrumbs</div></div>
+                </label>
+              </RadioGroup>
+              <ResetPolylinesButton selectedDriverIds={selectedDriverIds} selectedDate={selectedDate} selectedPolylineOption={selectedPolylineOption} />
             </div>
-            <label className="flex items-start gap-3 cursor-pointer">
-              <Checkbox checked={showBreadcrumbs} onCheckedChange={(checked) => window.__dashboardCompletedRouteControls?.setShowBreadcrumbs?.(checked === true)} className="mt-0.5" />
-              <div className="space-y-1"><div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Show Breadcrumbs</div></div>
-            </label>
           </div>
         </div>
       }
