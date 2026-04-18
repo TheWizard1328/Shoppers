@@ -73,28 +73,24 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
             <div className="flex items-start justify-between gap-3">
               <RadioGroup
                 value={selectedPolylineOption}
-                onValueChange={onPolylineOptionChange}
+                onValueChange={(value) => {
+                  onPolylineOptionChange?.(value);
+                  window.__dashboardCompletedRouteControls?.setShowRoutes?.(value === 'polylines');
+                  window.__dashboardCompletedRouteControls?.setShowBreadcrumbs?.(value === 'breadcrumbs');
+                }}
                 className="gap-2"
               >
-                <label className="flex items-center gap-3 cursor-pointer">
+                <label htmlFor="completed-route-polylines" className="flex items-center gap-3 cursor-pointer">
                   <RadioGroupItem
                     value="polylines"
                     id="completed-route-polylines"
-                    onClick={() => {
-                      window.__dashboardCompletedRouteControls?.setShowRoutes?.(true);
-                      window.__dashboardCompletedRouteControls?.setShowBreadcrumbs?.(false);
-                    }}
                   />
                   <div className="space-y-1"><div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Show Polylines</div></div>
                 </label>
-                <label className="flex items-center gap-3 cursor-pointer">
+                <label htmlFor="completed-route-breadcrumbs" className="flex items-center gap-3 cursor-pointer">
                   <RadioGroupItem
                     value="breadcrumbs"
                     id="completed-route-breadcrumbs"
-                    onClick={() => {
-                      window.__dashboardCompletedRouteControls?.setShowRoutes?.(false);
-                      window.__dashboardCompletedRouteControls?.setShowBreadcrumbs?.(true);
-                    }}
                   />
                   <div className="space-y-1"><div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Show Breadcrumbs</div></div>
                 </label>
