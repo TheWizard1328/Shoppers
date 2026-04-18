@@ -336,7 +336,12 @@ async function getSegmentDirections(base44, from, to) {
 async function reintegratePendingBreadcrumbLive(base44, driverId, deliveryDate, deliveries) {
   const completedLikeStops = (Array.isArray(deliveries) ? deliveries : [])
     .filter((delivery) => FINISHED_STATUSES.has(String(delivery?.status || '')))
-    .sort((a, b) => Number(a?.stop_order || 0) - Number(b?.stop_order || 0));
+    .sort((a, b) => {
+      const aTime = new Date(a?.actual_delivery_time || a?.arrival_time || a?.updated_date || a?.created_date || 0).getTime();
+      const bTime = new Date(b?.actual_delivery_time || b?.arrival_time || b?.updated_date || b?.created_date || 0).getTime();
+      if (aTime !== bTime) return aTime - bTime;
+      return Number(a?.stop_order || 0) - Number(b?.stop_order || 0);
+    });
 
   if (completedLikeStops.length === 0) {
     return { mergedCount: 0, sourceRows: 0, updatedDeliveryIds: [] };
@@ -344,48 +349,91 @@ async function reintegratePendingBreadcrumbLive(base44, driverId, deliveryDate, 
 
   const pendingRows = await base44.asServiceRole.entities.PendingBreadcrumbLive.filter({ driver_id: driverId }, '-updated_date', 50000);
   const rowsForDate = (pendingRows || []).filter((row) => {
-    const firstPointTs = Array.isArray(row?.breadcrumbs) && row.breadcrumbs[0]?.[2];
-    return getEdmontonDateString(firstPointTs || Date.now()) === deliveryDate;
+    const breadcrumbPoints = Array.isArray(row?.breadcrumbs) ? row.breadcrumbs : [];
+    const firstValidTs = breadcrumbPoints.find((point) => Array.isArray(point) && Number.isFinite(Number(point?.[2])))?.[2];
+    return getEdmontonDateString(firstValidTs || Date.now()) === deliveryDate;
   });
 
   if (rowsForDate.length === 0) {
     return { mergedCount: 0, sourceRows: 0, updatedDeliveryIds: [] };
   }
 
-  const deliveryByStopOrder = new Map(completedLikeStops.map((delivery) => [Number(delivery?.stop_order || 0), delivery]));
-  const rowsByStopOrder = new Map();
+  const stopWindows = completedLikeStops.map((delivery, index) => {
+    const completedAt = new Date(delivery?.actual_delivery_time || delivery?.arrival_time || delivery?.updated_date || delivery?.created_date || 0).getTime();
+    const prevCompletedAt = index > 0
+      ? new Date(completedLikeStops[index - 1]?.actual_delivery_time || completedLikeStops[index - 1]?.arrival_time || completedLikeStops[index - 1]?.updated_date || completedLikeStops[index - 1]?.created_date || 0).getTime()
+      : null;
+
+    return {
+      delivery,
+      startTs: Number.isFinite(prevCompletedAt) ? prevCompletedAt : null,
+      endTs: Number.isFinite(completedAt) ? completedAt : null
+    };
+  }).filter((window) => Number.isFinite(window.endTs));
+
+  const pointsByDeliveryId = new Map(stopWindows.map((window) => [window.delivery.id, []]));
+  const rowsByDeliveryId = new Map(stopWindows.map((window) => [window.delivery.id, []]));
+
   rowsForDate.forEach((row) => {
-    const stopOrder = Number(row?.stop_order || 0);
-    if (!stopOrder) return;
-    if (!rowsByStopOrder.has(stopOrder)) rowsByStopOrder.set(stopOrder, []);
-    rowsByStopOrder.get(stopOrder).push(row);
+    const normalizedPoints = (Array.isArray(row?.breadcrumbs) ? row.breadcrumbs : [])
+      .map((point) => {
+        if (!Array.isArray(point) || point.length < 2) return null;
+        const lat = Number(point[0]);
+        const lon = Number(point[1]);
+        const ts = Number(point[2]);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(ts)) return null;
+        return [lat, lon, ts];
+      })
+      .filter(Boolean)
+      .sort((a, b) => a[2] - b[2]);
+
+    if (normalizedPoints.length === 0) return;
+
+    let matchedDeliveryId = null;
+    const firstTs = normalizedPoints[0][2];
+    const lastTs = normalizedPoints[normalizedPoints.length - 1][2];
+
+    const overlapMatch = stopWindows.find((window) => {
+      const startsBeforeWindowEnds = firstTs <= window.endTs;
+      const endsAfterWindowStarts = window.startTs == null || lastTs > window.startTs;
+      return startsBeforeWindowEnds && endsAfterWindowStarts;
+    });
+
+    if (overlapMatch?.delivery?.id) {
+      matchedDeliveryId = overlapMatch.delivery.id;
+    } else {
+      const nearestWindow = stopWindows.reduce((best, window) => {
+        const distance = Math.abs((window.endTs || 0) - lastTs);
+        if (!best || distance < best.distance) return { deliveryId: window.delivery.id, distance };
+        return best;
+      }, null);
+      matchedDeliveryId = nearestWindow?.deliveryId || null;
+    }
+
+    if (!matchedDeliveryId) return;
+
+    pointsByDeliveryId.get(matchedDeliveryId)?.push(...normalizedPoints);
+    rowsByDeliveryId.get(matchedDeliveryId)?.push(row);
   });
 
   let mergedCount = 0;
   let sourceRows = 0;
   const updatedDeliveryIds = [];
 
-  for (const [stopOrder, rows] of rowsByStopOrder.entries()) {
-    const targetDelivery = deliveryByStopOrder.get(stopOrder);
-    if (!targetDelivery?.id) continue;
+  for (const window of stopWindows) {
+    const targetDelivery = window.delivery;
+    const rawPoints = pointsByDeliveryId.get(targetDelivery.id) || [];
+    const rows = rowsByDeliveryId.get(targetDelivery.id) || [];
+    if (rawPoints.length === 0 || rows.length === 0) continue;
 
-    const points = rows
-      .flatMap((row) => Array.isArray(row?.breadcrumbs) ? row.breadcrumbs : [])
-      .map((point) => {
-        if (!Array.isArray(point) || point.length < 2) return null;
-        const lat = Number(point[0]);
-        const lon = Number(point[1]);
-        const ts = Number(point[2]);
-        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-        return [lat, lon, Number.isFinite(ts) ? ts : Date.now()];
-      })
-      .filter(Boolean)
-      .sort((a, b) => a[2] - b[2]);
-
-    if (points.length === 0) continue;
+    const uniquePoints = rawPoints
+      .sort((a, b) => a[2] - b[2])
+      .filter((point, index, arr) => index === 0 || !(arr[index - 1][0] === point[0] && arr[index - 1][1] === point[1] && arr[index - 1][2] === point[2]));
 
     await base44.asServiceRole.entities.Delivery.update(targetDelivery.id, {
-      delivery_route_breadcrumbs: JSON.stringify(points),
+      delivery_route_breadcrumbs: JSON.stringify(uniquePoints),
+      finished_leg_encoded_polyline: null,
+      finished_leg_transport_mode: null,
       PolylineUpdated: true
     });
 
@@ -396,7 +444,7 @@ async function reintegratePendingBreadcrumbLive(base44, driverId, deliveryDate, 
       });
     });
 
-    mergedCount += points.length;
+    mergedCount += uniquePoints.length;
     sourceRows += rows.length;
     updatedDeliveryIds.push(targetDelivery.id);
   }
@@ -633,7 +681,9 @@ Deno.serve(async (req) => {
         });
       }
 
-      const finishedSegmentsNeedingApi = finishedSegmentSpecs.filter((segment) => routeSource === 'polylines' || !segment.breadcrumbDirections);
+      const finishedSegmentsNeedingApi = routeSource === 'polylines'
+        ? finishedSegmentSpecs
+        : [];
       const finishedDirectionsFromApi = finishedSegmentsNeedingApi.length > 0
         ? await getMultiSegmentDirections(base44, finishedSegmentsNeedingApi.map((segment) => ({ from: segment.from, to: segment.to })))
         : [];
@@ -643,13 +693,13 @@ Deno.serve(async (req) => {
       finishedSegmentSpecs.forEach((segment) => {
         const directions = routeSource === 'polylines'
           ? finishedDirectionsFromApi[apiDirectionIndex++] || null
-          : segment.breadcrumbDirections || finishedDirectionsFromApi[apiDirectionIndex++] || null;
+          : segment.breadcrumbDirections || null;
         regeneratedFinishedLegStopIds.push(segment.stop.id);
         deliveryUpdatesById.set(segment.stop.id, {
           ...(deliveryUpdatesById.get(segment.stop.id) || {}),
           delivery_route_breadcrumbs: segment.usedFallbackBreadcrumbs ? segment.fallbackBreadcrumbs : (deliveryUpdatesById.get(segment.stop.id)?.delivery_route_breadcrumbs || segment.stop?.delivery_route_breadcrumbs),
           finished_leg_encoded_polyline: directions?.encoded_polyline || null,
-          finished_leg_transport_mode: segment.stop?.finished_leg_transport_mode || 'driving',
+          finished_leg_transport_mode: directions?.encoded_polyline ? (segment.stop?.finished_leg_transport_mode || 'driving') : null,
           travel_dist: directions?.estimated_distance_km ?? null,
           PolylineUpdated: true
         });
@@ -669,7 +719,7 @@ Deno.serve(async (req) => {
       deliveries = afterFinishedLegDeliveries;
     }
 
-    if (scope === 'all' || scope === 'active_only') {
+    if ((scope === 'all' || scope === 'active_only') && routeSource === 'polylines') {
       const firstActive = getLatLon(activeStops.find((stop) => stop.isNextDelivery === true) || activeStops[0]);
       const preservedType1Row = scope === 'active_only' && firstActive
         ? (existingPolylines || []).find((row) => samePoint({ lat: row?.segment_dest_lat, lon: row?.segment_dest_lon }, firstActive)) || null

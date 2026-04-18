@@ -124,8 +124,8 @@ export default function ResetPolylinesButton({
         const successRate = totalDrivers > 0 ? Math.round(successfulDrivers / totalDrivers * 100) : 0;
 
         toast({
-          title: 'Breadcrumb integration complete',
-          description: `${successRate}% success rate • ${integratedStops} stop${integratedStops === 1 ? '' : 's'} updated • ${mergedRows} live breadcrumb row${mergedRows === 1 ? '' : 's'} merged`
+          title: 'Breadcrumb consolidation complete',
+          description: `${successRate}% matched • ${integratedStops} stop${integratedStops === 1 ? '' : 's'} aligned by timestamp • ${mergedRows} breadcrumb row${mergedRows === 1 ? '' : 's'} merged`
         });
       }
     } finally {
