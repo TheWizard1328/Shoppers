@@ -84,15 +84,12 @@ export default function ResetPolylinesButton({
       // 3. Update the polylines (per driver) sequentially
       for (const driverId of driverIds) {
         try {
-          const functionName = selectedPolylineOption === 'breadcrumbs'
-            ? 'purgeAndRegeneratePolylines'
-            : 'purgeAndRegeneratePolylines';
-
-          const response = await base44.functions.invoke(functionName, {
+          const response = await base44.functions.invoke('purgeAndRegeneratePolylines', {
             driverId,
             deliveryDate: selectedDate,
             scope: 'all',
-            reason: 'manual'
+            reason: selectedPolylineOption === 'polylines' ? 'manual' : 'manual_breadcrumbs',
+            routeSource: selectedPolylineOption
           });
           const result = response?.data || response || {};
           if (!result.success) {
