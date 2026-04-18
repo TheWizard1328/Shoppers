@@ -3578,7 +3578,7 @@ export default function DeliveriesPage() {
                   const driverBadgeClass = getDriverStatusBadgeClass(card.driver.id, card.driver.driver_status);
                   return (
                     <Card
-                      key={card.driver.id || card.driver.appUserId || `${card.firstName}-${index}`} className="bg-card text-card-foreground rounded-xl border shadow cursor-pointer transition-shadow backdrop-blur-sm hover:shadow-lg h-auto"
+                      key={card.driver.id || card.driver.appUserId || card.firstName} className="bg-card text-card-foreground rounded-xl border shadow cursor-pointer transition-shadow backdrop-blur-sm hover:shadow-lg h-auto"
                       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)', minWidth: '280px', display: 'flex', flexDirection: 'column' }}
                       onClick={() => handleDriverCardClick(card.driver)}>
 
