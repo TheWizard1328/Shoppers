@@ -2,6 +2,7 @@ import { base44 } from "@/api/base44Client";
 import { invalidate } from "../utils/dataManager";
 import { offlineDB } from '../utils/offlineDatabase';
 import { encodeGooglePolyline, getHereEncodedPolyline } from "../utils/hereRouting";
+import { shouldRunRouteDeviationCheck, shouldRefreshEtasForCompletionDrift, markEtaRefreshRun } from "../utils/etaRefreshRules";
 
 export function getCurrentLocalTimeString(date = new Date()) {
   return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
@@ -526,9 +527,26 @@ export async function syncNextDeliveryFlagsLocally({ driverDeliveries = [], next
   return changedDeliveries;
 }
 
-export async function refreshDriverRoute({ driverId, deliveryDate, forceRefreshDriverDeliveries, triggeredBy }) {
+export async function refreshDriverRoute({ driverId, deliveryDate, forceRefreshDriverDeliveries, triggeredBy, actualDeliveryTime = null }) {
   invalidate("Delivery");
   await forceRefreshDriverDeliveries(driverId, deliveryDate);
+
+  if (actualDeliveryTime && shouldRefreshEtasForCompletionDrift({
+    driverId,
+    deliveryDate,
+    actualDeliveryTime,
+    now: new Date()
+  })) {
+    const now = new Date();
+    const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    await base44.functions.invoke('calculateRealTimeETA', {
+      driverId,
+      deliveryDate,
+      currentLocalTime
+    }).catch(() => null);
+    markEtaRefreshRun({ driverId, deliveryDate, now: Date.now() });
+  }
+
   if (triggeredBy) {
     window.dispatchEvent(new CustomEvent("deliveriesUpdated", {
       detail: { triggeredBy, driverId, deliveryDate }
@@ -592,6 +610,15 @@ export async function optimizeRouteAndApplyNextDelivery({
   }
 
   const optimizationPromise = (async () => {
+    if (!shouldRunRouteDeviationCheck({ driverId, deliveryDate })) {
+      return {
+        optimizeData: null,
+        optimizedRoute: [],
+        nextOptimizedStopId: null,
+        refreshedDriverDeliveries: []
+      };
+    }
+
     const optimizeResponse = await base44.functions.invoke('optimizeRouteRealTime', {
       driverId,
       deliveryDate,

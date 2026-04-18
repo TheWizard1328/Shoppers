@@ -1,4 +1,5 @@
 import { base44 } from '@/api/base44Client';
+import { shouldRefreshEtasForCompletionDrift, markEtaRefreshRun } from './etaRefreshRules';
 
 const hasCardCodPayment = (delivery) => (
   (Array.isArray(delivery?.cod_payments) && delivery.cod_payments.some((payment) =>
@@ -76,6 +77,8 @@ export const triggerPickupCompletionSync = ({ delivery, previousStatus }) => {
 
 export const runTerminalDeliverySideEffects = ({ delivery, previousStatus, nextStatus, overrides = {} }) => {
   const nextDelivery = { ...delivery, ...overrides, status: nextStatus };
+  const deliveryDate = nextDelivery.delivery_date;
+  const driverId = nextDelivery.driver_id;
 
   // If no arrival_time recorded, synthesize one as 1 minute before actual_delivery_time
   if (!nextDelivery.arrival_time && nextDelivery.actual_delivery_time) {
@@ -97,4 +100,28 @@ export const runTerminalDeliverySideEffects = ({ delivery, previousStatus, nextS
   triggerPatientLastDeliverySync({ delivery: nextDelivery, previousStatus });
   triggerPickupCompletionSync({ delivery: nextDelivery, previousStatus });
   triggerSquareCodDelete({ deliveryId: nextDelivery.id, nextStatus, delivery: nextDelivery });
+
+  if (
+    nextStatus === 'completed' &&
+    driverId &&
+    deliveryDate &&
+    shouldRefreshEtasForCompletionDrift({
+      driverId,
+      deliveryDate,
+      actualDeliveryTime: nextDelivery.actual_delivery_time,
+      now: new Date()
+    })
+  ) {
+    const now = new Date();
+    const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    setTimeout(() => {
+      base44.functions.invoke('calculateRealTimeETA', {
+        driverId,
+        deliveryDate,
+        currentLocalTime
+      }).then(() => {
+        markEtaRefreshRun({ driverId, deliveryDate, now: Date.now() });
+      }).catch(() => null);
+    }, 0);
+  }
 };

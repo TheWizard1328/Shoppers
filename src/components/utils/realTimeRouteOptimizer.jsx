@@ -10,11 +10,12 @@
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { isMobileDevice } from './deviceUtils';
+import { shouldRunRouteDeviationCheck } from './etaRefreshRules';
 
 // Debounce optimization calls to prevent rapid-fire triggers
 let optimizationTimeout = null;
 let lastOptimizationTime = 0;
-const OPTIMIZATION_COOLDOWN = 5000; // 5 seconds between optimizations
+const OPTIMIZATION_COOLDOWN = 60000; // 1 minute between route deviation checks
 const optimizationInFlight = new Map();
 
 /**
@@ -52,6 +53,10 @@ export const triggerRouteOptimization = async ({
   
   // Check cooldown
   const now = Date.now();
+  if (!shouldRunRouteDeviationCheck({ driverId, deliveryDate: deliveryDate || format(new Date(), 'yyyy-MM-dd'), now })) {
+    console.log('⏳ [RouteOptimizer] Route deviation check throttled');
+    return null;
+  }
   if (now - lastOptimizationTime < OPTIMIZATION_COOLDOWN) {
     console.log('⏳ [RouteOptimizer] Optimization cooldown - skipping');
     return null;
