@@ -5571,7 +5571,7 @@ function Dashboard() {
       </div>
 
       <div className="flex-1 w-full relative min-h-0 overflow-hidden">
-        {currentUser && isAppOwner(currentUser) && <ApiUsageBadge currentUser={currentUser} stopCardsHeight={deliveriesWithStopOrder.length > 0 ? stopCardsBaseHeight : 0} showRoutes={showRoutes} showBreadcrumbs={showBreadcrumbs} showCompletedRouteControls={!isMobile && selectedDriverId !== 'all' && filteredDeliveries.length > 0 && filteredDeliveries.every((delivery) => delivery && ['completed', 'failed', 'cancelled', 'returned'].includes(delivery.status))} selectedDate={format(selectedDate, 'yyyy-MM-dd')} selectedDriverIds={selectedDriverId !== 'all' ? [selectedDriverId] : []} />}
+        {currentUser && isAppOwner(currentUser) && <ApiUsageBadge currentUser={currentUser} stopCardsHeight={deliveriesWithStopOrder.length > 0 ? stopCardsBaseHeight : 0} showRoutes={showRoutes} showBreadcrumbs={showBreadcrumbs} showCompletedRouteControls={!isMobile && selectedDriverId !== 'all' && filteredDeliveries.length > 0 && filteredDeliveries.every((delivery) => delivery && ['completed', 'failed', 'cancelled', 'returned'].includes(delivery.status))} selectedDate={format(selectedDate, 'yyyy-MM-dd')} selectedDriverIds={selectedDriverId !== 'all' ? [selectedDriverId] : []} selectedPolylineOption={showBreadcrumbs ? 'breadcrumbs' : 'polylines'} onPolylineOptionChange={(value) => { setShowRoutes(value === 'polylines'); setShowBreadcrumbs(value === 'breadcrumbs'); }} />}
 
         <MapSection
           currentUser={currentUser}
