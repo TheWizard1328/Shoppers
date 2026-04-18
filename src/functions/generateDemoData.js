@@ -82,6 +82,26 @@ const createFakePharmacyName = (usedNames) => {
   return name;
 };
 
+const generatePatientId = (existingIds = []) => {
+  const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  const length = 5;
+  const maxAttempts = 100;
+  const existingSet = new Set(existingIds.map((id) => String(id).trim()));
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    let newId = '';
+    for (let index = 0; index < length; index += 1) {
+      newId += characters.charAt(Math.floor(Math.random() * characters.length));
+    }
+    if (!existingSet.has(newId)) {
+      return newId;
+    }
+  }
+
+  const timestamp = Date.now().toString(36).slice(-5);
+  return timestamp.padStart(length, characters.charAt(0));
+};
+
 const buildRealAddress = async (base44, store, index) => {
   const response = await base44.integrations.Core.InvokeLLM({
     prompt: `Return one real residential mailing address within 25km of store at ${store.latitude}, ${store.longitude}. Include full street address, latitude, longitude, and ensure it is plausible in the local area.`,
@@ -148,6 +168,7 @@ Deno.serve(async (req) => {
     const demoRoutes = await base44.asServiceRole.entities.DemoRoute.filter({ created_by: user.email });
     const demoAppUsers = await base44.asServiceRole.entities.DemoAppUser.filter({ created_by: user.email });
     const settings = await base44.asServiceRole.entities.DemoSettings.filter({ user_id: user.id });
+    const existingPatientIds = demoPatients.map((item) => item.patient_id).filter(Boolean);
 
     if (shouldClearExisting) {
       await Promise.all([
@@ -283,11 +304,14 @@ Deno.serve(async (req) => {
         const fullName = `${pick(firstNames)} ${pick(lastNames)}`;
         const realAddress = await buildRealAddress(base44, store, index);
 
+        const patientId = generatePatientId(existingPatientIds);
+        existingPatientIds.push(patientId);
+
         const patient = await base44.asServiceRole.entities.DemoPatient.create({
           store_id: store.id,
           dispatcher_id: demoDispatchers[storeIndex]?.user_id || '',
           full_name: fullName,
-          patient_id: `DEMO-${storeIndex + 1}-${Date.now()}-${index + 1}`,
+          patient_id: patientId,
           address: realAddress.address,
           phone: `(780) 555-${String(randomInt(1000, 9999)).padStart(4, '0')}`,
           notes: pick(notes),
