@@ -1,5 +1,5 @@
 export const ETA_REFRESH_INTERVAL_MS = 60 * 1000;
-export const ETA_COMPLETION_DRIFT_THRESHOLD_MS = 5 * 60 * 1000;
+export const ETA_COMPLETION_DRIFT_THRESHOLD_MS = 5 * 60 * 1000; // refresh only when completion is more than ±5 minutes off
 
 const etaRefreshState = new Map();
 const routeDeviationState = new Map();
@@ -51,7 +51,7 @@ export const shouldRefreshEtasForCompletionDrift = ({ driverId, deliveryDate, ac
   const nowMs = now instanceof Date ? now.getTime() : now;
 
   if (nowMs - lastRun < ETA_REFRESH_INTERVAL_MS) return false;
-  if (Math.abs(nowMs - actualDate.getTime()) < ETA_COMPLETION_DRIFT_THRESHOLD_MS) return false;
+  if (Math.abs(nowMs - actualDate.getTime()) <= ETA_COMPLETION_DRIFT_THRESHOLD_MS) return false;
 
   etaRefreshState.set(key, nowMs);
   return true;
