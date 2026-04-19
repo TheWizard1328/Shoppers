@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
+import { getData } from '@/components/utils/dataManager';
 import { GoogleAddressAutocomplete } from '@/components/ui/google-address-autocomplete';
 
 export default function DemoModeDialog({ open, onOpenChange }) {
@@ -20,10 +21,10 @@ export default function DemoModeDialog({ open, onOpenChange }) {
     const me = await base44.auth.me();
     const [settingsRows, storeRows, patientRows, routeRows, cityRows, appSettingsRows] = await Promise.all([
       base44.entities.DemoSettings.filter({ user_id: me.id }),
-      base44.entities.DemoStore.list(),
-      base44.entities.DemoPatient.list(),
-      base44.entities.DemoRoute.list(),
-      base44.entities.City.list(),
+      getData('DemoStore'),
+      getData('DemoPatient'),
+      getData('DemoRoute'),
+      getData('City'),
       base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' })
     ]);
     const activeSettings = settingsRows[0] || null;
