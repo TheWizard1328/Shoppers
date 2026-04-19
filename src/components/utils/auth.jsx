@@ -93,9 +93,13 @@ const getOfflineAppUser = async (userId) => {
   return Array.isArray(appUsers) && appUsers.length > 0 ? appUsers[0] : null;
 };
 
-const getAppUserByUserId = async (userId) => {
-  const cachedAppUser = await getOfflineAppUser(userId);
-  if (cachedAppUser) return cachedAppUser;
+const getAppUserByUserId = async (userId, options = {}) => {
+  const { skipOfflineCache = false } = options;
+
+  if (!skipOfflineCache) {
+    const cachedAppUser = await getOfflineAppUser(userId);
+    if (cachedAppUser) return cachedAppUser;
+  }
 
   const appUsers = await withTimeout(base44.entities.AppUser.filter({ user_id: userId }), 8000);
   if (appUsers && appUsers.length > 0) {
@@ -202,7 +206,7 @@ export const getEffectiveUser = async () => {
                     return null;
                 }
 
-                const appUser = await getAppUserByUserId(authUser.id);
+                const appUser = await getAppUserByUserId(authUser.id, { skipOfflineCache: hasAccessTokenInUrl });
                 if (!appUser) {
                     console.warn(`⚠️ [auth.js] No AppUser found for ${authUser.full_name}`);
                     return null;
