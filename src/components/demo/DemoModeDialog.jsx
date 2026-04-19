@@ -26,10 +26,15 @@ export default function DemoModeDialog({ open, onOpenChange }) {
       base44.entities.City.list(),
       base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' })
     ]);
-    setSettings(settingsRows[0] || null);
-    setStores((storeRows || []).filter((item) => item.is_demo && item.created_by === me.email));
-    setPatients((patientRows || []).filter((item) => item.is_demo && item.created_by === me.email));
-    setRoutes((routeRows || []).filter((item) => item.is_demo && item.created_by === me.email));
+    const activeSettings = settingsRows[0] || null;
+    const activeDemoStoreId = activeSettings?.demo_store_id || null;
+    const demoStores = (storeRows || []).filter((item) => item.is_demo && (!activeDemoStoreId || item.id === activeDemoStoreId));
+    const demoStoreIds = demoStores.map((item) => item.id);
+
+    setSettings(activeSettings);
+    setStores(demoStores);
+    setPatients((patientRows || []).filter((item) => item.is_demo && (demoStoreIds.length === 0 || demoStoreIds.includes(item.store_id))));
+    setRoutes((routeRows || []).filter((item) => item.is_demo && (demoStoreIds.length === 0 || demoStoreIds.includes(item.store_id))));
     setCities(cityRows || []);
     setSelectedApiKey(appSettingsRows?.[0]?.setting_value?.selected_api_key || 'HERE_API_KEY');
   };
@@ -136,10 +141,14 @@ export default function DemoModeDialog({ open, onOpenChange }) {
       base44.entities.DemoRoute.list()
     ]);
 
+    const activeDemoStoreId = settings?.demo_store_id || null;
+    const demoStoresToDelete = (storeRows || []).filter((item) => item.is_demo && (!activeDemoStoreId || item.id === activeDemoStoreId));
+    const demoStoreIds = demoStoresToDelete.map((item) => item.id);
+
     await Promise.all([
-      ...(routeRows || []).filter((item) => item.is_demo && item.created_by === me.email).map((item) => base44.entities.DemoRoute.delete(item.id)),
-      ...(patientRows || []).filter((item) => item.is_demo && item.created_by === me.email).map((item) => base44.entities.DemoPatient.delete(item.id)),
-      ...(storeRows || []).filter((item) => item.is_demo && item.created_by === me.email).map((item) => base44.entities.DemoStore.delete(item.id))
+      ...(routeRows || []).filter((item) => item.is_demo && (demoStoreIds.length === 0 || demoStoreIds.includes(item.store_id))).map((item) => base44.entities.DemoRoute.delete(item.id)),
+      ...(patientRows || []).filter((item) => item.is_demo && (demoStoreIds.length === 0 || demoStoreIds.includes(item.store_id))).map((item) => base44.entities.DemoPatient.delete(item.id)),
+      ...demoStoresToDelete.map((item) => base44.entities.DemoStore.delete(item.id))
     ]);
   };
 
