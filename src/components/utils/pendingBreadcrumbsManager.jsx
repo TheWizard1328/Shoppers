@@ -29,6 +29,11 @@ function getFirstBreadcrumbTimestamp(record) {
   return Array.isArray(firstPoint) && firstPoint[2] ? Number(firstPoint[2]) : null;
 }
 
+function hasBreadcrumbForDate(record, targetDateStr) {
+  if (!targetDateStr || !Array.isArray(record?.breadcrumbs)) return false;
+  return record.breadcrumbs.some((point) => Array.isArray(point) && Number.isFinite(Number(point?.[2])) && getEdmontonDateString(Number(point[2])) === targetDateStr);
+}
+
 function isLegacyRecord(record, appUserId) {
   return !!record && !record?.owner_driver_id && record?.driver_id === appUserId;
 }
@@ -54,13 +59,14 @@ export async function listPendingBreadcrumbRecordsForDriver({ driverUserId, appU
     });
 }
 
-export async function getPendingBreadcrumbsForDriver({ driverUserId, appUsers = [] }) {
+export async function getPendingBreadcrumbsForDriver({ driverUserId, appUsers = [], selectedDateStr = null }) {
   if (!driverUserId) return null;
   try {
     if (!hasPendingBreadcrumbLiveEntity()) throw new Error('PendingBreadcrumbLive unavailable');
     const liveRecords = await base44.entities.PendingBreadcrumbLive.filter({ driver_id: driverUserId });
     const latestLiveRecord = (liveRecords || [])
       .filter((record) => Array.isArray(record?.breadcrumbs) && record.breadcrumbs.length > 0)
+      .filter((record) => !selectedDateStr || hasBreadcrumbForDate(record, selectedDateStr))
       .sort((a, b) => Number(a?.stop_order || 0) - Number(b?.stop_order || 0))
       .slice(-1)[0];
     if (latestLiveRecord?.breadcrumbs?.length) {
@@ -69,12 +75,13 @@ export async function getPendingBreadcrumbsForDriver({ driverUserId, appUsers = 
   } catch (_) {}
 
   const records = await listPendingBreadcrumbRecordsForDriver({ driverUserId, appUsers });
-  const latestRecord = records[records.length - 1];
+  const scopedRecords = selectedDateStr ? records.filter((record) => hasBreadcrumbForDate(record, selectedDateStr)) : records;
+  const latestRecord = scopedRecords[scopedRecords.length - 1];
   if (!latestRecord?.breadcrumbs?.length) return null;
   return JSON.stringify(latestRecord.breadcrumbs);
 }
 
-export async function getPendingBreadcrumbsForDelivery({ driverUserId, deliveryId, stopOrder, appUsers = [] }) {
+export async function getPendingBreadcrumbsForDelivery({ driverUserId, deliveryId, stopOrder, appUsers = [], selectedDateStr = null }) {
   if (driverUserId && stopOrder != null) {
     try {
       if (!hasPendingBreadcrumbLiveEntity()) throw new Error('PendingBreadcrumbLive unavailable');
@@ -82,6 +89,7 @@ export async function getPendingBreadcrumbsForDelivery({ driverUserId, deliveryI
       const liveRecord = (liveRecords || [])
         .filter((record) => Number(record?.stop_order) === Number(stopOrder))
         .filter((record) => Array.isArray(record?.breadcrumbs) && record.breadcrumbs.length > 0)
+        .filter((record) => !selectedDateStr || hasBreadcrumbForDate(record, selectedDateStr))
         .sort((a, b) => Number(a?.stop_order || 0) - Number(b?.stop_order || 0))
         .slice(-1)[0];
       if (liveRecord?.breadcrumbs?.length) return JSON.stringify(liveRecord.breadcrumbs);
@@ -89,8 +97,9 @@ export async function getPendingBreadcrumbsForDelivery({ driverUserId, deliveryI
   }
 
   const records = await listPendingBreadcrumbRecordsForDriver({ driverUserId, appUsers });
-  const matchingRecord = records.find((record) => Number(record?.stop_order) === Number(stopOrder))
-    || records.find((record) => record?.delivery_id === deliveryId);
+  const scopedRecords = selectedDateStr ? records.filter((record) => hasBreadcrumbForDate(record, selectedDateStr)) : records;
+  const matchingRecord = scopedRecords.find((record) => Number(record?.stop_order) === Number(stopOrder))
+    || scopedRecords.find((record) => record?.delivery_id === deliveryId);
 
   if (!matchingRecord?.breadcrumbs?.length) return null;
   return JSON.stringify(matchingRecord.breadcrumbs);

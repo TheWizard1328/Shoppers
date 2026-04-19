@@ -26,20 +26,20 @@ export async function loadBreadcrumbsForDriver(driverId, selectedDateStr, appUse
   try {
     const liveRecords = await base44.entities.PendingBreadcrumbLive.filter({ driver_id: driverId });
     current = (liveRecords || [])
-      .filter((record) => getEdmontonDateString((Array.isArray(record?.breadcrumbs) && record.breadcrumbs[0]?.[2]) || Date.now()) === selectedDateStr)
       .sort((a, b) => Number(a?.stop_order || 0) - Number(b?.stop_order || 0))
       .flatMap((record) => Array.isArray(record?.breadcrumbs) ? record.breadcrumbs : [])
       .map(([lat, lng, timestamp]) => ({ lat: Number(lat), lng: Number(lng), timestamp }))
-      .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng));
+      .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng))
+      .filter((point) => getEdmontonDateString(point.timestamp || Date.now()) === selectedDateStr);
   } catch (_) {}
 
   if (current.length === 0) {
     const pendingRecords = await listPendingBreadcrumbRecordsForDriver({ driverUserId: driverId, appUsers });
     current = pendingRecords
-      .filter((record) => getEdmontonDateString((Array.isArray(record?.breadcrumbs) && record.breadcrumbs[0]?.[2]) || record?.timestamp || Date.now()) === selectedDateStr)
       .flatMap((record) => Array.isArray(record?.breadcrumbs) ? record.breadcrumbs : [])
       .map(([lat, lng, timestamp]) => ({ lat: Number(lat), lng: Number(lng), timestamp }))
-      .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng));
+      .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng))
+      .filter((point) => getEdmontonDateString(point.timestamp || Date.now()) === selectedDateStr);
   }
 
   return { historical, current };
