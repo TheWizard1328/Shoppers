@@ -135,11 +135,11 @@ export default function DemoModeDialog({ open, onOpenChange }) {
   };
 
   const clearExistingDemoData = async () => {
-    const me = await base44.auth.me();
-    const [storeRows, patientRows, routeRows] = await Promise.all([
+    const [storeRows, patientRows, routeRows, appUserRows] = await Promise.all([
       base44.entities.DemoStore.list(),
       base44.entities.DemoPatient.list(),
-      base44.entities.DemoRoute.list()
+      base44.entities.DemoRoute.list(),
+      base44.entities.DemoAppUser.list()
     ]);
 
     const activeDemoStoreId = settings?.demo_store_id || null;
@@ -149,8 +149,13 @@ export default function DemoModeDialog({ open, onOpenChange }) {
     await Promise.all([
       ...(routeRows || []).filter((item) => item.is_demo && (demoStoreIds.length === 0 || demoStoreIds.includes(item.store_id))).map((item) => base44.entities.DemoRoute.delete(item.id)),
       ...(patientRows || []).filter((item) => item.is_demo && (demoStoreIds.length === 0 || demoStoreIds.includes(item.store_id))).map((item) => base44.entities.DemoPatient.delete(item.id)),
+      ...(appUserRows || []).filter((item) => item.is_demo).map((item) => base44.entities.DemoAppUser.delete(item.id)),
       ...demoStoresToDelete.map((item) => base44.entities.DemoStore.delete(item.id))
     ]);
+
+    setStores([]);
+    setPatients([]);
+    setRoutes([]);
   };
 
   const startNewDemo = async () => {
@@ -172,11 +177,15 @@ export default function DemoModeDialog({ open, onOpenChange }) {
       window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));
       setAddress('');
       setSelectedAddress(null);
+      await loadData();
+      window.dispatchEvent(new CustomEvent('demoModeChanged'));
+      setLoading(false);
+      return;
     }
 
-    await loadData();
-    setLoading(false);
+    await clearExistingDemoData();
     window.dispatchEvent(new CustomEvent('demoModeChanged'));
+    setLoading(false);
   };
 
   return (
