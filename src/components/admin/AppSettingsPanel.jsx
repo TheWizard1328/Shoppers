@@ -119,10 +119,8 @@ export default function AppSettingsPanel() {
   const [savedAppVersion, setSavedAppVersion] = useState({ major: 1, minor: 0, build: 0 });
   const [appFeesPerDelivery, setAppFeesPerDelivery] = useState('0.00');
   const [savedAppFees, setSavedAppFees] = useState('0.00');
-  const [selectedHereApiKey, setSelectedHereApiKey] = useState('HERE_API_KEY');
-  const [savedSelectedHereApiKey, setSavedSelectedHereApiKey] = useState('HERE_API_KEY');
-  const [selectedGoogleMapsApiKey, setSelectedGoogleMapsApiKey] = useState('GOOGLE_MAPS_API_KEY');
-  const [savedSelectedGoogleMapsApiKey, setSavedSelectedGoogleMapsApiKey] = useState('GOOGLE_MAPS_API_KEY');
+  const [selectedApiKey, setSelectedApiKey] = useState('HERE_API_KEY');
+  const [savedSelectedApiKey, setSavedSelectedApiKey] = useState('HERE_API_KEY');
 
   // Load settings from database
   const loadSettings = useCallback(async () => {
@@ -152,13 +150,12 @@ export default function AppSettingsPanel() {
           setSavedAppFees(fees);
         }
 
-        const hereKeySetting = settings[0].setting_value.selected_here_api_key || 'HERE_API_KEY';
-        setSelectedHereApiKey(hereKeySetting);
-        setSavedSelectedHereApiKey(hereKeySetting);
-
-        const googleKeySetting = settings[0].setting_value.selected_google_maps_api_key || 'GOOGLE_MAPS_API_KEY';
-        setSelectedGoogleMapsApiKey(googleKeySetting);
-        setSavedSelectedGoogleMapsApiKey(googleKeySetting);
+        const activeApiKey = settings[0].setting_value.selected_api_key
+          || settings[0].setting_value.selected_here_api_key
+          || settings[0].setting_value.selected_google_maps_api_key
+          || 'HERE_API_KEY';
+        setSelectedApiKey(activeApiKey);
+        setSavedSelectedApiKey(activeApiKey);
         
         if (!smartRefreshManager._initialized) {
           const enabled = settings[0].setting_value.smartRefreshEnabled !== false;
@@ -170,10 +167,8 @@ export default function AppSettingsPanel() {
       } else {
         setIntervals(DEFAULT_INTERVALS);
         setSavedIntervals(DEFAULT_INTERVALS);
-        setSelectedHereApiKey('HERE_API_KEY');
-        setSavedSelectedHereApiKey('HERE_API_KEY');
-        setSelectedGoogleMapsApiKey('GOOGLE_MAPS_API_KEY');
-        setSavedSelectedGoogleMapsApiKey('GOOGLE_MAPS_API_KEY');
+        setSelectedApiKey('HERE_API_KEY');
+        setSavedSelectedApiKey('HERE_API_KEY');
         if (!smartRefreshManager._initialized) {
           setSmartRefreshEnabled(true);
           setSavedSmartRefreshEnabled(true);
@@ -213,10 +208,10 @@ export default function AppSettingsPanel() {
                             appVersion.minor !== savedAppVersion.minor || 
                             appVersion.build !== savedAppVersion.build;
       const feesChanged = appFeesPerDelivery !== savedAppFees;
-      const apiKeyChanged = selectedHereApiKey !== savedSelectedHereApiKey || selectedGoogleMapsApiKey !== savedSelectedGoogleMapsApiKey;
+      const apiKeyChanged = selectedApiKey !== savedSelectedApiKey;
       setHasChanges(intervalsChanged || enabledChanged || versionChanged || feesChanged || apiKeyChanged);
     }
-  }, [intervals, savedIntervals, smartRefreshEnabled, savedSmartRefreshEnabled, appVersion, savedAppVersion, appFeesPerDelivery, savedAppFees, selectedHereApiKey, savedSelectedHereApiKey, selectedGoogleMapsApiKey, savedSelectedGoogleMapsApiKey]);
+  }, [intervals, savedIntervals, smartRefreshEnabled, savedSmartRefreshEnabled, appVersion, savedAppVersion, appFeesPerDelivery, savedAppFees, selectedApiKey, savedSelectedApiKey]);
 
   const handleIntervalChange = (key, value) => {
     setIntervals(prev => ({ ...prev, [key]: value }));
@@ -230,8 +225,7 @@ export default function AppSettingsPanel() {
         smartRefreshEnabled: smartRefreshEnabled,
         appVersion: appVersion,
         app_fees_per_delivery: parseFloat(appFeesPerDelivery),
-        selected_here_api_key: selectedHereApiKey,
-        selected_google_maps_api_key: selectedGoogleMapsApiKey
+        selected_api_key: selectedApiKey
       };
 
       const existing = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
@@ -265,8 +259,7 @@ export default function AppSettingsPanel() {
       setSavedSmartRefreshEnabled(smartRefreshEnabled);
       setSavedAppVersion({ ...appVersion });
       setSavedAppFees(appFeesPerDelivery);
-      setSavedSelectedHereApiKey(selectedHereApiKey);
-      setSavedSelectedGoogleMapsApiKey(selectedGoogleMapsApiKey);
+      setSavedSelectedApiKey(selectedApiKey);
       setHasChanges(false);
       alert('Settings saved successfully! Other users will see the new version on their next refresh.');
     } catch (error) {
@@ -453,37 +446,27 @@ export default function AppSettingsPanel() {
               API Provider Keys
             </CardTitle>
             <CardDescription>
-              Choose which saved HERE and Google Maps API keys the app should use.
+              Choose the single active API key from all saved mapping API keys.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div>
-                <Label className="text-sm font-medium mb-1.5 block">Active HERE API Key</Label>
-                <Select value={selectedHereApiKey} onValueChange={setSelectedHereApiKey}>
+                <Label className="text-sm font-medium mb-1.5 block">Active Maps API Key</Label>
+                <Select value={selectedApiKey} onValueChange={setSelectedApiKey}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select HERE key" />
+                    <SelectValue placeholder="Select active API key" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="HERE_API_KEY">HERE_API_KEY</SelectItem>
                     <SelectItem value="Here_API_Key_2">Here_API_Key_2</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-sm font-medium mb-1.5 block">Active Google Maps API Key</Label>
-                <Select value={selectedGoogleMapsApiKey} onValueChange={setSelectedGoogleMapsApiKey}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select Google Maps key" />
-                  </SelectTrigger>
-                  <SelectContent>
                     <SelectItem value="GOOGLE_MAPS_API_KEY">GOOGLE_MAPS_API_KEY</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="rounded-lg border bg-slate-50 p-3 text-xs text-slate-600 flex items-start gap-2">
                 <KeyRound className="w-4 h-4 mt-0.5 text-slate-500" />
-                <span>This saves which secret name should be treated as active for mapping services.</span>
+                <span>The dropdown always shows the API key currently saved as active.</span>
               </div>
             </div>
           </CardContent>
