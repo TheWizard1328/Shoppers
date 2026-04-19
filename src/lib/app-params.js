@@ -23,6 +23,9 @@ const getAppParamValue = (paramName, { defaultValue = undefined, removeFromUrl =
 	}
 	if (searchParam) {
 		storage.setItem(storageKey, searchParam);
+		if (storageKey === 'base44_token') {
+			window.sessionStorage.setItem(storageKey, searchParam);
+		}
 		return searchParam;
 	}
 	if (defaultValue) {

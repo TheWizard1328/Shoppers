@@ -1,12 +1,16 @@
 import { createClient } from '@base44/sdk';
 import { appParams } from '@/lib/app-params';
 
-const { appId, serverUrl, token, functionsVersion } = appParams;
+const buildClient = () => {
+  const { appId, serverUrl, token, functionsVersion } = appParams;
 
-export const base44 = createClient({
-  appId,
-  serverUrl,
-  token,
-  functionsVersion,
-  requiresAuth: false
-});
+  return createClient({
+    appId,
+    serverUrl,
+    token: token || window.localStorage.getItem('base44_token') || window.sessionStorage.getItem('base44_token') || null,
+    functionsVersion,
+    requiresAuth: false
+  });
+};
+
+export const base44 = buildClient();
