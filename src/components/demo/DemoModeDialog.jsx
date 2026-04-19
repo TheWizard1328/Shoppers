@@ -13,22 +13,25 @@ export default function DemoModeDialog({ open, onOpenChange }) {
   const [address, setAddress] = useState('');
   const [selectedAddress, setSelectedAddress] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [selectedApiKey, setSelectedApiKey] = useState('HERE_API_KEY');
   const didAutofillRef = useRef(false);
 
   const loadData = async () => {
     const me = await base44.auth.me();
-    const [settingsRows, storeRows, patientRows, routeRows, cityRows] = await Promise.all([
+    const [settingsRows, storeRows, patientRows, routeRows, cityRows, appSettingsRows] = await Promise.all([
       base44.entities.DemoSettings.filter({ user_id: me.id }),
       base44.entities.DemoStore.list(),
       base44.entities.DemoPatient.list(),
       base44.entities.DemoRoute.list(),
-      base44.entities.City.list()
+      base44.entities.City.list(),
+      base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' })
     ]);
     setSettings(settingsRows[0] || null);
     setStores((storeRows || []).filter((item) => item.is_demo && item.created_by === me.email));
     setPatients((patientRows || []).filter((item) => item.is_demo && item.created_by === me.email));
     setRoutes((routeRows || []).filter((item) => item.is_demo && item.created_by === me.email));
     setCities(cityRows || []);
+    setSelectedApiKey(appSettingsRows?.[0]?.setting_value?.selected_api_key || 'HERE_API_KEY');
   };
 
   const autofillNearestAddress = async () => {
@@ -180,6 +183,7 @@ export default function DemoModeDialog({ open, onOpenChange }) {
             <div className="text-sm">Demo stores: {stores.length}</div>
             <div className="text-sm">Demo routes: {routes.length}</div>
             <div className="text-sm">Last session: {lastSession ? new Date(lastSession).toLocaleString() : 'None'}</div>
+            <div className="text-sm">Active API key: {selectedApiKey}</div>
             <div className="space-y-1">
               {patientCountByStore.map((store) => (
                 <div key={store.id} className="text-sm">{store.name}: {store.count} patients</div>
