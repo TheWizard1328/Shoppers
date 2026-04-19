@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { getApiLogCallCount, getApiLogDisplayType, getApiLogProvider, sumApiLogCalls } from '@/components/utils/apiUsageLog';
+import { sortStores, sortUsers } from '@/components/utils/sorting';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +35,8 @@ const apiTypeColors = {
 
 export default function GoogleAPILogViewer() {
   const [logs, setLogs] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [stores, setStores] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isClearing, setIsClearing] = useState(false);
   const [stats, setStats] = useState({
@@ -59,8 +62,14 @@ export default function GoogleAPILogViewer() {
     if (!silent) setIsLoading(true);
     try {
       // Fetch logs sorted by timestamp (newest first), limit to 1000 most recent
-      const allLogs = await base44.entities.GoogleAPILog.filter({}, '-timestamp', 1000);
+      const [allLogs, allUsers, allStores] = await Promise.all([
+        base44.entities.GoogleAPILog.filter({}, '-timestamp', 1000),
+        base44.entities.AppUser.list(),
+        base44.entities.Store.list()
+      ]);
       setLogs(allLogs);
+      setUsers(sortUsers((allUsers || []).filter((user) => Array.isArray(user.app_roles) && user.app_roles.includes('driver'))));
+      setStores(sortStores(allStores || []));
 
       // Calculate stats
       const today = format(new Date(), 'yyyy-MM-dd');
