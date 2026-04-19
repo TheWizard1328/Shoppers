@@ -21,9 +21,9 @@ export default function DemoModeDialog({ open, onOpenChange }) {
     const me = await base44.auth.me();
     const [settingsRows, storeRows, patientRows, routeRows, cityRows, appSettingsRows] = await Promise.all([
       base44.entities.DemoSettings.filter({ user_id: me.id }),
-      getData('DemoStore'),
-      getData('DemoPatient'),
-      getData('DemoRoute'),
+      base44.entities.DemoStore.list(),
+      base44.entities.DemoPatient.list(),
+      base44.entities.DemoRoute.list(),
       getData('City'),
       base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' })
     ]);
