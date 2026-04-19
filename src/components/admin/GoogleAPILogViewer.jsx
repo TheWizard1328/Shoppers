@@ -409,18 +409,7 @@ export default function GoogleAPILogViewer() {
 
     setIsClearing(true);
     try {
-      // Delete all logs one at a time with delays to avoid rate limits
-      const allLogs = await base44.entities.GoogleAPILog.filter({});
-
-      for (let i = 0; i < allLogs.length; i++) {
-        await base44.entities.GoogleAPILog.delete(allLogs[i].id);
-        // Wait 1 second between each delete to respect rate limits
-        if (i < allLogs.length - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-        }
-      }
-
-      // Reload logs
+      await base44.entities.GoogleAPILog.bulkDelete({});
       await loadLogs();
       alert('All maps API logs have been cleared.');
     } catch (error) {
