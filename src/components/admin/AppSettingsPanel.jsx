@@ -178,10 +178,8 @@ export default function AppSettingsPanel() {
       console.error('Failed to load app settings:', error);
       setIntervals(DEFAULT_INTERVALS);
       setSavedIntervals(DEFAULT_INTERVALS);
-      setSelectedHereApiKey('HERE_API_KEY');
-      setSavedSelectedHereApiKey('HERE_API_KEY');
-      setSelectedGoogleMapsApiKey('GOOGLE_MAPS_API_KEY');
-      setSavedSelectedGoogleMapsApiKey('GOOGLE_MAPS_API_KEY');
+      setSelectedApiKey('HERE_API_KEY');
+      setSavedSelectedApiKey('HERE_API_KEY');
     } finally {
       setIsLoading(false);
     }
