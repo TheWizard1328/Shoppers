@@ -347,7 +347,20 @@ async function reintegratePendingBreadcrumbLive(base44, driverId, deliveryDate, 
     return { mergedCount: 0, sourceRows: 0, updatedDeliveryIds: [] };
   }
 
-  const pendingRows = await base44.asServiceRole.entities.PendingBreadcrumbLive.filter({ driver_id: driverId }, '-updated_date', 50000);
+  const relevantStopOrders = [...new Set(
+    completedLikeStops
+      .map((delivery) => Number(delivery?.stop_order))
+      .filter((stopOrder) => Number.isFinite(stopOrder))
+  )];
+
+  const pendingRows = relevantStopOrders.length > 0
+    ? await base44.asServiceRole.entities.PendingBreadcrumbLive.filter(
+        { driver_id: driverId, stop_order: { $in: relevantStopOrders } },
+        '-updated_date',
+        50000
+      )
+    : [];
+
   const rowsForDate = (pendingRows || []).filter((row) => {
     const breadcrumbPoints = Array.isArray(row?.breadcrumbs) ? row.breadcrumbs : [];
     const firstValidTs = breadcrumbPoints.find((point) => Array.isArray(point) && Number.isFinite(Number(point?.[2])))?.[2];
