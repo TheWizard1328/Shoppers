@@ -435,7 +435,7 @@ export default function GoogleAPILogViewer() {
   };
 
   return (
-    <Card className="mb-6 h-[calc(100vh-8rem)] flex flex-col overflow-hidden">
+    <Card className="mb-6 h-[calc(100vh-12rem)] max-h-[calc(100vh-12rem)] flex flex-col overflow-hidden">
       <CardHeader className="px-6 py-3 flex flex-col space-y-1.5 shrink-0">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
@@ -623,7 +623,7 @@ export default function GoogleAPILogViewer() {
                 dateFilter === 'week' ? 'Last 7 Days Call Volume (6-hour periods)' :
                 'Call Volume by Day'}
             </h3>
-            <ResponsiveContainer width="100%" height={!userFilter && uniqueUsers.length > 1 ? 280 : 200}>
+            <ResponsiveContainer width="100%" height={!userFilter && uniqueUsers.length > 1 ? 220 : 180}>
               <LineChart data={hourlyChartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis
