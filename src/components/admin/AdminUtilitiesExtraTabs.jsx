@@ -21,7 +21,7 @@ export default function AdminUtilitiesExtraTabs({ appUsers = [], stores = [] }) 
         <MessageRulesManager />
       </TabsContent>
 
-      <TabsContent value="api-logs">
+      <TabsContent value="api-logs" className="ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
         <GoogleAPILogViewer />
       </TabsContent>
 
@@ -32,6 +32,6 @@ export default function AdminUtilitiesExtraTabs({ appUsers = [], stores = [] }) 
       <TabsContent value="patient-analysis">
         <PatientAnalysisReview stores={stores || []} />
       </TabsContent>
-    </>
-  );
+    </>);
+
 }
