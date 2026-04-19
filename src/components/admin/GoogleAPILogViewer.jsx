@@ -382,7 +382,7 @@ export default function GoogleAPILogViewer() {
   };
 
   return (
-    <Card className="mb-6 mt-4 h-[calc(100vh-10rem)] flex flex-col overflow-hidden">
+    <Card className="mb-6 h-[calc(100vh-8rem)] flex flex-col overflow-hidden">
       <CardHeader className="px-6 py-3 flex flex-col space-y-1.5 shrink-0">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
@@ -656,7 +656,7 @@ export default function GoogleAPILogViewer() {
             {logs.length === 0 ? 'No API calls logged yet.' : 'No logs match the current filters.'}
           </div> :
 
-          <div className="border rounded-lg overflow-hidden">
+          <div className="border rounded-lg overflow-auto">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-slate-50 sticky top-0">
