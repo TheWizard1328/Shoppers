@@ -1,8 +1,49 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
-Deno.serve(async (req) => {
+const logApiUsage = async ({
+  base44,
+  appUserId,
+  appUserName,
+  provider,
+  apiType,
+  purpose,
+  functionName,
+  metadata = {},
+  success,
+  durationMs,
+  errorMessage,
+  callCount = 1,
+}) => {
+  if (!base44) return;
+
   try {
-    const base44 = createClientFromRequest(req);
+    await base44.asServiceRole.entities.GoogleAPILog.create({
+      timestamp: new Date().toISOString(),
+      api_type: apiType,
+      purpose,
+      function_name: functionName,
+      user_id: appUserId || null,
+      user_name: appUserName || null,
+      metadata: {
+        api_provider: provider,
+        call_count: Number(callCount) || 1,
+        success: success === true,
+        duration_ms: durationMs,
+        error_message: errorMessage || undefined,
+        ...metadata,
+      },
+    });
+  } catch (error) {
+    console.warn('[IntegrationUsageLogger] Failed to persist API usage log:', error?.message || error);
+  }
+};
+
+Deno.serve(async (req) => {
+  let base44 = null;
+  let appUser = null;
+  const startedAt = Date.now();
+  try {
+    base44 = createClientFromRequest(req);
     
     // Verify user is authenticated
     const user = await base44.auth.me();
@@ -11,6 +52,8 @@ Deno.serve(async (req) => {
     }
 
     const { place_id } = await req.json();
+    const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }, '-updated_date', 1);
+    appUser = appUsers?.[0] || null;
     
     if (!place_id) {
       return Response.json({ error: 'place_id is required' }, { status: 400 });
@@ -33,6 +76,19 @@ Deno.serve(async (req) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Google Places API error:', errorText);
+      await logApiUsage({
+        base44,
+        appUserId: appUser?.id,
+        appUserName: appUser?.user_name || user.full_name,
+        provider: 'google',
+        apiType: 'Place Details',
+        purpose: 'Fetch place details',
+        functionName: 'googlePlaceDetails',
+        success: false,
+        durationMs: Date.now() - startedAt,
+        errorMessage: errorText,
+        metadata: { place_id },
+      });
       return Response.json({ error: 'Places API error: ' + errorText }, { status: response.status || 500 });
     }
     
@@ -57,6 +113,19 @@ Deno.serve(async (req) => {
     const address = `${streetNumber} ${route}`.trim();
     const unit = subpremise;
 
+    await logApiUsage({
+      base44,
+      appUserId: appUser?.id,
+      appUserName: appUser?.user_name || user.full_name,
+      provider: 'google',
+      apiType: 'Place Details',
+      purpose: 'Fetch place details',
+      functionName: 'googlePlaceDetails',
+      success: true,
+      durationMs: Date.now() - startedAt,
+      metadata: { place_id },
+    });
+
     return Response.json({
       address,
       unit,
@@ -67,6 +136,18 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error('Error in googlePlaceDetails:', error);
+    await logApiUsage({
+      base44,
+      appUserId: appUser?.id,
+      appUserName: appUser?.user_name || null,
+      provider: 'google',
+      apiType: 'Place Details',
+      purpose: 'Fetch place details',
+      functionName: 'googlePlaceDetails',
+      success: false,
+      durationMs: Date.now() - startedAt,
+      errorMessage: error.message,
+    });
     return Response.json({ error: error.message }, { status: 500 });
   }
 });

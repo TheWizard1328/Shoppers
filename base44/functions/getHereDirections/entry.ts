@@ -1,6 +1,44 @@
 // Redeployed on 2026-04-09
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
+const logApiUsage = async ({
+  base44,
+  appUserId,
+  appUserName,
+  provider,
+  apiType,
+  purpose,
+  functionName,
+  metadata = {},
+  success,
+  durationMs,
+  errorMessage,
+  callCount = 1,
+}) => {
+  if (!base44) return;
+
+  try {
+    await base44.asServiceRole.entities.GoogleAPILog.create({
+      timestamp: new Date().toISOString(),
+      api_type: apiType,
+      purpose,
+      function_name: functionName,
+      user_id: appUserId || null,
+      user_name: appUserName || null,
+      metadata: {
+        api_provider: provider,
+        call_count: Number(callCount) || 1,
+        success: success === true,
+        duration_ms: durationMs,
+        error_message: errorMessage || undefined,
+        ...metadata,
+      },
+    });
+  } catch (error) {
+    console.warn('[IntegrationUsageLogger] Failed to persist API usage log:', error?.message || error);
+  }
+};
+
 const buildFallback = (origin, destination, extra = {}) => Response.json({
   coordinates: [
     { lat: Number(origin?.lat), lng: Number(origin?.lng) },
@@ -17,9 +55,13 @@ const buildFallback = (origin, destination, extra = {}) => Response.json({
 Deno.serve(async (req) => {
   let origin = null;
   let destination = null;
+  let base44 = null;
+  let appUser = null;
+  let routeCallCount = 0;
+  const startedAt = Date.now();
 
   try {
-    const base44 = createClientFromRequest(req);
+    base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
 
     if (!user) {
@@ -29,6 +71,8 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     origin = body?.origin || null;
     destination = body?.destination || null;
+    const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }, '-updated_date', 1);
+    appUser = appUsers?.[0] || null;
     const waypoints = Array.isArray(body?.waypoints) ? body.waypoints : [];
     const requestedTransportMode = String(body?.transportMode || body?.transport_mode || 'driving').toLowerCase();
     const hereTransportMode = requestedTransportMode === 'cycling'
@@ -77,6 +121,7 @@ Deno.serve(async (req) => {
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 12000);
+    routeCallCount += 1;
     const resp = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, {
       signal: controller.signal,
       headers: { accept: 'application/json' }
@@ -86,6 +131,24 @@ Deno.serve(async (req) => {
     if (!resp.ok) {
       const text = await resp.text();
       console.error('[HERE Routing] provider error', { status: resp.status, details: text?.slice(0, 500) });
+      await logApiUsage({
+        base44,
+        appUserId: appUser?.id,
+        appUserName: appUser?.user_name || user.full_name,
+        provider: 'here',
+        apiType: 'Directions',
+        purpose: 'Calculate route directions',
+        functionName: 'getHereDirections',
+        success: false,
+        durationMs: Date.now() - startedAt,
+        errorMessage: text?.slice(0, 500) || `HTTP ${resp.status}`,
+        callCount: routeCallCount,
+        metadata: {
+          status_code: resp.status,
+          transport_mode: normalizedTransportMode,
+          waypoint_count: waypoints.length,
+        },
+      });
       return buildFallback(origin, destination, { provider_status: resp.status });
     }
 
@@ -95,6 +158,23 @@ Deno.serve(async (req) => {
 
     if (!route || !sections.length) {
       console.error('[HERE Routing] no route in payload', { payload: data });
+      await logApiUsage({
+        base44,
+        appUserId: appUser?.id,
+        appUserName: appUser?.user_name || user.full_name,
+        provider: 'here',
+        apiType: 'Directions',
+        purpose: 'Calculate route directions',
+        functionName: 'getHereDirections',
+        success: false,
+        durationMs: Date.now() - startedAt,
+        errorMessage: 'No route returned',
+        callCount: routeCallCount,
+        metadata: {
+          transport_mode: normalizedTransportMode,
+          waypoint_count: waypoints.length,
+        },
+      });
       return buildFallback(origin, destination);
     }
 
@@ -121,6 +201,25 @@ Deno.serve(async (req) => {
       });
     }
 
+    await logApiUsage({
+      base44,
+      appUserId: appUser?.id,
+      appUserName: appUser?.user_name || user.full_name,
+      provider: 'here',
+      apiType: 'Directions',
+      purpose: 'Calculate route directions',
+      functionName: 'getHereDirections',
+      success: true,
+      durationMs: Date.now() - startedAt,
+      callCount: routeCallCount,
+      metadata: {
+        transport_mode: normalizedTransportMode,
+        waypoint_count: waypoints.length,
+        estimated_distance_km,
+        estimated_duration_minutes,
+      },
+    });
+
     return Response.json({
       polyline_format: 'flexible',
       polyline: polylines[0],
@@ -132,6 +231,19 @@ Deno.serve(async (req) => {
     });
   } catch (err) {
     console.error('[getHereDirections] unexpected error', err?.message || err);
+    await logApiUsage({
+      base44,
+      appUserId: appUser?.id,
+      appUserName: appUser?.user_name || null,
+      provider: 'here',
+      apiType: 'Directions',
+      purpose: 'Calculate route directions',
+      functionName: 'getHereDirections',
+      success: false,
+      durationMs: Date.now() - startedAt,
+      errorMessage: err?.message || 'Unknown error',
+      callCount: routeCallCount || 1,
+    });
     return buildFallback(origin, destination, { error: err?.message || 'Unknown error' });
   }
 });

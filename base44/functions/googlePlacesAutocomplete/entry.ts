@@ -1,6 +1,44 @@
 // Redeployed on 2026-03-28
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
+const logApiUsage = async ({
+  base44,
+  appUserId,
+  appUserName,
+  provider,
+  apiType,
+  purpose,
+  functionName,
+  metadata = {},
+  success,
+  durationMs,
+  errorMessage,
+  callCount = 1,
+}) => {
+  if (!base44) return;
+
+  try {
+    await base44.asServiceRole.entities.GoogleAPILog.create({
+      timestamp: new Date().toISOString(),
+      api_type: apiType,
+      purpose,
+      function_name: functionName,
+      user_id: appUserId || null,
+      user_name: appUserName || null,
+      metadata: {
+        api_provider: provider,
+        call_count: Number(callCount) || 1,
+        success: success === true,
+        duration_ms: durationMs,
+        error_message: errorMessage || undefined,
+        ...metadata,
+      },
+    });
+  } catch (error) {
+    console.warn('[IntegrationUsageLogger] Failed to persist API usage log:', error?.message || error);
+  }
+};
+
 Deno.serve(async (req) => {
   let base44 = null;
   let user = null;
@@ -9,35 +47,7 @@ Deno.serve(async (req) => {
   let latitude = null;
   let longitude = null;
   let googleApiCallCount = 0;
-  let autocompleteCalls = 0;
-  let placeDetailsCalls = 0;
-  let directionsCalls = 0;
-
-  const logUsage = async (extraMetadata = {}) => {
-    if (!base44 || !user) return;
-    try {
-      await base44.asServiceRole.entities.GoogleAPILog.create({
-        timestamp: new Date().toISOString(),
-        api_type: 'Places Autocomplete',
-        purpose: 'Address autocomplete search',
-        function_name: 'googlePlacesAutocomplete',
-        user_id: user.id,
-        user_name: userAppUser?.user_name || user.full_name,
-        metadata: {
-          api_provider: 'google',
-          call_count: googleApiCallCount,
-          autocomplete_calls: autocompleteCalls,
-          place_details_calls: placeDetailsCalls,
-          directions_calls: directionsCalls,
-          input,
-          has_location_bias: !!(latitude && longitude),
-          ...extraMetadata
-        }
-      });
-    } catch (logError) {
-      console.warn('[googlePlacesAutocomplete] Non-fatal log error:', logError?.message || logError);
-    }
-  };
+  const startedAt = Date.now();
 
   try {
     base44 = createClientFromRequest(req);
@@ -90,7 +100,6 @@ Deno.serve(async (req) => {
     }
 
     googleApiCallCount += 1;
-    autocompleteCalls += 1;
     let response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -110,7 +119,6 @@ Deno.serve(async (req) => {
         includedRegionCodes: ['CA']
       };
       googleApiCallCount += 1;
-      autocompleteCalls += 1;
       response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -125,7 +133,24 @@ Deno.serve(async (req) => {
 
     if (!response.ok) {
       const errorMsg = data.error?.message || 'Places API error';
-      await logUsage({ error: errorMsg, status_code: response.status });
+      await logApiUsage({
+        base44,
+        appUserId: userAppUser?.id,
+        appUserName: userAppUser?.user_name || user.full_name,
+        provider: 'google',
+        apiType: 'Places Autocomplete',
+        purpose: 'Address autocomplete search',
+        functionName: 'googlePlacesAutocomplete',
+        success: false,
+        durationMs: Date.now() - startedAt,
+        errorMessage: errorMsg,
+        callCount: googleApiCallCount,
+        metadata: {
+          input,
+          has_location_bias: !!(latitude && longitude),
+          status_code: response.status,
+        },
+      });
       return Response.json({ error: errorMsg, details: data }, { status: response.status });
     }
 
@@ -149,11 +174,43 @@ Deno.serve(async (req) => {
       return a.distance - b.distance;
     });
 
-    await logUsage({ suggestion_count: predictions.length });
+    await logApiUsage({
+      base44,
+      appUserId: userAppUser?.id,
+      appUserName: userAppUser?.user_name || user.full_name,
+      provider: 'google',
+      apiType: 'Places Autocomplete',
+      purpose: 'Address autocomplete search',
+      functionName: 'googlePlacesAutocomplete',
+      success: true,
+      durationMs: Date.now() - startedAt,
+      callCount: googleApiCallCount,
+      metadata: {
+        input,
+        has_location_bias: !!(latitude && longitude),
+        suggestion_count: predictions.length,
+      },
+    });
     return Response.json({ predictions });
   } catch (error) {
     console.error('[googlePlacesAutocomplete] Error:', error.message);
-    await logUsage({ error: error.message });
+    await logApiUsage({
+      base44,
+      appUserId: userAppUser?.id,
+      appUserName: userAppUser?.user_name || null,
+      provider: 'google',
+      apiType: 'Places Autocomplete',
+      purpose: 'Address autocomplete search',
+      functionName: 'googlePlacesAutocomplete',
+      success: false,
+      durationMs: Date.now() - startedAt,
+      errorMessage: error.message,
+      callCount: googleApiCallCount || 1,
+      metadata: {
+        input,
+        has_location_bias: !!(latitude && longitude),
+      },
+    });
     return Response.json({ error: error.message }, { status: 500 });
   }
 });
