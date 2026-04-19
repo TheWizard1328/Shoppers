@@ -6,7 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
-import { Settings, Save, RefreshCw, Loader2, Clock, AlertCircle, RotateCcw, Power } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Settings, Save, RefreshCw, Loader2, Clock, AlertCircle, RotateCcw, Power, MapPinned, KeyRound } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { smartRefreshManager } from '../utils/smartRefreshManager';
 
@@ -118,6 +119,10 @@ export default function AppSettingsPanel() {
   const [savedAppVersion, setSavedAppVersion] = useState({ major: 1, minor: 0, build: 0 });
   const [appFeesPerDelivery, setAppFeesPerDelivery] = useState('0.00');
   const [savedAppFees, setSavedAppFees] = useState('0.00');
+  const [selectedHereApiKey, setSelectedHereApiKey] = useState('HERE_API_KEY');
+  const [savedSelectedHereApiKey, setSavedSelectedHereApiKey] = useState('HERE_API_KEY');
+  const [selectedGoogleMapsApiKey, setSelectedGoogleMapsApiKey] = useState('GOOGLE_MAPS_API_KEY');
+  const [savedSelectedGoogleMapsApiKey, setSavedSelectedGoogleMapsApiKey] = useState('GOOGLE_MAPS_API_KEY');
 
   // Load settings from database
   const loadSettings = useCallback(async () => {
@@ -146,6 +151,14 @@ export default function AppSettingsPanel() {
           setAppFeesPerDelivery(fees);
           setSavedAppFees(fees);
         }
+
+        const hereKeySetting = settings[0].setting_value.selected_here_api_key || 'HERE_API_KEY';
+        setSelectedHereApiKey(hereKeySetting);
+        setSavedSelectedHereApiKey(hereKeySetting);
+
+        const googleKeySetting = settings[0].setting_value.selected_google_maps_api_key || 'GOOGLE_MAPS_API_KEY';
+        setSelectedGoogleMapsApiKey(googleKeySetting);
+        setSavedSelectedGoogleMapsApiKey(googleKeySetting);
         
         if (!smartRefreshManager._initialized) {
           const enabled = settings[0].setting_value.smartRefreshEnabled !== false;
@@ -157,6 +170,10 @@ export default function AppSettingsPanel() {
       } else {
         setIntervals(DEFAULT_INTERVALS);
         setSavedIntervals(DEFAULT_INTERVALS);
+        setSelectedHereApiKey('HERE_API_KEY');
+        setSavedSelectedHereApiKey('HERE_API_KEY');
+        setSelectedGoogleMapsApiKey('GOOGLE_MAPS_API_KEY');
+        setSavedSelectedGoogleMapsApiKey('GOOGLE_MAPS_API_KEY');
         if (!smartRefreshManager._initialized) {
           setSmartRefreshEnabled(true);
           setSavedSmartRefreshEnabled(true);
@@ -166,6 +183,10 @@ export default function AppSettingsPanel() {
       console.error('Failed to load app settings:', error);
       setIntervals(DEFAULT_INTERVALS);
       setSavedIntervals(DEFAULT_INTERVALS);
+      setSelectedHereApiKey('HERE_API_KEY');
+      setSavedSelectedHereApiKey('HERE_API_KEY');
+      setSelectedGoogleMapsApiKey('GOOGLE_MAPS_API_KEY');
+      setSavedSelectedGoogleMapsApiKey('GOOGLE_MAPS_API_KEY');
     } finally {
       setIsLoading(false);
     }
@@ -192,9 +213,10 @@ export default function AppSettingsPanel() {
                             appVersion.minor !== savedAppVersion.minor || 
                             appVersion.build !== savedAppVersion.build;
       const feesChanged = appFeesPerDelivery !== savedAppFees;
-      setHasChanges(intervalsChanged || enabledChanged || versionChanged || feesChanged);
+      const apiKeyChanged = selectedHereApiKey !== savedSelectedHereApiKey || selectedGoogleMapsApiKey !== savedSelectedGoogleMapsApiKey;
+      setHasChanges(intervalsChanged || enabledChanged || versionChanged || feesChanged || apiKeyChanged);
     }
-  }, [intervals, savedIntervals, smartRefreshEnabled, savedSmartRefreshEnabled, appVersion, savedAppVersion, appFeesPerDelivery, savedAppFees]);
+  }, [intervals, savedIntervals, smartRefreshEnabled, savedSmartRefreshEnabled, appVersion, savedAppVersion, appFeesPerDelivery, savedAppFees, selectedHereApiKey, savedSelectedHereApiKey, selectedGoogleMapsApiKey, savedSelectedGoogleMapsApiKey]);
 
   const handleIntervalChange = (key, value) => {
     setIntervals(prev => ({ ...prev, [key]: value }));
@@ -207,7 +229,9 @@ export default function AppSettingsPanel() {
         ...intervals,
         smartRefreshEnabled: smartRefreshEnabled,
         appVersion: appVersion,
-        app_fees_per_delivery: parseFloat(appFeesPerDelivery)
+        app_fees_per_delivery: parseFloat(appFeesPerDelivery),
+        selected_here_api_key: selectedHereApiKey,
+        selected_google_maps_api_key: selectedGoogleMapsApiKey
       };
 
       const existing = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
@@ -241,6 +265,8 @@ export default function AppSettingsPanel() {
       setSavedSmartRefreshEnabled(smartRefreshEnabled);
       setSavedAppVersion({ ...appVersion });
       setSavedAppFees(appFeesPerDelivery);
+      setSavedSelectedHereApiKey(selectedHereApiKey);
+      setSavedSelectedGoogleMapsApiKey(selectedGoogleMapsApiKey);
       setHasChanges(false);
       alert('Settings saved successfully! Other users will see the new version on their next refresh.');
     } catch (error) {
@@ -299,7 +325,7 @@ export default function AppSettingsPanel() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -423,6 +449,49 @@ export default function AppSettingsPanel() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
+              <MapPinned className="w-5 h-5" />
+              API Provider Keys
+            </CardTitle>
+            <CardDescription>
+              Choose which saved HERE and Google Maps API keys the app should use.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div>
+                <Label className="text-sm font-medium mb-1.5 block">Active HERE API Key</Label>
+                <Select value={selectedHereApiKey} onValueChange={setSelectedHereApiKey}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select HERE key" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="HERE_API_KEY">HERE_API_KEY</SelectItem>
+                    <SelectItem value="Here_API_Key_2">Here_API_Key_2</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-sm font-medium mb-1.5 block">Active Google Maps API Key</Label>
+                <Select value={selectedGoogleMapsApiKey} onValueChange={setSelectedGoogleMapsApiKey}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Google Maps key" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="GOOGLE_MAPS_API_KEY">GOOGLE_MAPS_API_KEY</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="rounded-lg border bg-slate-50 p-3 text-xs text-slate-600 flex items-start gap-2">
+                <KeyRound className="w-4 h-4 mt-0.5 text-slate-500" />
+                <span>This saves which secret name should be treated as active for mapping services.</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
               <Settings className="w-5 h-5" />
               Other Admin Settings
             </CardTitle>
@@ -468,6 +537,7 @@ export default function AppSettingsPanel() {
         </Card>
       </div>
 
+      <div className="max-h-[60vh] overflow-y-auto pr-2 space-y-6">
       <Card className={!smartRefreshEnabled ? 'opacity-50 pointer-events-none' : ''}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -676,6 +746,7 @@ export default function AppSettingsPanel() {
           </div>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }
