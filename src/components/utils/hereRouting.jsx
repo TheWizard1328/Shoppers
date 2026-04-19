@@ -4,6 +4,11 @@ import { offlineDB } from './offlineDatabase';
 const fetchingKeys = new Set();
 const memoryCache = new Map();
 const routeRequestTimestamps = new Map();
+const apiKeySelectionState = {
+  loaded: false,
+  loading: null,
+  selectedApiKey: 'HERE_API_KEY'
+};
 const backoffCache = new Map();
 const backoffNoticeCache = new Map();
 const polylineDateSyncInflight = new Map();
@@ -35,6 +40,28 @@ function buildSegmentKey(fromStop, toStop) {
 
 function buildDriverDateKey(driverId, deliveryDate) {
   return `${String(driverId || '')}|${String(deliveryDate || '')}`;
+}
+
+export async function ensureSelectedApiKeyLoaded() {
+  if (apiKeySelectionState.loaded) return apiKeySelectionState.selectedApiKey;
+  if (apiKeySelectionState.loading) return apiKeySelectionState.loading;
+
+  apiKeySelectionState.loading = (async () => {
+    try {
+      const appSettings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+      apiKeySelectionState.selectedApiKey = appSettings?.[0]?.setting_value?.selected_api_key || 'HERE_API_KEY';
+      apiKeySelectionState.loaded = true;
+      return apiKeySelectionState.selectedApiKey;
+    } finally {
+      apiKeySelectionState.loading = null;
+    }
+  })();
+
+  return apiKeySelectionState.loading;
+}
+
+export function getSelectedApiKeyName() {
+  return apiKeySelectionState.selectedApiKey;
 }
 
 export async function syncDriverRoutePolylinesForDate(driverId, deliveryDate, force = false) {
@@ -492,6 +519,7 @@ async function canGenerateForDriver(driverId) {
 
 export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) => {
   if (!fromStop || !toStop) return null;
+  await ensureSelectedApiKeyLoaded();
   // Normalize coords to numbers (tablet sometimes sends strings)
   fromStop = { latitude: Number(fromStop.latitude), longitude: Number(fromStop.longitude) };
   toStop = { latitude: Number(toStop.latitude), longitude: Number(toStop.longitude) };
