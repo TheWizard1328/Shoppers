@@ -39,6 +39,7 @@ import StopCardCODCollection from './StopCardCODCollection';
 import StopCardConfirmDialogs from './StopCardConfirmDialogs';
 import StopCardReturnDialog from './StopCardReturnDialog';
 import StopCardPOD from './StopCardPOD';
+import StopCardFooter from './StopCardFooter';
 import { useDeliveryDisplayInfo } from './StopCardRedaction';
 import { updatePatientGPS } from "../utils/patientGPSUpdater";
 import { buildRetryDelivery, collapseExpandedStopCardsForDriver, getCurrentLocalTimeString, getDriverRouteDeliveries, getFinishedLegEncodedPolyline, getNextActiveDelivery, getNextTrackingNumberInGroup, incrementTrackingNumber, optimizeRouteAndApplyNextDelivery, refreshDriverRoute, rehydrateLiveBreadcrumbsForRestart, reorderActiveRouteLocally, setAndCenterNextDelivery, syncDriverLocationToStop, waitForRouteTransitionSettle, withPausedDriverLocationPoller } from "./stopCardActionHelpers";
