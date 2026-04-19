@@ -50,3 +50,12 @@ const getAppParams = () => {
 export const appParams = {
 	...getAppParams()
 }
+
+if (typeof window !== 'undefined') {
+	const urlParams = new URLSearchParams(window.location.search);
+	const incomingAccessToken = urlParams.get('access_token') || urlParams.get('_preview_token');
+	const storedAccessToken = window.localStorage.getItem('base44_token');
+	if (incomingAccessToken && incomingAccessToken !== storedAccessToken) {
+		window.location.reload();
+	}
+}

@@ -145,6 +145,9 @@ export const getEffectiveUser = async () => {
         removeStorageKey(localStorage, EFFECTIVE_USER_CACHE_KEY);
         removeStorageKey(sessionStorage, AUTH_BOOT_CACHE_KEY);
         removeStorageKey(localStorage, AUTH_BOOT_CACHE_KEY);
+        try {
+            offlineDB.clearStore(offlineDB.STORES.APP_USERS);
+        } catch {}
     }
 
     const now = Date.now();
