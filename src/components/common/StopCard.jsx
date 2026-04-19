@@ -889,6 +889,35 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           fabControlEvents.notifyPhaseTwoCompleteRecenter();fabControlEvents.reactivateFAB(true, { suppressIfPhase1: true, reason: 'stop_status_change' });
                           const backgroundTasks = [];
                           if (autoCODPayment && onCODUpdate) backgroundTasks.push(onCODUpdate(delivery.id, autoCODPayment, true));
+                          backgroundTasks.push(
+                            Promise.resolve().then(async () => {
+                              try {
+                                const finishedLegEncodedPolyline = await getFinishedLegEncodedPolyline({
+                                  delivery,
+                                  allDeliveries,
+                                  driver: safeDriver,
+                                  patient,
+                                  store,
+                                  patients,
+                                  stores,
+                                  finishedStatuses: FINISHED_STATUSES,
+                                  breadcrumbPayload: pendingBreadcrumbsString,
+                                  transportMode: 'driving'
+                                });
+                                if (finishedLegEncodedPolyline) {
+                                  await updateDeliveryLocal(
+                                    delivery.id,
+                                    {
+                                      finished_leg_encoded_polyline: finishedLegEncodedPolyline,
+                                      finished_leg_transport_mode: 'driving',
+                                      PolylineUpdated: true
+                                    },
+                                    { skipSmartRefresh: true }
+                                  );
+                                }
+                              } catch (_) {}
+                            })
+                          );
                           if (shouldRecalculateCompletionEtas && nextStop) {
                             backgroundTasks.push(
                               base44.functions.invoke('optimizeRouteRealTime', {
