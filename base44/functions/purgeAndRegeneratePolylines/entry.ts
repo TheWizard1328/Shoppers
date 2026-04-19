@@ -694,18 +694,29 @@ Deno.serve(async (req) => {
         });
       }
 
-      const finishedSegmentsNeedingApi = routeSource === 'polylines'
-        ? finishedSegmentSpecs
-        : [];
-      const finishedDirectionsFromApi = finishedSegmentsNeedingApi.length > 0
-        ? await getMultiSegmentDirections(base44, finishedSegmentsNeedingApi.map((segment) => ({ from: segment.from, to: segment.to })))
-        : [];
-      if (finishedSegmentsNeedingApi.length > 0) apiCallsMade += 1;
+      const finishedSegmentGroupsByMode = routeSource === 'polylines'
+        ? finishedSegmentSpecs.reduce((acc, segment) => {
+            const mode = segment.stop?.finished_leg_transport_mode || 'driving';
+            if (!acc[mode]) acc[mode] = [];
+            acc[mode].push(segment);
+            return acc;
+          }, {})
+        : {};
 
-      let apiDirectionIndex = 0;
+      const finishedDirectionsByStopId = new Map();
+      for (const [mode, groupedSegments] of Object.entries(finishedSegmentGroupsByMode)) {
+        const groupedDirections = groupedSegments.length > 0
+          ? await getMultiSegmentDirections(base44, groupedSegments.map((segment) => ({ from: segment.from, to: segment.to })), mode)
+          : [];
+        if (groupedSegments.length > 0) apiCallsMade += 1;
+        groupedSegments.forEach((segment, index) => {
+          finishedDirectionsByStopId.set(segment.stop.id, groupedDirections[index] || null);
+        });
+      }
+
       finishedSegmentSpecs.forEach((segment) => {
         const directions = routeSource === 'polylines'
-          ? finishedDirectionsFromApi[apiDirectionIndex++] || null
+          ? finishedDirectionsByStopId.get(segment.stop.id) || null
           : segment.breadcrumbDirections || null;
         regeneratedFinishedLegStopIds.push(segment.stop.id);
         deliveryUpdatesById.set(segment.stop.id, {
