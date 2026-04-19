@@ -180,8 +180,9 @@ export default function DemoModeDialog({ open, onOpenChange }) {
         </DialogHeader>
         <div className="space-y-4">
           <div className="rounded-lg border p-4 space-y-2">
-            <div className="text-sm">Demo stores: {stores.length}</div>
-            <div className="text-sm">Demo routes: {routes.length}</div>
+            <div className="text-sm">Stores: {stores.length}</div>
+            <div className="text-sm">Routes (Deliveries): {routes.length}</div>
+            <div className="text-sm">Patients: {patients.length}</div>
             <div className="text-sm">Last session: {lastSession ? new Date(lastSession).toLocaleString() : 'None'}</div>
             <div className="text-sm">Active API key: {selectedApiKey}</div>
             <div className="space-y-1">
