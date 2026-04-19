@@ -17,6 +17,21 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     checkAppState();
+
+    const handleLocationTokenChange = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('access_token') || urlParams.get('_preview_token')) {
+        window.location.reload();
+      }
+    };
+
+    window.addEventListener('popstate', handleLocationTokenChange);
+    window.addEventListener('hashchange', handleLocationTokenChange);
+
+    return () => {
+      window.removeEventListener('popstate', handleLocationTokenChange);
+      window.removeEventListener('hashchange', handleLocationTokenChange);
+    };
   }, []);
 
   const checkAppState = async () => {

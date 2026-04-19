@@ -135,7 +135,7 @@ const withTimeout = (promise, timeoutMs = 10000) => {
  */
 export const getEffectiveUser = async () => {
     const urlParams = new URLSearchParams(window.location.search);
-    const hasAccessTokenInUrl = !!urlParams.get('access_token');
+    const hasAccessTokenInUrl = !!(urlParams.get('access_token') || urlParams.get('_preview_token'));
 
     if (hasAccessTokenInUrl) {
         userCache.data = null;
