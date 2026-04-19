@@ -3,6 +3,12 @@ import { base44 } from "@/api/base44Client";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import ResetPolylinesButton from "@/components/dashboard/ResetPolylinesButton";
 import { getApiLogProvider, sumApiLogCalls } from "@/components/utils/apiUsageLog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // Small self-contained badge that shows Google/HERE API usage for today
 // Props:
@@ -11,6 +17,7 @@ import { getApiLogProvider, sumApiLogCalls } from "@/components/utils/apiUsageLo
 export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRoutes = true, showBreadcrumbs = false, showCompletedRouteControls = false, selectedDate = null, selectedDriverIds = [], selectedPolylineOption = 'polylines', onPolylineOptionChange }) {
   const [googleCount, setGoogleCount] = useState(null);
   const [hereCount, setHereCount] = useState(null);
+  const [selectedApiKey, setSelectedApiKey] = useState('HERE_API_KEY');
 
   // Edmonton-local date helpers (match Dashboard behavior)
   const getEdmDate = () => {
@@ -37,10 +44,15 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
     try {
       const { startISO, endISO } = getDayBoundsISO();
 
-      const apiLogs = await base44.entities.GoogleAPILog.filter({
-        timestamp: { $gte: startISO, $lte: endISO }
-      });
+      const [apiLogs, appSettings] = await Promise.all([
+        base44.entities.GoogleAPILog.filter({
+          timestamp: { $gte: startISO, $lte: endISO }
+        }),
+        base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' })
+      ]);
 
+      const activeKey = appSettings?.[0]?.setting_value?.selected_api_key || 'HERE_API_KEY';
+      setSelectedApiKey(activeKey);
       setGoogleCount(sumApiLogCalls(apiLogs, (log) => getApiLogProvider(log) === 'google'));
       setHereCount(sumApiLogCalls(apiLogs, (log) => getApiLogProvider(log) === 'here'));
     } catch (err) {
@@ -63,9 +75,31 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
   return (
     <>
       <div className="absolute left-4 z-[140]" style={{ bottom: `${(stopCardsHeight || 0) + 15}px` }}>
-        <div className="px-2 py-1 text-xs font-medium rounded-lg border" style={{ background: "transparent", borderColor: "var(--border-slate-200)", color: "var(--text-slate-600)" }}>
-          🛣️ {googleCount ?? "..."} / {hereCount ?? "..."}
-        </div>
+        <TooltipProvider delayDuration={200}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="px-2 py-1 text-xs font-medium rounded-lg border"
+                style={{ background: "transparent", borderColor: "var(--border-slate-200)", color: "var(--text-slate-600)" }}
+              >
+                🛣️ {googleCount ?? "..."} / {hereCount ?? "..."}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent
+              side="top"
+              className="max-w-[280px] p-3 z-[10000]"
+              style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
+            >
+              <p className="font-semibold text-sm mb-1" style={{ color: 'var(--text-slate-900)' }}>
+                Active Maps API Key
+              </p>
+              <p className="text-xs leading-relaxed" style={{ color: 'var(--text-slate-600)' }}>
+                {selectedApiKey}
+              </p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
       {showCompletedRouteControls &&
       <div className="absolute top-4 right-4 z-[180] pointer-events-auto">
