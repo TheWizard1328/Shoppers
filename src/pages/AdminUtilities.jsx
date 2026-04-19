@@ -3674,15 +3674,15 @@ export default function AdminUtilities() {
             </TabsList>
           </div>
 
-          <TabsContent value="data">
+          <TabsContent value="data" className="mt-4 flex-1 min-h-0 overflow-hidden">
             {dataLoading && activeDataTab !== 'deliveries' || dataLoading && activeDataTab === 'deliveries' && !allDeliveries?.length ?
             <div className="flex justify-center items-center h-60">
                 <Loader2 className="h-10 w-10 animate-spin text-emerald-500" />
                 <span className="ml-3 text-lg text-slate-600">Loading data...</span>
               </div> :
 
-            <div className="space-y-6">
-                <Tabs value={activeDataTab} onValueChange={setActiveDataTab} className="w-full h-full">
+            <div className="space-y-6 h-full min-h-0 overflow-hidden">
+                <Tabs value={activeDataTab} onValueChange={setActiveDataTab} className="w-full h-full min-h-0 flex flex-col">
                    <div className="overflow-x-auto overflow-y-hidden scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent"><TabsList className="items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground grid min-w-full w-max gap-1 md:gap-0 h-auto md:h-14" style={{ gridTemplateColumns: 'repeat(6,minmax(max-content,1fr))' }}>
                        <TabsTrigger value="deliveries" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Deliveries</TabsTrigger>
                        <TabsTrigger value="patients" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Patients</TabsTrigger>
@@ -3692,8 +3692,8 @@ export default function AdminUtilities() {
                        <TabsTrigger value="credits" className="text-xs md:text-sm px-3 py-2 justify-center text-center">Credits</TabsTrigger>
                      </TabsList></div>
 
-                  <TabsContent value="deliveries" className="mt-6">
-                    <div className="space-y-2 overflow-auto">
+                  <TabsContent value="deliveries" className="mt-4 flex-1 min-h-0 overflow-hidden">
+                    <div className="space-y-2 h-full min-h-0 overflow-auto">
                       <div className="flex flex-col md:flex-row gap-1 flex-wrap items-stretch md:items-center justify-between">
                         {!manualLoadTriggered ?
                       <Alert className="bg-background text-foreground pt-2 pr-3 pb-1 pl-3 text-sm rounded-lg relative w-full border [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground [&>svg~*]:pl-7 flex-1">
