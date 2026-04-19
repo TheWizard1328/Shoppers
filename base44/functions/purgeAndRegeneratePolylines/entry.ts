@@ -483,9 +483,11 @@ async function getMultiSegmentDirections(base44, segmentSpecs, transportMode = '
 
     const data = response?.data || response || {};
     const sections = Array.isArray(data?.sections) ? data.sections : [];
+    const routePolylines = Array.isArray(data?.polylines) ? data.polylines : [];
 
     return safeSpecs.map((segment, index) => {
       const section = sections[index] || null;
+      const routePolyline = routePolylines[index] || null;
       let polyline = null;
 
       if (section?.polyline && data?.polyline_format === 'flexible') {
@@ -493,6 +495,15 @@ async function getMultiSegmentDirections(base44, segmentSpecs, transportMode = '
         if (coords.length > 1) polyline = encodeGooglePolyline(coords);
       } else if (typeof section?.polyline === 'string' && section.polyline) {
         polyline = section.polyline;
+      }
+
+      if (!polyline && typeof routePolyline === 'string' && routePolyline) {
+        if (data?.polyline_format === 'flexible') {
+          const coords = decodeHereFlexiblePolyline(routePolyline);
+          if (coords.length > 1) polyline = encodeGooglePolyline(coords);
+        } else {
+          polyline = routePolyline;
+        }
       }
 
       if (!polyline) {
