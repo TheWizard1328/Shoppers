@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { getApiLogCallCount, getApiLogDisplayType, getApiLogProvider, sumApiLogCalls } from '@/components/utils/apiUsageLog';
+import { sortStores, sortUsers } from '@/components/utils/sorting';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Trash2, RefreshCw, MapPin, Navigation, Search, Info, AlertTriangle, TrendingUp, Clock, Filter, X } from 'lucide-react';
 import { format, isWithinInterval, startOfDay, endOfDay, subDays, subHours } from 'date-fns';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
 const apiTypeIcons = {
   'Google Directions': Navigation,
@@ -34,6 +35,8 @@ const apiTypeColors = {
 
 export default function GoogleAPILogViewer() {
   const [logs, setLogs] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [stores, setStores] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isClearing, setIsClearing] = useState(false);
   const [stats, setStats] = useState({
@@ -59,8 +62,14 @@ export default function GoogleAPILogViewer() {
     if (!silent) setIsLoading(true);
     try {
       // Fetch logs sorted by timestamp (newest first), limit to 1000 most recent
-      const allLogs = await base44.entities.GoogleAPILog.filter({}, '-timestamp', 1000);
+      const [allLogs, allUsers, allStores] = await Promise.all([
+        base44.entities.GoogleAPILog.filter({}, '-timestamp', 1000),
+        base44.entities.AppUser.list(),
+        base44.entities.Store.list()
+      ]);
       setLogs(allLogs);
+      setUsers(sortUsers((allUsers || []).filter((user) => Array.isArray(user.app_roles) && user.app_roles.includes('driver'))));
+      setStores(sortStores(allStores || []));
 
       // Calculate stats
       const today = format(new Date(), 'yyyy-MM-dd');
@@ -124,12 +133,54 @@ export default function GoogleAPILogViewer() {
 
   // Get unique users from logs
   const uniqueUsers = useMemo(() => {
-    const users = new Set();
+    const logUsers = new Set();
     logs.forEach((log) => {
-      if (log.user_name) users.add(log.user_name);
+      if (log.user_name) logUsers.add(log.user_name);
     });
-    return Array.from(users).sort();
-  }, [logs]);
+
+    const sortedDriverNames = users
+      .map((user) => user.user_name)
+      .filter((name) => logUsers.has(name));
+
+    const remainingNames = Array.from(logUsers)
+      .filter((name) => !sortedDriverNames.includes(name))
+      .sort();
+
+    return [...sortedDriverNames, ...remainingNames];
+  }, [logs, users]);
+
+  const storeLegendNames = useMemo(() => {
+    const logStoreNames = new Set(
+      logs
+        .map((log) => log.metadata?.store_name)
+        .filter(Boolean)
+    );
+
+    return stores
+      .map((store) => store.name)
+      .filter((name) => logStoreNames.has(name));
+  }, [logs, stores]);
+
+  const legendDriverNames = useMemo(() => uniqueUsers.slice(0, 10), [uniqueUsers]);
+
+  const legendRows = useMemo(() => {
+    const firstRow = [
+      { key: 'calls', label: 'Total', color: '#1e293b', dashed: true },
+      ...legendDriverNames.map((name, idx) => ({
+        key: name,
+        label: name,
+        color: userColors[idx % userColors.length]
+      }))
+    ];
+
+    const secondRow = storeLegendNames.map((name) => ({
+      key: `store-${name}`,
+      label: name,
+      color: '#94a3b8'
+    }));
+
+    return [firstRow, secondRow];
+  }, [legendDriverNames, storeLegendNames]);
 
   // Filter logs based on current filters
   const filteredLogs = useMemo(() => {
@@ -588,7 +639,26 @@ export default function GoogleAPILogViewer() {
                 {/* Show multiple lines for each user when "All Users" is selected */}
                 {!userFilter && uniqueUsers.length > 1 ?
                   <>
-                    <Legend wrapperStyle={{ fontSize: '11px' }} />
+                    <div className="mb-3 space-y-2 text-xs text-slate-600">
+                      {legendRows.map((row, rowIndex) => row.length > 0 ? (
+                        <div key={rowIndex} className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                          {row.map((item) => (
+                            <div key={item.key} className="flex items-center gap-2">
+                              <span
+                                className="block h-0.5 w-5 rounded-full"
+                                style={{
+                                  backgroundColor: item.color,
+                                  opacity: item.dashed ? 0.9 : 1,
+                                  backgroundImage: item.dashed ? 'repeating-linear-gradient(to right, transparent 0 4px, currentColor 4px 8px)' : 'none',
+                                  color: item.color
+                                }}
+                              />
+                              <span>{item.label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null)}
+                    </div>
                     {/* Total line (thicker, dashed) */}
                     <Line
                       type="monotone"
