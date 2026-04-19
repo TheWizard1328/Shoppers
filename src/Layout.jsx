@@ -1837,7 +1837,7 @@ export default function Layout({ children, currentPageName }) {
           </div>
         </div> :
 
-      <UserProvider key={currentUser?.id || 'anonymous'} initialUser={currentUser}>
+      <UserProvider initialUser={currentUser}>
            <AppDataProvider value={{
           deliveries: deliveries || [], patients: patients || [], stores: stores || [], drivers: drivers || [], users: users || [], appUsers: appUsers || [], cities: cities || [], currentUser,
           isDataLoaded: dataLoaded, refreshData: triggerFullDataLoadRef.current, updateDeliveriesLocally, updateAppUsersLocally,

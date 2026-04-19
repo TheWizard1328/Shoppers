@@ -93,13 +93,9 @@ const getOfflineAppUser = async (userId) => {
   return Array.isArray(appUsers) && appUsers.length > 0 ? appUsers[0] : null;
 };
 
-const getAppUserByUserId = async (userId, options = {}) => {
-  const { skipOfflineCache = false } = options;
-
-  if (!skipOfflineCache) {
-    const cachedAppUser = await getOfflineAppUser(userId);
-    if (cachedAppUser) return cachedAppUser;
-  }
+const getAppUserByUserId = async (userId) => {
+  const cachedAppUser = await getOfflineAppUser(userId);
+  if (cachedAppUser) return cachedAppUser;
 
   const appUsers = await withTimeout(base44.entities.AppUser.filter({ user_id: userId }), 8000);
   if (appUsers && appUsers.length > 0) {
@@ -134,24 +130,8 @@ const withTimeout = (promise, timeoutMs = 10000) => {
  * @returns {Promise<object|null>} The effective user object (merged User + AppUser) or null if not logged in.
  */
 export const getEffectiveUser = async () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const hasAccessTokenInUrl = !!(urlParams.get('access_token') || urlParams.get('_preview_token'));
-
-    if (hasAccessTokenInUrl) {
-        userCache.data = null;
-        userCache.timestamp = 0;
-        inflightUserRequest = null;
-        removeStorageKey(sessionStorage, EFFECTIVE_USER_CACHE_KEY);
-        removeStorageKey(localStorage, EFFECTIVE_USER_CACHE_KEY);
-        removeStorageKey(sessionStorage, AUTH_BOOT_CACHE_KEY);
-        removeStorageKey(localStorage, AUTH_BOOT_CACHE_KEY);
-        try {
-            offlineDB.clearStore(offlineDB.STORES.APP_USERS);
-        } catch {}
-    }
-
     const now = Date.now();
-    const persistedEffectiveUser = hasAccessTokenInUrl ? null : getPersistedEffectiveUser();
+    const persistedEffectiveUser = getPersistedEffectiveUser();
 
     if (!navigator.onLine) {
         console.warn('⚠️ [auth.js] Device is offline, returning cached user data');
@@ -177,7 +157,7 @@ export const getEffectiveUser = async () => {
         const maxRetries = 2;
         const baseDelay = 2000;
 
-        const cachedAuthUser = hasAccessTokenInUrl ? null : getFreshCachedAuthUser();
+        const cachedAuthUser = getFreshCachedAuthUser();
         if (cachedAuthUser) {
           try {
             const cachedAppUser = await getOfflineAppUser(cachedAuthUser.id);
@@ -209,7 +189,7 @@ export const getEffectiveUser = async () => {
                     return null;
                 }
 
-                const appUser = await getAppUserByUserId(authUser.id, { skipOfflineCache: hasAccessTokenInUrl });
+                const appUser = await getAppUserByUserId(authUser.id);
                 if (!appUser) {
                     console.warn(`⚠️ [auth.js] No AppUser found for ${authUser.full_name}`);
                     return null;

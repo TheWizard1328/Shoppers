@@ -23,9 +23,6 @@ const getAppParamValue = (paramName, { defaultValue = undefined, removeFromUrl =
 	}
 	if (searchParam) {
 		storage.setItem(storageKey, searchParam);
-		if (storageKey === 'base44_token') {
-			window.sessionStorage.setItem(storageKey, searchParam);
-		}
 		return searchParam;
 	}
 	if (defaultValue) {
@@ -52,18 +49,4 @@ const getAppParams = () => {
 
 export const appParams = {
 	...getAppParams()
-}
-
-if (typeof window !== 'undefined') {
-	const urlParams = new URLSearchParams(window.location.search);
-	const incomingAccessToken = urlParams.get('access_token') || urlParams.get('_preview_token');
-	const storedAccessToken = window.localStorage.getItem('base44_token');
-	const reloadKey = '__base44_token_reload_once__';
-	if (incomingAccessToken && incomingAccessToken !== storedAccessToken && sessionStorage.getItem(reloadKey) !== incomingAccessToken) {
-		sessionStorage.setItem(reloadKey, incomingAccessToken);
-		window.location.reload();
-	}
-	if (!incomingAccessToken) {
-		sessionStorage.removeItem(reloadKey);
-	}
 }
