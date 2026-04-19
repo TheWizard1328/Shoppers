@@ -130,8 +130,21 @@ const withTimeout = (promise, timeoutMs = 10000) => {
  * @returns {Promise<object|null>} The effective user object (merged User + AppUser) or null if not logged in.
  */
 export const getEffectiveUser = async () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const hasAccessTokenInUrl = !!urlParams.get('access_token');
+
+    if (hasAccessTokenInUrl) {
+        userCache.data = null;
+        userCache.timestamp = 0;
+        inflightUserRequest = null;
+        removeStorageKey(sessionStorage, EFFECTIVE_USER_CACHE_KEY);
+        removeStorageKey(localStorage, EFFECTIVE_USER_CACHE_KEY);
+        removeStorageKey(sessionStorage, AUTH_BOOT_CACHE_KEY);
+        removeStorageKey(localStorage, AUTH_BOOT_CACHE_KEY);
+    }
+
     const now = Date.now();
-    const persistedEffectiveUser = getPersistedEffectiveUser();
+    const persistedEffectiveUser = hasAccessTokenInUrl ? null : getPersistedEffectiveUser();
 
     if (!navigator.onLine) {
         console.warn('⚠️ [auth.js] Device is offline, returning cached user data');
@@ -157,7 +170,7 @@ export const getEffectiveUser = async () => {
         const maxRetries = 2;
         const baseDelay = 2000;
 
-        const cachedAuthUser = getFreshCachedAuthUser();
+        const cachedAuthUser = hasAccessTokenInUrl ? null : getFreshCachedAuthUser();
         if (cachedAuthUser) {
           try {
             const cachedAppUser = await getOfflineAppUser(cachedAuthUser.id);
