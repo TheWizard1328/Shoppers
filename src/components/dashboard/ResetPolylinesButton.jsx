@@ -70,7 +70,6 @@ export default function ResetPolylinesButton({
       // Process sequentially to avoid rate limits and ensure DBs are updated before polylines
       for (const driverId of driverIds) {
         await recalculateAndUpdateStopOrders(driverId, selectedDate, true);
-        // Update UI after stop orders have been updated
         window.dispatchEvent(new CustomEvent("deliveriesUpdated", {
           detail: { driverId, deliveryDate: selectedDate, triggeredBy: "resetPolylines_stopOrders" }
         }));
@@ -83,7 +82,7 @@ export default function ResetPolylinesButton({
         detail: { driverIds, deliveryDate: selectedDate, triggeredBy: "resetPolylines" }
       }));
 
-      // 3. Update the polylines (per driver) sequentially
+      // 3. Update the polylines/breadcrumbs (per driver) sequentially
       for (const driverId of driverIds) {
         try {
           const response = await base44.functions.invoke('purgeAndRegeneratePolylines', {
@@ -117,7 +116,7 @@ export default function ResetPolylinesButton({
       }
 
       if (selectedPolylineOption === 'breadcrumbs') {
-        const totalDrivers = breadcrumbIntegrationResults.length;
+        const totalDrivers = driverIds.length;
         const successfulDrivers = breadcrumbIntegrationResults.filter((item) => item.integratedStops > 0).length;
         const mergedRows = breadcrumbIntegrationResults.reduce((sum, item) => sum + item.mergedRows, 0);
         const integratedStops = breadcrumbIntegrationResults.reduce((sum, item) => sum + item.integratedStops, 0);
