@@ -131,6 +131,11 @@ export default function GoogleAPILogViewer() {
     setAlerts(newAlerts);
   };
 
+  // User colors for multi-line chart
+  const userColors = [
+  '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6',
+  '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16'];
+
   // Get unique users from logs
   const uniqueUsers = useMemo(() => {
     const logUsers = new Set();
@@ -216,12 +221,6 @@ export default function GoogleAPILogViewer() {
       return passesDateFilter && passesTypeFilter && passesUserFilter;
     });
   }, [logs, dateFilter, customDateStart, customDateEnd, apiTypeFilter, userFilter]);
-
-  // User colors for multi-line chart
-  const userColors = [
-  '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6',
-  '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16'];
-
 
   // Calculate chart data based on date filter and user filter
   const hourlyChartData = useMemo(() => {
