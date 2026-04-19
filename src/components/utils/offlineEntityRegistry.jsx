@@ -11,7 +11,11 @@ export const OFFLINE_ENTITY_STORE_KEYS = {
   AppUser: 'APP_USERS',
   City: 'CITIES',
   Store: 'STORES',
-  Company: 'COMPANIES'
+  Company: 'COMPANIES',
+  DemoPatient: 'PATIENTS',
+  DemoRoute: 'DELIVERIES',
+  DemoAppUser: 'APP_USERS',
+  DemoStore: 'STORES'
 };
 
 export const OFFLINE_SYNC_ENTITY_CLIENTS = {

@@ -168,6 +168,7 @@ export default function DemoModeDialog({ open, onOpenChange }) {
         city_id: cityCenter?.id || null,
         shouldClearExisting: !matchingStore
       });
+      window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));
       setAddress('');
       setSelectedAddress(null);
     }
