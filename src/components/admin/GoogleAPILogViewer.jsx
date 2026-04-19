@@ -620,6 +620,28 @@ export default function GoogleAPILogViewer() {
                 dateFilter === 'week' ? 'Last 7 Days Call Volume (6-hour periods)' :
                 'Call Volume by Day'}
             </h3>
+            {!userFilter && uniqueUsers.length > 1 && (
+              <div className="mb-3 space-y-2 text-xs text-slate-600">
+                {legendRows.map((row, rowIndex) => row.length > 0 ? (
+                  <div key={rowIndex} className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                    {row.map((item) => (
+                      <div key={item.key} className="flex items-center gap-2">
+                        <span
+                          className="block h-0.5 w-5 rounded-full"
+                          style={{
+                            backgroundColor: item.color,
+                            opacity: item.dashed ? 0.9 : 1,
+                            backgroundImage: item.dashed ? 'repeating-linear-gradient(to right, transparent 0 4px, currentColor 4px 8px)' : 'none',
+                            color: item.color
+                          }}
+                        />
+                        <span>{item.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null)}
+              </div>
+            )}
             <ResponsiveContainer width="100%" height={!userFilter && uniqueUsers.length > 1 ? 280 : 200}>
               <LineChart data={hourlyChartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -638,26 +660,6 @@ export default function GoogleAPILogViewer() {
                 {/* Show multiple lines for each user when "All Users" is selected */}
                 {!userFilter && uniqueUsers.length > 1 ?
                   <>
-                    <div className="mb-3 space-y-2 text-xs text-slate-600">
-                      {legendRows.map((row, rowIndex) => row.length > 0 ? (
-                        <div key={rowIndex} className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                          {row.map((item) => (
-                            <div key={item.key} className="flex items-center gap-2">
-                              <span
-                                className="block h-0.5 w-5 rounded-full"
-                                style={{
-                                  backgroundColor: item.color,
-                                  opacity: item.dashed ? 0.9 : 1,
-                                  backgroundImage: item.dashed ? 'repeating-linear-gradient(to right, transparent 0 4px, currentColor 4px 8px)' : 'none',
-                                  color: item.color
-                                }}
-                              />
-                              <span>{item.label}</span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : null)}
-                    </div>
                     {/* Total line (thicker, dashed) */}
                     <Line
                       type="monotone"
