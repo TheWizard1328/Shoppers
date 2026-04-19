@@ -656,7 +656,7 @@ export default function GoogleAPILogViewer() {
             {logs.length === 0 ? 'No API calls logged yet.' : 'No logs match the current filters.'}
           </div> :
 
-          <div className="border rounded-lg overflow-auto">
+          <div className="border rounded-lg overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-slate-50 sticky top-0">
