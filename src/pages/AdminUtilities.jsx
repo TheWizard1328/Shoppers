@@ -3650,7 +3650,7 @@ export default function AdminUtilities() {
   }
 
   return (
-    <div className="h-full min-h-0 w-full flex flex-col p-2 pb-[calc(72px+env(safe-area-inset-bottom))] md:p-3 md:pb-3" style={{ background: 'var(--bg-slate-50)' }}>
+    <div className="h-full min-h-0 w-full flex flex-col p-2 pb-[calc(72px+env(safe-area-inset-bottom))] md:p-3 md:pb-0" style={{ background: 'var(--bg-slate-50)' }}>
       <div className="w-full max-w-none space-y-4 md:space-y-6 flex-1 flex flex-col min-h-0">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0">
