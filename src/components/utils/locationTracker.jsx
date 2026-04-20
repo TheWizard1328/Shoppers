@@ -356,16 +356,7 @@ class LocationTracker {
         );
       }
 
-      // CRITICAL: Trigger Type 1 polyline regeneration only when coordinates were actually uploaded
-      if (shouldUploadCoordinates && this.driverStatus === 'on_duty' && this.currentUser?.id && this.currentDeliveryDate) {
-        base44.functions.invoke('regenerateType1Polyline', {
-          driverId: this.currentUser.id,
-          deliveryDate: this.currentDeliveryDate,
-          currentLocation: { lat: latitude, lng: longitude }
-        }).catch((polylineError) => {
-          console.warn('⚠️ [LocationTracker] Type 1 polyline regeneration skipped:', polylineError?.message || polylineError);
-        });
-      }
+      // Type 1 polyline regeneration is handled by explicit route-change flows only.
 
       if (shouldUploadCoordinates && this.driverStatus === 'on_duty' && this.currentDeliveryDate && this.currentUser?.id) {
         const previousEtaPosition = this.lastEtaRefreshPosition;

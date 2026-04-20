@@ -412,6 +412,10 @@ Deno.serve(async (req) => {
       row.encoded_polyline
     ) || null;
 
+    if (!body?.force && !body?.allowDeviationCheck) {
+      return Response.json({ success: true, skipped: true, reason: 'deviation_only_guard', repairedStopOrders: stopOrderRepairUpdates.length });
+    }
+
     if (existingType1) {
       // CRITICAL: Check if driver has deviated from the existing polyline route
       // Decode the existing polyline to check deviation
@@ -438,24 +442,13 @@ Deno.serve(async (req) => {
       const hasDeviated = deviationMeters > minMoveMeters;
       
       if (!hasDeviated) {
-        // Check if origin point has changed (completed a new stop)
-        const originChanged = !(
-          round5(existingType1.segment_origin_lat) === round5(effectiveOriginCoords.lat) &&
-          round5(existingType1.segment_origin_lon) === round5(effectiveOriginCoords.lon)
-        );
-        
-        if (!originChanged) {
-          return Response.json({ 
-            success: true, 
-            skipped: true, 
-            reason: 'no_deviation_and_origin_unchanged', 
-            deviationMeters: Math.round(deviationMeters),
-            repairedStopOrders: stopOrderRepairUpdates.length 
-          });
-        }
-        
-        // Origin changed (driver completed a stop) - allow regeneration
-        console.log(`[regenerateType1Polyline] Origin changed - regenerating polyline`);
+        return Response.json({ 
+          success: true, 
+          skipped: true, 
+          reason: 'no_route_deviation', 
+          deviationMeters: Math.round(deviationMeters),
+          repairedStopOrders: stopOrderRepairUpdates.length 
+        });
       } else {
         console.log(`[regenerateType1Polyline] Driver deviated ${Math.round(deviationMeters)}m from route - regenerating`);
       }

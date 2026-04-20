@@ -1608,17 +1608,16 @@ function Dashboard() {
     }
 
     fetchPolyline();
-    const interval = setInterval(fetchPolyline, 30000);
 
-    // CRITICAL: Listen for driver location changes to refresh polyline immediately
-    const handleLocationChange = () => {
+    const handlePolylineUpdated = () => {
       fetchPolyline();
     };
-    window.addEventListener('driverLocationChanged', handleLocationChange);
+    window.addEventListener('deliveriesUpdated', handlePolylineUpdated);
+    window.addEventListener('routeReordered', handlePolylineUpdated);
 
     return () => {
-      clearInterval(interval);
-      window.removeEventListener('driverLocationChanged', handleLocationChange);
+      window.removeEventListener('deliveriesUpdated', handlePolylineUpdated);
+      window.removeEventListener('routeReordered', handlePolylineUpdated);
     };
   }, [currentUser?.id, selectedDriverId, selectedDate, filteredDeliveries, patients, stores, appUsers]);
 
