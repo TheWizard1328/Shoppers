@@ -642,10 +642,11 @@ Deno.serve(async (req) => {
       }, 'stop_order');
 
       const activeStopsOnly = (allForDriverDate || []).filter((delivery) => delivery && isActiveRouteStatus(delivery.status));
+      const existingStartedNextStop = activeStopsOnly.find((delivery) => delivery.isNextDelivery === true) || null;
 
       if (activeStopsOnly.length > 0) {
         const firstActiveArrangedStop = arrangedStops.find((item) => !item?.stop?.isPending);
-        const targetId = lockedNextStop?.delivery?.id || firstActiveArrangedStop?.stop?.delivery?.id || [...activeStopsOnly].sort((a, b) => {
+        const targetId = existingStartedNextStop?.id || lockedNextStop?.delivery?.id || firstActiveArrangedStop?.stop?.delivery?.id || [...activeStopsOnly].sort((a, b) => {
           const stopOrderDiff = (a.stop_order || 999) - (b.stop_order || 999);
           if (stopOrderDiff !== 0) return stopOrderDiff;
           const etaA = String(a.delivery_time_eta || a.delivery_time_start || '99:99');
