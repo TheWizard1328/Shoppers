@@ -1,11 +1,7 @@
-import { format } from 'date-fns';
-
-export { format };
-import {
-  markOfflineDBLoadComplete,
-  isOfflineDBLoadComplete
-} from './dataManagerOfflineState';
-
+export { format } from 'date-fns';
+export { getData } from './dataManagerGetData';
+export { localWrites } from './dataManagerLocalWrites';
+export { markOfflineDBLoadComplete, isOfflineDBLoadComplete } from './dataManagerOfflineState';
 export {
   invalidate,
   getCached,
@@ -15,7 +11,6 @@ export {
   removeDeletedFromCache,
   invalidateDeliveriesForDate
 } from './dataManagerCacheExports';
-import { getData } from './dataManagerGetData';
 export {
   getDeliveriesForDateRange,
   loadDeliveriesForDate,
@@ -24,13 +19,3 @@ export {
   loadDeliveries,
   loadBackgroundDeliveries
 } from './dataManagerDeliveryExports';
-import { localWrites } from './dataManagerLocalWrites';
-
-// CRITICAL: NO IN-MEMORY CACHE - Use offline DB exclusively
-// Deleted all cache layers to prevent stale data and reappearing deleted items
-
-// NO FREQUENT CACHE - removed
-
-export { getData, markOfflineDBLoadComplete, isOfflineDBLoadComplete };
-
-export { localWrites };
