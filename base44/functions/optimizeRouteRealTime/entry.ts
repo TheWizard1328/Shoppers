@@ -200,9 +200,10 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { driverId, deliveryDate, startLocation, currentLocalTime, deviceTime } = body;
+    const { driverId, selectedDriverId, deliveryDate, startLocation, currentLocalTime, deviceTime } = body;
+    const targetDriverId = selectedDriverId || driverId;
 
-    if (!driverId || !deliveryDate) {
+    if (!targetDriverId || !deliveryDate) {
       return Response.json({ error: 'Missing required parameters: driverId, deliveryDate' }, { status: 400 });
     }
 
@@ -212,9 +213,9 @@ Deno.serve(async (req) => {
     }
 
     const [driverAppUsers, callerAppUsers, driverUsers] = await Promise.all([
-      base44.asServiceRole.entities.AppUser.filter({ user_id: driverId }),
+      base44.asServiceRole.entities.AppUser.filter({ user_id: targetDriverId }),
       base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }, '-updated_date', 1),
-      base44.asServiceRole.entities.User.filter({ id: driverId }, '-updated_date', 1)
+      base44.asServiceRole.entities.User.filter({ id: targetDriverId }, '-updated_date', 1)
     ]);
     const driverAppUser = driverAppUsers?.[0];
     const callerAppUser = callerAppUsers?.[0];
@@ -228,7 +229,8 @@ Deno.serve(async (req) => {
         routeChanged: false,
         optimizedRoute: [],
         totalStops: 0,
-        apiCallsMade: 0
+        apiCallsMade: 0,
+        driverId: targetDriverId
       });
     }
     const resolvedHomeLat = driverAppUser?.home_latitude ?? driverUser?.home_latitude ?? null;
@@ -252,7 +254,7 @@ Deno.serve(async (req) => {
     }
 
     const allDeliveries = await base44.asServiceRole.entities.Delivery.filter({
-      driver_id: driverId,
+      driver_id: targetDriverId,
       delivery_date: deliveryDate
     }, 'stop_order');
 
@@ -349,9 +351,13 @@ Deno.serve(async (req) => {
     const stopsToSequence = lockedNextStop
       ? stops.filter((stop) => stop.delivery.id !== lockedNextStop.delivery.id)
       : stops;
-    const optimizationStartPosition = lockedNextStop
-      ? { lat: lockedNextStop.lat, lng: lockedNextStop.lng }
-      : currentPosition;
+    const routePoints = [
+      currentPosition,
+      ...(lockedNextStop ? [{ lat: lockedNextStop.lat, lng: lockedNextStop.lng }] : []),
+      ...stopsToSequence.map((stop) => ({ lat: stop.lat, lng: stop.lng })),
+      endLocation ? { lat: Number(endLocation.lat), lng: Number(endLocation.lng) } : null
+    ].filter((point) => point?.lat != null && point?.lng != null);
+    const optimizationStartPosition = currentPosition;
 
     if (!optimizationStartPosition?.lat || !optimizationStartPosition?.lng) {
       return Response.json({
@@ -382,6 +388,8 @@ Deno.serve(async (req) => {
         ...stop,
         hereWaypointId: `destination${index + 1}`
       }));
+
+    const orderedRouteStops = lockedNextStop ? [lockedNextStop, ...sequencedStops] : sequencedStops;
 
     const fallbackDepartureTime = resolveCurrentTime({ currentLocalTime, deviceTime });
     const departureTime = resolveEtaBaseTime(deliveryDate, completedDeliveries, fallbackDepartureTime);
@@ -697,9 +705,72 @@ Deno.serve(async (req) => {
       sameSegmentPoint(firstActiveCoords, previousType1Destination)
     );
 
+    const routeLegPoints = [
+      activeRouteOrigin,
+      ...orderedRouteStops.map((item) => ({ lat: Number(item.lat), lng: Number(item.lng) })),
+      endLocation ? { lat: Number(endLocation.lat), lng: Number(endLocation.lng) } : null
+    ].filter((point) => point?.lat != null && point?.lng != null);
+
+    const routeDirectionsResponse = routeLegPoints.length >= 2
+      ? await base44.asServiceRole.functions.invoke('getHereDirections', {
+          origin: { lat: routeLegPoints[0].lat, lng: routeLegPoints[0].lng },
+          destination: { lat: routeLegPoints[routeLegPoints.length - 1].lat, lng: routeLegPoints[routeLegPoints.length - 1].lng },
+          waypoints: routeLegPoints.slice(1, -1).map((point) => ({ lat: point.lat, lng: point.lng })),
+          routeContext: routeLegPoints,
+          transportMode: String(driverAppUser?.preferred_travel_mode || 'driving').toLowerCase()
+        }).catch(() => null)
+      : null;
+
+    const routeDirectionsData = routeDirectionsResponse?.data || routeDirectionsResponse || {};
+    const routeSections = Array.isArray(routeDirectionsData?.sections) ? routeDirectionsData.sections : [];
+    const transportMode = routeDirectionsData?.transport_mode || String(driverAppUser?.preferred_travel_mode || 'driving').toLowerCase();
+
+    if (routeSections.length > 0) {
+      const existingRows = await base44.asServiceRole.entities.DriverRoutePolyline.filter({
+        driver_id: targetDriverId,
+        delivery_date: deliveryDate
+      }, '-updated_date', 50000);
+
+      const dailyGenerationCount = routeSections.length;
+      for (let index = 0; index < routeSections.length; index += 1) {
+        const fromPoint = routeLegPoints[index];
+        const toPoint = routeLegPoints[index + 1];
+        const section = routeSections[index];
+        if (!fromPoint || !toPoint || !section?.encoded_polyline) continue;
+
+        const existingRow = (existingRows || []).find((row) =>
+          round5(row?.segment_origin_lat) === round5(fromPoint.lat) &&
+          round5(row?.segment_origin_lon) === round5(fromPoint.lng) &&
+          round5(row?.segment_dest_lat) === round5(toPoint.lat) &&
+          round5(row?.segment_dest_lon) === round5(toPoint.lng)
+        );
+
+        const rowPayload = {
+          driver_id: targetDriverId,
+          delivery_date: deliveryDate,
+          encoded_polyline: section.encoded_polyline,
+          transport_mode: transportMode,
+          segment_origin_lat: round5(fromPoint.lat),
+          segment_origin_lon: round5(fromPoint.lng),
+          segment_dest_lat: round5(toPoint.lat),
+          segment_dest_lon: round5(toPoint.lng),
+          estimated_distance_km: section.estimated_distance_km ?? null,
+          estimated_duration_minutes: section.estimated_duration_minutes ?? null,
+          daily_generation_count: dailyGenerationCount,
+          last_generated_at: new Date().toISOString()
+        };
+
+        if (existingRow?.id) {
+          await base44.asServiceRole.entities.DriverRoutePolyline.update(existingRow.id, rowPayload).catch(() => null);
+        } else {
+          await base44.asServiceRole.entities.DriverRoutePolyline.create(rowPayload).catch(() => null);
+        }
+      }
+    }
+
     if (activeSegmentChanged) {
       await base44.functions.invoke('purgeAndRegeneratePolylines', {
-        driverId,
+        driverId: targetDriverId,
         deliveryDate,
         scope: 'active_only',
         reason: 'route_reordered'

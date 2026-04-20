@@ -25,25 +25,14 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Start was blocked because this stop is still syncing.' }, { status: 400 });
     }
 
-    // Step 1: Find old isNextDelivery flags and clear only the ones we no longer need
     const oldNextDeliveries = await base44.asServiceRole.entities.Delivery.filter({
       driver_id: driverId,
       delivery_date: deliveryDate,
       isNextDelivery: true
-    }, 'stop_order', 10);
+    }, 'stop_order', 50);
 
     const oldNextDeliveriesToReset = (oldNextDeliveries || []).filter((delivery) => delivery.id !== deliveryId);
-    let distanceToTransfer = 0;
-    let oldNextDeliveryId = null;
-
-    if (oldNextDeliveriesToReset.length > 0) {
-      console.log(`🔄 [handleStartDelivery] Found ${oldNextDeliveriesToReset.length} previous next deliveries, resetting...`);
-
-      const oldNextDelivery = oldNextDeliveriesToReset[0];
-      oldNextDeliveryId = oldNextDelivery.id;
-      distanceToTransfer = oldNextDelivery.travel_dist || 0;
-      console.log(`🔄 [handleStartDelivery] Transferring ${distanceToTransfer} km from ${oldNextDelivery.patient_name}`);
-    }
+    const oldNextDeliveryId = oldNextDeliveriesToReset[0]?.id || null;
 
     for (const delivery of oldNextDeliveriesToReset) {
       try {
@@ -63,7 +52,7 @@ Deno.serve(async (req) => {
 
     const startResult = await base44.asServiceRole.entities.Delivery.update(deliveryId, {
       isNextDelivery: true,
-      travel_dist: distanceToTransfer
+      travel_dist: 0
     }).catch((error) => {
       if (isNotFoundError(error)) return null;
       if (isRateLimitError(error)) throw error;
@@ -75,7 +64,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Failed to mark selected delivery as started' }, { status: 409 });
     }
 
-    console.log(`🔄 [handleStartDelivery] Notifying frontend - distance transferred: ${distanceToTransfer} km`);
+    console.log('🔄 [handleStartDelivery] Selected delivery marked as next stop');
 
     let optimization = null;
     try {
@@ -86,7 +75,8 @@ Deno.serve(async (req) => {
         driverId,
         deliveryDate,
         currentLocalTime,
-        generatePolyline: false,
+        selectedDriverId: driverId,
+        generatePolyline: true,
         lockedNextDeliveryId: deliveryId
       });
       optimization = optimizationResponse?.data || optimizationResponse || null;
@@ -104,7 +94,7 @@ Deno.serve(async (req) => {
 
     return Response.json({
       success: true,
-      distanceTransferred: distanceToTransfer,
+      distanceTransferred: 0,
       newNextDeliveryId: deliveryId,
       oldNextDeliveryId,
       routeChanged: !!optimization?.routeChanged,
