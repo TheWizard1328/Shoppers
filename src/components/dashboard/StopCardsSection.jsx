@@ -123,9 +123,9 @@ export default function StopCardsSection({
             stopOrder={{}}
             showDriverName={isAllDriversMode}
             getDriverColor={getDriverColor}
-            onEditDelivery={handleEditDelivery}
+            onEdit={handleEditDelivery}
             onEditPatient={handleEditPatient}
-            onDeleteDelivery={handleDeleteDelivery}
+            onDelete={handleDeleteDelivery}
             onRestart={handleRestartDelivery}
             onStatusUpdate={handleStatusUpdate}
             onNotesUpdate={handleNotesUpdate}
