@@ -431,10 +431,10 @@ export default function HereType1Polylines({
                 remainingCoords = await hydrateFromOffline(remainingKey, driverId, current, destination, nextStop.delivery_date)
                   .then((hydrated) => hydrated ? getCachedPolyline(remainingKey, cache) : null);
               }
-              if (!remainingCoords) {
-                remainingCoords = await getHerePolyline(driverId, current, destination, nextStop.delivery_date);
-              }
               if (cancelled) return;
+              if (!remainingCoords || remainingCoords.length <= 1) {
+                return;
+              }
               nextDeviationSegments[segmentId] = {
                 segmentId,
                 driverId,
@@ -449,18 +449,6 @@ export default function HereType1Polylines({
               };
             } catch (_) {
               if (cancelled) return;
-              nextDeviationSegments[segmentId] = {
-                segmentId,
-                driverId,
-                origin,
-                destination,
-                currentPoint: current,
-                breadcrumbCoords: buildBreadcrumbLine(nextStop.delivery_route_breadcrumbs, origin, current),
-                remainingCoords: makeFallback(current, destination),
-                remainingPoint: current,
-                deviationDistance,
-                lastFetchedAt: Date.now()
-              };
             }
           })()
         );
@@ -576,6 +564,10 @@ export default function HereType1Polylines({
           pane="routeBasePane"
         />
       );
+      return;
+    }
+
+    if (segmentId && deviationMetaRef.current[segmentId]) {
       return;
     }
 
