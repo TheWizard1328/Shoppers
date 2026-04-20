@@ -50,9 +50,7 @@ export default function StopCardFooterMenu(props) {
 
   const canShowEditPatient = !!(onEditPatient && patient && isActiveDelivery && canManageStop);
 
-  const canShowUpdateGps = !!(handleUpdateGPS && canManageStop && (
-    isActivePickup || (isActiveDelivery && patient && (isNextDelivery || isFinishedDelivery))
-  ));
+  const canShowUpdateGps = !!(handleUpdateGPS && canManageStop && isActiveDelivery && patient && (isNextDelivery || isFinishedDelivery));
 
   const canShowFailCancel = !!(onStatusUpdate && canManageStop && (
     isActivePickup || (isActiveDelivery && isNextDelivery)
