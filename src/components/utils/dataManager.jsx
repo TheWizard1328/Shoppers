@@ -1,8 +1,6 @@
 import { format } from 'date-fns';
 
 export { format };
-import { offlineDB } from './offlineDatabase';
-import { entities } from './dataManagerEntities';
 import {
   invalidate,
   getCached,
@@ -22,8 +20,6 @@ export {
   removeDeletedFromCache,
   invalidateDeliveriesForDate
 };
-import { resolveEntityName } from './dataManagerDemoMode';
-import { waitForRateLimit, triggerGlobalRateLimitPause } from './dataManagerRateLimit';
 import { getData } from './dataManagerGetData';
 import {
   getDeliveriesForDateRange,
@@ -60,9 +56,6 @@ import {
   deleteCompanyLocal,
   subscribeMutations
 } from './offlineMutations';
-import { connectionMonitor } from './connectionMonitor';
-import { getOfflineStoreName, isOfflineManagedEntity } from './offlineEntityRegistry';
-import { getLocalDateString } from './localTimeHelper';
 
 // CRITICAL: NO IN-MEMORY CACHE - Use offline DB exclusively
 // Deleted all cache layers to prevent stale data and reappearing deleted items
