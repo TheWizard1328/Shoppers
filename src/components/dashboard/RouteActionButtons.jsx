@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Navigation } from "lucide-react";
 import { format } from "date-fns";
 import { base44 } from "@/api/base44Client";
+import { optimizeRouteRealTime } from "@/functions/optimizeRouteRealTime";
 import { isAppOwner } from "@/components/utils/userRoles";
 import { pauseOfflineMutations, resumeOfflineMutations } from "@/components/utils/offlineMutations";
 import { pauseOfflineSync, resumeOfflineSync } from "@/components/utils/offlineSync";
@@ -58,7 +59,7 @@ export default function RouteActionButtons({
             const deliveryDate = format(selectedDate, "yyyy-MM-dd");
             const now = new Date();
             const currentLocalTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-            const response = await base44.functions.invoke("optimizeRouteRealTime", {
+            const response = await optimizeRouteRealTime({
               driverId: selectedDriverId,
               deliveryDate,
               currentLocalTime,

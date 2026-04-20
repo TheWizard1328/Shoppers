@@ -12,7 +12,6 @@ import { userHasRole, shouldShowStoreBadges, isAppOwner } from '../utils/userRol
 import { isMobileDevice } from '../utils/deviceUtils';
 import { getCurrentDevice } from '../utils/deviceManager';
 import { formatAddressWithUnit } from '../utils/addressCleaner';
-import { base44 } from "@/api/base44Client";
 import { setDriverStatus } from "@/functions/setDriverStatus";
 import { locationTracker } from "../utils/locationTracker";
 import { useAppData } from "../utils/AppDataContext";
