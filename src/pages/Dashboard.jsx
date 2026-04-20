@@ -5247,7 +5247,7 @@ function Dashboard() {
       </div>);
   }
 
-  const dashboardViewModel = useDashboardViewModel({
+  const dashboardViewModel = createDashboardViewModel({
     currentUser, isDriver, isAdmin, isDispatcher, isMobile,
     deliveries, patients, stores, drivers, appUsers,
     filteredDeliveries, deliveriesWithStopOrder, stats, driversList,
