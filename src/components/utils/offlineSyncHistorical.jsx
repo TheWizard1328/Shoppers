@@ -1,7 +1,7 @@
 import { format, subDays } from 'date-fns';
 import { offlineDB } from './offlineDatabase';
 import { invalidate as invalidateEntityCache } from './dataManager';
-import { Patient } from './dataManagerEntities';
+import { entities } from './dataManagerEntities';
 import { getSyncPaused } from './offlineSyncState';
 import { notifySyncStatus } from './offlineSyncStatus';
 import { userActivityMonitor } from './userActivityMonitor';
@@ -54,7 +54,7 @@ export const createOfflineSyncHistoricalHelpers = ({
         return { success: true, paused: true, count: totalPatients };
       }
 
-      const batchPatients = await Patient.filter({ store_id: targetStore.id }, '-updated_date', HISTORICAL_PATIENT_STORE_BATCH_SIZE, offset);
+      const batchPatients = await entities.Patient.filter({ store_id: targetStore.id }, '-updated_date', HISTORICAL_PATIENT_STORE_BATCH_SIZE, offset);
       if (!batchPatients || batchPatients.length === 0) break;
 
       await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, batchPatients);
