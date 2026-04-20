@@ -5,7 +5,7 @@ import { offlineDB } from './offlineDatabase';
 import { entities } from './dataManagerEntities';
 import { resolveEntityName } from './dataManagerDemoMode';
 import { waitForRateLimit, triggerGlobalRateLimitPause } from './dataManagerRateLimit';
-import {
+export {
   getDeliveriesForDateRange,
   loadDeliveriesForDate,
   loadFullMonthDeliveries,
