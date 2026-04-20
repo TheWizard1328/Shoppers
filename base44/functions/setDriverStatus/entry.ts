@@ -15,6 +15,24 @@ const getEdmDate = () => {
   return `${year}-${month}-${day}`;
 };
 
+const clearNextDeliveryFlags = async (base44, driverId, deliveryDate) => {
+  const deliveries = await base44.asServiceRole.entities.Delivery.filter({
+    driver_id: driverId,
+    delivery_date: deliveryDate
+  });
+
+  const flaggedDeliveries = deliveries.filter((delivery) => delivery?.isNextDelivery === true);
+
+  for (const delivery of flaggedDeliveries) {
+    await base44.asServiceRole.entities.Delivery.update(delivery.id, { isNextDelivery: false }).catch((error) => {
+      if (isNotFoundError(error)) return null;
+      throw error;
+    });
+  }
+
+  return flaggedDeliveries.length;
+};
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -77,31 +95,12 @@ Deno.serve(async (req) => {
     // CRITICAL: Broadcast the change to all connected clients immediately
     console.log(`📡 [setDriverStatus] Broadcasting driver status change to all clients...`);
 
-    // When going on_break, clear ALL isNextDelivery flags for incomplete stops
+    // When going on_break, clear all next-stop flags for the selected driver/date
     if (newStatus === 'on_break') {
-      console.log(`🔄 [setDriverStatus] Driver going on break - clearing ALL isNextDelivery flags`);
-      
-      const today = getEdmDate();
-      const allTodayDeliveries = await base44.asServiceRole.entities.Delivery.filter({
-        driver_id: user.id,
-        delivery_date: today
-      });
-      
-      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-      const incompleteDeliveries = allTodayDeliveries.filter(d => 
-        !finishedStatuses.includes(d.status) && d.status !== 'pending'
-      );
-      
-      console.log(`📦 [setDriverStatus] Clearing isNextDelivery on ${incompleteDeliveries.length} incomplete deliveries`);
-      
-      for (const delivery of incompleteDeliveries) {
-        await base44.asServiceRole.entities.Delivery.update(delivery.id, { isNextDelivery: false }).catch((error) => {
-          if (isNotFoundError(error)) return null;
-          throw error;
-        });
-      }
-      
-      console.log(`✅ [setDriverStatus] All isNextDelivery flags cleared for incomplete stops`);
+      const targetDate = selectedDate || getEdmDate();
+      console.log(`🔄 [setDriverStatus] Driver going on break - clearing all isNextDelivery flags for ${targetDate}`);
+      const clearedCount = await clearNextDeliveryFlags(base44, user.id, targetDate);
+      console.log(`✅ [setDriverStatus] Cleared isNextDelivery on ${clearedCount} deliveries for ${targetDate}`);
     }
     
     // When coming back on_duty, always ensure exactly one eligible stop is marked as next
@@ -161,26 +160,12 @@ Deno.serve(async (req) => {
       }
     }
     
-    // When going off_duty, clear isNextDelivery flags
+    // When going off_duty, clear all next-stop flags for the selected driver/date
     if (newStatus === 'off_duty') {
-      console.log(`🔄 [setDriverStatus] Driver going off duty - clearing all isNextDelivery flags`);
-      
       const targetDate = selectedDate || getEdmDate();
-      const targetDateDeliveries = await base44.asServiceRole.entities.Delivery.filter({
-        driver_id: user.id,
-        delivery_date: targetDate
-      });
-      
-      const deliveriesWithNextFlag = targetDateDeliveries.filter(d => d.isNextDelivery === true);
-      
-      for (const delivery of deliveriesWithNextFlag) {
-        await base44.asServiceRole.entities.Delivery.update(delivery.id, { isNextDelivery: false }).catch((error) => {
-          if (isNotFoundError(error)) return null;
-          throw error;
-        });
-      }
-      
-      console.log(`✅ [setDriverStatus] Cleared isNextDelivery on ${deliveriesWithNextFlag.length} deliveries for ${targetDate}`);
+      console.log(`🔄 [setDriverStatus] Driver going off duty - clearing all isNextDelivery flags for ${targetDate}`);
+      const clearedCount = await clearNextDeliveryFlags(base44, user.id, targetDate);
+      console.log(`✅ [setDriverStatus] Cleared isNextDelivery on ${clearedCount} deliveries for ${targetDate}`);
     }
 
     return Response.json({
