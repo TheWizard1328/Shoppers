@@ -966,21 +966,10 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                             const buzzerMatch = fullAddress.match(/buzz(?:er)?\s*(\d+)/i);
                             const buzzerNum = buzzerMatch ? buzzerMatch[1] : null;
                             return (
-                              <>
-                                <div className="flex items-center gap-2 min-w-0 flex-1">
-                                  {unitNum && <span className="text-md">#{unitNum}</span>}
-                                  {buzzerNum && <span className="text-lg font-medium">Buzz {buzzerNum}</span>}
-                                </div>
-                                {finalDisplayPhone && !isFinishedDelivery && !isPastDeliveryDate && (
-                                  <a
-                                    href={`tel:${String(finalDisplayPhone).replace(/\D/g, '')}`}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="text-lg font-medium text-emerald-600 whitespace-nowrap"
-                                  >
-                                    {finalDisplayPhone}
-                                  </a>
-                                )}
-                              </>
+                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                                {unitNum && <span className="text-md">#{unitNum}</span>}
+                                {buzzerNum && <span className="text-lg font-medium">Buzz {buzzerNum}</span>}
+                              </div>
                             );
                           })()}
                         </div>
@@ -994,9 +983,9 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                       <a
                         href={`tel:${String(finalDisplayPhone).replace(/\D/g, '')}`}
                         onClick={(e) => e.stopPropagation()}
-                        className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 transition-colors hover:bg-emerald-200"
+                        className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 transition-colors hover:bg-emerald-200"
                       >
-                        <Phone className="w-5 h-5" />
+                        <Phone className="w-6 h-6" />
                       </a>
                     )}
                     {finalDisplayAddress && (
@@ -1005,9 +994,9 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className={`inline-flex h-11 w-11 items-center justify-center rounded-full transition-colors ${isNextDelivery ? 'bg-blue-100 text-blue-600 hover:bg-blue-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
+                        className={`inline-flex h-14 w-14 items-center justify-center rounded-full transition-colors ${isNextDelivery ? 'bg-blue-100 text-blue-600 hover:bg-blue-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
                       >
-                        <Navigation className="w-5 h-5" />
+                        <Navigation className="w-6 h-6" />
                       </a>
                     )}
                   </div>
