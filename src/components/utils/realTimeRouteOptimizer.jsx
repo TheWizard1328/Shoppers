@@ -7,10 +7,10 @@
  * - When new deliveries are assigned
  */
 
-import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { isMobileDevice } from './deviceUtils';
 import { shouldRunRouteDeviationCheck } from './etaRefreshRules';
+import { fullRouteOptimizer } from '@/functions/fullRouteOptimizer';
 
 // Debounce optimization calls to prevent rapid-fire triggers
 let optimizationTimeout = null;
@@ -78,7 +78,7 @@ export const triggerRouteOptimization = async ({
   try {
     lastOptimizationTime = now;
     
-    const requestPromise = base44.functions.invoke('fullRouteOptimizer', {
+    const requestPromise = fullRouteOptimizer({
       driverId,
       deliveryDate: deliveryDate || format(new Date(), 'yyyy-MM-dd'),
       currentLocation

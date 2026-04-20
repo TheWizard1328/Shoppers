@@ -407,14 +407,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       
       // CRITICAL: DO NOT fetch fresh data - trust our update
       // The update was already applied, fetching again can cause race conditions with stale data
-      console.log('💾 [DriverStatusToggle] Updating local offline database with our changes...');
-      const { updateAppUserLocal } = await import('../utils/offlineMutations');
-      try {
-        await updateAppUserLocal(appUserId, updatePayload);
-        console.log('✅ [DriverStatusToggle] Local offline database updated');
-      } catch (offlineError) {
-        console.warn('⚠️ [DriverStatusToggle] Failed to update local database:', offlineError);
-      }
+      console.log('💾 [DriverStatusToggle] Local app user state already saved, skipping duplicate local mutation update');
       
       // Invalidate caches to force fresh data fetch
       const { invalidate } = await import('../utils/dataManager');
@@ -526,7 +519,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
           
           await triggerRouteOptimization({
             driverId: currentUser.id,
-            deliveryDate: today,
+            deliveryDate: selectedRouteDate,
             currentLocation: currentGPS,
             trigger: 'on_duty',
             onNotification: (notification) => {
