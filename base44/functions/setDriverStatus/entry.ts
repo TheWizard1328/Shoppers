@@ -126,7 +126,10 @@ Deno.serve(async (req) => {
         .filter((d) => !finishedStatuses.includes(d.status))
         .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
-      const nextDelivery = eligibleDeliveries[0] || null;
+      const enRoutePickups = eligibleDeliveries.filter((d) => !d.patient_id && (d.status === 'en_route' || d.status === 'in_transit'));
+      const activeDeliveries = eligibleDeliveries.filter((d) => d.status === 'en_route' || d.status === 'in_transit');
+
+      const nextDelivery = enRoutePickups[0] || activeDeliveries[0] || eligibleDeliveries[0] || null;
 
       if (nextDelivery) {
         await base44.asServiceRole.entities.Delivery.update(nextDelivery.id, { isNextDelivery: true }).catch((error) => {
