@@ -642,11 +642,15 @@ Deno.serve(async (req) => {
       }, 'stop_order');
 
       const activeStopsOnly = (allForDriverDate || []).filter((delivery) => delivery && isActiveRouteStatus(delivery.status));
-      const existingStartedNextStop = activeStopsOnly.find((delivery) => delivery.isNextDelivery === true) || null;
+      const existingStartedNextStops = activeStopsOnly.filter((delivery) => delivery.isNextDelivery === true);
+      const protectedStartedStop = activeStopsOnly.find((delivery) => delivery.id === lockedNextStop?.delivery?.id)
+        || existingStartedNextStops.find((delivery) => delivery.id === lockedNextStop?.delivery?.id)
+        || existingStartedNextStops.sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999))[0]
+        || null;
 
       if (activeStopsOnly.length > 0) {
         const firstActiveArrangedStop = arrangedStops.find((item) => !item?.stop?.isPending);
-        const targetId = existingStartedNextStop?.id || lockedNextStop?.delivery?.id || firstActiveArrangedStop?.stop?.delivery?.id || [...activeStopsOnly].sort((a, b) => {
+        const targetId = protectedStartedStop?.id || lockedNextStop?.delivery?.id || firstActiveArrangedStop?.stop?.delivery?.id || [...activeStopsOnly].sort((a, b) => {
           const stopOrderDiff = (a.stop_order || 999) - (b.stop_order || 999);
           if (stopOrderDiff !== 0) return stopOrderDiff;
           const etaA = String(a.delivery_time_eta || a.delivery_time_start || '99:99');
