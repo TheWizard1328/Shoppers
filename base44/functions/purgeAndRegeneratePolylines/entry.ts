@@ -478,6 +478,7 @@ async function getMultiSegmentDirections(base44, segmentSpecs, transportMode = '
       origin: { lat: origin.lat, lng: origin.lon },
       destination: { lat: destination.lat, lng: destination.lon },
       waypoints,
+      routeContext: validPoints.map((point) => ({ lat: point.lat, lng: point.lon })),
       transportMode
     });
 
@@ -625,6 +626,18 @@ Deno.serve(async (req) => {
     const patientMap = new Map((patients || []).map((patient) => [patient.id, patient]));
     const storeMap = new Map((stores || []).map((store) => [store.id, store]));
     const driverAppUser = Array.isArray(appUsers) ? appUsers[0] : null;
+    if (!driverAppUser || driverAppUser.driver_status === 'off_duty' || driverAppUser.driver_status === 'on_break') {
+      return Response.json({
+        success: true,
+        skipped: true,
+        reason: 'driver_unavailable',
+        scope,
+        deleted: 0,
+        created: 0,
+        apiCallsMade: 0,
+        repairedStopOrders: stopOrderRepairUpdates.length
+      });
+    }
     console.log(`# [purgeAndRegeneratePolylines] START | driver=${driverDisplayName} | date=${deliveryDate} | scope=${scope} | totalStops=${deliveries?.length || 0} | existingPolylines=${existingPolylines?.length || 0}`);
 
     const getLatLon = (delivery) => {

@@ -147,6 +147,9 @@ async function getHereRoute(origin, stops) {
 async function processDriver(base44, appUser, deliveryDate) {
   const isDriver = Array.isArray(appUser?.app_roles) && appUser.app_roles.includes('driver');
   if (!isDriver) return { skipped: true, reason: 'not_driver', driver_id: appUser?.user_id || null };
+  if (appUser.driver_status === 'off_duty' || appUser.driver_status === 'on_break') {
+    return { skipped: true, reason: 'driver_unavailable', driver_id: appUser.user_id };
+  }
   if (appUser.driver_status !== 'on_duty') return { skipped: true, reason: 'driver_not_on_duty', driver_id: appUser.user_id };
   if (appUser.location_tracking_enabled === false) return { skipped: true, reason: 'tracking_disabled', driver_id: appUser.user_id };
 

@@ -301,6 +301,9 @@ Deno.serve(async (req) => {
       base44.asServiceRole.entities.AppUser.filter({ user_id: driverId }),
       base44.asServiceRole.entities.User.filter({ id: driverId }, '-updated_date', 1)
     ]);
+    if (!driverAppUser?.[0] || driverAppUser[0].driver_status === 'off_duty' || driverAppUser[0].driver_status === 'on_break') {
+      return Response.json({ success: true, skipped: true, reason: 'driver_unavailable' });
+    }
     const homeLat = Number(driverAppUser[0]?.home_latitude ?? driverUser?.[0]?.home_latitude);
     const homeLon = Number(driverAppUser[0]?.home_longitude ?? driverUser?.[0]?.home_longitude);
     const preferredTravelMode = String(driverAppUser[0]?.preferred_travel_mode || 'driving').toLowerCase();
