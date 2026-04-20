@@ -10,6 +10,10 @@ import {
   removeDeletedFromCache,
   invalidateDeliveriesForDate
 } from './dataManagerCacheHelpers';
+import {
+  markOfflineDBLoadComplete,
+  isOfflineDBLoadComplete
+} from './dataManagerOfflineState';
 
 export {
   invalidate,
@@ -60,20 +64,9 @@ import {
 // CRITICAL: NO IN-MEMORY CACHE - Use offline DB exclusively
 // Deleted all cache layers to prevent stale data and reappearing deleted items
 
-// Track offline DB load completion
-let offlineDBLoadComplete = false;
-
-export const markOfflineDBLoadComplete = () => {
-  offlineDBLoadComplete = true;
-};
-
-export const isOfflineDBLoadComplete = () => {
-  return offlineDBLoadComplete;
-};
-
 // NO FREQUENT CACHE - removed
 
-export { getData };
+export { getData, markOfflineDBLoadComplete, isOfflineDBLoadComplete };
 
 /**
  * Local-first write operations - exported for use in forms
