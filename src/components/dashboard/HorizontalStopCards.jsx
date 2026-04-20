@@ -205,6 +205,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
   // CRITICAL: Listen for incomplete deliveries count change (Rule 1) AND smart refresh events (Rule 2)
   React.useEffect(() => {
     const handleIncompleteCountChanged = () => {
+      if (typeof window !== 'undefined' && (window.__suppressCardAutoCenterUntil || 0) > Date.now()) return;
       // RULE 1: Incomplete delivery count changed AND no cards expanded
       if (!selectedCardId) {
         console.log('🎯 [Auto-Center Rule 1] Incomplete count changed - centering next delivery card');
@@ -408,6 +409,12 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     touchStartXRef.current = touch.clientX;
     touchStartYRef.current = touch.clientY;
     fabInteractionLockRef.current = 0;
+    manualSwipeUnlockUntilRef.current = Date.now() + 3500;
+    if (typeof window !== 'undefined') {
+      window.__isUserCardSwipe = true;
+      window.__suppressCardAutoCenterUntil = manualSwipeUnlockUntilRef.current;
+    }
+    fabControlEvents.deactivateFAB();
     if (isDesktopFanLayout) return;
   }, [isDesktopFanLayout]);
 
@@ -432,7 +439,6 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
   }, []);
 
   const handleTouchEnd = React.useCallback((e) => {
-    if (!isDesktopFanLayout) return;
     const touch = e.changedTouches?.[0];
     const startX = touchStartXRef.current;
     const startY = touchStartYRef.current;
@@ -440,7 +446,13 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     touchStartXRef.current = null;
     touchStartYRef.current = null;
     fabInteractionLockRef.current = 0;
+    manualSwipeUnlockUntilRef.current = Date.now() + 1500;
+    if (typeof window !== 'undefined') {
+      window.__isUserCardSwipe = true;
+      window.__suppressCardAutoCenterUntil = manualSwipeUnlockUntilRef.current;
+    }
 
+    if (!isDesktopFanLayout) return;
     if (!touch || startX === null || startY === null) return;
 
     const deltaX = touch.clientX - startX;
