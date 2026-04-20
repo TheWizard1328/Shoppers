@@ -44,6 +44,13 @@ import {
   notifySyncStatus
 } from './offlineSyncStatus';
 import { processPendingMutationsInternal } from './offlineSyncMutationProcessor';
+export {
+  pauseOfflineSync,
+  resumeOfflineSync,
+  isOfflineSyncPaused,
+  subscribeSyncStatus,
+  notifySyncStatus
+} from './offlineSyncStatus';
 
 // Configuration
 const PATIENT_BATCH_SIZE = 25; // Even smaller chunks to reduce rate limits
