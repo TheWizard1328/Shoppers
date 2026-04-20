@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Phone, Package, Info, Loader2, Plus } from "lucide-react";
+import { Phone, Package, Info, Loader2, Plus, Navigation } from "lucide-react";
 import { format, parseISO, isBefore } from "date-fns";
 import { formatPhoneNumber } from "../utils/phoneFormatter";
 import HelpTooltip, { HELP_CONTENT } from "./HelpTooltip";
@@ -53,7 +53,8 @@ export default function StopCardBody({
   userHasRole,
   Textarea,
   isAppOwnerFn,
-  isPastDate
+  isPastDate,
+  displayAddress
 }) {
   const handleNotesBlur = () => {
     if (!notesInput.trim() || notesInput.trim() === 'No driver notes') {
@@ -123,30 +124,46 @@ export default function StopCardBody({
           className="overflow-hidden">
           
             <div className="pt-1 space-y-2 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
-              {/* Phone number - HIDE for finished deliveries and past date */}
-              {(finalDisplayPhone || alternateDisplayPhone) && !(isFinishedDelivery && !isPickup) && !isPastDate &&
-            <div className="flex items-center gap-2 text-lg flex-wrap" style={{ color: 'var(--text-slate-600)' }}>
-                  <Phone className="w-4 h-4 text-slate-500" />
-                  {finalDisplayPhone && (
-                    <a
-                      href={`tel:${String(finalDisplayPhone).replace(/\D/g, '')}`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="text-xl font-medium underline-offset-2 hover:underline"
-                    >
-                      {formatPhoneNumber(finalDisplayPhone)}
-                    </a>
+              {/* Contact + navigation actions for active stops */}
+              {!(isFinishedDelivery && !isPickup) && !isPastDate &&
+            <div className="flex items-center gap-2 flex-wrap">
+                  {(finalDisplayPhone || alternateDisplayPhone) && (
+                    <div className="flex items-center gap-2 text-lg flex-wrap" style={{ color: 'var(--text-slate-600)' }}>
+                      <Phone className="w-4 h-4 text-slate-500" />
+                      {finalDisplayPhone && (
+                        <a
+                          href={`tel:${String(finalDisplayPhone).replace(/\D/g, '')}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-xl font-medium underline-offset-2 hover:underline"
+                        >
+                          {formatPhoneNumber(finalDisplayPhone)}
+                        </a>
+                      )}
+                      {alternateDisplayPhone && (
+                        <>
+                          {finalDisplayPhone && <span className="text-slate-400">•</span>}
+                          <a
+                            href={`tel:${String(alternateDisplayPhone).replace(/\D/g, '')}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-lg font-medium underline-offset-2 hover:underline text-blue-600"
+                          >
+                            {formatPhoneNumber(alternateDisplayPhone)}
+                          </a>
+                        </>
+                      )}
+                    </div>
                   )}
-                  {alternateDisplayPhone && (
-                    <>
-                      {finalDisplayPhone && <span className="text-slate-400">•</span>}
-                      <a
-                        href={`tel:${String(alternateDisplayPhone).replace(/\D/g, '')}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="text-lg font-medium underline-offset-2 hover:underline text-blue-600"
-                      >
-                        {formatPhoneNumber(alternateDisplayPhone)}
-                      </a>
-                    </>
+                  {displayAddress && (
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(displayAddress)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex items-center gap-1 text-sm font-medium text-blue-600 underline-offset-2 hover:underline"
+                    >
+                      <Navigation className="w-4 h-4" />
+                      Navigate
+                    </a>
                   )}
                 </div>
             }

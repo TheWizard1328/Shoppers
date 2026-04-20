@@ -1164,6 +1164,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
               setIsCompleting={setIsCompleting}
               onSelectionChange={onSelectionChange}
               onClick={onClick}
+              displayAddress={displayAddress}
               notesInput={notesInput}
               setNotesInput={setNotesInput}
               onNotesUpdate={onNotesUpdate}
