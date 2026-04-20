@@ -464,7 +464,7 @@ export default function StatsPanel({
                 e.stopPropagation();
                 handleDriverChange(route.driverId);
               }}>
-                  <div className="relative flex items-center justify-center w-2 h-2 flex-shrink-0">
+                  <div className="relative flex items-center justify-center w-2.5 h-2.5 flex-shrink-0">
                     {route.hasHeartbeat && (
                       <div
                         className="absolute inset-0 rounded-full animate-ping opacity-75"
@@ -472,12 +472,12 @@ export default function StatsPanel({
                       />
                     )}
                     <div
-                      className="relative w-2 h-2 rounded-full shadow-sm"
+                      className="relative w-2.5 h-2.5 rounded-full shadow-sm"
                       style={{ backgroundColor: getStatusColor(route.driverStatus) }}
                     />
                   </div>
-                  <span className="text-[11px] font-medium whitespace-nowrap leading-none" style={{ color: 'var(--text-slate-700)' }}>{route.driverName || 'Unknown'}</span>
-                  <span className="text-[11px] leading-none" style={{ color: 'var(--text-slate-500)' }}>({route.totalStops})</span>
+                  <span className="text-xs font-medium whitespace-nowrap leading-none" style={{ color: 'var(--text-slate-700)' }}>{route.driverName || 'Unknown'}</span>
+                  <span className="text-xs leading-none" style={{ color: 'var(--text-slate-500)' }}>({route.totalStops})</span>
                 </button>
             )}
             </div>
