@@ -219,6 +219,18 @@ Deno.serve(async (req) => {
     const driverAppUser = driverAppUsers?.[0];
     const callerAppUser = callerAppUsers?.[0];
     const driverUser = driverUsers?.[0];
+
+    if (!driverAppUser || driverAppUser.driver_status === 'off_duty' || driverAppUser.driver_status === 'on_break') {
+      return Response.json({
+        success: true,
+        skipped: true,
+        reason: 'driver_unavailable',
+        routeChanged: false,
+        optimizedRoute: [],
+        totalStops: 0,
+        apiCallsMade: 0
+      });
+    }
     const resolvedHomeLat = driverAppUser?.home_latitude ?? driverUser?.home_latitude ?? null;
     const resolvedHomeLng = driverAppUser?.home_longitude ?? driverUser?.home_longitude ?? null;
 
