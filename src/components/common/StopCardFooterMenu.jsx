@@ -45,23 +45,25 @@ export default function StopCardFooterMenu(props) {
   const isActiveStop = !['completed', 'cancelled', 'failed'].includes(delivery?.status);
   const isActiveDelivery = !isPickup && isActiveStop;
   const isActivePickup = isPickup && isActiveStop;
+  const isFinishedPickup = isPickup && isFinishedDelivery;
+  const isFinishedRegularDelivery = !isPickup && isFinishedDelivery;
 
-  const canShowEdit = !!(canManageStop && (isActiveDelivery || isActivePickup));
+  const canShowEdit = !!(canManageStop && (isActiveDelivery || isActivePickup || isFinishedPickup || isFinishedRegularDelivery));
 
-  const canShowEditPatient = !!(onEditPatient && patient && isActiveDelivery && canManageStop);
+  const canShowEditPatient = !!(onEditPatient && patient && canManageStop && (isActiveDelivery || isFinishedRegularDelivery));
 
-  const canShowUpdateGps = !!(handleUpdateGPS && canManageStop && isActiveDelivery && patient && (isNextDelivery || isFinishedDelivery));
+  const canShowUpdateGps = !!(handleUpdateGPS && canManageStop && patient && !isPickup && (isNextDelivery || isFinishedDelivery));
 
   const canShowFailCancel = !!(onStatusUpdate && canManageStop && (
     isActivePickup || (isActiveDelivery && isNextDelivery)
   ));
 
-  const canShowDelete = !!(canManageStop && (isActiveDelivery || isActivePickup));
+  const canShowDelete = !!(canManageStop && (isActiveDelivery || isActivePickup || isFinishedPickup || isFinishedRegularDelivery));
 
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="bg-transparent text-sm font-medium rounded-md inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground h-10 w-10 border border-slate-300 hover:bg-slate-100 relative z-[10]" onClick={(e) => e.stopPropagation()}>
+        <Button variant="ghost" size="icon" className="bg-transparent text-sm font-medium rounded-md inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground h-10 w-10 border border-slate-300 hover:bg-slate-100 relative z-[50] pointer-events-auto" onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
           <MoreVertical className="w-5 h-5" />
         </Button>
       </DropdownMenuTrigger>

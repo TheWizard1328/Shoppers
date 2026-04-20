@@ -67,7 +67,9 @@ export default function StopCardActionButtons(props) {
               <span className="text-white">Restart</span>
             </Button>
           )}
+          <div className="relative z-[60] pointer-events-auto">
           <StopCardFooterMenu {...props} />
+        </div>
         </div>
       </div>
     );
@@ -111,7 +113,9 @@ export default function StopCardActionButtons(props) {
             <span className="text-white">Restart</span>
           </Button>
         )}
-        <StopCardFooterMenu {...props} />
+        <div className="relative z-[60] pointer-events-auto">
+          <StopCardFooterMenu {...props} />
+        </div>
       </div>
     </>
   );
