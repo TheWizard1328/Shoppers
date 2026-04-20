@@ -340,8 +340,10 @@ export function getNextTrackingNumberInGroup(trackingNumber, allDeliveries, driv
 }
 
 export function buildRetryDelivery(delivery, nextTrackingNumber, deliveryDate = delivery?.delivery_date) {
-  const todayDate = new Date().toISOString().slice(0, 10);
-  const effectiveDeliveryDate = delivery?.delivery_date && todayDate > delivery.delivery_date ? todayDate : deliveryDate;
+  const now = new Date();
+  const localTodayDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const currentHour = now.getHours();
+  const effectiveDeliveryDate = currentHour < 21 ? localTodayDate : (deliveryDate || delivery?.delivery_date || localTodayDate);
 
   const retryDelivery = {
     ...delivery,

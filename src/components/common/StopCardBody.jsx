@@ -124,6 +124,14 @@ export default function StopCardBody({
           
             <div className="pt-1 space-y-2 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
 
+              {!isPickup && (finalDisplayPhone || alternateDisplayPhone) &&
+            <div className="flex items-center gap-2 text-lg flex-wrap" style={{ color: 'var(--text-slate-600)' }}>
+                  {finalDisplayPhone && <span className="font-medium">{formatPhoneNumber(finalDisplayPhone)}</span>}
+                  {finalDisplayPhone && alternateDisplayPhone && <span>•</span>}
+                  {alternateDisplayPhone && <span className="font-medium text-blue-600">{formatPhoneNumber(alternateDisplayPhone)}</span>}
+                </div>
+            }
+
               {/* COD Information - Show for both active and finished deliveries */}
               {hasCODRequired && !isPickup &&
             <div className="flex items-center justify-between rounded-md px-2 py-1" style={{ background: '#e5e7eb', borderWidth: '1px', borderColor: '#d1d5db' }}>
