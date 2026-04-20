@@ -1,6 +1,6 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, Clock, Loader2, RotateCcw, Undo2, Navigation } from "lucide-react";
+import { CheckCircle, Clock, Loader2, RotateCcw, Undo2 } from "lucide-react";
 import StopCardPOD from "./StopCardPOD";
 import StopCardFooterMenu from "./StopCardFooterMenu";
 
@@ -8,8 +8,6 @@ export default function StopCardActionButtons(props) {
   const {
     delivery,
     isPickup,
-    isWithinActiveStopRange,
-    handleUpdateGPS,
     onStatusUpdate,
     handleRetryDelivery,
     blockCardToggle,
@@ -101,11 +99,6 @@ export default function StopCardActionButtons(props) {
             <Button data-stopcard-action="complete" type="button" onClickCapture={blockCardToggle} onPointerDownCapture={handleCompleteAction} onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }} onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }} onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); }} onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} size="sm" disabled={isCompleting || isProcessingBackground || isFailing || isGlobalCompleteLocked || isGlobalRestartLocked} className={`rounded-md px-4 text-sm font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-10 border-r !text-white ${isFailing ? 'bg-red-600 hover:bg-red-700 border-red-500' : 'bg-emerald-600 hover:bg-emerald-700 border-emerald-500'}`}>
               {isCompleting || isProcessingBackground || isFailing || isGlobalCompleteLocked || isGlobalRestartLocked ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <CheckCircle className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
               <span className="text-white">Complete</span>
-            </Button>
-          ) : isWithinActiveStopRange ? (
-            <Button type="button" onClick={handleUpdateGPS} size="sm" className="bg-amber-600 px-4 text-sm font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring shadow hover:bg-amber-700 h-10 border-r border-amber-500 !text-white" title="Update GPS for this stop">
-              <Navigation className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />
-              <span className="text-white">Update GPS</span>
             </Button>
           ) : onStartDelivery && (
             <Button data-stopcard-action="start" type="button" onPointerDownCapture={handleStartAction} onClickCapture={(e) => { e.preventDefault(); e.stopPropagation(); }} onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }} onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }} onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); }} onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} size="sm" disabled={isCurrentCardStartLocked || isProcessingBackground || isCompleting || isFailing || isRetrying || isRestarting} className="bg-blue-600 px-4 text-sm font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-10 border-r border-blue-500 !text-white" title="Start this delivery">
