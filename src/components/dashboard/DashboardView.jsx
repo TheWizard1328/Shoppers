@@ -6,6 +6,7 @@ import SnapshotTimeline from "@/components/snapshot/SnapshotTimeline";
 import DashboardStatsPanel from "@/features/dashboard/components/DashboardStatsPanel";
 import DashboardMapSection from "@/features/dashboard/components/DashboardMapSection";
 import StopCardsSection from "@/components/dashboard/StopCardsSection";
+import ApiUsageBadge from "@/components/dashboard/ApiUsageBadge";
 import FABControls from "@/components/dashboard/FABControls";
 import DashboardDialogs from "@/components/dashboard/DashboardDialogs";
 
@@ -234,6 +235,11 @@ export default function DashboardView({
           handleRestartDelivery={handleRestartDelivery} handleStatusUpdate={handleStatusUpdate} handleNotesUpdate={handleNotesUpdate}
           handleCODUpdate={handleCODUpdate} handleCreateReturn={handleCreateReturn} handleStartDelivery={handleStartDelivery}
           refreshUser={refreshUser}
+        />
+
+        <ApiUsageBadge
+          currentUser={currentUser}
+          stopCardsHeight={stopCardsBaseHeight}
         />
       </div>
 
