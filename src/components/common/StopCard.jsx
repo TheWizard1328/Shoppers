@@ -4,7 +4,7 @@ import { scheduleCompletionSideEffects } from '../utils/completeRequestQueue';
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { GripVertical, Loader2 } from "lucide-react";
+import { GripVertical, Loader2, Phone, Navigation } from "lucide-react";
 import { getStoreColor, getContrastColor } from "../utils/colorGenerator";
 import { format } from "date-fns";
 import { userHasRole, shouldShowStoreBadges, isAppOwner } from '../utils/userRoles';
@@ -958,23 +958,49 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                       <div className="flex items-start gap-2 text-lg" style={{ color: 'var(--text-slate-700)' }}>
                         <span className="text-xl font-medium truncate">{isPickup ? store?.address || '' : patient?.address || ''}</span>
                       </div>
-                      {!isStrippedDelivery && !shouldRedact && (
-                        <div className="flex items-center text-lg min-h-[26px]" style={{ color: 'var(--text-slate-600)' }}>
-                          {(() => {
-                            const unitNum = !isPickup ? delivery?.unit_number || patient?.unit_number : null;
-                            const fullAddress = isPickup ? store?.address || '' : patient?.address || '';
-                            const buzzerMatch = fullAddress.match(/buzz(?:er)?\s*(\d+)/i);
-                            const buzzerNum = buzzerMatch ? buzzerMatch[1] : null;
-                            return (
-                              <>
-                                {unitNum && <span className="text-md">#{unitNum}</span>}
-                                {buzzerNum && <span className="text-lg font-medium">Buzz {buzzerNum}</span>}
-                                {!unitNum && !buzzerNum && <span className="invisible">&nbsp;</span>}
-                              </>
-                            );
-                          })()}
-                        </div>
-                      )}
+                      <div className="flex items-center justify-between gap-2 min-h-[26px]">
+                        {!isStrippedDelivery && !shouldRedact ? (
+                          <div className="flex items-center text-lg min-h-[26px] flex-1" style={{ color: 'var(--text-slate-600)' }}>
+                            {(() => {
+                              const unitNum = !isPickup ? delivery?.unit_number || patient?.unit_number : null;
+                              const fullAddress = isPickup ? store?.address || '' : patient?.address || '';
+                              const buzzerMatch = fullAddress.match(/buzz(?:er)?\s*(\d+)/i);
+                              const buzzerNum = buzzerMatch ? buzzerMatch[1] : null;
+                              return (
+                                <>
+                                  {unitNum && <span className="text-md">#{unitNum}</span>}
+                                  {buzzerNum && <span className="text-lg font-medium">Buzz {buzzerNum}</span>}
+                                  {!unitNum && !buzzerNum && <span className="invisible">&nbsp;</span>}
+                                </>
+                              );
+                            })()}
+                          </div>
+                        ) : <div className="flex-1 min-h-[26px]" />}
+                        {!isFinishedDelivery && !isPastDeliveryDate && !shouldRedact && (
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {finalDisplayPhone && (
+                              <a
+                                href={`tel:${String(finalDisplayPhone).replace(/\D/g, '')}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 transition-colors hover:bg-emerald-200"
+                              >
+                                <Phone className="w-5 h-5" />
+                              </a>
+                            )}
+                            {finalDisplayAddress && (
+                              <a
+                                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(finalDisplayAddress)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className={`inline-flex h-11 w-11 items-center justify-center rounded-full transition-colors ${isNextDelivery ? 'bg-blue-100 text-blue-600 hover:bg-blue-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
+                              >
+                                <Navigation className="w-5 h-5" />
+                              </a>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </>
                   ) : <div className="w-full h-[26px]" />}
                 </div>
@@ -1164,7 +1190,6 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
               setIsCompleting={setIsCompleting}
               onSelectionChange={onSelectionChange}
               onClick={onClick}
-              displayAddress={displayAddress}
               notesInput={notesInput}
               setNotesInput={setNotesInput}
               onNotesUpdate={onNotesUpdate}
