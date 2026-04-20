@@ -25,22 +25,14 @@ export {
   invalidateDeliveriesForDate
 };
 import { getData } from './dataManagerGetData';
-import {
-  getDeliveriesForDateRange,
-  loadDeliveriesForDate,
-  loadFullMonthDeliveries,
-  loadPriorityDeliveriesForSelection,
-  loadDeliveries
-} from './dataManagerDeliveryLoader';
-import { loadBackgroundDeliveries } from './dataManagerBackgroundLoader';
-
 export {
   getDeliveriesForDateRange,
   loadDeliveriesForDate,
   loadFullMonthDeliveries,
   loadPriorityDeliveriesForSelection,
-  loadDeliveries
-};
+  loadDeliveries,
+  loadBackgroundDeliveries
+} from './dataManagerDeliveryExports';
 import { localWrites } from './dataManagerLocalWrites';
 
 // CRITICAL: NO IN-MEMORY CACHE - Use offline DB exclusively
