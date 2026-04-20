@@ -2,7 +2,7 @@ import React, { useState, useEffect, Fragment, useMemo, useCallback, useRef } fr
 import { Link, useLocation } from "react-router-dom";
 // import "./components/utils/globalErrorHandler";
 import { createPageUrl } from "./utils";
-import { format } from "date-fns";
+import { format, getData, invalidate, loadDeliveries } from './components/utils/dataManager';
 import { smartRefreshManager } from './components/utils/smartRefreshManager';
 import { backgroundSyncManager } from './components/utils/backgroundSyncManager';
 import { offlineDB } from './components/utils/offlineDatabase';
