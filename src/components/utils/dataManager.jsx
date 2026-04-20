@@ -2,15 +2,6 @@ import { format } from 'date-fns';
 
 export { format };
 import {
-  invalidate,
-  getCached,
-  setCached,
-  invalidateDeliveryRangeCache,
-  updateCache,
-  removeDeletedFromCache,
-  invalidateDeliveriesForDate
-} from './dataManagerCacheHelpers';
-import {
   markOfflineDBLoadComplete,
   isOfflineDBLoadComplete
 } from './dataManagerOfflineState';
@@ -23,7 +14,7 @@ export {
   updateCache,
   removeDeletedFromCache,
   invalidateDeliveriesForDate
-};
+} from './dataManagerCacheExports';
 import { getData } from './dataManagerGetData';
 export {
   getDeliveriesForDateRange,
