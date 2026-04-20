@@ -190,11 +190,9 @@ export default function useStopCardActions(params) {
       const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       const sortedPending = [...allPendingDeliveries].sort((a, b) => (a.patient_name || '').localeCompare(b.patient_name || ''));
 
-      const localUpdates = sortedPending.map((pendingDelivery, i) => ({
+      const localUpdates = sortedPending.map((pendingDelivery) => ({
         id: pendingDelivery.id,
         status: 'in_transit',
-        delivery_time_start: deliveryTimeStart,
-        tracking_number: incrementTrackingNumber(delivery.tracking_number, i + 1),
         isNextDelivery: false,
         ...(pendingDelivery.active === false ? { active: true } : {})
       }));
@@ -216,15 +214,6 @@ export default function useStopCardActions(params) {
         };
       });
 
-      sortedPending.forEach((pendingDelivery, i) => {
-        queueDeliveryUpdate(pendingDelivery.id, {
-          status: 'in_transit',
-          delivery_time_start: deliveryTimeStart,
-          tracking_number: incrementTrackingNumber(delivery.tracking_number, i + 1),
-          ...(pendingDelivery.active === false ? { active: true } : {})
-        });
-      });
-
       await flushQueuedDeliveryUpdates();
       invalidate('Delivery');
       await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
@@ -234,12 +223,22 @@ export default function useStopCardActions(params) {
         try {
           const optimizeResponse = await base44.functions.invoke('optimizeRouteRealTime', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime, generatePolyline: false });
           const optimizeData = optimizeResponse?.data || optimizeResponse;
+
+          sortedPending.forEach((pendingDelivery, i) => {
+            queueDeliveryUpdate(pendingDelivery.id, {
+              delivery_time_start: deliveryTimeStart,
+              tracking_number: incrementTrackingNumber(delivery.tracking_number, i + 1)
+            });
+          });
+
+          await flushQueuedDeliveryUpdates();
+          invalidate('Delivery');
+          await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+
           if (optimizeData?.success && Array.isArray(optimizeData.optimizedRoute) && optimizeData.optimizedRoute.length > 0) {
             window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: delivery.driver_id, updates: optimizeData.optimizedRoute.map((stop) => ({ deliveryId: stop.deliveryId || stop.delivery_id, newEta: stop.newETA || stop.eta })).filter((stop) => stop.deliveryId && stop.newEta) } }));
             window.dispatchEvent(new CustomEvent('routeReordered', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, source: 'acceptAllAutoOptimize' } }));
           }
-          invalidate('Delivery');
-          await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
           const refreshedRouteDeliveries = await base44.entities.Delivery.filter({ driver_id: delivery.driver_id, delivery_date: delivery.delivery_date });
           const nextOptimizedStop = getNextActiveDelivery(refreshedRouteDeliveries, null, FINISHED_STATUSES);
           await setAndCenterNextDelivery({ driverDeliveries: refreshedRouteDeliveries, targetDeliveryId: nextOptimizedStop?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
@@ -571,7 +570,7 @@ export default function useStopCardActions(params) {
         }
         await ensureDriverOnline();
         await syncDriverLocationToStop({ currentUser, delivery, patient, store, targetDriverId: delivery.driver_id });
-        const autoCODPayment = hasCODRequired && codPayments.length === 0 && onCODUpdate ? [{ type: 'Cash', amount: codTotalRequired }] : null;
+        const autoCODPayment = !isPickup && hasCODRequired && codPayments.length === 0 && onCODUpdate ? [{ type: 'Cash', amount: codTotalRequired }] : null;
         if (autoCODPayment) setCodPayments(autoCODPayment);
         let pendingBreadcrumbsString = null;
         try { pendingBreadcrumbsString = await getPendingBreadcrumbsForDelivery({ driverUserId: delivery.driver_id, deliveryId: delivery.id, stopOrder: delivery.stop_order, appUsers }); } catch {}
@@ -591,7 +590,7 @@ export default function useStopCardActions(params) {
         const patientSavedSignatureUrl = patient?.signature_image_url || patient?.saved_signature_image_url || null;
         const fallbackSignatureUrl = patientSavedSignatureUrl || null;
         const completionUpdate = { status: 'completed', actual_delivery_time: forcedCompletionTimestamp || localTimeString, finished_leg_transport_mode: 'driving', isNextDelivery: false, finished_leg_encoded_polyline: null, PolylineUpdated: true, ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}), ...(completionCodPayments.length > 0 ? { cod_payments: completionCodPayments } : {}), ...(fallbackSignatureUrl ? { signature_image_url: fallbackSignatureUrl } : {}), ...(shouldOverwriteArrivalTime && forcedArrivalTimestamp ? { arrival_time: forcedArrivalTimestamp } : {}), ...(typeof retroactiveTiming?.travel_dist === 'number' ? { travel_dist: retroactiveTiming.travel_dist } : {}) };
-        const shouldDeleteSquareCodBeforeComplete = Number(delivery?.cod_total_amount_required || 0) > 0 && hasDebitOrCreditCod(delivery, completionCodPayments);
+        const shouldDeleteSquareCodBeforeComplete = !isPickup && Number(delivery?.cod_total_amount_required || 0) > 0 && hasDebitOrCreditCod(delivery, completionCodPayments);
         const shouldRecalculateCompletionEtas = shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, completionUpdate.actual_delivery_time);
         await appendBoundaryBreadcrumbPoints({ driverId: delivery.driver_id, delivery, allDeliveries, patients, stores, appUsers, terminalStatus: 'completed', completedAt: completionUpdate.actual_delivery_time });
         if (shouldDeleteSquareCodBeforeComplete) await deleteCODWithTimeout(delivery.id, 'Deleted after card COD completion');
