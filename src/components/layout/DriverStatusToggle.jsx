@@ -33,6 +33,8 @@ const getEdmontonDateString = (value = Date.now()) => {
   return `${year}-${month}-${day}`;
 };
 
+const getTodayDeliveryDateForOnDuty = () => getEdmontonDateString();
+
 const clearStalePendingBreadcrumbs = async (appUserId) => {
   if (!appUserId) return;
   const { offlineDB } = await import('../utils/offlineDatabase');
@@ -249,8 +251,9 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
     // CRITICAL: Set toggling flag to block sync until change completes
     isTogglingRef.current = true;
     
-    const today = format(new Date(), 'yyyy-MM-dd');
+    const today = getTodayDeliveryDateForOnDuty();
     const selectedRouteDate = appDataContext?.deliveries?.find((d) => d?.driver_id === currentUser?.id && d?.isNextDelivery)?.delivery_date || today;
+    const optimizerDeliveryDate = newStatus === 'on_duty' ? today : selectedRouteDate;
     const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
 
     // Check if driver can go off_duty
@@ -399,7 +402,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       const result = await base44.functions.invoke('setDriverStatus', {
         newStatus,
         deviceId,
-        selectedDate: selectedRouteDate,
+        selectedDate: optimizerDeliveryDate,
         disableLocationTracking: newStatus === 'off_duty' // Only disable tracking when off duty
       });
       
@@ -526,7 +529,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
           
           await triggerRouteOptimization({
             driverId: currentUser.id,
-            deliveryDate: selectedRouteDate,
+            deliveryDate: optimizerDeliveryDate,
             currentLocation: currentGPS,
             trigger: 'on_duty',
             onNotification: (notification) => {
