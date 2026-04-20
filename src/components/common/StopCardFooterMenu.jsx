@@ -43,20 +43,22 @@ export default function StopCardFooterMenu(props) {
   ));
 
   const isActiveStop = !['completed', 'cancelled', 'failed'].includes(delivery?.status);
+  const isActiveDelivery = !isPickup && isActiveStop;
+  const isActivePickup = isPickup && isActiveStop;
 
-  const canShowEdit = !!(onEdit && canManageStop);
+  const canShowEdit = !!(onEdit && canManageStop && (isActiveDelivery || isActivePickup));
 
-  const canShowEditPatient = !!(onEditPatient && patient && !isPickup && canManageStop);
+  const canShowEditPatient = !!(onEditPatient && patient && isActiveDelivery && canManageStop);
 
   const canShowUpdateGps = !!(handleUpdateGPS && canManageStop && (
-    isPickup || (patient && (isNextDelivery || isFinishedDelivery))
+    isActivePickup || (isActiveDelivery && patient)
   ));
 
-  const canShowFailCancel = !!(onStatusUpdate && canManageStop && isActiveStop && (
-    isPickup || (!isPickup && isNextDelivery)
+  const canShowFailCancel = !!(onStatusUpdate && canManageStop && (
+    isActivePickup || (isActiveDelivery && isNextDelivery)
   ));
 
-  const canShowDelete = !!(onDelete && canManageStop);
+  const canShowDelete = !!(onDelete && canManageStop && (isActiveDelivery || isActivePickup));
 
   return (
     <DropdownMenu modal={false}>
