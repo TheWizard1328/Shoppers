@@ -456,15 +456,20 @@ export const loadDeliveries = async (
 
   if (shouldRefreshSelectedDate) {
     const selectedDateDeliveries = await loadDeliveriesForDate(selectedDateStr, priorityFilters, forceRefresh);
-    initialDeliveries = selectedDateDeliveries;
-
-    setTimeout(() => {
-      onInitialLoadComplete(selectedDateDeliveries);
-    }, 0);
+    if (Array.isArray(selectedDateDeliveries) && selectedDateDeliveries.length > 0) {
+      initialDeliveries = selectedDateDeliveries;
+      setTimeout(() => {
+        onInitialLoadComplete(selectedDateDeliveries);
+      }, 0);
+    } else if (initialDeliveries.length > 0) {
+      setTimeout(() => {
+        onInitialLoadComplete(initialDeliveries);
+      }, 0);
+    }
   } else {
     loadDeliveriesForDate(selectedDateStr, priorityFilters, true)
       .then((freshDeliveries) => {
-        if (Array.isArray(freshDeliveries)) {
+        if (Array.isArray(freshDeliveries) && freshDeliveries.length > 0) {
           onInitialLoadComplete(freshDeliveries);
         }
       })

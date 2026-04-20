@@ -450,10 +450,10 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
 
                 console.log('✅ [DriverStatusToggle] Backend cleared isNextDelivery flags');
                 
-                // CRITICAL: Force refresh deliveries to show updated UI
+                // CRITICAL: Avoid force refresh here because transient backend failures can wipe offline-backed UI state
                 if (appDataContext?.refreshData) {
-                  console.log('🔄 [DriverStatusToggle] Forcing delivery refresh after break start...');
-                  await appDataContext.refreshData(true);
+                  console.log('🔄 [DriverStatusToggle] Refreshing after break start without force reset...');
+                  await appDataContext.refreshData(false);
                 }
               } catch (error) {
                 console.error('Failed to save phase:', error);
@@ -494,10 +494,10 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
           // Backend already set isNextDelivery flag and triggered ETA recalculation
           console.log('✅ [DriverStatusToggle] Backend set isNextDelivery flag and recalculated ETAs');
           
-          // CRITICAL: Force refresh deliveries to show updated isNextDelivery and ETAs
+          // CRITICAL: Avoid full force refresh here because transient backend failures can wipe offline-backed UI state
           if (appDataContext?.refreshData) {
-            console.log('🔄 [DriverStatusToggle] Forcing delivery refresh after going on duty...');
-            await appDataContext.refreshData(true);
+            console.log('🔄 [DriverStatusToggle] Refreshing after going on duty without force reset...');
+            await appDataContext.refreshData(false);
           }
           
           // Trigger AI-powered route optimization when going on duty
