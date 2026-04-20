@@ -33,15 +33,16 @@ import {
   getSyncInProgress,
   setSyncInProgress,
   getSyncPaused,
-  setSyncPaused,
-  getSyncPauseReasons,
   getLastBackgroundSyncAt,
-  setLastBackgroundSyncAt,
-  addSyncPauseReason,
-  removeSyncPauseReason,
-  getSyncListeners,
-  setSyncListeners
+  setLastBackgroundSyncAt
 } from './offlineSyncState';
+import {
+  pauseOfflineSync,
+  resumeOfflineSync,
+  isOfflineSyncPaused,
+  subscribeSyncStatus,
+  notifySyncStatus
+} from './offlineSyncStatus';
 import { processPendingMutationsInternal } from './offlineSyncMutationProcessor';
 
 // Configuration
@@ -56,37 +57,6 @@ const HISTORICAL_PATIENT_STORE_BATCH_SIZE = 100;
 const MOBILE_HISTORICAL_SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 
-
-// ==================== SYNC CONTROL ====================
-
-export const pauseOfflineSync = (reason = 'general') => {
-  addSyncPauseReason(reason);
-  setSyncPaused(true);
-};
-
-export const resumeOfflineSync = (reason = 'general') => {
-  removeSyncPauseReason(reason);
-  setSyncPaused(getSyncPauseReasons().size > 0);
-
-  if (!getSyncPaused() && typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('offlineSyncResumed'));
-  }
-};
-
-export const isOfflineSyncPaused = () => getSyncPaused();
-
-export const subscribeSyncStatus = (callback) => {
-  setSyncListeners([...getSyncListeners(), callback]);
-  return () => {
-    setSyncListeners(getSyncListeners().filter(cb => cb !== callback));
-  };
-};
-
-const notifySyncStatus = (status) => {
-  getSyncListeners().forEach(callback => {
-    try { callback(status); } catch (e) {}
-  });
-};
 
 // ==================== TIMESTAMP-BASED SYNC HELPERS ====================
 
