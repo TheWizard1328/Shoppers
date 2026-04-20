@@ -27,6 +27,30 @@ const estimateDurationMinutes = (distanceKm, averageSpeedKmh = 40) => {
   return Math.max(1, Math.round(distanceKm / averageSpeedKmh * 60));
 };
 
+const APP_TIMEZONE = 'America/Edmonton';
+
+const formatLocalIsoWithoutOffset = (date) => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: APP_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(date);
+
+  const year = parts.find((part) => part.type === 'year')?.value || '0000';
+  const month = parts.find((part) => part.type === 'month')?.value || '00';
+  const day = parts.find((part) => part.type === 'day')?.value || '00';
+  const hour = parts.find((part) => part.type === 'hour')?.value || '00';
+  const minute = parts.find((part) => part.type === 'minute')?.value || '00';
+  const second = parts.find((part) => part.type === 'second')?.value || '00';
+
+  return `${year}-${month}-${day}T${hour}:${minute}:${second}`;
+};
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -79,7 +103,7 @@ Deno.serve(async (req) => {
           delivery_id: delivery?.id || delivery?.delivery_id || null,
           distance_km: Number(distance_km.toFixed(2)),
           estimated_duration_minutes,
-          estimated_arrival_time: etaDate.toISOString(),
+          estimated_arrival_time: formatLocalIsoWithoutOffset(etaDate),
         };
       })
       .filter(Boolean);

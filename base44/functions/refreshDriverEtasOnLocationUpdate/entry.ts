@@ -63,7 +63,9 @@ function buildEtaBaseDate(deliveryDate, finishedDeliveries) {
   const shouldUseFinishedStopTime = routeIsPastDate || routeIsLateToday;
 
   if (!shouldUseFinishedStopTime) {
-    return new Date();
+    const [year, month, day] = now.date.split('-').map(Number);
+    const [hours, minutes] = now.time.split(':').map(Number);
+    return new Date(year, (month || 1) - 1, day || 1, hours || 0, minutes || 0, 0, 0);
   }
 
   const latestFinished = [...(finishedDeliveries || [])]
@@ -72,7 +74,8 @@ function buildEtaBaseDate(deliveryDate, finishedDeliveries) {
 
   const baseTime = extractTimeFromDateTime(latestFinished?.actual_delivery_time) || '00:00';
   const [hours, minutes] = baseTime.split(':').map(Number);
-  return new Date(`${deliveryDate}T${String(hours || 0).padStart(2, '0')}:${String(minutes || 0).padStart(2, '0')}:00-07:00`);
+  const [year, month, day] = String(deliveryDate).split('-').map(Number);
+  return new Date(year, (month || 1) - 1, day || 1, hours || 0, minutes || 0, 0, 0);
 }
 
 function formatEta(date) {
