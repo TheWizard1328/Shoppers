@@ -63,26 +63,26 @@ export default function StopCardFooterMenu(props) {
           <MoreVertical className="w-5 h-5" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="p-1 rounded-md min-w-[8rem] overflow-hidden border-2 shadow-md z-[9999]" sideOffset={5} onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
+      <DropdownMenuContent align="end" side="top" className="p-1 rounded-md min-w-[12rem] overflow-visible border-2 shadow-md z-[9999] bg-white text-slate-900" sideOffset={8} onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)', opacity: 1, visibility: 'visible' }}>
         {canShowEdit && (
-          <DropdownMenuItem onClick={(e) => { blockCardToggle(e); e.stopPropagation(); onEdit(delivery); }} className="text-base py-2.5 md:py-1.5">
+          <DropdownMenuItem inset={false} onClick={(e) => { blockCardToggle(e); e.stopPropagation(); onEdit(delivery); }} className="flex cursor-pointer items-center text-base py-2.5 md:py-1.5 text-slate-900 focus:bg-slate-100 focus:text-slate-900">
             <Edit className="w-5 h-5 mr-2" />{isPickup ? 'Edit Pickup' : 'Edit Delivery'}
           </DropdownMenuItem>
         )}
         {canShowEditPatient && (
-          <DropdownMenuItem onClick={(e) => { blockCardToggle(e); e.stopPropagation(); onEditPatient(patient); }} className="text-base py-2.5 md:py-1.5">
+          <DropdownMenuItem inset={false} onClick={(e) => { blockCardToggle(e); e.stopPropagation(); onEditPatient(patient); }} className="flex cursor-pointer items-center text-base py-2.5 md:py-1.5 text-slate-900 focus:bg-slate-100 focus:text-slate-900">
             <User className="w-5 h-5 mr-2" />Edit Patient
           </DropdownMenuItem>
         )}
         {canShowUpdateGps && (
-          <DropdownMenuItem onClick={(e) => { blockCardToggle(e); handleUpdateGPS(e); }} className="text-base py-2.5 md:py-1.5">
+          <DropdownMenuItem inset={false} onClick={(e) => { blockCardToggle(e); handleUpdateGPS(e); }} className="flex cursor-pointer items-center text-base py-2.5 md:py-1.5 text-slate-900 focus:bg-slate-100 focus:text-slate-900">
             <Locate className="w-5 h-5 mr-2" />Update GPS
           </DropdownMenuItem>
         )}
         {canShowFailCancel && (
           <>
             <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
-            <DropdownMenuItem onClick={(e) => { blockCardToggle(e); e.stopPropagation(); setPendingFailureStatus(isPickup ? 'cancelled' : 'failed'); setShowFailureReasonDialog(true); }} className="text-red-600 text-base py-2.5 md:py-1.5">
+            <DropdownMenuItem inset={false} onClick={(e) => { blockCardToggle(e); e.stopPropagation(); setPendingFailureStatus(isPickup ? 'cancelled' : 'failed'); setShowFailureReasonDialog(true); }} className="flex cursor-pointer items-center text-red-600 text-base py-2.5 md:py-1.5 focus:bg-red-50 focus:text-red-700">
               <XCircle className="w-5 h-5 mr-2" />{isPickup ? 'Cancel Pickup' : 'Mark as Failed'}
             </DropdownMenuItem>
           </>
@@ -90,7 +90,7 @@ export default function StopCardFooterMenu(props) {
         {canShowDelete && (
           <>
             <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
-            <DropdownMenuItem onClick={(e) => { blockCardToggle(e); e.stopPropagation(); setShowDeleteConfirm(true); }} className="text-red-600 text-base py-2.5 md:py-1.5" disabled={!userHasRole(currentUser, 'admin') && isPickup && routeCompleted}>
+            <DropdownMenuItem inset={false} onClick={(e) => { blockCardToggle(e); e.stopPropagation(); setShowDeleteConfirm(true); }} className="flex cursor-pointer items-center text-red-600 text-base py-2.5 md:py-1.5 focus:bg-red-50 focus:text-red-700" disabled={!userHasRole(currentUser, 'admin') && isPickup && routeCompleted}>
               <Trash2 className="w-5 h-5 mr-2" />Delete
             </DropdownMenuItem>
           </>
