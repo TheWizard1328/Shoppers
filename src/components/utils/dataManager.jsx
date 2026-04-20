@@ -1,8 +1,17 @@
-import { base44 } from '@/api/base44Client';
-import { format, subDays } from 'date-fns';
+import { format } from 'date-fns';
 
 export { format };
 import { offlineDB } from './offlineDatabase';
+import { entities } from './dataManagerEntities';
+import { resolveEntityName } from './dataManagerDemoMode';
+import { waitForRateLimit, triggerGlobalRateLimitPause } from './dataManagerRateLimit';
+import {
+  getDeliveriesForDateRange,
+  loadDeliveriesForDate,
+  loadFullMonthDeliveries,
+  loadPriorityDeliveriesForSelection,
+  loadDeliveries
+} from './dataManagerDeliveryLoader';
 import { 
   createPatientLocal, 
   updatePatientLocal, 
@@ -26,80 +35,11 @@ import { connectionMonitor } from './connectionMonitor';
 import { getOfflineStoreName, isOfflineManagedEntity } from './offlineEntityRegistry';
 import { getLocalDateString } from './localTimeHelper';
 
-const entities = {
-  Patient: base44.entities.Patient,
-  Delivery: base44.entities.Delivery,
-  User: base44.entities.User,
-  City: base44.entities.City,
-  Store: base44.entities.Store,
-  AppUser: base44.entities.AppUser,
-  Company: base44.entities.Company,
-  SquareLocationConfig: base44.entities.SquareLocationConfig,
-  SquareTransaction: base44.entities.SquareTransaction,
-  DemoPatient: base44.entities.DemoPatient,
-  DemoRoute: base44.entities.DemoRoute,
-  DemoStore: base44.entities.DemoStore,
-  DemoSettings: base44.entities.DemoSettings,
-  DemoAppUser: base44.entities.DemoAppUser
-};
-
-let demoModeState = { active: false };
-
-const refreshDemoModeState = async () => {
-  try {
-    const me = await base44.auth.me();
-    if (!me) {
-      demoModeState = { active: false };
-      return demoModeState;
-    }
-    const rows = await base44.entities.DemoSettings.filter({ user_id: me.id });
-    demoModeState = { active: rows?.[0]?.is_demo_mode_active === true };
-    return demoModeState;
-  } catch {
-    demoModeState = { active: false };
-    return demoModeState;
-  }
-};
-
-const resolveEntityName = async (entityName) => {
-  const state = await refreshDemoModeState();
-  if (!state.active) return entityName;
-  if (entityName === 'Patient') return 'DemoPatient';
-  if (entityName === 'Delivery') return 'DemoRoute';
-  if (entityName === 'Store') return 'DemoStore';
-  if (entityName === 'AppUser') return 'DemoAppUser';
-  return entityName;
-};
-
 // CRITICAL: NO IN-MEMORY CACHE - Use offline DB exclusively
 // Deleted all cache layers to prevent stale data and reappearing deleted items
 
 // Track offline DB load completion
 let offlineDBLoadComplete = false;
-
-// Rate limit protection - track last API call time and global rate limit pause
-let lastApiCallTime = 0;
-const MIN_API_INTERVAL = 10000; // 10 seconds between API calls to prevent rate limiting
-let globalRateLimitUntil = 0;
-
-const waitForRateLimit = async () => {
-  const now = Date.now();
-  
-  // Check if we're in a global rate limit pause (triggered by 429 error)
-  if (now < globalRateLimitUntil) {
-    const waitTime = globalRateLimitUntil - now;
-    console.warn(`⏸️ [DataManager] Global rate limit active - waiting ${Math.ceil(waitTime/1000)}s`);
-    await new Promise(resolve => setTimeout(resolve, Math.min(waitTime, 1000)));
-    return;
-  }
-  
-  const timeSinceLastCall = now - lastApiCallTime;
-  if (timeSinceLastCall < MIN_API_INTERVAL) {
-    const waitTime = MIN_API_INTERVAL - timeSinceLastCall;
-    await new Promise(resolve => setTimeout(resolve, waitTime));
-  }
-  lastApiCallTime = Date.now();
-};
 
 export const markOfflineDBLoadComplete = () => {
   offlineDBLoadComplete = true;
@@ -209,9 +149,7 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
 
         if (error.response?.status === 429 || error.message?.includes('429')) {
            connectionMonitor.recordError('rate_limit');
-           // Set global rate limit pause to 2 minutes
-           globalRateLimitUntil = Date.now() + 120000;
-           console.warn('🛑 [DataManager] 429 Rate Limit - pausing all API calls for 2 minutes');
+           triggerGlobalRateLimitPause();
            const backoffDelay = Math.min(2000 * Math.pow(2, attempt), 10000);
            await new Promise(resolve => setTimeout(resolve, backoffDelay));
            if (attempt < retries - 1) continue;
@@ -246,244 +184,6 @@ export const setCached = (entityName, data) => {
   // No-op - no cache to set
 };
 
-/**
- * Get deliveries for a specific date range - NO CACHE, always from offline DB or API
- */
-export const getDeliveriesForDateRange = async (startDate, endDate, filters = {}, forceRefresh = false) => {
-  // Try offline DB first
-  try {
-    const allOfflineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-    const filtered = allOfflineDeliveries.filter(d => {
-      if (!d?.delivery_date) return false;
-      if (d.delivery_date < startDate || d.delivery_date > endDate) return false;
-      
-      // Apply additional filters
-      for (const [key, value] of Object.entries(filters)) {
-        if (d[key] !== value) return false;
-      }
-      
-      return true;
-    });
-    
-    if (filtered.length > 0) {
-      return filtered;
-    }
-  } catch (offlineError) {}
-  
-  // Fallback: Fetch from API
-  const rangeFilters = {
-    ...filters,
-    delivery_date: {
-      $gte: startDate,
-      $lte: endDate
-    }
-  };
-  
-  try {
-    await waitForRateLimit();
-    const Entity = entities.Delivery;
-    const deliveries = await Entity.filter(rangeFilters, '-updated_date');
-    
-    // Save to offline DB
-    if (Array.isArray(deliveries) && deliveries.length > 0) {
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
-    }
-    
-    return deliveries;
-  } catch (error) {
-    // Final fallback: try offline DB again
-    try {
-      const allOfflineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-      return allOfflineDeliveries.filter(d => {
-        if (!d?.delivery_date) return false;
-        return d.delivery_date >= startDate && d.delivery_date <= endDate;
-      });
-    } catch (e) {
-      return [];
-    }
-  }
-};
-
-/**
- * Load deliveries for a specific date - NO CACHE, always from offline DB or API
- */
-export const loadDeliveriesForDate = async (dateStr, filters = {}, forceRefresh = false) => {
-  const { driver_id, ...filtersWithoutDriver } = filters;
-  
-  // Try offline DB first
-  try {
-    let offlineData = await offlineDB.getByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', dateStr);
-    
-    if (filtersWithoutDriver.store_id) {
-      const storeIds = filtersWithoutDriver.store_id.$in || [filtersWithoutDriver.store_id];
-      offlineData = offlineData.filter(d => storeIds.includes(d.store_id));
-    }
-    
-    if (offlineData && offlineData.length > 0 && !forceRefresh) {
-      return offlineData;
-    }
-  } catch (offlineError) {}
-  
-  // Fallback: Fetch from API
-  const dateFilters = {
-    ...filtersWithoutDriver,
-    delivery_date: dateStr
-  };
-  
-  try {
-    await waitForRateLimit();
-    const Entity = entities.Delivery;
-    const deliveries = await Entity.filter(dateFilters, '-updated_date');
-    
-    if (Array.isArray(deliveries) && deliveries.length > 0) {
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
-      await offlineDB.updateSyncMetadata('Delivery', new Date().toISOString());
-    }
-
-    return deliveries;
-  } catch (error) {
-    // Final fallback: try offline DB again
-    try {
-      let offlineData = await offlineDB.getByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', dateStr);
-      if (offlineData && offlineData.length > 0) {
-        return offlineData;
-      }
-    } catch (e) {}
-    
-    if (error.message?.includes('WebSocket') || error.message?.includes('closed without opened') || 
-        error.response?.status === 429 || error.message?.includes('429')) {
-      return [];
-    }
-    
-    throw error;
-  }
-};
-
-/**
- * Load 90 days of deliveries (background) in chunks to avoid rate limits
- */
-export const loadFullMonthDeliveries = async (filters = {}, forceRefresh = false) => {
-  const today = new Date();
-  const deliveryMap = new Map();
-  
-  // Chunk 1: Past 30 days
-  const past30Start = subDays(today, 30);
-  const chunk1 = await getDeliveriesForDateRange(
-    format(past30Start, 'yyyy-MM-dd'),
-    format(today, 'yyyy-MM-dd'),
-    filters,
-    forceRefresh
-  );
-  chunk1.forEach(d => deliveryMap.set(d.id, d));
-  
-  await new Promise(resolve => setTimeout(resolve, 2000));
-  
-  // Chunk 2: Past 31-60 days
-  const past60Start = subDays(today, 60);
-  const past31Day = subDays(today, 31);
-  const chunk2 = await getDeliveriesForDateRange(
-    format(past60Start, 'yyyy-MM-dd'),
-    format(past31Day, 'yyyy-MM-dd'),
-    filters,
-    forceRefresh
-  );
-  chunk2.forEach(d => deliveryMap.set(d.id, d));
-  
-  await new Promise(resolve => setTimeout(resolve, 2000));
-  
-  // Chunk 3: Past 61-90 days
-  const past90Start = subDays(today, 90);
-  const past61Day = subDays(today, 61);
-  const chunk3 = await getDeliveriesForDateRange(
-    format(past90Start, 'yyyy-MM-dd'),
-    format(past61Day, 'yyyy-MM-dd'),
-    filters,
-    forceRefresh
-  );
-  chunk3.forEach(d => deliveryMap.set(d.id, d));
-  
-  return Array.from(deliveryMap.values());
-};
-
-/**
- * Load deliveries with offline-first strategy:
- * 1. Check offline DB freshness (< 10 min)
- * 2. If fresh, load from offline first, then refresh from online
- * 3. If not fresh, load selected date from online first
- * 4. Background: today + 6 future days, then past 14 days
- * 
- * @param {string} selectedDateStr - Selected date (yyyy-MM-dd)
- * @param {object} priorityFilters - Filters for priority loads
- * @param {object} backgroundFilters - Filters for background data
- * @param {boolean} forceRefresh - Force bypass cache
- * @param {function} onInitialLoadComplete - Callback for instant UI (selected date)
- * @param {function} onFullMonthLoadComplete - Callback for background data
- */
-export const loadPriorityDeliveriesForSelection = async (dateStr, selectedDriverId = 'all', forceRefresh = true, extraFilters = {}) => {
-  const apiFilters = { delivery_date: dateStr, ...extraFilters };
-
-  const deliveries = await loadDeliveriesForDate(dateStr, apiFilters, forceRefresh);
-  await offlineDB.updateCacheSnapshot('Delivery', deliveries || [], {
-    scopeKey: `selection:${dateStr}:all`,
-    syncType: 'selection_priority'
-  });
-
-  return deliveries || [];
-};
-
-export const loadDeliveries = async (
-  selectedDateStr,
-  priorityFilters = {},
-  backgroundFilters = {},
-  forceRefresh = false,
-  onInitialLoadComplete = () => {},
-  onFullMonthLoadComplete = () => {}
-) => {
-  let initialDeliveries = [];
-
-  if (!forceRefresh) {
-    try {
-      const offlineDeliveries = await offlineDB.getByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr);
-
-      if (offlineDeliveries && offlineDeliveries.length > 0) {
-        initialDeliveries = offlineDeliveries;
-        setTimeout(() => {
-          onInitialLoadComplete(offlineDeliveries);
-        }, 0);
-      }
-    } catch (err) {}
-  }
-
-  const shouldRefreshSelectedDate = forceRefresh || initialDeliveries.length === 0;
-
-  if (shouldRefreshSelectedDate) {
-    const selectedDateDeliveries = await loadDeliveriesForDate(selectedDateStr, priorityFilters, forceRefresh);
-    if (Array.isArray(selectedDateDeliveries) && selectedDateDeliveries.length > 0) {
-      initialDeliveries = selectedDateDeliveries;
-      setTimeout(() => {
-        onInitialLoadComplete(selectedDateDeliveries);
-      }, 0);
-    } else if (initialDeliveries.length > 0) {
-      setTimeout(() => {
-        onInitialLoadComplete(initialDeliveries);
-      }, 0);
-    }
-  } else {
-    loadDeliveriesForDate(selectedDateStr, priorityFilters, true)
-      .then((freshDeliveries) => {
-        if (Array.isArray(freshDeliveries) && freshDeliveries.length > 0) {
-          onInitialLoadComplete(freshDeliveries);
-        }
-      })
-      .catch(() => {});
-  }
-
-  return initialDeliveries;
-};
-
-/**
- * Background delivery loading: today + 6 future, then past 14 days
- */
 const loadBackgroundDeliveries = async (selectedDateStr, filters, onComplete, initialDeliveries = []) => {
   const today = new Date();
   const deliveryMap = new Map();
@@ -508,29 +208,6 @@ const loadBackgroundDeliveries = async (selectedDateStr, filters, onComplete, in
   }
   
   onComplete(Array.from(deliveryMap.values()));
-  await new Promise(r => setTimeout(r, 2000));
-  
-  const chunks = [
-    { start: 1, end: 7 },
-    { start: 8, end: 14 },
-    { start: 15, end: 21 },
-    { start: 22, end: 30 }
-  ];
-  
-  for (const chunk of chunks) {
-    try {
-      const chunkDeliveries = await getDeliveriesForDateRange(
-        format(subDays(today, chunk.end), 'yyyy-MM-dd'),
-        format(subDays(today, chunk.start), 'yyyy-MM-dd'),
-        filters,
-        false
-      );
-      chunkDeliveries.forEach(d => deliveryMap.set(d.id, d));
-      onComplete(Array.from(deliveryMap.values()));
-      
-      await new Promise(r => setTimeout(r, 1000));
-    } catch (e) {}
-  }
 };
 
 // NO CACHE OPERATIONS - all removed
