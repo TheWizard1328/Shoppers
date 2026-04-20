@@ -403,6 +403,13 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
         disableLocationTracking: newStatus === 'off_duty' // Only disable tracking when off duty
       });
       
+      const confirmedStatus = result?.data?.driver_status || newStatus;
+      setStatus(confirmedStatus);
+      locationTracker.setDriverStatus(confirmedStatus);
+      if (confirmedStatus === lastRequestedStatusRef.current) {
+        lastRequestedStatusRef.current = null;
+      }
+      
       console.log('✅ Backend status update result:', result.data);
       
       // CRITICAL: DO NOT fetch fresh data - trust our update
@@ -547,6 +554,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       console.error('❌ Failed to update driver status:', error);
       lastRequestedStatusRef.current = null;
       setStatus(previousStatus);
+      locationTracker.setDriverStatus(previousStatus);
       toast.error('Failed to update status. Please try again.');
       
       // Resume smart refresh on error
@@ -568,6 +576,9 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       // CRITICAL: Clear the status change flag to allow activity monitor to resume
       sessionStorage.removeItem('driver_status_change_in_progress');
       
+      setPendingStatus(null);
+      isTogglingRef.current = false;
+
       // Resume smart refresh after short delay to let status propagate
       setTimeout(async () => {
         try {
@@ -578,9 +589,6 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
           console.warn('⚠️ [DriverStatusToggle] Failed to resume smart refresh:', e);
         }
         
-        setPendingStatus(null);
-        // CRITICAL: Clear toggling flag after delay
-        isTogglingRef.current = false;
         console.log('✅ [DRIVER STATUS] Driver status change cycle complete');
       }, 500); // Reduced to 500ms since UI is already unblocked
     }
