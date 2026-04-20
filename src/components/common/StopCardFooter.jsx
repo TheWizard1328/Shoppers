@@ -17,10 +17,9 @@ export default function StopCardFooter(props) {
 
   const shouldShowFooter = (() => {
     if (shouldCondenseCompletedRouteForDriver) return false;
-    if (userHasRole(currentUser, 'dispatcher') && !isExpanded) return false;
     if (!isAppOwner(currentUser) && !userHasRole(currentUser, 'admin') && isStrippedForDispatcher) return false;
     if (isExpanded) return true;
-    return isAppOwner(currentUser) || userHasRole(currentUser, 'admin') || isAssignedDriverOrAppOwner || canEdit;
+    return isAppOwner(currentUser) || userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || isAssignedDriverOrAppOwner || canEdit;
   })();
 
   if (!shouldShowFooter) return null;
