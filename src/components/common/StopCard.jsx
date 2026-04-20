@@ -5,7 +5,7 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from "react"
 import useStopCardActions from "./useStopCardActions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { GripVertical, Loader2, Phone, Navigation, Crosshair } from "lucide-react";
+import { GripVertical, Loader2, Phone, Navigation, LocateFixed } from "lucide-react";
 import { getStoreColor, getContrastColor } from "../utils/colorGenerator";
 import { format } from "date-fns";
 import { userHasRole, shouldShowStoreBadges, isAppOwner } from '../utils/userRoles';
@@ -555,7 +555,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                           onClick={handleUpdateGPS}
                           className="inline-flex h-14 w-14 items-center justify-center rounded-full transition-colors bg-emerald-600 text-white hover:bg-emerald-700"
                         >
-                          <Crosshair className="w-6 h-6" />
+                          <LocateFixed className="w-6 h-6" />
                         </button>
                       ) : (
                         <a
