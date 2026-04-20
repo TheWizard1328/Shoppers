@@ -537,7 +537,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                     </>
                   ) : <div className="w-full h-[26px]" />}
                 </div>
-                {!isFinishedDelivery && !isPastDeliveryDate && !shouldRedact && (
+                {!routeCompletedForLayout && !isPastDeliveryDate && !shouldRedact && (
                   <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                     {finalDisplayPhone && (
                       <a
@@ -548,13 +548,13 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                         <Phone className="w-6 h-6" />
                       </a>
                     )}
-                    {finalDisplayAddress && (
+                    {isNextDelivery && finalDisplayAddress && (
                       <a
                         href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(finalDisplayAddress)}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className={`inline-flex h-14 w-14 items-center justify-center rounded-full transition-colors ${isNextDelivery ? 'bg-blue-100 text-blue-600 hover:bg-blue-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
+                        className="inline-flex h-14 w-14 items-center justify-center rounded-full transition-colors bg-blue-100 text-blue-600 hover:bg-blue-200"
                       >
                         <Navigation className="w-6 h-6" />
                       </a>
