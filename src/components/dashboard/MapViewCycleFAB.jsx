@@ -7,7 +7,9 @@ import { fabControlEvents } from '@/components/utils/fabControlEvents';
 
 export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards = false, isAIVisible = false, isLocked = false, isEnabled = true, stopCardsHeight = 75 }) {
   const [isFlashing, setIsFlashing] = useState(false);
+  const [isTemporarilyDeactivated, setIsTemporarilyDeactivated] = useState(false);
   const flashTimeoutRef = useRef(null);
+  const deactivateTimeoutRef = useRef(null);
   const lastFlashAtRef = useRef(0);
   const lastFlashKeyRef = useRef('');
 
@@ -44,13 +46,25 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
 
   useEffect(() => {
     const unsubscribe = fabControlEvents.subscribe((event) => {
+      if (event?.type === 'DEACTIVATE_FAB') {
+        setIsTemporarilyDeactivated(true);
+        if (deactivateTimeoutRef.current) clearTimeout(deactivateTimeoutRef.current);
+        deactivateTimeoutRef.current = setTimeout(() => {
+          setIsTemporarilyDeactivated(false);
+        }, 1200);
+        return;
+      }
+
       if (event?.type !== 'REACTIVATE_FAB') return;
+      setIsTemporarilyDeactivated(false);
+      if (deactivateTimeoutRef.current) clearTimeout(deactivateTimeoutRef.current);
       if (event?.suppressIfPhase1 && currentPhase === 1) return;
       flashUpdate(event?.reason || 'generic');
     });
 
     return () => {
       unsubscribe();
+      if (deactivateTimeoutRef.current) clearTimeout(deactivateTimeoutRef.current);
     };
   }, [currentPhase, flashUpdate]);
 
@@ -109,7 +123,7 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
           title={getTooltip()}
           disabled={!isEnabled}
           className={`inline-flex items-center justify-center whitespace-nowrap text-sm font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 text-primary-foreground h-10 w-10 rounded-lg shadow-2xl p-0 relative transition-all duration-200 ${
-            !isEnabled || !isLocked
+            !isEnabled || !isLocked || isTemporarilyDeactivated
               ? 'bg-gray-400 hover:bg-gray-500'
               : currentPhase === 2
                 ? 'bg-green-600 hover:bg-green-700'
