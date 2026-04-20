@@ -12,6 +12,16 @@ import {
   removeDeletedFromCache,
   invalidateDeliveriesForDate
 } from './dataManagerCacheHelpers';
+
+export {
+  invalidate,
+  getCached,
+  setCached,
+  invalidateDeliveryRangeCache,
+  updateCache,
+  removeDeletedFromCache,
+  invalidateDeliveriesForDate
+};
 import { resolveEntityName } from './dataManagerDemoMode';
 import { waitForRateLimit, triggerGlobalRateLimitPause } from './dataManagerRateLimit';
 import {
