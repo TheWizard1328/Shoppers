@@ -117,20 +117,30 @@ export default function StatsPanel({
 
     const routeMap = new Map((driverRoutes || []).map((route) => [route.driverId, route]));
     const driverIdsWithStops = new Set(legendDeliveries.map((delivery) => delivery.driver_id));
+    const finishedStatuses = new Set(['completed', 'failed', 'cancelled', 'returned']);
 
     return Array.from(driverIdsWithStops).map((driverId) => {
       const route = routeMap.get(driverId);
       const driverDeliveries = legendDeliveries.filter((delivery) => delivery.driver_id === driverId);
       const driverAppUser = (appUsers || []).find((appUser) => appUser?.user_id === driverId);
       const driverName = route?.driverName || driverAppUser?.user_name || driversList.find((driver) => driver?.id === driverId)?.user_name || 'Unknown';
-      const totalStops = driverDeliveries.length;
+      const totalStops = driverDeliveries.filter((delivery) => {
+        if (!delivery) return false;
+        const isFinishedDelivery = !!delivery.patient_id && finishedStatuses.has(delivery.status);
+        const isFinishedAfterHoursPickup = !delivery.patient_id && delivery.after_hours_pickup === true && finishedStatuses.has(delivery.status);
+        return isFinishedDelivery || isFinishedAfterHoursPickup;
+      }).length;
+      const status = driverAppUser?.driver_status || 'offline';
+      const heartbeatAgeMs = driverAppUser?.location_updated_at ? Date.now() - new Date(driverAppUser.location_updated_at).getTime() : Infinity;
+      const hasHeartbeat = heartbeatAgeMs <= 120000;
 
       return {
         driverId,
         driverName,
         totalStops,
         color: route?.color || getDriverColor({ id: driverId, user_name: driverName }),
-        driverStatus: driverAppUser?.driver_status || 'offline'
+        driverStatus: status,
+        hasHeartbeat
       };
     }).sort((a, b) => a.driverName.localeCompare(b.driverName));
   })();
@@ -443,25 +453,31 @@ export default function StatsPanel({
         </motion.div>
 
         {!isAllDriversMode && !isAdmin ? null : legendData.length > 0 &&
-        <div className="backdrop-blur-sm rounded-lg shadow-lg border px-1 py-1" style={{ background: 'var(--bg-white)', opacity: 0.95, borderColor: 'var(--border-slate-200)' }}
+        <div className={`backdrop-blur-sm rounded-lg shadow-lg border ${isAllDriversMode ? 'px-1 py-1' : 'px-1.5 py-0.5'}`} style={{ background: 'var(--bg-white)', opacity: 0.95, borderColor: 'var(--border-slate-200)' }}
         onMouseEnter={() => handleCardInteraction(true)} onMouseLeave={() => handleCardInteraction(false)}>
-            <div className="flex flex-wrap gap-x-2 gap-y-1 items-center justify-center">
+            <div className={`flex items-center justify-center ${isAllDriversMode ? 'flex-wrap gap-x-2 gap-y-1' : 'gap-x-2 overflow-x-auto whitespace-nowrap'}`}>
               {legendData.map((route) =>
             <button
               key={route.driverId}
-              type="button" className="flex items-center gap-1.0 rounded px-1 py-0.0 hover:bg-slate-100 transition-colors"
-
+              type="button" className={`flex items-center rounded hover:bg-slate-100 transition-colors ${isAllDriversMode ? 'gap-1 px-1 py-0' : 'gap-1 px-1 py-0 h-6'}`}
               onClick={(e) => {
                 e.stopPropagation();
                 handleDriverChange(route.driverId);
               }}>
-              
-                  <div
-                className="w-3 h-3 rounded-full border-2 border-white shadow-sm flex-shrink-0"
-                style={{ backgroundColor: isAllDriversMode ? route.color : getStatusColor(route.driverStatus) }} />
-              
-                  <span className="text-xs font-medium whitespace-nowrap" style={{ color: 'var(--text-slate-700)' }}>{route.driverName || 'Unknown'}</span>
-                  <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>({route.totalStops})</span>
+                  <div className="relative flex items-center justify-center w-3 h-3 flex-shrink-0">
+                    {route.hasHeartbeat && (
+                      <div
+                        className="absolute inset-0 rounded-full animate-ping opacity-75"
+                        style={{ backgroundColor: getStatusColor(route.driverStatus) }}
+                      />
+                    )}
+                    <div
+                      className="relative w-2.5 h-2.5 rounded-full shadow-sm"
+                      style={{ backgroundColor: getStatusColor(route.driverStatus) }}
+                    />
+                  </div>
+                  <span className="text-xs font-medium whitespace-nowrap leading-none" style={{ color: 'var(--text-slate-700)' }}>{route.driverName || 'Unknown'}</span>
+                  <span className="text-xs leading-none" style={{ color: 'var(--text-slate-500)' }}>({route.totalStops})</span>
                 </button>
             )}
             </div>
