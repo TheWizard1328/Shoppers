@@ -123,7 +123,7 @@ Deno.serve(async (req) => {
       }
 
       const eligibleDeliveries = allTodayDeliveries
-        .filter((d) => !finishedStatuses.includes(d.status) && d.status !== 'pending')
+        .filter((d) => !finishedStatuses.includes(d.status))
         .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
       const nextDelivery = eligibleDeliveries[0] || null;
@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
         });
         console.log(`✅ [setDriverStatus] Ensured next stop is set: ${nextDelivery.patient_name || 'Pickup'}`);
       } else {
-        console.log(`ℹ️ [setDriverStatus] No eligible active deliveries available to mark as next`);
+        console.log(`ℹ️ [setDriverStatus] No eligible unfinished deliveries available to mark as next`);
       }
     }
     
