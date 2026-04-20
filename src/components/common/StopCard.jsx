@@ -944,11 +944,6 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
               currentUser={currentUser}
               appUsers={appUsers}
               isReturnDelivery={false}
-              finalDisplayPhone={finalDisplayPhone}
-              alternateDisplayPhone={patient?.phone_secondary || ''}
-              displayAddress={displayAddress}
-              isPastDate={isPastDeliveryDate}
-              isNextDelivery={isNextDelivery}
             />
           </div>
 
