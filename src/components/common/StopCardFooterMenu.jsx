@@ -34,27 +34,29 @@ export default function StopCardFooterMenu(props) {
     canEdit
   } = props;
 
-  const canShowEdit = !!(onEdit && !isStrippedForDispatcher && (
+  const canManageStop = !!(!isStrippedForDispatcher && (
     isAppOwner?.(currentUser) ||
     userHasRole?.(currentUser, 'admin') ||
     userHasRole?.(currentUser, 'dispatcher') ||
-    (userHasRole?.(currentUser, 'driver') && delivery?.driver_id === currentUser?.id && !routeCompleted) ||
+    (userHasRole?.(currentUser, 'driver') && delivery?.driver_id === currentUser?.id) ||
     canEdit
   ));
 
-  const canShowEditPatient = !!(onEditPatient && patient && !isPickup && !isStrippedForDispatcher && isAppOwner?.(currentUser));
+  const isActiveStop = !['completed', 'cancelled', 'failed'].includes(delivery?.status);
 
-  const canShowUpdateGps = !!((isNextDelivery || isFinishedDelivery) && !isPickup && patient && !isStrippedForDispatcher && (
-    userHasRole?.(currentUser, 'admin') ||
-    userHasRole?.(currentUser, 'dispatcher') ||
-    userHasRole?.(currentUser, 'driver')
+  const canShowEdit = !!(onEdit && canManageStop);
+
+  const canShowEditPatient = !!(onEditPatient && patient && !isPickup && canManageStop);
+
+  const canShowUpdateGps = !!(handleUpdateGPS && canManageStop && (
+    isPickup || (patient && (isNextDelivery || isFinishedDelivery))
   ));
 
-  const canShowFailCancel = !!(delivery?.status !== 'completed' && delivery?.status !== 'cancelled' && delivery?.status !== 'failed' && isNextDelivery && onStatusUpdate);
-
-  const canShowDelete = !!(onDelete && !isStrippedForDispatcher && (
-    userHasRole?.(currentUser, 'admin') || userHasRole?.(currentUser, 'driver')
+  const canShowFailCancel = !!(onStatusUpdate && canManageStop && isActiveStop && (
+    isPickup || (!isPickup && isNextDelivery)
   ));
+
+  const canShowDelete = !!(onDelete && canManageStop);
 
   return (
     <DropdownMenu modal={false}>
