@@ -60,52 +60,16 @@ export const createStopCardsScrollHandler = ({
         closestCard.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
       }
 
-      // CRITICAL: Center map on the centered delivery's marker + assigned driver's location,
-      // and always unlock FAB on manual stop-card scrolling.
+      // CRITICAL: Manual stop-card scrolling should unlock FAB/map and leave them unlocked.
       if (centeredDeliveryId) {
         const centeredDelivery = deliveriesWithStopOrder.find(d => d?.id === centeredDeliveryId);
         if (centeredDelivery) {
-          const appUser = appUsers.find((user) => user?.user_id === centeredDelivery.driver_id || user?.id === centeredDelivery.driver_id);
-          const driverLat = appUser?.current_latitude;
-          const driverLon = appUser?.current_longitude;
-
           if (mapLockTimeoutRef.current) {
             clearTimeout(mapLockTimeoutRef.current);
             mapLockTimeoutRef.current = null;
           }
           mapLockExpiresAtRef.current = null;
           setIsMapViewLocked(false);
-
-          // Center map on this delivery's marker and driver location
-          let stopLat, stopLon;
-          if (centeredDelivery.patient_id) {
-            const patient = patients.find(p => p?.id === centeredDelivery.patient_id);
-            stopLat = patient?.latitude;
-            stopLon = patient?.longitude;
-          } else if (centeredDelivery.store_id) {
-            const store = stores.find(s => s?.id === centeredDelivery.store_id);
-            stopLat = store?.latitude;
-            stopLon = store?.longitude;
-          }
-
-          const bounds = [];
-          if (stopLat && stopLon) bounds.push([stopLat, stopLon]);
-          if (driverLat && driverLon) bounds.push([driverLat, driverLon]);
-
-          if (bounds.length > 0) {
-            const padding = getMapPadding();
-            setShouldFitBounds({
-              bounds,
-              options: {
-                ...padding,
-                maxZoom: 17,
-                animate: true
-              }
-            });
-            setMapCenter(null);
-            setMapZoom(null);
-          }
-
           onCenteredCardChange?.({ deliveryId: centeredDelivery.id, driverId: centeredDelivery.driver_id, isNextDelivery: centeredDelivery.isNextDelivery === true, source: 'scroll' });
         }
       }

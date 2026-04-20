@@ -55,6 +55,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
   const wheelNavLockRef = React.useRef(0);
   const deliveryActionReleaseTimerRef = React.useRef(null);
   const fabInteractionLockRef = React.useRef(0);
+  const manualSwipeUnlockUntilRef = React.useRef(0);
 
   // Define finished statuses
   const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
@@ -218,6 +219,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     };
 
     const handleSmartRefreshComplete = () => {
+      if (typeof window !== 'undefined' && (window.__suppressCardAutoCenterUntil || 0) > Date.now()) return;
       // RULE 2: Collapse all cards, then center next delivery if not centered
       if (!isNextDeliveryCardCentered()) {
         console.log('🎯 [Auto-Center Rule 2] Smart refresh - collapsing all and centering next');
@@ -421,6 +423,11 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     if (fabInteractionLockRef.current) return;
 
     fabInteractionLockRef.current = Date.now();
+    manualSwipeUnlockUntilRef.current = Date.now() + 2500;
+    if (typeof window !== 'undefined') {
+      window.__isUserCardSwipe = true;
+      window.__suppressCardAutoCenterUntil = manualSwipeUnlockUntilRef.current;
+    }
     fabControlEvents.deactivateFAB();
   }, []);
 
