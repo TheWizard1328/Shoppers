@@ -46,6 +46,14 @@ import {
 import { processPendingMutationsInternal } from './offlineSyncMutationProcessor';
 import { createOfflineSyncHistoricalHelpers } from './offlineSyncHistorical';
 
+export {
+  pauseOfflineSync,
+  resumeOfflineSync,
+  isOfflineSyncPaused,
+  subscribeSyncStatus,
+  notifySyncStatus
+};
+
 // Configuration
 const PATIENT_BATCH_SIZE = 25; // Even smaller chunks to reduce rate limits
 const PATIENT_SYNC_COOLDOWN = 30000; // 30 second cooldown between patient batches
