@@ -175,7 +175,7 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
       connectionMonitor.recordResponseTime(responseTime);
 
       // Save to offline DB
-      if (isOfflineManagedEntity(entityName) || entityName === 'SquareLocationConfig' || entityName === 'SquareTransaction') {
+      if ((isOfflineManagedEntity(entityName) || entityName === 'SquareLocationConfig' || entityName === 'SquareTransaction') && Array.isArray(data) && data.length > 0) {
         const storeName = getOfflineStoreName(offlineDB, entityName) || (entityName === 'SquareLocationConfig' ? offlineDB.STORES.SQUARE_LOCATION_CONFIGS : offlineDB.STORES.SQUARE_TRANSACTIONS);
         await offlineDB.bulkSave(storeName, data);
         await offlineDB.updateSyncMetadata(entityName, new Date().toISOString());
@@ -283,7 +283,9 @@ export const getDeliveriesForDateRange = async (startDate, endDate, filters = {}
     const deliveries = await Entity.filter(rangeFilters, '-updated_date');
     
     // Save to offline DB
-    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+    if (Array.isArray(deliveries) && deliveries.length > 0) {
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+    }
     
     return deliveries;
   } catch (error) {
@@ -331,8 +333,10 @@ export const loadDeliveriesForDate = async (dateStr, filters = {}, forceRefresh 
     const Entity = entities.Delivery;
     const deliveries = await Entity.filter(dateFilters, '-updated_date');
     
-    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
-    await offlineDB.updateSyncMetadata('Delivery', new Date().toISOString());
+    if (Array.isArray(deliveries) && deliveries.length > 0) {
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+      await offlineDB.updateSyncMetadata('Delivery', new Date().toISOString());
+    }
 
     return deliveries;
   } catch (error) {
