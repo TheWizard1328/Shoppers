@@ -3715,7 +3715,7 @@ function Dashboard() {
   };
 
   const handleEditDelivery = (delivery) => {
-    setEditingDelivery(delivery ? { ...delivery, _isPickupEdit: !delivery.patient_id } : delivery);
+    setEditingDelivery(delivery || null);
     setShowDeliveryForm(true);
   };
 
@@ -5261,7 +5261,7 @@ function Dashboard() {
     optimizationMessage, setOptimizationMessage, isOptimizing, isReoptimizing, setIsReoptimizing,
     setIsEntityUpdating, hasRateLimitError, updateDeliveriesLocally, updateAppUsersLocally,
     selectedCardId, handleCardClick, handleMarkerClick,
-    showDeliveryForm, setShowDeliveryForm, editingDelivery, setEditingDelivery,
+    showDeliveryForm, setShowDeliveryForm, editingDelivery, setEditingDelivery, defaultToPickupMode: !!editingDelivery && !editingDelivery.patient_id,
     showPatientForm, setShowPatientForm, editingPatient, setEditingPatient,
     patientFormCallback, setPatientFormCallback, patientFormMode, setPatientFormMode,
     showOptimizationSettings, setShowOptimizationSettings,
