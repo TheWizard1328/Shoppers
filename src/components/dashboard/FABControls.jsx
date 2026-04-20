@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Navigation } from "lucide-react";
 import { format } from 'date-fns';
-import { base44 } from "@/api/base44Client";
+import { optimizeRemainingStops } from "@/functions/optimizeRemainingStops";
 import { isAppOwner } from '@/components/utils/userRoles';
 import { pauseOfflineMutations, resumeOfflineMutations } from "@/components/utils/offlineMutations";
 import { pauseOfflineSync, resumeOfflineSync } from "@/components/utils/offlineSync";
@@ -103,7 +103,7 @@ export default function FABControls({
                 const deliveryDate = format(selectedDate, 'yyyy-MM-dd');
                 const now = new Date(); const localTime = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
                 window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'optimize_route_fab', driverId: currentUser.id, deliveryDate } }));
-                const response = await base44.functions.invoke('optimizeRemainingStops', { driverId: currentUser.id, deliveryDate, currentLocalTime: localTime, deviceTime: now.toISOString() });
+                const response = await optimizeRemainingStops({ driverId: currentUser.id, deliveryDate, currentLocalTime: localTime, deviceTime: now.toISOString() });
                 const data = response?.data || response;
                 if (data?.success) {
                   setOptimizationMessage(`Route optimized! ${data.optimizedCount} stops updated.`);
