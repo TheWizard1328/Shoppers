@@ -50,12 +50,14 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
         setIsTemporarilyDeactivated(true);
         if (deactivateTimeoutRef.current) clearTimeout(deactivateTimeoutRef.current);
         deactivateTimeoutRef.current = setTimeout(() => {
+          if ((window.__suppressCardAutoCenterUntil || 0) > Date.now()) return;
           setIsTemporarilyDeactivated(false);
         }, 1200);
         return;
       }
 
       if (event?.type !== 'REACTIVATE_FAB') return;
+      if ((window.__suppressCardAutoCenterUntil || 0) > Date.now()) return;
       setIsTemporarilyDeactivated(false);
       if (deactivateTimeoutRef.current) clearTimeout(deactivateTimeoutRef.current);
       if (event?.suppressIfPhase1 && currentPhase === 1) return;
