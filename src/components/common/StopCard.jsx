@@ -952,40 +952,39 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
           {showMiddleSection && (
             <div className="flex flex-col">
               <div className="flex items-start justify-between">
-                <div className="flex flex-col justify-center gap-0.5 flex-1 min-w-0 min-h-[55px] max-w-[170px]">
+                <div className="flex flex-col justify-center gap-0.5 flex-1 min-w-0 min-h-[55px]">
                   {finalDisplayAddress ? (
                     <>
                       <div className="flex items-start gap-2 text-lg" style={{ color: 'var(--text-slate-700)' }}>
-                        <span className="text-xl font-medium leading-tight line-clamp-2">{isPickup ? store?.address || '' : patient?.address || ''}</span>
+                        <span className="text-xl font-medium truncate">{isPickup ? store?.address || '' : patient?.address || ''}</span>
                       </div>
-                      <div className="flex items-center gap-2 min-h-[26px] text-lg flex-wrap" style={{ color: 'var(--text-slate-600)' }}>
-                        {!isStrippedDelivery && !shouldRedact ? (
-                          <>
-                            {(() => {
-                              const unitNum = !isPickup ? delivery?.unit_number || patient?.unit_number : null;
-                              const fullAddress = isPickup ? store?.address || '' : patient?.address || '';
-                              const buzzerMatch = fullAddress.match(/buzz(?:er)?\s*(\d+)/i);
-                              const buzzerNum = buzzerMatch ? buzzerMatch[1] : null;
-                              return (
-                                <>
+                      {!isStrippedDelivery && !shouldRedact && (
+                        <div className="flex items-center gap-3 min-h-[26px]" style={{ color: 'var(--text-slate-600)' }}>
+                          {(() => {
+                            const unitNum = !isPickup ? delivery?.unit_number || patient?.unit_number : null;
+                            const fullAddress = isPickup ? store?.address || '' : patient?.address || '';
+                            const buzzerMatch = fullAddress.match(/buzz(?:er)?\s*(\d+)/i);
+                            const buzzerNum = buzzerMatch ? buzzerMatch[1] : null;
+                            return (
+                              <>
+                                <div className="flex items-center gap-2 min-w-0 flex-1">
                                   {unitNum && <span className="text-md">#{unitNum}</span>}
                                   {buzzerNum && <span className="text-lg font-medium">Buzz {buzzerNum}</span>}
-                                </>
-                              );
-                            })()}
-                            {finalDisplayPhone && !isFinishedDelivery && !isPastDeliveryDate && (
-                              <a
-                                href={`tel:${String(finalDisplayPhone).replace(/\D/g, '')}`}
-                                onClick={(e) => e.stopPropagation()}
-                                className="text-lg font-medium underline-offset-2 hover:underline text-emerald-600 truncate"
-                              >
-                                {finalDisplayPhone}
-                              </a>
-                            )}
-                            {!finalDisplayPhone && <span className="invisible">&nbsp;</span>}
-                          </>
-                        ) : <div className="flex-1 min-h-[26px]" />}
-                      </div>
+                                </div>
+                                {finalDisplayPhone && !isFinishedDelivery && !isPastDeliveryDate && (
+                                  <a
+                                    href={`tel:${String(finalDisplayPhone).replace(/\D/g, '')}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="text-lg font-medium text-emerald-600 whitespace-nowrap"
+                                  >
+                                    {finalDisplayPhone}
+                                  </a>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </div>
+                      )}
                     </>
                   ) : <div className="w-full h-[26px]" />}
                 </div>
@@ -993,8 +992,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                   <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                     {finalDisplayPhone && (
                       <a
-                        href={`tel:${String(finalDisplayPhone).replace(/\D/g, '')}`
-                        }
+                        href={`tel:${String(finalDisplayPhone).replace(/\D/g, '')}`}
                         onClick={(e) => e.stopPropagation()}
                         className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 transition-colors hover:bg-emerald-200"
                       >
