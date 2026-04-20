@@ -279,7 +279,7 @@ export default function StatsPanel({
 
           <AnimatePresence>
             {isExpanded && <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
-              <div className="pb-2 border-t flex items-center gap-2" style={{ borderColor: 'var(--border-slate-200)' }}>
+              <div className="pt-1 pb-1 border-t flex items-center gap-2" style={{ borderColor: 'var(--border-slate-200)' }}>
                 <Select value={selectedDriverId} onValueChange={handleDriverChange} disabled={isDriverDropdownDisabled}>
                   <SelectTrigger className="flex h-8 w-full items-center justify-between rounded-md border px-3 py-2 text-sm flex-1" style={{ pointerEvents: 'auto', touchAction: 'manipulation', background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                     <SelectValue placeholder="All Drivers" />
@@ -401,7 +401,7 @@ export default function StatsPanel({
 
               {isDriver && !isDispatcher && <>
                 <div className="border-t border-slate-200 mt-2 pt-2"></div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
                   <LocationTrackingToggle user={currentUser} onUserUpdate={async () => {await refreshUser();}} />
                   {isDriver && <>
                     <Button variant="outline" size="sm" onClick={() => setShowQuickAdjustments(true)} className="h-8 gap-1.5 px-2 flex-shrink-0" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
