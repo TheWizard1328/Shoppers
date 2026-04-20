@@ -147,6 +147,7 @@ Deno.serve(async (req) => {
           status_code: resp.status,
           transport_mode: normalizedTransportMode,
           waypoint_count: waypoints.length,
+          stops_count: waypoints.length + 1,
         },
       });
       return buildFallback(origin, destination, { provider_status: resp.status });
@@ -173,6 +174,7 @@ Deno.serve(async (req) => {
         metadata: {
           transport_mode: normalizedTransportMode,
           waypoint_count: waypoints.length,
+          stops_count: waypoints.length + 1,
         },
       });
       return buildFallback(origin, destination);
@@ -215,6 +217,7 @@ Deno.serve(async (req) => {
       metadata: {
         transport_mode: normalizedTransportMode,
         waypoint_count: waypoints.length,
+        stops_count: waypoints.length + 1,
         estimated_distance_km,
         estimated_duration_minutes,
       },

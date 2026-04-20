@@ -457,29 +457,7 @@ Deno.serve(async (req) => {
       console.warn('[optimizeRemainingStops] purgeAndRegeneratePolylines failed (non-fatal):', polylineError?.message || polylineError);
     }
 
-    try {
-      if (attemptedHereCalls > 0) {
-        await base44.asServiceRole.entities.GoogleAPILog.create({
-          timestamp: new Date().toISOString(),
-          api_type: 'Directions (HERE)',
-          purpose: `Current stage optimization for driver ${driverAppUser?.user_name || driverId}`,
-          function_name: 'optimizeRemainingStops',
-          user_id: user.id,
-          user_name: driverAppUser?.user_name || user.full_name,
-          metadata: {
-            api_provider: 'here',
-            call_count: attemptedHereCalls,
-            successful_calls: totalApiCalls,
-            driver_id: driverId,
-            delivery_date: deliveryDate,
-            stops_count: currentStageSorted.length,
-            transport_mode: preferredTravelMode
-          }
-        });
-      }
-    } catch (logError) {
-      console.warn('[optimizeRemainingStops] Non-fatal log error:', logError?.message || logError);
-    }
+    // HERE usage is logged inside getHereDirections so dashboard counts stay aligned to real HTTP calls.
 
     console.log(`\n✅ [optimizeRemainingStops] Route optimization complete - ${activeStops.length} stops updated in one final batch, ${attemptedHereCalls} API calls`);
 

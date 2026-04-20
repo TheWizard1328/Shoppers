@@ -769,23 +769,8 @@ export default function GoogleAPILogViewer() {
                           {log.user_name || 'Unknown'}
                         </td>
                         <td className="p-3 text-xs text-slate-600">
-                          <div>Provider: {provider.toUpperCase()}</div>
-                          <div>Calls: {getApiLogCallCount(log)}</div>
-                          {log.metadata?.driver_id &&
-                          <div>Driver: {log.metadata.driver_id.substring(0, 8)}...</div>
-                          }
-                          {log.metadata?.stops_count &&
-                          <div>Stops: {log.metadata.stops_count}</div>
-                          }
-                          {log.metadata?.route_changed !== undefined &&
-                          <div>Changed: {log.metadata.route_changed ? 'Yes' : 'No'}</div>
-                          }
-                          {log.metadata?.input &&
-                          <div>Search: "{log.metadata.input.substring(0, 30)}..."</div>
-                          }
-                          {log.metadata?.place_id &&
-                          <div>PlaceID: {log.metadata.place_id.substring(0, 15)}...</div>
-                          }
+                          <div>Provider: {provider === 'here' ? 'HERE' : 'Google'}</div>
+                          <div>Calls: {getApiLogCallCount(log)}{typeof log.metadata?.stops_count === 'number' ? ` Stops: ${log.metadata.stops_count}` : ''}</div>
                         </td>
                       </tr>);
 
