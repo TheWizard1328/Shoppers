@@ -8,16 +8,9 @@ import { arrivalTimeDetector } from './arrivalTimeDetector';
 import { getLocationProvider } from './locationProviders';
 import { getCapacitorPlatform, getNativeLocationAuthorization, isCapacitorNativeApp, requestNativeLocationAuthorization } from './locationProviders/capacitorRuntime';
 import { getLocalDateString, getLocalTimestamp } from './localTimeHelper';
-
-// Lazy load broadcastMutation to avoid circular dependency issues
-const broadcastMutation = async (entity, action, id, data) => {
-  try {
-    const { broadcastMutation: broadcast } = await import('./realtimeSync');
-    return broadcast(entity, action, id, data);
-  } catch (error) {
-    console.warn('[LocationTracker] Could not broadcast mutation:', error.message);
-  }
-};
+import { calculateDistance, calculateDistanceInMeters } from './locationTrackerMath';
+import { fetchFreshAppUser, syncUpdatedAppUser } from './locationTrackerBroadcast';
+import { collectBreadcrumbForTracker } from './locationBreadcrumbService';
 
 class LocationTracker {
     constructor() {
@@ -204,18 +197,7 @@ class LocationTracker {
   }
 
   calculateDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371e3;
-    const φ1 = lat1 * Math.PI / 180;
-    const φ2 = lat2 * Math.PI / 180;
-    const Δφ = (lat2 - lat1) * Math.PI / 180;
-    const Δλ = (lon2 - lon1) * Math.PI / 180;
-
-    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-      Math.cos(φ1) * Math.cos(φ2) *
-      Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    return R * c;
+    return calculateDistance(lat1, lon1, lat2, lon2);
   }
 
   async updateLocationInDatabase(latitude, longitude, accuracy, forceUpdate = false, timestampOnly = false, isPrimaryDevice = false) {
@@ -319,8 +301,7 @@ class LocationTracker {
       });
 
       // Step 2: Fetch FULL AppUser data (to ensure coordinates are complete)
-      const fullAppUser = await base44.entities.AppUser.filter({ id: this.appUserId });
-      const updatedAppUser = fullAppUser && fullAppUser.length > 0 ? fullAppUser[0] : null;
+      const updatedAppUser = await fetchFreshAppUser(this.appUserId);
       
       if (!updatedAppUser) {
         console.error(`❌ [LocationTracker] Failed to fetch updated AppUser after upload!`);
@@ -334,40 +315,7 @@ class LocationTracker {
         location_tracking_enabled: updatedAppUser.location_tracking_enabled
       });
 
-      // Step 3: Save to offline DB (dual-write) AND dispatch to in-memory context before broadcasting
-      try {
-        const { offlineDB } = await import('./offlineDatabase');
-        await offlineDB.save(offlineDB.STORES.APP_USERS, updatedAppUser);
-        console.log(`💾 [LocationTracker] Saved AppUser to offline DB`);
-
-        // Immediately dispatch to AppDataContext via custom event so UI prefers newest
-        window.dispatchEvent(new CustomEvent('appUserUpdated', {
-          detail: { appUser: updatedAppUser, fromLocationTracker: true }
-        }));
-      } catch (offlineError) {
-        console.error('❌ [LocationTracker] FAILED TO SYNC to offline DB:', offlineError.message);
-      }
-
-      // Step 4: Dispatch locally and broadcast so other devices update immediately
-      if (typeof window !== 'undefined') {
-        console.log(`📡 [LocationTracker] Dispatching driverLocationsUpdated for ${userName}`);
-        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-          detail: { 
-            appUsers: [updatedAppUser], 
-            singleUpdate: true,
-            fromLocationTracker: true,
-            mergeMode: 'merge' // Ensures this is treated as single targeted update, not full replacement
-          }
-        }));
-      }
-      await broadcastMutation('AppUser', 'update', updatedAppUser.id, updatedAppUser);
-
-      // CRITICAL: Always update UserDevice last_active_at for primary tracker
-      const currentDevice = await getCurrentDevice(this.currentUser.id);
-      if (currentDevice) {
-        await updateDeviceLastActive(this.currentUser.id, currentDevice);
-        console.log(`✅ [LocationTracker] Updated device last_active_at`);
-      }
+      await syncUpdatedAppUser({ updatedAppUser, currentUser: this.currentUser });
 
       // Update currentUser reference
       if (this.currentUser) {
@@ -901,18 +849,7 @@ class LocationTracker {
    * Calculate distance between two coordinates in meters (Haversine)
    */
   calculateDistanceInMeters(lat1, lon1, lat2, lon2) {
-    const R = 6371000; // Earth's radius in meters
-    const φ1 = lat1 * Math.PI / 180;
-    const φ2 = lat2 * Math.PI / 180;
-    const Δφ = (lat2 - lat1) * Math.PI / 180;
-    const Δλ = (lon2 - lon1) * Math.PI / 180;
-
-    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-              Math.cos(φ1) * Math.cos(φ2) *
-              Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    return R * c; // Distance in meters
+    return calculateDistanceInMeters(lat1, lon1, lat2, lon2);
   }
 
   /**
@@ -934,127 +871,24 @@ class LocationTracker {
       return;
     }
 
-
     try {
-      const { offlineDB } = await import('./offlineDatabase');
-      const { buildPendingBreadcrumbKey } = await import('./pendingBreadcrumbsManager');
+      const result = await collectBreadcrumbForTracker({
+        driverStatus: this.driverStatus,
+        appUserId: this.appUserId,
+        currentUser: this.currentUser,
+        currentDeliveryDate: this.currentDeliveryDate,
+        latitude,
+        longitude,
+        timestamp
+      });
 
-      const deliveryDate = this.currentDeliveryDate || getLocalDateString();
-      const deliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, deliveryDate);
-      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-      const driverDeliveries = (deliveries || []).filter((delivery) => delivery?.driver_id === this.currentUser.id);
-      const activeDelivery = driverDeliveries.find((delivery) => delivery?.isNextDelivery === true)
-        || driverDeliveries
-          .filter((delivery) => !finishedStatuses.includes(delivery?.status) && delivery?.status !== 'pending')
-          .sort((a, b) => Number(a?.stop_order || 0) - Number(b?.stop_order || 0))[0];
-
-      if (!activeDelivery?.id) {
+      if (!result) {
         return;
       }
 
-      const stopOrder = Number(activeDelivery?.stop_order || activeDelivery?.display_stop_order || 0);
-      const pendingKey = buildPendingBreadcrumbKey({
-        appUserId: this.appUserId,
-        deliveryId: activeDelivery.id,
-        stopOrder
-      });
-
-      const existingBreadcrumbs = await offlineDB.getById(offlineDB.STORES.PENDING_BREADCRUMBS, pendingKey);
-      const breadcrumbPoint = [latitude, longitude, timestamp];
-
-      let initialPoints = [];
-      if (!existingBreadcrumbs?.breadcrumbs?.length) {
-        // New leg starting — prepend the previous finished stop's GPS coords as the origin point
-        const finishedStatuses2 = ['completed', 'failed', 'cancelled', 'returned'];
-        const previousFinishedStop = driverDeliveries
-          .filter((d) => finishedStatuses2.includes(d?.status) && (d?.stop_order || 0) < stopOrder)
-          .sort((a, b) => Number(b?.stop_order || 0) - Number(a?.stop_order || 0))[0];
-
-        if (previousFinishedStop) {
-          // Try to get coords from the patient/store associated with the previous stop
-          let prevLat = null;
-          let prevLon = null;
-
-          if (previousFinishedStop.patient_id) {
-            const patients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
-            const prevPatient = (patients || []).find((p) => p?.id === previousFinishedStop.patient_id);
-            prevLat = prevPatient?.latitude;
-            prevLon = prevPatient?.longitude;
-          } else if (previousFinishedStop.store_id) {
-            const stores = await offlineDB.getAll(offlineDB.STORES.STORES);
-            const prevStore = (stores || []).find((s) => s?.id === previousFinishedStop.store_id);
-            prevLat = prevStore?.latitude;
-            prevLon = prevStore?.longitude;
-          }
-
-          if (prevLat && prevLon) {
-            // Point 1: last finished stop location (use its actual_delivery_time as timestamp, or slightly before now)
-            const originTimestamp = previousFinishedStop.actual_delivery_time
-              ? new Date(previousFinishedStop.actual_delivery_time).getTime()
-              : timestamp - 60000;
-            initialPoints.push([prevLat, prevLon, originTimestamp]);
-            // Point 2: driver's current location (this GPS ping) — becomes the second point
-            // (breadcrumbPoint below will be added as normal)
-          }
-        }
-      }
-
-      const breadcrumbData = {
-        id: pendingKey,
-        driver_id: this.currentUser.id,
-        owner_driver_id: this.appUserId,
-        driver_user_id: this.currentUser.id,
-        delivery_id: activeDelivery.id,
-        delivery_date: activeDelivery.delivery_date,
-        stop_order: stopOrder,
-        stop_label: `Stop ${stopOrder || 0}`,
-        timestamp,
-        breadcrumbs: existingBreadcrumbs?.breadcrumbs?.length
-          ? [...existingBreadcrumbs.breadcrumbs, breadcrumbPoint]
-          : [...initialPoints, breadcrumbPoint]
-      };
-
-      await offlineDB.save(offlineDB.STORES.PENDING_BREADCRUMBS, breadcrumbData);
-      try {
-        const liveRecords = await base44.entities.PendingBreadcrumbLive.filter({
-          driver_id: this.currentUser.id
-        });
-        const liveRecord = (liveRecords || []).find((record) => Number(record?.stop_order) === Number(stopOrder));
-        if (liveRecord?.id) {
-          await base44.entities.PendingBreadcrumbLive.update(liveRecord.id, {
-            delivery_id: activeDelivery.id,
-            stop_order: stopOrder,
-            breadcrumbs: breadcrumbData.breadcrumbs
-          });
-        } else {
-          await base44.entities.PendingBreadcrumbLive.create({
-            driver_id: this.currentUser.id,
-            delivery_id: activeDelivery.id,
-            stop_order: stopOrder,
-            breadcrumbs: breadcrumbData.breadcrumbs
-          });
-        }
-      } catch (error) {
-        const isRateLimited = error?.response?.status === 429 || error?.status === 429 || error?.message?.includes('429') || error?.message?.toLowerCase?.().includes('rate limit');
-        if (!isRateLimited) {
-          console.warn(`⚠️ [LocationTracker] Live breadcrumb write skipped:`, error.message);
-        } else {
-          console.warn(`⚠️ [LocationTracker] Live breadcrumb rate-limited, skipping this point`);
-        }
-      }
       this.lastBreadcrumbPosition = { latitude, longitude, timestamp };
       this.lastBreadcrumbSavedAt = timestamp;
-      window.dispatchEvent(new CustomEvent('breadcrumbCollected', {
-        detail: {
-          driverId: this.currentUser?.id,
-          appUserId: this.appUserId,
-          deliveryId: activeDelivery.id,
-          deliveryDate: activeDelivery.delivery_date,
-          stopOrder,
-          point: { lat: latitude, lng: longitude, timestamp }
-        }
-      }));
-      console.log(`🍞 [LocationTracker] Collected breadcrumb for ${pendingKey}: [${latitude.toFixed(6)}, ${longitude.toFixed(6)}]`);
+      console.log(`🍞 [LocationTracker] Collected breadcrumb for ${result.pendingKey}: [${latitude.toFixed(6)}, ${longitude.toFixed(6)}]`);
     } catch (error) {
       console.warn(`⚠️ [LocationTracker] Failed to collect breadcrumb:`, error.message);
     }
