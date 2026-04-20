@@ -1,5 +1,7 @@
 import { base44 } from '@/api/base44Client';
 import { format, subDays } from 'date-fns';
+
+export { format };
 import { offlineDB } from './offlineDatabase';
 import { 
   createPatientLocal, 
