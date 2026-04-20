@@ -80,7 +80,16 @@ Deno.serve(async (req) => {
     let optimization = null;
     try {
       await wait(350);
-      optimization = { deferred: true, reason: 'start_completed', routeChanged: false };
+      const now = new Date();
+      const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const optimizationResponse = await base44.asServiceRole.functions.invoke('optimizeRouteRealTime', {
+        driverId,
+        deliveryDate,
+        currentLocalTime,
+        generatePolyline: false,
+        lockedNextDeliveryId: deliveryId
+      });
+      optimization = optimizationResponse?.data || optimizationResponse || null;
     } catch (error) {
       if (isRateLimitError(error)) {
         console.warn('⚠️ [handleStartDelivery] Optimization skipped due to rate limit');
