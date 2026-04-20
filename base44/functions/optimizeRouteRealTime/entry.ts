@@ -351,12 +351,6 @@ Deno.serve(async (req) => {
     const stopsToSequence = lockedNextStop
       ? stops.filter((stop) => stop.delivery.id !== lockedNextStop.delivery.id)
       : stops;
-    const routePoints = [
-      currentPosition,
-      ...(lockedNextStop ? [{ lat: lockedNextStop.lat, lng: lockedNextStop.lng }] : []),
-      ...stopsToSequence.map((stop) => ({ lat: stop.lat, lng: stop.lng })),
-      endLocation ? { lat: Number(endLocation.lat), lng: Number(endLocation.lng) } : null
-    ].filter((point) => point?.lat != null && point?.lng != null);
     const optimizationStartPosition = currentPosition;
 
     if (!optimizationStartPosition?.lat || !optimizationStartPosition?.lng) {
@@ -397,6 +391,12 @@ Deno.serve(async (req) => {
     const endLocation = (resolvedHomeLat != null && resolvedHomeLng != null)
       ? { lat: Number(resolvedHomeLat), lng: Number(resolvedHomeLng) }
       : null;
+    const routePoints = [
+      currentPosition,
+      ...(lockedNextStop ? [{ lat: lockedNextStop.lat, lng: lockedNextStop.lng }] : []),
+      ...stopsToSequence.map((stop) => ({ lat: stop.lat, lng: stop.lng })),
+      endLocation ? { lat: Number(endLocation.lat), lng: Number(endLocation.lng) } : null
+    ].filter((point) => point?.lat != null && point?.lng != null);
     const shouldStartFromHome = locationSource === 'home' || (!completedDeliveries.length && !!endLocation);
     const activeRouteOrigin = shouldStartFromHome && endLocation
       ? { lat: Number(endLocation.lat), lng: Number(endLocation.lng) }

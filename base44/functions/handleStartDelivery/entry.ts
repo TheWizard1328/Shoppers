@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`✅ [handleStartDelivery] Started new delivery: ${deliveryId}, transferred ${distanceToTransfer} km`);
+    console.log(`✅ [handleStartDelivery] Started new delivery: ${deliveryId}`);
 
     return Response.json({
       success: true,
