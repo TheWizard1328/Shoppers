@@ -31,6 +31,7 @@ import {
   loadPriorityDeliveriesForSelection,
   loadDeliveries
 } from './dataManagerDeliveryLoader';
+import { loadBackgroundDeliveries } from './dataManagerBackgroundLoader';
 
 export {
   getDeliveriesForDateRange,
@@ -189,32 +190,6 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
   }
   
   return [];
-};
-
-const loadBackgroundDeliveries = async (selectedDateStr, filters, onComplete, initialDeliveries = []) => {
-  const today = new Date();
-  const deliveryMap = new Map();
-  
-  initialDeliveries.forEach(d => deliveryMap.set(d.id, d));
-  
-  for (let i = 0; i <= 6; i++) {
-    const fetchDate = new Date(today);
-    fetchDate.setDate(today.getDate() + i);
-    const fetchDateStr = format(fetchDate, 'yyyy-MM-dd');
-    
-    if (fetchDateStr === selectedDateStr) continue;
-    
-    try {
-      const dateDeliveries = await loadDeliveriesForDate(fetchDateStr, filters, false);
-      dateDeliveries.forEach(d => deliveryMap.set(d.id, d));
-      
-      if (i < 6) {
-        await new Promise(r => setTimeout(r, 1000));
-      }
-    } catch (error) {}
-  }
-  
-  onComplete(Array.from(deliveryMap.values()));
 };
 
 /**
