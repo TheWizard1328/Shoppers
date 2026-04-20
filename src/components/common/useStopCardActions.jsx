@@ -14,6 +14,7 @@ import { generateCompletionTimestamp, calculateRetroactiveStopTiming, parseLocal
 import { generateUniqueSID } from '../dashboard/DashboardHelpers';
 import { buildRetryDelivery, collapseExpandedStopCardsForDriver, getCurrentLocalTimeString, getDriverRouteDeliveries, getFinishedLegEncodedPolyline, getNextActiveDelivery, getNextTrackingNumberInGroup, incrementTrackingNumber, optimizeRouteAndApplyNextDelivery, reorderActiveRouteLocally, setAndCenterNextDelivery, syncDriverLocationToStop, waitForRouteTransitionSettle, withPausedDriverLocationPoller } from "./stopCardActionHelpers";
 import { clearPendingBreadcrumbsForDelivery, getPendingBreadcrumbsForDelivery } from '../utils/pendingBreadcrumbsManager';
+import { appendBoundaryBreadcrumbPoints } from '../utils/breadcrumbBoundaryPoints';
 import { runTerminalDeliverySideEffects, triggerSquareCodUpsert } from '../utils/directDeliverySideEffects';
 import { runWithDeliveryActionLock } from '../utils/deliveryActionLock';
 import { pauseOfflineSync, resumeOfflineSync } from '../utils/offlineSync';
@@ -580,6 +581,7 @@ export default function useStopCardActions(params) {
         const completionUpdate = { status: 'completed', actual_delivery_time: forcedCompletionTimestamp || localTimeString, finished_leg_transport_mode: 'driving', isNextDelivery: false, finished_leg_encoded_polyline: null, PolylineUpdated: true, ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}), ...(completionCodPayments.length > 0 ? { cod_payments: completionCodPayments } : {}), ...(fallbackSignatureUrl ? { signature_image_url: fallbackSignatureUrl } : {}), ...(shouldOverwriteArrivalTime && forcedArrivalTimestamp ? { arrival_time: forcedArrivalTimestamp } : {}), ...(typeof retroactiveTiming?.travel_dist === 'number' ? { travel_dist: retroactiveTiming.travel_dist } : {}) };
         const shouldDeleteSquareCodBeforeComplete = Number(delivery?.cod_total_amount_required || 0) > 0 && hasDebitOrCreditCod(delivery, completionCodPayments);
         const shouldRecalculateCompletionEtas = shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, completionUpdate.actual_delivery_time);
+        await appendBoundaryBreadcrumbPoints({ driverId: delivery.driver_id, delivery, allDeliveries, patients, stores, appUsers, terminalStatus: 'completed', completedAt: completionUpdate.actual_delivery_time });
         if (shouldDeleteSquareCodBeforeComplete) await deleteCODWithTimeout(delivery.id, 'Deleted after card COD completion');
         const { offlineDB: _offlineDB } = await import('../utils/offlineDatabase');
         const clearNextFlags = sameRouteDeliveries.filter((d) => d && d.id !== delivery.id && d.isNextDelivery === true).map((d) => _offlineDB.bulkSave(_offlineDB.STORES.DELIVERIES, [{ ...d, isNextDelivery: false }]));
@@ -673,6 +675,7 @@ export default function useStopCardActions(params) {
         const shouldAutoSetArrivalTime = (useRetroactiveTiming && !!retroactiveArrivalDate && (!existingArrivalDate || arrivalVsRetroArrivalDiffMinutes > 5)) || (!useRetroactiveTiming && !delivery.arrival_time);
         const criticalUpdate = { status, delivery_notes: updatedNotes, actual_delivery_time: forcedFailureTimestamp, finished_leg_transport_mode: 'driving', isNextDelivery: false, PolylineUpdated: true, ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}), ...(shouldAutoSetArrivalTime ? { arrival_time: forcedFailureArrivalTimestamp } : {}), ...(typeof retroactiveTiming?.travel_dist === 'number' ? { travel_dist: retroactiveTiming.travel_dist } : {}) };
         const shouldDeleteSquareCodBeforeFailure = Number(delivery?.cod_total_amount_required || 0) > 0;
+        await appendBoundaryBreadcrumbPoints({ driverId: delivery.driver_id, delivery, allDeliveries, patients, stores, appUsers, terminalStatus: status, completedAt: criticalUpdate.actual_delivery_time });
         if (shouldDeleteSquareCodBeforeFailure) await deleteCODWithTimeout(delivery.id, `Deleted before marking as ${status}`);
         const { offlineDB: _failOfflineDB } = await import('../utils/offlineDatabase');
         const failRouteDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
