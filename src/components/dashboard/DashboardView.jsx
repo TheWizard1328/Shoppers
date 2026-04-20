@@ -3,8 +3,8 @@ import { format } from 'date-fns';
 import { base44 } from "@/api/base44Client";
 import { isAppOwner } from '@/components/utils/userRoles';
 import SnapshotTimeline from "@/components/snapshot/SnapshotTimeline";
-import StatsPanel from "@/components/dashboard/StatsPanel";
-import MapSection from "@/components/dashboard/MapSection";
+import DashboardStatsPanel from "@/features/dashboard/components/DashboardStatsPanel";
+import DashboardMapSection from "@/features/dashboard/components/DashboardMapSection";
 import StopCardsSection from "@/components/dashboard/StopCardsSection";
 import FABControls from "@/components/dashboard/FABControls";
 import DashboardDialogs from "@/components/dashboard/DashboardDialogs";
@@ -172,7 +172,7 @@ export default function DashboardView({
       }
 
       <div className="flex-1 w-full relative min-h-0 overflow-hidden">
-        <StatsPanel
+        <DashboardStatsPanel
           currentUser={currentUser} isDriver={isDriver} isAdmin={isAdmin} isDispatcher={isDispatcher}
           deliveries={deliveries} filteredDeliveries={filteredDeliveries} drivers={drivers} stores={stores} appUsers={appUsers} driversList={driversList}
           selectedDate={selectedDate} selectedDateStr={selectedDateStr} selectedDriverId={selectedDriverId}
@@ -199,7 +199,7 @@ export default function DashboardView({
           refreshUser={refreshUser} dataSource={dataSource}
           isMobile={isMobile}
         />
-        <MapSection
+        <DashboardMapSection
           currentUser={currentUser} isDriver={isDriver} isDispatcher={isDispatcher} isMobile={isMobile}
           deliveries={deliveries} patients={patients} stores={stores} drivers={drivers} appUsers={appUsers}
           filteredDeliveries={filteredDeliveries} deliveriesWithStopOrder={deliveriesWithStopOrder}
