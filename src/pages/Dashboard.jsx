@@ -5235,19 +5235,11 @@ function Dashboard() {
     }
   }, [isDataLoaded, deliveries, selectedDateStr]);
 
-  if (isLoadingUser || !isFiltersReady || !isDataLoaded && !userSettingsLoaded) {
-    return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p className="text-slate-600">
-            {!isFiltersReady ? 'Initializing filters...' : 'Loading dashboard data...'}
-          </p>
-        </div>
-      </div>);
-  }
-
   const dashboardViewModel = createDashboardViewModel({
+    isLoadingUser,
+    isFiltersReady,
+    isDataLoaded,
+    userSettingsLoaded,
     currentUser, isDriver, isAdmin, isDispatcher, isMobile,
     deliveries, patients, stores, drivers, appUsers,
     filteredDeliveries, deliveriesWithStopOrder, stats, driversList,
