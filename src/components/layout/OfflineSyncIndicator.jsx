@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, CheckCircle, AlertCircle, ChevronUp, ChevronDown, HardDrive, Clock, Database } from 'lucide-react';
+import { RefreshCw, CheckCircle, AlertCircle, ChevronUp, ChevronDown, HardDrive, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { subscribeSyncStatus, getSyncStats, manualSyncSelected } from '@/components/utils/offlineSync';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -14,7 +14,6 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
   const [isExpanded, setIsExpanded] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [runtimeStats, setRuntimeStats] = useState({});
-  const [isFullyLoaded, setIsFullyLoaded] = useState(false);
 
   const isVisible = currentUser && isAppOwner(currentUser);
 
@@ -24,11 +23,8 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
     getSyncStats().then(stats => {
       console.log('📊 [OfflineSyncIndicator] Initial stats loaded:', stats);
       setStats(stats);
-      // CRITICAL: Always mark as loaded - show counts even if 0
-      setIsFullyLoaded(true);
     }).catch(error => {
       console.error('❌ [OfflineSyncIndicator] Failed to load stats:', error);
-      setIsFullyLoaded(true); // Still show UI with empty stats
     });
 
     // Subscribe to sync updates (manual sync)
@@ -51,7 +47,6 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
           console.log('📊 [OfflineSyncIndicator] Sync complete - updated stats:', newStats);
           setStats(newStats);
           setRuntimeStats({}); // Clear runtime stats when sync completes
-          setIsFullyLoaded(true); // Always show stats after sync
         }).catch(error => {
           console.error('❌ [OfflineSyncIndicator] Failed to refresh stats:', error);
         });

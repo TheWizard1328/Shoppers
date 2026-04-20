@@ -15,7 +15,6 @@ import { AppUser } from '@/entities/AppUser';
 import { City } from '@/entities/City';
 import { Store } from '@/entities/Store';
 import { Company } from '@/entities/Company';
-import { SquareTransaction } from '@/entities/SquareTransaction';
 import { format, subDays } from 'date-fns';
 import { 
   fetchAppUsersDedup, 
@@ -25,10 +24,9 @@ import {
   fetchStoresDedup,
   invalidateEntityCache
 } from './dataSyncCoordinator';
-import { getOfflineStoreName, OFFLINE_SYNC_ENTITY_CLIENTS } from './offlineEntityRegistry';
+import { getOfflineStoreName } from './offlineEntityRegistry';
 import { getLocalDateString } from './localTimeHelper';
-import { isMobileDevice } from './deviceUtils';
-import { userActivityMonitor } from './userActivityMonitor';
+
 import {
   getSyncInProgress,
   setSyncInProgress,
@@ -63,8 +61,6 @@ const PATIENT_SYNC_INTERVAL_HOURS = 168; // Only sync patients once per 7 days i
 const BACKGROUND_SYNC_MIN_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes between background sync runs
 const HISTORICAL_SYNC_COOLDOWN_MS = 1500;
 const HISTORICAL_PATIENT_STORE_BATCH_SIZE = 100;
-const MOBILE_HISTORICAL_SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000;
-
 
 
 // ==================== TIMESTAMP-BASED SYNC HELPERS ====================
