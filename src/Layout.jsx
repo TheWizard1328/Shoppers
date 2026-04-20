@@ -2,7 +2,6 @@ import React, { useState, useEffect, Fragment, useMemo, useCallback, useRef } fr
 import { Link, useLocation } from "react-router-dom";
 // import "./components/utils/globalErrorHandler";
 import { createPageUrl } from "./utils";
-import { format } from "date-fns";
 import { getData, invalidate, loadDeliveries, loadDeliveriesForDate, loadFullMonthDeliveries } from './components/utils/dataManager';
 import { smartRefreshManager } from './components/utils/smartRefreshManager';
 import { backgroundSyncManager } from './components/utils/backgroundSyncManager';
@@ -2173,7 +2172,7 @@ export default function Layout({ children, currentPageName }) {
                   adminNavigationItems={adminNavigationItems}
                   currentPageName={currentPageName}
                   constructUrlWithParams={constructUrlWithParams}
-                  setSidebarOpen={setSidebarOpen} currentUser={currentUser} />
+                  setSidebarOpen={setSidebarOpen} />
 
                 }
 

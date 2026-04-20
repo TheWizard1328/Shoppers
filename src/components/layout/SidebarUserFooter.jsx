@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Phone, MessageCircle, QrCode } from 'lucide-react';
-import { formatRoles, userHasRole } from '@/components/utils/userRoles';
+import { formatRoles } from '@/components/utils/userRoles';
 import { getDriverDisplayName } from '@/components/utils/driverUtils';
 import { formatPhoneNumber } from '@/components/utils/phoneFormatter';
 import ExportRouteButton from '@/components/deliveries/ExportRouteButton';
 import { globalFilters } from '@/components/utils/globalFilters';
 import { User } from '@/api/entities';
+import { canShowExportRoute, getUserAvatarGradient } from '@/components/layout/sidebarUserUtils';
 
 export default function SidebarUserFooter({
   currentUser,
@@ -17,7 +18,6 @@ export default function SidebarUserFooter({
   stores,
   filteredDeliveries
 }) {
-  const canShowExportRoute = currentUser ? userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver') : false;
   const [selectedDriverId, setSelectedDriverId] = useState(() => globalFilters.getSelectedDriverId() || 'all');
   const [selectedDateStr, setSelectedDateStr] = useState(() => globalFilters.getSelectedDate());
 
@@ -63,12 +63,7 @@ export default function SidebarUserFooter({
         <div className="px-2 rounded-lg flex items-center gap-3">
 
 
-          <div className={`w-9 h-9 rounded-full flex items-center justify-center relative flex-shrink-0 ${
-          userHasRole(currentUser, 'admin') ? 'bg-gradient-to-br from-blue-500 to-blue-600' :
-          userHasRole(currentUser, 'dispatcher') ? 'bg-gradient-to-br from-red-500 to-red-600' :
-          userHasRole(currentUser, 'driver') ? 'bg-gradient-to-br from-emerald-500 to-emerald-600' :
-          'bg-gradient-to-br from-gray-400 to-gray-500'}`
-          }>
+          <div className={`w-9 h-9 rounded-full flex items-center justify-center relative flex-shrink-0 ${getUserAvatarGradient(currentUser)}`}>
             <span className="text-white font-bold text-sm">{(getDriverDisplayName(currentUser) || 'U')?.charAt(0)}</span>
           </div>
           <div className="flex-1 min-w-0">

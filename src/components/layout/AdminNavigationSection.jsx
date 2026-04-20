@@ -8,8 +8,7 @@ export default function AdminNavigationSection({
   adminNavigationItems,
   currentPageName,
   constructUrlWithParams,
-  setSidebarOpen,
-  currentUser
+  setSidebarOpen
 }) {
   return (
     <div className="mt-2">

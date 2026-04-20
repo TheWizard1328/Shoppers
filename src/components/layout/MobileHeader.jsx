@@ -7,11 +7,8 @@ import DriverStatusToggle from './DriverStatusToggle';
 import BatteryIndicator from './BatteryIndicator';
 import { userHasRole, isAppOwner } from '../utils/userRoles';
 import { getDriverDisplayName } from '../utils/driverUtils';
-import { base44 } from '@/api/base44Client';
-import { clearUserCache } from '../utils/auth';
-import { getEffectiveUser } from '../utils/auth';
-import { saveSetting } from '../utils/userSettingsManager';
 import { useMobileNavigation } from '../navigation/MobileNavigationProvider';
+import { getUserAvatarGradient } from './mobileHeaderUtils';
 
 export default function MobileHeader({ 
   logo, 
@@ -140,14 +137,7 @@ export default function MobileHeader({
         {currentUser && (
           <div className="flex items-center gap-2 flex-shrink-0">
             <BatteryIndicator vertical={true} />
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-              userHasRole(currentUser, 'admin') ?
-                'bg-gradient-to-br from-blue-500 to-blue-600' :
-              userHasRole(currentUser, 'dispatcher') ?
-                'bg-gradient-to-br from-red-500 to-red-600' :
-              userHasRole(currentUser, 'driver') ?
-                'bg-gradient-to-br from-emerald-500 to-emerald-600' :
-                'bg-gradient-to-br from-gray-400 to-gray-500'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${getUserAvatarGradient(currentUser)}`}>
               <span className="text-white font-bold text-xs">
                 {(getDriverDisplayName(currentUser) || 'U')?.charAt(0)}
               </span>

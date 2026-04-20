@@ -8,14 +8,12 @@ import {
   DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { MobileSelect } from '@/components/ui/mobile-select';
 import { isMobileDevice, isMobileDeviceForTheme } from '../utils/deviceUtils';
 import { globalFilters } from '../utils/globalFilters';
 import { clearUserCache } from '../utils/auth';
 import { clearSettingsCache } from '../utils/userSettingsManager';
 import { base44 } from '@/api/base44Client';
-import { toast } from 'sonner';
 import DeleteAccountMenuItem from '@/components/settings/DeleteAccountMenuItem';
 
 export default function SettingsMenu({
