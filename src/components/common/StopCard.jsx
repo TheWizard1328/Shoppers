@@ -549,15 +549,25 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                       </a>
                     )}
                     {isNextDelivery && finalDisplayAddress && (
-                      <a
-                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(finalDisplayAddress)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="inline-flex h-14 w-14 items-center justify-center rounded-full transition-colors bg-blue-100 text-blue-600 hover:bg-blue-200"
-                      >
-                        <Navigation className="w-6 h-6" />
-                      </a>
+                      isWithinActiveStopRange ? (
+                        <button
+                          type="button"
+                          onClick={handleUpdateGPS}
+                          className="inline-flex h-14 w-14 items-center justify-center rounded-full transition-colors bg-amber-100 text-amber-600 hover:bg-amber-200"
+                        >
+                          <Navigation className="w-6 h-6" />
+                        </button>
+                      ) : (
+                        <a
+                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(finalDisplayAddress)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex h-14 w-14 items-center justify-center rounded-full transition-colors bg-blue-100 text-blue-600 hover:bg-blue-200"
+                        >
+                          <Navigation className="w-6 h-6" />
+                        </a>
+                      )
                     )}
                   </div>
                 )}
@@ -682,6 +692,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
             patient={patient}
             store={store}
             displayName={displayName}
+            isWithinActiveStopRange={isWithinActiveStopRange}
             isNextDelivery={isNextDelivery}
             isFinishedDelivery={isFinishedDelivery}
             viewingImageUrl={viewingImageUrl}
