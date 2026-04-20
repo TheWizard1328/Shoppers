@@ -39,12 +39,25 @@ const logApiUsage = async ({
   }
 };
 
-const buildFallback = (origin, destination, extra = {}) => Response.json({
+const buildFallbackSections = (origin, destination, waypoints = []) => {
+  const points = [origin, ...waypoints, destination]
+    .map((point) => ({ lat: Number(point?.lat), lng: Number(point?.lng) }))
+    .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng));
+
+  return points.slice(0, -1).map((point, index) => ({
+    polyline: null,
+    estimated_distance_km: 0,
+    estimated_duration_minutes: 0,
+    coordinates: [point, points[index + 1]].filter(Boolean)
+  }));
+};
+
+const buildFallback = (origin, destination, extra = {}, waypoints = []) => Response.json({
   coordinates: [
     { lat: Number(origin?.lat), lng: Number(origin?.lng) },
     { lat: Number(destination?.lat), lng: Number(destination?.lng) }
   ].filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng)),
-  sections: [],
+  sections: buildFallbackSections(origin, destination, waypoints),
   estimated_distance_km: 0,
   estimated_duration_minutes: 0,
   polyline_format: 'fallback',
@@ -74,6 +87,7 @@ Deno.serve(async (req) => {
     const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }, '-updated_date', 1);
     appUser = appUsers?.[0] || null;
     const waypoints = Array.isArray(body?.waypoints) ? body.waypoints : [];
+    const routeContext = Array.isArray(body?.routeContext) ? body.routeContext : [];
     const requestedTransportMode = String(body?.transportMode || body?.transport_mode || 'driving').toLowerCase();
     const hereTransportMode = requestedTransportMode === 'cycling'
       ? 'bicycle'
@@ -150,7 +164,7 @@ Deno.serve(async (req) => {
           stops_count: Array.isArray(body?.routeContext) && body.routeContext.length > 0 ? body.routeContext.length : waypoints.length + 2,
         },
       });
-      return buildFallback(origin, destination, { provider_status: resp.status });
+      return buildFallback(origin, destination, { provider_status: resp.status }, waypoints);
     }
 
     const data = await resp.json();
@@ -177,7 +191,7 @@ Deno.serve(async (req) => {
           stops_count: Array.isArray(body?.routeContext) && body.routeContext.length > 0 ? body.routeContext.length : waypoints.length + 2,
         },
       });
-      return buildFallback(origin, destination);
+      return buildFallback(origin, destination, {}, waypoints);
     }
 
     const polylines = sections.map((section) => section?.polyline).filter(Boolean);
@@ -197,6 +211,7 @@ Deno.serve(async (req) => {
           { lat: originLat, lng: originLng },
           { lat: destinationLat, lng: destinationLng }
         ],
+        sections: buildFallbackSections(origin, destination, waypoints),
         estimated_distance_km,
         estimated_duration_minutes,
         polyline_format: 'fallback'
@@ -247,6 +262,6 @@ Deno.serve(async (req) => {
       errorMessage: err?.message || 'Unknown error',
       callCount: routeCallCount || 1,
     });
-    return buildFallback(origin, destination, { error: err?.message || 'Unknown error' });
+    return buildFallback(origin, destination, { error: err?.message || 'Unknown error' }, waypoints);
   }
 });

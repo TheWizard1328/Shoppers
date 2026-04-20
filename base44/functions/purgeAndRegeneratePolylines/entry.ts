@@ -474,11 +474,12 @@ async function getMultiSegmentDirections(base44, segmentSpecs, transportMode = '
   const waypoints = safeSpecs.slice(0, -1).map((segment) => ({ lat: segment.to.lat, lng: segment.to.lon }));
 
   try {
+    const routeContext = [origin, ...safeSpecs.map((segment) => segment.to)];
     const response = await base44.functions.invoke('getHereDirections', {
       origin: { lat: origin.lat, lng: origin.lon },
       destination: { lat: destination.lat, lng: destination.lon },
       waypoints,
-      routeContext: validPoints.map((point) => ({ lat: point.lat, lng: point.lon })),
+      routeContext: routeContext.map((point) => ({ lat: point.lat, lng: point.lon })),
       transportMode
     });
 

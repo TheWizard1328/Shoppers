@@ -11,6 +11,7 @@ const apiKeySelectionState = {
 };
 const backoffCache = new Map();
 const backoffNoticeCache = new Map();
+const failureCache = new Map();
 const polylineDateSyncInflight = new Map();
 const polylineDateSyncCache = new Map();
 const USE_CROSS_DEVICE_LOCK = false;
@@ -533,6 +534,10 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
 
   const cacheKey = `here_${fromStop.latitude.toFixed(5)}_${fromStop.longitude.toFixed(5)}_${toStop.latitude.toFixed(5)}_${toStop.longitude.toFixed(5)}`;
   console.debug('[HERE][client] Cache key', { cacheKey, driverId, deliveryDate });
+  const recentFailure = failureCache.get(cacheKey);
+  if (recentFailure && Date.now() - recentFailure < 60000) {
+    return null;
+  }
   const lastRequestedAt = routeRequestTimestamps.get(cacheKey) || 0;
   if (Date.now() - lastRequestedAt < 15000) {
     return memoryCache.get(cacheKey) || null;
@@ -614,6 +619,7 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
       memoryCache.set(cacheKey, coords);
       try { backoffCache.delete(failKey); } catch (_) {}
       try { backoffNoticeCache.delete(cacheKey); } catch (_) {}
+      try { failureCache.delete(cacheKey); } catch (_) {}
 
       ensurePolylineSubscription();
 
@@ -647,6 +653,7 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
   try {
     backoffCache.set(`${cacheKey}:fail_until`, Date.now() + 10000);
     backoffNoticeCache.set(cacheKey, Date.now());
+    failureCache.set(cacheKey, Date.now());
     console.info('[HERE][client] Set backoff fallback window', { cacheKey, ms: 10000 });
   } catch (_) {}
 
