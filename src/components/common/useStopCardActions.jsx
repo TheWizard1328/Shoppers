@@ -360,7 +360,7 @@ export default function useStopCardActions(params) {
           }
           await ensureDriverOnline();
           try {
-            await optimizeRouteAndApplyNextDelivery({ driverId: delivery.driver_id, deliveryDate: retryDate, currentLocalTime: getCurrentLocalTimeString(), updateDeliveryLocal, updateDeliveriesLocally, forceRefreshDriverDeliveries, generatePolyline: false });
+            await optimizeRouteAndApplyNextDelivery({ driverId: delivery.driver_id, deliveryDate: retryDate, currentLocalTime: getCurrentLocalTimeString(), updateDeliveryLocal, updateDeliveriesLocally, forceRefreshDriverDeliveries, generatePolyline: false, fallbackNextDeliveryId: newRetryDelivery?.id || newRetryDelivery?.data?.id || null });
           } catch {}
           if (userHasRole(currentUser, 'driver')) await notifyDriverRetry({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : displayName, delivery, store, appUsers });
         });
@@ -415,7 +415,7 @@ export default function useStopCardActions(params) {
 
           let restartOptimizeData = null;
           try {
-            const optimizationResult = await optimizeRouteAndApplyNextDelivery({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime: getCurrentLocalTimeString(), updateDeliveryLocal, updateDeliveriesLocally, forceRefreshDriverDeliveries, generatePolyline: false });
+            const optimizationResult = await optimizeRouteAndApplyNextDelivery({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime: getCurrentLocalTimeString(), updateDeliveryLocal, updateDeliveriesLocally, forceRefreshDriverDeliveries, generatePolyline: false, fallbackNextDeliveryId: delivery.id });
             restartOptimizeData = optimizationResult?.optimizeData || null;
           } catch {}
 
@@ -506,7 +506,19 @@ export default function useStopCardActions(params) {
             if (!delivery?.id || !delivery?.driver_id || !delivery?.delivery_date) return;
             const startResponse = await base44.functions.invoke('handleStartDelivery', { deliveryId: delivery.id, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
             const startData = startResponse?.data || startResponse || {};
+            const optimizationDeferred = startData?.optimization?.deferred === true || startData?.optimization?.reason === 'rate_limited';
             const backendOptimizedRoute = Array.isArray(startData?.optimization?.optimizedRoute) ? startData.optimization.optimizedRoute : [];
+            if (optimizationDeferred) {
+              const refreshedRouteDeliveries = await base44.entities.Delivery.filter({ driver_id: delivery.driver_id, delivery_date: delivery.delivery_date });
+              await setAndCenterNextDelivery({
+                driverDeliveries: refreshedRouteDeliveries,
+                targetDeliveryId: delivery.id,
+                updateDeliveryLocal,
+                updateDeliveriesLocally,
+                driverId: delivery.driver_id,
+                deliveryDate: delivery.delivery_date
+              });
+            }
             if (backendOptimizedRoute.length > 0) {
               window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { updates: backendOptimizedRoute.map((u) => ({ deliveryId: u.deliveryId || u.delivery_id, newEta: u.eta || u.newETA })) } }));
             }

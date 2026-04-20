@@ -604,7 +604,8 @@ export async function optimizeRouteAndApplyNextDelivery({
   updateDeliveryLocal,
   updateDeliveriesLocally,
   forceRefreshDriverDeliveries,
-  generatePolyline = false
+  generatePolyline = false,
+  fallbackNextDeliveryId = null
 }) {
   const optimizationKey = `${driverId || 'unknown'}:${deliveryDate || 'unknown'}`;
   if (routeOptimizationInflight.has(optimizationKey)) {
@@ -629,7 +630,10 @@ export async function optimizeRouteAndApplyNextDelivery({
     });
     const optimizeData = optimizeResponse?.data || optimizeResponse;
     const optimizedRoute = Array.isArray(optimizeData?.optimizedRoute) ? optimizeData.optimizedRoute : [];
-    const nextOptimizedStopId = optimizedRoute[0]?.deliveryId || optimizeData?.nextDeliveryId || optimizedRoute[0]?.delivery_id || null;
+    const optimizationDeferred = optimizeData?.deferred === true || optimizeData?.reason === 'rate_limited';
+    const nextOptimizedStopId = optimizationDeferred
+      ? fallbackNextDeliveryId
+      : (optimizedRoute[0]?.deliveryId || optimizeData?.nextDeliveryId || optimizedRoute[0]?.delivery_id || null);
 
     await refreshDriverRoute({ driverId, deliveryDate, forceRefreshDriverDeliveries, triggeredBy: 'optimizedNextDeliverySync' });
 

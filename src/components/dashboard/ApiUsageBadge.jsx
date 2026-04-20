@@ -63,6 +63,7 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
 
   useEffect(() => {
     if (!currentUser) return;
+    fetchCounts();
     const delayedInitialFetch = setTimeout(fetchCounts, 12000);
     const interval = setInterval(fetchCounts, 120000);
 
@@ -74,14 +75,14 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
 
   return (
     <>
-      <div className="absolute left-4 z-[140]" style={{ bottom: `${(stopCardsHeight || 0) + 15}px` }}>
+      <div className="absolute left-4 z-[220] pointer-events-auto" style={{ bottom: `${Math.max((stopCardsHeight || 0) + 15, 24)}px` }}>
         <TooltipProvider delayDuration={200}>
           <Tooltip>
             <TooltipTrigger asChild>
               <button
                 type="button"
-                className="px-2 py-1 text-xs font-medium rounded-lg border"
-                style={{ background: "transparent", borderColor: "var(--border-slate-200)", color: "var(--text-slate-600)" }}
+                className="px-2 py-1 text-xs font-medium rounded-lg border shadow-sm"
+                style={{ background: "var(--bg-white)", borderColor: "var(--border-slate-200)", color: "var(--text-slate-600)" }}
               >
                 🛣️ {googleCount ?? "..."} / {hereCount ?? "..."}
               </button>
