@@ -5,13 +5,21 @@ import { offlineDB } from './offlineDatabase';
 import { entities } from './dataManagerEntities';
 import { resolveEntityName } from './dataManagerDemoMode';
 import { waitForRateLimit, triggerGlobalRateLimitPause } from './dataManagerRateLimit';
-export {
+import {
   getDeliveriesForDateRange,
   loadDeliveriesForDate,
   loadFullMonthDeliveries,
   loadPriorityDeliveriesForSelection,
   loadDeliveries
 } from './dataManagerDeliveryLoader';
+
+export {
+  getDeliveriesForDateRange,
+  loadDeliveriesForDate,
+  loadFullMonthDeliveries,
+  loadPriorityDeliveriesForSelection,
+  loadDeliveries
+};
 import { 
   createPatientLocal, 
   updatePatientLocal, 
