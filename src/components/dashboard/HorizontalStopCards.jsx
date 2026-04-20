@@ -4,6 +4,7 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { acquireDeliveryActionLock, releaseDeliveryActionLock, getActiveDeliveryAction, isDeliveryActionLocked } from '../utils/deliveryActionLock';
 import { isMobileDevice, getUserAgentInfo, getOrientation } from '../utils/deviceUtils';
+import { fabControlEvents } from '../utils/fabControlEvents';
 
 const HorizontalPickupCards = React.forwardRef((props, ref) => {
   const {
@@ -53,6 +54,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
   const [desktopCenteredCardId, setDesktopCenteredCardId] = React.useState(null);
   const wheelNavLockRef = React.useRef(0);
   const deliveryActionReleaseTimerRef = React.useRef(null);
+  const fabInteractionLockRef = React.useRef(0);
 
   // Define finished statuses
   const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
@@ -399,12 +401,28 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
   }, [sortedPickupCards, desktopCenteredCardId]);
 
   const handleTouchStart = React.useCallback((e) => {
-    if (!isDesktopFanLayout) return;
     const touch = e.touches?.[0];
     if (!touch) return;
     touchStartXRef.current = touch.clientX;
     touchStartYRef.current = touch.clientY;
+    fabInteractionLockRef.current = 0;
+    if (isDesktopFanLayout) return;
   }, [isDesktopFanLayout]);
+
+  const handleTouchMove = React.useCallback((e) => {
+    const touch = e.touches?.[0];
+    const startX = touchStartXRef.current;
+    const startY = touchStartYRef.current;
+    if (!touch || startX === null || startY === null) return;
+
+    const deltaX = touch.clientX - startX;
+    const deltaY = touch.clientY - startY;
+    if (Math.abs(deltaX) < 16 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
+    if (fabInteractionLockRef.current) return;
+
+    fabInteractionLockRef.current = Date.now();
+    fabControlEvents.deactivateFAB();
+  }, []);
 
   const handleTouchEnd = React.useCallback((e) => {
     if (!isDesktopFanLayout) return;
@@ -414,6 +432,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
 
     touchStartXRef.current = null;
     touchStartYRef.current = null;
+    fabInteractionLockRef.current = 0;
 
     if (!touch || startX === null || startY === null) return;
 
@@ -524,6 +543,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
         paddingBottom: 0
       }}
       onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       onClickCapture={(e) => {
         const actionButton = e.target?.closest?.('[data-stopcard-action="start"], [data-stopcard-action="complete"], [data-stopcard-action="restart"]');
@@ -569,6 +589,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
         const axisDelta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
         if (Math.abs(axisDelta) < 8) return;
 
+        fabControlEvents.deactivateFAB();
         e.stopPropagation();
 
         if (isDesktopFanLayout) {
