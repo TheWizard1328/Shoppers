@@ -1,4 +1,4 @@
-const RECENT_DELIVERY_LOOKBACK_DAYS = 3;
+const RECENT_DELIVERY_LOOKBACK_DAYS = 2;
 
 const userHasRole = (user, role) => {
   if (!user || !role) return false;
@@ -60,7 +60,6 @@ export function getLocalDeliveryPredictions({ currentUser, stores, patients, all
     if (!patient || patient.status !== 'active') return false;
     if (!storeIdsToPredict.includes(patient.store_id)) return false;
     if (existingPatientIds.has(patient.id)) return false;
-    if (recentlyDeliveredPatientIds.has(patient.id)) return false;
     return patient.recurring ||
       patient.recurring_daily ||
       patient.recurring_weekly_mon || patient.recurring_weekly_tue || patient.recurring_weekly_wed ||
@@ -71,10 +70,6 @@ export function getLocalDeliveryPredictions({ currentUser, stores, patients, all
     const lastDate = patient.last_delivery_date ? new Date(`${patient.last_delivery_date}T00:00:00`) : null;
     const daysSinceLast = lastDate ? diffDays(dateObj, lastDate) : null;
 
-    if (lastDate && daysSinceLast >= 0 && daysSinceLast <= RECENT_DELIVERY_LOOKBACK_DAYS) {
-      return null;
-    }
-
     let shouldDeliver = false;
     let frequency = null;
 
@@ -84,7 +79,7 @@ export function getLocalDeliveryPredictions({ currentUser, stores, patients, all
     } else if (hasDaySelected && !patient.recurring_biweekly && !patient.recurring_weekly_x4) {
       shouldDeliver = true;
       frequency = 'Weekly';
-    } else if (patient.recurring_biweekly && hasDaySelected && (!lastDate || daysSinceLast >= 14)) {
+    } else if (patient.recurring_biweekly && hasDaySelected) {
       shouldDeliver = true;
       frequency = 'Bi-Weekly';
     } else if (patient.recurring_weekly_x4 && (!lastDate || Math.abs(dateObj.getDate() - lastDate.getDate()) <= 3)) {
@@ -101,6 +96,7 @@ export function getLocalDeliveryPredictions({ currentUser, stores, patients, all
       frequency = 'Recurring';
     }
 
+    if (shouldDeliver && recentlyDeliveredPatientIds.has(patient.id)) shouldDeliver = false;
     if (shouldDeliver && lastDate && lastDate >= dateObj) shouldDeliver = false;
     if (!shouldDeliver) return null;
 
