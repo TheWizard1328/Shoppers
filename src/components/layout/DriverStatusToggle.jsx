@@ -250,15 +250,16 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
     isTogglingRef.current = true;
     
     const today = format(new Date(), 'yyyy-MM-dd');
+    const selectedRouteDate = appDataContext?.deliveries?.find((d) => d?.driver_id === currentUser?.id && d?.isNextDelivery)?.delivery_date || today;
     const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-    
+
     // Check if driver can go off_duty
     // RULE: Can go off duty if NO completed stops (route hasn't started) OR all stops are finished
     if (newStatus === 'off_duty') {
       try {
         const todayDeliveries = await base44.entities.Delivery.filter({
           driver_id: currentUser?.id,
-          delivery_date: today
+          delivery_date: selectedRouteDate
         });
         
         const completedStops = todayDeliveries.filter(d => finishedStatuses.includes(d.status));
@@ -398,6 +399,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       const result = await base44.functions.invoke('setDriverStatus', {
         newStatus,
         deviceId,
+        selectedDate: selectedRouteDate,
         disableLocationTracking: newStatus === 'off_duty' // Only disable tracking when off duty
       });
       

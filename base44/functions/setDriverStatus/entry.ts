@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { newStatus, deviceId } = await req.json();
+    const { newStatus, deviceId, selectedDate } = await req.json();
 
     if (!newStatus) {
       return Response.json({ error: 'Missing required field: newStatus' }, { status: 400 });
@@ -275,13 +275,13 @@ Deno.serve(async (req) => {
     if (newStatus === 'off_duty') {
       console.log(`🔄 [setDriverStatus] Driver going off duty - clearing all isNextDelivery flags`);
       
-      const today = getEdmDate();
-      const allTodayDeliveries = await base44.asServiceRole.entities.Delivery.filter({
+      const targetDate = selectedDate || getEdmDate();
+      const targetDateDeliveries = await base44.asServiceRole.entities.Delivery.filter({
         driver_id: user.id,
-        delivery_date: today
+        delivery_date: targetDate
       });
       
-      const deliveriesWithNextFlag = allTodayDeliveries.filter(d => d.isNextDelivery === true);
+      const deliveriesWithNextFlag = targetDateDeliveries.filter(d => d.isNextDelivery === true);
       
       for (const delivery of deliveriesWithNextFlag) {
         await base44.asServiceRole.entities.Delivery.update(delivery.id, { isNextDelivery: false }).catch((error) => {
@@ -290,7 +290,7 @@ Deno.serve(async (req) => {
         });
       }
       
-      console.log(`✅ [setDriverStatus] Cleared isNextDelivery on ${deliveriesWithNextFlag.length} deliveries`);
+      console.log(`✅ [setDriverStatus] Cleared isNextDelivery on ${deliveriesWithNextFlag.length} deliveries for ${targetDate}`);
     }
 
     return Response.json({
