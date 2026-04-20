@@ -8,22 +8,25 @@
  * 4. NEVER clear the entire DB - only merge/update records
  */
 
-import { offlineDB } from './offlineDatabase';
-import { Patient } from '@/entities/Patient';
-import { Delivery } from '@/entities/Delivery';
-import { AppUser } from '@/entities/AppUser';
-import { City } from '@/entities/City';
-import { Store } from '@/entities/Store';
-import { Company } from '@/entities/Company';
 import { format, subDays } from 'date-fns';
-import { 
-  fetchAppUsersDedup, 
-  fetchDeliveriesDedup, 
-  fetchPatientsDedup, 
-  fetchCitiesDedup, 
+import { offlineSyncDeps } from '@/components/services/offlineSyncDeps';
+import { offlineSyncConfig } from '@/components/services/offlineSyncConfig';
+
+const {
+  offlineDB,
+  Patient,
+  Delivery,
+  AppUser,
+  City,
+  Store,
+  Company,
+  fetchAppUsersDedup,
+  fetchDeliveriesDedup,
+  fetchPatientsDedup,
+  fetchCitiesDedup,
   fetchStoresDedup,
   invalidateEntityCache
-} from './dataSyncCoordinator';
+} = offlineSyncDeps;
 import { getOfflineStoreName } from './offlineEntityRegistry';
 import { getLocalDateString } from './localTimeHelper';
 
@@ -54,14 +57,16 @@ export {
 };
 
 // Configuration
-const PATIENT_BATCH_SIZE = 25; // Even smaller chunks to reduce rate limits
-const PATIENT_SYNC_COOLDOWN = 30000; // 30 second cooldown between patient batches
-const BATCH_COOLDOWN = 10000;
-const DELIVERY_DATE_RANGE_DAYS = 90;
-const PATIENT_SYNC_INTERVAL_HOURS = 168; // Only sync patients once per 7 days in background
-const BACKGROUND_SYNC_MIN_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes between background sync runs
-const HISTORICAL_SYNC_COOLDOWN_MS = 1500;
-const HISTORICAL_PATIENT_STORE_BATCH_SIZE = 100;
+const {
+  PATIENT_BATCH_SIZE,
+  PATIENT_SYNC_COOLDOWN,
+  BATCH_COOLDOWN,
+  DELIVERY_DATE_RANGE_DAYS,
+  PATIENT_SYNC_INTERVAL_HOURS,
+  BACKGROUND_SYNC_MIN_INTERVAL_MS,
+  HISTORICAL_SYNC_COOLDOWN_MS,
+  HISTORICAL_PATIENT_STORE_BATCH_SIZE
+} = offlineSyncConfig;
 
 
 // ==================== TIMESTAMP-BASED SYNC HELPERS ====================
