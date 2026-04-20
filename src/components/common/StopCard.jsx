@@ -346,19 +346,10 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     return (allDeliveries || []).some((item) => item && item.driver_id === delivery.driver_id && item.delivery_date === delivery.delivery_date && !FINISHED_STATUSES.includes(item.status) && item.status !== 'pending');
   }, [allDeliveries, delivery]);
 
-  if (!delivery) return null;
-
-  const handleUpdateGPS = async (e) => {
-    e?.stopPropagation?.();
-    await updatePatientGPS({
-      patientId: patient.id,
-      storeId: delivery.store_id,
-      stores,
-      mapCrosshairCoords: window.__mapCrosshairCoords || null,
-      preferCrosshair: delivery?.status === 'completed' || (!isMobileDevice() && !isPrimaryDevice),
-      currentPatientCoords: { latitude: patient?.latitude, longitude: patient?.longitude }
-    });
-  };
+  const shouldFade = isFinishedDelivery && routeHasIncompleteStops && !isSelected && !isHovered;
+  const isMobileCard = isMobileDevice();
+  const cardZIndex = isMobileCard ? (isExpanded ? 320 : isHovered && !isRailCentered ? 260 : isRailCentered ? 250 : 240) : (isExpanded ? 70 : isHovered && !isRailCentered ? 52 : isRailCentered ? 51 : 50);
+  const shouldAnchorExpandedCard = isMobileCard && isSelected && !isStrippedDelivery;
 
   const {
     blockCardToggle,
@@ -447,6 +438,20 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     setViewingImageUrl,
     scheduleCompletionSideEffects
   });
+
+  if (!delivery) return null;
+
+  const handleUpdateGPS = async (e) => {
+    e?.stopPropagation?.();
+    await updatePatientGPS({
+      patientId: patient.id,
+      storeId: delivery.store_id,
+      stores,
+      mapCrosshairCoords: window.__mapCrosshairCoords || null,
+      preferCrosshair: delivery?.status === 'completed' || (!isMobileDevice() && !isPrimaryDevice),
+      currentPatientCoords: { latitude: patient?.latitude, longitude: patient?.longitude }
+    });
+  };
 
   const stopLat = Number(isPickup ? store?.latitude : patient?.latitude);
   const stopLon = Number(isPickup ? store?.longitude : patient?.longitude);
