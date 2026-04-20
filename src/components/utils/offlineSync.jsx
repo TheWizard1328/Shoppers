@@ -29,6 +29,19 @@ import { getOfflineStoreName, OFFLINE_SYNC_ENTITY_CLIENTS } from './offlineEntit
 import { getLocalDateString } from './localTimeHelper';
 import { isMobileDevice } from './deviceUtils';
 import { userActivityMonitor } from './userActivityMonitor';
+import {
+  getSyncInProgress,
+  setSyncInProgress,
+  getSyncPaused,
+  setSyncPaused,
+  getSyncPauseReasons,
+  getLastBackgroundSyncAt,
+  setLastBackgroundSyncAt,
+  addSyncPauseReason,
+  removeSyncPauseReason,
+  getSyncListeners,
+  setSyncListeners
+} from './offlineSyncState';
 
 // Configuration
 const PATIENT_BATCH_SIZE = 25; // Even smaller chunks to reduce rate limits
@@ -43,39 +56,35 @@ const MOBILE_HISTORICAL_SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 const getMutationEntityClient = (entityName) => OFFLINE_SYNC_ENTITY_CLIENTS[entityName] || null;
 
-let syncInProgress = false;
-let syncPaused = false;
-let syncPauseReasons = new Set();
-let syncListeners = [];
-let lastBackgroundSyncAt = 0;
+
 
 // ==================== SYNC CONTROL ====================
 
 export const pauseOfflineSync = (reason = 'general') => {
-  syncPauseReasons.add(reason);
-  syncPaused = true;
+  addSyncPauseReason(reason);
+  setSyncPaused(true);
 };
 
 export const resumeOfflineSync = (reason = 'general') => {
-  syncPauseReasons.delete(reason);
-  syncPaused = syncPauseReasons.size > 0;
+  removeSyncPauseReason(reason);
+  setSyncPaused(getSyncPauseReasons().size > 0);
 
-  if (!syncPaused && typeof window !== 'undefined') {
+  if (!getSyncPaused() && typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('offlineSyncResumed'));
   }
 };
 
-export const isOfflineSyncPaused = () => syncPaused;
+export const isOfflineSyncPaused = () => getSyncPaused();
 
 export const subscribeSyncStatus = (callback) => {
-  syncListeners.push(callback);
+  setSyncListeners([...getSyncListeners(), callback]);
   return () => {
-    syncListeners = syncListeners.filter(cb => cb !== callback);
+    setSyncListeners(getSyncListeners().filter(cb => cb !== callback));
   };
 };
 
 const notifySyncStatus = (status) => {
-  syncListeners.forEach(callback => {
+  getSyncListeners().forEach(callback => {
     try { callback(status); } catch (e) {}
   });
 };
@@ -289,7 +298,7 @@ const syncHistoricalPatientsByStore = async (storeIds = null) => {
   let totalPatients = 0;
   let offset = 0;
   while (true) {
-    if (syncPaused || !userActivityMonitor.isBackgroundSyncIdle()) {
+    if (getSyncPaused() || !userActivityMonitor.isBackgroundSyncIdle()) {
       return { success: true, paused: true, count: totalPatients };
     }
 
@@ -330,7 +339,7 @@ const syncHistoricalPatientsByStore = async (storeIds = null) => {
  * @param {boolean} fetchAllDriversDeliveries - If true, fetches ALL drivers' deliveries (Show All/All Drivers mode)
  */
 export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId = null, smartRefreshMgr = null, fetchAllDriversDeliveries = false) => {
-  if (syncPaused) return { skipped: true };
+  if (getSyncPaused()) return { skipped: true };
   
   try {
     const allStores = await offlineDB.getAll(offlineDB.STORES.STORES);
@@ -582,10 +591,10 @@ export const preRenderFreshSync = async (smartRefreshMgr = null, currentUser = n
  * CRITICAL: Validates offline DB is populated; forces full sync if underpopulated
  */
 export const loadPriorityData = async (selectedDateStr, filters = {}) => {
-  if (syncPaused) return { skipped: true };
-  if (syncInProgress) return { skipped: true, reason: 'sync_in_progress' };
+  if (getSyncPaused()) return { skipped: true };
+  if (getSyncInProgress()) return { skipped: true, reason: 'sync_in_progress' };
   
-  syncInProgress = true;
+  setSyncInProgress(true);
   notifySyncStatus({ status: 'loading_priority', date: selectedDateStr });
   
   try {
@@ -745,7 +754,7 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
 
     notifySyncStatus({ status: 'priority_loaded', cities: finalCities?.length, stores: finalStores?.length, companies: finalCompanies?.length, appUsers: finalAppUsers?.length, deliveries: finalDeliveries?.length, patients: finalPatients?.length });
 
-    syncInProgress = false;
+    setSyncInProgress(false);
     return { 
       cities: finalCities || cities, 
       stores: finalStores || stores,
@@ -756,7 +765,7 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
     };
   } catch (error) {
     notifySyncStatus({ status: 'error', error: error.message });
-    syncInProgress = false;
+    setSyncInProgress(false);
     return { error: error.message };
   }
 };
@@ -796,12 +805,12 @@ const getNextDeliveryDateToSync = async () => {
  * Syncs one delivery date at a time over past 90 days
  */
 export const performBackgroundSync = async (selectedDateStr, storeIds = null) => {
-  if (syncInProgress || syncPaused) {
+  if (getSyncInProgress() || getSyncPaused()) {
     return { skipped: true };
   }
 
   const now = Date.now();
-  if ((now - lastBackgroundSyncAt) < BACKGROUND_SYNC_MIN_INTERVAL_MS) {
+  if ((now - getLastBackgroundSyncAt()) < BACKGROUND_SYNC_MIN_INTERVAL_MS) {
     return { skipped: true, reason: 'background_cooldown' };
   }
 
@@ -813,8 +822,8 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
     return { skipped: true, reason: 'missing_selected_date' };
   }
   
-  syncInProgress = true;
-  lastBackgroundSyncAt = now;
+  setSyncInProgress(true);
+  setLastBackgroundSyncAt(now);
   notifySyncStatus({ status: 'background_syncing' });
   
   try {
@@ -883,7 +892,7 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
     notifySyncStatus({ status: 'error', error: error.message });
     return { error: error.message };
   } finally {
-    syncInProgress = false;
+    setSyncInProgress(false);
   }
 };
 
@@ -897,7 +906,7 @@ export const performBackgroundSync = async (selectedDateStr, storeIds = null) =>
  * This adds to the offline DB for faster access later
  */
 export const loadAndCacheDeliveriesForDate = async (dateStr) => {
-  if (syncPaused) return [];
+  if (getSyncPaused()) return [];
   
   try {
     const deliveries = await Delivery.filter({ delivery_date: dateStr });
@@ -1023,7 +1032,7 @@ export const quickReconcile = async (selectedDateStr) => {
  * CRITICAL: For new users, always sync ALL patients to populate offline DB
  */
 export const performInitialSync = async (selectedDate = null, cityId = null) => {
-  if (syncInProgress || syncPaused) {
+  if (getSyncInProgress() || getSyncPaused()) {
     return { skipped: true };
   }
   
@@ -1047,7 +1056,7 @@ export const performInitialSync = async (selectedDate = null, cityId = null) => 
 // ==================== LEGACY EXPORTS (COMPATIBILITY) ====================
 
 export const processPendingMutations = async () => {
-  if (syncPaused) return { success: true, skipped: true };
+  if (getSyncPaused()) return { success: true, skipped: true };
   
   const mutations = await offlineDB.getPendingMutations();
   if (mutations.length === 0) return { success: true, processed: 0 };
@@ -1139,7 +1148,7 @@ export const processPendingMutations = async () => {
   
   // Process creates and updates sequentially with cooldown (smaller batches typically)
   for (const mutation of [...creates, ...updates]) {
-    if (syncPaused) break;
+    if (getSyncPaused()) break;
     
     try {
       const Entity = getMutationEntityClient(mutation.entity);
@@ -1230,9 +1239,9 @@ export const processPendingMutations = async () => {
 };
 
 export const forceSyncAll = async () => {
-  if (syncPaused) return { skipped: true };
+  if (getSyncPaused()) return { skipped: true };
   
-  syncInProgress = true;
+  setSyncInProgress(true);
   notifySyncStatus({ status: 'force_syncing', entity: 'Starting...', progress: 0 });
   
   try {
@@ -1324,13 +1333,13 @@ export const forceSyncAll = async () => {
     notifySyncStatus({ status: 'error', error: error.message });
     return { error: error.message };
   } finally {
-    syncInProgress = false;
+    setSyncInProgress(false);
   }
 };
 
 export const manualSyncSelected = async (selectedDateStr, selectedCityId = null) => {
-  if (syncInProgress || syncPaused) return { skipped: true };
-  syncInProgress = true;
+  if (getSyncInProgress() || getSyncPaused()) return { skipped: true };
+  setSyncInProgress(true);
   notifySyncStatus({ status: 'force_syncing', entity: 'Starting...', progress: 0 });
   try {
     // 1) AppUsers (entire entity)
@@ -1402,7 +1411,7 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null)
     notifySyncStatus({ status: 'error', error: error.message });
     return { error: error.message };
   } finally {
-    syncInProgress = false;
+    setSyncInProgress(false);
   }
 };
 
@@ -1429,9 +1438,9 @@ export const handleDeleteBroadcast = async (entityName, recordId) => {
  * Background sync handles remaining patients incrementally
  */
 export const restartDeliveryPatientSync = async () => {
-  if (syncInProgress) return { skipped: true };
+  if (getSyncInProgress()) return { skipped: true };
   
-  syncInProgress = true;
+  setSyncInProgress(true);
   notifySyncStatus({ status: 'restart_syncing' });
   
   try {
@@ -1648,7 +1657,7 @@ export const restartDeliveryPatientSync = async () => {
     notifySyncStatus({ status: 'error', error: error.message });
     return { error: error.message };
   } finally {
-    syncInProgress = false;
+    setSyncInProgress(false);
   }
 };
 
