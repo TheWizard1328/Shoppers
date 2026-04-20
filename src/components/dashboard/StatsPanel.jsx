@@ -453,18 +453,18 @@ export default function StatsPanel({
         </motion.div>
 
         {!isAllDriversMode && !isAdmin ? null : legendData.length > 0 &&
-        <div className="backdrop-blur-sm rounded-xl shadow-lg border px-1.5 py-[1px] w-full" style={{ background: 'var(--bg-white)', opacity: 0.95, borderColor: 'var(--border-slate-200)' }}
+        <div className="backdrop-blur-sm rounded-xl shadow-lg border px-1 py-0 w-full min-h-0" style={{ background: 'var(--bg-white)', opacity: 0.95, borderColor: 'var(--border-slate-200)' }}
         onMouseEnter={() => handleCardInteraction(true)} onMouseLeave={() => handleCardInteraction(false)}>
-            <div className="flex items-center justify-center gap-x-2 gap-y-0 overflow-x-auto whitespace-nowrap leading-none">
+            <div className="flex items-center justify-center gap-x-2 gap-y-0 overflow-x-auto whitespace-nowrap leading-none min-h-0">
               {legendData.map((route) =>
             <button
               key={route.driverId}
-              type="button" className="flex items-center gap-1 rounded px-0.5 py-0 h-4 hover:bg-slate-100 transition-colors"
+              type="button" className="flex items-center gap-1 rounded px-0.5 py-0 h-3.5 hover:bg-slate-100 transition-colors"
               onClick={(e) => {
                 e.stopPropagation();
                 handleDriverChange(route.driverId);
               }}>
-                  <div className="relative flex items-center justify-center w-2.5 h-2.5 flex-shrink-0">
+                  <div className="relative flex items-center justify-center w-2 h-2 flex-shrink-0">
                     {route.hasHeartbeat && (
                       <div
                         className="absolute inset-0 rounded-full animate-ping opacity-75"
@@ -472,12 +472,12 @@ export default function StatsPanel({
                       />
                     )}
                     <div
-                      className="relative w-2.5 h-2.5 rounded-full shadow-sm"
+                      className="relative w-2 h-2 rounded-full shadow-sm"
                       style={{ backgroundColor: getStatusColor(route.driverStatus) }}
                     />
                   </div>
-                  <span className="text-[11px] font-medium whitespace-nowrap leading-none" style={{ color: 'var(--text-slate-700)' }}>{route.driverName || 'Unknown'}</span>
-                  <span className="text-[11px] leading-none" style={{ color: 'var(--text-slate-500)' }}>({route.totalStops})</span>
+                  <span className="text-[10px] font-medium whitespace-nowrap leading-none" style={{ color: 'var(--text-slate-700)' }}>{route.driverName || 'Unknown'}</span>
+                  <span className="text-[10px] leading-none" style={{ color: 'var(--text-slate-500)' }}>({route.totalStops})</span>
                 </button>
             )}
             </div>
