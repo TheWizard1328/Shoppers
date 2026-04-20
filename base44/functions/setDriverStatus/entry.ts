@@ -103,7 +103,8 @@ Deno.serve(async (req) => {
       console.log(`✅ [setDriverStatus] Cleared isNextDelivery on ${clearedCount} deliveries for ${targetDate}`);
     }
     
-    // When coming back on_duty, always ensure exactly one eligible stop is marked as next
+    // When coming back on_duty, preserve existing route state.
+    // Do not reassign isNextDelivery here because start/complete/optimizer own that flow.
     if (newStatus === 'on_duty') {
       const targetDate = selectedDate || getEdmDate();
       const allTodayDeliveries = await base44.asServiceRole.entities.Delivery.filter({
@@ -111,53 +112,9 @@ Deno.serve(async (req) => {
         delivery_date: targetDate
       }, 'stop_order');
 
-      console.log(`📦 [setDriverStatus] Found ${allTodayDeliveries.length} deliveries for ${targetDate}`);
-
-      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
       const flaggedDeliveries = allTodayDeliveries.filter((d) => d?.isNextDelivery === true);
-
-      for (const delivery of flaggedDeliveries) {
-        await base44.asServiceRole.entities.Delivery.update(delivery.id, { isNextDelivery: false }).catch((error) => {
-          if (isNotFoundError(error)) return null;
-          throw error;
-        });
-      }
-
-      const eligibleDeliveries = allTodayDeliveries
-        .filter((d) => !finishedStatuses.includes(d.status))
-        .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-
-      console.log(`📦 [setDriverStatus] Eligible unfinished stops: ${eligibleDeliveries.length}`);
-
-      const getPriorityScore = (delivery) => {
-        const isPickup = !delivery.patient_id;
-        const isEnRoute = delivery.status === 'en_route';
-        const isInTransit = delivery.status === 'in_transit';
-
-        if (isPickup && isEnRoute) return 1;
-        if (isPickup && isInTransit) return 2;
-        if (isEnRoute) return 3;
-        if (isInTransit) return 4;
-        return 5;
-      };
-
-      const rankedDeliveries = [...eligibleDeliveries].sort((a, b) => {
-        const scoreDiff = getPriorityScore(a) - getPriorityScore(b);
-        if (scoreDiff !== 0) return scoreDiff;
-        return (a.stop_order || 0) - (b.stop_order || 0);
-      });
-
-      const nextDelivery = rankedDeliveries[0] || null;
-
-      if (nextDelivery) {
-        await base44.asServiceRole.entities.Delivery.update(nextDelivery.id, { isNextDelivery: true }).catch((error) => {
-          if (isNotFoundError(error)) return null;
-          throw error;
-        });
-        console.log(`✅ [setDriverStatus] Ensured next stop is set for ${targetDate}: ${nextDelivery.patient_name || 'Pickup'} (${nextDelivery.status})`);
-      } else {
-        console.log(`ℹ️ [setDriverStatus] No eligible unfinished deliveries available to mark as next for ${targetDate}`);
-      }
+      console.log(`📦 [setDriverStatus] Found ${allTodayDeliveries.length} deliveries for ${targetDate}`);
+      console.log(`📦 [setDriverStatus] Preserving existing next-stop state on on_duty (${flaggedDeliveries.length} currently flagged)`);
     }
     
     // When going off_duty, clear all next-stop flags for the selected driver/date
