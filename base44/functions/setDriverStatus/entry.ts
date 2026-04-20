@@ -106,11 +106,13 @@ Deno.serve(async (req) => {
     
     // When coming back on_duty, always ensure exactly one eligible stop is marked as next
     if (newStatus === 'on_duty') {
-      const today = getEdmDate();
+      const targetDate = selectedDate || getEdmDate();
       const allTodayDeliveries = await base44.asServiceRole.entities.Delivery.filter({
         driver_id: user.id,
-        delivery_date: today
+        delivery_date: targetDate
       }, 'stop_order');
+
+      console.log(`📦 [setDriverStatus] Found ${allTodayDeliveries.length} deliveries for ${targetDate}`);
 
       const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
       const flaggedDeliveries = allTodayDeliveries.filter((d) => d?.isNextDelivery === true);
@@ -125,6 +127,8 @@ Deno.serve(async (req) => {
       const eligibleDeliveries = allTodayDeliveries
         .filter((d) => !finishedStatuses.includes(d.status))
         .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+
+      console.log(`📦 [setDriverStatus] Eligible unfinished stops: ${eligibleDeliveries.length}`);
 
       const getPriorityScore = (delivery) => {
         const isPickup = !delivery.patient_id;
@@ -151,9 +155,9 @@ Deno.serve(async (req) => {
           if (isNotFoundError(error)) return null;
           throw error;
         });
-        console.log(`✅ [setDriverStatus] Ensured next stop is set: ${nextDelivery.patient_name || 'Pickup'}`);
+        console.log(`✅ [setDriverStatus] Ensured next stop is set for ${targetDate}: ${nextDelivery.patient_name || 'Pickup'} (${nextDelivery.status})`);
       } else {
-        console.log(`ℹ️ [setDriverStatus] No eligible unfinished deliveries available to mark as next`);
+        console.log(`ℹ️ [setDriverStatus] No eligible unfinished deliveries available to mark as next for ${targetDate}`);
       }
     }
     
