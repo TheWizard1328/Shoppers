@@ -126,10 +126,25 @@ Deno.serve(async (req) => {
         .filter((d) => !finishedStatuses.includes(d.status))
         .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
-      const enRoutePickups = eligibleDeliveries.filter((d) => !d.patient_id && (d.status === 'en_route' || d.status === 'in_transit'));
-      const activeDeliveries = eligibleDeliveries.filter((d) => d.status === 'en_route' || d.status === 'in_transit');
+      const getPriorityScore = (delivery) => {
+        const isPickup = !delivery.patient_id;
+        const isEnRoute = delivery.status === 'en_route';
+        const isInTransit = delivery.status === 'in_transit';
 
-      const nextDelivery = enRoutePickups[0] || activeDeliveries[0] || eligibleDeliveries[0] || null;
+        if (isPickup && isEnRoute) return 1;
+        if (isPickup && isInTransit) return 2;
+        if (isEnRoute) return 3;
+        if (isInTransit) return 4;
+        return 5;
+      };
+
+      const rankedDeliveries = [...eligibleDeliveries].sort((a, b) => {
+        const scoreDiff = getPriorityScore(a) - getPriorityScore(b);
+        if (scoreDiff !== 0) return scoreDiff;
+        return (a.stop_order || 0) - (b.stop_order || 0);
+      });
+
+      const nextDelivery = rankedDeliveries[0] || null;
 
       if (nextDelivery) {
         await base44.asServiceRole.entities.Delivery.update(nextDelivery.id, { isNextDelivery: true }).catch((error) => {
