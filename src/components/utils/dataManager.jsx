@@ -41,25 +41,7 @@ export {
   loadPriorityDeliveriesForSelection,
   loadDeliveries
 };
-import { 
-  createPatientLocal, 
-  updatePatientLocal, 
-  deletePatientLocal,
-  createDeliveryLocal,
-  updateDeliveryLocal,
-  deleteDeliveryLocal,
-  batchCreateDeliveriesLocal,
-  createCityLocal,
-  updateCityLocal,
-  deleteCityLocal,
-  createStoreLocal,
-  updateStoreLocal,
-  deleteStoreLocal,
-  createCompanyLocal,
-  updateCompanyLocal,
-  deleteCompanyLocal,
-  subscribeMutations
-} from './offlineMutations';
+import { localWrites } from './dataManagerLocalWrites';
 
 // CRITICAL: NO IN-MEMORY CACHE - Use offline DB exclusively
 // Deleted all cache layers to prevent stale data and reappearing deleted items
@@ -68,36 +50,4 @@ import {
 
 export { getData, markOfflineDBLoadComplete, isOfflineDBLoadComplete };
 
-/**
- * Local-first write operations - exported for use in forms
- */
-export const localWrites = {
-  // Patient operations
-  createPatient: createPatientLocal,
-  updatePatient: updatePatientLocal,
-  deletePatient: deletePatientLocal,
-  
-  // Delivery operations
-  createDelivery: createDeliveryLocal,
-  updateDelivery: updateDeliveryLocal,
-  deleteDelivery: deleteDeliveryLocal,
-  batchCreateDeliveries: batchCreateDeliveriesLocal,
-
-  // City operations
-  createCity: createCityLocal,
-  updateCity: updateCityLocal,
-  deleteCity: deleteCityLocal,
-
-  // Store operations
-  createStore: createStoreLocal,
-  updateStore: updateStoreLocal,
-  deleteStore: deleteStoreLocal,
-
-  // Company operations
-  createCompany: createCompanyLocal,
-  updateCompany: updateCompanyLocal,
-  deleteCompany: deleteCompanyLocal,
-  
-  // Subscribe to mutation events for UI updates
-  subscribeMutations
-};
+export { localWrites };
