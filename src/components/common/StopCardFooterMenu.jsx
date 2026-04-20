@@ -67,7 +67,7 @@ export default function StopCardFooterMenu(props) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" side="top" className="p-1 rounded-md min-w-[12rem] overflow-visible border-2 shadow-md z-[9999] bg-white text-slate-900" sideOffset={8} onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)', opacity: 1, visibility: 'visible' }}>
         {canShowEdit && (
-          <DropdownMenuItem inset={false} onClick={(e) => { blockCardToggle(e); e.stopPropagation(); onEdit?.(delivery); }} className="flex cursor-pointer items-center text-base py-2.5 md:py-1.5 text-slate-900 focus:bg-slate-100 focus:text-slate-900" disabled={!onEdit && !isPickup}>
+          <DropdownMenuItem inset={false} onClick={(e) => { blockCardToggle(e); e.stopPropagation(); onEdit?.(delivery); }} className="flex cursor-pointer items-center text-base py-2.5 md:py-1.5 text-slate-900 focus:bg-slate-100 focus:text-slate-900">
             <Edit className="w-5 h-5 mr-2" />{isPickup ? 'Edit Pickup' : 'Edit Delivery'}
           </DropdownMenuItem>
         )}
@@ -92,7 +92,7 @@ export default function StopCardFooterMenu(props) {
         {canShowDelete && (
           <>
             <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
-            <DropdownMenuItem inset={false} onClick={(e) => { blockCardToggle(e); e.stopPropagation(); if (onDelete) setShowDeleteConfirm(true); }} className="flex cursor-pointer items-center text-red-600 text-base py-2.5 md:py-1.5 focus:bg-red-50 focus:text-red-700" disabled={!onDelete && !isPickup}>
+            <DropdownMenuItem inset={false} onClick={(e) => { blockCardToggle(e); e.stopPropagation(); setShowDeleteConfirm(true); }} className="flex cursor-pointer items-center text-red-600 text-base py-2.5 md:py-1.5 focus:bg-red-50 focus:text-red-700">
               <Trash2 className="w-5 h-5 mr-2" />Delete
             </DropdownMenuItem>
           </>
