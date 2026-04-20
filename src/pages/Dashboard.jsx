@@ -3715,7 +3715,7 @@ function Dashboard() {
   };
 
   const handleEditDelivery = (delivery) => {
-    setEditingDelivery(delivery);
+    setEditingDelivery(delivery ? { ...delivery, _isPickupEdit: !delivery.patient_id } : delivery);
     setShowDeliveryForm(true);
   };
 
