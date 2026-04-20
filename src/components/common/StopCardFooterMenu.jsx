@@ -34,6 +34,28 @@ export default function StopCardFooterMenu(props) {
     canEdit
   } = props;
 
+  const canShowEdit = !!(onEdit && !isStrippedForDispatcher && (
+    isAppOwner?.(currentUser) ||
+    userHasRole?.(currentUser, 'admin') ||
+    userHasRole?.(currentUser, 'dispatcher') ||
+    (userHasRole?.(currentUser, 'driver') && delivery?.driver_id === currentUser?.id && !routeCompleted) ||
+    canEdit
+  ));
+
+  const canShowEditPatient = !!(onEditPatient && patient && !isPickup && !isStrippedForDispatcher && isAppOwner?.(currentUser));
+
+  const canShowUpdateGps = !!((isNextDelivery || isFinishedDelivery) && !isPickup && patient && !isStrippedForDispatcher && (
+    userHasRole?.(currentUser, 'admin') ||
+    userHasRole?.(currentUser, 'dispatcher') ||
+    userHasRole?.(currentUser, 'driver')
+  ));
+
+  const canShowFailCancel = !!(delivery?.status !== 'completed' && delivery?.status !== 'cancelled' && delivery?.status !== 'failed' && isNextDelivery && onStatusUpdate);
+
+  const canShowDelete = !!(onDelete && !isStrippedForDispatcher && (
+    userHasRole?.(currentUser, 'admin') || userHasRole?.(currentUser, 'driver')
+  ));
+
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
@@ -42,22 +64,22 @@ export default function StopCardFooterMenu(props) {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="p-1 rounded-md min-w-[8rem] overflow-hidden border-2 shadow-md z-[9999]" sideOffset={5} onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
-        {onEdit && !isStrippedForDispatcher && (isAppOwner(currentUser) || userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id && !routeCompleted || canEdit) && (
+        {canShowEdit && (
           <DropdownMenuItem onClick={(e) => { blockCardToggle(e); e.stopPropagation(); onEdit(delivery); }} className="text-base py-2.5 md:py-1.5">
             <Edit className="w-5 h-5 mr-2" />{isPickup ? 'Edit Pickup' : 'Edit Delivery'}
           </DropdownMenuItem>
         )}
-        {onEditPatient && patient && !isPickup && !isStrippedForDispatcher && isAppOwner(currentUser) && (
+        {canShowEditPatient && (
           <DropdownMenuItem onClick={(e) => { blockCardToggle(e); e.stopPropagation(); onEditPatient(patient); }} className="text-base py-2.5 md:py-1.5">
             <User className="w-5 h-5 mr-2" />Edit Patient
           </DropdownMenuItem>
         )}
-        {(isNextDelivery || isFinishedDelivery) && !isPickup && patient && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (
+        {canShowUpdateGps && (
           <DropdownMenuItem onClick={(e) => { blockCardToggle(e); handleUpdateGPS(e); }} className="text-base py-2.5 md:py-1.5">
             <Locate className="w-5 h-5 mr-2" />Update GPS
           </DropdownMenuItem>
         )}
-        {delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && isNextDelivery && onStatusUpdate && (
+        {canShowFailCancel && (
           <>
             <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
             <DropdownMenuItem onClick={(e) => { blockCardToggle(e); e.stopPropagation(); setPendingFailureStatus(isPickup ? 'cancelled' : 'failed'); setShowFailureReasonDialog(true); }} className="text-red-600 text-base py-2.5 md:py-1.5">
@@ -65,7 +87,7 @@ export default function StopCardFooterMenu(props) {
             </DropdownMenuItem>
           </>
         )}
-        {onDelete && !isStrippedForDispatcher && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) && (
+        {canShowDelete && (
           <>
             <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
             <DropdownMenuItem onClick={(e) => { blockCardToggle(e); e.stopPropagation(); setShowDeleteConfirm(true); }} className="text-red-600 text-base py-2.5 md:py-1.5" disabled={!userHasRole(currentUser, 'admin') && isPickup && routeCompleted}>
