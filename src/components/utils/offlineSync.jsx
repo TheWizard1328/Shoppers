@@ -11,25 +11,12 @@
 import { format, subDays } from 'date-fns';
 import { offlineSyncDeps } from '@/components/services/offlineSyncDeps';
 import { offlineSyncConfig } from '@/components/services/offlineSyncConfig';
-
-const {
-  offlineDB,
-  Patient,
-  Delivery,
-  AppUser,
-  City,
-  Store,
-  Company,
-  fetchAppUsersDedup,
-  fetchDeliveriesDedup,
-  fetchPatientsDedup,
-  fetchCitiesDedup,
-  fetchStoresDedup,
-  invalidateEntityCache
-} = offlineSyncDeps;
+import { createOfflineSyncEntityService } from '@/components/services/offlineSyncEntityService';
+import { createOfflineSyncPatientService } from '@/components/services/offlineSyncPatientService';
+import { createOfflineSyncBackgroundService } from '@/components/services/offlineSyncBackgroundService';
+import { createOfflineSyncReconcileService } from '@/components/services/offlineSyncReconcileService';
 import { getOfflineStoreName } from './offlineEntityRegistry';
 import { getLocalDateString } from './localTimeHelper';
-
 import {
   getSyncInProgress,
   setSyncInProgress,
@@ -68,168 +55,45 @@ const {
   HISTORICAL_PATIENT_STORE_BATCH_SIZE
 } = offlineSyncConfig;
 
+const {
+  offlineDB,
+  Patient,
+  Delivery,
+  AppUser,
+  City,
+  Store,
+  Company,
+  fetchAppUsersDedup,
+  fetchDeliveriesDedup,
+  fetchPatientsDedup,
+  fetchCitiesDedup,
+  fetchStoresDedup,
+  invalidateEntityCache
+} = offlineSyncDeps;
+
+const entityService = createOfflineSyncEntityService({
+  offlineDB,
+  getOfflineStoreName,
+  PATIENT_BATCH_SIZE,
+  PATIENT_SYNC_COOLDOWN
+});
+
+const patientService = createOfflineSyncPatientService({
+  offlineDB,
+  Patient,
+  invalidateEntityCache
+});
+
+const {
+  getSyncMetaTimestamp,
+  checkIfEntityNeedsSync,
+  syncPatientsBatched,
+  syncEntityWithTimestampCheck
+} = entityService;
+
+const { syncPatientsByIds } = patientService;
 
 // ==================== TIMESTAMP-BASED SYNC HELPERS ====================
-
-/**
- * Check if entity needs syncing by comparing server's latest timestamp with client's last sync
- * CRITICAL: Skip API call if offline DB shows recent sync (within 30 minutes) to prevent rate limits
- * @returns {Promise<{needsSync: boolean, lastClientTimestamp: string|null}>}
- */
-const getSyncMetaTimestamp = () => new Date().toISOString();
-
-const checkIfEntityNeedsSync = async (entityName, Entity, initialCheckQuery = {}) => {
-  try {
-    const metadata = await offlineDB.getSyncMetadata(entityName);
-    const lastClientTimestamp = metadata?.last_synced_timestamp || null;
-    const lastSyncTime = metadata?.last_sync_time ? new Date(metadata.last_sync_time).getTime() : 0;
-    const now = Date.now();
-    
-    // CRITICAL: If synced recently (within 4 hours), skip API call to prevent rate limits
-    // This avoids hammering the API with timestamp checks during idle periods
-    if (lastClientTimestamp && lastSyncTime && (now - lastSyncTime) < 4 * 60 * 60 * 1000) {
-      return { needsSync: false, lastClientTimestamp, skipped: true };
-    }
-    
-    // Only fetch ONE record to check timestamp (cheaper than full list)
-    // But only if we haven't synced recently
-    const latestRecords = await Entity.filter(initialCheckQuery, '-updated_date', 1);
-    if (!latestRecords || latestRecords.length === 0) {
-      return { needsSync: false, lastClientTimestamp };
-    }
-    
-    const latestServerTimestamp = latestRecords[0].updated_date;
-    
-    // Compare timestamps
-    if (!lastClientTimestamp) {
-      return { needsSync: true, lastClientTimestamp: null, latestServerTimestamp };
-    }
-    
-    const clientTime = new Date(lastClientTimestamp).getTime();
-    const serverTime = new Date(latestServerTimestamp).getTime();
-    
-    return { 
-      needsSync: serverTime > clientTime, 
-      lastClientTimestamp,
-      latestServerTimestamp 
-    };
-  } catch (error) {
-    return { needsSync: true, lastClientTimestamp: null };
-  }
-};
-
-/**
- * Sync a single entity with timestamp checking
- * Only fetches if server has newer data than client
- * For Patients, syncs in smaller batches with longer cooldown
- */
-const syncEntityWithTimestampCheck = async (entityName, Entity, additionalFilter = {}, initialCheckQuery = {}) => {
-  try {
-    const checkResult = await checkIfEntityNeedsSync(entityName, Entity, initialCheckQuery);
-    
-    if (!checkResult.needsSync || checkResult.skipped) {
-      // CRITICAL: Update sync time even when skipping to prevent repeated checks
-      if (checkResult.skipped) {
-        await offlineDB.updateSyncMetadata(entityName, checkResult.lastClientTimestamp, getSyncMetaTimestamp());
-      }
-      return { skipped: true, reason: checkResult.skipped ? 'recently_synced' : 'no_updates' };
-    }
-    
-    const filter = checkResult.lastClientTimestamp 
-      ? { ...additionalFilter, updated_date: { $gte: checkResult.lastClientTimestamp } }
-      : additionalFilter;
-    
-    // For Patients: sync in smaller batches with cooldown to reduce rate limits
-    if (entityName === 'Patient') {
-      return await syncPatientsBatched(Entity, filter, checkResult.latestServerTimestamp);
-    }
-    
-    const records = await Entity.filter(filter, '-updated_date', 5000);
-    
-    if (records.length > 0) {
-      const storeName = getOfflineStoreName(offlineDB, entityName);
-      
-      if (storeName) {
-        await offlineDB.bulkSave(storeName, records);
-      }
-    }
-    
-    // CRITICAL: Always update sync metadata even if no records, to mark check timestamp
-    await offlineDB.updateSyncMetadata(entityName, checkResult.latestServerTimestamp, new Date().toISOString());
-
-    // Dispatch event for indicator to show last sync time updated
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('periodicSyncProgress', {
-        detail: { entity: entityName, count: records.length, isComplete: true }
-      }));
-    }
-    
-    return { success: true, recordCount: records.length };
-  } catch (error) {
-    return { error: error.message };
-  }
-};
-
-/**
- * Sync patients in smaller chunks with cooldown to avoid rate limits
- */
-const syncPatientsBatched = async (Entity, filter, latestServerTimestamp) => {
-  let totalRecords = 0;
-  let offset = 0;
-  
-  while (true) {
-    const records = await Entity.filter(filter, '-updated_date', PATIENT_BATCH_SIZE, offset);
-    
-    if (!records || records.length === 0) break;
-    
-    // Save batch to offline DB
-    await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, records);
-    totalRecords += records.length;
-    
-    // Stop if we got fewer records than batch size (end of data)
-    if (records.length < PATIENT_BATCH_SIZE) break;
-    
-    offset += PATIENT_BATCH_SIZE;
-    
-    // Wait before fetching next batch
-    await new Promise(r => setTimeout(r, PATIENT_SYNC_COOLDOWN));
-  }
-  
-  // Update metadata after all batches
-  await offlineDB.updateSyncMetadata('Patient', latestServerTimestamp, getSyncMetaTimestamp());
-
-  // Dispatch event for indicator
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('periodicSyncProgress', {
-      detail: { entity: 'Patient', count: totalRecords, isComplete: true }
-    }));
-  }
-
-  return { success: true, recordCount: totalRecords };
-};
-
-const syncPatientsByIds = async (patientIds = [], batchSize = 50) => {
-  const uniquePatientIds = Array.from(new Set((patientIds || []).filter(Boolean)));
-  let totalPatients = 0;
-  let freshPatients = [];
-
-  for (let i = 0; i < uniquePatientIds.length; i += batchSize) {
-    const batchIds = uniquePatientIds.slice(i, i + batchSize);
-    const batchPatients = await Patient.filter({ id: { $in: batchIds } });
-
-    if (batchPatients && batchPatients.length > 0) {
-      await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, batchPatients);
-      invalidateEntityCache('Patient');
-      totalPatients += batchPatients.length;
-      freshPatients = [...freshPatients, ...batchPatients];
-    }
-
-    await new Promise(r => setTimeout(r, 200));
-  }
-
-  await offlineDB.updateSyncMetadata('Patient', new Date().toISOString(), new Date().toISOString());
-  return { totalPatients, freshPatients };
-};
 
 const getHistoricalSyncMeta = async () => {
   const metadata = await offlineDB.getSyncMetadata('Historical_Mobile_Sync');
@@ -256,6 +120,37 @@ const {
   DELIVERY_DATE_RANGE_DAYS,
   updateHistoricalSyncMeta,
   getHistoricalSyncMeta
+});
+
+const { performBackgroundSync } = createOfflineSyncBackgroundService({
+  offlineDB,
+  Delivery,
+  syncPatientsByIds,
+  invalidateEntityCache,
+  shouldRunMobileHistoricalSync,
+  getHistoricalSyncMeta,
+  getNextDeliveryDateToSync,
+  syncHistoricalPatientsByStore,
+  updateHistoricalSyncMeta,
+  getSyncInProgress,
+  getSyncPaused,
+  setSyncInProgress,
+  getLastBackgroundSyncAt,
+  setLastBackgroundSyncAt,
+  notifySyncStatus,
+  BATCH_COOLDOWN,
+  DELIVERY_DATE_RANGE_DAYS,
+  BACKGROUND_SYNC_MIN_INTERVAL_MS,
+  format,
+  subDays
+});
+
+const { quickReconcile } = createOfflineSyncReconcileService({
+  offlineDB,
+  Delivery,
+  AppUser,
+  fetchAppUsersDedup,
+  invalidateEntityCache
 });
 
 const getPriorityHelpers = () => createOfflineSyncPriorityHelpers({
@@ -313,97 +208,7 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
  * Background sync with timestamp-based incremental strategy for deliveries
  * Syncs one delivery date at a time over past 90 days
  */
-export const performBackgroundSync = async (selectedDateStr, storeIds = null) => {
-  if (getSyncInProgress() || getSyncPaused()) {
-    return { skipped: true };
-  }
-
-  const now = Date.now();
-  if ((now - getLastBackgroundSyncAt()) < BACKGROUND_SYNC_MIN_INTERVAL_MS) {
-    return { skipped: true, reason: 'background_cooldown' };
-  }
-
-  if (!(await shouldRunMobileHistoricalSync())) {
-    return { skipped: true, reason: 'not_idle_or_not_due' };
-  }
-
-  if (!selectedDateStr) {
-    return { skipped: true, reason: 'missing_selected_date' };
-  }
-  
-  setSyncInProgress(true);
-  setLastBackgroundSyncAt(now);
-  notifySyncStatus({ status: 'background_syncing' });
-  
-  try {
-    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
-
-    const selectedDateFilter = { delivery_date: selectedDateStr, ...(storeIds && storeIds.length > 0 ? { store_id: { $in: storeIds } } : {}) };
-    const selectedDateDeliveries = await Delivery.filter(selectedDateFilter, '-updated_date', 5000);
-    if (selectedDateDeliveries && selectedDateDeliveries.length > 0) {
-      await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr, selectedDateDeliveries);
-      invalidateEntityCache('Delivery');
-
-      const selectedDatePatientIds = Array.from(new Set(selectedDateDeliveries.filter((delivery) => delivery?.patient_id).map((delivery) => delivery.patient_id)));
-      if (selectedDatePatientIds.length > 0) {
-        await syncPatientsByIds(selectedDatePatientIds);
-      }
-    }
-
-    const historicalMeta = await getHistoricalSyncMeta();
-    const deliveryPhaseComplete = Number(historicalMeta?.delivery_cycle_index || 1) === 1 && historicalMeta?.delivery_last_synced_date === format(subDays(new Date(), DELIVERY_DATE_RANGE_DAYS), 'yyyy-MM-dd');
-
-    if (!deliveryPhaseComplete) {
-      const deliveryDateToSync = await getNextDeliveryDateToSync();
-      if (!deliveryDateToSync || deliveryDateToSync === selectedDateStr || deliveryDateToSync === getLocalDateString()) {
-        notifySyncStatus({ status: 'complete', skippedHistorical: true });
-        window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
-        return { success: true, skippedHistorical: true };
-      }
-
-      const deliveryFilter = { delivery_date: deliveryDateToSync };
-      if (storeIds && storeIds.length > 0) {
-        deliveryFilter.store_id = { $in: storeIds };
-      }
-
-      const deliveries = await Delivery.filter(deliveryFilter, '-updated_date', 500);
-      if (deliveries.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
-        invalidateEntityCache('Delivery');
-      }
-
-      await offlineDB.updateSyncMetadata('Delivery', null, new Date().toISOString());
-      const nextMeta = await getHistoricalSyncMeta();
-      const completedDeliveries = nextMeta?.delivery_cycle_index > DELIVERY_DATE_RANGE_DAYS;
-      if (completedDeliveries) {
-        await updateHistoricalSyncMeta({ patient_phase_complete: false, patient_store_index: 0 });
-      }
-
-      notifySyncStatus({ status: 'complete', phase: 'deliveries', date: deliveryDateToSync });
-      window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
-      return { success: true, phase: 'deliveries', date: deliveryDateToSync };
-    }
-
-    const patientSyncResult = await syncHistoricalPatientsByStore(storeIds);
-    if (patientSyncResult?.completed) {
-      await updateHistoricalSyncMeta({
-        last_completed_at: new Date().toISOString(),
-        delivery_cycle_index: 1,
-        patient_phase_complete: false,
-        patient_store_index: 0
-      });
-    }
-
-    notifySyncStatus({ status: 'complete', phase: 'patients' });
-    window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
-    return { success: true, phase: 'patients', ...patientSyncResult };
-  } catch (error) {
-    notifySyncStatus({ status: 'error', error: error.message });
-    return { error: error.message };
-  } finally {
-    setSyncInProgress(false);
-  }
-};
+export { performBackgroundSync };
 
 
 
@@ -440,99 +245,7 @@ export const loadAndCacheDeliveriesForDate = async (dateStr) => {
  * @param {string} selectedDateStr - Active date (YYYY-MM-DD)
  * @returns {Promise<{deliveriesUpdated, freshDeliveries, appUsersUpdated, freshAppUsers}>}
  */
-export const quickReconcile = async (selectedDateStr) => {
-  const result = { deliveriesUpdated: false, appUsersUpdated: false };
-
-  // --- Deliveries ---
-  try {
-    const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-    const offlineLatest = (offlineDeliveries || []).reduce((max, d) => {
-      const t = d.updated_date ? new Date(d.updated_date).getTime() : 0;
-      return t > max ? t : max;
-    }, 0);
-
-    const [serverSample] = await Delivery.filter({ delivery_date: selectedDateStr }, '-updated_date', 1);
-    if (serverSample) {
-      const serverLatest = new Date(serverSample.updated_date || 0).getTime();
-      if (serverLatest > offlineLatest) {
-        console.log(`🔄 [QuickReconcile] Deliveries for ${selectedDateStr}: newer server data. Syncing...`);
-        const freshDeliveries = await Delivery.filter({ delivery_date: selectedDateStr }, '-updated_date', 5000);
-        if (freshDeliveries && freshDeliveries.length > 0) {
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-          invalidateEntityCache('Delivery');
-          await offlineDB.updateSyncMetadata('Delivery', serverSample.updated_date, new Date().toISOString());
-          result.deliveriesUpdated = true;
-          result.freshDeliveries = freshDeliveries;
-          console.log(`✅ [QuickReconcile] Synced ${freshDeliveries.length} deliveries`);
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('offlineDBReconciled', {
-              detail: { entity: 'Delivery', date: selectedDateStr, count: freshDeliveries.length }
-            }));
-          }
-        }
-      } else {
-        console.log(`✅ [QuickReconcile] Deliveries up-to-date for ${selectedDateStr}`);
-      }
-    }
-  } catch (e) {
-    console.warn('⚠️ [QuickReconcile] Delivery check failed:', e.message);
-  }
-
-  // --- AppUsers ---
-  try {
-    const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-    const offlineLatest = (offlineAppUsers || []).reduce((max, u) => {
-      const t = u.updated_date ? new Date(u.updated_date).getTime() : 0;
-      return t > max ? t : max;
-    }, 0);
-
-    const [serverSampleUser] = await AppUser.filter({}, '-updated_date', 1);
-    if (serverSampleUser) {
-      const serverLatest = new Date(serverSampleUser.updated_date || 0).getTime();
-      const isEmpty = !offlineAppUsers || offlineAppUsers.length === 0;
-      if (serverLatest > offlineLatest || isEmpty) {
-        console.log(`🔄 [QuickReconcile] AppUsers: server has newer data or offline empty. Syncing...`);
-        const freshAppUsers = await fetchAppUsersDedup();
-        if (freshAppUsers && freshAppUsers.length > 0) {
-          const userMap = new Map();
-          freshAppUsers.forEach(au => {
-            if (!au?.user_id) return;
-            const ex = userMap.get(au.user_id);
-            if (!ex) { userMap.set(au.user_id, au); return; }
-            const newLoc = au.location_updated_at ? new Date(au.location_updated_at).getTime() : 0;
-            const exLoc = ex.location_updated_at ? new Date(ex.location_updated_at).getTime() : 0;
-            if (newLoc > exLoc) userMap.set(au.user_id, au);
-          });
-          const deduped = Array.from(userMap.values());
-          await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, deduped);
-          invalidateEntityCache('AppUser');
-          await offlineDB.updateSyncMetadata('AppUser', new Date().toISOString(), new Date().toISOString());
-          result.appUsersUpdated = true;
-          result.freshAppUsers = deduped;
-          console.log(`✅ [QuickReconcile] Synced ${deduped.length} AppUsers`);
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('offlineDBReconciled', {
-              detail: { entity: 'AppUser', count: deduped.length }
-            }));
-            // CRITICAL: Only dispatch valid AppUsers (filter out junk offline records)
-            const validDeduped = deduped.filter(u => u?.user_id && u.user_id !== 'undefined' && u?.user_name && u.user_name !== 'undefined');
-            if (validDeduped.length > 0) {
-              window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-                detail: { appUsers: validDeduped }
-              }));
-            }
-          }
-        }
-      } else {
-        console.log(`✅ [QuickReconcile] AppUsers up-to-date (${offlineAppUsers?.length || 0})`);
-      }
-    }
-  } catch (e) {
-    console.warn('⚠️ [QuickReconcile] AppUser check failed:', e.message);
-  }
-
-  return result;
-};
+export { quickReconcile };
 
 // ==================== INITIAL SYNC (ENTRY POINT) ====================
 
