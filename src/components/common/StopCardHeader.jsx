@@ -1,10 +1,13 @@
 import React from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import SpecialSymbolsBadges from "../utils/SpecialSymbolsBadges";
 import { getDriverDisplayName } from "../utils/driverUtils";
 import { calculateDeliveryPay, formatPay } from "../utils/payCalculator";
 import { userHasRole } from "../utils/userRoles";
 import { format } from "date-fns";
+import { Phone, Navigation } from "lucide-react";
+import { formatPhoneNumber } from "../utils/phoneFormatter";
 import { getCurrentEtaForDelivery, getEtaTrendForDelivery, primeEtaTrendBus } from "../utils/etaTrendBus";
 
 // Local status labels (mirrors StopCard)
@@ -66,7 +69,12 @@ export default function StopCardHeader({
   driverBadgeTextColor,
   currentUser,
   appUsers = [],
-  isReturnDelivery
+  isReturnDelivery,
+  finalDisplayPhone,
+  alternateDisplayPhone,
+  displayAddress,
+  isPastDate,
+  isNextDelivery
 }) {
   const [, setEtaTrendVersion] = React.useState(0);
   React.useEffect(() => {
@@ -210,6 +218,39 @@ export default function StopCardHeader({
           }
 
           {showDriverPay && payBadge}
+          {!(isFinished && !isPickup) && !isPastDate && (
+            <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
+              {finalDisplayPhone && (
+                <a href={`tel:${String(finalDisplayPhone).replace(/\D/g, '')}`} onClick={(e) => e.stopPropagation()}>
+                  <Button size="sm" variant="outline" className="h-8 px-2 gap-1">
+                    <Phone className="w-3.5 h-3.5" />
+                    {formatPhoneNumber(finalDisplayPhone)}
+                  </Button>
+                </a>
+              )}
+              {!finalDisplayPhone && alternateDisplayPhone && (
+                <a href={`tel:${String(alternateDisplayPhone).replace(/\D/g, '')}`} onClick={(e) => e.stopPropagation()}>
+                  <Button size="sm" variant="outline" className="h-8 px-2 gap-1">
+                    <Phone className="w-3.5 h-3.5" />
+                    {formatPhoneNumber(alternateDisplayPhone)}
+                  </Button>
+                </a>
+              )}
+              {displayAddress && isNextDelivery && (
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(displayAddress)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Button size="sm" variant="outline" className="h-8 px-2 gap-1">
+                    <Navigation className="w-3.5 h-3.5" />
+                    Navigate
+                  </Button>
+                </a>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
