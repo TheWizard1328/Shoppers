@@ -400,7 +400,7 @@ export default function StatsPanel({
               </div>
 
               {isDriver && !isDispatcher && <>
-                <div className="border-t border-slate-200 mt-2 pt-2"></div>
+                <div className="pt-1 border-t border-slate-200"></div>
                 <div className="flex items-center gap-1">
                   <LocationTrackingToggle user={currentUser} onUserUpdate={async () => {await refreshUser();}} />
                   {isDriver && <>
