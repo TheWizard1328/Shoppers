@@ -43,7 +43,7 @@ import {
 } from './offlineSyncStatus';
 import { processPendingMutationsInternal } from './offlineSyncMutationProcessor';
 import { createOfflineSyncHistoricalHelpers } from './offlineSyncHistorical';
-import { createOfflineSyncPreRenderHelpers } from './offlineSyncPreRender';
+import { createOfflineSyncPriorityHelpers } from './offlineSyncPriority';
 
 export {
   pauseOfflineSync,
@@ -253,9 +253,27 @@ const {
   getHistoricalSyncMeta
 });
 
-const { preRenderFreshSync } = createOfflineSyncPreRenderHelpers({
+const {
+  preRenderFreshSync,
+  performPrioritySyncBeforeRefresh,
+  loadPriorityData
+} = createOfflineSyncPriorityHelpers({
+  AppUser,
+  City,
+  Store,
+  Company,
+  Delivery,
+  Patient,
+  format,
+  BATCH_COOLDOWN,
+  syncEntityWithTimestampCheck,
+  restartDeliveryPatientSync,
+  invalidateEntityCache,
+  fetchAppUsersDedup,
+  fetchDeliveriesDedup,
+  fetchPatientsDedup,
   fetchCitiesDedup,
-  invalidateEntityCache
+  notifySyncStatus
 });
 
 // ==================== PRIORITY DATA LOADING ====================
@@ -270,6 +288,24 @@ const { preRenderFreshSync } = createOfflineSyncPreRenderHelpers({
  */
 export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId = null, smartRefreshMgr = null, fetchAllDriversDeliveries = false) => {
   if (getSyncPaused()) return { skipped: true };
+  return createOfflineSyncPriorityHelpers({
+    AppUser,
+    City,
+    Store,
+    Company,
+    Delivery,
+    Patient,
+    format,
+    BATCH_COOLDOWN,
+    syncEntityWithTimestampCheck,
+    restartDeliveryPatientSync,
+    invalidateEntityCache,
+    fetchAppUsersDedup,
+    fetchDeliveriesDedup,
+    fetchPatientsDedup,
+    fetchCitiesDedup,
+    notifySyncStatus
+  }).performPrioritySyncBeforeRefresh(selectedDateStr, cityId, smartRefreshMgr, fetchAllDriversDeliveries);
   
   try {
     const allStores = await offlineDB.getAll(offlineDB.STORES.STORES);
@@ -421,10 +457,27 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
  */
 export const loadPriorityData = async (selectedDateStr, filters = {}) => {
   if (getSyncPaused()) return { skipped: true };
-  if (getSyncInProgress()) return { skipped: true, reason: 'sync_in_progress' };
-  
-  setSyncInProgress(true);
-  notifySyncStatus({ status: 'loading_priority', date: selectedDateStr });
+  return createOfflineSyncPriorityHelpers({
+    AppUser,
+    City,
+    Store,
+    Company,
+    Delivery,
+    Patient,
+    format,
+    BATCH_COOLDOWN,
+    syncEntityWithTimestampCheck,
+    restartDeliveryPatientSync,
+    invalidateEntityCache,
+    fetchAppUsersDedup,
+    fetchDeliveriesDedup,
+    fetchPatientsDedup,
+    fetchCitiesDedup,
+    notifySyncStatus
+  }).loadPriorityData(selectedDateStr, filters, {
+    getSyncInProgress,
+    setSyncInProgress
+  });
   
   try {
     // CRITICAL: Validate offline DB is actually populated
