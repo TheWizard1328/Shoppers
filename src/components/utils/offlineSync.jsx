@@ -255,8 +255,8 @@ const {
 
 const {
   preRenderFreshSync,
-  performPrioritySyncBeforeRefresh,
-  loadPriorityData
+  performPrioritySyncBeforeRefresh: runPrioritySyncBeforeRefresh,
+  loadPriorityData: runLoadPriorityData
 } = createOfflineSyncPriorityHelpers({
   AppUser,
   City,
@@ -288,24 +288,7 @@ const {
  */
 export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId = null, smartRefreshMgr = null, fetchAllDriversDeliveries = false) => {
   if (getSyncPaused()) return { skipped: true };
-  return createOfflineSyncPriorityHelpers({
-    AppUser,
-    City,
-    Store,
-    Company,
-    Delivery,
-    Patient,
-    format,
-    BATCH_COOLDOWN,
-    syncEntityWithTimestampCheck,
-    restartDeliveryPatientSync,
-    invalidateEntityCache,
-    fetchAppUsersDedup,
-    fetchDeliveriesDedup,
-    fetchPatientsDedup,
-    fetchCitiesDedup,
-    notifySyncStatus
-  }).performPrioritySyncBeforeRefresh(selectedDateStr, cityId, smartRefreshMgr, fetchAllDriversDeliveries);
+  return runPrioritySyncBeforeRefresh(selectedDateStr, cityId, smartRefreshMgr, fetchAllDriversDeliveries);
   
   try {
     const allStores = await offlineDB.getAll(offlineDB.STORES.STORES);
@@ -457,24 +440,7 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
  */
 export const loadPriorityData = async (selectedDateStr, filters = {}) => {
   if (getSyncPaused()) return { skipped: true };
-  return createOfflineSyncPriorityHelpers({
-    AppUser,
-    City,
-    Store,
-    Company,
-    Delivery,
-    Patient,
-    format,
-    BATCH_COOLDOWN,
-    syncEntityWithTimestampCheck,
-    restartDeliveryPatientSync,
-    invalidateEntityCache,
-    fetchAppUsersDedup,
-    fetchDeliveriesDedup,
-    fetchPatientsDedup,
-    fetchCitiesDedup,
-    notifySyncStatus
-  }).loadPriorityData(selectedDateStr, filters, {
+  return runLoadPriorityData(selectedDateStr, filters, {
     getSyncInProgress,
     setSyncInProgress
   });
