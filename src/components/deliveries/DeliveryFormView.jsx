@@ -538,7 +538,7 @@ export default function DeliveryFormView({
                     </Select>
                   </div>
 
-                  {userHasRole(currentUser, 'driver') && openMode !== 'add_to_route' && (
+                  {userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) && (
                     <div className={`${useMobileLayout ? 'w-auto' : 'w-fit'} p-3 rounded-lg border flex ${useMobileLayout ? 'items-center justify-center' : 'flex-col items-start justify-start'} gap-2`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                       {!useMobileLayout && (
                         <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Travel Mode</Label>
@@ -576,7 +576,7 @@ export default function DeliveryFormView({
               })}
 
               {/* Main scrollable body */}
-              <div className={`flex gap-3 w-full ${delivery || useMobileLayout ? 'overflow-y-auto flex-1' : 'flex-1 min-h-0 overflow-hidden items-stretch'} ${deleteConfirmation?.show ? 'pointer-events-none' : ''}`}>
+              <div className={`flex gap-3 w-full ${delivery || useMobileLayout ? 'overflow-y-auto flex-1' : 'flex-1 min-h-0 overflow-hidden items-stretch'} ${deleteConfirmation?.show ? 'pointer-events-none' : ''}`} style={!delivery && !useMobileLayout && !isPickupMode ? { height: '100%' } : undefined}>
                 <div className={`flex flex-col gap-3 min-w-0 ${delivery || useMobileLayout ? 'flex-1' : 'flex-1 overflow-y-auto min-h-0'} ${isFormDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
 
                   {!isPickupMode ?

@@ -75,30 +75,32 @@ export function DeliveryStagedPanelDesktop({
   onRefreshProjections,
 }) {
   return (
-    <div className="w-[300px] flex-shrink-0 p-3 rounded-lg border-2 flex flex-col h-full min-h-0 overflow-hidden" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+    <div className="w-[300px] self-stretch flex-shrink-0 p-3 rounded-lg border-2 flex flex-col h-full min-h-0 overflow-hidden" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
       <Label className="text-sm font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>
         Deliveries: (S: {sortedStagedDeliveries.filter(s => !s.id).length} P: {sortedStagedDeliveries.filter(s => s.id).length})
       </Label>
-      <DeliveryFormStaged
-        sortedStagedDeliveries={sortedStagedDeliveries}
-        sortedProjectedDeliveries={sortedProjectedDeliveries}
-        stores={stores}
-        patients={patients}
-        currentUser={currentUser}
-        editingStagedId={editingStagedId}
-        isMobileDevice={isMobileDevice}
-        handleStagedDeliveryClick={handleStagedDeliveryClick}
-        handleClearForm={handleClearForm}
-        stagedDeliveries={stagedDeliveries}
-        fullPredictionListRef={fullPredictionListRef}
-        setProjectedDeliveries={setProjectedDeliveries}
-        setStagedDeliveries={setStagedDeliveries}
-        setEditingStagedId={setEditingStagedId}
-        patientSearchInputRef={patientSearchInputRef}
-        confirmAddProjectedToStaged={confirmAddProjectedToStaged}
-        setDeleteConfirmation={setDeleteConfirmation}
-        isLoadingPredictions={isLoadingPredictions}
-      />
+      <div className="flex-1 min-h-0 overflow-hidden">
+        <DeliveryFormStaged
+          sortedStagedDeliveries={sortedStagedDeliveries}
+          sortedProjectedDeliveries={sortedProjectedDeliveries}
+          stores={stores}
+          patients={patients}
+          currentUser={currentUser}
+          editingStagedId={editingStagedId}
+          isMobileDevice={isMobileDevice}
+          handleStagedDeliveryClick={handleStagedDeliveryClick}
+          handleClearForm={handleClearForm}
+          stagedDeliveries={stagedDeliveries}
+          fullPredictionListRef={fullPredictionListRef}
+          setProjectedDeliveries={setProjectedDeliveries}
+          setStagedDeliveries={setStagedDeliveries}
+          setEditingStagedId={setEditingStagedId}
+          patientSearchInputRef={patientSearchInputRef}
+          confirmAddProjectedToStaged={confirmAddProjectedToStaged}
+          setDeleteConfirmation={setDeleteConfirmation}
+          isLoadingPredictions={isLoadingPredictions}
+        />
+      </div>
       <div className="pt-2 mt-2 border-t relative z-20 flex-shrink-0 pointer-events-auto" style={{ borderColor: 'var(--border-slate-200)' }}>
         <Button
           type="button"
