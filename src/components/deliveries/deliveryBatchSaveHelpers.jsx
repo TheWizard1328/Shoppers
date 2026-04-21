@@ -108,9 +108,12 @@ export const getStagedActivationStatus = (delivery) => {
 
 export const buildExistingDeliveryBatchUpdate = (delivery) => {
   const finalStatus = getStagedActivationStatus(delivery);
+  const now = new Date();
+  const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
   return {
     status: finalStatus,
+    delivery_time_start: finalStatus === 'in_transit' ? currentLocalTime : delivery.delivery_time_start,
     delivery_notes: delivery.delivery_notes || '',
     prescription_number: delivery.prescription_number || '',
     cod_total_amount_required: delivery.cod_total_amount_required || 0,
