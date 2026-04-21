@@ -1102,6 +1102,8 @@ export default function SquareManagement() {
 
         return {
           id: delivery.id,
+          rawDelivery: delivery,
+          amountSet: getDeliveryPaymentAmountSet(delivery),
           rawStoreId: delivery.store_id || null,
           itemName: patient?.full_name || delivery.delivery_id || delivery.stop_id || 'Unknown Delivery',
           amount: Number(delivery.cod_total_amount_required || 0),
@@ -1122,7 +1124,65 @@ export default function SquareManagement() {
           )
         };
       });
-  }, [deliveries, visibleStoreIds, selectedDriverFilter, selectedDriverUserIds, patients, stores, locationConfigs, catalogItems, allTransactions]);
+  }, [deliveries, visibleStoreIds, selectedDriverFilter, selectedDriverUserIds, patients, stores, locationConfigs, catalogItems, allTransactions, getDeliveryPaymentAmountSet]);
+
+  const getDeliveryPaymentAmountSet = React.useCallback((delivery) => {
+    const amounts = new Set();
+    const totalRequired = Math.round(Number(delivery?.cod_total_amount_required || 0) * 100);
+    if (totalRequired > 0) amounts.add(totalRequired);
+
+    const codPayments = Array.isArray(delivery?.cod_payments) ? delivery.cod_payments : [];
+    let splitTotal = 0;
+    codPayments.forEach((payment) => {
+      const amount = Math.round(Number(payment?.amount || 0) * 100);
+      if (amount > 0) {
+        amounts.add(amount);
+        splitTotal += amount;
+      }
+    });
+
+    if (splitTotal > 0) amounts.add(splitTotal);
+
+    const legacyAmount = Math.round(Number(delivery?.cod_amount || 0) * 100);
+    if (legacyAmount > 0) amounts.add(legacyAmount);
+
+    return amounts;
+  }, []);
+
+  const getTransactionAmountSet = React.useCallback((transaction) => {
+    const amounts = new Set();
+    const totalAmount = Math.round(Number(transaction?.amount || 0) * 100);
+    if (totalAmount > 0) amounts.add(totalAmount);
+
+    const rawSplitPayments = transaction?.raw_square_data?.split_payments || transaction?.raw_square_data?.splitPayments || transaction?.raw_square_data?.tenders || transaction?.raw_square_data?.payment_details?.split_payments || [];
+    let splitTotal = 0;
+
+    if (Array.isArray(rawSplitPayments)) {
+      rawSplitPayments.forEach((payment) => {
+        const amountValue =
+          payment?.amount_money?.amount != null ? Number(payment.amount_money.amount) / 100 :
+          payment?.amountMoney?.amount != null ? Number(payment.amountMoney.amount) / 100 :
+          payment?.amount != null ? Number(payment.amount) :
+          payment?.payment_amount != null ? Number(payment.payment_amount) : 0;
+        const amount = Math.round(Number(amountValue || 0) * 100);
+        if (amount > 0) {
+          amounts.add(amount);
+          splitTotal += amount;
+        }
+      });
+    }
+
+    if (splitTotal > 0) amounts.add(splitTotal);
+
+    return amounts;
+  }, []);
+
+  const amountSetsIntersect = React.useCallback((left, right) => {
+    for (const value of left) {
+      if (right.has(value)) return true;
+    }
+    return false;
+  }, []);
 
   const filteredTransactionRows = React.useMemo(() => {
     const dedupedTransactions = [];
@@ -1209,6 +1269,8 @@ export default function SquareManagement() {
 
         return {
           id: transaction.id,
+          rawTransaction: transaction,
+          amountSet: getTransactionAmountSet(transaction),
           rawStatus: transaction.status,
           rawStoreId: transaction.store_id || store?.id || null,
           itemName: transaction.item_name || transaction.square_payment_id || 'Square Transaction',
@@ -1231,7 +1293,7 @@ export default function SquareManagement() {
         };
       })
       .sort((a, b) => String(b.deliveryDate || '').localeCompare(String(a.deliveryDate || '')));
-  }, [allTransactions, lookbackStart, visibleStoreIds, visibleLocationIds, selectedDriverFilter, selectedDriverUserIds, driverScopedLocationIds, locationConfigs, stores, deliveries, drivers]);
+  }, [allTransactions, lookbackStart, visibleStoreIds, visibleLocationIds, selectedDriverFilter, selectedDriverUserIds, driverScopedLocationIds, locationConfigs, stores, deliveries, drivers, getTransactionAmountSet]);
 
   const filteredCatalogRows = React.useMemo(() => {
     return (catalogItems || [])
@@ -1361,13 +1423,14 @@ export default function SquareManagement() {
     filteredDeliveryRows.forEach((deliveryRow) => {
       if (isCardPaymentType(deliveryRow.collectionType)) return;
 
-      const deliveryAmount = Math.round(Number(deliveryRow.amount || 0) * 100);
+      const deliveryAmountSet = deliveryRow.amountSet || new Set();
       const deliveryDate = normalizeDate(deliveryRow.deliveryDate);
       const deliveryLocationId = String(deliveryRow.locationId || '');
       const patientNameMatches = (row) => rowMatchesPatientName(row, deliveryRow.itemName);
 
       const hasStrictCatalogMatch = filteredCatalogRows.some((catalogRow) => {
-        return Math.round(Number(catalogRow.amount || 0) * 100) === deliveryAmount &&
+        const catalogAmountSet = new Set([Math.round(Number(catalogRow.amount || 0) * 100)].filter((amount) => amount > 0));
+        return amountSetsIntersect(deliveryAmountSet, catalogAmountSet) &&
           normalizeDate(catalogRow.deliveryDate) === deliveryDate &&
           String(catalogRow.locationId || '') === deliveryLocationId &&
           patientNameMatches(catalogRow);
@@ -1377,7 +1440,7 @@ export default function SquareManagement() {
 
       const hasStrictTransactionMatch = filteredTransactionRows.some((transactionRow) => {
         if (['cancelled', 'failed'].includes(transactionRow.rawStatus)) return false;
-        return Math.round(Number(transactionRow.amount || 0) * 100) === deliveryAmount &&
+        return amountSetsIntersect(deliveryAmountSet, transactionRow.amountSet || new Set()) &&
           normalizeDate(transactionRow.deliveryDate) === deliveryDate &&
           String(transactionRow.locationId || '') === deliveryLocationId &&
           (patientNameMatches(transactionRow) || notesContainPatientName(transactionRow.notes, deliveryRow.itemName));
@@ -1386,13 +1449,14 @@ export default function SquareManagement() {
       if (hasStrictTransactionMatch) return;
 
       const hasLooseCatalogConflict = filteredCatalogRows.some((catalogRow) => {
-        return Math.round(Number(catalogRow.amount || 0) * 100) === deliveryAmount &&
+        const catalogAmountSet = new Set([Math.round(Number(catalogRow.amount || 0) * 100)].filter((amount) => amount > 0));
+        return amountSetsIntersect(deliveryAmountSet, catalogAmountSet) &&
           normalizeDate(catalogRow.deliveryDate) === deliveryDate;
       });
 
       const hasLooseTransactionConflict = filteredTransactionRows.some((transactionRow) => {
         if (['cancelled', 'failed'].includes(transactionRow.rawStatus)) return false;
-        return Math.round(Number(transactionRow.amount || 0) * 100) === deliveryAmount &&
+        return amountSetsIntersect(deliveryAmountSet, transactionRow.amountSet || new Set()) &&
           normalizeDate(transactionRow.deliveryDate) === deliveryDate;
       });
 
@@ -1410,7 +1474,7 @@ export default function SquareManagement() {
     });
 
     return missingDeliveryRows.sort((a, b) => String(b.deliveryDate || '').localeCompare(String(a.deliveryDate || '')));
-  }, [filteredCatalogRows, filteredDeliveryRows, filteredTransactionRows]);
+  }, [filteredCatalogRows, filteredDeliveryRows, filteredTransactionRows, amountSetsIntersect]);
 
   const applyCatalogRealtimeToUI = React.useCallback((event) => {
     if (!event) return;
