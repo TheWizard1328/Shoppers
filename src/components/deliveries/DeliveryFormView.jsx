@@ -30,6 +30,7 @@ import { runPostDeliveryUpdateSync, closeDeliveryFormAfterSave } from '../utils/
 import { recalculateAndUpdateStopOrders } from '../utils/stopOrderManager';
 import { handleBatchSaveDelivery } from '@/components/dashboard/handleBatchSaveDelivery.jsx';
 import { toast } from 'sonner';
+import { globalFilters } from '@/components/utils/globalFilters';
 import { acquireDeliveryActionLock, releaseDeliveryActionLock, getActiveDeliveryAction, subscribeDeliveryActionLock } from '../utils/deliveryActionLock';
 import { renderDeliveryIdentifiersSection } from './deliveryFormHelpers';
 import { buildDeliveryStagedPanelProps } from './deliveryStagedPanelPropsHelper';
@@ -537,8 +538,11 @@ export default function DeliveryFormView({
                     </Select>
                   </div>
 
-                  {userHasRole(currentUser, 'driver') && (
-                    openMode === 'add_to_route' ? (
+                  {userHasRole(currentUser, 'driver') && openMode !== 'add_to_route' && (
+                    <div className={`${useMobileLayout ? 'w-auto' : 'w-fit'} p-3 rounded-lg border flex ${useMobileLayout ? 'items-center justify-center' : 'flex-col items-start justify-start'} gap-2`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                      {!useMobileLayout && (
+                        <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Travel Mode</Label>
+                      )}
                       <TravelModeButtons
                         value={formData.finished_leg_transport_mode || delivery?.finished_leg_transport_mode || 'driving'}
                         onChange={async (mode) => {
@@ -548,22 +552,7 @@ export default function DeliveryFormView({
                         appUsers={appUsers}
                         disabled={isSaving}
                       />
-                    ) : (
-                      <div className={`${useMobileLayout ? 'w-auto' : 'w-fit'} p-3 rounded-lg border flex ${useMobileLayout ? 'items-center justify-center' : 'flex-col items-start justify-start'} gap-2`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                        {!useMobileLayout && (
-                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Travel Mode</Label>
-                        )}
-                        <TravelModeButtons
-                          value={formData.finished_leg_transport_mode || delivery?.finished_leg_transport_mode || 'driving'}
-                          onChange={async (mode) => {
-                            setFormData((prev) => ({ ...prev, finished_leg_transport_mode: mode }));
-                          }}
-                          currentUser={currentUser}
-                          appUsers={appUsers}
-                          disabled={isSaving}
-                        />
-                      </div>
-                    )
+                    </div>
                   )}
                 </div>
               </div>
@@ -873,6 +862,7 @@ export default function DeliveryFormView({
                   if (delivery) {handleCancelClick();return;}
                   if (shouldClear) {
                     setFormData((prev) => ({ ...prev, barcode_values: [], receipt_barcode_values: [], _preview_barcode: null }));
+                    globalFilters.setSelectedDriverId('all');
                     handleClearForm();
                   } else {
                     handleCancelClick();
