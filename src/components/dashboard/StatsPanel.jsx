@@ -24,6 +24,7 @@ import ExportRouteButton from '@/components/deliveries/ExportRouteButton';
 import LocationTrackingToggle from "@/components/layout/LocationTrackingToggle";
 import { saveSetting } from "@/components/utils/userSettingsManager";
 import { getDriverColor } from "@/components/utils/driverUtils";
+import { loadBreadcrumbsForDriver } from "@/components/utils/breadcrumbsManager";
 
 export default function StatsPanel({
   currentUser, isDriver, isAdmin, isDispatcher,
@@ -362,27 +363,27 @@ export default function StatsPanel({
                       <Button variant="outline" size="icon"
                     onClick={async () => {
                       const newShow = !showBreadcrumbs;
-                      setShowBreadcrumbs(newShow);
                       if (newShow) {
                         try {
                           const selDateStr = format(selectedDate, 'yyyy-MM-dd');
                           const driverIdToFetch = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
-                          const hasBreadcrumbEntity = !!base44.entities?.DeliveryBreadcrumbs;
-                          const historical = hasBreadcrumbEntity ?
-                          await base44.entities.DeliveryBreadcrumbs.filter({ driver_id: driverIdToFetch, delivery_date: selDateStr }) :
-                          [];
-                          let current = [];
-                          try {
-                            const breadcrumbStore = offlineDB.STORES?.CURRENT_BREADCRUMBS;
-                            if (breadcrumbStore) {
-                              const all = await offlineDB.getByIndex(breadcrumbStore, 'driver_id', driverIdToFetch);
-                              current = all.filter((b) => b && b.delivery_date === selDateStr).sort((a, b) => a.timestamp - b.timestamp);
-                            }
-                          } catch (e) {}
-                          if (historical.length === 0 && current.length === 0) {setShowBreadcrumbs(false);return;}
-                          setBreadcrumbsData({ historical, current });
-                        } catch (e) {setBreadcrumbsData({ historical: [], current: [] });}
-                      } else {setBreadcrumbsData({ historical: [], current: [] });}
+                          const loadedBreadcrumbs = await loadBreadcrumbsForDriver(driverIdToFetch, selDateStr, appUsers);
+                          if (loadedBreadcrumbs.historical.length === 0 && loadedBreadcrumbs.current.length === 0) {
+                            setShowBreadcrumbs(false);
+                            setBreadcrumbsData({ historical: [], current: [] });
+                            return;
+                          }
+                          setBreadcrumbsData(loadedBreadcrumbs);
+                          setShowBreadcrumbs(true);
+                          setShowRoutes(false);
+                        } catch (e) {
+                          setShowBreadcrumbs(false);
+                          setBreadcrumbsData({ historical: [], current: [] });
+                        }
+                      } else {
+                        setShowBreadcrumbs(false);
+                        setBreadcrumbsData({ historical: [], current: [] });
+                      }
                     }}
                     className={`h-9 w-9 p-0 ${showBreadcrumbs ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
                     style={!showBreadcrumbs ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}>
