@@ -494,7 +494,7 @@ export default function DeliveryFormView({
               {!(isPickupMode && !delivery) &&
               <div className={`${useMobileLayout ? 'flex flex-col gap-3' : 'flex gap-3 w-full'} flex-shrink-0`}>
                 {!delivery && !isPickupMode ? (
-                  <div className={`${useMobileLayout ? 'flex flex-col gap-3 w-full' : 'min-w-0 grid grid-cols-[minmax(0,1.8fr)_minmax(0,1fr)] gap-3 items-start w-full'}`}>
+                  <div className={`${useMobileLayout ? 'flex flex-col gap-3 w-full' : 'min-w-0 grid grid-cols-[minmax(0,1.8fr)_minmax(11rem,1fr)_minmax(11rem,1fr)] gap-3 items-start w-full'}`}>
                     <div className="relative min-w-0">
                       <DeliveryPatientSearch
                         patientSearch={patientSearch} setPatientSearch={setPatientSearch}
@@ -511,32 +511,30 @@ export default function DeliveryFormView({
                         handleSearchKeyDown={handleSearchKeyDown} />
                     </div>
 
-                    <div className={`${useMobileLayout ? 'flex flex-col gap-3 w-full' : 'grid grid-cols-2 gap-3 min-w-0'}`}>
-                      <div className="min-w-0 space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                        <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Date *</Label>
-                        <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
-                      </div>
+                    <div className="min-w-0 space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                      <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Date *</Label>
+                      <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
+                    </div>
 
-                      <div className={`min-w-0 space-y-1 p-3 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                        <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver {delivery ? '*' : ''}</Label>
-                        <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
-                          const newDriverId = driverId === 'all' ? '' : driverId;
-                          const driver = driverId === 'all' ? null : allDrivers.find((d) => d.id === driverId);
-                          const newDriverName = driver ? getDriverNameForStorage(driver) : '';
-                          setFormData((prev) => ({ ...prev, driver_id: newDriverId, driver_name: newDriverName }));
-                          if (editingStagedId) {
-                            setStagedDeliveries((prev) => prev.map((s) => s._tempId === editingStagedId ? { ...s, driver_id: newDriverId, driver_name: newDriverName } : s));
-                            setHasChanges(true);
-                          }
-                          setForceOpenDriverSelect(false);
-                        }} disabled={isSaving}>
-                          <SelectTrigger data-delivery-driver-select-trigger className="h-9"><SelectValue placeholder="Select driver" /></SelectTrigger>
-                          <SelectContent className="z-[999999]">
-                            {!delivery && <SelectItem value="all">All Drivers</SelectItem>}
-                            {allDrivers.map((driver) => <SelectItem key={driver.id} value={driver.id}>{getDriverDisplayName(driver)}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                    <div className={`min-w-0 space-y-1 p-3 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                      <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver {delivery ? '*' : ''}</Label>
+                      <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
+                        const newDriverId = driverId === 'all' ? '' : driverId;
+                        const driver = driverId === 'all' ? null : allDrivers.find((d) => d.id === driverId);
+                        const newDriverName = driver ? getDriverNameForStorage(driver) : '';
+                        setFormData((prev) => ({ ...prev, driver_id: newDriverId, driver_name: newDriverName }));
+                        if (editingStagedId) {
+                          setStagedDeliveries((prev) => prev.map((s) => s._tempId === editingStagedId ? { ...s, driver_id: newDriverId, driver_name: newDriverName } : s));
+                          setHasChanges(true);
+                        }
+                        setForceOpenDriverSelect(false);
+                      }} disabled={isSaving}>
+                        <SelectTrigger data-delivery-driver-select-trigger className="h-9"><SelectValue placeholder="Select driver" /></SelectTrigger>
+                        <SelectContent className="z-[999999]">
+                          {!delivery && <SelectItem value="all">All Drivers</SelectItem>}
+                          {allDrivers.map((driver) => <SelectItem key={driver.id} value={driver.id}>{getDriverDisplayName(driver)}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                 ) : (
