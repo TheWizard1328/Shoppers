@@ -59,3 +59,23 @@ export const buildDeviceUpdatedMessage = (currentUser) => {
       : '';
   return `Device updated: ${currentUser?.user_name || currentUser?.full_name || 'Unknown User'}${storeSuffix}`;
 };
+
+export const sendSystemBroadcastAckIfNeeded = async ({ currentUser, messageId, conversationId }) => {
+  if (!currentUser?.id || !messageId || !conversationId) return false;
+  if (hasSystemBroadcastBeenAckedForThisDevice(messageId)) return false;
+
+  const { base44 } = await import('@/api/base44Client');
+
+  await base44.entities.Message.create({
+    sender_id: currentUser.id,
+    sender_name: currentUser.user_name || currentUser.full_name,
+    receiver_id: SYSTEM_UPDATES_SENDER_ID,
+    receiver_name: SYSTEM_UPDATES_SENDER_NAME,
+    conversation_id: conversationId,
+    content: buildDeviceUpdatedMessage(currentUser),
+    read: false,
+  });
+
+  markSystemBroadcastAckedForThisDevice(messageId);
+  return true;
+};

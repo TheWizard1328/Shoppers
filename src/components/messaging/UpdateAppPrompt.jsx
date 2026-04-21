@@ -1,14 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import {
-  SYSTEM_UPDATES_SENDER_ID,
   UPDATE_BROADCAST_PROMPT_POSITION,
   UPDATE_BROADCAST_PROMPT_THEME,
-  buildDeviceUpdatedMessage,
-  hasSystemBroadcastBeenAckedForThisDevice,
-  markSystemBroadcastAckedForThisDevice,
+  sendSystemBroadcastAckIfNeeded,
 } from './updateBroadcastConfig';
 
 export default function UpdateAppPrompt({ message, onUpdate, onCancel, currentUser, messageId, conversationId }) {
@@ -17,20 +13,7 @@ export default function UpdateAppPrompt({ message, onUpdate, onCancel, currentUs
   const isTopStatsCardPosition = isMobile && UPDATE_BROADCAST_PROMPT_POSITION.mobile === 'top-stats-card';
 
   const sendDeviceUpdatedMessage = useCallback(async () => {
-    if (!currentUser?.id || !messageId || !conversationId) return;
-    if (hasSystemBroadcastBeenAckedForThisDevice(messageId)) return;
-
-    await base44.entities.Message.create({
-      sender_id: currentUser.id,
-      sender_name: currentUser.user_name || currentUser.full_name,
-      receiver_id: SYSTEM_UPDATES_SENDER_ID,
-      receiver_name: 'System Updates',
-      conversation_id: conversationId,
-      content: buildDeviceUpdatedMessage(currentUser),
-      read: false,
-    });
-
-    markSystemBroadcastAckedForThisDevice(messageId);
+    await sendSystemBroadcastAckIfNeeded({ currentUser, messageId, conversationId });
   }, [currentUser, messageId, conversationId]);
 
   const handleUpdateClick = useCallback(async () => {

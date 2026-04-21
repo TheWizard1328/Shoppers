@@ -8,9 +8,7 @@ import { parseEntityTimestamp } from '@/components/utils/localTimeHelper';
 import {
   SYSTEM_UPDATES_SENDER_ID,
   isHiddenSystemBroadcastMessageForThisDevice,
-  hasSystemBroadcastBeenAckedForThisDevice,
-  markSystemBroadcastAckedForThisDevice,
-  buildDeviceUpdatedMessage,
+  sendSystemBroadcastAckIfNeeded,
 } from './updateBroadcastConfig';
 
 function ChatWindow({
@@ -88,24 +86,12 @@ function ChatWindow({
           .reverse()
           .find((message) => message?.sender_id === SYSTEM_UPDATES_SENDER_ID && message?.content?.trim?.().startsWith('Your app has just been updated.'));
 
-        if (
-          isSystemUpdatesConversation &&
-          latestSystemBroadcast?.id &&
-          !hasSystemBroadcastBeenAckedForThisDevice(latestSystemBroadcast.id)
-        ) {
-          const ackContent = buildDeviceUpdatedMessage(currentUser);
-
-          await base44.entities.Message.create({
-            sender_id: currentUser.id,
-            sender_name: currentUser.user_name || currentUser.full_name,
-            receiver_id: SYSTEM_UPDATES_SENDER_ID,
-            receiver_name: 'System Updates',
-            conversation_id: conversationId,
-            content: ackContent,
-            read: false,
+        if (isSystemUpdatesConversation && latestSystemBroadcast?.id) {
+          await sendSystemBroadcastAckIfNeeded({
+            currentUser,
+            messageId: latestSystemBroadcast.id,
+            conversationId,
           });
-
-          markSystemBroadcastAckedForThisDevice(latestSystemBroadcast.id);
         }
 
         // Mark unread messages as read (in parallel for speed)
@@ -143,6 +129,18 @@ function ChatWindow({
             return [...prev, event.data];
           }
         });
+
+        if (
+          event.data?.sender_id === SYSTEM_UPDATES_SENDER_ID &&
+          event.data?.receiver_id === currentUser?.id &&
+          event.data?.content?.trim?.().startsWith('Your app has just been updated.')
+        ) {
+          sendSystemBroadcastAckIfNeeded({
+            currentUser,
+            messageId: event.data.id,
+            conversationId: event.data.conversation_id,
+          }).catch(() => {});
+        }
 
         if (event.data.receiver_id === currentUser?.id && !event.data.read) {
           base44.entities.Message.update(event.data.id, { read: true }).catch(() => {});
