@@ -8,6 +8,7 @@ import { fabControlEvents } from '@/components/utils/fabControlEvents';
 export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards = false, isAIVisible = false, isLocked = false, isEnabled = true, stopCardsHeight = 75 }) {
   const [isFlashing, setIsFlashing] = useState(false);
   const [isTemporarilyDeactivated, setIsTemporarilyDeactivated] = useState(false);
+  const isButtonDisabled = !isEnabled || isTemporarilyDeactivated;
   const flashTimeoutRef = useRef(null);
   const deactivateTimeoutRef = useRef(null);
   const lastFlashAtRef = useRef(0);
@@ -59,6 +60,9 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
       if (event?.type !== 'REACTIVATE_FAB') return;
       if ((window.__suppressCardAutoCenterUntil || 0) > Date.now()) return;
       setIsTemporarilyDeactivated(false);
+      if (typeof window !== 'undefined') {
+        window.__isUserCardSwipe = false;
+      }
       if (deactivateTimeoutRef.current) clearTimeout(deactivateTimeoutRef.current);
       if (event?.suppressIfPhase1 && currentPhase === 1) return;
       flashUpdate(event?.reason || 'generic');
@@ -93,6 +97,9 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
     if (!isEnabled) {
       return 'Requires more than 1 active stop';
     }
+    if (isTemporarilyDeactivated) {
+      return 'Map view temporarily paused';
+    }
     if (isLocked) {
       return 'Map View Active (click to cycle)';
     }
@@ -123,11 +130,11 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
         <Button
           onClick={onClick}
           title={getTooltip()}
-          disabled={!isEnabled}
+          disabled={isButtonDisabled}
           className={`inline-flex items-center justify-center whitespace-nowrap text-sm font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 text-primary-foreground h-10 w-10 rounded-lg shadow-2xl p-0 relative transition-all duration-200 ${
-            !isEnabled || !isLocked || isTemporarilyDeactivated
+            isButtonDisabled
               ? 'bg-gray-400 hover:bg-gray-500'
-              : currentPhase === 2
+              : currentPhase === 2 && isLocked
                 ? 'bg-green-600 hover:bg-green-700'
                 : 'bg-blue-600 hover:bg-blue-700'
           }`} style={{ pointerEvents: 'auto', touchAction: 'manipulation' }}>
