@@ -1,6 +1,8 @@
 import { isAppOwner } from './userRoles';
 
 let managerControllersPromise;
+let lastPostDeliverySyncKey = null;
+let lastPostDeliverySyncAt = 0;
 
 const shouldCatchBackgroundDeliveryError = (currentUser) => {
   const isLiveApp = typeof window !== 'undefined' && !window.location.hostname.includes('preview-sandbox');
@@ -87,6 +89,12 @@ export const closeDeliveryFormAfterSave = ({ handleClearForm, onCancel }) => {
 
 export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindowChanges, currentUser }) => {
   if (!driverId || !deliveryDate) return;
+
+  const syncKey = `${driverId}:${deliveryDate}:${hasTimeWindowChanges ? 'optimize' : 'eta'}`;
+  const now = Date.now();
+  if (lastPostDeliverySyncKey === syncKey && now - lastPostDeliverySyncAt < 15000) return;
+  lastPostDeliverySyncKey = syncKey;
+  lastPostDeliverySyncAt = now;
 
   setTimeout(async () => {
     const now = new Date();

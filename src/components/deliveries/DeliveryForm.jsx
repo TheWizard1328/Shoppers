@@ -1399,7 +1399,8 @@ export default function DeliveryForm({
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryId: delivery.id, deliveryDate: formData.delivery_date, driverId: formData.driver_id, triggeredBy: 'deliveryFormUpdate' } }));
         const shouldRunRouteRefreshes = dateChanged || driverChanged || timeWindowChanged || statusChangedToCompletion || actualDeliveryTimeChanged;
-        if (statusChangedToCompletion) setTimeout(() => {
+        const shouldRefreshPolylines = statusChangedToCompletion || dateChanged || driverChanged;
+        if (shouldRefreshPolylines && statusChangedToCompletion) setTimeout(() => {
           base44.functions.invoke('purgeAndRegeneratePolylines', { driverId: formData.driver_id, deliveryDate: formData.delivery_date, scope: 'active_only' }).catch((e) => {
             const status = e?.response?.status || e?.status;
             const message = String(e?.message || '').toLowerCase();
@@ -1407,7 +1408,7 @@ export default function DeliveryForm({
             console.warn('⚠️ [DeliveryForm] Active polyline refresh failed:', e?.message || e);
           });
         }, 0);
-        if (shouldRunRouteRefreshes && (statusChangedToCompletion || actualDeliveryTimeChanged)) setTimeout(() => {
+        if (shouldRefreshPolylines && shouldRunRouteRefreshes && statusChangedToCompletion) setTimeout(() => {
           base44.functions.invoke('purgeAndRegeneratePolylines', { driverId: formData.driver_id, deliveryDate: formData.delivery_date, scope: 'completed_only' }).catch((e) => {
             const status = e?.response?.status || e?.status;
             const message = String(e?.message || '').toLowerCase();
