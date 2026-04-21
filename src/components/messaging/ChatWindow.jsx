@@ -8,7 +8,6 @@ import { parseEntityTimestamp } from '@/components/utils/localTimeHelper';
 import {
   SYSTEM_UPDATES_SENDER_ID,
   isHiddenSystemBroadcastMessageForThisDevice,
-  sendSystemBroadcastAckIfNeeded,
 } from './updateBroadcastConfig';
 
 function ChatWindow({
@@ -87,11 +86,7 @@ function ChatWindow({
           .find((message) => message?.sender_id === SYSTEM_UPDATES_SENDER_ID && message?.content?.trim?.().startsWith('Your app has just been updated.'));
 
         if (isSystemUpdatesConversation && latestSystemBroadcast?.id) {
-          await sendSystemBroadcastAckIfNeeded({
-            currentUser,
-            messageId: latestSystemBroadcast.id,
-            conversationId,
-          });
+          // Ack is sent only when the update action actually runs from the prompt button/timer.
         }
 
         // Mark unread messages as read (in parallel for speed)
@@ -130,17 +125,6 @@ function ChatWindow({
           }
         });
 
-        if (
-          event.data?.sender_id === SYSTEM_UPDATES_SENDER_ID &&
-          event.data?.receiver_id === currentUser?.id &&
-          event.data?.content?.trim?.().startsWith('Your app has just been updated.')
-        ) {
-          sendSystemBroadcastAckIfNeeded({
-            currentUser,
-            messageId: event.data.id,
-            conversationId: event.data.conversation_id,
-          }).catch(() => {});
-        }
 
         if (event.data.receiver_id === currentUser?.id && !event.data.read) {
           base44.entities.Message.update(event.data.id, { read: true }).catch(() => {});
