@@ -33,35 +33,29 @@ export default function CompletedRouteControls({
         <div className="flex items-stretch">
           <div className="px-3 py-2 flex flex-col gap-2 min-w-[148px]">
             <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: 'var(--text-slate-900)' }}>
-              <Checkbox
-                checked={showRoutes}
-                onCheckedChange={(checked) => {
-                  const enabled = checked === true;
-                  setShowRoutes(enabled);
-                  if (!enabled) {
-                    setShowBreadcrumbs(false);
-                    setBreadcrumbsData({ historical: [], current: [] });
-                  }
+              <span
+                className={`h-4 w-4 min-h-4 min-w-4 rounded-full border flex items-center justify-center ${showRoutes ? 'border-amber-600' : 'border-slate-400'}`}
+                onClick={() => {
+                  setShowRoutes(true);
+                  setShowBreadcrumbs(false);
+                  setBreadcrumbsData({ historical: [], current: [] });
                 }}
-                className="h-4 w-4 min-h-4 min-w-4 rounded-sm"
-              />
+              >
+                {showRoutes && <span className="h-2 w-2 rounded-full bg-amber-600" />}
+              </span>
               <span>Show Polylines</span>
             </label>
 
             <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: 'var(--text-slate-900)' }}>
-              <Checkbox
-                checked={showBreadcrumbs}
-                onCheckedChange={(checked) => {
-                  const enabled = checked === true;
-                  setShowBreadcrumbs(enabled);
-                  if (enabled) {
-                    setShowRoutes(false);
-                  } else {
-                    setBreadcrumbsData({ historical: [], current: [] });
-                  }
+              <span
+                className={`h-4 w-4 min-h-4 min-w-4 rounded-full border flex items-center justify-center ${showBreadcrumbs ? 'border-amber-600' : 'border-slate-400'}`}
+                onClick={() => {
+                  setShowBreadcrumbs(true);
+                  setShowRoutes(false);
                 }}
-                className="h-4 w-4 min-h-4 min-w-4 rounded-sm"
-              />
+              >
+                {showBreadcrumbs && <span className="h-2 w-2 rounded-full bg-amber-600" />}
+              </span>
               <span>Show Breadcrumbs</span>
             </label>
           </div>
