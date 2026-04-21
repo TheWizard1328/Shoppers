@@ -90,7 +90,7 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
   // Get tooltip text based on phase and lock state
   const getTooltip = () => {
     if (!isEnabled) {
-      return 'Requires more than 1 active stop';
+      return 'Requires at least 1 active stop';
     }
     if (isLocked) {
       return 'Map View Active (click to cycle)';

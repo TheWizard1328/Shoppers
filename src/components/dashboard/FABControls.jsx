@@ -59,7 +59,7 @@ export default function FABControls({
   }, [selectedDate, selectedDriverId]);
   const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
   const activeStopCount = deliveriesWithStopOrder.filter((delivery) => delivery && !finishedStatuses.includes(delivery.status)).length;
-  const isMapCycleEnabled = activeStopCount > 1;
+  const isMapCycleEnabled = activeStopCount > 0;
   const fabPosition = isMobileDevice() ? 'absolute' : 'fixed';
   const selectedStore = stores.find((store) => store?.id === filteredDeliveries?.[0]?.store_id);
 
