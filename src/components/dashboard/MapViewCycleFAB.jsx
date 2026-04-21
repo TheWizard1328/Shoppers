@@ -50,9 +50,8 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
         setIsTemporarilyDeactivated(true);
         if (deactivateTimeoutRef.current) clearTimeout(deactivateTimeoutRef.current);
         deactivateTimeoutRef.current = setTimeout(() => {
-          if ((window.__suppressCardAutoCenterUntil || 0) > Date.now()) return;
           setIsTemporarilyDeactivated(false);
-        }, 1200);
+        }, Math.max(1200, (window.__suppressCardAutoCenterUntil || 0) - Date.now()));
         return;
       }
 
@@ -124,12 +123,15 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
           onClick={onClick}
           title={getTooltip()}
           disabled={!isEnabled}
+          data-fab-temporarily-deactivated={isTemporarilyDeactivated ? 'true' : 'false'}
           className={`inline-flex items-center justify-center whitespace-nowrap text-sm font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 text-primary-foreground h-10 w-10 rounded-lg shadow-2xl p-0 relative transition-all duration-200 ${
-            !isEnabled || !isLocked || isTemporarilyDeactivated
+            !isEnabled || !isLocked
               ? 'bg-gray-400 hover:bg-gray-500'
-              : currentPhase === 2
-                ? 'bg-green-600 hover:bg-green-700'
-                : 'bg-blue-600 hover:bg-blue-700'
+              : isTemporarilyDeactivated
+                ? 'bg-blue-500 hover:bg-blue-600'
+                : currentPhase === 2
+                  ? 'bg-green-600 hover:bg-green-700'
+                  : 'bg-blue-600 hover:bg-blue-700'
           }`} style={{ pointerEvents: 'auto', touchAction: 'manipulation' }}>
           {/* Mode number in top-left corner */}
           <span className="absolute top-1 left-1 text-white font-bold text-[10px]">
