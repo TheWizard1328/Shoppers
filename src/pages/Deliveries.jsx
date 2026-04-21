@@ -3210,7 +3210,7 @@ export default function DeliveriesPage() {
         }
       </div>
 
-      <div className="flex-1 flex overflow-hidden min-h-0">
+      <div className="flex-1 flex overflow-hidden min-h-0" style={{ paddingBottom: isMobile ? 'var(--bottom-nav-height, 88px)' : 0 }}>
 
         {!isDriverOverviewMode &&
         <div className="hidden lg:flex w-72 flex-col h-full" style={{ background: 'var(--bg-white)', borderRight: '1px solid var(--border-slate-200)' }}>
@@ -3310,8 +3310,8 @@ export default function DeliveriesPage() {
             animate={{ x: 0 }}
             exit={{ x: "-100%" }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="fixed top-0 left-0 h-full w-64 shadow-xl z-[9999] flex flex-col"
-            style={{ background: 'var(--bg-white)' }}
+            className="fixed left-0 w-64 shadow-xl z-[9999] flex flex-col overflow-hidden"
+            style={{ background: 'var(--bg-white)', top: 'var(--mobile-header-height, 64px)', bottom: 'var(--bottom-nav-height, 88px)', height: 'auto' }}
             onClick={(e) => e.stopPropagation()}>
 
               <div className="p-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border-slate-100)' }}>
@@ -3397,7 +3397,7 @@ export default function DeliveriesPage() {
           }
         </AnimatePresence>
 
-        <div className="flex-1 flex flex-col overflow-hidden min-h-0" style={{ ['--driver-info-offset']: !isDriverOverviewMode ? isMobile ? '56px' : '120px' : '88px' }}>
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0" style={{ ['--driver-info-offset']: !isDriverOverviewMode ? isMobile ? '56px' : '120px' : '88px', paddingBottom: isMobile ? 'var(--bottom-nav-height, 88px)' : 0 }}>
 
            {isDriverOverviewMode ?
           <div className="flex flex-col h-full overflow-hidden">

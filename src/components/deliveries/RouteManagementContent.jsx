@@ -149,7 +149,7 @@ export default function RouteManagementContent({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden" style={{ paddingBottom: isMobile ? 'var(--bottom-nav-height, 88px)' : 0 }}>
       {canBulkEdit &&
       <Card className="sticky top-0 z-10 flex-shrink-0 shadow-sm mb-2" style={{ background: "var(--bg-white)", borderColor: "var(--border-slate-200)" }}>
           <CardContent className="px-3 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -191,7 +191,7 @@ export default function RouteManagementContent({
       {resolvedViewMode === "cards" ?
       <div className="flex h-full gap-4">
           <div className={`${showSplitView ? "w-[400px] flex-shrink-0" : "w-full"} h-full overflow-hidden`}>
-            <div className="px-3 py-2 space-y-2 overflow-y-auto h-full flex flex-col items-center" style={{ maxHeight: "calc(100vh - 280px)" }}>
+            <div className="px-3 py-2 space-y-2 overflow-y-auto h-full min-h-0 flex flex-col items-center" style={{ maxHeight: isMobile ? 'calc(100dvh - var(--mobile-header-height, 64px) - var(--bottom-nav-height, 88px) - 220px)' : 'calc(100vh - 280px)' }}>
               {deliveries.map((delivery, index) =>
             <StopCard
               key={delivery.id || `${delivery.delivery_date || "unknown"}-${delivery.patient_id ?? "pickup"}-${delivery.store_id ?? "store"}-${delivery.tracking_number || index}`}

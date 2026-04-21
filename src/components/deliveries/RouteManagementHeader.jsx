@@ -76,11 +76,11 @@ export function RouteManagementStopDetailsOverlay({
           animate={{ y: 0 }}
           exit={{ y: "100%" }}
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
-          className="fixed bottom-0 left-0 right-0 z-[201] max-h-[78vh] overflow-hidden rounded-t-2xl"
-          style={{ background: 'var(--bg-white)' }}
+          className="fixed left-0 right-0 z-[201] overflow-hidden rounded-t-2xl"
+          style={{ background: 'var(--bg-white)', bottom: 'var(--bottom-nav-height, 88px)', maxHeight: 'calc(100dvh - var(--mobile-header-height, 64px) - var(--bottom-nav-height, 88px) - 8px)' }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="overflow-y-auto max-h-[78vh]">
+          <div className="overflow-y-auto" style={{ maxHeight: 'calc(100dvh - var(--mobile-header-height, 64px) - var(--bottom-nav-height, 88px) - 8px)' }}>
             <StopDetailsPanel {...panelProps} />
           </div>
         </motion.div>
