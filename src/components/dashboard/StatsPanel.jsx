@@ -455,7 +455,7 @@ export default function StatsPanel({
         {!isAllDriversMode && !isAdmin ? null : legendData.length > 0 &&
         <div className="backdrop-blur-sm rounded-xl shadow-lg border px-1 py-0 w-full h-[65px] overflow-hidden" style={{ background: 'var(--bg-white)', opacity: 0.95, borderColor: 'var(--border-slate-200)' }}
         onMouseEnter={() => handleCardInteraction(true)} onMouseLeave={() => handleCardInteraction(false)}>
-            <div className="flex h-full items-center justify-center gap-x-4 gap-y-0 overflow-x-auto whitespace-nowrap leading-none">
+            <div className="flex h-full items-center justify-center gap-x-0.5 gap-y-0 overflow-x-auto whitespace-nowrap leading-none">
               {legendData.map((route) =>
             <button
               key={route.driverId}
