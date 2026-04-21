@@ -142,7 +142,7 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
             !isEnabled
               ? 'bg-gray-400 hover:bg-gray-500'
               : isTemporarilyDeactivated
-                ? 'bg-blue-500 hover:bg-blue-600'
+                ? 'bg-gray-400 hover:bg-gray-500'
                 : !isLocked
                   ? 'bg-blue-600 hover:bg-blue-700'
                   : currentPhase === 2
