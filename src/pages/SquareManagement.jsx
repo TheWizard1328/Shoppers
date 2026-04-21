@@ -110,6 +110,23 @@ export default function SquareManagement() {
     };
   }, []);
 
+  const refreshOfflineSquareFromOnlineEntities = React.useCallback(async () => {
+    const [catalogRecords, transactionRecords] = await Promise.all([
+      base44.entities.SquareCatalogItems.list('-updated_date', 5000),
+      base44.entities.SquareTransaction.list('-updated_date', 5000),
+    ]);
+
+    await syncSquareCODSnapshotOffline({
+      catalogItems: catalogRecords || [],
+      transactions: transactionRecords || [],
+    });
+
+    return {
+      catalogRecords: catalogRecords || [],
+      transactionRecords: transactionRecords || [],
+    };
+  }, [syncSquareCODSnapshotOffline]);
+
   const loadDeliveriesFromOffline = React.useCallback(async (offlineDB, startDateStr, endDateStr) => {
     const allDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES) || [];
     return allDeliveries.filter((delivery) => (
@@ -179,20 +196,6 @@ export default function SquareManagement() {
 
     return { ...snapshot, data: { locationIds: (snapshotData.locationIds || fallbackLocationIds || []).filter(Boolean) } };
   };
-
-  const hydrateSquareViewFromEntities = React.useCallback(async () => {
-    const [catalogRecords, transactionRecords] = await Promise.all([
-      base44.entities.SquareCatalogItems.list('-updated_date', 2000),
-      base44.entities.SquareTransaction.list('-updated_date', 2000),
-    ]);
-
-    await syncSquareCODSnapshotOffline({
-      catalogItems: catalogRecords || [],
-      transactions: transactionRecords || [],
-    });
-
-    return loadSquareViewFromOffline();
-  }, [loadSquareViewFromOffline]);
 
   const quickRefreshCatalogView = React.useCallback(async () => {
     const catalogRecords = await base44.entities.SquareCatalogItems.list('-updated_date', 2000);
@@ -550,10 +553,17 @@ export default function SquareManagement() {
 
         await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr);
         await loadSquareViewFromOffline();
-        await loadSyncStatus();
-        setBgSyncProgress({ stage: 'idle' });
         setIsLoading(false);
         setHasInitialLoadCompleted(true);
+
+        const onlineSnapshot = await refreshOfflineSquareFromOnlineEntities();
+        await loadSquareViewFromOffline();
+        await loadSyncStatus();
+        console.log('[SquareManagement] Initial online-to-offline refresh complete', {
+          onlineCatalogCount: onlineSnapshot.catalogRecords.length,
+          onlineTransactionCount: onlineSnapshot.transactionRecords.length,
+        });
+        setBgSyncProgress({ stage: 'idle' });
       } catch (err) {
         console.error('Failed to load COD data:', err);
         setIsLoading(false);
@@ -561,7 +571,7 @@ export default function SquareManagement() {
     };
 
     loadData();
-  }, [appCurrentUser, appDataAppUsers, appDataStores, appDataPatients, appDataDeliveries, getSourceWindow, loadReconciliationFromOffline, loadSquareViewFromOffline, loadSyncStatus]);
+  }, [appCurrentUser, appDataAppUsers, appDataStores, appDataPatients, appDataDeliveries, getSourceWindow, loadReconciliationFromOffline, loadSquareViewFromOffline, loadSyncStatus, refreshOfflineSquareFromOnlineEntities]);
 
   useEffect(() => {
     if (!hasInitialLoadCompleted) return;
@@ -1644,11 +1654,13 @@ export default function SquareManagement() {
           </div>
         </div>
 
-        <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="gap-2 text-sm shrink-0 self-start">
-          <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
-          <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : 'Sync'}</span>
-          <span className="sm:hidden">{isSyncing ? 'Syncing' : 'Sync'}</span>
-        </Button>
+        {currentUser && isAppOwner(currentUser) && (
+          <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="gap-2 text-sm shrink-0 self-start">
+            <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
+            <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : 'Sync'}</span>
+            <span className="sm:hidden">{isSyncing ? 'Syncing' : 'Sync'}</span>
+          </Button>
+        )}
       </div>
       
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
