@@ -116,7 +116,7 @@ export default function DeliveryForm({
     suggestedDate,
     delivery,
     currentUser,
-    stores,
+    stores: freshStores || stores,
     drivers,
     allDrivers,
     initialDriverId,
@@ -235,11 +235,12 @@ export default function DeliveryForm({
   useEffect(() => {
     if (delivery || formData.driver_id) return; // Skip if editing or driver already set
 
-    if (!currentUser || !stores || !drivers || allDrivers.length === 0) return;
+    const storesToUse = freshStores || stores;
+    if (!currentUser || !storesToUse || !drivers || allDrivers.length === 0) return;
 
     const { driverId: driverIdToSet, driverName: driverNameToSet } = resolveDefaultDriverForNewDelivery({
       currentUser,
-      stores,
+      stores: storesToUse,
       drivers,
       allDrivers,
       deliveryDate: formData.delivery_date,
@@ -255,7 +256,7 @@ export default function DeliveryForm({
         driver_name: driverNameToSet
       }));
     }
-  }, [delivery, currentUser, stores, drivers, allDrivers, formData.delivery_date, formData.driver_id]);
+  }, [delivery, currentUser, freshStores, stores, drivers, allDrivers, formData.delivery_date, formData.driver_id]);
 
   // Ref to track if we're loading an existing delivery (prevent patient auto-load from clearing PUID)
   const isLoadingExistingDelivery = useRef(false);
@@ -463,8 +464,8 @@ export default function DeliveryForm({
       const patientToCheck = selectedPatient || (formData.patient_id && patients ? patients.find((p) => p && p.id === formData.patient_id) : null);
       
       if (patientToCheck && patientToCheck.store_id) {
-        const patientStore = stores.find((s) => s && s.id === patientToCheck.store_id);
-        relevantStores = patientStore ? [patientStore] : stores;
+        const patientStore = storesToUse.find((s) => s && s.id === patientToCheck.store_id);
+        relevantStores = patientStore ? [patientStore] : storesToUse;
       } else if (userHasRole(currentUser, 'dispatcher')) {
         // If no patient selected yet, show dispatcher's stores
         const dispatcherStoreIds = currentUser.store_ids || [];
@@ -473,20 +474,20 @@ export default function DeliveryForm({
     } else if (isPickupMode) {
       // Pickup mode - show all stores for admin, dispatcher's stores for dispatcher
       if (userHasRole(currentUser, 'admin')) {
-        relevantStores = stores;
+        relevantStores = storesToUse;
       } else if (userHasRole(currentUser, 'dispatcher')) {
         const dispatcherStoreIds = currentUser.store_ids || [];
-        relevantStores = stores.filter((s) => s && dispatcherStoreIds.includes(s.id));
+        relevantStores = storesToUse.filter((s) => s && dispatcherStoreIds.includes(s.id));
       }
     } else if (delivery) {
       // Editing existing delivery - admins see all, others see their stores
       if (userHasRole(currentUser, 'admin')) {
-        relevantStores = stores;
+        relevantStores = storesToUse;
       } else if (formData.patient_id && patients) {
         const patient = patients.find((p) => p && p.id === formData.patient_id);
         if (patient && patient.store_id) {
-          const patientStore = stores.find((s) => s && s.id === patient.store_id);
-          relevantStores = patientStore ? [patientStore] : stores;
+          const patientStore = storesToUse.find((s) => s && s.id === patient.store_id);
+          relevantStores = patientStore ? [patientStore] : storesToUse;
         }
       }
       if (userHasRole(currentUser, 'dispatcher')) {
@@ -942,7 +943,7 @@ export default function DeliveryForm({
       }
     }
 
-    const store = stores.find((s) => s && s.id === formData.store_id);
+    const store = (freshStores || stores).find((s) => s && s.id === formData.store_id);
 
     if (!store) {
       setError('Store information missing.');
@@ -1072,7 +1073,7 @@ export default function DeliveryForm({
       focusRef: patientSearchInputRef,
       setNewPatientMode
     });
-  }, [formData, isFormValid, patients, stores, isPickupMode, newPatientMode, selectedPatient, stagedDeliveries, isMobileDevice, isNewRouteWithZeroStops, allDeliveries, availableStores, selectedPickupOption]);
+  }, [formData, isFormValid, patients, freshStores, stores, isPickupMode, newPatientMode, selectedPatient, stagedDeliveries, isMobileDevice, isNewRouteWithZeroStops, allDeliveries, availableStores, selectedPickupOption]);
 
   const handleUpdateStaged = useCallback(async () => {
     if (!editingStagedId) return;
