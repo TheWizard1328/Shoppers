@@ -1359,14 +1359,30 @@ async function handleSyncCatalogItems(base44) {
 }
 
 async function handleSyncOnlineSquareEntities(base44, payload) {
-  const catalogRecords = Array.isArray(payload?.catalogRecords) ? payload.catalogRecords : [];
-  const transactionRecords = Array.isArray(payload?.transactionRecords) ? payload.transactionRecords : [];
+  const catalogRecords = Array.isArray(payload?.catalogRecords) ? payload.catalogRecords.filter(Boolean) : [];
+  const transactionRecords = Array.isArray(payload?.transactionRecords) ? payload.transactionRecords.filter(Boolean) : [];
+
+  const existingCatalogRecords = await base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 5000).catch(() => []);
+  const existingTransactionRecords = await base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 5000).catch(() => []);
+
+  await Promise.all((existingCatalogRecords || []).map((record) => base44.asServiceRole.entities.SquareCatalogItems.delete(record.id).catch(() => null)));
+  await Promise.all((existingTransactionRecords || []).map((record) => base44.asServiceRole.entities.SquareTransaction.delete(record.id).catch(() => null)));
+
+  if (catalogRecords.length > 0) {
+    await base44.asServiceRole.entities.SquareCatalogItems.bulkCreate(catalogRecords);
+  }
+
+  if (transactionRecords.length > 0) {
+    await base44.asServiceRole.entities.SquareTransaction.bulkCreate(transactionRecords);
+  }
 
   return {
     success: true,
     processed: catalogRecords.length + transactionRecords.length,
     catalogCount: catalogRecords.length,
     transactionCount: transactionRecords.length,
+    replacedCatalogCount: existingCatalogRecords.length,
+    replacedTransactionCount: existingTransactionRecords.length,
   };
 }
 

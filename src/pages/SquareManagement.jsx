@@ -345,7 +345,7 @@ export default function SquareManagement() {
     const paymentsResponse = await base44.functions.invoke('squareCodCore', paymentPayload);
     const paymentsData = paymentsResponse?.data || paymentsResponse || {};
 
-    const rawCatalogRecords = snapshotData.catalogRecords || [];
+    const rawCatalogRecords = snapshotData.catalogRecords || paymentsData.catalogItems || [];
     const catalogRecords = rawCatalogRecords;
     const transactions = (paymentsData.transactions || snapshotData.transactionRecords || [])
       .filter((record) => record && typeof record.item_name === 'string' && record.item_name.trim().length > 0)
@@ -486,7 +486,7 @@ export default function SquareManagement() {
       });
 
       await refreshUiFromOfflineOnly();
-      toast.success(`Square payments refreshed: ${syncResult.transactionCount} transactions`);
+      toast.success(`Square sync refreshed ${syncResult.transactionCount} transactions and online Square data`);
       setBgSyncProgress({ stage: 'complete', detail: `${syncResult.transactionCount} transactions refreshed` });
       setTimeout(() => setBgSyncProgress({ stage: 'idle' }), 5000);
     } catch (err) {
