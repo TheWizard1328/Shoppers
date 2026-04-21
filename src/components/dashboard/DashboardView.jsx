@@ -217,7 +217,6 @@ export default function DashboardView({
           handleCardInteraction={handleCardInteraction} areCardsVisible={areCardsVisible}
           handleMapViewCycle={handleMapViewCycle} isStatsCardCentered={isStatsCardCentered}
           dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded}
-          mapViewPhase={mapViewPhase} isMapViewLocked={isMapViewLocked}
           realTimeETAEnabled={realTimeETAEnabled}
           showDeliveryForm={showDeliveryForm} showPatientForm={showPatientForm} showOptimizationSettings={showOptimizationSettings}
         />

@@ -2,8 +2,6 @@ import { useCallback } from "react";
 import { toast } from "sonner";
 import { base44 } from "@/api/base44Client";
 import { setDriverStatus } from "@/functions/setDriverStatus";
-import { optimizeRouteRealTime } from "@/functions/optimizeRouteRealTime";
-import { handleStartDelivery } from "@/functions/handleStartDelivery";
 import { locationTracker } from "../utils/locationTracker";
 import { smartRefreshManager } from "../utils/smartRefreshManager";
 import { deleteCODWithTimeout } from '../utils/squareCODHandler';
@@ -223,7 +221,7 @@ export default function useStopCardActions(params) {
       Promise.resolve().then(async () => {
         window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
         try {
-          const optimizeResponse = await optimizeRouteRealTime({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime, generatePolyline: false });
+          const optimizeResponse = await base44.functions.invoke('optimizeRouteRealTime', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime, generatePolyline: false });
           const optimizeData = optimizeResponse?.data || optimizeResponse;
 
           sortedPending.forEach((pendingDelivery, i) => {
@@ -505,7 +503,7 @@ export default function useStopCardActions(params) {
           window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
           try {
             if (!delivery?.id || !delivery?.driver_id || !delivery?.delivery_date) return;
-            const startResponse = await handleStartDelivery({ deliveryId: delivery.id, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
+            const startResponse = await base44.functions.invoke('handleStartDelivery', { deliveryId: delivery.id, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
             const startData = startResponse?.data || startResponse || {};
             const optimizationDeferred = startData?.optimization?.deferred === true || startData?.optimization?.reason === 'rate_limited';
             const backendOptimizedRoute = Array.isArray(startData?.optimization?.optimizedRoute) ? startData.optimization.optimizedRoute : [];
@@ -635,7 +633,7 @@ export default function useStopCardActions(params) {
             if (finishedLegEncodedPolyline) await updateDeliveryLocal(delivery.id, { finished_leg_encoded_polyline: finishedLegEncodedPolyline, finished_leg_transport_mode: 'driving', PolylineUpdated: true }, { skipSmartRefresh: true });
           } catch {}
         }));
-        if (shouldRecalculateCompletionEtas && nextStop) backgroundTasks.push(optimizeRouteRealTime({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime: getCurrentLocalTimeString(), generatePolyline: false }).catch(() => {}));
+        if (shouldRecalculateCompletionEtas && nextStop) backgroundTasks.push(base44.functions.invoke('optimizeRouteRealTime', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime: getCurrentLocalTimeString(), generatePolyline: false }).catch(() => {}));
         backgroundTasks.push(cleanupSquareCodCatalogForDate(delivery.delivery_date));
         const currentDriverAppUserId = currentDriverAppUser?.id || null;
         backgroundTasks.push(params.scheduleCompletionSideEffects({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, nextDeliveryId: nextStop?.id || null, lastCompletedDeliveryId: delivery.id, setOffDuty: !nextStop, appUserId: currentDriverAppUserId }));
@@ -719,7 +717,7 @@ export default function useStopCardActions(params) {
         const driverDeliveries = allDriverDeliveries.map((item) => item.id === delivery.id ? { ...item, ...criticalUpdate, isNextDelivery: false } : item);
         const incompleteDeliveries = driverDeliveries.filter((d) => d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending').sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
         await setAndCenterNextDelivery({ driverDeliveries, targetDeliveryId: incompleteDeliveries[0]?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
-        if (shouldRecalculateFailureEtas && incompleteDeliveries.length > 0) Promise.resolve().then(() => optimizeRouteRealTime({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime: getCurrentLocalTimeString(), generatePolyline: false }).catch(() => {}));
+        if (shouldRecalculateFailureEtas && incompleteDeliveries.length > 0) Promise.resolve().then(() => base44.functions.invoke('optimizeRouteRealTime', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime: getCurrentLocalTimeString(), generatePolyline: false }).catch(() => {}));
         onClick?.(null);
         fabControlEvents.notifyPhaseTwoCompleteRecenter();
         if (userHasRole(currentUser, 'driver')) await notifyDriverFailed({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : displayName, delivery: { ...delivery, delivery_notes: updatedNotes }, store, appUsers, failureReason: reason });

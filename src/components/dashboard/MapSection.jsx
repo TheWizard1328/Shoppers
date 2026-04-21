@@ -22,8 +22,6 @@ export default function MapSection({
   polylineResetKey,
   realTimeETAEnabled, showDeliveryForm, showPatientForm, showOptimizationSettings,
   preferredTravelMode, onTravelModeChange,
-  mapViewPhase,
-  isMapViewLocked,
   topOverlayHeight = 0,
 }) {
   return (
@@ -84,8 +82,8 @@ export default function MapSection({
           areStopCardsVisible={deliveriesWithStopOrder.length > 0}
           highlightedDeliveryId={highlightedCardId}
           stopCardsHeight={stopCardsBaseHeight}
-          mapViewPhase={mapViewPhase}
-          isMapViewLocked={isMapViewLocked}
+          mapViewPhase={1}
+          isMapViewLocked={false}
           topOverlayHeight={topOverlayHeight}
           onMapReady={() => {
             if (!renderSequence.mapMarkers) {
