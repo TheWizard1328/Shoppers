@@ -49,7 +49,7 @@ export default function MapBreadcrumbs({ breadcrumbsData, currentZoom = 12 }) {
       .map((point, index) => ({
         lat: Number(point?.lat),
         lng: Number(point?.lng),
-        key: point?.timestamp || index,
+        key: `${point?.timestamp || 'no-ts'}-${index}`,
       }))
       .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng))
       .forEach((point) => {
