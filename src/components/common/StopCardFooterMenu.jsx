@@ -42,6 +42,7 @@ export default function StopCardFooterMenu(props) {
     canEdit
   ));
 
+  const isDispatcherOnly = !!(userHasRole?.(currentUser, 'dispatcher') && !userHasRole?.(currentUser, 'admin') && !isAppOwner?.(currentUser));
   const isActiveStop = !['completed', 'cancelled', 'failed'].includes(delivery?.status);
   const isActiveDelivery = !isPickup && isActiveStop;
   const isActivePickup = isPickup && isActiveStop;
@@ -50,15 +51,15 @@ export default function StopCardFooterMenu(props) {
 
   const canShowEdit = !!(canManageStop && (isActiveDelivery || isActivePickup || isFinishedPickup || isFinishedRegularDelivery));
 
-  const canShowEditPatient = !!(onEditPatient && patient && canManageStop && (isActiveDelivery || isFinishedRegularDelivery));
+  const canShowEditPatient = !!(!isDispatcherOnly && onEditPatient && patient && canManageStop && (isActiveDelivery || isFinishedRegularDelivery));
 
-  const canShowUpdateGps = !!(handleUpdateGPS && canManageStop && patient && !isPickup && (isNextDelivery || isFinishedDelivery));
+  const canShowUpdateGps = !!(!isDispatcherOnly && handleUpdateGPS && canManageStop && patient && !isPickup && (isNextDelivery || isFinishedDelivery));
 
-  const canShowFailCancel = !!(onStatusUpdate && canManageStop && (
+  const canShowFailCancel = !!(!isDispatcherOnly && onStatusUpdate && canManageStop && (
     isActivePickup || (isActiveDelivery && isNextDelivery)
   ));
 
-  const canShowDelete = !!(canManageStop && (isActiveDelivery || isActivePickup || isFinishedPickup || isFinishedRegularDelivery));
+  const canShowDelete = !!(!isDispatcherOnly && canManageStop && (isActiveDelivery || isActivePickup || isFinishedPickup || isFinishedRegularDelivery));
 
   return (
     <DropdownMenu modal={false}>
