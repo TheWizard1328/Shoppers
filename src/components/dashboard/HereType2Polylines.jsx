@@ -80,9 +80,11 @@ export default function HereType2Polylines({
     const getDriverPolylineColor = (driverId) => generateDriverColor(String(driverId || 'driver'));
     const getDriverRouteStyle = (driverId, opacityOverride) => {
       const mode = normalizeTravelMode(driverTravelModes[driverId]);
+      const isCycling = mode === 'cycling';
       const base = getTravelModeLineStyle(mode, getDriverPolylineColor(driverId));
       return {
         ...base,
+        color: isCycling ? '#16A34A' : base.color,
         opacity: opacityOverride ?? base.opacity,
         lineJoin: 'round',
         lineCap: 'round'

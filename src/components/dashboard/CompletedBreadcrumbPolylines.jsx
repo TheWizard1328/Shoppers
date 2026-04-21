@@ -8,9 +8,11 @@ const FINISHED = ["completed", "failed", "cancelled"];
 const getDriverPolylineColor = (driverId) => generateDriverColor(String(driverId || 'driver'));
 const getFinishedLegRouteStyle = (driverId, deliveryTravelMode, opacityOverride) => {
   const mode = normalizeTravelMode(deliveryTravelMode || 'driving');
+  const isCycling = mode === 'cycling';
   const base = getTravelModeLineStyle(mode, getDriverPolylineColor(driverId));
   return {
     ...base,
+    color: isCycling ? '#16A34A' : base.color,
     opacity: opacityOverride ?? base.opacity,
     lineJoin: 'round',
     lineCap: 'round'
