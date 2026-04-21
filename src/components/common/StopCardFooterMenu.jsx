@@ -31,7 +31,8 @@ export default function StopCardFooterMenu(props) {
     setShowDeleteConfirm,
     routeCompleted,
     isAssignedDriverOrAppOwner,
-    canEdit
+    canEdit,
+    allDeliveries = []
   } = props;
 
   const canManageStop = !!(!isStrippedForDispatcher && (
@@ -60,6 +61,14 @@ export default function StopCardFooterMenu(props) {
   ));
 
   const canShowDelete = !!(!isDispatcherOnly && canManageStop && (isActiveDelivery || isActivePickup || isFinishedPickup || isFinishedRegularDelivery));
+
+  const dispatcherStoreIds = Array.isArray(currentUser?.store_ids) ? currentUser.store_ids : [];
+  const dispatcherStoreStops = isDispatcherOnly
+    ? (allDeliveries || []).filter((item) => item && dispatcherStoreIds.includes(item.store_id))
+    : [];
+  const areAllDispatcherStoreStopsFinished = isDispatcherOnly && dispatcherStoreStops.length > 0 && dispatcherStoreStops.every((item) => ['completed', 'cancelled', 'failed', 'returned'].includes(item?.status));
+
+  if (areAllDispatcherStoreStopsFinished) return null;
 
   return (
     <DropdownMenu modal={false}>
