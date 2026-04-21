@@ -40,14 +40,14 @@ const CheckboxField = ({ id, label, checked, onChange, disabled }) =>
     <Label htmlFor={id} className={`text-sm font-medium leading-none ${disabled ? 'text-slate-400' : ''}`}>{label}</Label>
   </div>;
 
-const TravelModeButtons = ({ value, onChange, isMobile, disabled, currentUser, appUsers = [] }) => {
+const TravelModeButtons = ({ value, onChange, disabled, currentUser, appUsers = [] }) => {
   const options = [
     { value: 'driving', label: 'Driving', icon: Car },
     { value: 'cycling', label: 'Cycling', icon: Bike }
   ];
 
   return (
-    <div className={`flex ${isMobile ? 'flex-col gap-2' : 'flex-row gap-2'} shrink-0`}>
+    <div className="flex flex-row gap-2 shrink-0">
       {options.map((option) => {
         const Icon = option.icon;
         const isActive = value === option.value;
@@ -56,15 +56,14 @@ const TravelModeButtons = ({ value, onChange, isMobile, disabled, currentUser, a
           <button
             key={option.value}
             type="button"
+            title={option.label}
+            aria-label={option.label}
             onClick={async () => {
               await onChange(option.value, currentUser, appUsers);
             }}
             disabled={disabled}
-            className={`border transition-all ${isMobile ? 'h-10 w-10 rounded-2xl' : 'h-9 px-3 rounded-full'} ${isActive ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white text-slate-700'}`}>
-            <span className={`flex items-center justify-center ${isMobile ? '' : 'gap-2'}`}>
-              <Icon className="w-4 h-4" />
-              {!isMobile && <span className="text-sm font-medium">{option.label}</span>}
-            </span>
+            className={`h-9 w-9 rounded-full border transition-all flex items-center justify-center ${isActive ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white text-slate-700'}`}>
+            <Icon className="w-4 h-4" />
           </button>
         );
       })}
@@ -503,11 +502,8 @@ export default function DeliveryFormView({
                     </Select>
                   </div>
 
-                  {userHasRole(currentUser, 'driver') && openMode !== 'add_to_route' && (
-                    <div className={`${useMobileLayout ? 'w-auto' : 'min-w-0 flex-1'} p-3 rounded-lg border flex ${useMobileLayout ? 'items-center justify-center' : 'flex-col items-start justify-start'} gap-2`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                      {!useMobileLayout && (
-                        <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Travel Mode</Label>
-                      )}
+                  {userHasRole(currentUser, 'driver') && (
+                    openMode === 'add_to_route' ? (
                       <TravelModeButtons
                         value={formData.finished_leg_transport_mode || delivery?.finished_leg_transport_mode || 'driving'}
                         onChange={async (mode) => {
@@ -515,10 +511,24 @@ export default function DeliveryFormView({
                         }}
                         currentUser={currentUser}
                         appUsers={appUsers}
-                        isMobile={useMobileLayout}
                         disabled={isSaving}
                       />
-                    </div>
+                    ) : (
+                      <div className={`${useMobileLayout ? 'w-auto' : 'min-w-0 flex-1'} p-3 rounded-lg border flex ${useMobileLayout ? 'items-center justify-center' : 'flex-col items-start justify-start'} gap-2`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                        {!useMobileLayout && (
+                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Travel Mode</Label>
+                        )}
+                        <TravelModeButtons
+                          value={formData.finished_leg_transport_mode || delivery?.finished_leg_transport_mode || 'driving'}
+                          onChange={async (mode) => {
+                            setFormData((prev) => ({ ...prev, finished_leg_transport_mode: mode }));
+                          }}
+                          currentUser={currentUser}
+                          appUsers={appUsers}
+                          disabled={isSaving}
+                        />
+                      </div>
+                    )
                   )}
                 </div>
               </div>
