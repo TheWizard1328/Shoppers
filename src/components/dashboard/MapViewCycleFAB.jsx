@@ -51,7 +51,7 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
         if (deactivateTimeoutRef.current) clearTimeout(deactivateTimeoutRef.current);
         deactivateTimeoutRef.current = setTimeout(() => {
           setIsTemporarilyDeactivated(false);
-        }, Math.max(1200, (window.__suppressCardAutoCenterUntil || 0) - Date.now()));
+        }, currentPhase === 1 ? 3000 : Math.max(1200, (window.__suppressCardAutoCenterUntil || 0) - Date.now()));
         return;
       }
 
