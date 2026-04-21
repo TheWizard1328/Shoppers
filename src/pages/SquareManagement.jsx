@@ -872,7 +872,7 @@ export default function SquareManagement() {
     return Array.from(names);
   }, []);
 
-  const hasMatchingSquareTransaction = (delivery, locationId) => {
+  const hasMatchingSquareTransaction = React.useCallback((delivery, locationId) => {
     const deliveryAmountSet = getDeliveryPaymentAmountSet(delivery);
     const patient = patients.find((p) => p?.id === delivery?.patient_id || p?.patient_id === delivery?.patient_id);
     const patientName = patient?.full_name || '';
@@ -897,7 +897,7 @@ export default function SquareManagement() {
 
       return getTransactionSearchNames(transaction).some((name) => patientNamesMatch(patientName, name));
     });
-  };
+  }, [allTransactions, patients, getDeliveryPaymentAmountSet, getTransactionAmountSet, getTransactionSearchNames, amountSetsIntersect]);
 
   // NOTE: Auto-deletion of paid catalog items is handled by the backend (squareSyncCatalogItems)
   // No frontend auto-delete needed — the backend already removes sold items from the catalog
