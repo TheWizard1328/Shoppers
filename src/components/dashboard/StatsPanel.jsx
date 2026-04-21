@@ -113,7 +113,7 @@ export default function StatsPanel({
   }, [selectedDateStr, stores, deliveries]);
 
   const legendData = (() => {
-    if (!isAdmin || !Array.isArray(driverRoutes) || driverRoutes.length === 0) return [];
+    if (!isAdmin) return [];
 
     const routeMap = new Map((driverRoutes || []).map((route) => [route.driverId, route]));
     const driverIdsWithStops = new Set(legendDeliveries.map((delivery) => delivery.driver_id));
