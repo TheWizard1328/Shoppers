@@ -98,7 +98,8 @@ export const getStagedActivationStatus = (delivery) => {
     const deliveryNotes = (delivery.delivery_notes || '').toLowerCase();
     const patientNotes = (delivery.delivery_instructions || '').toLowerCase();
     const deliveryAddress = (delivery.delivery_address || '').toLowerCase();
-    const isInterStore = patientName.includes('interstore') || deliveryNotes.includes('interstore') || patientNotes.includes('interstore') || deliveryAddress.includes('(isp)') || deliveryAddress.includes('(isd)');
+    const interStoreText = `${patientName} ${deliveryNotes} ${patientNotes} ${deliveryAddress}`;
+    const isInterStore = interStoreText.includes('interstore') || interStoreText.includes('(ips)') || interStoreText.includes('(isd)') || interStoreText.includes(' ips ') || interStoreText.includes(' isd ');
     if (isInterStore) newStatus = 'in_transit';
   }
 
