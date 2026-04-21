@@ -494,7 +494,7 @@ export default function DeliveryFormView({
               {!(isPickupMode && !delivery) &&
               <div className={`${useMobileLayout ? 'flex flex-col gap-3' : (!delivery && !isPickupMode ? 'grid grid-cols-[minmax(0,1fr)_300px] gap-3 items-start flex-shrink-0' : 'flex gap-3 w-full')} ${!delivery && !useMobileLayout ? 'flex-shrink-0' : ''}`}>
                 {!delivery && !isPickupMode ? (
-                  <div className="min-w-0 grid grid-cols-[minmax(0,1fr)_minmax(11rem,0.8fr)_minmax(11rem,0.8fr)] gap-3 items-start">
+                  <div className="min-w-0 grid grid-cols-[minmax(0,1.8fr)_minmax(11rem,1fr)_minmax(11rem,1fr)] gap-3 items-start w-full">
                     <div className="relative min-w-0">
                       <DeliveryPatientSearch
                         patientSearch={patientSearch} setPatientSearch={setPatientSearch}
