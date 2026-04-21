@@ -59,6 +59,7 @@ export default function SquareCodDatasetTable({
                   {rows.map((row, index) => (
                     <tr
                       key={row.id || `${row.itemName}-${index}`}
+                      onClick={onRowClick ? () => onRowClick(row) : undefined}
                       className="transition-colors border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50"
                     >
                       <td className="p-3">
@@ -81,7 +82,7 @@ export default function SquareCodDatasetTable({
                       <td className="p-3 text-xs text-slate-600 dark:text-slate-400">{formatDate(row.collectionDate || row.deliveryDate)}</td>
                       <td className="p-3">
                         <div className="space-y-1">
-                          <div className="flex justify-start">
+                          <div className="flex justify-start" onClick={(e) => e.stopPropagation()}>
                             {row.actions || <span className="text-slate-400">—</span>}
                           </div>
                           {row.notes && (
