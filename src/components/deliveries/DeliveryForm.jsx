@@ -1399,8 +1399,22 @@ export default function DeliveryForm({
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryId: delivery.id, deliveryDate: formData.delivery_date, driverId: formData.driver_id, triggeredBy: 'deliveryFormUpdate' } }));
         const shouldRunRouteRefreshes = dateChanged || driverChanged || timeWindowChanged || statusChangedToCompletion || actualDeliveryTimeChanged;
-        if (statusChangedToCompletion) setTimeout(() => { base44.functions.invoke('purgeAndRegeneratePolylines', { driverId: formData.driver_id, deliveryDate: formData.delivery_date, scope: 'active_only' }).catch((e) => console.warn('⚠️ [DeliveryForm] Active polyline refresh failed:', e?.message || e)); }, 0);
-        if (shouldRunRouteRefreshes && (statusChangedToCompletion || actualDeliveryTimeChanged)) setTimeout(() => { base44.functions.invoke('purgeAndRegeneratePolylines', { driverId: formData.driver_id, deliveryDate: formData.delivery_date, scope: 'completed_only' }).catch((e) => console.warn('⚠️ [DeliveryForm] Completed polyline refresh failed:', e?.message || e)); }, 0);
+        if (statusChangedToCompletion) setTimeout(() => {
+          base44.functions.invoke('purgeAndRegeneratePolylines', { driverId: formData.driver_id, deliveryDate: formData.delivery_date, scope: 'active_only' }).catch((e) => {
+            const status = e?.response?.status || e?.status;
+            const message = String(e?.message || '').toLowerCase();
+            if (status === 404 || status === 429 || message.includes('not found') || message.includes('rate limit')) return;
+            console.warn('⚠️ [DeliveryForm] Active polyline refresh failed:', e?.message || e);
+          });
+        }, 0);
+        if (shouldRunRouteRefreshes && (statusChangedToCompletion || actualDeliveryTimeChanged)) setTimeout(() => {
+          base44.functions.invoke('purgeAndRegeneratePolylines', { driverId: formData.driver_id, deliveryDate: formData.delivery_date, scope: 'completed_only' }).catch((e) => {
+            const status = e?.response?.status || e?.status;
+            const message = String(e?.message || '').toLowerCase();
+            if (status === 404 || status === 429 || message.includes('not found') || message.includes('rate limit')) return;
+            console.warn('⚠️ [DeliveryForm] Completed polyline refresh failed:', e?.message || e);
+          });
+        }, 0);
       } else {
         if (buttonState === 'add' || buttonState === 'updateStaged' || buttonState === 'done') {
           setIsSaving(false);

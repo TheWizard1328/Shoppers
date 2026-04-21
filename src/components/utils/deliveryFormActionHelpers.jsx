@@ -152,6 +152,9 @@ export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindo
             },
             deliveries: etaDeliveries
           }).catch((error) => {
+            const status = error?.response?.status || error?.status;
+            const message = String(error?.message || '').toLowerCase();
+            if (status === 404 || status === 429 || message.includes('not found') || message.includes('rate limit')) return;
             console.warn('⚠️ [DeliveryForm] ETA refresh skipped:', error?.message || error);
           });
         }
