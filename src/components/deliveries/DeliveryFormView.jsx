@@ -538,38 +538,70 @@ export default function DeliveryFormView({
                     </div>
                   </div>
                 ) : (
-                  <div className={`${useMobileLayout ? 'flex gap-3 flex-row' : 'flex gap-3 flex-row w-full'}`}>
-                    <div className={`${useMobileLayout ? 'w-[calc(50%-0.375rem)]' : 'min-w-0 flex-1'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                      <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Date *</Label>
-                      <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
-                    </div>
+                  <div className={`${useMobileLayout ? 'flex flex-col gap-3' : 'flex gap-3 flex-row w-full'}`}>
+                    <div className={`${useMobileLayout ? 'flex gap-3 flex-row' : 'flex gap-3 flex-row w-full'}`}>
+                      <div className={`${useMobileLayout ? 'w-[calc(50%-0.375rem)]' : 'min-w-0 flex-1'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                        <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Date *</Label>
+                        <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
+                      </div>
 
-                    <div className={`${useMobileLayout ? 'flex-1' : 'min-w-0 flex-1'} space-y-1 p-3 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                      <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver {delivery ? '*' : ''}</Label>
-                      <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
-                        const newDriverId = driverId === 'all' ? '' : driverId;
-                        const driver = driverId === 'all' ? null : allDrivers.find((d) => d.id === driverId);
-                        const newDriverName = driver ? getDriverNameForStorage(driver) : '';
-                        setFormData((prev) => ({ ...prev, driver_id: newDriverId, driver_name: newDriverName }));
-                        if (editingStagedId) {
-                          setStagedDeliveries((prev) => prev.map((s) => s._tempId === editingStagedId ? { ...s, driver_id: newDriverId, driver_name: newDriverName } : s));
-                          setHasChanges(true);
-                        }
-                        setForceOpenDriverSelect(false);
-                      }} disabled={isSaving}>
-                        <SelectTrigger data-delivery-driver-select-trigger className="h-9"><SelectValue placeholder="Select driver" /></SelectTrigger>
-                        <SelectContent className="z-[999999]">
-                          {!delivery && <SelectItem value="all">All Drivers</SelectItem>}
-                          {allDrivers.map((driver) => <SelectItem key={driver.id} value={driver.id}>{getDriverDisplayName(driver)}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                      <div className={`${useMobileLayout ? 'flex-1' : 'min-w-0 flex-1'} space-y-1 p-3 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                        <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver {delivery ? '*' : ''}</Label>
+                        <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
+                          const newDriverId = driverId === 'all' ? '' : driverId;
+                          const driver = driverId === 'all' ? null : allDrivers.find((d) => d.id === driverId);
+                          const newDriverName = driver ? getDriverNameForStorage(driver) : '';
+                          setFormData((prev) => ({ ...prev, driver_id: newDriverId, driver_name: newDriverName }));
+                          if (editingStagedId) {
+                            setStagedDeliveries((prev) => prev.map((s) => s._tempId === editingStagedId ? { ...s, driver_id: newDriverId, driver_name: newDriverName } : s));
+                            setHasChanges(true);
+                          }
+                          setForceOpenDriverSelect(false);
+                        }} disabled={isSaving}>
+                          <SelectTrigger data-delivery-driver-select-trigger className="h-9"><SelectValue placeholder="Select driver" /></SelectTrigger>
+                          <SelectContent className="z-[999999]">
+                            {!delivery && <SelectItem value="all">All Drivers</SelectItem>}
+                            {allDrivers.map((driver) => <SelectItem key={driver.id} value={driver.id}>{getDriverDisplayName(driver)}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
 
-                    {userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) && (
-                      <div className={`${useMobileLayout ? 'w-auto' : 'w-fit'} p-3 rounded-lg border flex ${useMobileLayout ? 'items-center justify-center' : 'flex-col items-start justify-start'} gap-2`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                        {!useMobileLayout && (
+                      {!useMobileLayout && userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) && (
+                        <div className="w-fit p-3 rounded-lg border flex flex-col items-start justify-start gap-2" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                           <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Travel Mode</Label>
-                        )}
+                          <TravelModeButtons
+                            value={formData.finished_leg_transport_mode || delivery?.finished_leg_transport_mode || 'driving'}
+                            onChange={async (mode) => {
+                              setFormData((prev) => ({ ...prev, finished_leg_transport_mode: mode }));
+                            }}
+                            currentUser={currentUser}
+                            appUsers={appUsers}
+                            disabled={isSaving}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {useMobileLayout && !delivery && !isPickupMode && (
+                      <div className="min-w-0">
+                        <DeliveryPatientSearch
+                          patientSearch={patientSearch} setPatientSearch={setPatientSearch}
+                          selectedPatient={selectedPatient} filteredPatients={filteredPatients}
+                          highlightedPatientIndex={highlightedPatientIndex} setHighlightedPatientIndex={setHighlightedPatientIndex}
+                          selectedPatientIds={selectedPatientIds} setSelectedPatientIds={setSelectedPatientIds}
+                          isMultiSelectMode={isMultiSelectMode} isSaving={isSaving} isScanning={isScanning}
+                          formData={formData} stores={stores} currentUser={currentUser}
+                          patientSearchInputRef={patientSearchInputRef} addPatientButtonRef={addPatientButtonRef}
+                          onPatientSelect={handlePatientSelect} onAddSelectedPatients={handleAddSelectedPatients}
+                          onStartCamera={() => {setShowCameraOverlay(true);startCamera();}}
+                          onDuplicatePatient={handleDuplicatePatient} onNewAddressPatient={handleNewAddressPatient}
+                          onCreatePatient={onCreatePatient} setIsPatientFormOpen={setIsPatientFormOpen}
+                          handleSearchKeyDown={handleSearchKeyDown} />
+                      </div>
+                    )}
+
+                    {useMobileLayout && userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) && (
+                      <div className="w-fit p-3 rounded-lg border flex items-center justify-center gap-2" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                         <TravelModeButtons
                           value={formData.finished_leg_transport_mode || delivery?.finished_leg_transport_mode || 'driving'}
                           onChange={async (mode) => {
