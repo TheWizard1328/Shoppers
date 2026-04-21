@@ -92,7 +92,7 @@ export default function DeliveryPatientSearch({
   };
 
   return (
-    <div className={`${mobileStandalone ? 'relative w-full' : 'relative flex-1'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+    <div className={`${mobileStandalone ? 'relative block w-full flex-none basis-full' : 'relative flex-1'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
       <div className="flex items-center justify-between mb-1">
         <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Search</Label>
         {selectedPatient &&
