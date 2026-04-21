@@ -760,6 +760,35 @@ async function handleDeleteCodItem(base44, payload) {
   };
 }
 
+async function handleMarkCollectedDebit(base44, payload) {
+  const { deliveryId, transactionId, catalogObjectId } = payload || {};
+  if (!deliveryId) throw new HttpError(400, 'Missing required field: deliveryId');
+
+  const delivery = await base44.asServiceRole.entities.Delivery.get(deliveryId).catch(() => null);
+  if (!delivery) throw new HttpError(404, 'Delivery not found');
+
+  const debitAmount = Number(delivery.cod_total_amount_required || 0);
+  await base44.asServiceRole.entities.Delivery.update(deliveryId, {
+    cod_payments: [{ type: 'Debit', amount: debitAmount }],
+    cod_payment_type: 'Debit',
+    cod_amount: String(debitAmount || 0),
+  });
+
+  const deleteResult = await handleDeleteCodItem(base44, {
+    deliveryId,
+    transactionId,
+    catalogObjectId,
+    reason: 'collected_debit',
+  });
+
+  return {
+    success: true,
+    deliveryId,
+    paymentType: 'Debit',
+    ...deleteResult,
+  };
+}
+
 async function handleFetchPayments(base44, payload) {
   const accessToken = ensureSquareToken();
   const { locationIds: requestedLocationIds, daysBack = 60, maxPerLocation = null, throttleMs = 150 } = payload || {};
@@ -1509,6 +1538,10 @@ Deno.serve(async (req) => {
     if (action === 'deleteCodItem') {
       await requireUser(base44);
       return Response.json(await handleDeleteCodItem(base44, payload));
+    }
+    if (action === 'markCollectedDebit') {
+      await requireUser(base44);
+      return Response.json(await handleMarkCollectedDebit(base44, payload));
     }
     if (action === 'fetchPayments') {
       await requireUser(base44);
