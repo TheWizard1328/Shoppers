@@ -154,10 +154,13 @@ export const handleBatchSaveDelivery = async ({
       // CRITICAL: For special stores, create pickup on-demand when first delivery is added
       // CRITICAL: Use the status from DeliveryForm (already converted from 'Staged' to 'pending' or 'in_transit')
       // Do NOT override with hardcoded 'pending' - respect what DeliveryForm sent
+      const interStoreLabel = `${newDelivery?.patient_name || ''} ${newDelivery?.delivery_instructions || ''} ${newDelivery?.delivery_notes || ''}`;
+      const isInterStoreTransfer = interStoreLabel.includes('(IPS)') || interStoreLabel.includes('(ISD)');
+
       stopsToProcess.push({
         isNew: true,
         ...newDelivery,
-        status: newDelivery.status || 'pending', // Use delivered status or fallback to 'pending'
+        status: isInterStoreTransfer ? 'in_transit' : (newDelivery.status || 'pending'),
         latitude: patient?.latitude ?? newDelivery.latitude,
         longitude: patient?.longitude ?? newDelivery.longitude,
         extra_time: newDelivery.extra_time || 5
