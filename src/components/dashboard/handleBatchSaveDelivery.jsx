@@ -156,11 +156,14 @@ export const handleBatchSaveDelivery = async ({
       // Do NOT override with hardcoded 'pending' - respect what DeliveryForm sent
       const interStoreLabel = `${newDelivery?.patient_name || ''} ${newDelivery?.delivery_instructions || ''} ${newDelivery?.delivery_notes || ''}`;
       const isInterStoreTransfer = interStoreLabel.includes('(IPS)') || interStoreLabel.includes('(ISD)');
+      const now = new Date();
+      const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
       stopsToProcess.push({
         isNew: true,
         ...newDelivery,
         status: isInterStoreTransfer ? 'in_transit' : (newDelivery.status || 'pending'),
+        delivery_time_start: isInterStoreTransfer ? currentLocalTime : newDelivery.delivery_time_start,
         latitude: patient?.latitude ?? newDelivery.latitude,
         longitude: patient?.longitude ?? newDelivery.longitude,
         extra_time: newDelivery.extra_time || 5
