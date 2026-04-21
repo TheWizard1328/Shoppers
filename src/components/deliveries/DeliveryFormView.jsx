@@ -205,6 +205,41 @@ export default function DeliveryFormView({
     return { driverId: null, resolvedSlot: timeSlot || 'AM', hasAnyAssignedSlot: false };
   };
 
+  useEffect(() => {
+    if (delivery || editingStagedId || isPickupMode || isInterStoreMode) return;
+
+    const storeId = selectedPatient?.store_id || formData?.store_id;
+    const deliveryDate = formData?.delivery_date;
+    if (!storeId || !deliveryDate) return;
+
+    const requestedSlot = determineDeliveryAMPM(selectedPatient) || 'AM';
+    const { driverId: defaultDriverId } = getDefaultDriverForStoreSlot(storeId, requestedSlot, deliveryDate);
+    const defaultDriver = defaultDriverId ? allDrivers.find((d) => d.id === defaultDriverId) : null;
+    const nextDriverId = defaultDriver ? defaultDriverId : '';
+    const nextDriverName = defaultDriver ? getDriverNameForStorage(defaultDriver) : '';
+
+    if ((formData?.driver_id || '') === nextDriverId && (formData?.driver_name || '') === nextDriverName) return;
+
+    setFormData((prev) => ({
+      ...prev,
+      store_id: storeId,
+      driver_id: nextDriverId,
+      driver_name: nextDriverName
+    }));
+  }, [
+    delivery,
+    editingStagedId,
+    isPickupMode,
+    isInterStoreMode,
+    selectedPatient?.id,
+    selectedPatient?.store_id,
+    selectedPatient?.time_window_start,
+    selectedPatient?.time_window_end,
+    formData?.delivery_date,
+    stores,
+    allDrivers
+  ]);
+
   const stagedPanelProps = buildDeliveryStagedPanelProps({
     sortedStagedDeliveries,
     sortedProjectedDeliveries,
