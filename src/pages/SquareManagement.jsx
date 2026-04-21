@@ -1168,12 +1168,12 @@ export default function SquareManagement() {
     return amounts;
   }, []);
 
-  const amountSetsIntersect = React.useCallback((left, right) => {
+  function amountSetsIntersect(left, right) {
     for (const value of left) {
       if (right.has(value)) return true;
     }
     return false;
-  }, []);
+  }
 
   const filteredDeliveryRows = React.useMemo(() => {
     return (deliveries || [])
