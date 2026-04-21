@@ -720,12 +720,9 @@ export default function Layout({ children, currentPageName }) {
       if (currentPageName !== 'Dashboard' || selectedDateStr !== todayStr) return;
 
       const singleUpdate = event?.detail?.singleUpdate;
-      if (!singleUpdate?.user_id || singleUpdate.current_latitude == null || singleUpdate.current_longitude == null) return;
-
-      await updatePolylineOnRefresh(singleUpdate.user_id, todayStr, {
-        lat: Number(singleUpdate.current_latitude),
-        lon: Number(singleUpdate.current_longitude)
-      });
+      const roles = singleUpdate?.app_roles || [];
+      if (!singleUpdate?.user_id || !roles.includes('driver') || singleUpdate?.driver_status !== 'on_duty' || singleUpdate.current_latitude == null || singleUpdate.current_longitude == null) return;
+      await updatePolylineOnRefresh(singleUpdate.user_id, todayStr, { lat: Number(singleUpdate.current_latitude), lon: Number(singleUpdate.current_longitude) });
     };
     window.addEventListener('driverLocationsUpdated', handleDriverLocationUpdated);
 
