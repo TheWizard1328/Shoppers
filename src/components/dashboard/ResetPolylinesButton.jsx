@@ -158,9 +158,9 @@ export default function ResetPolylinesButton({
       disabled={disabled || isResetting || driverIds.length === 0}
       className={`h-8 gap-2 ${className}`}
       style={{ background: "var(--bg-white)", borderColor: "var(--border-slate-300)", color: "var(--text-slate-900)" }}
+      title="Refresh polylines"
     >
       {isResetting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
-      {/** {isResetting ? "Updating..." : "Reset"} **/}
     </Button>
   );
 }

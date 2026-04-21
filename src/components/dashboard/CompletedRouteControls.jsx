@@ -1,9 +1,9 @@
 import React from 'react';
 import { format } from 'date-fns';
+import { RotateCcw } from 'lucide-react';
 import { isAppOwner } from '@/components/utils/userRoles';
-import BreadcrumbToggleButton from '@/components/dashboard/BreadcrumbToggleButton';
+import { Checkbox } from '@/components/ui/checkbox';
 import ResetPolylinesButton from '@/components/dashboard/ResetPolylinesButton';
-import { Button } from '@/components/ui/button';
 
 export default function CompletedRouteControls({
   currentUser,
@@ -27,47 +27,56 @@ export default function CompletedRouteControls({
   return (
     <div className="absolute top-3 right-3 z-[700] pointer-events-auto">
       <div
-        className="rounded-xl border shadow-lg backdrop-blur-sm p-2 flex items-center gap-2"
+        className="rounded-lg border shadow-md overflow-hidden"
         style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}
       >
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            setShowRoutes(!showRoutes);
-            if (showRoutes) {
-              setShowBreadcrumbs(false);
-              setBreadcrumbsData({ historical: [], current: [] });
-            }
-          }}
-          className={`h-8 ${showRoutes ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
-          style={!showRoutes ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}
-        >
-          Polylines
-        </Button>
+        <div className="flex items-stretch">
+          <div className="px-3 py-2 flex flex-col gap-2 min-w-[148px]">
+            <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: 'var(--text-slate-900)' }}>
+              <Checkbox
+                checked={showRoutes}
+                onCheckedChange={(checked) => {
+                  const enabled = checked === true;
+                  setShowRoutes(enabled);
+                  if (!enabled) {
+                    setShowBreadcrumbs(false);
+                    setBreadcrumbsData({ historical: [], current: [] });
+                  }
+                }}
+                className="h-4 w-4 min-h-4 min-w-4 rounded-sm"
+              />
+              <span>Show Polylines</span>
+            </label>
 
-        <BreadcrumbToggleButton
-          isMobile={false}
-          isDriver={false}
-          isRouteComplete={isRouteComplete}
-          showBreadcrumbs={showBreadcrumbs}
-          setShowBreadcrumbs={setShowBreadcrumbs}
-          setShowRoutes={setShowRoutes}
-          setBreadcrumbsData={setBreadcrumbsData}
-          selectedDate={selectedDate}
-          showAllDriverMarkers={false}
-          selectedDriverId={selectedDriverId}
-          currentUser={currentUser}
-          appUsers={appUsers}
-        />
+            <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: 'var(--text-slate-900)' }}>
+              <Checkbox
+                checked={showBreadcrumbs}
+                onCheckedChange={(checked) => {
+                  const enabled = checked === true;
+                  setShowBreadcrumbs(enabled);
+                  if (enabled) {
+                    setShowRoutes(false);
+                  } else {
+                    setBreadcrumbsData({ historical: [], current: [] });
+                  }
+                }}
+                className="h-4 w-4 min-h-4 min-w-4 rounded-sm"
+              />
+              <span>Show Breadcrumbs</span>
+            </label>
+          </div>
 
-        <ResetPolylinesButton
-          selectedDriverIds={[selectedDriverId]}
-          selectedDate={format(selectedDate, 'yyyy-MM-dd')}
-          selectedPolylineOption={showBreadcrumbs ? 'breadcrumbs' : 'polylines'}
-          mode="inline"
-          disabled={!deliveriesWithStopOrder?.length}
-        />
+          <div className="border-l flex items-start justify-center p-2" style={{ borderColor: 'var(--border-slate-200)' }}>
+            <ResetPolylinesButton
+              selectedDriverIds={[selectedDriverId]}
+              selectedDate={format(selectedDate, 'yyyy-MM-dd')}
+              selectedPolylineOption={showBreadcrumbs ? 'breadcrumbs' : 'polylines'}
+              mode="inline"
+              disabled={!deliveriesWithStopOrder?.length}
+              className="h-8 w-8 p-0"
+            />
+          </div>
+        </div>
       </div>
     </div>
   );
