@@ -6,6 +6,7 @@ import DashboardOfflineSync from '@/components/dashboard/DashboardOfflineSync';
 import ETATracker from '@/components/dashboard/ETATracker';
 import ETANotification from '@/components/dashboard/ETANotification';
 import RealTimeRouteOptimizer from '@/components/dashboard/RealTimeRouteOptimizer';
+import CompletedRouteControls from '@/components/dashboard/CompletedRouteControls';
 
 export default function MapSection({
   currentUser, isDriver, isDispatcher, isMobile,
@@ -24,6 +25,12 @@ export default function MapSection({
   preferredTravelMode, onTravelModeChange,
   topOverlayHeight = 0,
 }) {
+  const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+  const routeCompleteForSelectedDriver = selectedDriverId && selectedDriverId !== 'all'
+    ? deliveriesWithStopOrder.filter((d) => d && d.patient_id && d.driver_id === selectedDriverId).length > 0 &&
+      deliveriesWithStopOrder.filter((d) => d && d.patient_id && d.driver_id === selectedDriverId).every((d) => finishedStatuses.includes(d.status))
+    : false;
+
   return (
     <>
       {!isStatsCardCentered && <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} stopCardsHeight={stopCardsBaseHeight} />}
@@ -37,6 +44,21 @@ export default function MapSection({
       }
 
       <ETANotification deliveries={filteredDeliveries} driverId={selectedDriverId} currentUser={currentUser} />
+
+      <CompletedRouteControls
+        currentUser={currentUser}
+        isMobile={isMobile}
+        selectedDriverId={selectedDriverId}
+        selectedDate={selectedDate}
+        isRouteComplete={routeCompleteForSelectedDriver}
+        showRoutes={showRoutes}
+        setShowRoutes={window.__dashboardCompletedRouteControls?.setShowRoutes || (() => {})}
+        showBreadcrumbs={showBreadcrumbs}
+        setShowBreadcrumbs={window.__dashboardCompletedRouteControls?.setShowBreadcrumbs || (() => {})}
+        setBreadcrumbsData={() => {}}
+        appUsers={appUsers}
+        deliveriesWithStopOrder={deliveriesWithStopOrder}
+      />
 
       <div className="absolute inset-0">
         <DeliveryMap
