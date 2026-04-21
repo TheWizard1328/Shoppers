@@ -63,12 +63,15 @@ export default function StopCardFooterMenu(props) {
   const canShowDelete = !!(!isDispatcherOnly && canManageStop && (isActiveDelivery || isActivePickup || isFinishedPickup || isFinishedRegularDelivery));
 
   const dispatcherStoreIds = Array.isArray(currentUser?.store_ids) ? currentUser.store_ids : [];
+  const selectedDate = delivery?.delivery_date;
   const dispatcherStoreStops = isDispatcherOnly
-    ? (allDeliveries || []).filter((item) => item && dispatcherStoreIds.includes(item.store_id))
+    ? (allDeliveries || []).filter((item) => item && dispatcherStoreIds.includes(item.store_id) && item.delivery_date === selectedDate)
     : [];
-  const areAllDispatcherStoreStopsFinished = isDispatcherOnly && dispatcherStoreStops.length > 0 && dispatcherStoreStops.every((item) => ['completed', 'cancelled', 'failed', 'returned'].includes(item?.status));
+  const finishedStatuses = ['completed', 'cancelled', 'failed', 'returned'];
+  const isCurrentDispatcherStopFinished = isDispatcherOnly && finishedStatuses.includes(delivery?.status);
+  const areAllDispatcherStoreStopsFinished = isDispatcherOnly && (dispatcherStoreStops.length === 0 || dispatcherStoreStops.every((item) => finishedStatuses.includes(item?.status)));
 
-  if (areAllDispatcherStoreStopsFinished) return null;
+  if (isCurrentDispatcherStopFinished && areAllDispatcherStoreStopsFinished) return null;
 
   return (
     <DropdownMenu modal={false}>
