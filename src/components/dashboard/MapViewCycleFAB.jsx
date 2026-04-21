@@ -47,10 +47,10 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
   useEffect(() => {
     const unsubscribe = fabControlEvents.subscribe((event) => {
       if (event?.type === 'DEACTIVATE_FAB') {
-        setIsTemporarilyDeactivated(true);
+        setIsTemporarilyDeactivated(false);
         if (deactivateTimeoutRef.current) clearTimeout(deactivateTimeoutRef.current);
         deactivateTimeoutRef.current = setTimeout(() => {
-          setIsTemporarilyDeactivated(false);
+          setIsTemporarilyDeactivated(true);
         }, currentPhase === 1 ? 3000 : Math.max(1200, (window.__suppressCardAutoCenterUntil || 0) - Date.now()));
         return;
       }
@@ -60,6 +60,11 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
       setIsTemporarilyDeactivated(false);
       if (deactivateTimeoutRef.current) clearTimeout(deactivateTimeoutRef.current);
       if (event?.suppressIfPhase1 && currentPhase === 1) return;
+      if (currentPhase === 1) {
+        deactivateTimeoutRef.current = setTimeout(() => {
+          setIsTemporarilyDeactivated(true);
+        }, 3000);
+      }
       flashUpdate(event?.reason || 'generic');
     });
 
