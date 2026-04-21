@@ -491,7 +491,7 @@ export default function DeliveryFormView({
 
               {/* Delivery mode: Patient Search / Date / Driver row */}
               {!(isPickupMode && !delivery) &&
-              <div className={`${useMobileLayout ? 'flex flex-col gap-3' : (!delivery && !isPickupMode ? `grid ${userHasRole(currentUser, 'driver') ? 'grid-cols-[minmax(0,1.45fr)_minmax(9rem,0.55fr)_minmax(9rem,0.55fr)_minmax(8.5rem,0.45fr)]' : 'grid-cols-[minmax(0,1.7fr)_minmax(11rem,0.65fr)_minmax(11rem,0.65fr)]'} gap-3` : 'flex gap-3 w-full')} ${!delivery && !useMobileLayout ? 'flex-shrink-0' : ''}`}>
+              <div className={`${useMobileLayout ? 'flex flex-col gap-3' : (!delivery && !isPickupMode ? `grid ${userHasRole(currentUser, 'driver') ? 'grid-cols-[minmax(0,1.1fr)_minmax(9rem,0.65fr)_minmax(9rem,0.65fr)_minmax(8.5rem,0.45fr)]' : 'grid-cols-[minmax(0,1.2fr)_minmax(11rem,0.8fr)_minmax(11rem,0.8fr)]'} gap-3` : 'flex gap-3 w-full')} ${!delivery && !useMobileLayout ? 'flex-shrink-0' : ''}`}>
                 {!delivery && !isPickupMode &&
                 <div className={`relative min-w-0 ${useMobileLayout ? 'w-full' : ''}`}>
                     <DeliveryPatientSearch
