@@ -855,9 +855,25 @@ export default function SquareManagement() {
     );
   };
 
+  const getTransactionSearchNames = React.useCallback((transaction) => {
+    const names = new Set();
+    if (transaction?.item_name) names.add(String(transaction.item_name));
+
+    const rawLineItems = transaction?.raw_square_data?.line_items || transaction?.raw_square_data?.lineItems || transaction?.raw_square_data?.order?.line_items || transaction?.raw_square_data?.order?.lineItems || [];
+    if (Array.isArray(rawLineItems)) {
+      rawLineItems.forEach((item) => {
+        const candidateNames = [item?.name, item?.item_name, item?.catalog_object_name];
+        candidateNames.forEach((name) => {
+          if (name && String(name).trim()) names.add(String(name));
+        });
+      });
+    }
+
+    return Array.from(names);
+  }, []);
+
   const hasMatchingSquareTransaction = (delivery, locationId) => {
-    const deliveryAmount = Number(delivery?.cod_total_amount_required || 0);
-    const deliveryAmountCents = Math.round(deliveryAmount * 100);
+    const deliveryAmountSet = getDeliveryPaymentAmountSet(delivery);
     const patient = patients.find((p) => p?.id === delivery?.patient_id || p?.patient_id === delivery?.patient_id);
     const patientName = patient?.full_name || '';
 
@@ -869,8 +885,8 @@ export default function SquareManagement() {
 
       if (transaction.delivery_id && transaction.delivery_id === delivery.id) return true;
 
-      const transactionAmountCents = Math.round(Number(transaction.amount || 0) * 100);
-      if (transactionAmountCents !== deliveryAmountCents) return false;
+      const transactionAmountSet = getTransactionAmountSet(transaction);
+      if (!amountSetsIntersect(deliveryAmountSet, transactionAmountSet)) return false;
 
       const sameStoreSameDay =
         transaction.location_id === locationId &&
@@ -879,7 +895,7 @@ export default function SquareManagement() {
 
       if (sameStoreSameDay) return true;
 
-      return patientNamesMatch(patientName, transaction.item_name);
+      return getTransactionSearchNames(transaction).some((name) => patientNamesMatch(patientName, name));
     });
   };
 
@@ -987,7 +1003,7 @@ export default function SquareManagement() {
       const bStoreName = bStore?.name || bConfig?.name || '';
       return aStoreName.localeCompare(bStoreName);
     });
-  }, [catalogItems, currentUser, selectedDriverFilter, locationConfigs, drivers, soldCatalogItems, deliveries, stores, patients]);
+  }, [catalogItems, currentUser, selectedDriverFilter, locationConfigs, drivers, soldCatalogItems, deliveries, stores, patients, amountSetsIntersect, getDeliveryPaymentAmountSet, getTransactionAmountSet, getTransactionSearchNames]);
 
   const selectedDriverUserIds = React.useMemo(() => {
     if (selectedDriverFilter && selectedDriverFilter !== 'all') {
@@ -1124,6 +1140,25 @@ export default function SquareManagement() {
         if (amount > 0) {
           amounts.add(amount);
           splitTotal += amount;
+        }
+      });
+    }
+
+    const rawLineItems = transaction?.raw_square_data?.line_items || transaction?.raw_square_data?.lineItems || transaction?.raw_square_data?.order?.line_items || transaction?.raw_square_data?.order?.lineItems || [];
+    if (Array.isArray(rawLineItems)) {
+      rawLineItems.forEach((item) => {
+        const quantity = Math.max(1, Number(item?.quantity || 1));
+        const baseAmountCents =
+          item?.base_price_money?.amount != null ? Number(item.base_price_money.amount) :
+          item?.basePriceMoney?.amount != null ? Number(item.basePriceMoney.amount) :
+          item?.gross_sales_money?.amount != null ? Number(item.gross_sales_money.amount) :
+          item?.grossSalesMoney?.amount != null ? Number(item.grossSalesMoney.amount) :
+          item?.total_money?.amount != null ? Number(item.total_money.amount) :
+          item?.totalMoney?.amount != null ? Number(item.totalMoney.amount) :
+          null;
+        if (baseAmountCents != null && Number.isFinite(baseAmountCents) && baseAmountCents > 0) {
+          amounts.add(Math.round(baseAmountCents));
+          amounts.add(Math.round(baseAmountCents * quantity));
         }
       });
     }
@@ -1287,6 +1322,7 @@ export default function SquareManagement() {
           id: transaction.id,
           rawTransaction: transaction,
           amountSet: getTransactionAmountSet(transaction),
+          searchNames: getTransactionSearchNames(transaction),
           rawStatus: transaction.status,
           rawStoreId: transaction.store_id || store?.id || null,
           itemName: transaction.item_name || transaction.square_payment_id || 'Square Transaction',
@@ -1309,7 +1345,7 @@ export default function SquareManagement() {
         };
       })
       .sort((a, b) => String(b.deliveryDate || '').localeCompare(String(a.deliveryDate || '')));
-  }, [allTransactions, lookbackStart, visibleStoreIds, visibleLocationIds, selectedDriverFilter, selectedDriverUserIds, driverScopedLocationIds, locationConfigs, stores, deliveries, drivers, getTransactionAmountSet]);
+  }, [allTransactions, lookbackStart, visibleStoreIds, visibleLocationIds, selectedDriverFilter, selectedDriverUserIds, driverScopedLocationIds, locationConfigs, stores, deliveries, drivers, getTransactionAmountSet, getTransactionSearchNames]);
 
   const filteredCatalogRows = React.useMemo(() => {
     return (catalogItems || [])
@@ -1456,10 +1492,12 @@ export default function SquareManagement() {
 
       const hasStrictTransactionMatch = filteredTransactionRows.some((transactionRow) => {
         if (['cancelled', 'failed'].includes(transactionRow.rawStatus)) return false;
+        const searchNames = Array.isArray(transactionRow.searchNames) ? transactionRow.searchNames : [transactionRow.itemName];
+        const matchesAnyName = searchNames.some((name) => rowMatchesPatientName({ itemName: name }, deliveryRow.itemName));
         return amountSetsIntersect(deliveryAmountSet, transactionRow.amountSet || new Set()) &&
           normalizeDate(transactionRow.deliveryDate) === deliveryDate &&
           String(transactionRow.locationId || '') === deliveryLocationId &&
-          (patientNameMatches(transactionRow) || notesContainPatientName(transactionRow.notes, deliveryRow.itemName));
+          (matchesAnyName || notesContainPatientName(transactionRow.notes, deliveryRow.itemName));
       });
 
       if (hasStrictTransactionMatch) return;
