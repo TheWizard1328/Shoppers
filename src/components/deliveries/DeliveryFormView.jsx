@@ -424,7 +424,7 @@ export default function DeliveryFormView({
           }
 
           <CardContent className="p-3 flex-1 relative overflow-hidden">
-            <div className="space-y-3 h-full flex flex-col">
+            <div className="h-full min-h-0 flex flex-col gap-3">
 
               {/* Pickup mode: Row 1 = Location + Date + Driver */}
               {isPickupMode && !delivery &&
@@ -576,8 +576,8 @@ export default function DeliveryFormView({
               })}
 
               {/* Main scrollable body */}
-              <div className={`flex gap-3 w-full ${delivery || useMobileLayout ? 'overflow-y-auto flex-1' : 'flex-1 min-h-0 overflow-hidden'} ${deleteConfirmation?.show ? 'pointer-events-none' : ''}`}>
-                <div className={`flex flex-col gap-3 min-w-0 ${delivery || useMobileLayout ? 'flex-1' : 'flex-1 overflow-y-auto'} ${isFormDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
+              <div className={`flex gap-3 w-full ${delivery || useMobileLayout ? 'overflow-y-auto flex-1' : 'flex-1 min-h-0 overflow-hidden items-stretch'} ${deleteConfirmation?.show ? 'pointer-events-none' : ''}`}>
+                <div className={`flex flex-col gap-3 min-w-0 ${delivery || useMobileLayout ? 'flex-1' : 'flex-1 overflow-y-auto min-h-0'} ${isFormDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
 
                   {!isPickupMode ?
                   <div className={`${useMobileLayout ? 'space-y-2' : 'grid grid-cols-[minmax(0,1.7fr)_minmax(16rem,0.7fr)] gap-3 items-start'}`}>
@@ -823,7 +823,11 @@ export default function DeliveryFormView({
                 </div>
 
                 {/* Desktop Staged Panel - hidden in pickup mode */}
-                {!delivery && !useMobileLayout && !isPickupMode && <DeliveryStagedPanelDesktop {...stagedPanelProps} />}
+                {!delivery && !useMobileLayout && !isPickupMode && (
+                  <div className="h-full min-h-0 self-stretch flex">
+                    <DeliveryStagedPanelDesktop {...stagedPanelProps} />
+                  </div>
+                )}
               </div>
             </div>
 
