@@ -404,7 +404,15 @@ export default function StatsPanel({
                   <Settings className="w-3.5 h-3.5" />
                 </Button>
 
-                <Button variant="default" size="sm" onClick={() => {setShowRoutes(!showRoutes);setIsExpanded(false);}} className="gap-2 h-8 flex-shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white">
+                <Button variant="default" size="sm" onClick={() => {
+                      const nextShowRoutes = !showRoutes;
+                      setShowRoutes(nextShowRoutes);
+                      if (nextShowRoutes) {
+                        setShowBreadcrumbs(false);
+                        setBreadcrumbsData({ historical: [], current: [] });
+                      }
+                      setIsExpanded(false);
+                    }} className={`gap-2 h-8 flex-shrink-0 ${showRoutes ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'} text-white`}>
                   <Truck className="w-3.5 h-3.5" />{showRoutes ? 'Hide' : 'Show'}
                 </Button>
               </div>

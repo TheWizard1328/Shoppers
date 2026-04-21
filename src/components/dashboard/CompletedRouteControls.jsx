@@ -1,8 +1,7 @@
 import React from 'react';
 import { format } from 'date-fns';
-import { RotateCcw } from 'lucide-react';
 import { isAppOwner } from '@/components/utils/userRoles';
-import { Checkbox } from '@/components/ui/checkbox';
+import { loadBreadcrumbsForDriver } from '@/components/utils/breadcrumbsManager';
 import ResetPolylinesButton from '@/components/dashboard/ResetPolylinesButton';
 
 export default function CompletedRouteControls({
@@ -39,6 +38,7 @@ export default function CompletedRouteControls({
                   setShowRoutes(true);
                   setShowBreadcrumbs(false);
                   setBreadcrumbsData({ historical: [], current: [] });
+                  localStorage.setItem('rxdeliver_show_routes', 'true');
                 }}
               >
                 {showRoutes && <span className="h-2 w-2 rounded-full bg-amber-600" />}
@@ -49,9 +49,18 @@ export default function CompletedRouteControls({
             <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: 'var(--text-slate-900)' }}>
               <span
                 className={`h-4 w-4 min-h-4 min-w-4 rounded-full border flex items-center justify-center ${showBreadcrumbs ? 'border-amber-600' : 'border-slate-400'}`}
-                onClick={() => {
+                onClick={async () => {
+                  const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+                  const loadedBreadcrumbs = await loadBreadcrumbsForDriver(selectedDriverId, selectedDateStr, appUsers);
+                  if (loadedBreadcrumbs.historical.length === 0 && loadedBreadcrumbs.current.length === 0) {
+                    setShowBreadcrumbs(false);
+                    setBreadcrumbsData({ historical: [], current: [] });
+                    return;
+                  }
+                  setBreadcrumbsData(loadedBreadcrumbs);
                   setShowBreadcrumbs(true);
                   setShowRoutes(false);
+                  localStorage.setItem('rxdeliver_show_routes', 'false');
                 }}
               >
                 {showBreadcrumbs && <span className="h-2 w-2 rounded-full bg-amber-600" />}
