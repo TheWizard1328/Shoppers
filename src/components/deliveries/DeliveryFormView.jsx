@@ -2,7 +2,7 @@
  * DeliveryFormView - The pure render/JSX layer for DeliveryForm.
  * All logic remains in DeliveryForm.jsx; this file just renders it.
  */
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -131,6 +131,7 @@ export default function DeliveryFormView({
   buttonState, cancelButtonState, isFormValid, hasChanges, isPatientFormOpen,
   closeOnSave, onCancel, openMode, forceOpenDriverOnLoad = false
 }) {
+  const activeFieldScrollFrameRef = useRef(null);
   const stagedCount = React.useMemo(() => ({
     new: sortedStagedDeliveries.filter((s) => !s.id).length,
     pending: sortedStagedDeliveries.filter((s) => s.id).length
@@ -281,6 +282,40 @@ export default function DeliveryFormView({
       }, 120);
     }
   }, [editingStagedId, shouldAutoFocusFields, codAmountInputRef]);
+
+  React.useEffect(() => {
+    if (!useMobileLayout) return;
+
+    const ensureActiveFieldVisible = (target) => {
+      const field = target instanceof HTMLElement ? target : null;
+      if (!field) return;
+      if (!field.matches('input, textarea, [contenteditable="true"]')) return;
+
+      if (activeFieldScrollFrameRef.current) {
+        cancelAnimationFrame(activeFieldScrollFrameRef.current);
+      }
+
+      activeFieldScrollFrameRef.current = requestAnimationFrame(() => {
+        try {
+          field.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+        } catch {}
+      });
+    };
+
+    const handleFocusIn = (event) => ensureActiveFieldVisible(event.target);
+    const handleInput = (event) => ensureActiveFieldVisible(event.target);
+
+    document.addEventListener('focusin', handleFocusIn);
+    document.addEventListener('input', handleInput, true);
+
+    return () => {
+      document.removeEventListener('focusin', handleFocusIn);
+      document.removeEventListener('input', handleInput, true);
+      if (activeFieldScrollFrameRef.current) {
+        cancelAnimationFrame(activeFieldScrollFrameRef.current);
+      }
+    };
+  }, [useMobileLayout]);
 
   const handleGlobalKeyDown = (e) => {
     if (e.key === 'Enter') {
