@@ -1783,10 +1783,41 @@ export default function SquareManagement() {
       ) : (
         <SquareCodDatasetTable
           title="Square Catalog Items"
-          rows={filteredCatalogRows}
+          rows={filteredCatalogItems.map((item) => {
+            const config = locationConfigs.find((c) => c?.square_location_id === item.location_id);
+            const store = stores.find((s) => s?.id === item.store_id) || stores.find((s) => s?.square_location_config_id === config?.id);
+            return {
+              id: item.catalog_object_id || item.id,
+              itemName: item.name || item.item_name || 'Catalog Item',
+              amount: Number(item.price_dollars || item.amount || 0),
+              storeName: store?.name || config?.name || 'Unknown',
+              locationId: item.location_id || '—',
+              catalogId: item.catalog_object_id || item.id || '—',
+              deliveryDate: item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate,
+              subtext: item.description || item.status || null,
+              actions: (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setItemToDelete(item);
+                  }}
+                  disabled={deletingId === item.catalog_object_id}
+                  className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                >
+                  {deletingId === item.catalog_object_id ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-4 h-4" />
+                  )}
+                </Button>
+              )
+            };
+          })}
           isLoading={isLoading}
           emptyTitle="No Square catalog items found"
-          emptyDescription={`Offline catalog loaded: ${catalogItems.length} items, visible after filters: ${filteredCatalogRows.length}. If this stays at 0, the current store/driver filters do not match the offline catalog records.`}
+          emptyDescription={`Offline catalog loaded: ${catalogItems.length} items, visible after filters: ${filteredCatalogItems.length}. If this stays at 0, the current store/driver filters do not match the filtered catalog records.`}
           showLocationColumn={currentUser && isAppOwner(currentUser)}
           navHeight={navHeight}
         />
