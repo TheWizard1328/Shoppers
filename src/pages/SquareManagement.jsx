@@ -640,8 +640,8 @@ export default function SquareManagement() {
           collectionType,
           subtext: delivery.driver_name || null,
           actions: hasMatch
-            ? <Badge className="border border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Matched</Badge>
-            : <Badge className="border border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-100">No Match</Badge>
+            ? <Button variant="secondary" size="sm" className="border border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Matched</Button>
+            : <Button variant="secondary" size="sm" className="border border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-100">No Match</Button>
         };
       });
   }, [deliveries, visibleStoreIdsWithSquareLocationIds, lookbackStart, selectedDriverFilter, selectedDriverUserIds, patients, stores, locationConfigs, catalogItems, allTransactions]);
