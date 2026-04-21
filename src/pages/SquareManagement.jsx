@@ -1066,6 +1066,64 @@ export default function SquareManagement() {
     );
   }, [currentUser, currentAppUser, drivers, selectedDriverFilter, locationConfigs]);
 
+  const getDeliveryPaymentAmountSet = React.useCallback((delivery) => {
+    const amounts = new Set();
+    const totalRequired = Math.round(Number(delivery?.cod_total_amount_required || 0) * 100);
+    if (totalRequired > 0) amounts.add(totalRequired);
+
+    const codPayments = Array.isArray(delivery?.cod_payments) ? delivery.cod_payments : [];
+    let splitTotal = 0;
+    codPayments.forEach((payment) => {
+      const amount = Math.round(Number(payment?.amount || 0) * 100);
+      if (amount > 0) {
+        amounts.add(amount);
+        splitTotal += amount;
+      }
+    });
+
+    if (splitTotal > 0) amounts.add(splitTotal);
+
+    const legacyAmount = Math.round(Number(delivery?.cod_amount || 0) * 100);
+    if (legacyAmount > 0) amounts.add(legacyAmount);
+
+    return amounts;
+  }, []);
+
+  const getTransactionAmountSet = React.useCallback((transaction) => {
+    const amounts = new Set();
+    const totalAmount = Math.round(Number(transaction?.amount || 0) * 100);
+    if (totalAmount > 0) amounts.add(totalAmount);
+
+    const rawSplitPayments = transaction?.raw_square_data?.split_payments || transaction?.raw_square_data?.splitPayments || transaction?.raw_square_data?.tenders || transaction?.raw_square_data?.payment_details?.split_payments || [];
+    let splitTotal = 0;
+
+    if (Array.isArray(rawSplitPayments)) {
+      rawSplitPayments.forEach((payment) => {
+        const amountValue =
+          payment?.amount_money?.amount != null ? Number(payment.amount_money.amount) / 100 :
+          payment?.amountMoney?.amount != null ? Number(payment.amountMoney.amount) / 100 :
+          payment?.amount != null ? Number(payment.amount) :
+          payment?.payment_amount != null ? Number(payment.payment_amount) : 0;
+        const amount = Math.round(Number(amountValue || 0) * 100);
+        if (amount > 0) {
+          amounts.add(amount);
+          splitTotal += amount;
+        }
+      });
+    }
+
+    if (splitTotal > 0) amounts.add(splitTotal);
+
+    return amounts;
+  }, []);
+
+  const amountSetsIntersect = React.useCallback((left, right) => {
+    for (const value of left) {
+      if (right.has(value)) return true;
+    }
+    return false;
+  }, []);
+
   const filteredDeliveryRows = React.useMemo(() => {
     return (deliveries || [])
       .filter((delivery) => {
@@ -1125,64 +1183,6 @@ export default function SquareManagement() {
         };
       });
   }, [deliveries, visibleStoreIds, selectedDriverFilter, selectedDriverUserIds, patients, stores, locationConfigs, catalogItems, allTransactions, getDeliveryPaymentAmountSet]);
-
-  const getDeliveryPaymentAmountSet = React.useCallback((delivery) => {
-    const amounts = new Set();
-    const totalRequired = Math.round(Number(delivery?.cod_total_amount_required || 0) * 100);
-    if (totalRequired > 0) amounts.add(totalRequired);
-
-    const codPayments = Array.isArray(delivery?.cod_payments) ? delivery.cod_payments : [];
-    let splitTotal = 0;
-    codPayments.forEach((payment) => {
-      const amount = Math.round(Number(payment?.amount || 0) * 100);
-      if (amount > 0) {
-        amounts.add(amount);
-        splitTotal += amount;
-      }
-    });
-
-    if (splitTotal > 0) amounts.add(splitTotal);
-
-    const legacyAmount = Math.round(Number(delivery?.cod_amount || 0) * 100);
-    if (legacyAmount > 0) amounts.add(legacyAmount);
-
-    return amounts;
-  }, []);
-
-  const getTransactionAmountSet = React.useCallback((transaction) => {
-    const amounts = new Set();
-    const totalAmount = Math.round(Number(transaction?.amount || 0) * 100);
-    if (totalAmount > 0) amounts.add(totalAmount);
-
-    const rawSplitPayments = transaction?.raw_square_data?.split_payments || transaction?.raw_square_data?.splitPayments || transaction?.raw_square_data?.tenders || transaction?.raw_square_data?.payment_details?.split_payments || [];
-    let splitTotal = 0;
-
-    if (Array.isArray(rawSplitPayments)) {
-      rawSplitPayments.forEach((payment) => {
-        const amountValue =
-          payment?.amount_money?.amount != null ? Number(payment.amount_money.amount) / 100 :
-          payment?.amountMoney?.amount != null ? Number(payment.amountMoney.amount) / 100 :
-          payment?.amount != null ? Number(payment.amount) :
-          payment?.payment_amount != null ? Number(payment.payment_amount) : 0;
-        const amount = Math.round(Number(amountValue || 0) * 100);
-        if (amount > 0) {
-          amounts.add(amount);
-          splitTotal += amount;
-        }
-      });
-    }
-
-    if (splitTotal > 0) amounts.add(splitTotal);
-
-    return amounts;
-  }, []);
-
-  const amountSetsIntersect = React.useCallback((left, right) => {
-    for (const value of left) {
-      if (right.has(value)) return true;
-    }
-    return false;
-  }, []);
 
   const filteredTransactionRows = React.useMemo(() => {
     const dedupedTransactions = [];
