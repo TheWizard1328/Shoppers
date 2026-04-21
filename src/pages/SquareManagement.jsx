@@ -411,6 +411,12 @@ export default function SquareManagement() {
 
     const refreshedCatalog = await getCatalogItemsOffline();
     const refreshedTransactions = await getPaymentTransactionsOffline();
+    console.log('[SquareManagement] Offline Square refresh counts', {
+      catalogRecordsFromApi: catalogRecords.length,
+      catalogRecordsSavedToOnline: safeCatalogRecords.length,
+      offlineCatalogCount: refreshedCatalog.length,
+      offlineTransactionCount: refreshedTransactions.length,
+    });
     const refreshedOfflineDeliveries = await loadDeliveriesFromOffline(offlineDB, startDateStr, endDateStr);
     setDeliveries(refreshedOfflineDeliveries || []);
     setCatalogItems(refreshedCatalog || []);

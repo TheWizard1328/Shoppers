@@ -21,14 +21,34 @@ const isRecentSquareTransaction = (transaction) => {
   return Number.isFinite(timestamp) && timestamp >= getLookbackStartMs();
 };
 
+const parseCatalogDate = (record) => {
+  if (record?.delivery_date) {
+    return new Date(`${record.delivery_date}T00:00:00`).getTime();
+  }
+
+  const itemName = record?.item_name || record?.name || '';
+  const match = String(itemName).match(/^(\d{2})[\/-](\d{2})/);
+  if (match) {
+    const today = new Date();
+    const candidate = new Date(today.getFullYear(), Number(match[1]) - 1, Number(match[2]));
+    const msInDay = 24 * 60 * 60 * 1000;
+    if (candidate.getTime() - today.getTime() > 45 * msInDay) {
+      candidate.setFullYear(candidate.getFullYear() - 1);
+    }
+    return candidate.getTime();
+  }
+
+  return new Date(record?.created_date || record?.updated_date || 0).getTime();
+};
+
 const isRecentCatalogItem = (record) => {
-  const sourceDate = record?.delivery_date ? `${record.delivery_date}T00:00:00` : (record?.created_date || record?.updated_date || 0);
-  const timestamp = new Date(sourceDate).getTime();
+  const timestamp = parseCatalogDate(record);
   return Number.isFinite(timestamp) && timestamp >= getLookbackStartMs();
 };
 
 const normalizeCatalogEntityRecord = (record) => ({
   ...record,
+  id: record?.id || record?.square_catalog_object_id,
   amount: Number(record?.amount || 0),
   amount_cents: record?.amount_cents ?? Math.round(Number(record?.amount || 0) * 100),
   status: record?.status || 'active'
