@@ -539,9 +539,8 @@ export default function DeliveryFormView({
                   </div>
                 ) : (
                   <div className={`${useMobileLayout ? 'flex flex-col gap-3 w-full' : 'flex gap-3 flex-row w-full'}`}>
-                    <div className={`${useMobileLayout ? 'grid grid-cols-2 gap-3 w-full' : 'flex gap-3 flex-row w-full'}`}>
-                      <div className={`${useMobileLayout ? 'w-[calc(50%-0.375rem)]' : 'min-w-0 flex-1'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                        <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Date *</Label>
+                    <div className={`${useMobileLayout ? 'grid grid-cols-2 gap-3 w-full min-[431px]:grid-cols-2 max-[430px]:grid-cols-1' : 'flex gap-3 flex-row w-full'}`}>
+                      <div className={`${useMobileLayout ? 'w-full min-[431px]:w-[calc(50%-0.375rem)]' : 'min-w-0 flex-1'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>                        <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Date *</Label>
                         <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
                       </div>
 
@@ -627,7 +626,7 @@ export default function DeliveryFormView({
                   <div className={`${useMobileLayout ? 'space-y-2' : 'grid grid-cols-[minmax(0,1.7fr)_minmax(16rem,0.7fr)] gap-3 items-start'}`}>
                       <div className="space-y-3 min-w-0">
                         {useMobileLayout && !delivery && (
-                          <div className="w-full block clear-both">
+                          <div className="w-full block clear-both min-[431px]:hidden">
                             <DeliveryPatientSearch
                               patientSearch={patientSearch} setPatientSearch={setPatientSearch}
                               selectedPatient={selectedPatient} filteredPatients={filteredPatients}
