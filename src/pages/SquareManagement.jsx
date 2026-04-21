@@ -1333,66 +1333,70 @@ export default function SquareManagement() {
         return maxLength >= 4 && distance <= 1;
       }));
     };
-    const buildAmountKey = (row) => `${Math.round(Number(row.amount || 0) * 100)}`;
-    const buildAmountStoreKey = (row) => `${row.rawStoreId || row.locationId || row.storeName || 'Unknown'}::${buildAmountKey(row)}`;
-    const buildAmountDateKey = (row) => `${normalizeDate(row.deliveryDate)}::${buildAmountKey(row)}`;
-    const buildAmountStoreDateKey = (row) => `${buildAmountStoreKey(row)}::${normalizeDate(row.deliveryDate)}`;
-    const buildDateAmountStoreLocationKey = (row) => `${normalizeDate(row.deliveryDate)}::${buildAmountKey(row)}::${row.rawStoreId || 'Unknown'}::${row.locationId || 'Unknown'}`;
-    const buildNameAmountKey = (row) => `${normalizeName(row.itemName)}::${buildAmountKey(row)}`;
 
-    const reconciliationTransactions = filteredTransactionRows.filter((row) => !['cancelled', 'failed'].includes(row.rawStatus));
+    const rowMatchesPatientName = (candidateRow, patientName) => {
+      const normalizedPatient = normalizeName(patientName);
+      const normalizedItemName = normalizeName(candidateRow?.itemName).replace(/[^a-z0-9\s]/g, ' ');
+      if (!normalizedPatient || !normalizedItemName) return false;
+      if (normalizedItemName.includes(normalizedPatient)) return true;
 
-    const transactionMatchKeys = new Set(
-      reconciliationTransactions.flatMap((row) => {
-        const amountStoreKey = buildAmountStoreKey(row);
-        const amountDateKey = buildAmountDateKey(row);
-        const amountStoreDateKey = buildAmountStoreDateKey(row);
-        const dateAmountStoreLocationKey = buildDateAmountStoreLocationKey(row);
-        const nameAmountKey = buildNameAmountKey(row);
-        return [amountStoreKey, amountDateKey, amountStoreDateKey, dateAmountStoreLocationKey, nameAmountKey];
-      })
-    );
+      const patientTokens = tokenizeName(normalizedPatient);
+      const itemTokens = tokenizeName(normalizedItemName);
+      if (!patientTokens.length || !itemTokens.length) return false;
 
-    const catalogMatchKeys = new Set(
-      filteredCatalogRows.flatMap((row) => {
-        const amountStoreKey = buildAmountStoreKey(row);
-        const amountDateKey = buildAmountDateKey(row);
-        const amountStoreDateKey = buildAmountStoreDateKey(row);
-        const dateAmountStoreLocationKey = buildDateAmountStoreLocationKey(row);
-        const nameAmountKey = buildNameAmountKey(row);
-        return [amountStoreKey, amountDateKey, amountStoreDateKey, dateAmountStoreLocationKey, nameAmountKey];
-      })
-    );
+      const exactOrPartial = patientTokens.every((patientToken) => itemTokens.some((itemToken) => itemToken.includes(patientToken) || patientToken.includes(itemToken)));
+      if (exactOrPartial) return true;
+
+      return patientTokens.every((patientToken) => itemTokens.some((itemToken) => {
+        const distance = levenshteinDistance(patientToken, itemToken);
+        const maxLength = Math.max(patientToken.length, itemToken.length);
+        return maxLength >= 4 && distance <= 1;
+      }));
+    };
+
+    const isCardPaymentType = (value) => ['debit', 'credit'].includes(String(value || '').toLowerCase());
 
     const missingDeliveryRows = [];
 
     filteredDeliveryRows.forEach((deliveryRow) => {
-      const amountStoreKey = buildAmountStoreKey(deliveryRow);
-      const amountDateKey = buildAmountDateKey(deliveryRow);
-      const amountStoreDateKey = buildAmountStoreDateKey(deliveryRow);
-      const dateAmountStoreLocationKey = buildDateAmountStoreLocationKey(deliveryRow);
-      const nameAmountKey = buildNameAmountKey(deliveryRow);
+      if (isCardPaymentType(deliveryRow.collectionType)) return;
 
-      const hasTransactionMatch =
-        transactionMatchKeys.has(dateAmountStoreLocationKey) ||
-        transactionMatchKeys.has(amountStoreDateKey) ||
-        transactionMatchKeys.has(amountStoreKey) ||
-        transactionMatchKeys.has(amountDateKey) ||
-        transactionMatchKeys.has(nameAmountKey);
+      const deliveryAmount = Math.round(Number(deliveryRow.amount || 0) * 100);
+      const deliveryDate = normalizeDate(deliveryRow.deliveryDate);
+      const deliveryLocationId = String(deliveryRow.locationId || '');
+      const patientNameMatches = (row) => rowMatchesPatientName(row, deliveryRow.itemName);
 
-      const hasTransactionNotesMatch = filteredTransactionRows.some((transactionRow) => {
-        if (Number(transactionRow.amount || 0) !== Number(deliveryRow.amount || 0)) return false;
-        return notesContainPatientName(transactionRow.notes, deliveryRow.itemName);
+      const hasStrictCatalogMatch = filteredCatalogRows.some((catalogRow) => {
+        return Math.round(Number(catalogRow.amount || 0) * 100) === deliveryAmount &&
+          normalizeDate(catalogRow.deliveryDate) === deliveryDate &&
+          String(catalogRow.locationId || '') === deliveryLocationId &&
+          patientNameMatches(catalogRow);
       });
 
-      const hasCatalogMatch =
-        catalogMatchKeys.has(dateAmountStoreLocationKey) ||
-        catalogMatchKeys.has(amountStoreDateKey) ||
-        catalogMatchKeys.has(amountStoreKey) ||
-        catalogMatchKeys.has(amountDateKey) ||
-        catalogMatchKeys.has(nameAmountKey);
+      if (hasStrictCatalogMatch) return;
 
-      if (hasTransactionMatch || hasTransactionNotesMatch || hasCatalogMatch) return;
+      const hasStrictTransactionMatch = filteredTransactionRows.some((transactionRow) => {
+        if (['cancelled', 'failed'].includes(transactionRow.rawStatus)) return false;
+        return Math.round(Number(transactionRow.amount || 0) * 100) === deliveryAmount &&
+          normalizeDate(transactionRow.deliveryDate) === deliveryDate &&
+          String(transactionRow.locationId || '') === deliveryLocationId &&
+          (patientNameMatches(transactionRow) || notesContainPatientName(transactionRow.notes, deliveryRow.itemName));
+      });
+
+      if (hasStrictTransactionMatch) return;
+
+      const hasLooseCatalogConflict = filteredCatalogRows.some((catalogRow) => {
+        return Math.round(Number(catalogRow.amount || 0) * 100) === deliveryAmount &&
+          normalizeDate(catalogRow.deliveryDate) === deliveryDate;
+      });
+
+      const hasLooseTransactionConflict = filteredTransactionRows.some((transactionRow) => {
+        if (['cancelled', 'failed'].includes(transactionRow.rawStatus)) return false;
+        return Math.round(Number(transactionRow.amount || 0) * 100) === deliveryAmount &&
+          normalizeDate(transactionRow.deliveryDate) === deliveryDate;
+      });
+
+      if (hasLooseCatalogConflict || hasLooseTransactionConflict) return;
 
       missingDeliveryRows.push({
         ...deliveryRow,
