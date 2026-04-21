@@ -81,14 +81,8 @@ export default function SquareCodDatasetTable({
                       <td className="p-3 text-xs text-slate-600 dark:text-slate-400">{formatDate(row.collectionDate || row.deliveryDate)}</td>
                       <td className="p-3">
                         <div className="space-y-1">
-                          <div>
-                            {row.actions ? (
-                              <button type="button" className="inline-flex">
-                                {row.actions}
-                              </button>
-                            ) : (
-                              <span className="text-slate-400">—</span>
-                            )}
+                          <div className="flex justify-start">
+                            {row.actions || <span className="text-slate-400">—</span>}
                           </div>
                           {row.notes && (
                             <div className="text-xs text-slate-500 dark:text-slate-400 whitespace-pre-wrap text-right">
