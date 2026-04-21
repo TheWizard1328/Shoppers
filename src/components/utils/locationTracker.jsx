@@ -424,7 +424,10 @@ class LocationTracker {
             currentLocation: {
               lat: latitude,
               lon: longitude
-            }
+            },
+            isPrimaryDevice: this.isPrimaryDevice,
+            allowNonPrimaryPolylineRefresh: this.allowNonPrimaryPolylineRefresh,
+            routeChangeSource: this.allowNonPrimaryPolylineRefresh ? 'accept_all' : 'poll'
           }).catch((polylineError) => {
             console.warn('⚠️ [LocationTracker] Polyline refresh skipped:', polylineError?.message || polylineError);
           });

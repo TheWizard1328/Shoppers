@@ -299,14 +299,24 @@ Deno.serve(async (req) => {
     const targetDriverAppUser = driverAppUser?.[0] || null;
     const actingAppUser = requesterAppUser?.[0] || null;
     const targetIsDriver = Array.isArray(targetDriverAppUser?.app_roles) && targetDriverAppUser.app_roles.includes('driver');
-    const actorIsAdmin = Array.isArray(actingAppUser?.app_roles) && actingAppUser.app_roles.includes('admin');
-    const actorIsSameDriver = user.id === driverId && Array.isArray(actingAppUser?.app_roles) && actingAppUser.app_roles.includes('driver');
+    const actorRoles = Array.isArray(actingAppUser?.app_roles) ? actingAppUser.app_roles : [];
+    const actorIsAdmin = actorRoles.includes('admin');
+    const actorIsDispatcher = actorRoles.includes('dispatcher');
+    const actorIsSameDriver = user.id === driverId && actorRoles.includes('driver');
+    const routeChangeSource = String(body?.routeChangeSource || body?.source || 'poll').toLowerCase();
+    const isAssignAcceptAllFlow = body?.allowNonPrimaryPolylineRefresh === true || routeChangeSource === 'assign_accept_all' || routeChangeSource === 'accept_all' || routeChangeSource === 'assign_all';
+    const isAdminStopEditFlow = actorIsAdmin && (body?.force === true || routeChangeSource === 'admin_stop_edit' || routeChangeSource === 'admin_edit');
+    const isDriverPrimaryPoll = actorIsSameDriver && body?.isPrimaryDevice === true;
+    const isExplicitOverrideFlow = isAssignAcceptAllFlow || isAdminStopEditFlow;
 
     if (!targetDriverAppUser || !targetIsDriver) {
       return Response.json({ success: true, skipped: true, reason: 'target_not_driver' });
     }
-    if (!actorIsAdmin && !actorIsSameDriver) {
+    if (!isDriverPrimaryPoll && !isExplicitOverrideFlow) {
       return Response.json({ success: true, skipped: true, reason: 'unauthorized_actor' });
+    }
+    if (actorIsDispatcher && !isAssignAcceptAllFlow) {
+      return Response.json({ success: true, skipped: true, reason: 'dispatcher_requires_assign_accept_all' });
     }
     if (targetDriverAppUser.driver_status === 'off_duty' || targetDriverAppUser.driver_status === 'on_break') {
       return Response.json({ success: true, skipped: true, reason: 'driver_unavailable' });
