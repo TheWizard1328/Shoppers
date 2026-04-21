@@ -44,6 +44,7 @@ class LocationTracker {
         this.deviceCapabilities = null;
         this.locationProvider = getLocationProvider();
         this.isPrimaryDevice = false;
+        this.allowNonPrimaryPolylineRefresh = false;
 
         // Event-driven updates tracking
         this._pendingEventUpdate = false;
@@ -55,6 +56,10 @@ class LocationTracker {
         this.lastEtaRefreshAt = 0;
         this.minEtaRefreshDistance = 500;
         this.minTimeBetweenEtaRefresh = 120000;
+        this.lastPolylineRefreshPosition = null;
+        this.lastPolylineRefreshAt = 0;
+        this.minPolylineRefreshDistance = 100;
+        this.minTimeBetweenPolylineRefresh = 30000;
         this.lastBreadcrumbSavedAt = 0;
         this.breadcrumbSaveInterval = 15000;
         this.lastHeartbeatAt = 0;
@@ -116,6 +121,14 @@ class LocationTracker {
     console.log(`🎯 [LocationTracker] Stop event: ${eventType} - marking for GPS upload`);
     this._pendingEventUpdate = true;
     this._eventUpdateTime = Date.now();
+  }
+
+  enableNonPrimaryPolylineRefresh() {
+    this.allowNonPrimaryPolylineRefresh = true;
+  }
+
+  disableNonPrimaryPolylineRefresh() {
+    this.allowNonPrimaryPolylineRefresh = false;
   }
 
   /**
@@ -386,6 +399,34 @@ class LocationTracker {
             } : null
           }).catch((etaError) => {
             console.warn('⚠️ [LocationTracker] ETA refresh skipped:', etaError?.message || etaError);
+          });
+        }
+
+        const previousPolylinePosition = this.lastPolylineRefreshPosition;
+        const distanceSincePolylineRefresh = previousPolylinePosition
+          ? this.calculateDistanceInMeters(
+              previousPolylinePosition.latitude,
+              previousPolylinePosition.longitude,
+              latitude,
+              longitude
+            )
+          : Infinity;
+        const enoughTimeForPolyline = now - this.lastPolylineRefreshAt >= this.minTimeBetweenPolylineRefresh;
+        const movedEnoughForPolyline = !previousPolylinePosition || distanceSincePolylineRefresh >= this.minPolylineRefreshDistance;
+        const canRefreshPolylineFromThisDevice = this.isPrimaryDevice || this.allowNonPrimaryPolylineRefresh === true;
+
+        if (movedEnoughForPolyline && enoughTimeForPolyline && canRefreshPolylineFromThisDevice) {
+          this.lastPolylineRefreshPosition = { latitude, longitude };
+          this.lastPolylineRefreshAt = now;
+          base44.functions.invoke('regenerateType1Polyline', {
+            driverId: this.currentUser.id,
+            deliveryDate: this.currentDeliveryDate,
+            currentLocation: {
+              lat: latitude,
+              lon: longitude
+            }
+          }).catch((polylineError) => {
+            console.warn('⚠️ [LocationTracker] Polyline refresh skipped:', polylineError?.message || polylineError);
           });
         }
       }
@@ -754,6 +795,9 @@ class LocationTracker {
     this.lastBreadcrumbSavedAt = 0;
     this.lastEtaRefreshPosition = null;
     this.lastEtaRefreshAt = 0;
+    this.lastPolylineRefreshPosition = null;
+    this.lastPolylineRefreshAt = 0;
+    this.allowNonPrimaryPolylineRefresh = false;
     this.lastHeartbeatAt = 0;
     this.lastFocusLostAt = 0;
     

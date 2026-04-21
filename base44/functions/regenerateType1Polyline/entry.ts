@@ -291,11 +291,24 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'driverId, deliveryDate, and currentLocation are required' }, { status: 400 });
     }
 
-    const [driverAppUser, driverUser] = await Promise.all([
+    const [driverAppUser, driverUser, requesterAppUser] = await Promise.all([
       base44.asServiceRole.entities.AppUser.filter({ user_id: driverId }),
-      base44.asServiceRole.entities.User.filter({ id: driverId }, '-updated_date', 1)
+      base44.asServiceRole.entities.User.filter({ id: driverId }, '-updated_date', 1),
+      base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }, '-updated_date', 1)
     ]);
-    if (!driverAppUser?.[0] || driverAppUser[0].driver_status === 'off_duty' || driverAppUser[0].driver_status === 'on_break') {
+    const targetDriverAppUser = driverAppUser?.[0] || null;
+    const actingAppUser = requesterAppUser?.[0] || null;
+    const targetIsDriver = Array.isArray(targetDriverAppUser?.app_roles) && targetDriverAppUser.app_roles.includes('driver');
+    const actorIsAdmin = Array.isArray(actingAppUser?.app_roles) && actingAppUser.app_roles.includes('admin');
+    const actorIsSameDriver = user.id === driverId && Array.isArray(actingAppUser?.app_roles) && actingAppUser.app_roles.includes('driver');
+
+    if (!targetDriverAppUser || !targetIsDriver) {
+      return Response.json({ success: true, skipped: true, reason: 'target_not_driver' });
+    }
+    if (!actorIsAdmin && !actorIsSameDriver) {
+      return Response.json({ success: true, skipped: true, reason: 'unauthorized_actor' });
+    }
+    if (targetDriverAppUser.driver_status === 'off_duty' || targetDriverAppUser.driver_status === 'on_break') {
       return Response.json({ success: true, skipped: true, reason: 'driver_unavailable' });
     }
     const homeLat = Number(driverAppUser[0]?.home_latitude ?? driverUser?.[0]?.home_latitude);
