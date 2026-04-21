@@ -582,22 +582,6 @@ export default function DeliveryFormView({
                       )}
                     </div>
 
-                    {useMobileLayout && !delivery && !isPickupMode && (
-                      <DeliveryPatientSearch
-                        patientSearch={patientSearch} setPatientSearch={setPatientSearch}
-                        selectedPatient={selectedPatient} filteredPatients={filteredPatients}
-                        highlightedPatientIndex={highlightedPatientIndex} setHighlightedPatientIndex={setHighlightedPatientIndex}
-                        selectedPatientIds={selectedPatientIds} setSelectedPatientIds={setSelectedPatientIds}
-                        isMultiSelectMode={isMultiSelectMode} isSaving={isSaving} isScanning={isScanning}
-                        formData={formData} stores={stores} currentUser={currentUser}
-                        patientSearchInputRef={patientSearchInputRef} addPatientButtonRef={addPatientButtonRef}
-                        onPatientSelect={handlePatientSelect} onAddSelectedPatients={handleAddSelectedPatients}
-                        onStartCamera={() => {setShowCameraOverlay(true);startCamera();}}
-                        onDuplicatePatient={handleDuplicatePatient} onNewAddressPatient={handleNewAddressPatient}
-                        onCreatePatient={onCreatePatient} setIsPatientFormOpen={setIsPatientFormOpen}
-                        handleSearchKeyDown={handleSearchKeyDown}
-                        mobileStandalone={true} />
-                    )}
 
                     {useMobileLayout && userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) && (
                       <div className="w-fit p-3 rounded-lg border flex items-center justify-center gap-2" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
@@ -642,6 +626,23 @@ export default function DeliveryFormView({
                   {!isPickupMode ?
                   <div className={`${useMobileLayout ? 'space-y-2' : 'grid grid-cols-[minmax(0,1.7fr)_minmax(16rem,0.7fr)] gap-3 items-start'}`}>
                       <div className="space-y-3 min-w-0">
+                        {useMobileLayout && !delivery && (
+                          <DeliveryPatientSearch
+                            patientSearch={patientSearch} setPatientSearch={setPatientSearch}
+                            selectedPatient={selectedPatient} filteredPatients={filteredPatients}
+                            highlightedPatientIndex={highlightedPatientIndex} setHighlightedPatientIndex={setHighlightedPatientIndex}
+                            selectedPatientIds={selectedPatientIds} setSelectedPatientIds={setSelectedPatientIds}
+                            isMultiSelectMode={isMultiSelectMode} isSaving={isSaving} isScanning={isScanning}
+                            formData={formData} stores={stores} currentUser={currentUser}
+                            patientSearchInputRef={patientSearchInputRef} addPatientButtonRef={addPatientButtonRef}
+                            onPatientSelect={handlePatientSelect} onAddSelectedPatients={handleAddSelectedPatients}
+                            onStartCamera={() => {setShowCameraOverlay(true);startCamera();}}
+                            onDuplicatePatient={handleDuplicatePatient} onNewAddressPatient={handleNewAddressPatient}
+                            onCreatePatient={onCreatePatient} setIsPatientFormOpen={setIsPatientFormOpen}
+                            handleSearchKeyDown={handleSearchKeyDown}
+                            mobileStandalone={true} />
+                        )}
+
                         {/* Notes */}
                         <div className="space-y-3 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                           <div className="space-y-1">

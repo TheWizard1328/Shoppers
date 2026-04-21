@@ -117,8 +117,8 @@ export default function DeliveryPatientSearch({
         }
       </div>
 
-      <div className="relative flex gap-2 items-end">
-        <div className="relative flex-1">
+      <div className="relative flex gap-2 items-end flex-nowrap">
+        <div className="relative flex-1 min-w-0">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 z-10" />
           <Input
             ref={patientSearchInputRef}
