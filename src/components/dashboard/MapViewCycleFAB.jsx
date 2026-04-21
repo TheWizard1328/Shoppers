@@ -95,6 +95,9 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
     if (isLocked) {
       return 'Map View Active (click to cycle)';
     }
+    if (isTemporarilyDeactivated) {
+      return 'Map View Temporarily Unlocked';
+    }
     switch (currentPhase) {
       case 1:
         return 'Show All Stops';
@@ -125,13 +128,15 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
           disabled={!isEnabled}
           data-fab-temporarily-deactivated={isTemporarilyDeactivated ? 'true' : 'false'}
           className={`inline-flex items-center justify-center whitespace-nowrap text-sm font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 text-primary-foreground h-10 w-10 rounded-lg shadow-2xl p-0 relative transition-all duration-200 ${
-            !isEnabled || !isLocked
+            !isEnabled
               ? 'bg-gray-400 hover:bg-gray-500'
               : isTemporarilyDeactivated
                 ? 'bg-blue-500 hover:bg-blue-600'
-                : currentPhase === 2
-                  ? 'bg-green-600 hover:bg-green-700'
-                  : 'bg-blue-600 hover:bg-blue-700'
+                : !isLocked
+                  ? 'bg-blue-600 hover:bg-blue-700'
+                  : currentPhase === 2
+                    ? 'bg-green-600 hover:bg-green-700'
+                    : 'bg-blue-600 hover:bg-blue-700'
           }`} style={{ pointerEvents: 'auto', touchAction: 'manipulation' }}>
           {/* Mode number in top-left corner */}
           <span className="absolute top-1 left-1 text-white font-bold text-[10px]">
