@@ -587,7 +587,7 @@ export default function DeliveryForm({
 
     setSelectedPatient(patient);
 
-    const patientStore = stores.find((s) => s && s.id === patient.store_id);
+    const patientStore = (freshStores || stores).find((s) => s && s.id === patient.store_id);
     const { autoSelectedDriverId, autoSelectedDriverName, deliveryAMPM } = resolvePatientDriverAssignment({
       patient,
       patientStore,
@@ -694,7 +694,7 @@ export default function DeliveryForm({
     
     // Resume location poller after operations complete
     driverLocationPoller.resume();
-  }, [formData, stores, drivers, allDeliveries, stagedDeliveries, isMobileDevice]);
+  }, [formData, freshStores, stores, drivers, allDeliveries, stagedDeliveries, isMobileDevice]);
 
   const handleAddSelectedPatients = useCallback(async () => {
     if (selectedPatientIds.size === 0) return;
