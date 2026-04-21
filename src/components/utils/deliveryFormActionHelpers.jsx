@@ -172,7 +172,8 @@ export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindo
         detail: {
           triggeredBy: hasTimeWindowChanges ? 'routeOptimizationAfterUpdate' : 'etaUpdateAfterDeliveryUpdate',
           driverId,
-          deliveryDate
+          deliveryDate,
+          alreadyOptimized: hasTimeWindowChanges
         }
       }));
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
