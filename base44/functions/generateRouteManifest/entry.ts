@@ -46,8 +46,9 @@ Deno.serve(async (req) => {
 
     const finished = ['completed','failed','cancelled','returned'];
     let items = (deliveries || []).filter(Boolean);
-    const creatorAppUserIds = [...new Set(items.map((item) => item?.created_by_app_user_id).filter(Boolean))];
-    const creatorAuthUserIds = [...new Set(items.map((item) => item?.created_by_id).filter(Boolean))];
+    const isObjectId = (value) => typeof value === 'string' && /^[a-f0-9]{24}$/i.test(value);
+    const creatorAppUserIds = [...new Set(items.map((item) => item?.created_by_app_user_id).filter(isObjectId))];
+    const creatorAuthUserIds = [...new Set(items.map((item) => item?.created_by_id).filter(isObjectId))];
     const [creatorAppUsers, creatorAuthUsers] = await Promise.all([
       creatorAppUserIds.length > 0
         ? base44.asServiceRole.entities.AppUser.filter({ id: { $in: creatorAppUserIds } })
