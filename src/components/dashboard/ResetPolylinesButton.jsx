@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
 
 import { offlineDB } from "@/components/utils/offlineDatabase";
-import { updateDeliveryLocal } from "@/components/utils/offlineMutations";
 import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
 import { recalculateAndUpdateStopOrders } from "@/components/utils/stopOrderManager";
 import { Loader2, RotateCcw } from "lucide-react";
@@ -87,22 +86,38 @@ export default function ResetPolylinesButton({
       // 3. Update the polylines/breadcrumbs (per driver) sequentially
       for (const driverId of driverIds) {
         try {
-          const response = await base44.functions.invoke('purgeAndRegeneratePolylines', {
-            driverId,
-            deliveryDate: selectedDate,
-            scope: 'all',
-            reason: selectedPolylineOption === 'polylines' ? 'manual' : 'manual_breadcrumbs',
-            routeSource: selectedPolylineOption
-          });
-          const result = response?.data || response || {};
-          if (!result.success) {
-            throw new Error(result.error || 'Polyline regeneration failed');
-          }
+          let result;
 
           if (selectedPolylineOption === 'breadcrumbs') {
-            const mergedRows = Number(result?.pendingBreadcrumbLiveMerge?.sourceRows || 0);
-            const integratedStops = Number(result?.pendingBreadcrumbLiveMerge?.updatedDeliveryIds?.length || 0);
-            breadcrumbIntegrationResults.push({ driverId, mergedRows, integratedStops });
+            const response = await base44.functions.invoke('processOrphanedBreadcrumbs', {
+              driverId,
+              deliveryDate: selectedDate
+            });
+            result = response?.data || response || {};
+            if (!result.success) {
+              throw new Error(result.error || 'Breadcrumb reconciliation failed');
+            }
+
+            const mergedRows = Number(result?.sourceRows || 0);
+            const integratedStops = Number(result?.updatedDeliveryIds?.length || 0);
+            breadcrumbIntegrationResults.push({
+              driverId,
+              mergedRows,
+              integratedStops,
+              pendingBreadcrumbIds: Array.isArray(result?.pendingBreadcrumbIds) ? result.pendingBreadcrumbIds : []
+            });
+          } else {
+            const response = await base44.functions.invoke('purgeAndRegeneratePolylines', {
+              driverId,
+              deliveryDate: selectedDate,
+              scope: 'all',
+              reason: 'manual',
+              routeSource: selectedPolylineOption
+            });
+            result = response?.data || response || {};
+            if (!result.success) {
+              throw new Error(result.error || 'Polyline regeneration failed');
+            }
           }
 
           await syncDriverDateDeliveriesFromBackend([driverId]);
@@ -123,11 +138,23 @@ export default function ResetPolylinesButton({
         const mergedRows = breadcrumbIntegrationResults.reduce((sum, item) => sum + item.mergedRows, 0);
         const integratedStops = breadcrumbIntegrationResults.reduce((sum, item) => sum + item.integratedStops, 0);
         const successRate = totalDrivers > 0 ? Math.round(successfulDrivers / totalDrivers * 100) : 0;
+        const pendingBreadcrumbIds = breadcrumbIntegrationResults.flatMap((item) => item.pendingBreadcrumbIds || []);
 
         toast({
           title: 'Breadcrumb consolidation complete',
           description: `${successRate}% matched • ${integratedStops} stop${integratedStops === 1 ? '' : 's'} aligned by timestamp • ${mergedRows} breadcrumb row${mergedRows === 1 ? '' : 's'} merged`
         });
+
+        if (pendingBreadcrumbIds.length > 0) {
+          const shouldDelete = window.confirm(`Delete ${pendingBreadcrumbIds.length} reconciled breadcrumb row${pendingBreadcrumbIds.length === 1 ? '' : 's'} from live pending storage?`);
+          if (shouldDelete) {
+            await base44.functions.invoke('deletePendingBreadcrumbs', { pendingBreadcrumbIds });
+            toast({
+              title: 'Pending breadcrumbs deleted',
+              description: `${pendingBreadcrumbIds.length} reconciled row${pendingBreadcrumbIds.length === 1 ? '' : 's'} removed.`
+            });
+          }
+        }
       }
     } finally {
       smartRefreshManager.restart();
