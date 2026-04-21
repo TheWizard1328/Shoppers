@@ -26,6 +26,10 @@ export function buildBulkEditBaseUpdates({ values, currentUser, bulkEditableDriv
     }
   }
 
+  if (userHasRole(currentUser, "driver") && values.travelModeChoice) {
+    baseUpdates.finished_leg_transport_mode = values.travelModeChoice;
+  }
+
   return baseUpdates;
 }
 

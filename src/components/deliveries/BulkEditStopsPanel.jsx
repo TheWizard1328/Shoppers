@@ -7,7 +7,7 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, D
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { getPickupStopIdForDelivery } from "@/components/utils/ampmUtils";
 import { userHasRole } from "@/components/utils/userRoles";
-import { X } from "lucide-react";
+import { X, Car, Bike } from "lucide-react";
 
 const getStoreSlotOptions = (store, deliveryDate, driverId = null) => {
   if (!store || !deliveryDate) return [];
@@ -59,8 +59,39 @@ function TimeField({ value, onChange, onClear, disabled, style }) {
   );
 }
 
+function TravelModeButtons({ value, onChange, disabled }) {
+  const options = [
+    { value: 'driving', label: 'Driving', icon: Car },
+    { value: 'cycling', label: 'Cycling', icon: Bike }
+  ];
+
+  return (
+    <div className="flex flex-row gap-2 shrink-0">
+      {options.map((option) => {
+        const Icon = option.icon;
+        const isActive = value === option.value;
+
+        return (
+          <button
+            key={option.value}
+            type="button"
+            title={option.label}
+            aria-label={option.label}
+            onClick={() => onChange(option.value)}
+            disabled={disabled}
+            className={`h-9 w-9 rounded-full border transition-all flex items-center justify-center ${isActive ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white text-slate-700'}`}
+          >
+            <Icon className="w-4 h-4" />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, currentUser, values, setValues, onApply, onCancel, isSaving, initialValues }) {
   const isAdmin = userHasRole(currentUser, "admin");
+  const isDriver = userHasRole(currentUser, "driver");
   const effectiveDriverId = values.driverChoice !== "unchanged" && values.driverChoice !== "unassigned" ? values.driverChoice : null;
   const changedFieldStyle = { background: '#fef3c7', borderColor: '#f59e0b' };
   const getFieldStyle = (fieldName) => values[fieldName] !== initialValues[fieldName] ? changedFieldStyle : undefined;
@@ -131,7 +162,7 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
           </p>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className={`grid grid-cols-1 gap-4 ${isDriver ? 'sm:grid-cols-[minmax(0,1fr)_auto]' : 'sm:grid-cols-2'}`}>
           <div className="space-y-2">
             <Label style={{ color: "var(--text-slate-900)" }}>Assigned Driver</Label>
             <Select
@@ -153,7 +184,7 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
             </Select>
           </div>
 
-          <div className="space-y-2">
+          <div className={`space-y-2 ${isDriver ? '' : ''}`}>
             <Label style={{ color: "var(--text-slate-900)" }}>Delivery Date</Label>
             <Input
               type="date"
@@ -162,6 +193,17 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
               style={getFieldStyle('delivery_date')}
             />
           </div>
+
+          {isDriver && (
+            <div className="space-y-2 sm:w-fit">
+              <Label style={{ color: "var(--text-slate-900)" }}>Travel Mode</Label>
+              <TravelModeButtons
+                value={values.travelModeChoice || 'driving'}
+                onChange={(mode) => setValues((current) => ({ ...current, travelModeChoice: mode }))}
+                disabled={isSaving}
+              />
+            </div>
+          )}
         </div>
 
         <div className={`grid grid-cols-1 gap-4 ${isAdmin ? "lg:grid-cols-4" : "sm:grid-cols-2 lg:grid-cols-3"}`}>
@@ -285,6 +327,7 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
   const initialValues = useMemo(() => ({
     delivery_date: getSharedValue(selectedDeliveries, (delivery) => delivery?.delivery_date, ""),
     driverChoice: getSharedValue(selectedDeliveries, (delivery) => delivery?.driver_id, "unchanged"),
+    travelModeChoice: getSharedValue(selectedDeliveries, (delivery) => delivery?.finished_leg_transport_mode, "driving"),
     delivery_time_start: getSharedValue(selectedDeliveries, (delivery) => delivery?.delivery_time_start, ""),
     delivery_time_end: getSharedValue(selectedDeliveries, (delivery) => delivery?.delivery_time_end, ""),
     statusChoice: getSharedValue(selectedDeliveries, (delivery) => delivery?.status, "unchanged"),
