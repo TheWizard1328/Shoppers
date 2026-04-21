@@ -424,7 +424,7 @@ export default function DeliveryFormView({
           }
 
           <CardContent className="p-3 flex-1 relative overflow-hidden">
-            <div className={`h-full min-h-0 ${!delivery && !useMobileLayout && !isPickupMode ? 'flex gap-3 items-stretch' : 'flex flex-col gap-3'}`}>
+            <div className="h-full min-h-0 flex flex-col gap-3">
 
               {/* Pickup mode: Row 1 = Location + Date + Driver */}
               {isPickupMode && !delivery &&
@@ -576,7 +576,7 @@ export default function DeliveryFormView({
               })}
 
               {/* Main scrollable body */}
-              <div className={`flex gap-3 w-full ${delivery || useMobileLayout ? 'overflow-y-auto flex-1' : 'flex-1 min-h-0 overflow-hidden'} ${deleteConfirmation?.show ? 'pointer-events-none' : ''}`} style={!delivery && !useMobileLayout && !isPickupMode ? { height: '100%' } : undefined}>
+              <div className={`flex gap-3 w-full ${delivery || useMobileLayout ? 'overflow-y-auto flex-1' : 'flex-1 min-h-0 overflow-hidden items-stretch'} ${deleteConfirmation?.show ? 'pointer-events-none' : ''}`} style={!delivery && !useMobileLayout && !isPickupMode ? { height: '100%' } : undefined}>
                 <div className={`flex flex-col gap-3 min-w-0 ${delivery || useMobileLayout ? 'flex-1' : 'flex-1 overflow-y-auto min-h-0'} ${isFormDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
 
                   {!isPickupMode ?
@@ -822,14 +822,13 @@ export default function DeliveryFormView({
 
                 </div>
 
+                {/* Desktop Staged Panel - hidden in pickup mode */}
+                {!delivery && !useMobileLayout && !isPickupMode && (
+                  <div className="h-full min-h-0 self-stretch flex">
+                    <DeliveryStagedPanelDesktop {...stagedPanelProps} />
+                  </div>
+                )}
               </div>
-
-              {/* Desktop Staged Panel - hidden in pickup mode */}
-              {!delivery && !useMobileLayout && !isPickupMode && (
-                <div className="h-full min-h-0 self-stretch flex">
-                  <DeliveryStagedPanelDesktop {...stagedPanelProps} />
-                </div>
-              )}
             </div>
 
             {/* Mobile Staged Panel - hidden in pickup mode */}
