@@ -384,10 +384,14 @@ class LocationTracker {
         const enoughTimePassed = now - this.lastEtaRefreshAt >= this.minTimeBetweenEtaRefresh;
         const movedEnough = !previousEtaPosition || distanceSinceEtaRefresh >= this.minEtaRefreshDistance;
 
-        if (movedEnough && enoughTimePassed) {
+        if (this.isPrimaryDevice && movedEnough && enoughTimePassed) {
           this.lastEtaRefreshPosition = { latitude, longitude };
           this.lastEtaRefreshAt = now;
           base44.functions.invoke('refreshDriverEtasOnLocationUpdate', {
+            driverId: this.currentUser.id,
+            deliveryDate: this.currentDeliveryDate,
+            isPrimaryDevice: this.isPrimaryDevice,
+            routeChangeSource: 'poll',
             data: {
               ...updatedAppUser,
               previous_latitude: previousEtaPosition?.latitude ?? null,
@@ -604,8 +608,7 @@ class LocationTracker {
     // CRITICAL: Check if this is the primary device BEFORE starting GPS
     try {
       const currentDevice = await getCurrentDevice(user.id);
-      // If no device record found, treat as primary (default behavior)
-      this.isPrimaryDevice = currentDevice === null || currentDevice?.is_primary_tracker !== false;
+      this.isPrimaryDevice = currentDevice?.is_primary_tracker === true;
 
       console.log(`✅ [LocationTracker] Device status:`, {
         deviceId: currentDevice?.device_identifier || 'NOT REGISTERED',

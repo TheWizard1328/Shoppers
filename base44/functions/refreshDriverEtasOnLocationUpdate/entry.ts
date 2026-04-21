@@ -284,12 +284,33 @@ async function processDriver(base44, appUser, deliveryDate) {
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
+    const user = await base44.auth.me();
+    if (!user) {
+      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const payload = await req.json().catch(() => ({}));
     const deliveryDate = payload?.deliveryDate || getEdmontonDate();
     const explicitDriverId = payload?.driverId || payload?.data?.user_id || null;
+    const requesterAppUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }, '-updated_date', 1);
+    const requesterAppUser = requesterAppUsers?.[0] || null;
+    const requesterRoles = Array.isArray(requesterAppUser?.app_roles) ? requesterAppUser.app_roles : [];
+    const requesterIsDriver = requesterRoles.includes('driver');
+    const requesterIsDispatcher = requesterRoles.includes('dispatcher');
+    const requesterIsAdmin = requesterRoles.includes('admin');
+    const routeChangeSource = String(payload?.routeChangeSource || payload?.source || 'poll').toLowerCase();
+    const isPrimaryDevice = payload?.isPrimaryDevice === true;
 
     if (!explicitDriverId) {
       return Response.json({ success: true, skipped: true, reason: 'driver_id_required', delivery_date: deliveryDate });
+    }
+
+    const isSameDriver = requesterIsDriver && user.id === explicitDriverId;
+    const isDispatcherOverride = requesterIsDispatcher && ['assign_accept_all', 'accept_all', 'assign_all'].includes(routeChangeSource);
+    const isAdminOverride = requesterIsAdmin && (payload?.force === true || ['admin_stop_edit', 'admin_edit', 'manual_refresh'].includes(routeChangeSource));
+
+    if (!(isSameDriver && isPrimaryDevice) && !isDispatcherOverride && !isAdminOverride) {
+      return Response.json({ success: true, skipped: true, reason: 'unauthorized_actor', delivery_date: deliveryDate, driver_id: explicitDriverId });
     }
 
     const drivers = await base44.asServiceRole.entities.AppUser.filter({ user_id: explicitDriverId }, '-updated_date', 1);
