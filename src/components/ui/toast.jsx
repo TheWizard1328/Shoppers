@@ -42,7 +42,7 @@ const Toast = React.forwardRef(({ className, variant, ...props }, ref) => {
     <div
       ref={ref}
       className={cn(toastVariants({ variant }), className)}
-      {...props}
+      {...Object.fromEntries(Object.entries(props).filter(([key]) => key !== 'onOpenChange' && key !== 'open'))}
     />
   );
 });
@@ -101,4 +101,4 @@ export {
   ToastDescription,
   ToastClose,
   ToastAction,
-}; 
+};
