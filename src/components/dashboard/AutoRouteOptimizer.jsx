@@ -6,6 +6,7 @@ import { Navigation, Zap, CheckCircle, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { smartRefreshManager } from '@/components/utils/smartRefreshManager';
 
 /**
  * Auto Route Optimizer - Automatic AI-powered route optimization for drivers
@@ -57,7 +58,6 @@ export default function AutoRouteOptimizer({
       
       // CRITICAL: Pause all sync managers before optimization
       console.log('🔒 [Auto-Optimize] Pausing smart refresh and sync managers...');
-      const { smartRefreshManager } = await import('@/components/utils/smartRefreshManager');
       const wasSmartRefreshEnabled = smartRefreshManager._enabled;
       smartRefreshManager._enabled = false;
       
@@ -121,7 +121,6 @@ export default function AutoRouteOptimizer({
     } catch (error) {
       console.warn('⚠️ [Auto-Optimize] Failed:', error.message);
       // Resume smart refresh on error
-      const { smartRefreshManager } = await import('@/components/utils/smartRefreshManager');
       smartRefreshManager._enabled = true;
     } finally {
       setIsOptimizing(false);

@@ -1,4 +1,7 @@
 import { isAppOwner } from './userRoles';
+import { optimizeRemainingStops } from '@/functions/optimizeRemainingStops';
+import { calculateRealTimeETA } from '@/functions/calculateRealTimeETA';
+import { base44 } from '@/api/base44Client';
 
 let managerControllersPromise;
 let lastPostDeliverySyncKey = null;
@@ -102,33 +105,13 @@ export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindo
 
     try {
       if (hasTimeWindowChanges) {
-        const { optimizeRemainingStops } = await import('../../src/functions/optimizeRemainingStops');
         const optimizationResponse = await optimizeRemainingStops({
           driverId,
           deliveryDate,
           currentLocalTime,
           deviceTime: currentLocalTime
         });
-
-        const optimizationError = optimizationResponse?.response?.data?.error || optimizationResponse?.data?.error;
-        const optimizationStatus = optimizationResponse?.response?.status || optimizationResponse?.status;
-        if (
-          optimizationStatus === 404 ||
-          optimizationStatus === 429 ||
-          optimizationStatus >= 500 ||
-          optimizationError === 'Driver not found' ||
-          optimizationError === 'Driver location not available - no GPS, last completed, or home location set' ||
-          optimizationError === 'Rate limit exceeded'
-        ) {
-          console.warn('⚠️ [DeliveryForm] Skipping background route optimization:', optimizationError || `Request skipped (${optimizationStatus || 'unknown status'})`);
-          return;
-        }
       } else {
-        const [{ calculateRealTimeETA }, { base44 }] = await Promise.all([
-          import('@/functions/calculateRealTimeETA'),
-          import('@/api/base44Client')
-        ]);
-
         const [driverRecords, deliveryRecords] = await Promise.all([
           base44.entities.AppUser.filter({ user_id: driverId }).catch((error) => {
             console.warn('⚠️ [DeliveryForm] Driver refresh skipped:', error?.message || error);
