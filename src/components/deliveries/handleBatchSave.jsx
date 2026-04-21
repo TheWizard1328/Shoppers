@@ -147,7 +147,7 @@ export async function handleBatchSave({
       let ensuredPickupRecords = pickupRecordsFromStage;
       let stagedDeliveriesWithResolvedIds = patientDeliveriesReadyForDB;
 
-      const patientDeliveriesNeedingPickupEnsure = patientDeliveriesReadyForDB.filter((delivery) => delivery?.status !== 'in_transit');
+      const patientDeliveriesNeedingPickupEnsure = patientDeliveriesReadyForDB;
 
       const specialStoreNames = ['Lakeland Ridge', 'Sherwood Pk Mall', 'WestPark', 'SouthPoint'];
       const groupedEnsureKeys = new Map();
