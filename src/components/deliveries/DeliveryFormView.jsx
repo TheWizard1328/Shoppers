@@ -545,7 +545,7 @@ export default function DeliveryFormView({
                         <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
                       </div>
 
-                      <div className={`${useMobileLayout ? 'flex-1' : 'min-w-0 flex-1'} space-y-1 p-3 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                      <div className={`${useMobileLayout ? 'w-[calc(50%-0.375rem)]' : 'min-w-0 flex-1'} space-y-1 p-3 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                         <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver {delivery ? '*' : ''}</Label>
                         <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
                           const newDriverId = driverId === 'all' ? '' : driverId;
@@ -583,21 +583,20 @@ export default function DeliveryFormView({
                     </div>
 
                     {useMobileLayout && !delivery && !isPickupMode && (
-                      <div className="min-w-0">
-                        <DeliveryPatientSearch
-                          patientSearch={patientSearch} setPatientSearch={setPatientSearch}
-                          selectedPatient={selectedPatient} filteredPatients={filteredPatients}
-                          highlightedPatientIndex={highlightedPatientIndex} setHighlightedPatientIndex={setHighlightedPatientIndex}
-                          selectedPatientIds={selectedPatientIds} setSelectedPatientIds={setSelectedPatientIds}
-                          isMultiSelectMode={isMultiSelectMode} isSaving={isSaving} isScanning={isScanning}
-                          formData={formData} stores={stores} currentUser={currentUser}
-                          patientSearchInputRef={patientSearchInputRef} addPatientButtonRef={addPatientButtonRef}
-                          onPatientSelect={handlePatientSelect} onAddSelectedPatients={handleAddSelectedPatients}
-                          onStartCamera={() => {setShowCameraOverlay(true);startCamera();}}
-                          onDuplicatePatient={handleDuplicatePatient} onNewAddressPatient={handleNewAddressPatient}
-                          onCreatePatient={onCreatePatient} setIsPatientFormOpen={setIsPatientFormOpen}
-                          handleSearchKeyDown={handleSearchKeyDown} />
-                      </div>
+                      <DeliveryPatientSearch
+                        patientSearch={patientSearch} setPatientSearch={setPatientSearch}
+                        selectedPatient={selectedPatient} filteredPatients={filteredPatients}
+                        highlightedPatientIndex={highlightedPatientIndex} setHighlightedPatientIndex={setHighlightedPatientIndex}
+                        selectedPatientIds={selectedPatientIds} setSelectedPatientIds={setSelectedPatientIds}
+                        isMultiSelectMode={isMultiSelectMode} isSaving={isSaving} isScanning={isScanning}
+                        formData={formData} stores={stores} currentUser={currentUser}
+                        patientSearchInputRef={patientSearchInputRef} addPatientButtonRef={addPatientButtonRef}
+                        onPatientSelect={handlePatientSelect} onAddSelectedPatients={handleAddSelectedPatients}
+                        onStartCamera={() => {setShowCameraOverlay(true);startCamera();}}
+                        onDuplicatePatient={handleDuplicatePatient} onNewAddressPatient={handleNewAddressPatient}
+                        onCreatePatient={onCreatePatient} setIsPatientFormOpen={setIsPatientFormOpen}
+                        handleSearchKeyDown={handleSearchKeyDown}
+                        mobileStandalone={true} />
                     )}
 
                     {useMobileLayout && userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) && (

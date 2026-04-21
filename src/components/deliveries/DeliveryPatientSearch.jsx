@@ -42,7 +42,8 @@ export default function DeliveryPatientSearch({
   onCreatePatient,
   setIsPatientFormOpen,
   handleSearchKeyDown,
-  locked = false
+  locked = false,
+  mobileStandalone = false
 }) {
   const showCameraButton = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   const visiblePatients = React.useMemo(
@@ -91,7 +92,7 @@ export default function DeliveryPatientSearch({
   };
 
   return (
-    <div className="relative flex-1 space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+    <div className={`${mobileStandalone ? 'relative w-full' : 'relative flex-1'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
       <div className="flex items-center justify-between mb-1">
         <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Search</Label>
         {selectedPatient &&
@@ -116,7 +117,7 @@ export default function DeliveryPatientSearch({
         }
       </div>
 
-      <div className="relative flex gap-2">
+      <div className="relative flex gap-2 items-end">
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 z-10" />
           <Input
