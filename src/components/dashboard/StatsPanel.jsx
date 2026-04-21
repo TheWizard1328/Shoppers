@@ -453,13 +453,13 @@ export default function StatsPanel({
         </motion.div>
 
         {!isAllDriversMode && !isAdmin ? null : legendData.length > 0 &&
-        <div className="backdrop-blur-sm rounded-xl shadow-lg border px-1 py-0 w-full h-[65px] overflow-hidden" style={{ background: 'var(--bg-white)', opacity: 0.95, borderColor: 'var(--border-slate-200)' }}
+        <div className="backdrop-blur-sm rounded-xl shadow-lg border px-1 py-1 w-full" style={{ background: 'var(--bg-white)', opacity: 0.95, borderColor: 'var(--border-slate-200)' }}
         onMouseEnter={() => handleCardInteraction(true)} onMouseLeave={() => handleCardInteraction(false)}>
-            <div className="flex h-full items-center justify-center gap-x-0.5 gap-y-0 overflow-x-auto whitespace-nowrap leading-none">
+            <div className="flex flex-wrap items-center justify-center gap-x-1 gap-y-1 leading-none">
               {legendData.map((route) =>
             <button
               key={route.driverId}
-              type="button" className="flex items-center gap-0.5 rounded px-0.5 py-0 hover:bg-slate-100 transition-colors"
+              type="button" className="inline-flex items-center gap-0.5 rounded px-0.5 py-0.5 hover:bg-slate-100 transition-colors"
               onClick={(e) => {
                 e.stopPropagation();
                 handleDriverChange(route.driverId);
