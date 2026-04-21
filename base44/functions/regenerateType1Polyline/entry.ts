@@ -439,7 +439,9 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, skipped: true, reason: 'deviation_only_guard', repairedStopOrders: stopOrderRepairUpdates.length });
     }
 
-    if (existingType1) {
+    const shouldBypassDeviationGuard = body?.force === true || body?.routeChangeSource === 'on_duty_start' || body?.routeChangeSource === 'route_completion_home';
+
+    if (existingType1 && !shouldBypassDeviationGuard) {
       // CRITICAL: Check if driver has deviated from the existing polyline route
       // Decode the existing polyline to check deviation
       let deviationMeters = Infinity;

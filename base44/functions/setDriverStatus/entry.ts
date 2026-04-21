@@ -115,6 +115,22 @@ Deno.serve(async (req) => {
       const flaggedDeliveries = allTodayDeliveries.filter((d) => d?.isNextDelivery === true);
       console.log(`📦 [setDriverStatus] Found ${allTodayDeliveries.length} deliveries for ${targetDate}`);
       console.log(`📦 [setDriverStatus] Preserving existing next-stop state on on_duty (${flaggedDeliveries.length} currently flagged)`);
+
+      if (flaggedDeliveries.length > 0) {
+        await base44.asServiceRole.functions.invoke('regenerateType1Polyline', {
+          driverId: user.id,
+          deliveryDate: targetDate,
+          currentLocation: {
+            lat: updatedAppUser.home_latitude,
+            lon: updatedAppUser.home_longitude
+          },
+          isPrimaryDevice: true,
+          force: true,
+          routeChangeSource: 'on_duty_start'
+        }).catch((error) => {
+          console.warn('⚠️ [setDriverStatus] Initial home-to-first-stop polyline skipped:', error?.message || error);
+        });
+      }
     }
     
     // When going off_duty, clear all next-stop flags for the selected driver/date

@@ -83,6 +83,30 @@ export async function runDeliverySubmitSideEffects({
         } catch (error) {
           console.warn('[DeliveryForm] setNextDeliveryFlag failed:', error?.message);
         }
+      } else {
+        try {
+          const driverAppUsers = await base44.entities.AppUser.filter({ user_id: formData.driver_id });
+          const driverAppUser = driverAppUsers?.[0];
+          if (driverAppUser?.home_latitude != null && driverAppUser?.home_longitude != null) {
+            const lastStopLat = selectedPatient?.latitude ?? selectedPatient?.lat;
+            const lastStopLon = selectedPatient?.longitude ?? selectedPatient?.lon;
+            if (lastStopLat != null && lastStopLon != null) {
+              await base44.functions.invoke('regenerateType1Polyline', {
+                driverId: formData.driver_id,
+                deliveryDate: formData.delivery_date,
+                currentLocation: {
+                  lat: Number(lastStopLat),
+                  lon: Number(lastStopLon)
+                },
+                isPrimaryDevice: true,
+                force: true,
+                routeChangeSource: 'route_completion_home'
+              });
+            }
+          }
+        } catch (error) {
+          console.warn('[DeliveryForm] Final stop home polyline skipped:', error?.message);
+        }
       }
     } catch (error) {
       console.error('❌ [DeliveryForm] Resort failed:', error);
