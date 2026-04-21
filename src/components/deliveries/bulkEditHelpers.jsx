@@ -91,12 +91,15 @@ export function buildDeliveryBulkUpdates({
   return nextUpdates;
 }
 
-export async function finalizeBulkEdit({ loadData, setSelectedBulkDeliveryIds, setBulkEditMode }) {
-  smartRefreshManager.restart();
-  invalidate("Delivery");
-  await loadData(true);
+export async function finalizeBulkEdit({ setSelectedBulkDeliveryIds, setBulkEditMode }) {
   setSelectedBulkDeliveryIds([]);
   setBulkEditMode(false);
+
+  Promise.resolve().then(async () => {
+    smartRefreshManager.restart();
+    invalidate("Delivery");
+    window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+  });
 }
 
 export async function applyBulkEditStops({
@@ -106,7 +109,6 @@ export async function applyBulkEditStops({
   allDeliveries,
   bulkEditableDrivers,
   selectedBulkDeliveryIds,
-  loadData,
   setSelectedBulkDeliveryIds,
   setBulkEditMode,
   setIsBulkUpdating
@@ -147,11 +149,36 @@ export async function applyBulkEditStops({
       return updateDeliveryLocal(deliveryId, nextUpdates, { isBatchOperation: true });
     })
   )
-    .then(() => finalizeBulkEdit({
-      loadData,
-      setSelectedBulkDeliveryIds,
-      setBulkEditMode
-    }))
+    .then(() => {
+      const freshDeliveries = (deliveries || []).map((delivery) => {
+        if (!selectedBulkDeliveryIds.includes(delivery.id)) return delivery;
+        return {
+          ...delivery,
+          ...buildDeliveryBulkUpdates({
+            values,
+            currentUser,
+            selectedDelivery: delivery,
+            baseUpdates,
+            selectedStoreOption,
+            allDeliveries
+          })
+        };
+      });
+
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: {
+          immediate: true,
+          preserveLocalState: true,
+          freshDeliveries,
+          triggeredBy: 'bulkEditImmediate'
+        }
+      }));
+
+      return finalizeBulkEdit({
+        setSelectedBulkDeliveryIds,
+        setBulkEditMode
+      });
+    })
     .finally(() => {
       setIsBulkUpdating(false);
     });
