@@ -492,9 +492,9 @@ export default function DeliveryFormView({
 
               {/* Delivery mode: Patient Search / Date / Driver row */}
               {!(isPickupMode && !delivery) &&
-              <div className={`${useMobileLayout ? 'flex flex-col gap-3' : (!delivery && !isPickupMode ? 'grid grid-cols-[minmax(0,1fr)_300px] gap-3 items-start flex-shrink-0' : 'flex gap-3 w-full')} ${!delivery && !useMobileLayout ? 'flex-shrink-0' : ''}`}>
+              <div className={`${useMobileLayout ? 'flex flex-col gap-3' : 'flex gap-3 w-full'} flex-shrink-0`}>
                 {!delivery && !isPickupMode ? (
-                  <div className="min-w-0 grid grid-cols-[minmax(0,1.8fr)_minmax(11rem,1fr)_minmax(11rem,1fr)] gap-3 items-start w-full">
+                  <div className={`${useMobileLayout ? 'flex flex-col gap-3 w-full' : 'min-w-0 grid grid-cols-[minmax(0,1.8fr)_minmax(11rem,1fr)_minmax(11rem,1fr)] gap-3 items-start w-full'}`}>
                     <div className="relative min-w-0">
                       <DeliveryPatientSearch
                         patientSearch={patientSearch} setPatientSearch={setPatientSearch}
@@ -625,24 +625,6 @@ export default function DeliveryFormView({
                   {!isPickupMode ?
                   <div className={`${useMobileLayout ? 'space-y-2' : 'grid grid-cols-[minmax(0,1.7fr)_minmax(16rem,0.7fr)] gap-3 items-start'}`}>
                       <div className="space-y-3 min-w-0">
-                        {useMobileLayout && !delivery && (
-                          <div className="w-full block clear-both min-[431px]:hidden">
-                            <DeliveryPatientSearch
-                              patientSearch={patientSearch} setPatientSearch={setPatientSearch}
-                              selectedPatient={selectedPatient} filteredPatients={filteredPatients}
-                              highlightedPatientIndex={highlightedPatientIndex} setHighlightedPatientIndex={setHighlightedPatientIndex}
-                              selectedPatientIds={selectedPatientIds} setSelectedPatientIds={setSelectedPatientIds}
-                              isMultiSelectMode={isMultiSelectMode} isSaving={isSaving} isScanning={isScanning}
-                              formData={formData} stores={stores} currentUser={currentUser}
-                              patientSearchInputRef={patientSearchInputRef} addPatientButtonRef={addPatientButtonRef}
-                              onPatientSelect={handlePatientSelect} onAddSelectedPatients={handleAddSelectedPatients}
-                              onStartCamera={() => {setShowCameraOverlay(true);startCamera();}}
-                              onDuplicatePatient={handleDuplicatePatient} onNewAddressPatient={handleNewAddressPatient}
-                              onCreatePatient={onCreatePatient} setIsPatientFormOpen={setIsPatientFormOpen}
-                              handleSearchKeyDown={handleSearchKeyDown}
-                              mobileStandalone={true} />
-                          </div>
-                        )}
 
                         {/* Notes */}
                         <div className="space-y-3 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
