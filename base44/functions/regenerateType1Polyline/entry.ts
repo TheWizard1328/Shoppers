@@ -286,9 +286,17 @@ Deno.serve(async (req) => {
     const currentLat = Number(rawLocation?.lat);
     const currentLon = Number(rawLocation?.lon ?? rawLocation?.lng);
     const minMoveMeters = Number(body?.minMoveMeters || DEFAULT_MIN_MOVE_METERS);
+    const isPrimaryDevice = body?.isPrimaryDevice === true;
+    const allowDeviationCheck = body?.allowDeviationCheck === true;
+    const routeChangeSource = String(body?.routeChangeSource || body?.source || 'poll').toLowerCase();
+    const isPollingFlow = !allowDeviationCheck && routeChangeSource === 'poll';
 
     if (!driverId || !deliveryDate || !Number.isFinite(currentLat) || !Number.isFinite(currentLon)) {
       return Response.json({ error: 'driverId, deliveryDate, and currentLocation are required' }, { status: 400 });
+    }
+
+    if (isPollingFlow && !isPrimaryDevice) {
+      return Response.json({ success: true, skipped: true, reason: 'non_primary_poll_skipped' });
     }
 
     const [driverAppUser, driverUser, requesterAppUser] = await Promise.all([
@@ -303,7 +311,6 @@ Deno.serve(async (req) => {
     const actorIsAdmin = actorRoles.includes('admin');
     const actorIsDispatcher = actorRoles.includes('dispatcher');
     const actorIsSameDriver = user.id === driverId && actorRoles.includes('driver');
-    const routeChangeSource = String(body?.routeChangeSource || body?.source || 'poll').toLowerCase();
     const isAssignAcceptAllFlow = body?.allowNonPrimaryPolylineRefresh === true || routeChangeSource === 'assign_accept_all' || routeChangeSource === 'accept_all' || routeChangeSource === 'assign_all';
     const isAdminStopEditFlow = actorIsAdmin && (body?.force === true || routeChangeSource === 'admin_stop_edit' || routeChangeSource === 'admin_edit');
     const isDriverPrimaryPoll = actorIsSameDriver && body?.isPrimaryDevice === true;
@@ -435,7 +442,7 @@ Deno.serve(async (req) => {
       row.encoded_polyline
     ) || null;
 
-    if (!body?.force && !body?.allowDeviationCheck) {
+    if (!body?.force && !allowDeviationCheck) {
       return Response.json({ success: true, skipped: true, reason: 'deviation_only_guard', repairedStopOrders: stopOrderRepairUpdates.length });
     }
 

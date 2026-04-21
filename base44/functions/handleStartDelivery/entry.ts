@@ -66,30 +66,6 @@ Deno.serve(async (req) => {
 
     console.log('🔄 [handleStartDelivery] Selected delivery marked as next stop');
 
-    let optimization = null;
-    try {
-      await wait(350);
-      const now = new Date();
-      const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      const optimizationResponse = await base44.asServiceRole.functions.invoke('optimizeRouteRealTime', {
-        driverId,
-        deliveryDate,
-        currentLocalTime,
-        selectedDriverId: driverId,
-        generatePolyline: true,
-        lockedNextDeliveryId: deliveryId
-      });
-      optimization = optimizationResponse?.data || optimizationResponse || null;
-    } catch (error) {
-      if (isRateLimitError(error)) {
-        console.warn('⚠️ [handleStartDelivery] Optimization skipped due to rate limit');
-        optimization = { deferred: true, reason: 'rate_limited', routeChanged: false };
-      } else {
-        console.warn(`⚠️ [handleStartDelivery] optimizeRouteRealTime failed:`, error?.message || error);
-        optimization = null;
-      }
-    }
-
     console.log(`✅ [handleStartDelivery] Started new delivery: ${deliveryId}`);
 
     return Response.json({
@@ -97,8 +73,11 @@ Deno.serve(async (req) => {
       distanceTransferred: 0,
       newNextDeliveryId: deliveryId,
       oldNextDeliveryId,
-      routeChanged: !!optimization?.routeChanged,
-      optimization
+      routeChanged: false,
+      optimization: {
+        skipped: true,
+        reason: 'start_delivery_no_full_reoptimization'
+      }
     });
 
   } catch (error) {

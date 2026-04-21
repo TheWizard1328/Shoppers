@@ -600,11 +600,9 @@ const routeOptimizationInflight = new Map();
 export async function optimizeRouteAndApplyNextDelivery({
   driverId,
   deliveryDate,
-  currentLocalTime,
   updateDeliveryLocal,
   updateDeliveriesLocally,
   forceRefreshDriverDeliveries,
-  generatePolyline = false,
   fallbackNextDeliveryId = null
 }) {
   const optimizationKey = `${driverId || 'unknown'}:${deliveryDate || 'unknown'}`;
@@ -613,34 +611,12 @@ export async function optimizeRouteAndApplyNextDelivery({
   }
 
   const optimizationPromise = (async () => {
-    if (!shouldRunRouteDeviationCheck({ driverId, deliveryDate })) {
-      return {
-        optimizeData: null,
-        optimizedRoute: [],
-        nextOptimizedStopId: null,
-        refreshedDriverDeliveries: []
-      };
-    }
-
-    const optimizeResponse = await base44.functions.invoke('optimizeRouteRealTime', {
-      driverId,
-      deliveryDate,
-      currentLocalTime,
-      generatePolyline
-    });
-    const optimizeData = optimizeResponse?.data || optimizeResponse;
-    const optimizedRoute = Array.isArray(optimizeData?.optimizedRoute) ? optimizeData.optimizedRoute : [];
-    const optimizationDeferred = optimizeData?.deferred === true || optimizeData?.reason === 'rate_limited';
-    const nextOptimizedStopId = optimizationDeferred
-      ? fallbackNextDeliveryId
-      : (optimizedRoute[0]?.deliveryId || optimizeData?.nextDeliveryId || optimizedRoute[0]?.delivery_id || null);
-
-    await refreshDriverRoute({ driverId, deliveryDate, forceRefreshDriverDeliveries, triggeredBy: 'optimizedNextDeliverySync' });
+    await refreshDriverRoute({ driverId, deliveryDate, forceRefreshDriverDeliveries, triggeredBy: 'nextDeliverySyncOnly' });
 
     const refreshedDriverDeliveries = await base44.entities.Delivery.filter({ driver_id: driverId, delivery_date: deliveryDate });
     await setAndCenterNextDelivery({
       driverDeliveries: refreshedDriverDeliveries,
-      targetDeliveryId: nextOptimizedStopId,
+      targetDeliveryId: fallbackNextDeliveryId,
       updateDeliveryLocal,
       updateDeliveriesLocally,
       driverId,
@@ -648,9 +624,12 @@ export async function optimizeRouteAndApplyNextDelivery({
     });
 
     return {
-      optimizeData,
-      optimizedRoute,
-      nextOptimizedStopId,
+      optimizeData: {
+        skipped: true,
+        reason: 'next_delivery_sync_only'
+      },
+      optimizedRoute: [],
+      nextOptimizedStopId: fallbackNextDeliveryId,
       refreshedDriverDeliveries
     };
   })();
