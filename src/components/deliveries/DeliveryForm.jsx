@@ -1737,7 +1737,7 @@ export default function DeliveryForm({
   }, [formData.store_id, delivery, isPickupMode, formData.delivery_date, stores, allDeliveries]);
 
   const confirmAddProjectedToStaged = useCallback(async (projected) => {
-    const store = stores.find((s) => s && s.id === projected.store_id);
+    const store = (freshStores || stores).find((s) => s && s.id === projected.store_id);
     if (!store) {
       console.error('Store not found for projected delivery:', projected.store_id);
       return;
@@ -1790,7 +1790,7 @@ export default function DeliveryForm({
     setProjectedDeliveries((prev) => prev.filter((p) => p.patient_id !== projected.patient_id));
     setStagedDeliveries((prev) => [...prev, puid ? { ...newStagedItem, puid } : newStagedItem]);
     setHasChanges(true);
-  }, [formData, stores, patients, drivers, allDeliveries, stagedDeliveries]);
+  }, [formData, freshStores, stores, patients, drivers, allDeliveries, stagedDeliveries]);
 
   const sortedStagedDeliveries = useMemo(() => sortStagedDeliveries({
     stagedDeliveries,
