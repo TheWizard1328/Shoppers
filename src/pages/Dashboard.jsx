@@ -5275,7 +5275,7 @@ function Dashboard() {
     routeNotification, setRouteNotification,
     isSnapshotModeActive, setIsSnapshotModeActive, snapshotData, setSnapshotData,
     performanceStats, deliveryStats, liveDistance, liveTimeOnDuty, isLoadingPayrollStats,
-    dailyPolylineCount, isAIEnabled, showAIAssistant, realTimeETAEnabled,
+    dailyPolylineCount, isAIEnabled, showAIAssistant, preferredTravelMode, realTimeETAEnabled,
     refreshUser, refreshData, dataSource
   });
 

@@ -64,6 +64,8 @@ export default function MapSection({
         <DeliveryMap
           deliveries={deliveriesWithStopOrder}
           allDeliveriesForDate={deliveries}
+          preferredTravelMode={preferredTravelMode}
+          onTravelModeChange={onTravelModeChange}
           selectedDriverId={selectedDriverId}
           selectedDate={format(selectedDate, 'yyyy-MM-dd')}
           patients={patients}
@@ -107,6 +109,8 @@ export default function MapSection({
           mapViewPhase={1}
           isMapViewLocked={false}
           topOverlayHeight={topOverlayHeight}
+          preferredTravelMode={preferredTravelMode}
+          onTravelModeChange={onTravelModeChange}
           onMapReady={() => {
             if (!renderSequence.mapMarkers) {
               setRenderSequence(prev => ({ ...prev, mapMarkers: true, routeLines: true, driverLiveLocation: true, sharedLocations: true }));
