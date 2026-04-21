@@ -789,12 +789,16 @@ Deno.serve(async (req) => {
 
         const currentLat = Number(driverAppUser?.current_latitude);
         const currentLon = Number(driverAppUser?.current_longitude);
+        const homeLat = Number(driverAppUser?.home_latitude);
+        const homeLon = Number(driverAppUser?.home_longitude);
+        const hasHomeCoords = Number.isFinite(homeLat) && Number.isFinite(homeLon);
         const isToday = deliveryDate === getEdmontonDateString();
 
         const originFromFinishedStop = latestFinishedStop ? getLatLon(latestFinishedStop) : null;
         const useDriverLocationAsOrigin = scope === 'active_only' && firstActive && isToday && Number.isFinite(currentLat) && Number.isFinite(currentLon);
+        const firstLegOrigin = originFromFinishedStop || (hasHomeCoords ? { lat: homeLat, lon: homeLon } : null);
 
-        if (useDriverLocationAsOrigin) {
+        if (useDriverLocationAsOrigin && !originFromFinishedStop) {
           pushSegment({ lat: currentLat, lon: currentLon }, firstActive);
         }
 
@@ -815,9 +819,6 @@ Deno.serve(async (req) => {
         }
 
         const lastActive = getLatLon(activeStops[activeStops.length - 1]);
-        const homeLat = Number(driverAppUser?.home_latitude);
-        const homeLon = Number(driverAppUser?.home_longitude);
-        const hasHomeCoords = Number.isFinite(homeLat) && Number.isFinite(homeLon);
 
         const shouldAddHomeStartLeg = hasHomeCoords && firstActive && !originFromFinishedStop;
         if (shouldAddHomeStartLeg) {
