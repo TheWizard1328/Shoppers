@@ -22,7 +22,7 @@ export const createStopCardsScrollHandler = ({
     if (typeof window !== 'undefined') {
       window.__suppressCardAutoCenterUntil = Math.max(window.__suppressCardAutoCenterUntil || 0, Date.now() + 1500);
     }
-    if ((mapViewPhase === 2 || mapViewPhase === 3) && isMapViewLocked) {
+    if (mapViewPhase === 3 && isMapViewLocked) {
       if (mapLockTimeoutRef.current) {
         clearTimeout(mapLockTimeoutRef.current);
         mapLockTimeoutRef.current = null;

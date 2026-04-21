@@ -155,6 +155,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     };
 
     const handleCenterNextDeliveryCard = () => {
+      if (typeof window !== 'undefined' && (window.__suppressCardAutoCenterUntil || 0) > Date.now()) return;
       const nextCard = validCards.find((card) => card?.isNextDelivery === true);
       centerCardById(nextCard?.id);
       if (nextCard) {
@@ -220,24 +221,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     };
 
     const handleSmartRefreshComplete = () => {
-      if (typeof window !== 'undefined' && (window.__suppressCardAutoCenterUntil || 0) > Date.now()) return;
-      // RULE 2: Collapse all cards, then center next delivery if not centered
-      if (!isNextDeliveryCardCentered()) {
-        console.log('🎯 [Auto-Center Rule 2] Smart refresh - collapsing all and centering next');
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('collapseAllStopCards'));
-        }
-
-        setTimeout(() => {
-          const nextCard = validCards.find((card) => card?.isNextDelivery === true);
-          if (nextCard) {
-            const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
-            if (cardElement) {
-              scrollToCenterCard(cardElement);
-            }
-          }
-        }, 100);
-      }
+    if (typeof window !== 'undefined' && (window.__suppressCardAutoCenterUntil || 0) > Date.now()) return;
     };
 
     window.addEventListener('incompleteDeliveriesCountChanged', handleIncompleteCountChanged);
@@ -247,7 +231,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
       window.removeEventListener('incompleteDeliveriesCountChanged', handleIncompleteCountChanged);
       window.removeEventListener('smartRefreshComplete', handleSmartRefreshComplete);
     };
-  }, [selectedCardId, validCards, scrollToCenterCard, isNextDeliveryCardCentered]);
+  }, [selectedCardId, validCards, scrollToCenterCard]);
 
   // Enable native scroll with CSS scroll-snap for smooth card-by-card scrolling
   // Removed custom touch handlers that were preventing native scrolling
@@ -414,7 +398,6 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
       window.__isUserCardSwipe = true;
       window.__suppressCardAutoCenterUntil = manualSwipeUnlockUntilRef.current;
     }
-    fabControlEvents.deactivateFAB();
     if (isDesktopFanLayout) return;
   }, [isDesktopFanLayout]);
 
@@ -435,7 +418,6 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
       window.__isUserCardSwipe = true;
       window.__suppressCardAutoCenterUntil = manualSwipeUnlockUntilRef.current;
     }
-    fabControlEvents.deactivateFAB();
   }, []);
 
   const handleTouchEnd = React.useCallback((e) => {
@@ -608,7 +590,6 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
         const axisDelta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
         if (Math.abs(axisDelta) < 8) return;
 
-        fabControlEvents.deactivateFAB();
         e.stopPropagation();
 
         if (isDesktopFanLayout) {
