@@ -59,7 +59,7 @@ function TimeField({ value, onChange, onClear, disabled, style }) {
   );
 }
 
-function TravelModeButtons({ value, onChange, disabled }) {
+function TravelModeButtons({ value, onChange, disabled, isMixed = false }) {
   const options = [
     { value: 'driving', label: 'Driving', icon: Car },
     { value: 'cycling', label: 'Cycling', icon: Bike }
@@ -69,7 +69,8 @@ function TravelModeButtons({ value, onChange, disabled }) {
     <div className="flex flex-row gap-2 shrink-0">
       {options.map((option) => {
         const Icon = option.icon;
-        const isActive = value === option.value;
+        const isActive = !isMixed && value === option.value;
+        const isGrayMixed = isMixed;
 
         return (
           <button
@@ -79,7 +80,7 @@ function TravelModeButtons({ value, onChange, disabled }) {
             aria-label={option.label}
             onClick={() => onChange(option.value)}
             disabled={disabled}
-            className={`h-9 w-9 rounded-full border transition-all flex items-center justify-center ${isActive ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white text-slate-700'}`}
+            className={`h-9 w-9 rounded-full border transition-all flex items-center justify-center ${isActive ? 'bg-emerald-600 border-emerald-600 text-white' : isGrayMixed ? 'bg-slate-200 border-slate-300 text-slate-500' : 'bg-white text-slate-700'}`}
           >
             <Icon className="w-4 h-4" />
           </button>
@@ -92,6 +93,7 @@ function TravelModeButtons({ value, onChange, disabled }) {
 function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, currentUser, values, setValues, onApply, onCancel, isSaving, initialValues }) {
   const isAdmin = userHasRole(currentUser, "admin");
   const isDriver = userHasRole(currentUser, "driver");
+  const isMixedTravelMode = initialValues.travelModeChoice === "mixed" && values.travelModeChoice === "mixed";
   const effectiveDriverId = values.driverChoice !== "unchanged" && values.driverChoice !== "unassigned" ? values.driverChoice : null;
   const changedFieldStyle = { background: '#fef3c7', borderColor: '#f59e0b' };
   const getFieldStyle = (fieldName) => values[fieldName] !== initialValues[fieldName] ? changedFieldStyle : undefined;
@@ -162,7 +164,7 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
           </p>
         </div>
 
-        <div className={`grid grid-cols-1 gap-4 ${isDriver ? 'sm:grid-cols-[minmax(0,1fr)_auto]' : 'sm:grid-cols-2'}`}>
+        <div className={`grid grid-cols-1 gap-4 ${isDriver ? 'sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]' : 'sm:grid-cols-2'}`}>
           <div className="space-y-2">
             <Label style={{ color: "var(--text-slate-900)" }}>Assigned Driver</Label>
             <Select
@@ -184,7 +186,7 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
             </Select>
           </div>
 
-          <div className={`space-y-2 ${isDriver ? '' : ''}`}>
+          <div className="space-y-2">
             <Label style={{ color: "var(--text-slate-900)" }}>Delivery Date</Label>
             <Input
               type="date"
@@ -199,6 +201,7 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
               <Label style={{ color: "var(--text-slate-900)" }}>Travel Mode</Label>
               <TravelModeButtons
                 value={values.travelModeChoice || 'driving'}
+                isMixed={isMixedTravelMode}
                 onChange={(mode) => setValues((current) => ({ ...current, travelModeChoice: mode }))}
                 disabled={isSaving}
               />
@@ -327,7 +330,7 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
   const initialValues = useMemo(() => ({
     delivery_date: getSharedValue(selectedDeliveries, (delivery) => delivery?.delivery_date, ""),
     driverChoice: getSharedValue(selectedDeliveries, (delivery) => delivery?.driver_id, "unchanged"),
-    travelModeChoice: getSharedValue(selectedDeliveries, (delivery) => delivery?.finished_leg_transport_mode, "driving"),
+    travelModeChoice: getSharedValue(selectedDeliveries, (delivery) => delivery?.finished_leg_transport_mode, "mixed"),
     delivery_time_start: getSharedValue(selectedDeliveries, (delivery) => delivery?.delivery_time_start, ""),
     delivery_time_end: getSharedValue(selectedDeliveries, (delivery) => delivery?.delivery_time_end, ""),
     statusChoice: getSharedValue(selectedDeliveries, (delivery) => delivery?.status, "unchanged"),
