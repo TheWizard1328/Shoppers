@@ -52,7 +52,11 @@ export default function StopCardBody({
   userHasRole,
   Textarea,
   isAppOwnerFn,
-  isPastDate
+  isPastDate,
+  appUsers = [],
+  preferredTravelMode,
+  onTravelModeChange,
+  travelModeDisabled = false
 }) {
   const handleNotesBlur = () => {
     if (!notesInput.trim() || notesInput.trim() === 'No driver notes') {
@@ -159,6 +163,11 @@ export default function StopCardBody({
                 isPickup={isPickup}
                 isPastDate={isPastDate}
                 patient={patient}
+                currentUser={currentUser}
+                appUsers={appUsers}
+                preferredTravelMode={preferredTravelMode}
+                onTravelModeChange={onTravelModeChange}
+                travelModeDisabled={travelModeDisabled}
               />
 
               <StopCardPendingPickupsSection

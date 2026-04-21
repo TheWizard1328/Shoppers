@@ -1,4 +1,5 @@
 import { isRouteCompleted } from '@/components/utils/routeCompletionChecker';
+import { normalizeTravelMode } from '@/components/dashboard/travelModeHelpers';
 import { motion } from 'framer-motion';
 import { scheduleCompletionSideEffects } from '../utils/completeRequestQueue';
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
@@ -98,6 +99,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const [isRestarting, setIsRestarting] = useState(false);
   const [isPrimaryDevice, setIsPrimaryDevice] = useState(true);
   const [activeDeliveryAction, setActiveDeliveryAction] = useState(() => getActiveDeliveryAction());
+  const [preferredTravelMode, setPreferredTravelMode] = useState(() => normalizeTravelMode(currentDriverAppUser?.preferred_travel_mode || driver?.preferred_travel_mode || currentUser?.preferred_travel_mode));
   const startTapLockRef = useRef(false);
   const completeTapLockRef = useRef(false);
   const actionTapLockRef = useRef(false);
@@ -151,6 +153,10 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   }, [currentUser?.id]);
 
   useEffect(() => subscribeDeliveryActionLock(setActiveDeliveryAction), []);
+
+  useEffect(() => {
+    setPreferredTravelMode(normalizeTravelMode(currentDriverAppUser?.preferred_travel_mode || driver?.preferred_travel_mode || currentUser?.preferred_travel_mode));
+  }, [currentDriverAppUser?.preferred_travel_mode, driver?.preferred_travel_mode, currentUser?.preferred_travel_mode]);
 
   useEffect(() => {
     if (!delivery) return;
@@ -345,6 +351,35 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     if (!delivery) return false;
     return (allDeliveries || []).some((item) => item && item.driver_id === delivery.driver_id && item.delivery_date === delivery.delivery_date && !FINISHED_STATUSES.includes(item.status) && item.status !== 'pending');
   }, [allDeliveries, delivery]);
+
+  const handleTravelModeChange = useCallback(async (nextMode) => {
+    const normalizedMode = normalizeTravelMode(nextMode);
+    setPreferredTravelMode(normalizedMode);
+    window.dispatchEvent(new CustomEvent('driverTravelModeChanged', {
+      detail: {
+        driverId: currentUser?.id,
+        travelMode: normalizedMode,
+        deliveryDate: delivery?.delivery_date
+      }
+    }));
+    window.dispatchEvent(new CustomEvent('polylineCacheCleared'));
+
+    await base44.functions.invoke('purgeAndRegeneratePolylines', {
+      driverId: delivery?.driver_id,
+      deliveryDate: delivery?.delivery_date,
+      scope: 'active_only',
+      reason: 'manual',
+      routeSource: 'polylines'
+    }).catch(() => null);
+
+    window.dispatchEvent(new CustomEvent('routeReordered', {
+      detail: {
+        driverId: delivery?.driver_id,
+        deliveryDate: delivery?.delivery_date,
+        source: 'travel_mode_change'
+      }
+    }));
+  }, [currentUser?.id, delivery?.delivery_date, delivery?.driver_id]);
 
   const shouldFade = isFinishedDelivery && routeHasIncompleteStops && !isSelected && !isHovered;
   const isMobileCard = isMobileDevice();
@@ -675,6 +710,10 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
               Textarea={Textarea}
               isAppOwnerFn={isAppOwner}
               isPastDate={isPastDeliveryDate}
+              appUsers={appUsers}
+              preferredTravelMode={preferredTravelMode}
+              onTravelModeChange={handleTravelModeChange}
+              travelModeDisabled={!isNextDelivery || isFinishedDelivery}
             />
           )}
 

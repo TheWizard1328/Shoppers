@@ -127,6 +127,7 @@ export default function HereType1Polylines({
 }) {
   const [cache, setCache] = useState({});
   const [refreshToken, setRefreshToken] = useState(0);
+  const [localDriverTravelModes, setLocalDriverTravelModes] = useState({});
   const [deviationSegments, setDeviationSegments] = useState({});
   const deviationMetaRef = useRef({});
 
@@ -244,6 +245,13 @@ export default function HereType1Polylines({
   useEffect(() => {
     const invalidate = () => { setRefreshToken((t) => t + 1); };
     const onReorder = invalidate;
+    const onDriverTravelModeChanged = (event) => {
+      const driverId = event?.detail?.driverId;
+      const travelMode = event?.detail?.travelMode;
+      if (!driverId || !travelMode) return;
+      setLocalDriverTravelModes((prev) => ({ ...prev, [driverId]: travelMode }));
+      invalidate();
+    };
     const onOptimizationStarted = () => { setOptimizing(true); };
     const onOptimizationComplete = () => { setOptimizing(false); invalidate(); };
     const onPolyline = (e) => {
@@ -270,6 +278,7 @@ export default function HereType1Polylines({
       invalidate();
     };
     window.addEventListener('routeReordered', onReorder);
+    window.addEventListener('driverTravelModeChanged', onDriverTravelModeChanged);
     window.addEventListener('polylineUpdated', onPolyline);
     window.addEventListener('routeOptimizationComplete', onOptimizationComplete);
     window.addEventListener('routeOptimizationStarted', onOptimizationStarted);
@@ -278,6 +287,7 @@ export default function HereType1Polylines({
     window.addEventListener('deliveryFailed', onDeliveryFailed);
     return () => {
       window.removeEventListener('routeReordered', onReorder);
+      window.removeEventListener('driverTravelModeChanged', onDriverTravelModeChanged);
       window.removeEventListener('polylineUpdated', onPolyline);
       window.removeEventListener('routeOptimizationComplete', onOptimizationComplete);
       window.removeEventListener('routeOptimizationStarted', onOptimizationStarted);
@@ -474,7 +484,7 @@ export default function HereType1Polylines({
   const getDriverPolylineColor = (driverId) => generateDriverColor(String(driverId || 'driver'));
   const getType1PolylineColor = () => '#2563EB';
   const getDriverRouteStyle = (driverId, opacityOverride) => {
-    const mode = normalizeTravelMode(driverTravelModes[driverId]);
+    const mode = normalizeTravelMode(localDriverTravelModes[driverId] ?? driverTravelModes[driverId]);
     const isCycling = mode === 'cycling';
     const base = getTravelModeLineStyle(mode, getType1PolylineColor(driverId));
     return {

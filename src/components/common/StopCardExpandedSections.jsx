@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Package, Info, Loader2, Plus } from "lucide-react";
+import TravelModeButton from "@/components/dashboard/TravelModeButton";
 import { format, parseISO } from "date-fns";
 import { formatPhoneNumber } from "../utils/phoneFormatter";
 import HelpTooltip, { HELP_CONTENT } from "./HelpTooltip";
@@ -125,7 +126,7 @@ export function StopCardCodSection(props) {
   );
 }
 
-export function StopCardPatientInfoSection({ isStrippedForDriver, isFinishedDelivery, isPickup, isPastDate, patient }) {
+export function StopCardPatientInfoSection({ isStrippedForDriver, isFinishedDelivery, isPickup, isPastDate, patient, currentUser, appUsers = [], preferredTravelMode, onTravelModeChange, travelModeDisabled = false }) {
   if (isStrippedForDriver || isPickup || !patient) return null;
 
   if (isFinishedDelivery && !isPastDate && patient.notes) {
@@ -142,28 +143,53 @@ export function StopCardPatientInfoSection({ isStrippedForDriver, isFinishedDeli
     );
   }
 
-  if (!isFinishedDelivery && !isPastDate && (patient.notes || patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door || patient.recurring)) {
+  if (!isFinishedDelivery && !isPastDate) {
     return (
       <div className="flex items-start gap-2">
         <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
-        <div className="flex-1 min-w-0">
-          <p className="text-base font-semibold mb-0.5" style={{ color: 'var(--text-slate-700)' }}>Patient Info:</p>
-          <div className="text-base rounded px-2 py-1.5 space-y-1" style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
-            {(patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door) &&
-              <div className="flex flex-wrap gap-1">
-                {patient.mailbox_ok && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-blue-50 border-blue-200 text-blue-700">Mailbox OK</Badge>}
-                {patient.call_upon_arrival && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-amber-50 border-amber-200 text-amber-700">Call on Arrival</Badge>}
-                {patient.dont_ring_bell && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-red-50 border-red-200 text-red-700">Don't Ring Bell</Badge>}
-                {patient.back_door && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-purple-50 border-purple-200 text-purple-700">Back Door</Badge>}
-              </div>
-            }
-            {patient.recurring &&
-              <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 border-green-200 text-green-700">
-                {(() => {
-                  if (patient.recurring_daily) return 'Daily';
-                  if (patient.recurring_monthly) return 'Monthly';
-                  if (patient.recurring_bimonthly) return 'Bi-Monthly';
-                  if (patient.recurring_biweekly) {
+        <div className="flex-1 min-w-0 space-y-1">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <p className="text-base font-semibold mb-0.5" style={{ color: 'var(--text-slate-700)' }}>Patient Info:</p>
+            <TravelModeButton
+              currentUser={currentUser}
+              appUsers={appUsers}
+              value={preferredTravelMode}
+              onChange={onTravelModeChange}
+              disabled={travelModeDisabled}
+            />
+          </div>
+          {(patient.notes || patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door || patient.recurring) && (
+            <div className="text-base rounded px-2 py-1.5 space-y-1" style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
+              {(patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door) &&
+                <div className="flex flex-wrap gap-1">
+                  {patient.mailbox_ok && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-blue-50 border-blue-200 text-blue-700">Mailbox OK</Badge>}
+                  {patient.call_upon_arrival && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-amber-50 border-amber-200 text-amber-700">Call on Arrival</Badge>}
+                  {patient.dont_ring_bell && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-red-50 border-red-200 text-red-700">Don't Ring Bell</Badge>}
+                  {patient.back_door && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-purple-50 border-purple-200 text-purple-700">Back Door</Badge>}
+                </div>
+              }
+              {patient.recurring &&
+                <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 border-green-200 text-green-700">
+                  {(() => {
+                    if (patient.recurring_daily) return 'Daily';
+                    if (patient.recurring_monthly) return 'Monthly';
+                    if (patient.recurring_bimonthly) return 'Bi-Monthly';
+                    if (patient.recurring_biweekly) {
+                      const days = [];
+                      if (patient.recurring_weekly_mon) days.push('Mon');
+                      if (patient.recurring_weekly_tue) days.push('Tue');
+                      if (patient.recurring_weekly_wed) days.push('Wed');
+                      if (patient.recurring_weekly_thu) days.push('Thu');
+                      if (patient.recurring_weekly_fri) days.push('Fri');
+                      if (patient.recurring_weekly_sat) days.push('Sat');
+                      if (patient.recurring_weekly_sun) days.push('Sun');
+                      return days.length > 0 ? `Bi-Weekly (${days.join(', ')})` : 'Bi-Weekly';
+                    }
+                    if (patient.recurring_weekly_x4) {
+                      const dayAbbrevs = { mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun' };
+                      const day = dayAbbrevs[patient.recurring_weekly_x4_day] || patient.recurring_weekly_x4_day;
+                      return day ? `4x Weekly (${day})` : '4x Weekly';
+                    }
                     const days = [];
                     if (patient.recurring_weekly_mon) days.push('Mon');
                     if (patient.recurring_weekly_tue) days.push('Tue');
@@ -172,27 +198,13 @@ export function StopCardPatientInfoSection({ isStrippedForDriver, isFinishedDeli
                     if (patient.recurring_weekly_fri) days.push('Fri');
                     if (patient.recurring_weekly_sat) days.push('Sat');
                     if (patient.recurring_weekly_sun) days.push('Sun');
-                    return days.length > 0 ? `Bi-Weekly (${days.join(', ')})` : 'Bi-Weekly';
-                  }
-                  if (patient.recurring_weekly_x4) {
-                    const dayAbbrevs = { mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun' };
-                    const day = dayAbbrevs[patient.recurring_weekly_x4_day] || patient.recurring_weekly_x4_day;
-                    return day ? `4x Weekly (${day})` : '4x Weekly';
-                  }
-                  const days = [];
-                  if (patient.recurring_weekly_mon) days.push('Mon');
-                  if (patient.recurring_weekly_tue) days.push('Tue');
-                  if (patient.recurring_weekly_wed) days.push('Wed');
-                  if (patient.recurring_weekly_thu) days.push('Thu');
-                  if (patient.recurring_weekly_fri) days.push('Fri');
-                  if (patient.recurring_weekly_sat) days.push('Sat');
-                  if (patient.recurring_weekly_sun) days.push('Sun');
-                  return days.length > 0 ? `Weekly (${days.join(', ')})` : 'Recurring';
-                })()}
-              </Badge>
-            }
-            {patient.notes && <p className="whitespace-pre-wrap break-words">{patient.notes}</p>}
-          </div>
+                    return days.length > 0 ? `Weekly (${days.join(', ')})` : 'Recurring';
+                  })()}
+                </Badge>
+              }
+              {patient.notes && <p className="whitespace-pre-wrap break-words">{patient.notes}</p>}
+            </div>
+          )}
         </div>
       </div>
     );

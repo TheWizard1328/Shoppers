@@ -35,6 +35,7 @@ export default function HereType2Polylines({
   const [cache, setCache] = useState({});
   const [refreshToken, setRefreshToken] = useState(0);
   const [optimizing, setOptimizing] = useState(false);
+  const [localDriverTravelModes, setLocalDriverTravelModes] = useState({});
   const [lastNonEmptyLines, setLastNonEmptyLines] = useState([]);
   const requestTimesRef = useRef({});
 
@@ -79,7 +80,7 @@ export default function HereType2Polylines({
 
     const getDriverPolylineColor = (driverId) => generateDriverColor(String(driverId || 'driver'));
     const getDriverRouteStyle = (driverId, opacityOverride) => {
-      const mode = normalizeTravelMode(driverTravelModes[driverId]);
+      const mode = normalizeTravelMode(localDriverTravelModes[driverId] ?? driverTravelModes[driverId]);
       const isCycling = mode === 'cycling';
       const base = getTravelModeLineStyle(mode, getDriverPolylineColor(driverId));
       return {
@@ -135,6 +136,14 @@ export default function HereType2Polylines({
 
     const onOptimizationStarted = () => { setOptimizing(true); };
 
+    const onDriverTravelModeChanged = (event) => {
+      const driverId = event?.detail?.driverId;
+      const travelMode = event?.detail?.travelMode;
+      if (!driverId || !travelMode) return;
+      setLocalDriverTravelModes((prev) => ({ ...prev, [driverId]: travelMode }));
+      setRefreshToken((t) => t + 1);
+    };
+
     const onPolyline = (e) => {
       const key = e?.detail?.key;
       if (!key) return;
@@ -162,6 +171,7 @@ export default function HereType2Polylines({
     };
 
     window.addEventListener('routeReordered', onReorder);
+    window.addEventListener('driverTravelModeChanged', onDriverTravelModeChanged);
     window.addEventListener('polylineUpdated', onPolyline);
     window.addEventListener('routeOptimizationComplete', onOptimizationComplete);
     window.addEventListener('routeOptimizationStarted', onOptimizationStarted);
@@ -177,6 +187,7 @@ export default function HereType2Polylines({
 
     return () => {
       window.removeEventListener('routeReordered', onReorder);
+      window.removeEventListener('driverTravelModeChanged', onDriverTravelModeChanged);
       window.removeEventListener('polylineUpdated', onPolyline);
       window.removeEventListener('routeOptimizationComplete', onOptimizationComplete);
       window.removeEventListener('routeOptimizationStarted', onOptimizationStarted);
