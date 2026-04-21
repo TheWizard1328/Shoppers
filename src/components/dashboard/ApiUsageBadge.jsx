@@ -80,7 +80,7 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
           <Tooltip>
             <TooltipTrigger asChild>
               <button
-                type="button" className="bg-transparent px-2 py-1 text-xs font-medium rounded-lg border shadow-sm"
+                type="button" className="bg-transparent px-2 text-xs font-medium rounded-lg border shadow-sm"
 
                 style={{ background: "var(--bg-white)", borderColor: "var(--border-slate-200)", color: "var(--text-slate-600)" }}>
                 
