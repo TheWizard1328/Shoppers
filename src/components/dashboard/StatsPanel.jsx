@@ -453,7 +453,7 @@ export default function StatsPanel({
         </motion.div>
 
         {!isAllDriversMode && !isAdmin ? null : legendData.length > 0 &&
-        <div className="backdrop-blur-sm rounded-xl shadow-lg border px-1 py-0 w-full h-[18px] overflow-hidden" style={{ background: 'var(--bg-white)', opacity: 0.95, borderColor: 'var(--border-slate-200)' }}
+        <div className="backdrop-blur-sm rounded-xl shadow-lg border px-1 py-0 w-full h-[4px] overflow-hidden" style={{ background: 'var(--bg-white)', opacity: 0.95, borderColor: 'var(--border-slate-200)' }}
         onMouseEnter={() => handleCardInteraction(true)} onMouseLeave={() => handleCardInteraction(false)}>
             <div className="flex h-full items-center justify-center gap-x-2 gap-y-0 overflow-x-auto whitespace-nowrap leading-none">
               {legendData.map((route) =>
@@ -465,16 +465,16 @@ export default function StatsPanel({
                 handleDriverChange(route.driverId);
               }}>
                   <div className="relative flex items-center justify-center w-2.5 h-2.5 flex-shrink-0">
-                    {route.hasHeartbeat && (
-                      <div
-                        className="absolute inset-0 rounded-full animate-ping opacity-75"
-                        style={{ backgroundColor: getStatusColor(route.driverStatus) }}
-                      />
-                    )}
+                    {route.hasHeartbeat &&
+                <div
+                  className="absolute inset-0 rounded-full animate-ping opacity-75"
+                  style={{ backgroundColor: getStatusColor(route.driverStatus) }} />
+
+                }
                     <div
-                      className="relative w-2.5 h-2.5 rounded-full shadow-sm"
-                      style={{ backgroundColor: getStatusColor(route.driverStatus) }}
-                    />
+                  className="relative w-2.5 h-2.5 rounded-full shadow-sm"
+                  style={{ backgroundColor: getStatusColor(route.driverStatus) }} />
+                
                   </div>
                   <span className="text-xs font-medium whitespace-nowrap leading-none" style={{ color: 'var(--text-slate-700)' }}>{route.driverName || 'Unknown'}</span>
                   <span className="text-xs leading-none" style={{ color: 'var(--text-slate-500)' }}>({route.totalStops})</span>
