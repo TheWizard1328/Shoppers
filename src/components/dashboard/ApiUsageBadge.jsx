@@ -7,8 +7,8 @@ import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+  TooltipTrigger } from
+"@/components/ui/tooltip";
 
 // Small self-contained badge that shows Google/HERE API usage for today
 // Props:
@@ -45,11 +45,11 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
       const { startISO, endISO } = getDayBoundsISO();
 
       const [apiLogs, appSettings] = await Promise.all([
-        base44.entities.GoogleAPILog.filter({
-          timestamp: { $gte: startISO, $lte: endISO }
-        }),
-        base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' })
-      ]);
+      base44.entities.GoogleAPILog.filter({
+        timestamp: { $gte: startISO, $lte: endISO }
+      }),
+      base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' })]
+      );
 
       const activeKey = appSettings?.[0]?.setting_value?.selected_api_key || 'HERE_API_KEY';
       setSelectedApiKey(activeKey);
@@ -80,18 +80,18 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
           <Tooltip>
             <TooltipTrigger asChild>
               <button
-                type="button"
-                className="px-2 py-1 text-xs font-medium rounded-lg border shadow-sm"
-                style={{ background: "var(--bg-white)", borderColor: "var(--border-slate-200)", color: "var(--text-slate-600)" }}
-              >
+                type="button" className="bg-[hsl(var(--background))] px-2 py-1 text-xs font-medium rounded-lg border shadow-sm"
+
+                style={{ background: "var(--bg-white)", borderColor: "var(--border-slate-200)", color: "var(--text-slate-600)" }}>
+                
                 🛣️ {googleCount ?? "..."} / {hereCount ?? "..."}
               </button>
             </TooltipTrigger>
             <TooltipContent
               side="top"
               className="max-w-[280px] p-3 z-[10000]"
-              style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
-            >
+              style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+              
               <p className="font-semibold text-sm mb-1" style={{ color: 'var(--text-slate-900)' }}>
                 Active Maps API Key
               </p>
@@ -107,26 +107,26 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
           <div className="px-2 py-2 rounded-xl border shadow-lg space-y-1" style={{ background: 'transparent', borderColor: 'var(--border-slate-200)' }}>
             <div className="flex items-start justify-between gap-3">
               <RadioGroup
-                value={selectedPolylineOption}
-                onValueChange={(value) => {
-                  onPolylineOptionChange?.(value);
-                  window.__dashboardCompletedRouteControls?.setShowRoutes?.(value === 'polylines');
-                  window.__dashboardCompletedRouteControls?.setShowBreadcrumbs?.(value === 'breadcrumbs');
-                }}
-                className="gap-2"
-              >
+              value={selectedPolylineOption}
+              onValueChange={(value) => {
+                onPolylineOptionChange?.(value);
+                window.__dashboardCompletedRouteControls?.setShowRoutes?.(value === 'polylines');
+                window.__dashboardCompletedRouteControls?.setShowBreadcrumbs?.(value === 'breadcrumbs');
+              }}
+              className="gap-2">
+              
                 <label htmlFor="completed-route-polylines" className="flex items-center gap-3 cursor-pointer">
                   <RadioGroupItem
-                    value="polylines"
-                    id="completed-route-polylines"
-                  />
+                  value="polylines"
+                  id="completed-route-polylines" />
+                
                   <div className="space-y-1"><div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Show Polylines</div></div>
                 </label>
                 <label htmlFor="completed-route-breadcrumbs" className="flex items-center gap-3 cursor-pointer">
                   <RadioGroupItem
-                    value="breadcrumbs"
-                    id="completed-route-breadcrumbs"
-                  />
+                  value="breadcrumbs"
+                  id="completed-route-breadcrumbs" />
+                
                   <div className="space-y-1"><div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Show Breadcrumbs</div></div>
                 </label>
               </RadioGroup>
