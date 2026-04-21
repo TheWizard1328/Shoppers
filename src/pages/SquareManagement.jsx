@@ -1098,7 +1098,7 @@ export default function SquareManagement() {
     );
   }, [currentUser, currentAppUser, drivers, selectedDriverFilter, locationConfigs]);
 
-  const getDeliveryPaymentAmountSet = React.useCallback((delivery) => {
+  function getDeliveryPaymentAmountSet(delivery) {
     const amounts = new Set();
     const totalRequired = Math.round(Number(delivery?.cod_total_amount_required || 0) * 100);
     if (totalRequired > 0) amounts.add(totalRequired);
@@ -1119,9 +1119,9 @@ export default function SquareManagement() {
     if (legacyAmount > 0) amounts.add(legacyAmount);
 
     return amounts;
-  }, []);
+  }
 
-  const getTransactionAmountSet = React.useCallback((transaction) => {
+  function getTransactionAmountSet(transaction) {
     const amounts = new Set();
     const totalAmount = Math.round(Number(transaction?.amount || 0) * 100);
     if (totalAmount > 0) amounts.add(totalAmount);
@@ -1166,7 +1166,7 @@ export default function SquareManagement() {
     if (splitTotal > 0) amounts.add(splitTotal);
 
     return amounts;
-  }, []);
+  }
 
   function amountSetsIntersect(left, right) {
     for (const value of left) {
