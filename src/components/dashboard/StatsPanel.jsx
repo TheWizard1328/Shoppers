@@ -48,7 +48,7 @@ export default function StatsPanel({
   refreshUser, dataSource,
   isMobile,
   preferredTravelMode,
-  setPreferredTravelMode
+  onTravelModeChange
 }) {
   const [legendDeliveries, setLegendDeliveries] = useState([]);
   const [isDemoModeActive, setIsDemoModeActive] = useState(false);
@@ -433,7 +433,7 @@ export default function StatsPanel({
                       currentUser={currentUser}
                       appUsers={appUsers}
                       value={preferredTravelMode}
-                      onChange={setPreferredTravelMode} />
+                      onChange={onTravelModeChange} />
                     
                   </>}
                 </div>
