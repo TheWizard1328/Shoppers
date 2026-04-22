@@ -222,7 +222,7 @@ export default function HereType2Polylines({
           const ok = await hydrateFromOffline(key, driverId, { latitude: Number(a.latitude), longitude: Number(a.longitude) }, { latitude: Number(b.latitude), longitude: Number(b.longitude) }, a.delivery_date);
           if (ok) return;
           setTimeout(() => {
-            getHerePolyline(driverId, { latitude: Number(a.latitude), longitude: Number(a.longitude) }, { latitude: Number(b.latitude), longitude: Number(b.longitude) }, a.delivery_date).then((coords) => {
+            getHerePolyline(driverId, { latitude: Number(a.latitude), longitude: Number(a.longitude) }, { latitude: Number(b.latitude), longitude: Number(b.longitude) }, a.delivery_date, getDriverMode(driverId)).then((coords) => {
               if (Array.isArray(coords) && coords.length > 1) setCache((p) => ({ ...p, [key]: coords }));
             });
           }, jitter);
@@ -257,7 +257,7 @@ export default function HereType2Polylines({
       // Show dashed fallback immediately; HERE polyline will hydrate when ready
       lines.push(
         <Polyline
-          key={`type2-here-${driverId}-${i}`}
+          key={`type2-here-${driverId}-${i}-${getDriverMode(driverId)}`}
           positions={coords || makeFallback(a, b)}
           pathOptions={{
             ...getDriverRouteStyle(driverId, coords ? (() => {

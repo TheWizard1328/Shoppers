@@ -35,8 +35,8 @@ function round5(value) {
   return Number(Number(value).toFixed(5));
 }
 
-function buildSegmentKey(fromStop, toStop) {
-  return `${round5(fromStop.latitude)}_${round5(fromStop.longitude)}_${round5(toStop.latitude)}_${round5(toStop.longitude)}`;
+function buildSegmentKey(fromStop, toStop, mode = 'driving') {
+  return `${String(mode)}_${round5(fromStop.latitude)}_${round5(fromStop.longitude)}_${round5(toStop.latitude)}_${round5(toStop.longitude)}`;
 }
 
 function buildDriverDateKey(driverId, deliveryDate) {
@@ -128,6 +128,7 @@ async function flushPolylinePersists() {
 }
 
 async function persistGeneratedPolyline(driverId, deliveryDate, fromStop, toStop, coords, metadata = {}) {
+  const transportMode = metadata.transport_mode || 'driving';
   if (!driverId || !deliveryDate || !Array.isArray(coords) || coords.length < 2) return null;
 
   const payload = {
@@ -140,7 +141,8 @@ async function persistGeneratedPolyline(driverId, deliveryDate, fromStop, toStop
     segment_dest_lon: round5(toStop.longitude),
     estimated_distance_km: metadata.estimated_distance_km ?? null,
     estimated_duration_minutes: metadata.estimated_duration_minutes ?? null,
-    last_generated_at: new Date().toISOString()
+    last_generated_at: new Date().toISOString(),
+    transport_mode: transportMode
   };
 
   // Save to offline DB immediately for local use
@@ -160,7 +162,7 @@ async function persistGeneratedPolyline(driverId, deliveryDate, fromStop, toStop
       detail: {
         driverId,
         deliveryDate,
-        key: `here_${payload.segment_origin_lat.toFixed(5)}_${payload.segment_origin_lon.toFixed(5)}_${payload.segment_dest_lat.toFixed(5)}_${payload.segment_dest_lon.toFixed(5)}`
+        key: `here_${transportMode}_${payload.segment_origin_lat.toFixed(5)}_${payload.segment_origin_lon.toFixed(5)}_${payload.segment_dest_lat.toFixed(5)}_${payload.segment_dest_lon.toFixed(5)}`
       }
     }));
   } catch (_) {}
@@ -192,24 +194,28 @@ async function persistGeneratedPolyline(driverId, deliveryDate, fromStop, toStop
   return tempRecord;
 }
 
-function findLatestExactOfflineSegment(rows, fromStop, toStop, driverId = null, deliveryDate = null) {
-  const targetKey = buildSegmentKey(fromStop, toStop);
+function findLatestExactOfflineSegment(rows, fromStop, toStop, driverId = null, deliveryDate = null, transportMode = 'driving') {
+  const targetKey = buildSegmentKey(fromStop, toStop, transportMode);
   return (rows || [])
     .filter((row) => {
       if (!row?.encoded_polyline) return false;
       if (driverId && row?.driver_id !== driverId) return false;
       if (deliveryDate && row?.delivery_date !== deliveryDate) return false;
-      return `${round5(row.segment_origin_lat)}_${round5(row.segment_origin_lon)}_${round5(row.segment_dest_lat)}_${round5(row.segment_dest_lon)}` === targetKey;
+      return buildSegmentKey(
+        { latitude: row.segment_origin_lat, longitude: row.segment_origin_lon },
+        { latitude: row.segment_dest_lat, longitude: row.segment_dest_lon },
+        row.transport_mode || 'driving'
+      ) === targetKey;
     })
     .sort((a, b) => new Date(b.last_generated_at || b.updated_date || 0).getTime() - new Date(a.last_generated_at || a.updated_date || 0).getTime())[0] || null;
 }
 
-async function getOfflineSegmentPolyline(fromStop, toStop, deliveryDate = null, driverId = null) {
+async function getOfflineSegmentPolyline(fromStop, toStop, deliveryDate = null, driverId = null, transportMode = 'driving') {
   const rows = deliveryDate
     ? await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', deliveryDate)
     : await offlineDB.getAll(offlineDB.STORES.DRIVER_ROUTE_POLYLINES);
 
-  const record = findLatestExactOfflineSegment(rows, fromStop, toStop, driverId, deliveryDate);
+  const record = await findLatestExactOfflineSegment(rows, fromStop, toStop, driverId, deliveryDate, transportMode);
   if (!record?.encoded_polyline) return null;
 
   const coords = decodeGooglePolyline(record.encoded_polyline);
@@ -220,15 +226,18 @@ async function getOfflineSegmentPolyline(fromStop, toStop, deliveryDate = null, 
 }
 
 // Clear route cache for a specific segment
-export function clearHereCacheForSegment(from, to) {
+export function clearHereCacheForSegment(from, to, transportMode = null) {
   try {
     if (!from || !to) return;
-    const key = `here_${Number(from.latitude).toFixed(5)}_${Number(from.longitude).toFixed(5)}_${Number(to.latitude).toFixed(5)}_${Number(to.longitude).toFixed(5)}`;
-    try { memoryCache.delete(key); } catch (_) {}
-    try { backoffCache.delete(`${key}:fail_until`); } catch (_) {}
-    try { backoffNoticeCache.delete(key); } catch (_) {}
-    try { localStorage.removeItem(key); } catch (_) {}
-    try { localStorage.removeItem(`${key}:fail_until`); } catch (_) {}
+    const modes = transportMode ? [transportMode] : ['driving', 'cycling', 'pedestrian'];
+    modes.forEach((mode) => {
+      const key = `here_${mode}_${Number(from.latitude).toFixed(5)}_${Number(from.longitude).toFixed(5)}_${Number(to.latitude).toFixed(5)}_${Number(to.longitude).toFixed(5)}`;
+      try { memoryCache.delete(key); } catch (_) {}
+      try { backoffCache.delete(`${key}:fail_until`); } catch (_) {}
+      try { backoffNoticeCache.delete(key); } catch (_) {}
+      try { localStorage.removeItem(key); } catch (_) {}
+      try { localStorage.removeItem(`${key}:fail_until`); } catch (_) {}
+    });
   } catch (_) {}
 }
 
@@ -275,7 +284,7 @@ export const ensurePolylineSubscription = () => {
           // Also clear any stale localStorage key for the same segment before re-saving
           try {
             if (rec.segment_origin_lat != null && rec.segment_origin_lon != null && rec.segment_dest_lat != null && rec.segment_dest_lon != null) {
-              const key = `here_${Number(rec.segment_origin_lat).toFixed(5)}_${Number(rec.segment_origin_lon).toFixed(5)}_${Number(rec.segment_dest_lat).toFixed(5)}_${Number(rec.segment_dest_lon).toFixed(5)}`;
+              const key = `here_${rec.transport_mode || 'driving'}_${Number(rec.segment_origin_lat).toFixed(5)}_${Number(rec.segment_origin_lon).toFixed(5)}_${Number(rec.segment_dest_lat).toFixed(5)}_${Number(rec.segment_dest_lon).toFixed(5)}`;
               try { backoffCache.delete(`${key}:fail_until`); } catch (_) {}
             }
           } catch (_) {}
@@ -308,7 +317,7 @@ export const ensurePolylineSubscription = () => {
           } catch(_) {}
           // Invalidate caches for this segment
           const key = rec && rec.segment_origin_lat != null && rec.segment_origin_lon != null && rec.segment_dest_lat != null && rec.segment_dest_lon != null
-            ? `here_${Number(rec.segment_origin_lat).toFixed(5)}_${Number(rec.segment_origin_lon).toFixed(5)}_${Number(rec.segment_dest_lat).toFixed(5)}_${Number(rec.segment_dest_lon).toFixed(5)}`
+            ? `here_${rec.transport_mode || 'driving'}_${Number(rec.segment_origin_lat).toFixed(5)}_${Number(rec.segment_origin_lon).toFixed(5)}_${Number(rec.segment_dest_lat).toFixed(5)}_${Number(rec.segment_dest_lon).toFixed(5)}`
             : null;
           if (key) {
             try {
@@ -518,7 +527,7 @@ async function canGenerateForDriver(driverId) {
   }
 }
 
-export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) => {
+export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate, transportMode = 'driving') => {
   if (!fromStop || !toStop) return null;
   await ensureSelectedApiKeyLoaded();
   // Normalize coords to numbers (tablet sometimes sends strings)
@@ -532,7 +541,7 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
     return null;
   }
 
-  const cacheKey = `here_${fromStop.latitude.toFixed(5)}_${fromStop.longitude.toFixed(5)}_${toStop.latitude.toFixed(5)}_${toStop.longitude.toFixed(5)}`;
+  const cacheKey = `here_${transportMode}_${fromStop.latitude.toFixed(5)}_${fromStop.longitude.toFixed(5)}_${toStop.latitude.toFixed(5)}_${toStop.longitude.toFixed(5)}`;
   console.debug('[HERE][client] Cache key', { cacheKey, driverId, deliveryDate });
   const recentFailure = failureCache.get(cacheKey);
   if (recentFailure && Date.now() - recentFailure < 60000) {
@@ -573,7 +582,7 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
 
   // Try offline DB cache first; only use HERE for missing segments.
   try {
-    const coords = await getOfflineSegmentPolyline(fromStop, toStop, deliveryDate, driverId);
+    const coords = await getOfflineSegmentPolyline(fromStop, toStop, deliveryDate, driverId, transportMode);
     if (coords) {
       memoryCache.set(cacheKey, coords);
       fetchingKeys.delete(cacheKey);
@@ -627,7 +636,8 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
         try {
           await persistGeneratedPolyline(driverId, deliveryDate, fromStop, toStop, coords, {
             estimated_distance_km: res?.data?.estimated_distance_km ?? null,
-            estimated_duration_minutes: res?.data?.estimated_duration_minutes ?? null
+            estimated_duration_minutes: res?.data?.estimated_duration_minutes ?? null,
+            transport_mode: transportMode
           });
         } catch (persistError) {
           console.warn('[HERE][client] Persist generated polyline failed', { cacheKey, error: persistError?.message || persistError });
@@ -661,8 +671,8 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate) 
   return null;
 };
 
-export const getHereEncodedPolyline = async (driverId, fromStop, toStop, deliveryDate, _transportMode = 'driving', _waypoints = []) => {
-  const coords = await getHerePolyline(driverId, fromStop, toStop, deliveryDate);
+export const getHereEncodedPolyline = async (driverId, fromStop, toStop, deliveryDate, transportMode = 'driving', _waypoints = []) => {
+  const coords = await getHerePolyline(driverId, fromStop, toStop, deliveryDate, transportMode);
   if (!Array.isArray(coords) || coords.length < 2) return null;
   const encoded = encodeGooglePolyline(coords);
   return encoded || null;

@@ -532,7 +532,7 @@ export default function HereType1Polylines({
           seenKeys.add(key);
           lines.push(
             <Polyline
-              key={`type1-pre-home-${driverId}`}
+              key={`type1-pre-home-${driverId}-${getDriverMode(driverId)}`}
               positions={coords || makeFallback({ latitude: originLat, longitude: originLon }, next)}
               pathOptions={{
                 ...getDriverRouteStyle(driverId, coords ? 0.95 : 0.75),
@@ -573,7 +573,7 @@ export default function HereType1Polylines({
       seenKeys.add(`${key}_deviation_remaining`);
       lines.push(
         <Polyline
-          key={`type1-next-remaining-${driverId}`}
+          key={`type1-next-remaining-${driverId}-${getDriverMode(driverId)}`}
           positions={hybrid.remainingCoords}
           pathOptions={getDriverRouteStyle(driverId, 0.95)}
           pane="routeBasePane"
@@ -594,7 +594,7 @@ export default function HereType1Polylines({
       const now = Date.now();
       if (now - lastReq > 4000) {
         requestTimesRef.current[key] = now;
-        getHerePolyline(driverId, origin, destination, nextStop.delivery_date).then((fetched) => {
+        getHerePolyline(driverId, origin, destination, nextStop.delivery_date, getDriverMode(driverId)).then((fetched) => {
           if (Array.isArray(fetched) && fetched.length > 1) {
             setCache((p) => ({ ...p, [key]: fetched }));
           }
@@ -606,7 +606,7 @@ export default function HereType1Polylines({
       seenKeys.add(key);
       lines.push(
         <Polyline
-          key={`type1-next-${driverId}`}
+          key={`type1-next-${driverId}-${getDriverMode(driverId)}`}
           positions={coords || makeFallback(origin, destination)}
           pathOptions={{
             ...getDriverRouteStyle(driverId, coords ? 0.9 : 0.7),
@@ -644,7 +644,7 @@ export default function HereType1Polylines({
       seenKeys.add(key);
       lines.push(
         <Polyline
-          key={`type1-home-${driverId}`}
+          key={`type1-home-${driverId}-${getDriverMode(driverId)}`}
           positions={coords || makeFallback(lastCompleted, home)}
           pathOptions={{
             ...getDriverRouteStyle(driverId, coords ? 0.9 : 0.7),
