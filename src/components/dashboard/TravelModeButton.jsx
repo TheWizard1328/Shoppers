@@ -26,6 +26,9 @@ export default function TravelModeButton({ currentUser, appUsers = [], value, on
     const nextValue = isCycling ? 'driving' : 'cycling';
     setOptimisticMode(nextValue);
     onChange?.(nextValue);
+    window.dispatchEvent(new CustomEvent('driverTravelModeChanged', {
+      detail: { driverId: currentUser?.id, travelMode: nextValue }
+    }));
     await updatePreferredTravelMode(appUsers, currentUser?.id, nextValue);
   };
 

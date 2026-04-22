@@ -163,7 +163,7 @@ export default function HereType1Polylines({
       console.log(`[Type1] Hydrating from offline DB for ${driverId} on ${date || todayStr}: found ${rows?.length || 0} polylines`);
       const fLat = round5(from.latitude), fLon = round5(from.longitude);
       const tLat = round5(to.latitude), tLon = round5(to.longitude);
-      const match = rows.find(r => r.driver_id === driverId && round5(r.segment_origin_lat) === fLat && round5(r.segment_origin_lon) === fLon && round5(r.segment_dest_lat) === tLat && round5(r.segment_dest_lon) === tLon && r.encoded_polyline);
+      const match = rows.find(r => r.driver_id === driverId && round5(r.segment_origin_lat) === fLat && round5(r.segment_origin_lon) === fLon && round5(r.segment_dest_lat) === tLat && round5(r.segment_dest_lon) === tLon && normalizeTravelMode(r.transport_mode) === normalizeTravelMode(getDriverMode(driverId)) && r.encoded_polyline);
       if (match) {
         console.log(`[Type1] Found matching polyline in offline DB for segment ${from.latitude},${from.longitude} -> ${to.latitude},${to.longitude}`);
         const coords = decodePolyline(match.encoded_polyline);
@@ -516,7 +516,7 @@ export default function HereType1Polylines({
       const originLon = home && !Number.isNaN(Number(home.longitude)) ? Number(home.longitude) : undefined;
 
       if (next && originLat !== undefined && originLon !== undefined) {
-        const key = `here_${Number(originLat).toFixed(5)}_${Number(originLon).toFixed(5)}_${Number(next.latitude).toFixed(5)}_${Number(next.longitude).toFixed(5)}`;
+        const key = getHereCacheKey({ latitude: originLat, longitude: originLon }, next, getDriverMode(driverId));
         let coords = cache[key];
         if (!coords) {
           try {
@@ -628,7 +628,7 @@ export default function HereType1Polylines({
       .sort((a, b) => new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time))[all.complete.length - 1];
     const home = driverHomeMarkers.find((h) => h.driverId === driverId);
     if (!lastCompleted || !home) return;
-    const key = `here_${Number(lastCompleted.latitude).toFixed(5)}_${Number(lastCompleted.longitude).toFixed(5)}_${Number(home.latitude).toFixed(5)}_${Number(home.longitude).toFixed(5)}`;
+    const key = getHereCacheKey(lastCompleted, home, getDriverMode(driverId));
     let coords = cache[key];
     if (!coords) {
       try {
