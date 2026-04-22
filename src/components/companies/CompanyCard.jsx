@@ -51,11 +51,13 @@ export default function CompanyCard({ company, stores = [], onEdit, onDelete }) 
             <StoreIcon className="w-4 h-4" />
             Associated Stores ({linkedStores.length})
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
             {linkedStores.length === 0 ? (
               <span className="text-sm" style={{ color: 'var(--text-slate-500)' }}>No stores linked yet.</span>
             ) : linkedStores.map((store) => (
-              <Badge key={store.id} variant="secondary">{store.name}</Badge>
+              <Badge key={store.id} variant="secondary" className="w-full justify-start truncate px-3 py-1.5">
+                {store.name}
+              </Badge>
             ))}
           </div>
         </div>
