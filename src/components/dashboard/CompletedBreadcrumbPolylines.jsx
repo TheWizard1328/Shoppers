@@ -5,11 +5,14 @@ import { generateDriverColor } from "../utils/colorGenerator";
 import { getTravelModeLineStyle, normalizeTravelMode } from "./travelModeHelpers";
 
 const FINISHED = ["completed", "failed", "cancelled"];
-const getDriverPolylineColor = (driverId) => generateDriverColor(String(driverId || 'driver'));
+const getType3PolylineColor = (driverId) => {
+  const driverColor = generateDriverColor(String(driverId || 'driver'));
+  return driverColor === '#2563EB' ? '#7C3AED' : driverColor;
+};
 const getFinishedLegRouteStyle = (driverId, deliveryTravelMode, opacityOverride) => {
   const mode = normalizeTravelMode(deliveryTravelMode || 'driving');
   const isCycling = mode === 'cycling';
-  const base = getTravelModeLineStyle(mode, getDriverPolylineColor(driverId));
+  const base = getTravelModeLineStyle(mode, getType3PolylineColor(driverId));
   return {
     ...base,
     color: isCycling ? '#16A34A' : base.color,
@@ -167,7 +170,7 @@ export default function CompletedBreadcrumbPolylines({
     return (driverRoutes || []).flatMap((route) => {
       if (!route?.driverId) return [];
 
-      const color = getDriverPolylineColor(route.driverId);
+      const color = getType3PolylineColor(route.driverId);
 
       const stops = [
         ...pickupMarkers.filter((pickup) => pickup && pickup.driver_id === route.driverId),
@@ -345,7 +348,7 @@ export default function CompletedBreadcrumbPolylines({
       <Polyline
         key={`stored-finished-${segment.id}-${polylineRenderKey}-${highlightedDeliveryId || "none"}`}
         positions={coords}
-        pathOptions={getTravelModeLineStyle(segment.finishedLegTransportMode, getDriverPolylineColor(segment.driverId))}
+        pathOptions={getTravelModeLineStyle(segment.finishedLegTransportMode, getType3PolylineColor(segment.driverId))}
         pane="completedBreadcrumbPane"
         />
     );

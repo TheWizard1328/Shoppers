@@ -78,12 +78,15 @@ export default function HereType2Polylines({
     return false;
     };
 
-    const getDriverPolylineColor = (driverId) => generateDriverColor(String(driverId || 'driver'));
+    const getType2PolylineColor = (driverId) => {
+      const driverColor = generateDriverColor(String(driverId || 'driver'));
+      return driverColor === '#2563EB' ? '#7C3AED' : driverColor;
+    };
     const getDriverMode = (driverId) => normalizeTravelMode(localDriverTravelModes[driverId] ?? driverTravelModes[driverId]);
     const getDriverRouteStyle = (driverId, opacityOverride) => {
       const mode = getDriverMode(driverId);
       const isCycling = mode === 'cycling';
-      const base = getTravelModeLineStyle(mode, getDriverPolylineColor(driverId));
+      const base = getTravelModeLineStyle(mode, getType2PolylineColor(driverId));
       return {
         ...base,
         color: isCycling ? '#16A34A' : base.color,
