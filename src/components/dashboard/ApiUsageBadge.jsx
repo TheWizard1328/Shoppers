@@ -85,8 +85,8 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
             <TooltipTrigger asChild>
               <button
                 type="button"
-                className="px-2 py-1 text-xs font-medium rounded-lg border shadow-sm"
-                style={{ background: "var(--bg-white)", borderColor: "var(--border-slate-200)", color: "var(--text-slate-600)" }}
+                className="px-1.5 py-0.5 text-xs font-medium rounded-md border shadow-sm"
+                style={{ background: "color-mix(in srgb, var(--bg-white) 55%, transparent)", borderColor: "var(--border-slate-200)", color: "var(--text-slate-600)" }}
               >
                 🛣️ {googleCount ?? "..."} / {hereCount ?? "..."}
               </button>
