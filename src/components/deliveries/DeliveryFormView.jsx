@@ -627,7 +627,7 @@ export default function DeliveryFormView({
                     <div className={`${useMobileLayout ? userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) ? 'grid grid-cols-[1.1fr_0.9fr_auto] gap-2 w-full items-stretch' : 'grid grid-cols-2 gap-2 w-full' : 'flex gap-3 flex-row w-full'}`}>
                       <div className={`${useMobileLayout ? 'min-w-0 p-2' : 'min-w-0 flex-1 p-3'} space-y-1 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                         <Label className="text-[11px] font-semibold leading-tight" style={{ color: 'var(--text-slate-900)' }}>Delivery Date *</Label>
-                        <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className={`${useMobileLayout ? 'h-8 text-xs px-2' : 'h-9'}`} />
+                        <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className={`${useMobileLayout ? 'h-8 text-xs px-2 pr-8' : 'h-9 pr-10'}`} />
                       </div>
 
                       <div className={`${useMobileLayout ? 'min-w-0 p-2' : 'min-w-0 flex-1 p-3'} space-y-1 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
