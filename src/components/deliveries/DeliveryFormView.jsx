@@ -41,14 +41,13 @@ const CheckboxField = ({ id, label, checked, onChange, disabled }) =>
     <Label htmlFor={id} className={`text-sm font-medium leading-none ${disabled ? 'text-slate-400' : ''}`}>{label}</Label>
   </div>;
 
-const TravelModeButtons = ({ value, onChange, disabled, currentUser, appUsers = [] }) => {
+const TravelModeButtons = ({ value, onChange, disabled, currentUser, appUsers = [], useMobileLayout = false }) => {
   const options = [
   { value: 'driving', label: 'Driving', icon: Car },
   { value: 'cycling', label: 'Cycling', icon: Bike }];
 
-
   return (
-    <div className={`${window.innerWidth < 768 ? 'flex flex-col gap-1' : 'flex flex-row gap-2'} shrink-0`}>
+    <div className={`${useMobileLayout ? 'flex flex-col gap-1' : 'flex flex-row gap-2'} shrink-0`}>
       {options.map((option) => {
         const Icon = option.icon;
         const isActive = value === option.value;
@@ -63,7 +62,7 @@ const TravelModeButtons = ({ value, onChange, disabled, currentUser, appUsers = 
               await onChange(option.value, currentUser, appUsers);
             }}
             disabled={disabled}
-            className={`h-9 w-9 rounded-full border transition-all flex items-center justify-center ${isActive ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white text-slate-700'}`}>
+            className={`${useMobileLayout ? 'h-7 w-10 rounded-full' : 'h-9 w-9 rounded-full'} border transition-all flex items-center justify-center ${isActive ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white text-slate-700'}`}>
             <Icon className="w-4 h-4" />
           </button>);
 
@@ -652,7 +651,7 @@ export default function DeliveryFormView({
                       </div>
 
                       {userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) &&
-                      <div className={`${useMobileLayout ? 'min-w-0 p-2' : 'w-fit p-3'} rounded-lg border flex ${useMobileLayout ? 'flex-col items-center justify-center' : 'flex-col items-start justify-start'} gap-1`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                      <div className={`${useMobileLayout ? 'w-[3.5rem] min-w-[3.5rem] p-1.5' : 'w-fit p-3'} rounded-lg border flex ${useMobileLayout ? 'flex-col items-center justify-center' : 'flex-col items-start justify-start'} gap-1`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                           {!useMobileLayout && (
                             <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Travel Mode</Label>
                           )}
@@ -663,6 +662,7 @@ export default function DeliveryFormView({
                           }}
                           currentUser={currentUser}
                           appUsers={appUsers}
+                          useMobileLayout={useMobileLayout}
                           disabled={isSaving} />
                         </div>
                       }
