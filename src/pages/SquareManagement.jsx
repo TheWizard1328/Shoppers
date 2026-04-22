@@ -892,8 +892,8 @@ export default function SquareManagement() {
           )}
         </div>
 
-        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          <div className="grid grid-cols-3 gap-1 md:flex md:flex-row md:flex-wrap md:items-center md:gap-3 w-full md:w-auto">
+        <div className="flex flex-col gap-2">
+          <div className="grid grid-cols-3 gap-1 md:flex md:flex-row md:flex-wrap md:items-center md:gap-3 w-full">
             {currentUser && isAppOwner(currentUser) && drivers.length > 0 && (
               <Select value={selectedDriverFilter} onValueChange={setSelectedDriverFilter}>
                 <SelectTrigger className="w-full min-w-0 px-2 text-xs md:w-[200px] md:px-3 md:text-sm">
@@ -935,7 +935,7 @@ export default function SquareManagement() {
             </Select>
           </div>
 
-          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between md:flex-1">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between w-full">
             <SquareCodViewSwitcher activeView={activeView} onChange={setActiveView} counts={viewCounts} />
             {activeView === 'reconciliation' && (
               <Button onClick={() => {}} disabled className="gap-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 md:ml-3">
