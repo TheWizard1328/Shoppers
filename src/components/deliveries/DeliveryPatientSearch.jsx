@@ -92,7 +92,7 @@ export default function DeliveryPatientSearch({
   };
 
   return (
-    <div className={`${mobileStandalone ? 'relative block w-full flex-none basis-full' : 'relative flex-1'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+    <div className="relative flex-1 space-y-1 p-3 rounded-lg border min-h-[2" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
       <div className="flex items-center justify-between mb-1">
         <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Search</Label>
         {selectedPatient &&
@@ -194,14 +194,14 @@ export default function DeliveryPatientSearch({
                 key={patient.id}
                 id={`patient-item-${index}`}
                 className={`pt-2 pr-2 pl-2 text-sm text-left w-full transition-colors flex items-start gap-1 border-l-4 ${
-                  isAlreadyStaged
-                    ? 'bg-amber-100/80 border-amber-500'
-                    : isSelected
-                    ? 'bg-emerald-100/80 border-emerald-500'
-                    : isHighlighted
-                    ? 'bg-teal-100/80 border-teal-500'
-                    : 'bg-card border-transparent hover:bg-accent/60'
-                }`}>
+                isAlreadyStaged ?
+                'bg-amber-100/80 border-amber-500' :
+                isSelected ?
+                'bg-emerald-100/80 border-emerald-500' :
+                isHighlighted ?
+                'bg-teal-100/80 border-teal-500' :
+                'bg-card border-transparent hover:bg-accent/60'}`
+                }>
 
                 
                     {(isMultiSelectMode || selectedPatientIds.size > 0) &&
