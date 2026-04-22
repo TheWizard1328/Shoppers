@@ -529,7 +529,7 @@ export default function DeliveryFormView({
               {!(isPickupMode && !delivery) &&
                 <div className={`${useMobileLayout ? 'flex flex-col gap-3' : 'flex gap-3 w-full'} flex-shrink-0`}>
                 {!delivery && !isPickupMode ?
-                  <div className={`${useMobileLayout ? 'flex flex-col gap-3 w-full' : 'min-w-0 grid grid-cols-[minmax(0,1.8fr)_minmax(11rem,1fr)_minmax(11rem,1fr)] gap-3 items-start w-full'}`}>
+                  <div className="min-w-0 grid grid-cols-[minmax(0,1.8fr)_minmax(11rem,1fr)_minmax(11rem,1fr)] gap-3 items-start w-full">
                     {useMobileLayout ?
                     <>
                         <div className="relative min-w-0 w-full">
@@ -594,13 +594,13 @@ export default function DeliveryFormView({
                           handleSearchKeyDown={handleSearchKeyDown} />
                         </div>
 
-                        <div className="space-y-1 p-3 rounded-lg border min-w-0" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                          <Label className="text-sm font-semibold peer-disabled:cursor-not-allowed peer-disabled:opacity-70" style={{ color: 'var(--text-slate-900)' }}>Delivery Date *</Label>
+                        <div className="space-y-1 p-3 rounded-lg border min-w-0 min-h-[110px]" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                          <Label className="my-1 py-2 text-sm font-semibold peer-disabled:cursor-not-allowed peer-disabled:opacity-70" style={{ color: 'var(--text-slate-900)' }}>Delivery Date *</Label>
                           <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
                         </div>
 
-                        <div className="space-y-1 p-3 rounded-lg border min-w-0" style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                          <Label className="text-sm font-semibold peer-disabled:cursor-not-allowed peer-disabled:opacity-70" style={{ color: 'var(--text-slate-900)' }}>Driver {delivery ? '*' : ''}</Label>
+                        <div className="px-3 rounded-lg min-w-0 space-y-1 border min-h-[110px]" style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                          <Label className="px-1 py-1 text-sm font-semibold peer-disabled:cursor-not-allowed peer-disabled:opacity-70" style={{ color: 'var(--text-slate-900)' }}>Driver {delivery ? '*' : ''}</Label>
                           <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
                           const newDriverId = driverId === 'all' ? '' : driverId;
                           const driver = driverId === 'all' ? null : allDrivers.find((d) => d.id === driverId);
