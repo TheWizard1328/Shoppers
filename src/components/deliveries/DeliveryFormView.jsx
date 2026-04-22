@@ -61,8 +61,8 @@ const TravelModeButtons = ({ value, onChange, disabled, currentUser, appUsers = 
             onClick={async () => {
               await onChange(option.value, currentUser, appUsers);
             }}
-            disabled={disabled}
-            className={`h-8 w-14 rounded-full border transition-all flex items-center justify-center ${isActive ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white text-slate-700'}`}>
+            disabled={disabled} className="h-6 w-12 rounded-full border transition-all flex items-center justify-center bg-emerald-600 border-emerald-600 text-white">
+            
             <Icon className="w-4 h-4" />
           </button>);
 
