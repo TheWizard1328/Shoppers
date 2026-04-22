@@ -92,29 +92,31 @@ export default function DeliveryPatientSearch({
   };
 
   return (
-    <div className={`${mobileStandalone ? 'relative block w-full flex-none basis-full' : 'relative flex-1'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-      <div className="flex items-center justify-between mb-1">
+    <div className={`${mobileStandalone ? 'relative block w-full flex-none basis-full' : 'relative flex-1'} flex flex-col justify-end gap-1 p-3 rounded-lg border min-h-[88px]`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+      <div className="flex items-center justify-between min-h-[28px]">
         <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Search</Label>
-        {selectedPatient &&
-        <div className="p-1.5 px-2.5 bg-emerald-50 border border-emerald-200 rounded text-xs flex items-center gap-1.5 max-w-[200px]">
-            <span className="text-emerald-700 font-medium truncate">✓ {selectedPatient.full_name}</span>
-            {stores && selectedPatient.store_id && (() => {
-            const patientStore = stores.find((s) => s && s.id === selectedPatient.store_id);
-            const storeAbbr = patientStore?.abbreviation;
-            const storeColor = patientStore ? getStoreColor(patientStore) : '#64748b';
-            const ampm = determineDeliveryAMPM(selectedPatient);
-            const showBadge = shouldShowStoreBadges(currentUser);
-            return (
-              <>
-                  {storeAbbr && showBadge &&
-                <Badge className="text-white text-[10px] px-1.5 py-0 h-4" style={{ backgroundColor: storeColor }}>{storeAbbr}</Badge>
-                }
-                  {ampm && <Badge className="bg-slate-200 text-slate-700 text-[10px] px-1.5 py-0 h-4">{ampm.toUpperCase()}</Badge>}
-                </>);
+        <div className="flex items-center justify-end max-w-[200px] min-h-[28px]">
+          {selectedPatient &&
+          <div className="p-1.5 px-2.5 bg-emerald-50 border border-emerald-200 rounded text-xs flex items-center gap-1.5 max-w-[200px]">
+              <span className="text-emerald-700 font-medium truncate">✓ {selectedPatient.full_name}</span>
+              {stores && selectedPatient.store_id && (() => {
+              const patientStore = stores.find((s) => s && s.id === selectedPatient.store_id);
+              const storeAbbr = patientStore?.abbreviation;
+              const storeColor = patientStore ? getStoreColor(patientStore) : '#64748b';
+              const ampm = determineDeliveryAMPM(selectedPatient);
+              const showBadge = shouldShowStoreBadges(currentUser);
+              return (
+                <>
+                    {storeAbbr && showBadge &&
+                  <Badge className="text-white text-[10px] px-1.5 py-0 h-4" style={{ backgroundColor: storeColor }}>{storeAbbr}</Badge>
+                  }
+                    {ampm && <Badge className="bg-slate-200 text-slate-700 text-[10px] px-1.5 py-0 h-4">{ampm.toUpperCase()}</Badge>}
+                  </>);
 
-          })()}
-          </div>
-        }
+            })()}
+            </div>
+          }
+        </div>
       </div>
 
       <div className="relative flex gap-2 items-end flex-nowrap">
