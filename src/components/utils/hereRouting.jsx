@@ -544,11 +544,11 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate, 
   const cacheKey = `here_${transportMode}_${fromStop.latitude.toFixed(5)}_${fromStop.longitude.toFixed(5)}_${toStop.latitude.toFixed(5)}_${toStop.longitude.toFixed(5)}`;
   console.debug('[HERE][client] Cache key', { cacheKey, driverId, deliveryDate });
   const recentFailure = failureCache.get(cacheKey);
-  if (recentFailure && Date.now() - recentFailure < 60000) {
+  if (recentFailure && Date.now() - recentFailure < 120000) {
     return null;
   }
   const lastRequestedAt = routeRequestTimestamps.get(cacheKey) || 0;
-  if (Date.now() - lastRequestedAt < 15000) {
+  if (Date.now() - lastRequestedAt < 30000) {
     return memoryCache.get(cacheKey) || null;
   }
   routeRequestTimestamps.set(cacheKey, Date.now());
@@ -560,6 +560,12 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate, 
     const hit = memoryCache.get(cacheKey);
     console.debug('[HERE][client] Memory cache hit', { cacheKey, points: hit?.length });
     return hit;
+  }
+
+  const driverDateKey = buildDriverDateKey(driverId, deliveryDate);
+  const dateSyncLastRun = polylineDateSyncCache.get(driverDateKey) || 0;
+  if (driverId && deliveryDate && Date.now() - dateSyncLastRun < 30000) {
+    return null;
   }
 
 
@@ -659,12 +665,12 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate, 
     try { if (__lockId) { await base44.entities.AppSettings.delete(__lockId); __lockId = null; } } catch (_) {}
   }
   
-  // Backoff 10s for this key on failure
+  // Backoff 30s for this key on failure
   try {
-    backoffCache.set(`${cacheKey}:fail_until`, Date.now() + 10000);
+    backoffCache.set(`${cacheKey}:fail_until`, Date.now() + 30000);
     backoffNoticeCache.set(cacheKey, Date.now());
     failureCache.set(cacheKey, Date.now());
-    console.info('[HERE][client] Set backoff fallback window', { cacheKey, ms: 10000 });
+    console.info('[HERE][client] Set backoff fallback window', { cacheKey, ms: 30000 });
   } catch (_) {}
 
   fetchingKeys.delete(cacheKey);
