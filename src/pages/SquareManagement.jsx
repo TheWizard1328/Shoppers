@@ -440,6 +440,40 @@ export default function SquareManagement() {
     return Array.from(names);
   }, []);
 
+  const getTransactionEffectiveDate = useCallback((transaction) => {
+    const rawDate = transaction?.raw_square_data?.payment_date || transaction?.raw_square_data?.created_at || transaction?.created_date || transaction?.updated_date;
+    if (!rawDate) return null;
+    const parsed = new Date(rawDate);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return parsed;
+  }, []);
+
+  const getTransactionEffectiveDateString = useCallback((transaction) => {
+    const parsed = getTransactionEffectiveDate(transaction);
+    return parsed ? format(parsed, 'yyyy-MM-dd') : null;
+  }, [getTransactionEffectiveDate]);
+
+  const findMatchingDeliveryForTransaction = useCallback((transaction, resolvedStoreId = null) => {
+    const transactionAmountSet = getTransactionAmountSet(transaction);
+    const transactionDate = getTransactionEffectiveDateString(transaction);
+    const parsedItem = parseSquareItemName(transaction?.item_name);
+    const patientName = parsedItem?.patientName || '';
+    const targetStoreId = resolvedStoreId || transaction?.store_id || null;
+
+    return (deliveries || []).find((delivery) => {
+      if (!delivery) return false;
+      if (targetStoreId && delivery.store_id !== targetStoreId) return false;
+      if (transaction.delivery_id && delivery.id === transaction.delivery_id) return true;
+      if (!amountSetsIntersect(getDeliveryPaymentAmountSet(delivery), transactionAmountSet)) return false;
+      if (transactionDate && delivery.delivery_date === transactionDate) return true;
+      if (patientName && delivery.delivery_date === parsedItem?.deliveryDate) {
+        const patient = patients.find((p) => p?.id === delivery.patient_id || p?.patient_id === delivery.patient_id);
+        return patientNamesMatch(patient?.full_name || '', patientName);
+      }
+      return false;
+    }) || null;
+  }, [deliveries, getTransactionEffectiveDateString, patients]);
+
   const isTransferTransaction = (transaction) => {
     const label = `${transaction?.item_name || ''} ${transaction?.delivery_id || ''}`.toLowerCase();
     return transaction?.type === 'transfer' || label.includes('transfer') || label.includes('interstore') || label.includes('inter-store');
@@ -649,47 +683,44 @@ export default function SquareManagement() {
   const filteredTransactionRows = useMemo(() => {
     const dedupedTransactions = [];
     const seenTransactionKeys = new Set();
+
     (allTransactions || [])
       .filter((transaction) => {
         if (!transaction || isTransferTransaction(transaction)) return false;
-        const rawDate = transaction.raw_square_data?.payment_date || transaction.created_date || transaction.updated_date;
-        const transactionDate = rawDate ? new Date(rawDate) : null;
-        if (!(transactionDate instanceof Date) || Number.isNaN(transactionDate.getTime()) || transactionDate < lookbackStart) return false;
-        const matchedDelivery = transaction.delivery_id ? (deliveries || []).find((delivery) => delivery?.id === transaction.delivery_id) : null;
-        const matchedStoreId = transaction.store_id || matchedDelivery?.store_id || null;
+        const transactionDate = getTransactionEffectiveDate(transaction);
+        if (!transactionDate || transactionDate < lookbackStart) return false;
+
+        const config = locationConfigs.find((c) => c?.square_location_id === transaction.location_id);
+        const matchedDelivery = findMatchingDeliveryForTransaction(transaction, transaction.store_id || null);
+        const matchedStoreId = transaction.store_id || matchedDelivery?.store_id || stores.find((s) => s?.square_location_config_id === config?.id)?.id || null;
         const storeMatch = matchedStoreId ? visibleStoreIds.has(matchedStoreId) : visibleLocationIds.has(transaction.location_id);
         if (!storeMatch) return false;
+
         if (selectedDriverFilter && selectedDriverFilter !== 'all') {
           if (selectedDriverUserIds.size === 0) return false;
           const matchedDriverId = transaction.driver_id || matchedDelivery?.driver_id || null;
-          return matchedDriverId ? selectedDriverUserIds.has(matchedDriverId) : true;
+          return matchedDriverId ? selectedDriverUserIds.has(matchedDriverId) : false;
         }
+
         return true;
       })
       .forEach((transaction) => {
-        const dedupeKey = transaction.square_transaction_id || transaction.square_payment_id || transaction.order_id || transaction.receipt_number;
-        if (dedupeKey && seenTransactionKeys.has(dedupeKey)) return;
-        if (dedupeKey) seenTransactionKeys.add(dedupeKey);
+        const effectiveDate = getTransactionEffectiveDateString(transaction) || 'unknown-date';
+        const amountCents = Math.round(Number(transaction.amount || 0) * 100);
+        const dedupeKey = transaction.square_payment_id || transaction.square_transaction_id || `${transaction.location_id || 'unknown-location'}::${transaction.item_name || 'unknown-item'}::${amountCents}::${effectiveDate}`;
+        if (seenTransactionKeys.has(dedupeKey)) return;
+        seenTransactionKeys.add(dedupeKey);
         dedupedTransactions.push(transaction);
       });
 
     return dedupedTransactions.map((transaction) => {
       const config = locationConfigs.find((c) => c?.square_location_id === transaction.location_id);
-      const store = stores.find((s) => s?.id === transaction.store_id) || stores.find((s) => s?.square_location_config_id === config?.id);
+      const resolvedStore = stores.find((s) => s?.id === transaction.store_id) || stores.find((s) => s?.square_location_config_id === config?.id) || null;
+      const matchedDelivery = findMatchingDeliveryForTransaction(transaction, resolvedStore?.id || null);
+      const store = resolvedStore || (matchedDelivery ? stores.find((s) => s?.id === matchedDelivery.store_id) : null);
+      const collectionDate = getTransactionEffectiveDateString(transaction);
       const parsedDeliveryDate = parseSquareItemName(transaction.item_name)?.deliveryDate;
-      const collectionDate = (() => {
-        const rawDate = transaction.raw_square_data?.payment_date || transaction.created_date || transaction.updated_date;
-        if (!rawDate) return null;
-        return format(new Date(rawDate), 'yyyy-MM-dd');
-      })();
-      const transactionDeliveryDate = collectionDate || parsedDeliveryDate;
-      const matchedAmountCents = Math.round(Number(transaction.amount || 0) * 100);
-      const matchedDelivery = (deliveries || []).find((delivery) => {
-        if (!delivery || !store?.id) return false;
-        if (delivery.store_id !== store.id) return false;
-        if (delivery.delivery_date !== transactionDeliveryDate) return false;
-        return Math.round(Number(delivery.cod_total_amount_required || 0) * 100) === matchedAmountCents;
-      });
+      const displayDate = matchedDelivery?.delivery_date || collectionDate || parsedDeliveryDate || transaction.created_date;
       const collectedByName = matchedDelivery?.driver_name || drivers.find((driver) => driver?.user_id === matchedDelivery?.driver_id)?.user_name || null;
       const collectionType = Array.isArray(matchedDelivery?.cod_payments) && matchedDelivery.cod_payments.length > 0
         ? Array.from(new Set(matchedDelivery.cod_payments.map((payment) => payment?.type).filter(Boolean))).join(', ')
@@ -707,21 +738,17 @@ export default function SquareManagement() {
         storeName: store?.name || config?.name || 'Unknown',
         locationId: transaction.location_id || '—',
         catalogId: transaction.square_catalog_object_id || '—',
-        deliveryDate: transactionDeliveryDate || transaction.created_date,
+        deliveryDate: displayDate,
         collectionDate,
         collectionType,
-        subtext: collectedByName ? `Collected by ${collectedByName}` : (transaction.payment_method || transaction.status || null),
+        subtext: collectedByName ? `Collected by ${collectedByName}` : (transaction.payment_method || null),
         notes: transaction.raw_square_data?.note || transaction.raw_square_data?.notes || null,
-        actions: (
-          <div className="flex flex-wrap gap-1 justify-end">
-            {getTypeBadge(transaction.type)}
-            {getStatusBadge(transaction.status)}
-            {transaction.payment_method ? getPaymentMethodBadge(transaction.payment_method) : null}
-          </div>
-        )
+        actions: matchedDelivery ? (
+          <Button variant="secondary" size="sm" className="border border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Collected</Button>
+        ) : null
       };
     }).sort((a, b) => String(b.itemName || '').localeCompare(String(a.itemName || ''), undefined, { sensitivity: 'base' }));
-  }, [allTransactions, lookbackStart, visibleStoreIds, visibleLocationIds, selectedDriverFilter, selectedDriverUserIds, locationConfigs, stores, deliveries, drivers, getTransactionSearchNames]);
+  }, [allTransactions, lookbackStart, visibleStoreIds, visibleLocationIds, selectedDriverFilter, selectedDriverUserIds, locationConfigs, stores, drivers, getTransactionSearchNames, getTransactionEffectiveDate, getTransactionEffectiveDateString, findMatchingDeliveryForTransaction]);
 
   const filteredCatalogRows = useMemo(() => {
     return (catalogItems || [])
