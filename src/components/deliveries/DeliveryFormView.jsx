@@ -690,6 +690,8 @@ export default function DeliveryFormView({
                             disabled={isSaving} />
                         </div>
                       }
+                    </div>
+                  )
 
               {renderDeliveryIdentifiersSection({
                   delivery,
