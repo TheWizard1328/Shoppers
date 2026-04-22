@@ -894,29 +894,31 @@ export default function DeliveryFormView({
                             </div>
                           </div>
 
-                          <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Preferences</Label>
-                            <div className="space-y-3">
-                              <CheckboxField id="mailbox_ok" label="MailBox OK" checked={formData.mailbox_ok} onChange={(c) => setFormData((p) => ({ ...p, mailbox_ok: c }))} disabled={isSaving} />
-                              <CheckboxField id="ring_bell" label="Ring Bell" checked={formData.ring_bell} onChange={(c) => setFormData((p) => ({ ...p, ring_bell: c }))} disabled={isSaving} />
-                              <CheckboxField id="call_upon_arrival" label="Call Upon Arrival" checked={formData.call_upon_arrival} onChange={(c) => setFormData((p) => ({ ...p, call_upon_arrival: c }))} disabled={isSaving} />
-                              <CheckboxField id="dont_ring_bell" label="Don't Ring Bell" checked={formData.dont_ring_bell} onChange={(c) => setFormData((p) => ({ ...p, dont_ring_bell: c }))} disabled={isSaving} />
-                              <CheckboxField id="back_door" label="Back Door" checked={formData.back_door} onChange={(c) => setFormData((p) => ({ ...p, back_door: c }))} disabled={isSaving} />
+                          <div className="grid grid-cols-2 gap-3 items-start">
+                            <div className="space-y-2 p-3 rounded-lg border h-full" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                              <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Preferences</Label>
+                              <div className="space-y-3">
+                                <CheckboxField id="mailbox_ok" label="MailBox OK" checked={formData.mailbox_ok} onChange={(c) => setFormData((p) => ({ ...p, mailbox_ok: c }))} disabled={isSaving} />
+                                <CheckboxField id="ring_bell" label="Ring Bell" checked={formData.ring_bell} onChange={(c) => setFormData((p) => ({ ...p, ring_bell: c }))} disabled={isSaving} />
+                                <CheckboxField id="call_upon_arrival" label="Call Upon Arrival" checked={formData.call_upon_arrival} onChange={(c) => setFormData((p) => ({ ...p, call_upon_arrival: c }))} disabled={isSaving} />
+                                <CheckboxField id="dont_ring_bell" label="Don't Ring Bell" checked={formData.dont_ring_bell} onChange={(c) => setFormData((p) => ({ ...p, dont_ring_bell: c }))} disabled={isSaving} />
+                                <CheckboxField id="back_door" label="Back Door" checked={formData.back_door} onChange={(c) => setFormData((p) => ({ ...p, back_door: c }))} disabled={isSaving} />
+                              </div>
                             </div>
-                          </div>
 
-                          <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Recurring</Label>
-                            <DeliveryRecurringOptions
-                            formData={formData} setFormData={setFormData} isSaving={isSaving}
-                            currentFrequency={currentFrequency} weeklyLabel={weeklyLabel}
-                            biWeeklyLabel={biWeeklyLabel} weeklyX4Label={weeklyX4Label}
-                            showDayPopup={showDayPopup} setShowDayPopup={setShowDayPopup}
-                            setActiveRecurringType={setActiveRecurringType}
-                            handleRecurringChange={handleRecurringChange}
-                            handleFrequencyChange={handleFrequencyChange}
-                            handleWeeklyDaysDone={handleWeeklyDaysDone} />
-                        
+                            <div className="space-y-2 p-3 rounded-lg border h-full" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                              <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Recurring</Label>
+                              <DeliveryRecurringOptions
+                              formData={formData} setFormData={setFormData} isSaving={isSaving}
+                              currentFrequency={currentFrequency} weeklyLabel={weeklyLabel}
+                              biWeeklyLabel={biWeeklyLabel} weeklyX4Label={weeklyX4Label}
+                              showDayPopup={showDayPopup} setShowDayPopup={setShowDayPopup}
+                              setActiveRecurringType={setActiveRecurringType}
+                              handleRecurringChange={handleRecurringChange}
+                              handleFrequencyChange={handleFrequencyChange}
+                              handleWeeklyDaysDone={handleWeeklyDaysDone} />
+                          
+                            </div>
                           </div>
                         </div>
                       </> :
