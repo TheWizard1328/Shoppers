@@ -260,15 +260,17 @@ async function processDriver(base44, appUser, deliveryDate) {
   }
 
   let updatedCount = 0;
-  for (const entry of etaUpdates) {
-    if (entry.delivery.delivery_time_eta === entry.etaValue) continue;
-    await base44.asServiceRole.entities.Delivery.update(entry.delivery.id, {
-      delivery_time_eta: entry.etaValue,
-    }).catch((error) => {
-      if (isNotFoundError(error)) return null;
-      throw error;
-    });
-    updatedCount += 1;
+  const deliveryEtaWriteBatch = etaUpdates.filter((entry) => entry.delivery.delivery_time_eta !== entry.etaValue);
+  if (deliveryEtaWriteBatch.length > 0) {
+    await Promise.all(deliveryEtaWriteBatch.map((entry) =>
+      base44.asServiceRole.entities.Delivery.update(entry.delivery.id, {
+        delivery_time_eta: entry.etaValue,
+      }).catch((error) => {
+        if (isNotFoundError(error)) return null;
+        throw error;
+      })
+    ));
+    updatedCount = deliveryEtaWriteBatch.length;
   }
 
   return {

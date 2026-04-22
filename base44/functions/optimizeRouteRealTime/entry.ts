@@ -732,6 +732,9 @@ Deno.serve(async (req) => {
       }, '-updated_date', 50000);
 
       const dailyGenerationCount = routeSections.length;
+      const rowsToCreate = [];
+      const rowsToUpdate = [];
+
       for (let index = 0; index < routeSections.length; index += 1) {
         const fromPoint = routeLegPoints[index];
         const toPoint = routeLegPoints[index + 1];
@@ -761,20 +764,21 @@ Deno.serve(async (req) => {
         };
 
         if (existingRow?.id) {
-          await base44.asServiceRole.entities.DriverRoutePolyline.update(existingRow.id, rowPayload).catch(() => null);
+          rowsToUpdate.push({ id: existingRow.id, data: rowPayload });
         } else {
-          await base44.asServiceRole.entities.DriverRoutePolyline.create(rowPayload).catch(() => null);
+          rowsToCreate.push(rowPayload);
         }
       }
-    }
 
-    if (activeSegmentChanged) {
-      await base44.functions.invoke('purgeAndRegeneratePolylines', {
-        driverId: targetDriverId,
-        deliveryDate,
-        scope: 'active_only',
-        reason: 'route_reordered'
-      }).catch(() => null);
+      if (rowsToUpdate.length > 0) {
+        await Promise.all(rowsToUpdate.map((row) =>
+          base44.asServiceRole.entities.DriverRoutePolyline.update(row.id, row.data).catch(() => null)
+        ));
+      }
+
+      if (rowsToCreate.length > 0) {
+        await base44.asServiceRole.entities.DriverRoutePolyline.bulkCreate(rowsToCreate).catch(() => null);
+      }
     }
 
     return Response.json({

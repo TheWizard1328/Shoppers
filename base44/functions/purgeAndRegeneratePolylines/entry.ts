@@ -343,15 +343,6 @@ function getEdmontonDateString(value = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-async function getSegmentDirections(base44, from, to) {
-  const segments = await getMultiSegmentDirections(base44, [{ from, to }]);
-  return segments[0] || {
-    encoded_polyline: encodeGooglePolyline([[from.lat, from.lon], [to.lat, to.lon]]),
-    estimated_distance_km: null,
-    estimated_duration_minutes: null
-  };
-}
-
 async function reintegratePendingBreadcrumbLive(base44, driverId, deliveryDate, deliveries) {
   const completedLikeStops = (Array.isArray(deliveries) ? deliveries : [])
     .filter((delivery) => FINISHED_STATUSES.has(String(delivery?.status || '')))
@@ -1076,20 +1067,6 @@ Deno.serve(async (req) => {
     const completedLikeStops = (finalDeliveries || [])
       .filter((delivery) => FINISHED_STATUSES.has(String(delivery?.status || '')))
       .sort((a, b) => Number(a?.stop_order || 0) - Number(b?.stop_order || 0));
-
-    for (const stop of completedLikeStops) {
-      const consolidation = await base44.asServiceRole.functions.invoke('consolidateBreadcrumbs', {
-        driver_id: driverId,
-        delivery_date: deliveryDate,
-        stop_order: Number(stop.stop_order || 0),
-        delivery_status: stop.status
-      }).catch(() => null);
-      consolidatedLegs.push({
-        delivery_id: stop.id,
-        stop_order: Number(stop.stop_order || 0),
-        result: consolidation?.data || consolidation || null
-      });
-    }
 
     return Response.json({
       success: true,
