@@ -644,10 +644,24 @@ Deno.serve(async (req) => {
     ]);
 
     const patientMap = new Map((patients || []).map((patient) => [patient.id, patient]));
-    const storeMap = new Map((stores || []).map((store) => [store.id, store]));
+    const storeMap = new Map((stores || []).map((stores) => [stores.id, stores]));
     const driverAppUser = Array.isArray(appUsers) ? appUsers[0] : null;
     const driverAvailability = getDriverAvailabilityStatus(driverAppUser);
-    if (!driverAppUser || driverAvailability.isUnavailable) {
+    const isHistoricalDate = deliveryDate !== getEdmontonDateString();
+    if (!driverAppUser) {
+      console.log(`[purgeAndRegeneratePolylines] driver record missing | driver=${driverDisplayName} | date=${deliveryDate}`);
+      return Response.json({
+        success: true,
+        skipped: true,
+        reason: 'driver_unavailable',
+        scope,
+        deleted: 0,
+        created: 0,
+        apiCallsMade: 0,
+        repairedStopOrders: stopOrderRepairUpdates.length
+      });
+    }
+    if (driverAvailability.isUnavailable && !isHistoricalDate) {
       console.log(`[purgeAndRegeneratePolylines] driver unavailable | driver=${driverDisplayName} | status=${driverAvailability.status || 'missing'} | date=${deliveryDate}`);
       return Response.json({
         success: true,
@@ -660,7 +674,7 @@ Deno.serve(async (req) => {
         repairedStopOrders: stopOrderRepairUpdates.length
       });
     }
-    console.log(`# [purgeAndRegeneratePolylines] START | driver=${driverDisplayName} | date=${deliveryDate} | scope=${scope} | totalStops=${deliveries?.length || 0} | existingPolylines=${existingPolylines?.length || 0} | driver_status=${driverAvailability.status || 'missing'} | home_lat=${driverAppUser?.home_latitude} | home_lon=${driverAppUser?.home_longitude}`);
+    console.log(`# [purgeAndRegeneratePolylines] START | driver=${driverDisplayName} | date=${deliveryDate} | scope=${scope} | totalStops=${deliveries?.length || 0} | existingPolylines=${existingPolylines?.length || 0} | driver_status=${driverAvailability.status || 'missing'} | historical=${isHistoricalDate} | home_lat=${driverAppUser?.home_latitude} | home_lon=${driverAppUser?.home_longitude}`);
 
     const getLatLon = (delivery) => {
       if (!delivery) return null;
