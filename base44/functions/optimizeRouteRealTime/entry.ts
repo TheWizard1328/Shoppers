@@ -605,16 +605,19 @@ Deno.serve(async (req) => {
     }
 
     if (pendingDeliveryWriteBatch.length > 0) {
-      await Promise.all(
-        pendingDeliveryWriteBatch.map(({ id, data }) =>
-          base44.asServiceRole.entities.Delivery.update(id, data).catch((error) => {
-            if (error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found')) {
-              return null;
-            }
-            throw error;
-          })
-        )
-      );
+      for (let index = 0; index < pendingDeliveryWriteBatch.length; index += 20) {
+        const chunk = pendingDeliveryWriteBatch.slice(index, index + 20);
+        await Promise.all(
+          chunk.map(({ id, data }) =>
+            base44.asServiceRole.entities.Delivery.update(id, data).catch((error) => {
+              if (error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found')) {
+                return null;
+              }
+              throw error;
+            })
+          )
+        );
+      }
     }
 
     try {
@@ -681,7 +684,9 @@ Deno.serve(async (req) => {
             .filter(Boolean);
 
           if (nextUpdates.length > 0) {
-            await Promise.all(nextUpdates);
+            for (let index = 0; index < nextUpdates.length; index += 20) {
+              await Promise.all(nextUpdates.slice(index, index + 20));
+            }
           }
         }
       }
@@ -771,9 +776,12 @@ Deno.serve(async (req) => {
       }
 
       if (rowsToUpdate.length > 0) {
-        await Promise.all(rowsToUpdate.map((row) =>
-          base44.asServiceRole.entities.DriverRoutePolyline.update(row.id, row.data).catch(() => null)
-        ));
+        for (let index = 0; index < rowsToUpdate.length; index += 10) {
+          const chunk = rowsToUpdate.slice(index, index + 10);
+          await Promise.all(chunk.map((row) =>
+            base44.asServiceRole.entities.DriverRoutePolyline.update(row.id, row.data).catch(() => null)
+          ));
+        }
       }
 
       if (rowsToCreate.length > 0) {

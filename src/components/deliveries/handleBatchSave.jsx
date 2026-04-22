@@ -184,19 +184,18 @@ export async function handleBatchSave({
         pickupRecordsFromStageCount: pickupRecordsFromStage.length
       });
 
-      const defaultPickupResults = new Map(await Promise.all(
-        Array.from(defaultPickupDriverDateKeys).map(async (driverDateKey) => {
-          const [driverId, deliveryDate] = driverDateKey.split('__');
-          const result = await base44.functions.invoke('ensureDefaultPickupsForDriver', {
-            driverId,
-            deliveryDate
-          }).catch((error) => {
-            console.error('[AddToRoute] ensureDefaultPickupsForDriver failed', { driverId, deliveryDate, error });
-            return null;
-          });
-          return [driverDateKey, result];
-        })
-      ));
+      const defaultPickupResults = new Map();
+      for (const driverDateKey of Array.from(defaultPickupDriverDateKeys)) {
+        const [driverId, deliveryDate] = driverDateKey.split('__');
+        const result = await base44.functions.invoke('ensureDefaultPickupsForDriver', {
+          driverId,
+          deliveryDate
+        }).catch((error) => {
+          console.error('[AddToRoute] ensureDefaultPickupsForDriver failed', { driverId, deliveryDate, error });
+          return null;
+        });
+        defaultPickupResults.set(driverDateKey, result);
+      }
 
       const normalizedDefaultPickups = Array.from(defaultPickupResults.entries()).flatMap(([driverDateKey, response]) => {
         const [driverId, deliveryDate] = driverDateKey.split('__');
@@ -219,7 +218,8 @@ export async function handleBatchSave({
 
       creatorFlowEnsuredPickups = normalizedDefaultPickups;
 
-      const ensureResultsByKey = new Map(await Promise.all(Array.from(groupedEnsureKeys.entries()).map(async ([key, { delivery }]) => {
+      const ensureResultsByKey = new Map();
+      for (const [key, { delivery }] of Array.from(groupedEnsureKeys.entries())) {
         const driverDateKey = `${delivery.driver_id}__${delivery.delivery_date}`;
         const shouldTryDefaultOnlyFirst = defaultPickupDriverDateKeys.has(driverDateKey);
 
@@ -229,7 +229,8 @@ export async function handleBatchSave({
             `${pickup.store_id}__${pickup.delivery_date}__${pickup.driver_id || ''}__${pickup.ampm_deliveries || 'AM'}` === defaultPickupKey
           );
           if (existingDefaultPickup) {
-            return [key, { data: { pickup: existingDefaultPickup, puid: existingDefaultPickup.stop_id || existingDefaultPickup.puid || '' } }];
+            ensureResultsByKey.set(key, { data: { pickup: existingDefaultPickup, puid: existingDefaultPickup.stop_id || existingDefaultPickup.puid || '' } });
+            continue;
           }
         }
 
@@ -243,8 +244,8 @@ export async function handleBatchSave({
           console.error('[AddToRoute] ensurePickupForDelivery failed', { key, error });
           return null;
         });
-        return [key, result];
-      })));
+        ensureResultsByKey.set(key, result);
+      }
 
       const ensuredPickups = patientDeliveriesNeedingPickupEnsure.map((delivery) => {
         if (!delivery?.store_id || !delivery?.delivery_date || !delivery?.driver_id) return null;
