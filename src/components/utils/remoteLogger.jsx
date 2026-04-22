@@ -14,6 +14,8 @@ let settingsPromise = null;
 let mePromise = null;
 let isFlushing = false;
 let suppressConsoleCapture = false;
+let lastLogFingerprint = null;
+let lastLogTimestamp = 0;
 
 const getSessionId = () => {
   const existing = sessionStorage.getItem(SESSION_KEY);
@@ -42,6 +44,17 @@ const stringifyArg = (arg) => {
   } catch {
     return String(arg);
   }
+};
+
+const shouldSkipDuplicateLog = (level, message) => {
+  const fingerprint = `${level}:${message}`;
+  const now = Date.now();
+  if (lastLogFingerprint === fingerprint && now - lastLogTimestamp < 5000) {
+    return true;
+  }
+  lastLogFingerprint = fingerprint;
+  lastLogTimestamp = now;
+  return false;
 };
 
 const loadSettings = async () => {
@@ -113,13 +126,16 @@ const enqueue = async (level, args) => {
   const levels = Array.isArray(settings?.capture_levels) && settings.capture_levels.length > 0 ? settings.capture_levels : ['log', 'info', 'warn', 'error', 'debug'];
   if (!levels.includes(level)) return;
 
+  const message = args.map(stringifyArg).join(' ').slice(0, 5000);
+  if (shouldSkipDuplicateLog(level, message)) return;
+
   const me = await getMe();
   const { deviceType, os } = getUserAgentInfo();
   const currentDevice = me?.id ? await getCurrentDevice(me.id).catch(() => null) : null;
   const current = readBuffer();
   current.push({
     level,
-    message: args.map(stringifyArg).join(' ').slice(0, 5000),
+    message,
     timestamp: new Date().toISOString(),
     user_id: me?.id || null,
     user_name: me?.full_name || null,
@@ -136,7 +152,7 @@ const enqueue = async (level, args) => {
   });
   writeBuffer(current);
 
-  if (level === 'error' || level === 'warn' || current.length >= (Number(settings?.batch_size) || 20)) {
+  if (current.length >= (Number(settings?.batch_size) || 20)) {
     flushNow().catch(() => {});
   }
 };
