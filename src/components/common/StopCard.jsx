@@ -743,6 +743,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
             pendingPickups={pendingPickups}
             appUsers={appUsers}
             stores={stores}
+            allDeliveries={allDeliveries}
             onStartDelivery={onStartDelivery}
             handleCompleteAction={handleCompleteAction}
           />
