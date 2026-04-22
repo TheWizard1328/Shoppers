@@ -157,6 +157,7 @@ Deno.serve(async (req) => {
     appUser = appUsers?.[0] || null;
     const waypoints = Array.isArray(body?.waypoints) ? body.waypoints : [];
     const routeContext = Array.isArray(body?.routeContext) ? body.routeContext : [];
+    const preserveWaypointOrder = body?.preserveWaypointOrder === true;
     const requestedTransportMode = String(body?.transportMode || body?.transport_mode || 'driving').toLowerCase();
     const hereTransportMode = requestedTransportMode === 'cycling'
       ? 'bicycle'
@@ -199,51 +200,73 @@ Deno.serve(async (req) => {
     ].filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng));
 
     const sequenceStops = allStops.slice(1);
-    const params = new URLSearchParams();
-    params.set('apiKey', hereApiKey);
-    params.set('departure', buildLocalIso(dateStr, departureTime));
-    params.set('mode', `shortest;${hereTransportMode};traffic:disabled`);
-    params.set('improveFor', 'distance');
-    params.set('start', `driverStart;${originLat},${originLng}`);
+    let resp = { ok: true, status: 200 };
+    let data = null;
+    let result = null;
+    let returnedWaypoints = [];
+    let interconnections = [];
 
-    sequenceStops.forEach((stop, index) => {
-      const routeItem = routeContext[stop.sequenceIndex] || {};
-      const segments = [`${stop.id};${stop.lat},${stop.lng}`];
-      const accessConstraint = buildAccessConstraint(dateStr, routeItem?.time_window_start, routeItem?.time_window_end);
-      if (accessConstraint) segments.push(accessConstraint);
-      params.set(`destination${index + 1}`, segments.join(';'));
-    });
-
-    routeCallCount += 1;
-    let resp = await fetch(`https://wps.hereapi.com/v8/findsequence2?${params.toString()}`, {
-      signal: AbortSignal.timeout(20000),
-      headers: { accept: 'application/json' }
-    });
-    let data = await resp.json().catch(() => null);
-
-    let result = Array.isArray(data?.results) ? data.results[0] : null;
-    let returnedWaypoints = Array.isArray(result?.waypoints) ? result.waypoints : [];
-    let interconnections = Array.isArray(result?.interconnections) ? result.interconnections : [];
-
-    if ((!resp.ok || !result || returnedWaypoints.length === 0) && sequenceStops.length > 0) {
-      const retryParams = new URLSearchParams();
-      retryParams.set('apiKey', hereApiKey);
-      retryParams.set('departure', buildLocalIso(dateStr, departureTime));
-      retryParams.set('mode', `shortest;${hereTransportMode};traffic:disabled`);
-      retryParams.set('improveFor', 'distance');
-      retryParams.set('start', `driverStart;${originLat},${originLng}`);
-      sequenceStops.forEach((stop, index) => {
-        retryParams.set(`destination${index + 1}`, `${stop.id};${stop.lat},${stop.lng}`);
+    if (preserveWaypointOrder) {
+      returnedWaypoints = sequenceStops.map((stop, index) => ({
+        id: stop.id,
+        sequence: index + 1
+      }));
+      interconnections = sequenceStops.map((stop, index) => {
+        const fromPoint = index === 0 ? { lat: originLat, lng: originLng } : { lat: sequenceStops[index - 1].lat, lng: sequenceStops[index - 1].lng };
+        const fallbackDistanceKm = calculateCrowFliesDistance(fromPoint.lat, fromPoint.lng, stop.lat, stop.lng);
+        return {
+          toWaypoint: stop.id,
+          distance: Math.round(fallbackDistanceKm * 1000),
+          time: Math.round((fallbackDistanceKm / 40) * 3600)
+        };
       });
+    } else {
+      const params = new URLSearchParams();
+      params.set('apiKey', hereApiKey);
+      params.set('departure', buildLocalIso(dateStr, departureTime));
+      params.set('mode', `shortest;${hereTransportMode};traffic:disabled`);
+      params.set('improveFor', 'distance');
+      params.set('start', `driverStart;${originLat},${originLng}`);
+
+      sequenceStops.forEach((stop, index) => {
+        const routeItem = routeContext[stop.sequenceIndex] || {};
+        const segments = [`${stop.id};${stop.lat},${stop.lng}`];
+        const accessConstraint = buildAccessConstraint(dateStr, routeItem?.time_window_start, routeItem?.time_window_end);
+        if (accessConstraint) segments.push(accessConstraint);
+        params.set(`destination${index + 1}`, segments.join(';'));
+      });
+
       routeCallCount += 1;
-      resp = await fetch(`https://wps.hereapi.com/v8/findsequence2?${retryParams.toString()}`, {
+      resp = await fetch(`https://wps.hereapi.com/v8/findsequence2?${params.toString()}`, {
         signal: AbortSignal.timeout(20000),
         headers: { accept: 'application/json' }
       });
       data = await resp.json().catch(() => null);
+
       result = Array.isArray(data?.results) ? data.results[0] : null;
       returnedWaypoints = Array.isArray(result?.waypoints) ? result.waypoints : [];
       interconnections = Array.isArray(result?.interconnections) ? result.interconnections : [];
+
+      if ((!resp.ok || !result || returnedWaypoints.length === 0) && sequenceStops.length > 0) {
+        const retryParams = new URLSearchParams();
+        retryParams.set('apiKey', hereApiKey);
+        retryParams.set('departure', buildLocalIso(dateStr, departureTime));
+        retryParams.set('mode', `shortest;${hereTransportMode};traffic:disabled`);
+        retryParams.set('improveFor', 'distance');
+        retryParams.set('start', `driverStart;${originLat},${originLng}`);
+        sequenceStops.forEach((stop, index) => {
+          retryParams.set(`destination${index + 1}`, `${stop.id};${stop.lat},${stop.lng}`);
+        });
+        routeCallCount += 1;
+        resp = await fetch(`https://wps.hereapi.com/v8/findsequence2?${retryParams.toString()}`, {
+          signal: AbortSignal.timeout(20000),
+          headers: { accept: 'application/json' }
+        });
+        data = await resp.json().catch(() => null);
+        result = Array.isArray(data?.results) ? data.results[0] : null;
+        returnedWaypoints = Array.isArray(result?.waypoints) ? result.waypoints : [];
+        interconnections = Array.isArray(result?.interconnections) ? result.interconnections : [];
+      }
     }
 
     if (!resp.ok) {
@@ -360,7 +383,9 @@ Deno.serve(async (req) => {
       estimated_distance_km,
       estimated_duration_minutes,
       transport_mode: normalizedTransportMode,
-      optimized_waypoint_ids: orderedWaypoints.map((waypoint) => waypoint.id)
+      optimized_waypoint_ids: orderedWaypoints.map((waypoint) => waypoint.id),
+      used_time_windows: preserveWaypointOrder ? false : true,
+      api_call_count: routeCallCount
     });
   } catch (err) {
     console.error('[getHereDirections] unexpected error', err?.message || err);

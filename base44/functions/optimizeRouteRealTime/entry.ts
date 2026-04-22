@@ -207,10 +207,6 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Missing required parameters: driverId, deliveryDate' }, { status: 400 });
     }
 
-    const hereApiKey = Deno.env.get('HERE_API_KEY');
-    if (!hereApiKey) {
-      return Response.json({ error: 'HERE_API_KEY secret is not set' }, { status: 500 });
-    }
 
     const [driverAppUsers, callerAppUsers, driverUsers] = await Promise.all([
       base44.asServiceRole.entities.AppUser.filter({ user_id: targetDriverId }),
@@ -368,7 +364,7 @@ Deno.serve(async (req) => {
       }, { status: 400 });
     }
 
-    const sequencedStops = [...stopsToSequence]
+    const candidateSequencedStops = [...stopsToSequence]
       .sort((a, b) => {
         if (a.hasLateWindow !== b.hasLateWindow) return a.hasLateWindow ? 1 : -1;
         if (a.priorityRank !== b.priorityRank) return a.priorityRank - b.priorityRank;
@@ -377,139 +373,44 @@ Deno.serve(async (req) => {
         if ((windowA ?? Infinity) !== (windowB ?? Infinity)) return (windowA ?? Infinity) - (windowB ?? Infinity);
         if (a.isPickup !== b.isPickup) return a.isPickup ? -1 : 1;
         return (Number(a.delivery.stop_order) || 9999) - (Number(b.delivery.stop_order) || 9999);
-      })
-      .map((stop, index) => ({
-        ...stop,
-        hereWaypointId: `destination${index + 1}`
-      }));
-
-    const orderedRouteStops = lockedNextStop ? [lockedNextStop, ...sequencedStops] : sequencedStops;
+      });
 
     const fallbackDepartureTime = resolveCurrentTime({ currentLocalTime, deviceTime });
     const departureTime = resolveEtaBaseTime(deliveryDate, completedDeliveries, fallbackDepartureTime);
-    const departureIso = buildLocalIso(deliveryDate, departureTime);
     const endLocation = (resolvedHomeLat != null && resolvedHomeLng != null)
       ? { lat: Number(resolvedHomeLat), lng: Number(resolvedHomeLng) }
       : null;
-    const routePoints = [
-      currentPosition,
-      ...(lockedNextStop ? [{ lat: lockedNextStop.lat, lng: lockedNextStop.lng }] : []),
-      ...stopsToSequence.map((stop) => ({ lat: stop.lat, lng: stop.lng })),
-      endLocation ? { lat: Number(endLocation.lat), lng: Number(endLocation.lng) } : null
-    ].filter((point) => point?.lat != null && point?.lng != null);
     const shouldStartFromHome = locationSource === 'home' || (!completedDeliveries.length && !!endLocation);
     const activeRouteOrigin = shouldStartFromHome && endLocation
       ? { lat: Number(endLocation.lat), lng: Number(endLocation.lng) }
       : (currentPosition ? { lat: Number(currentPosition.lat), lng: Number(currentPosition.lng) } : null);
 
-    const executeHereSequence = async (includeTimeWindows) => {
-      const params = new URLSearchParams();
-      params.set('apiKey', hereApiKey);
-      params.set('departure', departureIso);
-      params.set('mode', 'shortest;car;traffic:disabled');
-      params.set('improveFor', 'distance');
-      params.set('start', `driverStart;${optimizationStartPosition.lat},${optimizationStartPosition.lng}`);
-      if (endLocation) {
-        params.set('end', `driverHome;${endLocation.lat},${endLocation.lng}`);
-      }
+    const routeContextPayload = candidateSequencedStops.map((stop) => ({
+      id: stop.delivery.id,
+      stop_id: stop.delivery.stop_id,
+      delivery_id: stop.delivery.delivery_id,
+      time_window_start: stop.windowStart,
+      time_window_end: stop.windowEnd
+    }));
 
-      for (const stop of sequencedStops) {
-        const segments = [`${stop.waypointLabel};${stop.lat},${stop.lng}`];
-        if (includeTimeWindows) {
-          const accessConstraint = buildAccessConstraint(deliveryDate, stop.windowStart, stop.windowEnd);
-          if (accessConstraint) segments.push(accessConstraint);
-        }
-        segments.push(`st:${Math.round(stop.serviceMinutes * 60)}`);
-        params.set(stop.hereWaypointId, segments.join(';'));
-      }
+    const sequencingResponse = stopsToSequence.length > 0
+      ? await base44.asServiceRole.functions.invoke('getHereDirections', {
+          origin: { lat: optimizationStartPosition.lat, lng: optimizationStartPosition.lng },
+          destination: endLocation ? { lat: endLocation.lat, lng: endLocation.lng } : { lat: candidateSequencedStops[candidateSequencedStops.length - 1].lat, lng: candidateSequencedStops[candidateSequencedStops.length - 1].lng },
+          waypoints: candidateSequencedStops.map((stop) => ({ lat: stop.lat, lng: stop.lng })),
+          routeContext: routeContextPayload,
+          deliveryDate,
+          currentLocalTime: departureTime
+        }).catch(() => null)
+      : null;
 
-      const hereUrl = `https://wps.hereapi.com/v8/findsequence2?${params.toString()}`;
-
-      let lastError = null;
-      for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-          const response = await fetch(hereUrl, { signal: AbortSignal.timeout(20000) });
-          if (response.status === 429) {
-            const waitMs = Math.min(1000 * Math.pow(2, attempt), 8000);
-            await new Promise((resolve) => setTimeout(resolve, waitMs));
-            continue;
-          }
-          const data = await response.json().catch(() => null);
-          return { response, data, includeTimeWindows };
-        } catch (err) {
-          lastError = err;
-          if (err?.name === 'TimeoutError' || err?.name === 'AbortError') throw err;
-        }
-      }
-
-      throw lastError || new Error('HERE API rate limit exceeded after retries');
-    };
-
-    let hereResponse = { ok: true, status: 200 };
-    let hereData = null;
-    let usedTimeWindows = true;
-    let result = null;
-    let waypoints = [];
-    let interconnections = [];
-
-    if (stopsToSequence.length > 0) {
-      let hereAttempt = await executeHereSequence(true);
-      hereResponse = hereAttempt.response;
-      hereData = hereAttempt.data;
-      usedTimeWindows = hereAttempt.includeTimeWindows;
-
-      result = Array.isArray(hereData?.results) ? hereData.results[0] : null;
-      waypoints = Array.isArray(result?.waypoints) ? result.waypoints : [];
-      interconnections = Array.isArray(result?.interconnections) ? result.interconnections : [];
-
-      const needsFallback = !hereResponse.ok || !result || waypoints.length === 0;
-      if (needsFallback && usedTimeWindows) {
-        hereAttempt = await executeHereSequence(false);
-        hereResponse = hereAttempt.response;
-        hereData = hereAttempt.data;
-        usedTimeWindows = hereAttempt.includeTimeWindows;
-        result = Array.isArray(hereData?.results) ? hereData.results[0] : null;
-        waypoints = Array.isArray(result?.waypoints) ? result.waypoints : [];
-        interconnections = Array.isArray(result?.interconnections) ? result.interconnections : [];
-      }
-
-      if (!hereResponse.ok) {
-        if (hereResponse.status === 429) {
-          return Response.json({
-            success: false,
-            routeChanged: false,
-            optimizedRoute: [],
-            totalStops: 0,
-            apiCallsMade: 0,
-            deferred: true,
-            reason: 'rate_limited'
-          });
-        }
-        return Response.json({
-          error: 'HERE Waypoints Sequence API request failed',
-          details: hereData,
-          status: hereResponse.status,
-          usedTimeWindows
-        }, { status: 502 });
-      }
-
-      if (!result || waypoints.length === 0) {
-        return Response.json({
-          error: 'HERE did not return an optimized sequence',
-          details: hereData,
-          usedTimeWindows
-        }, { status: 422 });
-      }
-    }
-
-    const stopWaypoints = waypoints
-      .filter((waypoint) => waypoint.id !== 'driverStart' && waypoint.id !== 'driverEnd')
-      .sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
-
-    const orderedStops = stopWaypoints
-      .map((waypoint) => {
-        const stop = sequencedStops.find((item) => item.hereWaypointId === waypoint.id || item.waypointLabel === waypoint.id);
-        return stop ? { stop, waypoint } : null;
+    const sequencingData = sequencingResponse?.data || sequencingResponse || {};
+    const usedTimeWindows = sequencingData?.used_time_windows !== false;
+    const optimizedIds = Array.isArray(sequencingData?.optimized_waypoint_ids) ? sequencingData.optimized_waypoint_ids : [];
+    const orderedStops = (optimizedIds.length > 0 ? optimizedIds : routeContextPayload.map((item) => String(item.id || item.stop_id || item.delivery_id)))
+      .map((id, index) => {
+        const stop = candidateSequencedStops.find((item) => String(item.delivery.id) === String(id) || String(item.delivery.stop_id) === String(id) || String(item.delivery.delivery_id) === String(id));
+        return stop ? { stop, waypoint: { id, sequence: index + 1 } } : null;
       })
       .filter(Boolean);
 
@@ -540,7 +441,8 @@ Deno.serve(async (req) => {
       pushOrderedItem(item);
     }
 
-    const interconnectionByToWaypoint = new Map(interconnections.map((item) => [item.toWaypoint, item]));
+    const sequencingSections = Array.isArray(sequencingData?.sections) ? sequencingData.sections : [];
+    const interconnectionByToWaypoint = new Map(orderedStops.map((item, index) => [item.waypoint?.id, sequencingSections[index] || null]));
     const usedFinishedOrders = new Set(completedDeliveries.map((delivery) => Number(delivery.stop_order)).filter((order) => Number.isFinite(order) && order > 0));
     const availableActiveOrders = activeDeliveries.map((delivery) => Number(delivery.stop_order)).filter((order) => Number.isFinite(order) && order > 0 && !usedFinishedOrders.has(order)).sort((a, b) => a - b);
     let nextGeneratedOrder = Math.max(0, ...allDeliveries.map((delivery) => Number(delivery.stop_order)).filter((order) => Number.isFinite(order) && order > 0)) + 1;
@@ -630,7 +532,7 @@ Deno.serve(async (req) => {
         user_name: callerAppUser?.user_name || user.id,
         metadata: {
           api_provider: 'here_waypoints_sequence_v8',
-          call_count: stopsToSequence.length > 0 ? 1 : 0,
+          call_count: stopsToSequence.length > 0 ? Number(sequencingData?.api_call_count || 1) : 0,
           driver_id: driverId,
           delivery_date: deliveryDate,
           stops_count: stops.length,
@@ -638,8 +540,8 @@ Deno.serve(async (req) => {
           used_time_windows: usedTimeWindows,
           active_statuses_only: true,
           locked_next_delivery: !!nextDeliveryStop,
-          distance_meters: Number(result?.distance || 0),
-          duration_seconds: Number(result?.time || 0)
+          distance_meters: Math.round(Number(sequencingData?.estimated_distance_km || 0) * 1000),
+          duration_seconds: Math.round(Number(sequencingData?.estimated_duration_minutes || 0) * 60)
         }
       });
     } catch (_logError) {}
@@ -797,11 +699,11 @@ Deno.serve(async (req) => {
       optimizedRoute,
       totalStops: optimizedRoute.length,
       stagesCount: 1,
-      apiCallsMade: stopsToSequence.length > 0 ? 1 : 0,
+      apiCallsMade: stopsToSequence.length > 0 ? Number(sequencingData?.api_call_count || 1) : 0,
       locationSource,
       hereSummary: {
-        distanceMeters: Number(result?.distance || 0),
-        durationSeconds: Number(result?.time || 0)
+        distanceMeters: Math.round(Number(sequencingData?.estimated_distance_km || 0) * 1000),
+        durationSeconds: Math.round(Number(sequencingData?.estimated_duration_minutes || 0) * 60)
       },
       polylineRefresh: {
         shouldRefresh: !!activeSegmentChanged,
