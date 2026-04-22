@@ -405,7 +405,7 @@ export default function DeliveryFormView({
         ref={formRef}
         initial={{ opacity: 0, scale: useMobileLayout && isMobileDevice ? 1 : 0.95 }}
         animate={{ opacity: 1, y: 0 }}
-        className={`w-full ${useMobileLayout && isMobileDevice ? 'h-[calc(100%-4rem)]' : isPickupMode ? 'max-w-[780px] h-[750px] max-h-[750px]' : !delivery ? 'max-w-[87.5rem] h-[90vh] max-h-[90vh]' : 'max-w-[50rem] h-[90vh] max-h-[90vh]'} flex`}>
+        className={`w-full ${useMobileLayout && isMobileDevice ? 'h-[calc(100%-4rem)]' : isPickupMode ? 'max-w-[780px] h-[725px] max-h-[725px]' : !delivery ? 'max-w-[87.5rem] h-[90vh] max-h-[90vh]' : 'max-w-[50rem] h-[90vh] max-h-[90vh]'} flex`}>
         <Card
           onKeyDown={handleGlobalKeyDown}
           className={`border-0 flex flex-col w-full ${useMobileLayout && isMobileDevice ? 'h-full' : 'rounded-xl shadow-xl'}`}
