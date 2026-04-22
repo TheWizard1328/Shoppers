@@ -413,7 +413,7 @@ export default function DeliveryFormView({
           
           {/* Header */}
           <CardHeader className="border-b p-4 flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)' }}>
-            <div className="flex items-center justify-between">
+            <div className="my-1 flex items-center justify-between">
               <div className={`flex ${useMobileLayout && isMobileDevice ? 'flex-col items-start gap-2' : 'items-center gap-3'}`}>
                 <Package className="w-5 h-5 text-emerald-600" />
                 <div className={`flex items-center gap-2 ${useMobileLayout && isMobileDevice ? 'w-full' : ''}`}>
