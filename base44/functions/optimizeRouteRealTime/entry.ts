@@ -188,21 +188,7 @@ const calculateCrowFliesDistanceKm = (fromLat, fromLng, toLat, toLng) => {
 const PICKUP_CLUSTER_NEARBY_KM = 6;
 const PICKUP_CLUSTER_PRIORITY_BONUS = 50;
 
-const calculateCrowFliesDistanceKm = (fromLat, fromLng, toLat, toLng) => {
-  const lat1 = Number(fromLat);
-  const lng1 = Number(fromLng);
-  const lat2 = Number(toLat);
-  const lng2 = Number(toLng);
-  if ([lat1, lng1, lat2, lng2].some((value) => Number.isNaN(value))) return Infinity;
-  const earthRadiusKm = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return earthRadiusKm * c;
-};
 
-const PICKUP_CLUSTER_PRIORITY_RADIUS_KM = 8;
 
 const isValidEntityId = (value) => /^[a-f0-9]{24}$/i.test(String(value || ''));
 const isActiveRouteStatus = (status) => ACTIVE_ROUTE_STATUSES.includes(status);
@@ -372,30 +358,6 @@ Deno.serve(async (req) => {
       })
       .filter((stop) => stop.lat != null && stop.lng != null && !Number.isNaN(stop.lat) && !Number.isNaN(stop.lng));
 
-    const pendingStops = stops.filter((stop) => stop.isPending);
-    const pendingPickupClusters = new Map();
-    for (const stop of pendingStops) {
-      const key = stop.clusterStoreId || stop.delivery.store_id || stop.delivery.puid || stop.delivery.id;
-      if (!pendingPickupClusters.has(key)) {
-        pendingPickupClusters.set(key, {
-          key,
-          storeId: stop.clusterStoreId || null,
-          pickupStop: null,
-          pendingStops: []
-        });
-      }
-      pendingPickupClusters.get(key).pendingStops.push(stop);
-    }
-
-    for (const stop of stops) {
-      if (!stop.isPickup) continue;
-      const clusterKey = stop.clusterStoreId || stop.delivery.store_id || stop.delivery.id;
-      const existingCluster = pendingPickupClusters.get(clusterKey);
-      if (existingCluster) {
-        existingCluster.pickupStop = stop;
-      }
-    }
-
     if (stops.length === 0) {
       return Response.json({ error: 'No active stops have valid coordinates', routeChanged: false }, { status: 400 });
     }
@@ -450,26 +412,39 @@ Deno.serve(async (req) => {
       }, { status: 400 });
     }
 
+    const nearbyClusterStoreIds = new Set();
+    const activeInTransitStops = stopsToSequence.filter((stop) => !stop.isPending && !stop.isPickup);
+    for (const activeStop of activeInTransitStops) {
+      for (const [storeId, cluster] of pendingClusterByStoreId.entries()) {
+        if (!Number.isFinite(cluster.storeLat) || !Number.isFinite(cluster.storeLng) || cluster.pendingCount <= 0) continue;
+        const deliveryNearbyPickup = calculateCrowFliesDistanceKm(activeStop.lat, activeStop.lng, cluster.storeLat, cluster.storeLng);
+        const originNearbyPickup = calculateCrowFliesDistanceKm(optimizationStartPosition.lat, optimizationStartPosition.lng, cluster.storeLat, cluster.storeLng);
+        if (deliveryNearbyPickup <= PICKUP_CLUSTER_NEARBY_KM || originNearbyPickup <= PICKUP_CLUSTER_NEARBY_KM) {
+          nearbyClusterStoreIds.add(storeId);
+        }
+      }
+    }
+
     const candidateSequencedStops = [...stopsToSequence]
       .map((stop) => {
         const cluster = pendingClusterByStoreId.get(stop.delivery.store_id) || null;
         const clusterDistanceKm = cluster && Number.isFinite(cluster.storeLat) && Number.isFinite(cluster.storeLng)
           ? calculateCrowFliesDistanceKm(optimizationStartPosition.lat, optimizationStartPosition.lng, cluster.storeLat, cluster.storeLng)
           : Infinity;
-        const nearbyClusterPriority = !stop.isPickup && cluster?.pendingCount > 0 && clusterDistanceKm <= PICKUP_CLUSTER_PRIORITY_RADIUS_KM ? -1 : 0;
+        const isPrioritizedClusterStop = nearbyClusterStoreIds.has(stop.delivery.store_id) && (stop.isPickup || stop.isPending);
         return {
           ...stop,
           clusterDistanceKm,
-          nearbyClusterPriority,
+          isPrioritizedClusterStop,
           clusterEarliestWindowMinutes: Number.isFinite(cluster?.earliestWindowMinutes) ? cluster.earliestWindowMinutes : Infinity,
           clusterPendingCount: cluster?.pendingCount || 0
         };
       })
       .sort((a, b) => {
         if (a.hasLateWindow !== b.hasLateWindow) return a.hasLateWindow ? 1 : -1;
-        if (a.nearbyClusterPriority !== b.nearbyClusterPriority) return a.nearbyClusterPriority - b.nearbyClusterPriority;
-        if (a.clusterDistanceKm !== b.clusterDistanceKm) return a.clusterDistanceKm - b.clusterDistanceKm;
-        if (a.clusterEarliestWindowMinutes !== b.clusterEarliestWindowMinutes) return a.clusterEarliestWindowMinutes - b.clusterEarliestWindowMinutes;
+        if (a.isPrioritizedClusterStop !== b.isPrioritizedClusterStop) return a.isPrioritizedClusterStop ? -1 : 1;
+        if (a.isPrioritizedClusterStop && b.isPrioritizedClusterStop && a.clusterDistanceKm !== b.clusterDistanceKm) return a.clusterDistanceKm - b.clusterDistanceKm;
+        if (a.isPrioritizedClusterStop && b.isPrioritizedClusterStop && a.clusterEarliestWindowMinutes !== b.clusterEarliestWindowMinutes) return a.clusterEarliestWindowMinutes - b.clusterEarliestWindowMinutes;
         if (a.priorityRank !== b.priorityRank) return a.priorityRank - b.priorityRank;
         const windowA = parseTimeToMinutes(a.windowStart);
         const windowB = parseTimeToMinutes(b.windowStart);
