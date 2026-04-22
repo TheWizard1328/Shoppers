@@ -594,7 +594,7 @@ export default function DeliveryFormView({
                           handleSearchKeyDown={handleSearchKeyDown} />
                         </div>
 
-                        <div className="my-3 px-3 py-3 rounded-lg min-h-[110px] min-w-0 space-y-1 border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                        <div className="px-3 py-3 rounded-lg min-h-[110px] min-w-0 space-y-1 border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                           <Label className="my-1 text-sm font-semibold peer-disabled:cursor-not-allowed peer-disabled:opacity-70" style={{ color: 'var(--text-slate-900)' }}>Delivery Date *</Label>
                           <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
                         </div>
