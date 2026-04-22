@@ -404,7 +404,7 @@ export default function DeliveryFormView({
         ref={formRef}
         initial={{ opacity: 0, scale: useMobileLayout && isMobileDevice ? 1 : 0.95 }}
         animate={{ opacity: 1, y: 0 }}
-        className={`w-full ${useMobileLayout && isMobileDevice ? 'h-[calc(100%-4rem)]' : isPickupMode ? 'max-w-[780px] h-[715px] max-h-[715px]' : !delivery ? 'max-w-[87.5rem] h-[90vh] max-h-[90vh]' : 'max-w-[50rem] h-[90vh] max-h-[90vh]'} flex`}>
+        className={`w-full ${useMobileLayout && isMobileDevice ? 'h-[calc(100%-4rem)] overflow-hidden' : isPickupMode ? 'max-w-[780px] h-[715px] max-h-[715px]' : !delivery ? 'max-w-[87.5rem] h-[90vh] max-h-[90vh]' : 'max-w-[50rem] h-[90vh] max-h-[90vh]'} flex`}>
         <Card
           onKeyDown={handleGlobalKeyDown}
           className={`border-0 flex flex-col w-full ${useMobileLayout && isMobileDevice ? 'h-full' : 'rounded-xl shadow-xl'}`}
@@ -424,7 +424,7 @@ export default function DeliveryFormView({
                     if (!patientToCheck && formData.patient_id && patients) {
                       patientToCheck = patients.find((p) => p && p.id === formData.patient_id);
                     }
-                    if (!patientToCheck?.last_delivery_date || (useMobileLayout && isMobileDevice)) return null;
+                    if (!patientToCheck?.last_delivery_date) return null;
                     try {
                       const date = new Date(patientToCheck.last_delivery_date + 'T00:00:00');
                       if (isNaN(date.getTime())) return null;
@@ -457,7 +457,7 @@ export default function DeliveryFormView({
             </div>
           }
 
-          <CardContent className="p-3 flex-1 relative overflow-hidden">
+          <CardContent className={`p-3 flex-1 relative ${useMobileLayout ? 'overflow-y-auto overflow-x-hidden min-h-0' : 'overflow-hidden'}`}>
             <div className={`h-full min-h-0 ${!delivery && !useMobileLayout && !isPickupMode ? 'grid grid-cols-[minmax(0,1fr)_300px] gap-3' : 'flex flex-col gap-3'}`}>
               <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
 
