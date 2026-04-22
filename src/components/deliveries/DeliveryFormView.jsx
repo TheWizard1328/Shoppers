@@ -459,7 +459,7 @@ export default function DeliveryFormView({
           }
 
           <CardContent className="p-3 flex-1 relative overflow-hidden">
-            <div className={`h-full min-h-0 ${!delivery && !useMobileLayout && !isPickupMode ? 'grid grid-cols-[minmax(0,1fr)_300px] gap-3' : 'flex flex-col gap-3'}`}>
+            <div className="h-full min-h-0 flex flex-col gap-3 max-h-[500px]">
               <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
 
               {/* Pickup mode: Row 1 = Location + Date + Driver */}
@@ -974,7 +974,7 @@ export default function DeliveryFormView({
           </CardContent>
 
           {/* Footer */}
-          <CardFooter className="border-t p-3 flex-shrink-0" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+          <CardFooter className="flex items-center border-t p-3 flex-shrink-0" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
             <div className="flex items-center justify-between w-full gap-4">
               <div className="flex items-center gap-4">
                 {!delivery && useMobileLayout && !isPickupMode &&
