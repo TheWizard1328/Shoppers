@@ -25,12 +25,12 @@ export function renderDeliveryIdentifiersSection({
   return (
     <div className="space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-200)' }}>
       <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Identifiers</Label>
-      <div className="flex flex-wrap gap-3">
-        <div className={`${isPickupMode ? 'w-full sm:w-[calc(50%-0.375rem)] lg:w-[calc(20%-0.6rem)]' : 'flex-1'} space-y-1`}>
+      <div className="flex gap-3">
+        <div className="flex-1 space-y-1">
           <Label className="text-xs">TR#</Label>
           <Input value={formData.tracking_number || ''} onChange={(e) => setFormData((prev) => ({ ...prev, tracking_number: e.target.value }))} className="h-9 text-sm" disabled={isSaving} />
         </div>
-        <div className={`${isPickupMode ? 'w-full sm:w-[calc(50%-0.375rem)] lg:w-[calc(20%-0.6rem)]' : 'flex-1'} space-y-1`}>
+        <div className="flex-1 space-y-1">
           <Label className="text-xs">SID</Label>
           <Input value={formData.stop_id || ''} onChange={(e) => setFormData((prev) => ({ ...prev, stop_id: e.target.value }))} className="h-9 text-sm" disabled={isSaving} />
         </div>
@@ -73,11 +73,11 @@ export function renderDeliveryIdentifiersSection({
             </div>
           </div>
         )}
-        <div className={`${isPickupMode ? 'w-full sm:w-[calc(50%-0.375rem)] lg:w-[calc(20%-0.6rem)]' : 'flex-1'} space-y-1`}>
+        <div className="flex-1 space-y-1">
           <Label className="text-xs">PUID</Label>
           <Input value={formData.puid || ''} onChange={(e) => setFormData((prev) => ({ ...prev, puid: e.target.value }))} className="h-9 text-sm" disabled={isSaving} />
         </div>
-        <div className={`${isPickupMode ? 'w-full sm:w-[calc(50%-0.375rem)] lg:w-[calc(20%-0.6rem)]' : 'flex-1'} space-y-1`}>
+        <div className="flex-1 space-y-1">
           <Label className="text-xs">AM/PM</Label>
           <Select value={formData.ampm_deliveries || ''} onValueChange={(value) => setFormData((prev) => ({ ...prev, ampm_deliveries: value }))} disabled={isSaving}>
             <SelectTrigger className="h-9 text-sm">
