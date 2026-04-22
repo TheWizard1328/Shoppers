@@ -158,6 +158,9 @@ export default function StatsPanel({
     return '#dc2626';
   };
 
+  const isDispatcherLockedExpanded = isDispatcher;
+  const showExpandedContent = isDispatcherLockedExpanded || isExpanded;
+
   return (
     <div className={statsCardPositioning} style={{ zIndex: isMobile && isExpanded ? 40 : isMobile ? 100 : 600, position: 'absolute', pointerEvents: 'none' }}>
       <div className="flex flex-col items-center gap-1 min-w-[340px] max-w-[345px] relative"
@@ -289,13 +292,15 @@ export default function StatsPanel({
               liveDistance={liveDistance}
               liveTimeOnDuty={finalizedDutyTime ?? liveTimeOnDuty}
               isLoadingPayrollStats={isLoadingPayrollStats} />
-            <Button variant="ghost" size="sm" onClick={(e) => {e.stopPropagation();setIsExpanded(!isExpanded);}} className="h-8 w-8 p-0 flex-shrink-0">
-              {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            </Button>
+            {!isDispatcherLockedExpanded &&
+              <Button variant="ghost" size="sm" onClick={(e) => {e.stopPropagation();setIsExpanded(!isExpanded);}} className="h-8 w-8 p-0 flex-shrink-0">
+                {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </Button>
+            }
           </div>
 
           <AnimatePresence>
-            {isExpanded && <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
+            {showExpandedContent && <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
               <div className="pt-1 pb-1 border-t flex items-center gap-2" style={{ borderColor: 'var(--border-slate-200)' }}>
                 <Select value={selectedDriverId} onValueChange={handleDriverChange} disabled={isDriverDropdownDisabled}>
                   <SelectTrigger className="flex h-8 w-full items-center justify-between rounded-md border px-3 py-2 text-sm flex-1" style={{ pointerEvents: 'auto', touchAction: 'manipulation', background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
@@ -407,9 +412,13 @@ export default function StatsPanel({
                   </div>
                 }
 
-                <Button variant="outline" size="sm" onClick={() => setShowOptimizationSettings(true)} className="h-8 w-8 p-0 flex-shrink-0" title="Route Optimization Settings" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                  <Settings className="w-3.5 h-3.5" />
-                </Button>
+                {isDispatcherLockedExpanded && <div className="flex-1 min-w-[120px]" />}
+
+                {!isDispatcherLockedExpanded &&
+                  <Button variant="outline" size="sm" onClick={() => setShowOptimizationSettings(true)} className="h-8 w-8 p-0 flex-shrink-0" title="Route Optimization Settings" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                    <Settings className="w-3.5 h-3.5" />
+                  </Button>
+                }
 
                 <Button variant="default" size="sm" onClick={() => {
                       const nextShowRoutes = !showRoutes;
