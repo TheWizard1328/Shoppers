@@ -413,11 +413,11 @@ export default function DeliveryFormView({
           
           {/* Header */}
           <CardHeader className="border-b p-4 flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)' }}>
-            <div className="flex items-center justify-between gap-3">
-              <div className={`flex ${useMobileLayout && isMobileDevice ? 'items-center gap-2 min-w-0' : 'items-center gap-3'}`}>
-                <Package className="w-5 h-5 text-emerald-600 shrink-0" />
-                <div className={`flex items-center gap-2 ${useMobileLayout && isMobileDevice ? 'min-w-0 flex-1' : ''}`}>
-                  <CardTitle className="text-xl font-bold truncate" style={{ color: 'var(--text-slate-900)' }}>
+            <div className="flex items-center justify-between">
+              <div className={`flex ${useMobileLayout && isMobileDevice ? 'flex-col items-start gap-2' : 'items-center gap-3'}`}>
+                <Package className="w-5 h-5 text-emerald-600" />
+                <div className={`flex items-center gap-2 ${useMobileLayout && isMobileDevice ? 'w-full' : ''}`}>
+                  <CardTitle className="text-xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
                     {delivery ? isPickupMode ? 'Edit Pickup' : 'Edit Delivery' : 'Add To Route'}
                   </CardTitle>
                   {(() => {
@@ -447,7 +447,7 @@ export default function DeliveryFormView({
                   </div>
                 }
               </div>
-              <Button variant="ghost" size="icon" onClick={handleCancelClick} disabled={isSaving} className="shrink-0"><X className="w-4 h-4" /></Button>
+              <Button variant="ghost" size="icon" onClick={handleCancelClick} disabled={isSaving}><X className="w-4 h-4" /></Button>
             </div>
           </CardHeader>
 
@@ -548,7 +548,7 @@ export default function DeliveryFormView({
                           handleSearchKeyDown={handleSearchKeyDown} />
                         </div>
 
-                        <div className="grid grid-cols-3 gap-3 w-full">
+                        <div className="grid grid-cols-2 gap-3 w-full">
                           <div className="min-w-0 space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                             <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Date *</Label>
                             <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
@@ -574,19 +574,6 @@ export default function DeliveryFormView({
                               </SelectContent>
                             </Select>
                           </div>
-
-                          {userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) ?
-                          <div className="min-w-0 p-3 rounded-lg border flex items-center justify-center" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                              <TravelModeButtons
-                              value={formData.finished_leg_transport_mode || delivery?.finished_leg_transport_mode || 'driving'}
-                              onChange={async (mode) => {
-                                setFormData((prev) => ({ ...prev, finished_leg_transport_mode: mode }));
-                              }}
-                              currentUser={currentUser}
-                              appUsers={appUsers}
-                              disabled={isSaving} />
-                            </div> :
-                          <div className="min-w-0" />}
                         </div>
                       </> :
 
@@ -680,7 +667,19 @@ export default function DeliveryFormView({
                     </div>
 
 
-
+                    {useMobileLayout && userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) &&
+                    <div className="w-fit p-3 rounded-lg border flex items-center justify-center gap-2" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                        <TravelModeButtons
+                        value={formData.finished_leg_transport_mode || delivery?.finished_leg_transport_mode || 'driving'}
+                        onChange={async (mode) => {
+                          setFormData((prev) => ({ ...prev, finished_leg_transport_mode: mode }));
+                        }}
+                        currentUser={currentUser}
+                        appUsers={appUsers}
+                        disabled={isSaving} />
+                      
+                      </div>
+                    }
                   </div>
                   }
 
