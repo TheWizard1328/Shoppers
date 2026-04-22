@@ -2,7 +2,7 @@ import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Bike, Car, Footprints, Circle, MapPin } from 'lucide-react';
+import { Bike, Car, MapPin } from 'lucide-react';
 
 export default function ModeSelectionDialog({
   open,
@@ -16,13 +16,7 @@ export default function ModeSelectionDialog({
   onOptimize,
   isSubmitting = false,
 }) {
-  const ModeIcon = modeLabel === 'Cycling'
-    ? Bike
-    : modeLabel === 'Walking'
-      ? Footprints
-      : modeLabel === 'Scootering'
-        ? Circle
-        : Car;
+  const ModeIcon = modeLabel === 'Cycling' ? Bike : Car;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
