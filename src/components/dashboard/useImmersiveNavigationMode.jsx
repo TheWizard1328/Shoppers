@@ -14,6 +14,12 @@ const calculateDistanceKm = (lat1, lon1, lat2, lon2) => {
   return 2 * earthRadiusKm * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
+const hasIncompleteNextStop = (nextStopCoordinates) => {
+  if (!nextStopCoordinates) return false;
+  const status = String(nextStopCoordinates.status || '').toLowerCase();
+  return !['completed', 'failed', 'cancelled', 'returned'].includes(status);
+};
+
 export default function useImmersiveNavigationMode({
   enabled,
   isDriver,
@@ -26,7 +32,13 @@ export default function useImmersiveNavigationMode({
   const isMovingRef = useRef(false);
 
   const isNearNextStop = useMemo(() => {
-    if (!driverLocation?.latitude || !driverLocation?.longitude || !nextStopCoordinates?.lat || !nextStopCoordinates?.lon) {
+    if (
+      !hasIncompleteNextStop(nextStopCoordinates) ||
+      !driverLocation?.latitude ||
+      !driverLocation?.longitude ||
+      !nextStopCoordinates?.lat ||
+      !nextStopCoordinates?.lon
+    ) {
       return false;
     }
     return calculateDistanceKm(
@@ -35,7 +47,7 @@ export default function useImmersiveNavigationMode({
       nextStopCoordinates.lat,
       nextStopCoordinates.lon
     ) <= NEXT_STOP_RESTORE_DISTANCE_KM;
-  }, [driverLocation?.latitude, driverLocation?.longitude, nextStopCoordinates?.lat, nextStopCoordinates?.lon]);
+  }, [driverLocation?.latitude, driverLocation?.longitude, nextStopCoordinates]);
 
   useEffect(() => {
     if (!enabled || !isDriver || !isMobile) {
