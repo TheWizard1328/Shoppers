@@ -131,7 +131,7 @@ export default function DeliveryFormView({
   closeOnSave, onCancel, openMode, forceOpenDriverOnLoad = false
 }) {
   const activeFieldScrollFrameRef = useRef(null);
-  const shouldUseCompactPickupEditHeight = Boolean(delivery && isPickupMode && !isAppOwner(currentUser) && !useMobileLayout);
+  const shouldUseCompactPickupEditHeight = Boolean(delivery && isPickupMode && !useMobileLayout);
   const stagedCount = React.useMemo(() => ({
     new: sortedStagedDeliveries.filter((s) => !s.id).length,
     pending: sortedStagedDeliveries.filter((s) => s.id).length
