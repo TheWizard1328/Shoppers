@@ -459,7 +459,7 @@ export default function DeliveryFormView({
           }
 
           <CardContent className="p-3 flex-1 relative overflow-hidden">
-            <div className="h-full min-h-0 flex flex-col gap-3 max-h-[500px]">
+            <div className="h-full min-h-0 flex flex-col gap-3 max-h-[450px]">
               <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
 
               {/* Pickup mode: Row 1 = Location + Date + Driver */}
