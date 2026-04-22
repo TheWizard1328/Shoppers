@@ -171,6 +171,39 @@ const estimateCrowFliesTravelMinutes = (fromLat, fromLng, toLat, toLng) => {
   return Math.max(0, Math.ceil((distanceKm / 40) * 60));
 };
 
+const calculateCrowFliesDistanceKm = (fromLat, fromLng, toLat, toLng) => {
+  const lat1 = Number(fromLat);
+  const lng1 = Number(fromLng);
+  const lat2 = Number(toLat);
+  const lng2 = Number(toLng);
+  if ([lat1, lng1, lat2, lng2].some((value) => Number.isNaN(value))) return Infinity;
+  const earthRadiusKm = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadiusKm * c;
+};
+
+const PICKUP_CLUSTER_NEARBY_KM = 6;
+const PICKUP_CLUSTER_PRIORITY_BONUS = 50;
+
+const calculateCrowFliesDistanceKm = (fromLat, fromLng, toLat, toLng) => {
+  const lat1 = Number(fromLat);
+  const lng1 = Number(fromLng);
+  const lat2 = Number(toLat);
+  const lng2 = Number(toLng);
+  if ([lat1, lng1, lat2, lng2].some((value) => Number.isNaN(value))) return Infinity;
+  const earthRadiusKm = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadiusKm * c;
+};
+
+const PICKUP_CLUSTER_PRIORITY_RADIUS_KM = 8;
+
 const isValidEntityId = (value) => /^[a-f0-9]{24}$/i.test(String(value || ''));
 const isActiveRouteStatus = (status) => ACTIVE_ROUTE_STATUSES.includes(status);
 const round5 = (value) => Number(Number(value).toFixed(5));
@@ -331,18 +364,71 @@ Deno.serve(async (req) => {
           serviceMinutes,
           priorityRank,
           hasLateWindow,
+          clusterStoreId: delivery.store_id || null,
+          clusterPickupId: isPickup ? delivery.id : `${delivery.store_id || 'store'}:${delivery.puid || 'pending'}`,
           waypointId: `destination${index + 1}`,
           waypointLabel: delivery.stop_id || delivery.delivery_id || delivery.id
         };
       })
       .filter((stop) => stop.lat != null && stop.lng != null && !Number.isNaN(stop.lat) && !Number.isNaN(stop.lng));
 
+    const pendingStops = stops.filter((stop) => stop.isPending);
+    const pendingPickupClusters = new Map();
+    for (const stop of pendingStops) {
+      const key = stop.clusterStoreId || stop.delivery.store_id || stop.delivery.puid || stop.delivery.id;
+      if (!pendingPickupClusters.has(key)) {
+        pendingPickupClusters.set(key, {
+          key,
+          storeId: stop.clusterStoreId || null,
+          pickupStop: null,
+          pendingStops: []
+        });
+      }
+      pendingPickupClusters.get(key).pendingStops.push(stop);
+    }
+
+    for (const stop of stops) {
+      if (!stop.isPickup) continue;
+      const clusterKey = stop.clusterStoreId || stop.delivery.store_id || stop.delivery.id;
+      const existingCluster = pendingPickupClusters.get(clusterKey);
+      if (existingCluster) {
+        existingCluster.pickupStop = stop;
+      }
+    }
+
     if (stops.length === 0) {
       return Response.json({ error: 'No active stops have valid coordinates', routeChanged: false }, { status: 400 });
     }
 
+    const pendingStops = stops.filter((stop) => stop.isPending);
+    const pendingClusterByStoreId = new Map();
+    pendingStops.forEach((stop) => {
+      const storeId = stop.delivery.store_id;
+      if (!storeId) return;
+      const currentCluster = pendingClusterByStoreId.get(storeId) || {
+        storeId,
+        storeLat: null,
+        storeLng: null,
+        earliestWindowMinutes: Infinity,
+        pendingCount: 0
+      };
+      const store = storeMap.get(storeId);
+      if (store?.latitude != null && store?.longitude != null) {
+        currentCluster.storeLat = Number(store.latitude);
+        currentCluster.storeLng = Number(store.longitude);
+      }
+      currentCluster.pendingCount += 1;
+      const windowMinutes = parseTimeToMinutes(stop.windowStart);
+      if (windowMinutes !== null) {
+        currentCluster.earliestWindowMinutes = Math.min(currentCluster.earliestWindowMinutes, windowMinutes);
+      }
+      pendingClusterByStoreId.set(storeId, currentCluster);
+    });
+
     const nextDeliveryStop = stops.find((stop) => stop.delivery.isNextDelivery === true) || null;
-    const canKeepLockedNextStop = !!nextDeliveryStop && !nextDeliveryStop.hasLateWindow;
+    const nextDeliveryCluster = nextDeliveryStop ? pendingClusterByStoreId.get(nextDeliveryStop.delivery.store_id) : null;
+    const shouldUnlockNextForNearbyCluster = !!nextDeliveryStop && !!nextDeliveryCluster && Number.isFinite(nextDeliveryCluster.storeLat) && Number.isFinite(nextDeliveryCluster.storeLng) && calculateCrowFliesDistanceKm(nextDeliveryStop.lat, nextDeliveryStop.lng, nextDeliveryCluster.storeLat, nextDeliveryCluster.storeLng) <= PICKUP_CLUSTER_PRIORITY_RADIUS_KM;
+    const canKeepLockedNextStop = !!nextDeliveryStop && !nextDeliveryStop.hasLateWindow && !shouldUnlockNextForNearbyCluster;
     const lockedNextStop = canKeepLockedNextStop ? nextDeliveryStop : null;
     const stopsToSequence = lockedNextStop
       ? stops.filter((stop) => stop.delivery.id !== lockedNextStop.delivery.id)
@@ -365,8 +451,25 @@ Deno.serve(async (req) => {
     }
 
     const candidateSequencedStops = [...stopsToSequence]
+      .map((stop) => {
+        const cluster = pendingClusterByStoreId.get(stop.delivery.store_id) || null;
+        const clusterDistanceKm = cluster && Number.isFinite(cluster.storeLat) && Number.isFinite(cluster.storeLng)
+          ? calculateCrowFliesDistanceKm(optimizationStartPosition.lat, optimizationStartPosition.lng, cluster.storeLat, cluster.storeLng)
+          : Infinity;
+        const nearbyClusterPriority = !stop.isPickup && cluster?.pendingCount > 0 && clusterDistanceKm <= PICKUP_CLUSTER_PRIORITY_RADIUS_KM ? -1 : 0;
+        return {
+          ...stop,
+          clusterDistanceKm,
+          nearbyClusterPriority,
+          clusterEarliestWindowMinutes: Number.isFinite(cluster?.earliestWindowMinutes) ? cluster.earliestWindowMinutes : Infinity,
+          clusterPendingCount: cluster?.pendingCount || 0
+        };
+      })
       .sort((a, b) => {
         if (a.hasLateWindow !== b.hasLateWindow) return a.hasLateWindow ? 1 : -1;
+        if (a.nearbyClusterPriority !== b.nearbyClusterPriority) return a.nearbyClusterPriority - b.nearbyClusterPriority;
+        if (a.clusterDistanceKm !== b.clusterDistanceKm) return a.clusterDistanceKm - b.clusterDistanceKm;
+        if (a.clusterEarliestWindowMinutes !== b.clusterEarliestWindowMinutes) return a.clusterEarliestWindowMinutes - b.clusterEarliestWindowMinutes;
         if (a.priorityRank !== b.priorityRank) return a.priorityRank - b.priorityRank;
         const windowA = parseTimeToMinutes(a.windowStart);
         const windowB = parseTimeToMinutes(b.windowStart);
@@ -544,6 +647,7 @@ Deno.serve(async (req) => {
           used_time_windows: usedTimeWindows,
           active_statuses_only: true,
           locked_next_delivery: !!nextDeliveryStop,
+          prioritized_pickup_clusters: Array.from(nearbyClusterStoreIds),
           distance_meters: Math.round(Number(sequencingData?.estimated_distance_km || 0) * 1000),
           duration_seconds: Math.round(Number(sequencingData?.estimated_duration_minutes || 0) * 60)
         }
