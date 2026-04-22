@@ -600,7 +600,7 @@ export default function DeliveryFormView({
                         </div>
 
                         <div className="min-w-0 space-y-1 p-3 rounded-lg border min-h-[110px]" style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver {delivery ? '*' : ''}</Label>
+                          <Label className="pb-3 peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver {delivery ? '*' : ''}</Label>
                           <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
                           const newDriverId = driverId === 'all' ? '' : driverId;
                           const driver = driverId === 'all' ? null : allDrivers.find((d) => d.id === driverId);
