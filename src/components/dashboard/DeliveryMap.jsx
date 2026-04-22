@@ -7,6 +7,7 @@ import { base44 } from "@/api/base44Client";
 import { isMobileDevice } from "../utils/deviceUtils";
 import { getStoreColor } from "../utils/colorGenerator";
 import { userHasRole } from "../utils/userRoles";
+import { sortUsers } from "../utils/sorting";
 import MapCrosshair from "./MapCrosshair";
 import MapController from "./MapController";
 import DriverLocationMarkers from "./DriverLocationMarkers";
@@ -689,7 +690,11 @@ export default function DeliveryMap({
       byDriver.get(stop.driver_id).stops.push(stop);
     });
 
-    const routes = Array.from(byDriver.values()).sort((a, b) => a.sortOrder - b.sortOrder).map((route) => {
+    const routes = sortUsers(Array.from(byDriver.values()).map((route) => ({
+      ...route,
+      user_name: route.driver?.user_name || route.driver?.full_name || route.driverName,
+      sort_order: route.driver?.sort_order ?? route.sortOrder,
+    }))).map((route) => {
       const stops = [...route.stops].sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
       const incomplete = stops.filter((stop) => !FINISHED_STATUSES.includes(stop.status) && stop.status !== "pending");
       const completed = stops.filter((stop) => FINISHED_STATUSES.includes(stop.status));
