@@ -212,6 +212,47 @@ const decodeHereFlexiblePolyline = (encoded) => {
   return coordinates;
 };
 
+const getHereTransportMode = (normalizedTransportMode) => {
+  return normalizedTransportMode === 'cycling'
+    ? 'bicycle'
+    : normalizedTransportMode === 'pedestrian'
+      ? 'pedestrian'
+      : 'car';
+};
+
+const fetchRouteSection = async ({ hereApiKey, fromPoint, toPoint, transportMode }) => {
+  const params = new URLSearchParams();
+  params.set('apiKey', hereApiKey);
+  params.set('transportMode', transportMode);
+  params.set('origin', `${fromPoint.lat},${fromPoint.lng}`);
+  params.set('destination', `${toPoint.lat},${toPoint.lng}`);
+  params.set('return', 'polyline,summary');
+
+  const routeResp = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, {
+    signal: AbortSignal.timeout(20000),
+    headers: { accept: 'application/json' }
+  });
+  const routeData = await routeResp.json().catch(() => null);
+  const routeSection = routeData?.routes?.[0]?.sections?.[0] || null;
+
+  let encodedPolyline = null;
+  if (typeof routeSection?.polyline === 'string' && routeSection.polyline) {
+    const coords = decodeHereFlexiblePolyline(routeSection.polyline);
+    if (coords.length > 1) {
+      encodedPolyline = encodeGooglePolyline(coords);
+    }
+  }
+
+  return {
+    polyline: routeSection?.polyline || null,
+    encoded_polyline: encodedPolyline,
+    estimated_distance_km: Number.isFinite(Number(routeSection?.summary?.length)) ? Math.round((Number(routeSection.summary.length) / 1000) * 10) / 10 : null,
+    estimated_duration_minutes: Number.isFinite(Number(routeSection?.summary?.duration)) ? Math.round(Number(routeSection.summary.duration) / 60) : null,
+    route_found: !!routeSection,
+    transport_mode: transportMode
+  };
+};
+
 const buildRoutingSections = async ({ hereApiKey, orderedStops, originLat, originLng, normalizedTransportMode }) => {
   if (orderedStops.length === 0) return [];
 
@@ -223,41 +264,33 @@ const buildRoutingSections = async ({ hereApiKey, orderedStops, originLat, origi
       : { lat: orderedStops[index - 1].lat, lng: orderedStops[index - 1].lng };
     const toPoint = { lat: orderedStops[index].lat, lng: orderedStops[index].lng };
 
-    const transportMode = normalizedTransportMode === 'cycling'
-      ? 'bicycle'
-      : normalizedTransportMode === 'pedestrian'
-        ? 'pedestrian'
-        : 'car';
+    let selectedSection = null;
 
-    const params = new URLSearchParams();
-    params.set('apiKey', hereApiKey);
-    params.set('transportMode', transportMode);
-    params.set('origin', `${fromPoint.lat},${fromPoint.lng}`);
-    params.set('destination', `${toPoint.lat},${toPoint.lng}`);
-    params.set('return', 'polyline,summary');
+    if (normalizedTransportMode === 'cycling') {
+      const [bicycleSection, pedestrianSection] = await Promise.all([
+        fetchRouteSection({ hereApiKey, fromPoint, toPoint, transportMode: 'bicycle' }),
+        fetchRouteSection({ hereApiKey, fromPoint, toPoint, transportMode: 'pedestrian' })
+      ]);
 
-    const routeResp = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, {
-      signal: AbortSignal.timeout(20000),
-      headers: { accept: 'application/json' }
-    });
-    const routeData = await routeResp.json().catch(() => null);
-    const routeSection = routeData?.routes?.[0]?.sections?.[0] || null;
-
-    let encodedPolyline = null;
-    if (typeof routeSection?.polyline === 'string' && routeSection.polyline) {
-      const coords = decodeHereFlexiblePolyline(routeSection.polyline);
-      if (coords.length > 1) {
-        encodedPolyline = encodeGooglePolyline(coords);
-      }
+      const candidates = [bicycleSection, pedestrianSection].filter((section) => section?.route_found && Number.isFinite(section?.estimated_duration_minutes));
+      selectedSection = candidates.sort((a, b) => a.estimated_duration_minutes - b.estimated_duration_minutes)[0] || bicycleSection || pedestrianSection;
+    } else {
+      selectedSection = await fetchRouteSection({
+        hereApiKey,
+        fromPoint,
+        toPoint,
+        transportMode: getHereTransportMode(normalizedTransportMode)
+      });
     }
 
     const fallbackDistanceKm = calculateCrowFliesDistance(fromPoint.lat, fromPoint.lng, toPoint.lat, toPoint.lng);
     sections.push({
-      polyline: routeSection?.polyline || null,
-      encoded_polyline: encodedPolyline,
-      estimated_distance_km: Number.isFinite(Number(routeSection?.summary?.length)) ? Math.round((Number(routeSection.summary.length) / 1000) * 10) / 10 : Math.round(fallbackDistanceKm * 10) / 10,
-      estimated_duration_minutes: Number.isFinite(Number(routeSection?.summary?.duration)) ? Math.round(Number(routeSection.summary.duration) / 60) : Math.round((fallbackDistanceKm / 40) * 60),
-      coordinates: [fromPoint, toPoint]
+      polyline: selectedSection?.polyline || null,
+      encoded_polyline: selectedSection?.encoded_polyline || null,
+      estimated_distance_km: Number.isFinite(Number(selectedSection?.estimated_distance_km)) ? selectedSection.estimated_distance_km : Math.round(fallbackDistanceKm * 10) / 10,
+      estimated_duration_minutes: Number.isFinite(Number(selectedSection?.estimated_duration_minutes)) ? selectedSection.estimated_duration_minutes : Math.round((fallbackDistanceKm / 40) * 60),
+      coordinates: [fromPoint, toPoint],
+      segment_transport_mode: selectedSection?.transport_mode || getHereTransportMode(normalizedTransportMode)
     });
   }
 
@@ -296,13 +329,7 @@ Deno.serve(async (req) => {
         : requestedTransportMode === 'scootering' || requestedTransportMode === 'scooter'
           ? 'scooter'
           : 'driving';
-    const hereTransportMode = normalizedTransportMode === 'cycling'
-      ? 'bicycle'
-      : normalizedTransportMode === 'pedestrian'
-        ? 'pedestrian'
-        : normalizedTransportMode === 'scooter'
-          ? 'scooter'
-          : 'car';
+    const hereTransportMode = getHereTransportMode(normalizedTransportMode);
 
     const originLat = Number(origin?.lat);
     const originLng = Number(origin?.lng);
@@ -519,7 +546,8 @@ Deno.serve(async (req) => {
         estimated_distance_km,
         estimated_duration_minutes,
         optimized_sequence: orderedWaypoints.map((waypoint) => waypoint.id),
-        real_road_polylines: normalizedSections.filter((section) => !!section?.encoded_polyline).length
+        real_road_polylines: normalizedSections.filter((section) => !!section?.encoded_polyline).length,
+        hybrid_segment_modes: normalizedSections.map((section) => section?.segment_transport_mode).filter(Boolean)
       },
     });
 
@@ -531,6 +559,7 @@ Deno.serve(async (req) => {
       estimated_distance_km,
       estimated_duration_minutes,
       transport_mode: normalizedTransportMode,
+      hybrid_mode_enabled: normalizedTransportMode === 'cycling',
       optimized_waypoint_ids: orderedWaypoints.map((waypoint) => waypoint.id),
       used_time_windows: preserveWaypointOrder ? false : true,
       api_call_count: routeCallCount
