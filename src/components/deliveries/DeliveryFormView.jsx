@@ -62,7 +62,7 @@ const TravelModeButtons = ({ value, onChange, disabled, currentUser, appUsers = 
               await onChange(option.value, currentUser, appUsers);
             }}
             disabled={disabled}
-            className={`${useMobileLayout ? 'h-7 w-10 rounded-full' : 'h-9 w-9 rounded-full'} border transition-all flex items-center justify-center ${isActive ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white text-slate-700'}`}>
+            className={`${useMobileLayout ? 'h-7 w-12 rounded-full' : 'h-8 w-14 rounded-full'} border transition-all flex items-center justify-center ${isActive ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white text-slate-700'}`}>
             <Icon className="w-4 h-4" />
           </button>);
 
