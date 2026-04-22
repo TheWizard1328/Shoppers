@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { RefreshCw, FlaskConical } from 'lucide-react';
 import DemoModeDialog from '@/components/demo/DemoModeDialog';
 import {
@@ -33,19 +33,33 @@ export default function SettingsMenu({
   const isMobileForTheme = isMobileDeviceForTheme();
   const [showDemoModeDialog, setShowDemoModeDialog] = useState(false);
   const [isDemoActive, setIsDemoActive] = useState(false);
+  const demoStateLoadedRef = useRef(false);
+  const demoStateLoadingRef = useRef(false);
 
   useEffect(() => {
-    const loadDemoState = async () => {
-      const me = await base44.auth.me();
-      const rows = await base44.entities.DemoSettings.filter({ user_id: me.id });
-      setIsDemoActive(rows?.[0]?.is_demo_mode_active === true);
+    if (!currentUser?.app_roles?.includes('admin')) return;
+
+    const loadDemoState = async (force = false) => {
+      if (demoStateLoadingRef.current) return;
+      if (demoStateLoadedRef.current && !force) return;
+
+      demoStateLoadingRef.current = true;
+      try {
+        const rows = await base44.entities.DemoSettings.filter({ user_id: currentUser.id });
+        setIsDemoActive(rows?.[0]?.is_demo_mode_active === true);
+        demoStateLoadedRef.current = true;
+      } catch (error) {
+        if (error?.message?.includes('Rate limit exceeded')) return;
+      } finally {
+        demoStateLoadingRef.current = false;
+      }
     };
 
     loadDemoState();
-    const handler = () => loadDemoState();
+    const handler = () => loadDemoState(true);
     window.addEventListener('demoModeChanged', handler);
     return () => window.removeEventListener('demoModeChanged', handler);
-  }, []);
+  }, [currentUser?.id, currentUser?.app_roles]);
   
   return (
     <>
