@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Target, Maximize2, Minimize2 } from 'lucide-react';
 import { isMobileDevice } from '@/components/utils/deviceUtils';
 import { fabControlEvents } from '@/components/utils/fabControlEvents';
 
-export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards = false, isAIVisible = false, isLocked = false, isEnabled = true, stopCardsHeight = 75 }) {
+export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards = false, isAIVisible = false, isLocked = false, isEnabled = true, stopCardsHeight = 75, isMotionDimmed = false }) {
   const [isFlashing, setIsFlashing] = useState(false);
   const [isTemporarilyDeactivated, setIsTemporarilyDeactivated] = useState(false);
   const flashTimeoutRef = useRef(null);
@@ -77,6 +77,11 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
   // CRITICAL: Fixed position - uses base collapsed height, doesn't move with expansion
   const bottomPixels = (hasVisibleCards ? stopCardsHeight : 0) + 10;
   const fabPosition = isMobileDevice() ? 'absolute' : 'fixed';
+
+  const fabOpacity = useMemo(() => {
+    if (!isEnabled) return 0.65;
+    return isMotionDimmed ? 0.45 : 1;
+  }, [isEnabled, isMotionDimmed]);
 
   // Get icon based on current phase (always white icon)
   const getIcon = () => {
@@ -150,7 +155,7 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
                     : !isLocked
                       ? 'bg-blue-600 hover:bg-blue-700'
                       : 'bg-blue-600 hover:bg-blue-700'
-          }`} style={{ pointerEvents: 'auto', touchAction: 'manipulation', opacity: isEnabled ? 1 : 0.65, cursor: isEnabled ? 'pointer' : 'not-allowed' }}>
+          }`} style={{ pointerEvents: 'auto', touchAction: 'manipulation', opacity: fabOpacity, cursor: isEnabled ? 'pointer' : 'not-allowed' }}>
           {/* Mode number in top-left corner */}
           <span className="absolute top-1 left-1 text-white font-bold text-[10px]">
             {currentPhase}

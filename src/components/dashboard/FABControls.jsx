@@ -10,7 +10,7 @@ import MapViewCycleFAB from "@/components/dashboard/MapViewCycleFAB";
 import { isMobileDevice } from '@/components/utils/deviceUtils';
 import { invalidateDeliveriesForDate } from "@/components/utils/dataManager";
 import { fabControlEvents } from "@/components/utils/fabControlEvents";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 
 const buildRadiusBoundsFromStore = (store, radiusKm = 2.5) => {
   if (!store?.latitude || !store?.longitude) return [];
@@ -62,6 +62,12 @@ export default function FABControls({
   const isMapCycleEnabled = activeStopCount > 0;
   const fabPosition = isMobileDevice() ? 'absolute' : 'fixed';
   const selectedStore = stores.find((store) => store?.id === filteredDeliveries?.[0]?.store_id);
+  const isPrimaryDriverDeviceInMotion = useMemo(() => {
+    if (!isDriver) return false;
+    const isPrimaryDevice = currentUser?.driver_status === 'on_duty' && driverLocation?.source !== 'shared_location';
+    const speed = Number(driverLocation?.speed ?? 0);
+    return isPrimaryDevice && speed > 0;
+  }, [isDriver, currentUser?.driver_status, driverLocation]);
 
   return (
     <>
@@ -73,7 +79,7 @@ export default function FABControls({
           setMapZoom(null);
         }
         handleMapViewCycle();
-      }} currentPhase={mapViewPhase} hasVisibleCards={deliveriesWithStopOrder.length > 0} isAIVisible={showAIAssistant && isAIEnabled} isLocked={isMapViewLocked} isEnabled={isMapCycleEnabled} stopCardsHeight={cardsReadyForFAB ? stopCardsBaseHeight : 0} />
+      }} currentPhase={mapViewPhase} hasVisibleCards={deliveriesWithStopOrder.length > 0} isAIVisible={showAIAssistant && isAIEnabled} isLocked={isMapViewLocked} isEnabled={isMapCycleEnabled} stopCardsHeight={cardsReadyForFAB ? stopCardsBaseHeight : 0} isMotionDimmed={isPrimaryDriverDeviceInMotion} />
 
       {isAppOwner(currentUser) && selectedDriverId !== 'all' &&
         <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }} transition={{ type: "spring", stiffness: 260, damping: 20 }} className="z-[100]"
@@ -121,7 +127,7 @@ export default function FABControls({
             disabled={isReoptimizing || isDateFinished || !filteredDeliveries.some(d => d && d.status === 'in_transit')}
             title="Re-optimize entire route using Google Maps"
             className={`inline-flex items-center justify-center h-10 w-10 rounded-lg shadow-2xl p-0 transition-all duration-200 ${isReoptimizing ? 'bg-amber-500 hover:bg-amber-600' : 'bg-emerald-600 hover:bg-emerald-700'}`}
-            style={{ pointerEvents: 'auto', touchAction: 'manipulation' }}>
+            style={{ pointerEvents: 'auto', touchAction: 'manipulation', opacity: isPrimaryDriverDeviceInMotion ? 0.45 : 1 }}>
             {isReoptimizing ? <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full" /> : <Navigation className="w-5 h-5 text-white" />}
           </Button>
         </motion.div>
