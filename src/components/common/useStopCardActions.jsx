@@ -531,10 +531,12 @@ export default function useStopCardActions(params) {
           }
         });
 
-        Promise.all([
-          ensureDriverOnline(),
-          userHasRole(currentUser, 'driver') && currentUser.id === delivery.driver_id ? notifyDriverStarted({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name, delivery, store, appUsers }) : Promise.resolve()
-        ]).catch(() => {});
+        Promise.resolve().then(async () => {
+          await ensureDriverOnline().catch(() => {});
+          if (userHasRole(currentUser, 'driver') && currentUser.id === delivery.driver_id) {
+            await notifyDriverStarted({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name, delivery, store, appUsers }).catch(() => {});
+          }
+        });
       } catch (error) {
         toast.error(`Failed to start: ${error.message}`);
       } finally {

@@ -262,6 +262,6 @@ Deno.serve(async (req) => {
       errorMessage: err?.message || 'Unknown error',
       callCount: routeCallCount || 1,
     });
-    return buildFallback(origin, destination, { error: err?.message || 'Unknown error' }, waypoints);
+    return buildFallback(origin, destination, { error: err?.message || 'Unknown error' }, []);
   }
 });
