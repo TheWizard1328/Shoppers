@@ -40,7 +40,25 @@ export default function HereType2Polylines({
   const requestTimesRef = useRef({});
 
   useEffect(() => {
-    const handleDriverRoutePolylinesUpdated = () => {
+    const handleDriverRoutePolylinesUpdated = async (event) => {
+      const updatedPolylines = event?.detail?.polylines || [];
+      if (updatedPolylines.length > 0) {
+        setCache((prev) => {
+          const next = { ...prev };
+          updatedPolylines.forEach((row) => {
+            if (!row?.encoded_polyline) return;
+            const key = `here_${normalizeTravelMode(row.transport_mode || 'driving')}_${Number(row.segment_origin_lat).toFixed(5)}_${Number(row.segment_origin_lon).toFixed(5)}_${Number(row.segment_dest_lat).toFixed(5)}_${Number(row.segment_dest_lon).toFixed(5)}`;
+            try {
+              const coords = decodePolyline(row.encoded_polyline);
+              if (Array.isArray(coords) && coords.length > 1) {
+                next[key] = coords;
+                localStorage.setItem(key, JSON.stringify(coords));
+              }
+            } catch (_) {}
+          });
+          return next;
+        });
+      }
       setRefreshToken((token) => token + 1);
     };
     window.addEventListener('driverRoutePolylinesUpdated', handleDriverRoutePolylinesUpdated);
@@ -231,7 +249,10 @@ export default function HereType2Polylines({
         const jitter = Math.min(800, i * 75 + Math.floor(Math.random() * 120));
         (async () => {
           const ok = await hydrateFromOffline(key, driverId, { latitude: Number(a.latitude), longitude: Number(a.longitude) }, { latitude: Number(b.latitude), longitude: Number(b.longitude) }, a.delivery_date);
-          if (ok) return;
+          if (ok) {
+            setRefreshToken((token) => token + 1);
+            return;
+          }
           setTimeout(() => {
             getHerePolyline(driverId, { latitude: Number(a.latitude), longitude: Number(a.longitude) }, { latitude: Number(b.latitude), longitude: Number(b.longitude) }, a.delivery_date, getDriverMode(driverId)).then((coords) => {
               if (Array.isArray(coords) && coords.length > 1) setCache((p) => ({ ...p, [key]: coords }));
