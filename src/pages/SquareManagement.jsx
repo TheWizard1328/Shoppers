@@ -720,7 +720,7 @@ export default function SquareManagement() {
           </div>
         )
       };
-    }).sort((a, b) => String(a.itemName || '').localeCompare(String(b.itemName || ''), undefined, { sensitivity: 'base' }));
+    }).sort((a, b) => String(b.itemName || '').localeCompare(String(a.itemName || ''), undefined, { sensitivity: 'base' }));
   }, [allTransactions, lookbackStart, visibleStoreIds, visibleLocationIds, selectedDriverFilter, selectedDriverUserIds, locationConfigs, stores, deliveries, drivers, getTransactionSearchNames]);
 
   const filteredCatalogRows = useMemo(() => {
