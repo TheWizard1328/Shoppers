@@ -458,8 +458,8 @@ export default function DeliveryFormView({
           }
 
           <CardContent className={`p-3 flex-1 relative ${useMobileLayout ? 'overflow-y-auto overflow-x-hidden min-h-0' : 'overflow-hidden'}`}>
-            <div className={`h-full min-h-0 ${!delivery && !useMobileLayout && !isPickupMode ? 'grid grid-cols-[minmax(0,1fr)_300px] gap-3' : 'flex flex-col gap-3'}`}>
-              <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
+            <div className={`${useMobileLayout ? 'min-h-0' : 'h-full min-h-0'} ${!delivery && !useMobileLayout && !isPickupMode ? 'grid grid-cols-[minmax(0,1fr)_300px] gap-3' : 'flex flex-col gap-3'}`}>
+              <div className={`min-h-0 flex flex-col gap-3 ${useMobileLayout ? 'overflow-visible' : 'overflow-hidden'}`}>
 
               {/* Pickup mode: Row 1 = Location + Date + Driver */}
               {isPickupMode && !delivery &&
