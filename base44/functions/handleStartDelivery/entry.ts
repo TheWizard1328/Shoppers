@@ -5,6 +5,10 @@ const isRateLimitError = (error) => error?.status === 429 || error?.response?.st
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const isValidObjectId = (value) => typeof value === 'string' && /^[a-f0-9]{24}$/i.test(value);
+const getCurrentLocalTimeString = () => {
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+};
 
 Deno.serve(async (req) => {
   try {
@@ -66,6 +70,33 @@ Deno.serve(async (req) => {
 
     console.log('🔄 [handleStartDelivery] Selected delivery marked as next stop');
 
+    let optimization = {
+      skipped: true,
+      reason: 'start_delivery_no_full_reoptimization'
+    };
+
+    try {
+      const optimizationResponse = await base44.asServiceRole.functions.invoke('optimizeRouteRealTime', {
+        driverId,
+        deliveryDate,
+        currentLocalTime: getCurrentLocalTimeString()
+      });
+      const optimizationData = optimizationResponse?.data || optimizationResponse || {};
+      optimization = {
+        ...optimizationData,
+        skipped: optimizationData?.success !== true
+      };
+    } catch (error) {
+      if (isRateLimitError(error)) {
+        optimization = {
+          deferred: true,
+          reason: 'rate_limited'
+        };
+      } else {
+        console.warn('⚠️ [handleStartDelivery] optimizeRouteRealTime failed:', error?.message || error);
+      }
+    }
+
     console.log(`✅ [handleStartDelivery] Started new delivery: ${deliveryId}`);
 
     return Response.json({
@@ -73,11 +104,8 @@ Deno.serve(async (req) => {
       distanceTransferred: 0,
       newNextDeliveryId: deliveryId,
       oldNextDeliveryId,
-      routeChanged: false,
-      optimization: {
-        skipped: true,
-        reason: 'start_delivery_no_full_reoptimization'
-      }
+      routeChanged: optimization?.routeChanged === true,
+      optimization
     });
 
   } catch (error) {
