@@ -20,7 +20,8 @@ export default function StopCardFooter(props) {
   const selectedDriverId = props?.delivery?.driver_id;
   const selectedDate = props?.delivery?.delivery_date;
   const allDeliveries = Array.isArray(props?.allDeliveries) ? props.allDeliveries : [];
-  const dispatcherRouteStops = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && !isAppOwner(currentUser)
+  const isDispatcherOnly = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && !isAppOwner(currentUser);
+  const dispatcherRouteStops = isDispatcherOnly
     ? allDeliveries.filter((item) => item && item.driver_id === selectedDriverId && item.delivery_date === selectedDate && dispatcherStoreIds.includes(item.store_id))
     : [];
   const hasIncompleteStopsForDispatcher = dispatcherRouteStops.some((item) => !finishedStatuses.includes(item?.status));
@@ -28,9 +29,9 @@ export default function StopCardFooter(props) {
   const shouldShowFooter = (() => {
     if (shouldCondenseCompletedRouteForDriver) return false;
     if (!isAppOwner(currentUser) && !userHasRole(currentUser, 'admin') && isStrippedForDispatcher) return false;
-    if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && !isAppOwner(currentUser) && !hasIncompleteStopsForDispatcher) return false;
+    if (isDispatcherOnly) return false;
     if (isExpanded) return true;
-    return isAppOwner(currentUser) || userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || isAssignedDriverOrAppOwner || canEdit;
+    return isAppOwner(currentUser) || userHasRole(currentUser, 'admin') || isAssignedDriverOrAppOwner || canEdit;
   })();
 
   if (!shouldShowFooter) return null;
