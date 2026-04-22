@@ -12,7 +12,7 @@ const modeConfig = {
 export default function TravelModeButton({ currentUser, appUsers = [], value, onChange, disabled = false }) {
   const appUser = appUsers.find((user) => user?.user_id === currentUser?.id);
   const [optimisticMode, setOptimisticMode] = useState(normalizeTravelMode(value));
-  const currentMode = normalizeTravelMode(value || optimisticMode);
+  const currentMode = optimisticMode;
   const isCycling = currentMode === 'cycling';
   const isWalking = currentMode === 'pedestrian';
   const CurrentIcon = isCycling ? Bike : Car;
@@ -28,8 +28,8 @@ export default function TravelModeButton({ currentUser, appUsers = [], value, on
     window.dispatchEvent(new CustomEvent('driverTravelModeChanged', {
       detail: { driverId: currentUser?.id, travelMode: nextValue }
     }));
-    await updatePreferredTravelMode(appUsers, currentUser?.id, nextValue);
     onChange?.(nextValue);
+    await updatePreferredTravelMode(appUsers, currentUser?.id, nextValue);
   };
 
   if (!currentUser) return null;
