@@ -37,6 +37,7 @@ export default function FABControls({
   optimizationMessage, setOptimizationMessage,
   setIsEntityUpdating,
   isAIEnabled, showAIAssistant,
+  isDriverMovingForFAB,
   refreshData,
 }) {
   useEffect(() => {
@@ -64,10 +65,8 @@ export default function FABControls({
   const selectedStore = stores.find((store) => store?.id === filteredDeliveries?.[0]?.store_id);
   const isPrimaryDriverDeviceInMotion = useMemo(() => {
     if (!isDriver) return false;
-    const isPrimaryDevice = currentUser?.driver_status === 'on_duty' && driverLocation?.source !== 'shared_location';
-    const speed = Number(driverLocation?.speed ?? 0);
-    return isPrimaryDevice && speed > 0;
-  }, [isDriver, currentUser?.driver_status, driverLocation]);
+    return isDriverMovingForFAB === true;
+  }, [isDriver, isDriverMovingForFAB]);
 
   return (
     <>

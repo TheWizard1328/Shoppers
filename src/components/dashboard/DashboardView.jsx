@@ -66,6 +66,7 @@ export default function DashboardView({
   preferredTravelMode, onTravelModeChange,
   // Live ETA
   realTimeETAEnabled,
+  isDriverMovingForFAB,
   // Misc
   refreshUser, refreshData, dataSource,
 }) {
@@ -266,6 +267,7 @@ export default function DashboardView({
           optimizationMessage={optimizationMessage} setOptimizationMessage={setOptimizationMessage}
           setIsEntityUpdating={setIsEntityUpdating}
           isAIEnabled={isAIEnabled} showAIAssistant={showAIAssistant}
+          isDriverMovingForFAB={isDriverMovingForFAB}
           refreshData={refreshData}
         />
       }

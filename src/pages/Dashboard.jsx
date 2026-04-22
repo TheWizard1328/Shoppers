@@ -168,7 +168,7 @@ function Dashboard() {
     return saved !== null ? saved === 'true' : true;
   });
   const [showAIAssistant, setShowAIAssistant] = useState(false);
-  const [driverLocation, setDriverLocation] = useState(null);
+  const [driverLocation, setDriverLocation] = useState(null), [isDriverMovingForFAB, setIsDriverMovingForFAB] = useState(false);
   const [hasUnreadAIAlerts, setHasUnreadAIAlerts] = useState(false);
   const [showPatientForm, setShowPatientForm] = useState(false);
   const [editingPatient, setEditingPatient] = useState(null);
@@ -1456,12 +1456,12 @@ function Dashboard() {
     };
   }, [isDriver, currentUser, isMobile, deliveriesWithStopOrder, patients, stores, mapViewPhase, getMapPadding, appUsers]);
 
-  // REMOVED: Driver location updates should NOT trigger FAB reactivation
-  // FAB only reactivates on:
-  // 1. Manual FAB click
-  // 2. Driver/date change
-  // 3. Smart refresh complete (with actual data changes)
-  // 4. App load/page load
+  useEffect(() => {
+    const handleDriverMotionChanged = (event) => setIsDriverMovingForFAB(event.detail?.isMoving === true);
+    window.addEventListener('driverMotionChanged', handleDriverMotionChanged);
+    return () => window.removeEventListener('driverMotionChanged', handleDriverMotionChanged);
+  }, []);
+
   // GPS location updates are passive and should not trigger map repositioning
 
   useEffect(() => {
@@ -5275,7 +5275,7 @@ function Dashboard() {
     routeNotification, setRouteNotification,
     isSnapshotModeActive, setIsSnapshotModeActive, snapshotData, setSnapshotData,
     performanceStats, deliveryStats, liveDistance, liveTimeOnDuty, isLoadingPayrollStats,
-    dailyPolylineCount, isAIEnabled, showAIAssistant, preferredTravelMode, realTimeETAEnabled,
+    dailyPolylineCount, isAIEnabled, showAIAssistant, preferredTravelMode, realTimeETAEnabled, isDriverMovingForFAB,
     refreshUser, refreshData, dataSource
   });
 

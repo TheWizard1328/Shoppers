@@ -23,6 +23,8 @@ class LiveDistanceTracker {
     this.accumulatedDistance = 0; // Distance accumulated for current next delivery
     this.dutyStartTime = null; // When driver went on_duty
     this.totalTimeOnDuty = 0; // Total minutes on duty
+    this.isMoving = false;
+    this.movementThresholdKm = 0.05; // 50 meters
   }
 
   /**
@@ -104,6 +106,10 @@ class LiveDistanceTracker {
     this.currentUser = null;
     this.lastPosition = null;
     this.accumulatedDistance = 0;
+    this.isMoving = false;
+    window.dispatchEvent(new CustomEvent('driverMotionChanged', {
+      detail: { isMoving: false, distanceMovedMeters: 0 }
+    }));
     
     // DON'T reset totalTimeOnDuty - it should persist after route completion
     // this.totalTimeOnDuty = 0;
@@ -251,6 +257,17 @@ class LiveDistanceTracker {
         );
         
         console.log(`📏 [LiveDistanceTracker] Moved ${(distanceMoved * 1000).toFixed(0)}m since last check`);
+      }
+
+      const isMovingNow = distanceMoved >= this.movementThresholdKm;
+      if (this.isMoving !== isMovingNow) {
+        this.isMoving = isMovingNow;
+        window.dispatchEvent(new CustomEvent('driverMotionChanged', {
+          detail: {
+            isMoving: isMovingNow,
+            distanceMovedMeters: Math.round(distanceMoved * 1000)
+          }
+        }));
       }
 
       // Update last position for next iteration
