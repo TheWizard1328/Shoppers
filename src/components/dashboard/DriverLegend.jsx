@@ -1,7 +1,13 @@
 import React from "react";
+import { sortUsers } from "@/components/utils/sorting";
 
 export default function DriverLegend({ legendRef, legendLeft, isStatsCardExpanded, driverRoutes, highlightedRouteId, setHighlightedRouteId, onLegendInteraction }) {
   if (!driverRoutes || driverRoutes.length === 0) return null;
+
+  const sortedRoutes = sortUsers(driverRoutes.map((route) => ({
+    ...route,
+    user_name: route.driverName,
+  })));
   return (
     <div
       ref={legendRef}
@@ -16,7 +22,7 @@ export default function DriverLegend({ legendRef, legendLeft, isStatsCardExpande
     >
       <div className="backdrop-blur-sm rounded-lg shadow-lg border px-3 py-2" style={{ background: 'var(--bg-white)', opacity: 0.95, borderColor: 'var(--border-slate-200)' }}>
         <div className="flex flex-wrap gap-x-3 gap-y-1.5 items-center justify-center">
-          {driverRoutes.map((route) => (
+          {sortedRoutes.map((route) => (
             <div
               key={route.driverId}
               className="flex items-center gap-1.5 cursor-pointer hover:opacity-70 transition-opacity"

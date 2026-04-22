@@ -1,5 +1,6 @@
 import React from "react";
 import { getDriverColor } from "@/components/dashboard/DeliveryMap";
+import { sortUsers } from "@/components/utils/sorting";
 
 export default function DriverLegendBar({
   legendRef,
@@ -12,6 +13,11 @@ export default function DriverLegendBar({
 }) {
   if (!legendData.length) return null;
 
+  const sortedLegendData = sortUsers(legendData.map((route) => ({
+    ...route,
+    user_name: route.driverName,
+  })));
+
   return (
     <div
       ref={legendRef}
@@ -21,7 +27,7 @@ export default function DriverLegendBar({
       onMouseLeave={onMouseLeave}
     >
       <div className="flex w-full flex-wrap gap-x-0.5 gap-y-0.5 items-center justify-center">
-        {legendData.map((route) => {
+        {sortedLegendData.map((route) => {
           const au = (appUsers || []).find((a) => a && a.user_id === route.driverId);
           const s = au?.driver_status;
           const isOnline = s === 'on_duty' || s === 'online' || (au?.location_updated_at && (Date.now() - new Date(au.location_updated_at).getTime() < 300000));
