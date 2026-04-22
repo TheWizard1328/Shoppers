@@ -673,7 +673,7 @@ export default function DeliveryFormView({
               </div>
                 }
 
-              {renderDeliveryIdentifiersSection({
+              {!(isPickupMode && !isAppOwner(currentUser)) && renderDeliveryIdentifiersSection({
                   delivery,
                   isAppOwner,
                   currentUser,
