@@ -25,6 +25,7 @@ import LocationTrackingToggle from "@/components/layout/LocationTrackingToggle";
 import { saveSetting } from "@/components/utils/userSettingsManager";
 import { getDriverColor } from "@/components/utils/driverUtils";
 import { loadBreadcrumbsForDriver } from "@/components/utils/breadcrumbsManager";
+import { sortUsers } from "@/components/utils/sorting";
 
 export default function StatsPanel({
   currentUser, isDriver, isAdmin, isDispatcher,
@@ -120,11 +121,12 @@ export default function StatsPanel({
     const driverIdsWithStops = new Set(legendDeliveries.map((delivery) => delivery.driver_id));
     const finishedStatuses = new Set(['completed', 'failed', 'cancelled', 'returned']);
 
-    return Array.from(driverIdsWithStops).map((driverId) => {
+    return sortUsers(Array.from(driverIdsWithStops).map((driverId) => {
       const route = routeMap.get(driverId);
       const driverDeliveries = legendDeliveries.filter((delivery) => delivery.driver_id === driverId);
       const driverAppUser = (appUsers || []).find((appUser) => appUser?.user_id === driverId);
-      const driverName = route?.driverName || driverAppUser?.user_name || driversList.find((driver) => driver?.id === driverId)?.user_name || 'Unknown';
+      const driverListUser = driversList.find((driver) => driver?.id === driverId);
+      const driverName = route?.driverName || driverAppUser?.user_name || driverListUser?.user_name || driverListUser?.full_name || 'Unknown';
       const totalStops = driverDeliveries.filter((delivery) => {
         if (!delivery) return false;
         const isFinishedDelivery = !!delivery.patient_id && finishedStatuses.has(delivery.status);
@@ -141,9 +143,13 @@ export default function StatsPanel({
         totalStops,
         color: route?.color || getDriverColor({ id: driverId, user_name: driverName }),
         driverStatus: status,
-        hasHeartbeat
+        hasHeartbeat,
+        id: driverId,
+        user_id: driverId,
+        user_name: driverAppUser?.user_name || driverListUser?.user_name || driverListUser?.full_name || driverName,
+        sort_order: driverAppUser?.sort_order ?? driverListUser?.sort_order,
       };
-    }).sort((a, b) => a.driverName.localeCompare(b.driverName));
+    }));
   })();
 
   const getStatusColor = (status) => {
