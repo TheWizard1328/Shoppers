@@ -449,20 +449,6 @@ export default function StatsPanel({
                 <div className="border-t border-slate-200 mt-2 pt-2"></div>
                 <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} />
               </>}
-              {/* Dispatcher export button */}
-              {isDispatcher &&
-              <>
-                  <div className="border-t border-slate-200 mt-2 pt-2"></div>
-                  <div className="flex justify-end">
-                    <ExportRouteButton
-                    currentUser={currentUser}
-                    driverFilter={selectedDriverId}
-                    selectedDate={selectedDate}
-                    driverFilteredDeliveries={filteredDeliveries} />
-                  
-                  </div>
-                </>
-              }
             </motion.div>}
           </AnimatePresence>
         </motion.div>

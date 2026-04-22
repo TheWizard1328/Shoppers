@@ -79,7 +79,7 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
 
   return (
     <>
-      <div className="absolute left-6 z-[220] pointer-events-auto" style={{ bottom: `${Math.max((stopCardsHeight || 0) + 15, 24)}px` }}>
+      <div className="absolute left-6 z-[220] pointer-events-auto" style={{ bottom: `${(stopCardsHeight || 0) + 10}px` }}>
         <TooltipProvider delayDuration={200}>
           <Tooltip>
             <TooltipTrigger asChild>
