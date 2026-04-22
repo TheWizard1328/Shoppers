@@ -405,7 +405,7 @@ export default function DeliveryFormView({
         ref={formRef}
         initial={{ opacity: 0, scale: useMobileLayout && isMobileDevice ? 1 : 0.95 }}
         animate={{ opacity: 1, y: 0 }}
-        className={`w-full ${useMobileLayout && isMobileDevice ? 'h-[calc(100%-4rem)]' : !delivery ? isPickupMode ? 'max-w-[780px] h-[90vh] max-h-[90vh]' : 'max-w-[87.5rem] h-[90vh] max-h-[90vh]' : 'max-w-[50rem] h-[90vh] max-h-[90vh]'} flex`}>
+        className={`w-full ${useMobileLayout && isMobileDevice ? 'h-[calc(100%-4rem)]' : !delivery ? isPickupMode ? 'max-w-[780px] h-[90vh]' : 'max-w-[87.5rem] h-[90vh] max-h-[90vh]' : 'max-w-[50rem] h-[90vh] max-h-[90vh]'} flex`}>
         <Card
           onKeyDown={handleGlobalKeyDown}
           className={`border-0 flex flex-col w-full ${useMobileLayout && isMobileDevice ? 'h-full' : 'rounded-xl shadow-xl'}`}
@@ -459,7 +459,7 @@ export default function DeliveryFormView({
           }
 
           <CardContent className="p-3 flex-1 relative overflow-hidden">
-            <div className="h-full min-h-0 flex flex-col gap-3">
+            <div className={`h-full min-h-0 ${!delivery && !useMobileLayout && !isPickupMode ? 'grid grid-cols-[minmax(0,1fr)_300px] gap-3' : 'flex flex-col gap-3'}`}>
               <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
 
               {/* Pickup mode: Row 1 = Location + Date + Driver */}
@@ -578,7 +578,7 @@ export default function DeliveryFormView({
                       </> :
 
                     <>
-                        <div className="relative min-w-0">
+                        <div className="relative min-w-0 self-stretch">
                           <DeliveryPatientSearch
                           patientSearch={patientSearch} setPatientSearch={setPatientSearch}
                           selectedPatient={selectedPatient} filteredPatients={filteredPatients}
@@ -594,14 +594,12 @@ export default function DeliveryFormView({
                           handleSearchKeyDown={handleSearchKeyDown} />
                         </div>
 
-                        <div className="min-w-0 flex flex-col justify-end gap-1 p-3 rounded-lg border min-h-[88px]" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                          <div className="min-h-[28px]" />
+                        <div className="min-w-0 h-[102px] flex flex-col justify-end space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                           <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Date *</Label>
                           <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
                         </div>
 
-                        <div className={`min-w-0 flex flex-col justify-end gap-1 p-3 rounded-lg border min-h-[88px] ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                          <div className="min-h-[28px]" />
+                        <div className={`min-w-0 h-[102px] flex flex-col justify-end space-y-1 p-3 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                           <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver {delivery ? '*' : ''}</Label>
                           <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
                           const newDriverId = driverId === 'all' ? '' : driverId;
@@ -627,13 +625,11 @@ export default function DeliveryFormView({
 
                   <div className={`${useMobileLayout ? 'flex flex-col gap-3 w-full' : 'flex gap-3 flex-row w-full'}`}>
                     <div className={`${useMobileLayout ? 'grid grid-cols-2 gap-3 w-full min-[431px]:grid-cols-2 max-[430px]:grid-cols-1' : 'flex gap-3 flex-row w-full'}`}>
-                      <div className={`${useMobileLayout ? 'w-full min-[431px]:w-[calc(50%-0.375rem)]' : 'min-w-0 flex-1'} flex flex-col justify-end gap-1 p-3 rounded-lg border min-h-[88px]`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>                        <div className="min-h-[28px]" />
-                        <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Date *</Label>
+                      <div className={`${useMobileLayout ? 'w-full min-[431px]:w-[calc(50%-0.375rem)]' : 'min-w-0 flex-1'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>                        <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Date *</Label>
                         <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
                       </div>
 
-                      <div className={`${useMobileLayout ? 'w-[calc(50%-0.375rem)]' : 'min-w-0 flex-1'} flex flex-col justify-end gap-1 p-3 rounded-lg border min-h-[88px] ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                        <div className="min-h-[28px]" />
+                      <div className={`${useMobileLayout ? 'w-[calc(50%-0.375rem)]' : 'min-w-0 flex-1'} space-y-1 p-3 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                         <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver {delivery ? '*' : ''}</Label>
                         <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
                           const newDriverId = driverId === 'all' ? '' : driverId;
@@ -974,7 +970,7 @@ export default function DeliveryFormView({
           </CardContent>
 
           {/* Footer */}
-          <CardFooter className="flex items-center border-t p-3 flex-shrink-0" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+          <CardFooter className="border-t p-3 flex-shrink-0" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
             <div className="flex items-center justify-between w-full gap-4">
               <div className="flex items-center gap-4">
                 {!delivery && useMobileLayout && !isPickupMode &&
