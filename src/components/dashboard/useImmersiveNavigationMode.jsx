@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-const MOVING_HIDE_DELAY_MS = 60000;
+const MOVING_HIDE_DELAY_MS = 10000;
 const NEXT_STOP_RESTORE_DISTANCE_KM = 0.5;
 
 const calculateDistanceKm = (lat1, lon1, lat2, lon2) => {
