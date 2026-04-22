@@ -43,9 +43,9 @@ const CheckboxField = ({ id, label, checked, onChange, disabled }) =>
 
 const TravelModeButtons = ({ value, onChange, disabled, currentUser, appUsers = [] }) => {
   const options = [
-    { value: 'driving', label: 'Driving', icon: Car },
-    { value: 'cycling', label: 'Cycling', icon: Bike }
-  ];
+  { value: 'driving', label: 'Driving', icon: Car },
+  { value: 'cycling', label: 'Cycling', icon: Bike }];
+
 
   return (
     <div className="flex flex-row gap-2 shrink-0">
@@ -65,11 +65,11 @@ const TravelModeButtons = ({ value, onChange, disabled, currentUser, appUsers = 
             disabled={disabled}
             className={`h-9 w-9 rounded-full border transition-all flex items-center justify-center ${isActive ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white text-slate-700'}`}>
             <Icon className="w-4 h-4" />
-          </button>
-        );
+          </button>);
+
       })}
-    </div>
-  );
+    </div>);
+
 };
 
 const userHasRole = (user, role) => {
@@ -137,7 +137,7 @@ export default function DeliveryFormView({
     pending: sortedStagedDeliveries.filter((s) => s.id).length
   }), [sortedStagedDeliveries]);
   const [activeDeliveryAction, setActiveDeliveryAction] = React.useState(getActiveDeliveryAction());
-  const effectiveDeliveryActionBusy = isDeliveryActionBusy || (!!activeDeliveryAction && activeDeliveryAction !== 'update_delivery');
+  const effectiveDeliveryActionBusy = isDeliveryActionBusy || !!activeDeliveryAction && activeDeliveryAction !== 'update_delivery';
   const enterActionLockRef = React.useRef(false);
 
   React.useEffect(() => subscribeDeliveryActionLock(setActiveDeliveryAction), []);
@@ -229,18 +229,18 @@ export default function DeliveryFormView({
       driver_name: nextDriverName
     }));
   }, [
-    delivery,
-    editingStagedId,
-    isPickupMode,
-    isInterStoreMode,
-    selectedPatient?.id,
-    selectedPatient?.store_id,
-    selectedPatient?.time_window_start,
-    selectedPatient?.time_window_end,
-    formData?.delivery_date,
-    stores,
-    allDrivers
-  ]);
+  delivery,
+  editingStagedId,
+  isPickupMode,
+  isInterStoreMode,
+  selectedPatient?.id,
+  selectedPatient?.store_id,
+  selectedPatient?.time_window_start,
+  selectedPatient?.time_window_end,
+  formData?.delivery_date,
+  stores,
+  allDrivers]
+  );
 
   const stagedPanelProps = buildDeliveryStagedPanelProps({
     sortedStagedDeliveries,
@@ -327,13 +327,13 @@ export default function DeliveryFormView({
       if (e.target === patientSearchInputRef?.current || e.target.closest?.('button, footer, [role="combobox"], [data-radix-select-trigger], [data-hotkey-add="false"]')) {
         return;
       }
-      
+
       e.preventDefault();
       e.stopPropagation();
-      
+
       if (enterActionLockRef.current || isSaving || effectiveDeliveryActionBusy) return;
       enterActionLockRef.current = true;
-      setTimeout(() => { enterActionLockRef.current = false; }, 400);
+      setTimeout(() => {enterActionLockRef.current = false;}, 400);
 
       if (buttonState === 'done') {
         const isDisabled = isSaving || effectiveDeliveryActionBusy || !hasChanges;
@@ -346,7 +346,7 @@ export default function DeliveryFormView({
           runLockedAction('update_staged_delivery', handleUpdateStaged);
         }
       } else if (buttonState === 'add') {
-        const isDisabled = isSaving || effectiveDeliveryActionBusy || !hasSelectedLocationAndDriver || (!isFormValid && !hasSelectedLocationAndDriver) || (requiresDriverSelection && !hasSelectedLocationAndDriver);
+        const isDisabled = isSaving || effectiveDeliveryActionBusy || !hasSelectedLocationAndDriver || !isFormValid && !hasSelectedLocationAndDriver || requiresDriverSelection && !hasSelectedLocationAndDriver;
         if (!isDisabled) {
           runLockedAction('add_staged_delivery', async () => {
             await handleAddToStaging();
@@ -368,16 +368,16 @@ export default function DeliveryFormView({
             await handleSubmit(e);
 
             const affectedRoutes = [
-              [driverId, deliveryDate],
-              [previousDriverId, previousDeliveryDate]
-            ].filter(([routeDriverId, routeDeliveryDate]) => routeDriverId && routeDeliveryDate);
+            [driverId, deliveryDate],
+            [previousDriverId, previousDeliveryDate]].
+            filter(([routeDriverId, routeDeliveryDate]) => routeDriverId && routeDeliveryDate);
 
             await Promise.all(
-              Array.from(new Set(affectedRoutes.map(([routeDriverId, routeDeliveryDate]) => `${routeDriverId}__${routeDeliveryDate}`)))
-                .map((key) => {
-                  const [routeDriverId, routeDeliveryDate] = key.split('__');
-                  return recalculateAndUpdateStopOrders(routeDriverId, routeDeliveryDate);
-                })
+              Array.from(new Set(affectedRoutes.map(([routeDriverId, routeDeliveryDate]) => `${routeDriverId}__${routeDeliveryDate}`))).
+              map((key) => {
+                const [routeDriverId, routeDeliveryDate] = key.split('__');
+                return recalculateAndUpdateStopOrders(routeDriverId, routeDeliveryDate);
+              })
             );
 
             setFormData((prev) => ({ ...prev, barcode_values: [], receipt_barcode_values: [], _preview_barcode: null }));
@@ -405,7 +405,7 @@ export default function DeliveryFormView({
         ref={formRef}
         initial={{ opacity: 0, scale: useMobileLayout && isMobileDevice ? 1 : 0.95 }}
         animate={{ opacity: 1, y: 0 }}
-        className={`w-full ${useMobileLayout && isMobileDevice ? 'h-[calc(100%-4rem)]' : !delivery ? isPickupMode ? 'max-w-[780px] max-h-[90vh]' : 'max-w-[87.5rem] max-h-[90vh]' : 'max-w-[50rem] max-h-[90vh]'} flex`}>
+        className={`w-full ${useMobileLayout && isMobileDevice ? 'h-[calc(100%-4rem)]' : !delivery ? isPickupMode ? 'max-w-[780px] max-h-[95vh]' : 'max-w-[87.5rem] max-h-[95vh]' : 'max-w-[50rem] max-h-[95vh]'} flex`}>
         <Card
           onKeyDown={handleGlobalKeyDown}
           className={`border-0 flex flex-col w-full ${useMobileLayout && isMobileDevice ? 'h-full' : 'rounded-xl shadow-xl'}`}
@@ -464,41 +464,41 @@ export default function DeliveryFormView({
 
               {/* Pickup mode: Row 1 = Location + Date + Driver */}
               {isPickupMode && !delivery &&
-              <div className={`flex ${useMobileLayout ? 'flex-col gap-3' : 'gap-3'}`}>
+                <div className={`flex ${useMobileLayout ? 'flex-col gap-3' : 'gap-3'}`}>
                 <div className="flex-1 space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                   <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Pickup Location *</Label>
                   <Select value={selectedPickupOption} onValueChange={(value) => {
-                  setSelectedPickupOption(value);
-                  const sel = availableStores.find((s) => s.id === value);
-                  const storeId = sel?._originalStoreId || value;
-                  const requestedSlot = sel?._timeSlot || 'AM';
-                  const { driverId: defaultDriverId, resolvedSlot, hasAnyAssignedSlot } = getDefaultDriverForStoreSlot(storeId, requestedSlot, formData.delivery_date);
-                  const effectiveSlot = resolvedSlot || requestedSlot;
-                  const newPuid = getPickupStopIdForDelivery(storeId, formData.delivery_date, effectiveSlot, allDeliveries);
-                  const defaultDriver = defaultDriverId ? allDrivers.find((d) => d.id === defaultDriverId) : null;
-                  setFormData((prev) => ({
-                    ...prev,
-                    store_id: storeId,
-                    ampm_deliveries: effectiveSlot,
-                    puid: newPuid || '',
-                    driver_id: defaultDriver ? defaultDriverId : '',
-                    driver_name: defaultDriver ? getDriverNameForStorage(defaultDriver) : ''
-                  }));
-                  if (!hasAnyAssignedSlot) {
-                    setTimeout(() => setForceOpenDriverSelect(true), 150);
-                  } else {
-                    setForceOpenDriverSelect(false);
-                  }
-                }} disabled={isSaving}>
+                      setSelectedPickupOption(value);
+                      const sel = availableStores.find((s) => s.id === value);
+                      const storeId = sel?._originalStoreId || value;
+                      const requestedSlot = sel?._timeSlot || 'AM';
+                      const { driverId: defaultDriverId, resolvedSlot, hasAnyAssignedSlot } = getDefaultDriverForStoreSlot(storeId, requestedSlot, formData.delivery_date);
+                      const effectiveSlot = resolvedSlot || requestedSlot;
+                      const newPuid = getPickupStopIdForDelivery(storeId, formData.delivery_date, effectiveSlot, allDeliveries);
+                      const defaultDriver = defaultDriverId ? allDrivers.find((d) => d.id === defaultDriverId) : null;
+                      setFormData((prev) => ({
+                        ...prev,
+                        store_id: storeId,
+                        ampm_deliveries: effectiveSlot,
+                        puid: newPuid || '',
+                        driver_id: defaultDriver ? defaultDriverId : '',
+                        driver_name: defaultDriver ? getDriverNameForStorage(defaultDriver) : ''
+                      }));
+                      if (!hasAnyAssignedSlot) {
+                        setTimeout(() => setForceOpenDriverSelect(true), 150);
+                      } else {
+                        setForceOpenDriverSelect(false);
+                      }
+                    }} disabled={isSaving}>
                     <SelectTrigger className="h-9"><SelectValue placeholder="Select store" /></SelectTrigger>
                     <SelectContent className="z-[999999]">
                       {availableStores.map((store) => {
-                      const baseId = store._originalStoreId || store.id;
-                      const ts = store._timeSlot || null;
-                      const puid = getPickupStopIdForDelivery(baseId, formData.delivery_date, ts || 'AM', allDeliveries);
-                      const baseName = store._originalStoreId ? store.name.replace(/ \[AM\]| \[PM\]/, '') : store.name;
-                      return <SelectItem key={store.id} value={store.id}>{`${baseName}${store._timeSlot ? ` [${store._timeSlot}]` : ''}`}</SelectItem>;
-                    })}
+                          const baseId = store._originalStoreId || store.id;
+                          const ts = store._timeSlot || null;
+                          const puid = getPickupStopIdForDelivery(baseId, formData.delivery_date, ts || 'AM', allDeliveries);
+                          const baseName = store._originalStoreId ? store.name.replace(/ \[AM\]| \[PM\]/, '') : store.name;
+                          return <SelectItem key={store.id} value={store.id}>{`${baseName}${store._timeSlot ? ` [${store._timeSlot}]` : ''}`}</SelectItem>;
+                        })}
                     </SelectContent>
                   </Select>
                 </div>
@@ -509,12 +509,12 @@ export default function DeliveryFormView({
                 <div className="flex-1 space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                   <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver</Label>
                   <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
-                  const newDriverId = driverId === 'all' ? '' : driverId;
-                  const driver = driverId === 'all' ? null : allDrivers.find((d) => d.id === driverId);
-                  const newDriverName = driver ? getDriverNameForStorage(driver) : '';
-                  setFormData((prev) => ({ ...prev, driver_id: newDriverId, driver_name: newDriverName }));
-                  setForceOpenDriverSelect(false);
-                }} disabled={isSaving}>
+                      const newDriverId = driverId === 'all' ? '' : driverId;
+                      const driver = driverId === 'all' ? null : allDrivers.find((d) => d.id === driverId);
+                      const newDriverName = driver ? getDriverNameForStorage(driver) : '';
+                      setFormData((prev) => ({ ...prev, driver_id: newDriverId, driver_name: newDriverName }));
+                      setForceOpenDriverSelect(false);
+                    }} disabled={isSaving}>
                     <SelectTrigger className="h-9"><SelectValue placeholder="Select driver" /></SelectTrigger>
                     <SelectContent className="z-[999999]">
                       <SelectItem value="all">All Drivers</SelectItem>
@@ -523,29 +523,29 @@ export default function DeliveryFormView({
                   </Select>
                 </div>
               </div>
-              }
+                }
 
               {/* Delivery mode: Patient Search / Date / Driver row */}
               {!(isPickupMode && !delivery) &&
-              <div className={`${useMobileLayout ? 'flex flex-col gap-3' : 'flex gap-3 w-full'} flex-shrink-0`}>
-                {!delivery && !isPickupMode ? (
+                <div className={`${useMobileLayout ? 'flex flex-col gap-3' : 'flex gap-3 w-full'} flex-shrink-0`}>
+                {!delivery && !isPickupMode ?
                   <div className={`${useMobileLayout ? 'flex flex-col gap-3 w-full' : 'min-w-0 grid grid-cols-[minmax(0,1.8fr)_minmax(11rem,1fr)_minmax(11rem,1fr)] gap-3 items-start w-full'}`}>
-                    {useMobileLayout ? (
-                      <>
+                    {useMobileLayout ?
+                    <>
                         <div className="relative min-w-0 w-full">
                           <DeliveryPatientSearch
-                            patientSearch={patientSearch} setPatientSearch={setPatientSearch}
-                            selectedPatient={selectedPatient} filteredPatients={filteredPatients}
-                            highlightedPatientIndex={highlightedPatientIndex} setHighlightedPatientIndex={setHighlightedPatientIndex}
-                            selectedPatientIds={selectedPatientIds} setSelectedPatientIds={setSelectedPatientIds}
-                            isMultiSelectMode={isMultiSelectMode} isSaving={isSaving} isScanning={isScanning}
-                            formData={formData} stores={stores} currentUser={currentUser}
-                            patientSearchInputRef={patientSearchInputRef} addPatientButtonRef={addPatientButtonRef}
-                            onPatientSelect={handlePatientSelect} onAddSelectedPatients={handleAddSelectedPatients}
-                            onStartCamera={() => {setShowCameraOverlay(true);startCamera();}}
-                            onDuplicatePatient={handleDuplicatePatient} onNewAddressPatient={handleNewAddressPatient}
-                            onCreatePatient={onCreatePatient} setIsPatientFormOpen={setIsPatientFormOpen}
-                            handleSearchKeyDown={handleSearchKeyDown} />
+                          patientSearch={patientSearch} setPatientSearch={setPatientSearch}
+                          selectedPatient={selectedPatient} filteredPatients={filteredPatients}
+                          highlightedPatientIndex={highlightedPatientIndex} setHighlightedPatientIndex={setHighlightedPatientIndex}
+                          selectedPatientIds={selectedPatientIds} setSelectedPatientIds={setSelectedPatientIds}
+                          isMultiSelectMode={isMultiSelectMode} isSaving={isSaving} isScanning={isScanning}
+                          formData={formData} stores={stores} currentUser={currentUser}
+                          patientSearchInputRef={patientSearchInputRef} addPatientButtonRef={addPatientButtonRef}
+                          onPatientSelect={handlePatientSelect} onAddSelectedPatients={handleAddSelectedPatients}
+                          onStartCamera={() => {setShowCameraOverlay(true);startCamera();}}
+                          onDuplicatePatient={handleDuplicatePatient} onNewAddressPatient={handleNewAddressPatient}
+                          onCreatePatient={onCreatePatient} setIsPatientFormOpen={setIsPatientFormOpen}
+                          handleSearchKeyDown={handleSearchKeyDown} />
                         </div>
 
                         <div className="grid grid-cols-2 gap-3 w-full">
@@ -557,51 +557,6 @@ export default function DeliveryFormView({
                           <div className={`min-w-0 space-y-1 p-3 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                             <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver {delivery ? '*' : ''}</Label>
                             <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
-                              const newDriverId = driverId === 'all' ? '' : driverId;
-                              const driver = driverId === 'all' ? null : allDrivers.find((d) => d.id === driverId);
-                              const newDriverName = driver ? getDriverNameForStorage(driver) : '';
-                              setFormData((prev) => ({ ...prev, driver_id: newDriverId, driver_name: newDriverName }));
-                              if (editingStagedId) {
-                                setStagedDeliveries((prev) => prev.map((s) => s._tempId === editingStagedId ? { ...s, driver_id: newDriverId, driver_name: newDriverName } : s));
-                                setHasChanges(true);
-                              }
-                              setForceOpenDriverSelect(false);
-                            }} disabled={isSaving}>
-                              <SelectTrigger data-delivery-driver-select-trigger className="h-9"><SelectValue placeholder="Select driver" /></SelectTrigger>
-                              <SelectContent className="z-[999999]">
-                                {!delivery && <SelectItem value="all">All Drivers</SelectItem>}
-                                {allDrivers.map((driver) => <SelectItem key={driver.id} value={driver.id}>{getDriverDisplayName(driver)}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="relative min-w-0">
-                          <DeliveryPatientSearch
-                            patientSearch={patientSearch} setPatientSearch={setPatientSearch}
-                            selectedPatient={selectedPatient} filteredPatients={filteredPatients}
-                            highlightedPatientIndex={highlightedPatientIndex} setHighlightedPatientIndex={setHighlightedPatientIndex}
-                            selectedPatientIds={selectedPatientIds} setSelectedPatientIds={setSelectedPatientIds}
-                            isMultiSelectMode={isMultiSelectMode} isSaving={isSaving} isScanning={isScanning}
-                            formData={formData} stores={stores} currentUser={currentUser}
-                            patientSearchInputRef={patientSearchInputRef} addPatientButtonRef={addPatientButtonRef}
-                            onPatientSelect={handlePatientSelect} onAddSelectedPatients={handleAddSelectedPatients}
-                            onStartCamera={() => {setShowCameraOverlay(true);startCamera();}}
-                            onDuplicatePatient={handleDuplicatePatient} onNewAddressPatient={handleNewAddressPatient}
-                            onCreatePatient={onCreatePatient} setIsPatientFormOpen={setIsPatientFormOpen}
-                            handleSearchKeyDown={handleSearchKeyDown} />
-                        </div>
-
-                        <div className="min-w-0 space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Date *</Label>
-                          <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
-                        </div>
-
-                        <div className={`min-w-0 space-y-1 p-3 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver {delivery ? '*' : ''}</Label>
-                          <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
                             const newDriverId = driverId === 'all' ? '' : driverId;
                             const driver = driverId === 'all' ? null : allDrivers.find((d) => d.id === driverId);
                             const newDriverName = driver ? getDriverNameForStorage(driver) : '';
@@ -612,6 +567,51 @@ export default function DeliveryFormView({
                             }
                             setForceOpenDriverSelect(false);
                           }} disabled={isSaving}>
+                              <SelectTrigger data-delivery-driver-select-trigger className="h-9"><SelectValue placeholder="Select driver" /></SelectTrigger>
+                              <SelectContent className="z-[999999]">
+                                {!delivery && <SelectItem value="all">All Drivers</SelectItem>}
+                                {allDrivers.map((driver) => <SelectItem key={driver.id} value={driver.id}>{getDriverDisplayName(driver)}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      </> :
+
+                    <>
+                        <div className="relative min-w-0">
+                          <DeliveryPatientSearch
+                          patientSearch={patientSearch} setPatientSearch={setPatientSearch}
+                          selectedPatient={selectedPatient} filteredPatients={filteredPatients}
+                          highlightedPatientIndex={highlightedPatientIndex} setHighlightedPatientIndex={setHighlightedPatientIndex}
+                          selectedPatientIds={selectedPatientIds} setSelectedPatientIds={setSelectedPatientIds}
+                          isMultiSelectMode={isMultiSelectMode} isSaving={isSaving} isScanning={isScanning}
+                          formData={formData} stores={stores} currentUser={currentUser}
+                          patientSearchInputRef={patientSearchInputRef} addPatientButtonRef={addPatientButtonRef}
+                          onPatientSelect={handlePatientSelect} onAddSelectedPatients={handleAddSelectedPatients}
+                          onStartCamera={() => {setShowCameraOverlay(true);startCamera();}}
+                          onDuplicatePatient={handleDuplicatePatient} onNewAddressPatient={handleNewAddressPatient}
+                          onCreatePatient={onCreatePatient} setIsPatientFormOpen={setIsPatientFormOpen}
+                          handleSearchKeyDown={handleSearchKeyDown} />
+                        </div>
+
+                        <div className="min-w-0 space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Date *</Label>
+                          <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
+                        </div>
+
+                        <div className={`min-w-0 space-y-1 p-3 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver {delivery ? '*' : ''}</Label>
+                          <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
+                          const newDriverId = driverId === 'all' ? '' : driverId;
+                          const driver = driverId === 'all' ? null : allDrivers.find((d) => d.id === driverId);
+                          const newDriverName = driver ? getDriverNameForStorage(driver) : '';
+                          setFormData((prev) => ({ ...prev, driver_id: newDriverId, driver_name: newDriverName }));
+                          if (editingStagedId) {
+                            setStagedDeliveries((prev) => prev.map((s) => s._tempId === editingStagedId ? { ...s, driver_id: newDriverId, driver_name: newDriverName } : s));
+                            setHasChanges(true);
+                          }
+                          setForceOpenDriverSelect(false);
+                        }} disabled={isSaving}>
                             <SelectTrigger data-delivery-driver-select-trigger className="h-9"><SelectValue placeholder="Select driver" /></SelectTrigger>
                             <SelectContent className="z-[999999]">
                               {!delivery && <SelectItem value="all">All Drivers</SelectItem>}
@@ -620,9 +620,9 @@ export default function DeliveryFormView({
                           </Select>
                         </div>
                       </>
-                    )}
-                  </div>
-                ) : (
+                    }
+                  </div> :
+
                   <div className={`${useMobileLayout ? 'flex flex-col gap-3 w-full' : 'flex gap-3 flex-row w-full'}`}>
                     <div className={`${useMobileLayout ? 'grid grid-cols-2 gap-3 w-full min-[431px]:grid-cols-2 max-[430px]:grid-cols-1' : 'flex gap-3 flex-row w-full'}`}>
                       <div className={`${useMobileLayout ? 'w-full min-[431px]:w-[calc(50%-0.375rem)]' : 'min-w-0 flex-1'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>                        <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Date *</Label>
@@ -650,65 +650,65 @@ export default function DeliveryFormView({
                         </Select>
                       </div>
 
-                      {!useMobileLayout && userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) && (
-                        <div className="w-fit p-3 rounded-lg border flex flex-col items-start justify-start gap-2" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                      {!useMobileLayout && userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) &&
+                      <div className="w-fit p-3 rounded-lg border flex flex-col items-start justify-start gap-2" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                           <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Travel Mode</Label>
                           <TravelModeButtons
-                            value={formData.finished_leg_transport_mode || delivery?.finished_leg_transport_mode || 'driving'}
-                            onChange={async (mode) => {
-                              setFormData((prev) => ({ ...prev, finished_leg_transport_mode: mode }));
-                            }}
-                            currentUser={currentUser}
-                            appUsers={appUsers}
-                            disabled={isSaving}
-                          />
-                        </div>
-                      )}
-                    </div>
-
-
-                    {useMobileLayout && userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) && (
-                      <div className="w-fit p-3 rounded-lg border flex items-center justify-center gap-2" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                        <TravelModeButtons
                           value={formData.finished_leg_transport_mode || delivery?.finished_leg_transport_mode || 'driving'}
                           onChange={async (mode) => {
                             setFormData((prev) => ({ ...prev, finished_leg_transport_mode: mode }));
                           }}
                           currentUser={currentUser}
                           appUsers={appUsers}
-                          disabled={isSaving}
-                        />
+                          disabled={isSaving} />
+                        
+                        </div>
+                      }
+                    </div>
+
+
+                    {useMobileLayout && userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) &&
+                    <div className="w-fit p-3 rounded-lg border flex items-center justify-center gap-2" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                        <TravelModeButtons
+                        value={formData.finished_leg_transport_mode || delivery?.finished_leg_transport_mode || 'driving'}
+                        onChange={async (mode) => {
+                          setFormData((prev) => ({ ...prev, finished_leg_transport_mode: mode }));
+                        }}
+                        currentUser={currentUser}
+                        appUsers={appUsers}
+                        disabled={isSaving} />
+                      
                       </div>
-                    )}
+                    }
                   </div>
-                )}
+                  }
 
               </div>
-              }
+                }
 
               {renderDeliveryIdentifiersSection({
-                delivery,
-                isAppOwner,
-                currentUser,
-                formData,
-                setFormData,
-                isSaving,
-                isPickupMode,
-                pidInputValue,
-                setPidInputValue,
-                pidLookupStatus,
-                setPidLookupStatus,
-                patients,
-                updatePatientLocal,
-                originalPidRef
-              })}
+                  delivery,
+                  isAppOwner,
+                  currentUser,
+                  formData,
+                  setFormData,
+                  isSaving,
+                  isPickupMode,
+                  pidInputValue,
+                  setPidInputValue,
+                  pidLookupStatus,
+                  setPidLookupStatus,
+                  patients,
+                  updatePatientLocal,
+                  originalPidRef
+                })}
 
               {/* Main scrollable body */}
-              <div className={`flex gap-3 w-full ${delivery || useMobileLayout ? 'overflow-y-auto flex-1' : 'flex-1 min-h-0 overflow-hidden items-stretch'} ${deleteConfirmation?.show ? 'pointer-events-none' : ''}`} style={!delivery && !useMobileLayout && !isPickupMode ? { height: '100%' } : undefined}>
+              <div className="flex gap-3 w-full flex-1 min-h-0 overflow-hidden items-stretch " style={!delivery && !useMobileLayout && !isPickupMode ? { height: '100%' } : undefined}>
                 <div className={`flex flex-col gap-3 min-w-0 ${delivery || useMobileLayout ? 'flex-1' : 'flex-1 overflow-y-auto min-h-0'} ${isFormDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
 
                   {!isPickupMode ?
-                  <div className={`${useMobileLayout ? 'space-y-2' : 'grid grid-cols-[minmax(0,1.7fr)_minmax(16rem,0.7fr)] gap-3 items-start'}`}>
+                    <div className={`${useMobileLayout ? 'space-y-2' : 'grid grid-cols-[minmax(0,1.7fr)_minmax(16rem,0.7fr)] gap-3 items-start'}`}>
                       <div className="space-y-3 min-w-0">
 
                         {/* Notes */}
@@ -743,29 +743,29 @@ export default function DeliveryFormView({
                                   <Label htmlFor="cod_enabled" className="text-sm font-medium">COD Required</Label>
                                 </div>
                                 {formData.cod_total_amount_required >= 0 &&
-                              <div className="relative">
+                                <div className="relative">
                                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">$</span>
                                     <Input ref={codAmountInputRef} type="text" value={formData.cod_total_amount_required > 0 ? (formData.cod_total_amount_required / 100).toFixed(2) : ''} onChange={(e) => {const digits = e.target.value.replace(/[^\d]/g, '');if (digits.length > 5) {setFormData((p) => ({ ...p, cod_total_amount_required: 0, _barcode_entry_input: digits, _barcode_focus_token: (p._barcode_focus_token || 0) + 1 }));return;}const cents = parseInt(digits) || 0;setFormData((p) => ({ ...p, cod_total_amount_required: cents }));}} placeholder="0.00" data-hotkey-add="true" className="w-full pl-6 h-9 text-sm" disabled={isSaving} />
                                   </div>
-                              }
+                                }
                               </div>
                             </div>
                           </div>
                         </div>
 
                         {!useMobileLayout &&
-                      <>
+                        <>
                             <div className="pr-3 pb-3 pl-3 rounded-lg space-y-2 border"
 
-                        style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                          style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                           
                               <DeliveryStatusAndTiming
-                            formData={formData} setFormData={setFormData}
-                            delivery={delivery} isPickupMode={isPickupMode} isSaving={isSaving}
-                            isCompletionStatus={isCompletionStatus}
-                            completionTime={completionTime} setCompletionTime={setCompletionTime}
-                            availableStores={availableStores} allDeliveries={allDeliveries}
-                            currentUser={currentUser} setSelectedPickupOption={setSelectedPickupOption} />
+                              formData={formData} setFormData={setFormData}
+                              delivery={delivery} isPickupMode={isPickupMode} isSaving={isSaving}
+                              isCompletionStatus={isCompletionStatus}
+                              completionTime={completionTime} setCompletionTime={setCompletionTime}
+                              availableStores={availableStores} allDeliveries={allDeliveries}
+                              currentUser={currentUser} setSelectedPickupOption={setSelectedPickupOption} />
                           
                             </div>
 
@@ -793,22 +793,22 @@ export default function DeliveryFormView({
                               </div>
                             </div>
                           </>
-                      }
+                        }
                       </div>
 
                       {!useMobileLayout &&
-                    <div className="space-y-2 min-w-0">
+                      <div className="space-y-2 min-w-0">
                           <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                             <SmartBarcodeScanner
-                          receiptBarcodeValues={formData.receipt_barcode_values || []}
-                          rxBarcodeValues={formData.barcode_values || []}
-                          onReceiptChange={(vals) => setFormData((prev) => ({ ...prev, receipt_barcode_values: vals }))}
-                          onRxChange={(vals) => setFormData((prev) => ({ ...prev, barcode_values: vals }))}
-                          onSelectBarcode={(val) => setFormData((prev) => ({ ...prev, _preview_barcode: val }))}
-                          manualInputOverride={formData._barcode_entry_input || ''}
-                          focusTrigger={formData._barcode_focus_token || 0}
-                          onManualInputOverrideApplied={() => setFormData((prev) => prev._barcode_entry_input ? { ...prev, _barcode_entry_input: '' } : prev)}
-                          disabled={isSaving || !isMobileDevice && !delivery && !selectedPatient && !editingStagedId && !(formData?.patient_id || formData?.patient_name)} />
+                            receiptBarcodeValues={formData.receipt_barcode_values || []}
+                            rxBarcodeValues={formData.barcode_values || []}
+                            onReceiptChange={(vals) => setFormData((prev) => ({ ...prev, receipt_barcode_values: vals }))}
+                            onRxChange={(vals) => setFormData((prev) => ({ ...prev, barcode_values: vals }))}
+                            onSelectBarcode={(val) => setFormData((prev) => ({ ...prev, _preview_barcode: val }))}
+                            manualInputOverride={formData._barcode_entry_input || ''}
+                            focusTrigger={formData._barcode_focus_token || 0}
+                            onManualInputOverrideApplied={() => setFormData((prev) => prev._barcode_entry_input ? { ...prev, _barcode_entry_input: '' } : prev)}
+                            disabled={isSaving || !isMobileDevice && !delivery && !selectedPatient && !editingStagedId && !(formData?.patient_id || formData?.patient_name)} />
                         
 
                           </div>
@@ -827,43 +827,43 @@ export default function DeliveryFormView({
                           <div className="px-3 py-2 rounded-lg space-y-2 border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                             <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Recurring</Label>
                             <DeliveryRecurringOptions
-                          formData={formData} setFormData={setFormData} isSaving={isSaving}
-                          currentFrequency={currentFrequency} weeklyLabel={weeklyLabel}
-                          biWeeklyLabel={biWeeklyLabel} weeklyX4Label={weeklyX4Label}
-                          showDayPopup={showDayPopup} setShowDayPopup={setShowDayPopup}
-                          setActiveRecurringType={setActiveRecurringType}
-                          handleRecurringChange={handleRecurringChange}
-                          handleFrequencyChange={handleFrequencyChange}
-                          handleWeeklyDaysDone={handleWeeklyDaysDone} />
+                            formData={formData} setFormData={setFormData} isSaving={isSaving}
+                            currentFrequency={currentFrequency} weeklyLabel={weeklyLabel}
+                            biWeeklyLabel={biWeeklyLabel} weeklyX4Label={weeklyX4Label}
+                            showDayPopup={showDayPopup} setShowDayPopup={setShowDayPopup}
+                            setActiveRecurringType={setActiveRecurringType}
+                            handleRecurringChange={handleRecurringChange}
+                            handleFrequencyChange={handleFrequencyChange}
+                            handleWeeklyDaysDone={handleWeeklyDaysDone} />
                         
                           </div>
                         </div>
-                    }
+                      }
                     </div> :
 
-                  <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                    <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                       <div className="space-y-1">
                         <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Pickup Notes</Label>
                         <Textarea value={formData.delivery_notes || ''} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_notes: e.target.value }))} placeholder="Notes for this pickup..." className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none" disabled={isSaving} />
                       </div>
                     </div>
-                  }
+                    }
 
                   {!isPickupMode ?
-                  useMobileLayout ?
-                  <>
+                    useMobileLayout ?
+                    <>
                         {/* Barcode Scanner */}
                         <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                           <SmartBarcodeScanner
-                        receiptBarcodeValues={formData.receipt_barcode_values || []}
-                        rxBarcodeValues={formData.barcode_values || []}
-                        onReceiptChange={(vals) => setFormData((prev) => ({ ...prev, receipt_barcode_values: vals }))}
-                        onRxChange={(vals) => setFormData((prev) => ({ ...prev, barcode_values: vals }))}
-                        onSelectBarcode={(val) => setFormData((prev) => ({ ...prev, _preview_barcode: val }))}
-                        manualInputOverride={formData._barcode_entry_input || ''}
-                        focusTrigger={formData._barcode_focus_token || 0}
-                        onManualInputOverrideApplied={() => setFormData((prev) => prev._barcode_entry_input ? { ...prev, _barcode_entry_input: '' } : prev)}
-                        disabled={isSaving || !isMobileDevice && !delivery && !selectedPatient && !editingStagedId && !(formData?.patient_id || formData?.patient_name)} />
+                          receiptBarcodeValues={formData.receipt_barcode_values || []}
+                          rxBarcodeValues={formData.barcode_values || []}
+                          onReceiptChange={(vals) => setFormData((prev) => ({ ...prev, receipt_barcode_values: vals }))}
+                          onRxChange={(vals) => setFormData((prev) => ({ ...prev, barcode_values: vals }))}
+                          onSelectBarcode={(val) => setFormData((prev) => ({ ...prev, _preview_barcode: val }))}
+                          manualInputOverride={formData._barcode_entry_input || ''}
+                          focusTrigger={formData._barcode_focus_token || 0}
+                          onManualInputOverrideApplied={() => setFormData((prev) => prev._barcode_entry_input ? { ...prev, _barcode_entry_input: '' } : prev)}
+                          disabled={isSaving || !isMobileDevice && !delivery && !selectedPatient && !editingStagedId && !(formData?.patient_id || formData?.patient_name)} />
                       
 
                         </div>
@@ -871,14 +871,14 @@ export default function DeliveryFormView({
                         <div className="space-y-2">
                           {/* Store / Status / Time */}
                           <div className={`space-y-2 p-3 rounded-lg border ${delivery && !userHasRole(currentUser, 'admin') && ['completed', 'failed', 'returned', 'cancelled'].includes(formData.status) ? 'opacity-50 pointer-events-none' : ''}`}
-                      style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                        style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                             <DeliveryStatusAndTiming
-                          formData={formData} setFormData={setFormData}
-                          delivery={delivery} isPickupMode={isPickupMode} isSaving={isSaving}
-                          isCompletionStatus={isCompletionStatus}
-                          completionTime={completionTime} setCompletionTime={setCompletionTime}
-                          availableStores={availableStores} allDeliveries={allDeliveries}
-                          currentUser={currentUser} setSelectedPickupOption={setSelectedPickupOption} />
+                            formData={formData} setFormData={setFormData}
+                            delivery={delivery} isPickupMode={isPickupMode} isSaving={isSaving}
+                            isCompletionStatus={isCompletionStatus}
+                            completionTime={completionTime} setCompletionTime={setCompletionTime}
+                            availableStores={availableStores} allDeliveries={allDeliveries}
+                            currentUser={currentUser} setSelectedPickupOption={setSelectedPickupOption} />
                         
                           </div>
 
@@ -921,32 +921,32 @@ export default function DeliveryFormView({
                           <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                             <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Recurring</Label>
                             <DeliveryRecurringOptions
-                          formData={formData} setFormData={setFormData} isSaving={isSaving}
-                          currentFrequency={currentFrequency} weeklyLabel={weeklyLabel}
-                          biWeeklyLabel={biWeeklyLabel} weeklyX4Label={weeklyX4Label}
-                          showDayPopup={showDayPopup} setShowDayPopup={setShowDayPopup}
-                          setActiveRecurringType={setActiveRecurringType}
-                          handleRecurringChange={handleRecurringChange}
-                          handleFrequencyChange={handleFrequencyChange}
-                          handleWeeklyDaysDone={handleWeeklyDaysDone} />
+                            formData={formData} setFormData={setFormData} isSaving={isSaving}
+                            currentFrequency={currentFrequency} weeklyLabel={weeklyLabel}
+                            biWeeklyLabel={biWeeklyLabel} weeklyX4Label={weeklyX4Label}
+                            showDayPopup={showDayPopup} setShowDayPopup={setShowDayPopup}
+                            setActiveRecurringType={setActiveRecurringType}
+                            handleRecurringChange={handleRecurringChange}
+                            handleFrequencyChange={handleFrequencyChange}
+                            handleWeeklyDaysDone={handleWeeklyDaysDone} />
                         
                           </div>
                         </div>
                       </> :
-                  null :
-                  !(isPickupMode && !delivery) ?
-                  <div className={`space-y-2 p-3 rounded-lg border ${delivery && !userHasRole(currentUser, 'admin') && ['completed', 'failed', 'returned', 'cancelled'].includes(formData.status) ? 'opacity-50 pointer-events-none' : ''}`}
-                  style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                    null :
+                    !(isPickupMode && !delivery) ?
+                    <div className={`space-y-2 p-3 rounded-lg border ${delivery && !userHasRole(currentUser, 'admin') && ['completed', 'failed', 'returned', 'cancelled'].includes(formData.status) ? 'opacity-50 pointer-events-none' : ''}`}
+                    style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                       <DeliveryStatusAndTiming
-                      formData={formData} setFormData={setFormData}
-                      delivery={delivery} isPickupMode={isPickupMode} isSaving={isSaving}
-                      isCompletionStatus={isCompletionStatus}
-                      completionTime={completionTime} setCompletionTime={setCompletionTime}
-                      availableStores={availableStores} allDeliveries={allDeliveries}
-                      currentUser={currentUser} setSelectedPickupOption={setSelectedPickupOption} />
+                        formData={formData} setFormData={setFormData}
+                        delivery={delivery} isPickupMode={isPickupMode} isSaving={isSaving}
+                        isCompletionStatus={isCompletionStatus}
+                        completionTime={completionTime} setCompletionTime={setCompletionTime}
+                        availableStores={availableStores} allDeliveries={allDeliveries}
+                        currentUser={currentUser} setSelectedPickupOption={setSelectedPickupOption} />
                     
                     </div> :
-                  null}
+                    null}
 
 
                 </div>
@@ -956,11 +956,11 @@ export default function DeliveryFormView({
               </div>
 
               {/* Desktop Staged Panel - hidden in pickup mode */}
-              {!delivery && !useMobileLayout && !isPickupMode && (
-                <div className="w-[300px] min-w-[300px] h-full min-h-0 self-stretch flex overflow-hidden">
+              {!delivery && !useMobileLayout && !isPickupMode &&
+              <div className="w-[300px] min-w-[300px] h-full min-h-0 self-stretch flex overflow-hidden">
                   <DeliveryStagedPanelDesktop {...stagedPanelProps} />
                 </div>
-              )}
+              }
             </div>
 
             {/* Mobile Staged Panel - hidden in pickup mode */}
@@ -977,20 +977,20 @@ export default function DeliveryFormView({
                     Deliveries: (S: {stagedCount.new} P: {stagedCount.pending})
                   </Button>
                 }
-                {isPickupMode && !userHasRole(currentUser, 'dispatcher') && (
-                  <div className="flex items-center">
+                {isPickupMode && !userHasRole(currentUser, 'dispatcher') &&
+                <div className="flex items-center">
                     <CheckboxField
-                      id="after_hours_pickup_footer"
-                      label="After Hours Pickup"
-                      checked={formData.after_hours_pickup}
-                      onChange={(c) => {
-                        if (!userHasRole(currentUser, 'admin')) return;
-                        setFormData((p) => ({ ...p, after_hours_pickup: c }));
-                      }}
-                      disabled={isSaving || !userHasRole(currentUser, 'admin')}
-                    />
+                    id="after_hours_pickup_footer"
+                    label="After Hours Pickup"
+                    checked={formData.after_hours_pickup}
+                    onChange={(c) => {
+                      if (!userHasRole(currentUser, 'admin')) return;
+                      setFormData((p) => ({ ...p, after_hours_pickup: c }));
+                    }}
+                    disabled={isSaving || !userHasRole(currentUser, 'admin')} />
+                  
                   </div>
-                )}
+                }
               </div>
               <div className="flex gap-2 ml-auto">
                 <Button type="button" variant="outline" size="sm" onClick={() => {
@@ -1008,7 +1008,7 @@ export default function DeliveryFormView({
                 </Button>
 
                 {buttonState === 'done' ?
-                <Button type="button" size="sm" onClick={(e) => { e.preventDefault(); e.stopPropagation(); runLockedAction('batch_save', handleBatchSave); }} className="inline-flex items-center justify-center whitespace-nowrap font-medium h-8 rounded-md px-3 text-xs !text-white bg-emerald-600 hover:bg-emerald-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || (openMode !== 'add_to_route' && !hasChanges)}>
+                <Button type="button" size="sm" onClick={(e) => {e.preventDefault();e.stopPropagation();runLockedAction('batch_save', handleBatchSave);}} className="inline-flex items-center justify-center whitespace-nowrap font-medium h-8 rounded-md px-3 text-xs !text-white bg-emerald-600 hover:bg-emerald-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || openMode !== 'add_to_route' && !hasChanges}>
                     {isSaving ? <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />Saving...</> : <><CheckCircle className="w-4 h-4" />Done</>}
                   </Button> :
                 buttonState === 'updateStaged' ?
@@ -1052,22 +1052,22 @@ export default function DeliveryFormView({
 
                   if (!didSave) return;
 
-                  import('../utils/deliveryFormActionHelpers')
-                    .then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel }))
-                    .catch(() => handleCancelClick());
+                  import('../utils/deliveryFormActionHelpers').
+                  then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).
+                  catch(() => handleCancelClick());
                   window.dispatchEvent(new CustomEvent('collapseSelectedStopCard'));
 
                   const affectedRoutes = [
-                    [driverId, deliveryDate],
-                    [previousDriverId, previousDeliveryDate]
-                  ].filter(([routeDriverId, routeDeliveryDate]) => routeDriverId && routeDeliveryDate);
+                  [driverId, deliveryDate],
+                  [previousDriverId, previousDeliveryDate]].
+                  filter(([routeDriverId, routeDeliveryDate]) => routeDriverId && routeDeliveryDate);
 
                   Promise.all(
-                    Array.from(new Set(affectedRoutes.map(([routeDriverId, routeDeliveryDate]) => `${routeDriverId}__${routeDeliveryDate}`)))
-                      .map((key) => {
-                        const [routeDriverId, routeDeliveryDate] = key.split('__');
-                        return recalculateAndUpdateStopOrders(routeDriverId, routeDeliveryDate);
-                      })
+                    Array.from(new Set(affectedRoutes.map(([routeDriverId, routeDeliveryDate]) => `${routeDriverId}__${routeDeliveryDate}`))).
+                    map((key) => {
+                      const [routeDriverId, routeDeliveryDate] = key.split('__');
+                      return recalculateAndUpdateStopOrders(routeDriverId, routeDeliveryDate);
+                    })
                   ).then(() => {
                     runPostDeliveryUpdateSync({
                       driverId,
