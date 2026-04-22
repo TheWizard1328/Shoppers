@@ -67,6 +67,7 @@ export default function DashboardView({
   // Live ETA
   realTimeETAEnabled,
   isDriverMovingForFAB,
+  isImmersiveHidden,
   // Misc
   refreshUser, refreshData, dataSource,
 }) {
@@ -202,6 +203,7 @@ export default function DashboardView({
           finalizedDutyTime={finalizedDutyTime}
           refreshUser={refreshUser} dataSource={dataSource}
           isMobile={isMobile}
+          isImmersiveHidden={isImmersiveHidden}
         />
         <DashboardMapSection
           currentUser={currentUser} isDriver={isDriver} isDispatcher={isDispatcher} isMobile={isMobile}
@@ -249,7 +251,8 @@ export default function DashboardView({
 
         <ApiUsageBadge
           currentUser={currentUser}
-          stopCardsHeight={stopCardsBaseHeight}
+          stopCardsHeight={isImmersiveHidden ? 0 : stopCardsBaseHeight}
+          isImmersiveHidden={isImmersiveHidden}
         />
       </div>
 
@@ -269,6 +272,7 @@ export default function DashboardView({
           isAIEnabled={isAIEnabled} showAIAssistant={showAIAssistant}
           isDriverMovingForFAB={isDriverMovingForFAB}
           refreshData={refreshData}
+          isImmersiveHidden={isImmersiveHidden}
         />
       }
 

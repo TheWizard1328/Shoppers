@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import { flushSync } from "react-dom";
 import HorizontalStopCards from "@/components/dashboard/HorizontalStopCards";
 import { getDriverColor } from "@/components/dashboard/DeliveryMap";
@@ -17,6 +18,7 @@ export default function StopCardsSection({
   handleRestartDelivery, handleStatusUpdate, handleNotesUpdate,
   handleCODUpdate, handleCreateReturn, handleStartDelivery,
   refreshUser,
+  isImmersiveHidden = false,
 }) {
   const [mobileCardsHeight, setMobileCardsHeight] = useState(0);
 
@@ -38,7 +40,7 @@ export default function StopCardsSection({
     : undefined;
 
   return (
-    <div
+    <motion.div
       ref={stopCardsContainerRef}
       className={`horizontal-cards-container absolute left-0 right-0 ${isMobile ? 'z-[240]' : 'z-[150]'} px-4 pb-1 pointer-events-none flex flex-col justify-end`}
       style={{
@@ -48,6 +50,9 @@ export default function StopCardsSection({
         top: mobileStopCardsTop,
         bottom: isMobile && mobileStopCardsTop ? 'auto' : 'calc(var(--bottom-nav-height, 0px) + 0.25rem)'
       }}
+      initial={false}
+      animate={{ opacity: isImmersiveHidden ? 0 : 1, y: isImmersiveHidden ? 180 : 0 }}
+      transition={{ duration: 0.3 }}
       onClick={() => { if (retractClustersRef.current) retractClustersRef.current(); }}>
 
       <div
@@ -124,6 +129,6 @@ export default function StopCardsSection({
             onDriverStatusChange={async () => { await refreshUser(); }} />
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }

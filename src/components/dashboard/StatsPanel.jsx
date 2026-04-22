@@ -49,7 +49,8 @@ export default function StatsPanel({
   refreshUser, dataSource,
   isMobile,
   preferredTravelMode,
-  onTravelModeChange
+  onTravelModeChange,
+  isImmersiveHidden = false
 }) {
   const [legendDeliveries, setLegendDeliveries] = useState([]);
   const [isDemoModeActive, setIsDemoModeActive] = useState(false);
@@ -206,11 +207,13 @@ export default function StatsPanel({
         <motion.div
           ref={statsCardRef}
           initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
+          animate={{ opacity: isImmersiveHidden ? 0 : 1, y: isImmersiveHidden ? -140 : 0 }}
           transition={{ duration: 0.3 }}
           onMouseEnter={() => handleCardInteraction(true)}
           onMouseLeave={() => handleCardInteraction(false)}
           onClick={(e) => {e.stopPropagation();handleCardInteraction(true);if (retractClustersRef.current) retractClustersRef.current();}} className="px-2 py-0.5 rounded-2xl shadow-xl border min-w-[340px] max-w-[345px] cursor-pointer"
+
+          aria-hidden={isImmersiveHidden}
 
           style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', pointerEvents: 'auto', touchAction: 'none', position: 'relative' }}>
 

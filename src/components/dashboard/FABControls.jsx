@@ -39,6 +39,7 @@ export default function FABControls({
   isAIEnabled, showAIAssistant,
   isDriverMovingForFAB,
   refreshData,
+  isImmersiveHidden = false,
 }) {
   useEffect(() => {
     const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
@@ -70,19 +71,24 @@ export default function FABControls({
 
   return (
     <>
-      <MapViewCycleFAB onClick={() => {
-        if (isDispatcher && mapViewPhase === 1 && selectedStore) {
-          const pad = getMapPadding();
-          setShouldFitBounds({ bounds: buildRadiusBoundsFromStore(selectedStore, 2.5), options: { ...pad, maxZoom: 14, animate: true } });
-          setMapCenter(null);
-          setMapZoom(null);
-        }
-        handleMapViewCycle();
-      }} currentPhase={mapViewPhase} hasVisibleCards={deliveriesWithStopOrder.length > 0} isAIVisible={showAIAssistant && isAIEnabled} isLocked={isMapViewLocked} isEnabled={isMapCycleEnabled} stopCardsHeight={cardsReadyForFAB ? stopCardsBaseHeight : 0} isMotionDimmed={isPrimaryDriverDeviceInMotion} />
+      <motion.div
+        initial={false}
+        animate={{ opacity: isImmersiveHidden ? 0 : 1, y: isImmersiveHidden ? 120 : 0 }}
+        transition={{ duration: 0.3 }}>
+        <MapViewCycleFAB onClick={() => {
+          if (isDispatcher && mapViewPhase === 1 && selectedStore) {
+            const pad = getMapPadding();
+            setShouldFitBounds({ bounds: buildRadiusBoundsFromStore(selectedStore, 2.5), options: { ...pad, maxZoom: 14, animate: true } });
+            setMapCenter(null);
+            setMapZoom(null);
+          }
+          handleMapViewCycle();
+        }} currentPhase={mapViewPhase} hasVisibleCards={deliveriesWithStopOrder.length > 0 && !isImmersiveHidden} isAIVisible={showAIAssistant && isAIEnabled} isLocked={isMapViewLocked} isEnabled={isMapCycleEnabled} stopCardsHeight={isImmersiveHidden ? 0 : cardsReadyForFAB ? stopCardsBaseHeight : 0} isMotionDimmed={isPrimaryDriverDeviceInMotion} />
+      </motion.div>
 
       {isAppOwner(currentUser) && selectedDriverId !== 'all' &&
-        <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }} transition={{ type: "spring", stiffness: 260, damping: 20 }} className="z-[100]"
-          style={{ position: fabPosition, bottom: `${(deliveriesWithStopOrder.length > 0 && cardsReadyForFAB ? stopCardsBaseHeight : 0) + 10}px`, right: '64px' }}>
+        <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: isImmersiveHidden ? 0.9 : 1, opacity: isImmersiveHidden ? 0 : 1, y: isImmersiveHidden ? 120 : 0 }} exit={{ scale: 0, opacity: 0 }} transition={{ type: "spring", stiffness: 260, damping: 20 }} className="z-[100]"
+          style={{ position: fabPosition, bottom: `${(isImmersiveHidden ? 0 : deliveriesWithStopOrder.length > 0 && cardsReadyForFAB ? stopCardsBaseHeight : 0) + 10}px`, right: '64px' }}>
           <Button
             onClick={async () => {
               if (isReoptimizing) return;

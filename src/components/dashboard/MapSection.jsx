@@ -94,8 +94,11 @@ export default function MapSection({
           areCardsVisible={areCardsVisible}
           onLegendInteraction={handleCardInteraction}
           onDriverRoutesCalculated={setDriverRoutes}
-          onMapInteraction={() => {}}
+          onMapInteraction={() => {
+            window.dispatchEvent(new CustomEvent('dashboardMapTapped'));
+          }}
           onDoubleTap={() => {
+            window.dispatchEvent(new CustomEvent('dashboardMapTapped'));
             fabControlEvents.reactivateFAB(false, { forceWhileUserInteracting: true, reason: 'map_double_tap' });
             const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
             if (nextCard?.id) {
