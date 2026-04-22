@@ -54,7 +54,10 @@ export async function persistPendingDeliveryUpdate({
       : null
   };
 
-  const updatedDelivery = await updateDeliveryLocal(selectedStaged.id, immediateUpdateData);
+  const updatedDelivery = await updateDeliveryLocal(selectedStaged.id, immediateUpdateData, {
+    deferPolylineRefresh: true,
+    skipSmartRefresh: true
+  });
 
   return {
     stagedDelivery: {

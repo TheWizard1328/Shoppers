@@ -595,7 +595,7 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
         sanitizedUpdates.patient_id !== undefined ||
         sanitizedUpdates.store_id !== undefined
       );
-      if (routeShapeChanged && backendDelivery?.driver_id && backendDelivery?.delivery_date) {
+      if (routeShapeChanged && backendDelivery?.driver_id && backendDelivery?.delivery_date && !options?.deferPolylineRefresh) {
         await base44.functions.invoke('purgeAndRegeneratePolylines', {
           driverId: backendDelivery.driver_id,
           deliveryDate: backendDelivery.delivery_date,
