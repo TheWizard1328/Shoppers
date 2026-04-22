@@ -92,11 +92,12 @@ export default function DeliveryPatientSearch({
   };
 
   return (
-    <div className={`${mobileStandalone ? 'relative block w-full flex-none basis-full' : 'relative flex-1'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-      <div className="flex items-center justify-between mb-1">
+    <div className={`${mobileStandalone ? 'relative block w-full flex-none basis-full' : 'relative flex-1'} h-[102px] flex flex-col justify-between p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+      <div className="flex items-center justify-between min-h-[28px] mb-1">
         <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Search</Label>
-        {selectedPatient &&
-        <div className="p-1.5 px-2.5 bg-emerald-50 border border-emerald-200 rounded text-xs flex items-center gap-1.5 max-w-[200px]">
+        <div className="min-h-[28px] flex items-center justify-end">
+          {selectedPatient &&
+          <div className="p-1.5 px-2.5 bg-emerald-50 border border-emerald-200 rounded text-xs flex items-center gap-1.5 max-w-[200px]">
             <span className="text-emerald-700 font-medium truncate">✓ {selectedPatient.full_name}</span>
             {stores && selectedPatient.store_id && (() => {
             const patientStore = stores.find((s) => s && s.id === selectedPatient.store_id);
@@ -114,7 +115,8 @@ export default function DeliveryPatientSearch({
 
           })()}
           </div>
-        }
+          }
+        </div>
       </div>
 
       <div className="relative flex gap-2 items-end flex-nowrap">
