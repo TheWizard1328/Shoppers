@@ -664,10 +664,11 @@ Deno.serve(async (req) => {
     const finishedStops = deliveries
       .filter((delivery) => FINISHED_STATUSES.has(delivery.status))
       .sort((a, b) => {
+        const stopOrderDiff = (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0);
+        if (stopOrderDiff !== 0) return stopOrderDiff;
         const aTime = new Date(a.actual_delivery_time || a.updated_date || a.created_date || 0).getTime();
         const bTime = new Date(b.actual_delivery_time || b.updated_date || b.created_date || 0).getTime();
-        if (aTime !== bTime) return aTime - bTime;
-        return (a.stop_order || 0) - (b.stop_order || 0);
+        return aTime - bTime;
       });
 
     const latestFinishedStop = finishedStops[finishedStops.length - 1] || null;
@@ -690,52 +691,53 @@ Deno.serve(async (req) => {
     const createdSegments = [];
 
     if (scope === 'all' || scope === 'completed_only') {
+      const homeLat = Number(driverAppUser?.home_latitude);
+      const homeLon = Number(driverAppUser?.home_longitude);
+      const hasHomeCoords = Number.isFinite(homeLat) && Number.isFinite(homeLon);
       const finishedSegmentSpecs = [];
-      for (let index = 0; index < finishedStops.length; index += 1) {
-        const stop = finishedStops[index];
-        const previousStop = finishedStops[index - 1];
-        const from = previousStop ? getLatLon(previousStop) : (() => {
-          const store = storeMap.get(stop?.store_id);
-          if (store?.latitude != null && store?.longitude != null) {
-            return { lat: Number(store.latitude), lon: Number(store.longitude) };
-          }
-          return null;
-        })();
-        const to = getLatLon(stop);
-        if (!from || !to) continue;
-        const existingBreadcrumbs = stop?.delivery_route_breadcrumbs || null;
-        const fallbackBreadcrumbs = existingBreadcrumbs || buildFallbackBreadcrumbs(
-          from,
-          to,
-          new Date(stop?.actual_delivery_time || stop?.arrival_time || stop?.updated_date || stop?.created_date || Date.now()).getTime()
-        );
-        finishedSegmentSpecs.push({
-          stop,
-          from,
-          to,
-          breadcrumbDirections: parseBreadcrumbPolyline(existingBreadcrumbs),
-          fallbackBreadcrumbs,
-          usedFallbackBreadcrumbs: !existingBreadcrumbs && !!fallbackBreadcrumbs
-        });
+      if (hasHomeCoords && finishedStops.length > 0) {
+        const orderedStops = finishedStops
+          .map((stop) => ({ stop, coords: getLatLon(stop) }))
+          .filter((entry) => entry.coords);
+
+        const routePoints = [
+          { lat: homeLat, lon: homeLon },
+          ...orderedStops.map((entry) => entry.coords),
+          { lat: homeLat, lon: homeLon }
+        ];
+
+        for (let index = 0; index < orderedStops.length; index += 1) {
+          const stop = orderedStops[index].stop;
+          const from = routePoints[index];
+          const to = routePoints[index + 1];
+          if (!from || !to) continue;
+          const existingBreadcrumbs = stop?.delivery_route_breadcrumbs || null;
+          const fallbackBreadcrumbs = existingBreadcrumbs || buildFallbackBreadcrumbs(
+            from,
+            to,
+            new Date(stop?.actual_delivery_time || stop?.arrival_time || stop?.updated_date || stop?.created_date || Date.now()).getTime()
+          );
+          finishedSegmentSpecs.push({
+            stop,
+            from,
+            to,
+            breadcrumbDirections: parseBreadcrumbPolyline(existingBreadcrumbs),
+            fallbackBreadcrumbs,
+            usedFallbackBreadcrumbs: !existingBreadcrumbs && !!fallbackBreadcrumbs
+          });
+        }
       }
 
-      const finishedSegmentGroupsByMode = routeSource === 'polylines'
-        ? finishedSegmentSpecs.reduce((acc, segment) => {
-            const mode = segment.stop?.finished_leg_transport_mode || 'driving';
-            if (!acc[mode]) acc[mode] = [];
-            acc[mode].push(segment);
-            return acc;
-          }, {})
-        : {};
-
       const finishedDirectionsByStopId = new Map();
-      for (const [mode, groupedSegments] of Object.entries(finishedSegmentGroupsByMode)) {
-        const groupedDirections = groupedSegments.length > 0
-          ? await getMultiSegmentDirections(base44, groupedSegments.map((segment) => ({ from: segment.from, to: segment.to })), mode)
-          : [];
-        if (groupedSegments.length > 0) apiCallsMade += 1;
-        groupedSegments.forEach((segment, index) => {
-          finishedDirectionsByStopId.set(segment.stop.id, groupedDirections[index] || null);
+      if (routeSource === 'polylines' && finishedSegmentSpecs.length > 0) {
+        const finishedDirections = await getMultiSegmentDirections(
+          base44,
+          finishedSegmentSpecs.map((segment) => ({ from: segment.from, to: segment.to })),
+          finishedStops[0]?.finished_leg_transport_mode || 'driving'
+        );
+        apiCallsMade += 1;
+        finishedSegmentSpecs.forEach((segment, index) => {
+          finishedDirectionsByStopId.set(segment.stop.id, finishedDirections[index] || null);
         });
       }
 
