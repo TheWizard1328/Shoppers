@@ -29,9 +29,9 @@ const getSegmentKey = (driverId, from, to) => {
   return `${driverId}_${Number(from.latitude).toFixed(5)}_${Number(from.longitude).toFixed(5)}_${Number(to.latitude).toFixed(5)}_${Number(to.longitude).toFixed(5)}`;
 };
 
-const getHereCacheKey = (from, to) => {
+const getHereCacheKey = (from, to, mode = 'driving') => {
   if (!from || !to) return null;
-  return `here_${Number(from.latitude).toFixed(5)}_${Number(from.longitude).toFixed(5)}_${Number(to.latitude).toFixed(5)}_${Number(to.longitude).toFixed(5)}`;
+  return `here_${normalizeTravelMode(mode)}_${Number(from.latitude).toFixed(5)}_${Number(from.longitude).toFixed(5)}_${Number(to.latitude).toFixed(5)}_${Number(to.longitude).toFixed(5)}`;
 };
 
 const getCachedPolyline = (key, memoryCache) => {
@@ -250,6 +250,8 @@ export default function HereType1Polylines({
       const travelMode = event?.detail?.travelMode;
       if (!driverId || !travelMode) return;
       setLocalDriverTravelModes((prev) => ({ ...prev, [driverId]: travelMode }));
+      setCache({});
+      setLastNonEmptyLines([]);
       invalidate();
     };
     const onOptimizationStarted = () => { setOptimizing(true); };
@@ -314,7 +316,7 @@ export default function HereType1Polylines({
       const originLat = Number(lastCompleted.latitude);
       const originLon = Number(lastCompleted.longitude);
 
-      const key = `here_${Number(originLat).toFixed(5)}_${Number(originLon).toFixed(5)}_${Number(nextStop.latitude).toFixed(5)}_${Number(nextStop.longitude).toFixed(5)}`;
+      const key = getHereCacheKey({ latitude: originLat, longitude: originLon }, nextStop, getDriverMode(driverId));
       if (cache[key]) return;
       // ONLY hydrate from offline DB - no backend calls
       hydrateFromOffline(key, driverId, { latitude: Number(originLat), longitude: Number(originLon) }, { latitude: Number(nextStop.latitude), longitude: Number(nextStop.longitude) }, lastCompleted.delivery_date);
@@ -334,7 +336,7 @@ export default function HereType1Polylines({
       const lastCompleted = completedSorted[0];
       const home = driverHomeMarkers.find((h) => h.driverId === driverId);
       if (!lastCompleted || !home) return;
-      const key = `here_${Number(lastCompleted.latitude).toFixed(5)}_${Number(lastCompleted.longitude).toFixed(5)}_${Number(home.latitude).toFixed(5)}_${Number(home.longitude).toFixed(5)}`;
+      const key = getHereCacheKey(lastCompleted, home, getDriverMode(driverId));
       if (cache[key]) return;
       // ONLY hydrate from offline DB - no backend calls
       hydrateFromOffline(key, driverId, { latitude: Number(lastCompleted.latitude), longitude: Number(lastCompleted.longitude) }, { latitude: Number(home.latitude), longitude: Number(home.longitude) }, lastCompleted.delivery_date);
@@ -356,7 +358,7 @@ export default function HereType1Polylines({
 
       if (!next || originLat === undefined || originLon === undefined) return;
 
-      const key = `here_${originLat.toFixed(5)}_${originLon.toFixed(5)}_${next.latitude.toFixed(5)}_${next.longitude.toFixed(5)}`;
+      const key = getHereCacheKey({ latitude: originLat, longitude: originLon }, next, getDriverMode(driverId));
       if (cache[key]) return;
       // ONLY hydrate from offline DB - no backend calls
       hydrateFromOffline(key, driverId, { latitude: originLat, longitude: originLon }, next, next.delivery_date);
@@ -435,7 +437,7 @@ export default function HereType1Polylines({
         jobs.push(
           (async () => {
             try {
-              const remainingKey = getHereCacheKey(current, destination);
+              const remainingKey = getHereCacheKey(current, destination, getDriverMode(driverId));
               let remainingCoords = getCachedPolyline(remainingKey, cache);
               if (!remainingCoords) {
                 remainingCoords = await hydrateFromOffline(remainingKey, driverId, current, destination, nextStop.delivery_date)
@@ -483,8 +485,9 @@ export default function HereType1Polylines({
   const lines = [];
   const getDriverPolylineColor = (driverId) => generateDriverColor(String(driverId || 'driver'));
   const getType1PolylineColor = () => '#2563EB';
+  const getDriverMode = (driverId) => normalizeTravelMode(localDriverTravelModes[driverId] ?? driverTravelModes[driverId]);
   const getDriverRouteStyle = (driverId, opacityOverride) => {
-    const mode = normalizeTravelMode(localDriverTravelModes[driverId] ?? driverTravelModes[driverId]);
+    const mode = getDriverMode(driverId);
     const isCycling = mode === 'cycling';
     const base = getTravelModeLineStyle(mode, getType1PolylineColor(driverId));
     return {
@@ -561,7 +564,7 @@ export default function HereType1Polylines({
 
     const origin = { latitude: Number(lastCompleted.latitude), longitude: Number(lastCompleted.longitude) };
     const destination = { latitude: Number(nextStop.latitude), longitude: Number(nextStop.longitude) };
-    const key = getHereCacheKey(origin, destination);
+    const key = getHereCacheKey(origin, destination, getDriverMode(driverId));
     const segmentId = getSegmentKey(driverId, origin, destination);
     const hybrid = segmentId ? deviationSegments[segmentId] : null;
 

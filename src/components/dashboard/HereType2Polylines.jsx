@@ -79,8 +79,9 @@ export default function HereType2Polylines({
     };
 
     const getDriverPolylineColor = (driverId) => generateDriverColor(String(driverId || 'driver'));
+    const getDriverMode = (driverId) => normalizeTravelMode(localDriverTravelModes[driverId] ?? driverTravelModes[driverId]);
     const getDriverRouteStyle = (driverId, opacityOverride) => {
-      const mode = normalizeTravelMode(localDriverTravelModes[driverId] ?? driverTravelModes[driverId]);
+      const mode = getDriverMode(driverId);
       const isCycling = mode === 'cycling';
       const base = getTravelModeLineStyle(mode, getDriverPolylineColor(driverId));
       return {
@@ -141,6 +142,8 @@ export default function HereType2Polylines({
       const travelMode = event?.detail?.travelMode;
       if (!driverId || !travelMode) return;
       setLocalDriverTravelModes((prev) => ({ ...prev, [driverId]: travelMode }));
+      setCache({});
+      setLastNonEmptyLines([]);
       setRefreshToken((t) => t + 1);
     };
 
@@ -212,7 +215,7 @@ export default function HereType2Polylines({
       for (let i = 0; i < stops.length - 1; i++) {
         const a = stops[i];
         const b = stops[i + 1];
-        const key = `here_${Number(a.latitude).toFixed(5)}_${Number(a.longitude).toFixed(5)}_${Number(b.latitude).toFixed(5)}_${Number(b.longitude).toFixed(5)}`;
+        const key = `here_${getDriverMode(driverId)}_${Number(a.latitude).toFixed(5)}_${Number(a.longitude).toFixed(5)}_${Number(b.latitude).toFixed(5)}_${Number(b.longitude).toFixed(5)}`;
         if (cache[key]) continue;
         const jitter = Math.min(800, i * 75 + Math.floor(Math.random() * 120));
         (async () => {
