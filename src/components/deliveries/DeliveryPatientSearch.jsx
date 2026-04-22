@@ -92,9 +92,9 @@ export default function DeliveryPatientSearch({
   };
 
   return (
-    <div className="px-3 py-3 rounded-lg min-h-[110px] min-w-0 space-y-1 border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-      <div className="flex items-center justify-between">
-        <Label className="mt-1 mb-4 text-sm font-semibold peer-disabled:cursor-not-allowed peer-disabled:opacity-70" style={{ color: 'var(--text-slate-900)' }}>Patient Search</Label>
+    <div className={`${mobileStandalone ? 'relative block w-full flex-none basis-full' : 'relative flex-1'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+      <div className="flex items-center justify-between mb-1">
+        <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Search</Label>
         {selectedPatient &&
         <div className="p-1.5 px-2.5 bg-emerald-50 border border-emerald-200 rounded text-xs flex items-center gap-1.5 max-w-[200px]">
             <span className="text-emerald-700 font-medium truncate">✓ {selectedPatient.full_name}</span>
@@ -119,7 +119,7 @@ export default function DeliveryPatientSearch({
 
       <div className="relative flex gap-2 items-end flex-nowrap">
         <div className="relative flex-1 min-w-0">
-          <Search className="text-slate-400 mx-1 lucide lucide-search absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 z-10" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 z-10" />
           <Input
             ref={patientSearchInputRef}
             autoFocus
@@ -127,8 +127,8 @@ export default function DeliveryPatientSearch({
             placeholder="Search by name, address, phone..."
             value={locked ? '' : patientSearch}
             onChange={(e) => {setPatientSearch(e.target.value);setHighlightedPatientIndex(-1);}}
-            onKeyDown={handlePatientSearchKeyDown} className="px-3 py-3 text-base rounded-md flex w-full border shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-9"
-
+            onKeyDown={handlePatientSearchKeyDown}
+            className="pl-10 h-9"
             disabled={isSaving || locked} />
           
           {patientSearch &&
@@ -194,14 +194,14 @@ export default function DeliveryPatientSearch({
                 key={patient.id}
                 id={`patient-item-${index}`}
                 className={`pt-2 pr-2 pl-2 text-sm text-left w-full transition-colors flex items-start gap-1 border-l-4 ${
-                isAlreadyStaged ?
-                'bg-amber-100/80 border-amber-500' :
-                isSelected ?
-                'bg-emerald-100/80 border-emerald-500' :
-                isHighlighted ?
-                'bg-teal-100/80 border-teal-500' :
-                'bg-card border-transparent hover:bg-accent/60'}`
-                }>
+                  isAlreadyStaged
+                    ? 'bg-amber-100/80 border-amber-500'
+                    : isSelected
+                    ? 'bg-emerald-100/80 border-emerald-500'
+                    : isHighlighted
+                    ? 'bg-teal-100/80 border-teal-500'
+                    : 'bg-card border-transparent hover:bg-accent/60'
+                }`}>
 
                 
                     {(isMultiSelectMode || selectedPatientIds.size > 0) &&
