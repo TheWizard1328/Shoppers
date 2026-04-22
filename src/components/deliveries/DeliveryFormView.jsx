@@ -412,7 +412,7 @@ export default function DeliveryFormView({
           style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
           
           {/* Header */}
-          <CardHeader className="px-4 py-3 flex flex-col space-y-1.5 border-b flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)' }}>
+          <CardHeader className="px-4 py-1 flex flex-col space-y-1.5 border-b flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)' }}>
             <div className="flex items-center justify-between gap-3">
               <div className={`flex ${useMobileLayout && isMobileDevice ? 'items-center gap-2 min-w-0' : 'items-center gap-3'}`}>
                 <Package className="w-5 h-5 text-emerald-600 flex-shrink-0" />
@@ -960,7 +960,7 @@ export default function DeliveryFormView({
           </CardContent>
 
           {/* Footer */}
-          <CardFooter className="border-t p-3 flex-shrink-0" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+          <CardFooter className="px-3 py-1 flex items-center border-t flex-shrink-0" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
             <div className="flex items-center justify-between w-full gap-4">
               <div className="flex items-center gap-4">
                 {!delivery && useMobileLayout && !isPickupMode &&
