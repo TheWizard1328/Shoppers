@@ -693,7 +693,7 @@ export default function DeliveryFormView({
 
               {/* Main scrollable body */}
               <div className="flex gap-3 w-full flex-1 min-h-0 overflow-hidden items-stretch " style={!delivery && !useMobileLayout && !isPickupMode ? { height: '100%' } : undefined}>
-                <div className={`flex flex-col gap-3 min-w-0 ${delivery || useMobileLayout ? 'flex-1' : 'flex-1 overflow-y-auto min-h-0'} ${isFormDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
+                <div className={`flex flex-col gap-3 min-w-0 flex-1 min-h-0 overflow-y-auto pr-1 ${isFormDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
 
                   {!isPickupMode ?
                     <div className={`${useMobileLayout ? 'space-y-2' : 'grid grid-cols-[minmax(0,1.7fr)_minmax(16rem,0.7fr)] gap-3 min-h-0 items-start'}`}>
