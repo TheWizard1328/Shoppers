@@ -169,11 +169,12 @@ export default function PullToSync({
       }
 
       // ─── STEP 3: Load from offline DB + update UI ─────────────────────────
-      const [offlineDeliveriesRaw, freshAppUsers, freshCities, freshStores] = await Promise.all([
+      const [offlineDeliveriesRaw, freshAppUsers, freshCities, freshStores, offlineTypePolylines] = await Promise.all([
         offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr),
         offlineDB.getAll(offlineDB.STORES.APP_USERS).then(r => (r || []).filter(u => u?.user_id && u.user_id !== 'undefined')),
         offlineDB.getAll(offlineDB.STORES.CITIES),
-        offlineDB.getAll(offlineDB.STORES.STORES)
+        offlineDB.getAll(offlineDB.STORES.STORES),
+        offlineDB.getAll(offlineDB.STORES.DRIVER_ROUTE_POLYLINES)
       ]);
 
       const offlineDeliveries = Array.isArray(offlineDeliveriesRaw)
@@ -197,6 +198,20 @@ export default function PullToSync({
           batchedUiUpdate: true,
           preserveLocalState: true,
           syncRunId
+        }
+      }));
+      window.dispatchEvent(new CustomEvent('driverRoutePolylinesUpdated', {
+        detail: {
+          polylines: offlineTypePolylines || [],
+          source: 'pullToSync'
+        }
+      }));
+      window.dispatchEvent(new CustomEvent('polylineUpdateTriggered', {
+        detail: {
+          offlineType1Polylines: offlineTypePolylines || [],
+          freshAppUsers: safeAppUsers,
+          timestamp: Date.now(),
+          source: 'pullToSync'
         }
       }));
 
@@ -372,7 +387,7 @@ export default function PullToSync({
                   className="text-sm mt-1"
                   style={{ color: 'var(--text-slate-600)' }}
                 >
-                  Updating deliveries, patients & drivers
+                  Updating deliveries, patients, drivers & polylines
                 </p>
               </div>
             </div>
