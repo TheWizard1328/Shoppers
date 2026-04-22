@@ -624,13 +624,14 @@ export default function DeliveryFormView({
                   </div> :
 
                   <div className={`${useMobileLayout ? 'flex flex-col gap-3 w-full' : 'flex gap-3 flex-row w-full'}`}>
-                    <div className={`${useMobileLayout ? userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) ? 'grid grid-cols-3 gap-3 w-full max-[430px]:grid-cols-1' : 'grid grid-cols-2 gap-3 w-full max-[430px]:grid-cols-1' : 'flex gap-3 flex-row w-full'}`}>
-                      <div className={`${useMobileLayout ? 'min-w-0' : 'min-w-0 flex-1'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>                        <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Date *</Label>
-                        <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
+                    <div className={`${useMobileLayout ? userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) ? 'grid grid-cols-3 gap-2 w-full' : 'grid grid-cols-2 gap-2 w-full' : 'flex gap-3 flex-row w-full'}`}>
+                      <div className={`${useMobileLayout ? 'min-w-0 p-2' : 'min-w-0 flex-1 p-3'} space-y-1 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                        <Label className="text-[11px] font-semibold leading-tight" style={{ color: 'var(--text-slate-900)' }}>Delivery Date *</Label>
+                        <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className={`${useMobileLayout ? 'h-8 text-xs px-2' : 'h-9'}`} />
                       </div>
 
-                      <div className={`${useMobileLayout ? 'min-w-0' : 'min-w-0 flex-1'} space-y-1 p-3 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                        <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver {delivery ? '*' : ''}</Label>
+                      <div className={`${useMobileLayout ? 'min-w-0 p-2' : 'min-w-0 flex-1 p-3'} space-y-1 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                        <Label className="text-[11px] font-semibold leading-tight" style={{ color: 'var(--text-slate-900)' }}>Driver {delivery ? '*' : ''}</Label>
                         <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
                           const newDriverId = driverId === 'all' ? '' : driverId;
                           const driver = driverId === 'all' ? null : allDrivers.find((d) => d.id === driverId);
@@ -642,7 +643,7 @@ export default function DeliveryFormView({
                           }
                           setForceOpenDriverSelect(false);
                         }} disabled={isSaving}>
-                          <SelectTrigger data-delivery-driver-select-trigger className="h-9"><SelectValue placeholder="Select driver" /></SelectTrigger>
+                          <SelectTrigger data-delivery-driver-select-trigger className={`${useMobileLayout ? 'h-8 text-xs px-2' : 'h-9'}`}><SelectValue placeholder="Select driver" /></SelectTrigger>
                           <SelectContent className="z-[999999]">
                             {!delivery && <SelectItem value="all">All Drivers</SelectItem>}
                             {allDrivers.map((driver) => <SelectItem key={driver.id} value={driver.id}>{getDriverDisplayName(driver)}</SelectItem>)}
@@ -651,8 +652,8 @@ export default function DeliveryFormView({
                       </div>
 
                       {userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) &&
-                      <div className={`${useMobileLayout ? 'min-w-0 p-3' : 'w-fit p-3'} rounded-lg border flex ${useMobileLayout ? 'flex-col items-stretch justify-end' : 'flex-col items-start justify-start'} gap-2`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Travel Mode</Label>
+                      <div className={`${useMobileLayout ? 'min-w-0 p-2' : 'w-fit p-3'} rounded-lg border flex ${useMobileLayout ? 'flex-col items-stretch justify-end' : 'flex-col items-start justify-start'} gap-1`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                          <Label className={`${useMobileLayout ? 'text-[11px] leading-tight' : 'text-sm'} font-semibold`} style={{ color: 'var(--text-slate-900)' }}>Travel Mode</Label>
                           <TravelModeButtons
                           value={formData.finished_leg_transport_mode || delivery?.finished_leg_transport_mode || 'driving'}
                           onChange={async (mode) => {
