@@ -390,7 +390,10 @@ Deno.serve(async (req) => {
       stop_id: stop.delivery.stop_id,
       delivery_id: stop.delivery.delivery_id,
       time_window_start: stop.windowStart,
-      time_window_end: stop.windowEnd
+      time_window_end: stop.windowEnd,
+      status: stop.delivery.status,
+      is_pickup: stop.isPickup,
+      service_minutes: stop.serviceMinutes
     }));
 
     const sequencingResponse = stopsToSequence.length > 0

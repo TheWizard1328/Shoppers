@@ -40,6 +40,11 @@ const logApiUsage = async ({
 
 const TIME_ZONE = 'America/Edmonton';
 const WEEKDAY_CODES = ['su', 'mo', 'tu', 'we', 'th', 'fr', 'sa'];
+const HERE_POLYLINE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+const HERE_POLYLINE_DECODER = HERE_POLYLINE_ALPHABET.split('').reduce((acc, char, index) => {
+  acc[char] = index;
+  return acc;
+}, {});
 
 const buildFallbackSections = (origin, destination, waypoints = []) => {
   const points = [origin, ...waypoints, destination]
@@ -134,6 +139,131 @@ const calculateCrowFliesDistance = (lat1, lng1, lat2, lng2) => {
   return R * c;
 };
 
+const encodeSigned = (value) => {
+  let signed = value << 1;
+  if (value < 0) signed = ~signed;
+  let encoded = '';
+  while (signed >= 0x20) {
+    encoded += String.fromCharCode((0x20 | (signed & 0x1f)) + 63);
+    signed >>= 5;
+  }
+  encoded += String.fromCharCode(signed + 63);
+  return encoded;
+};
+
+const encodeGooglePolyline = (points) => {
+  let lastLat = 0;
+  let lastLng = 0;
+  let encoded = '';
+
+  for (const [lat, lng] of points) {
+    const latE5 = Math.round(lat * 1e5);
+    const lngE5 = Math.round(lng * 1e5);
+    encoded += encodeSigned(latE5 - lastLat);
+    encoded += encodeSigned(lngE5 - lastLng);
+    lastLat = latE5;
+    lastLng = lngE5;
+  }
+
+  return encoded;
+};
+
+const decodeHereFlexiblePolyline = (encoded) => {
+  if (!encoded || typeof encoded !== 'string') return [];
+
+  const values = [];
+  let current = 0;
+  let shift = 0;
+
+  for (const char of encoded) {
+    const value = HERE_POLYLINE_DECODER[char];
+    if (value == null) return [];
+    current |= (value & 0x1f) << shift;
+    if (value & 0x20) {
+      shift += 5;
+      continue;
+    }
+    values.push(current);
+    current = 0;
+    shift = 0;
+  }
+
+  if (shift > 0 || values.length < 2 || values[0] !== 1) return [];
+
+  const header = values[1];
+  const precision = header & 15;
+  const thirdDimension = (header >> 4) & 7;
+  const factor = 10 ** precision;
+  const dimension = thirdDimension ? 3 : 2;
+  const toSigned = (value) => ((value & 1) ? ~(value >> 1) : (value >> 1));
+
+  let latitude = 0;
+  let longitude = 0;
+  let third = 0;
+  const coordinates = [];
+
+  for (let i = 2; i < values.length; i += dimension) {
+    latitude += toSigned(values[i]);
+    longitude += toSigned(values[i + 1]);
+    if (thirdDimension) third += toSigned(values[i + 2]);
+    coordinates.push([latitude / factor, longitude / factor]);
+  }
+
+  return coordinates;
+};
+
+const buildRoutingSections = async ({ hereApiKey, orderedStops, originLat, originLng, normalizedTransportMode }) => {
+  if (orderedStops.length === 0) return [];
+
+  const sections = [];
+
+  for (let index = 0; index < orderedStops.length; index += 1) {
+    const fromPoint = index === 0
+      ? { lat: originLat, lng: originLng }
+      : { lat: orderedStops[index - 1].lat, lng: orderedStops[index - 1].lng };
+    const toPoint = { lat: orderedStops[index].lat, lng: orderedStops[index].lng };
+
+    const transportMode = normalizedTransportMode === 'cycling'
+      ? 'bicycle'
+      : normalizedTransportMode === 'pedestrian'
+        ? 'pedestrian'
+        : 'car';
+
+    const params = new URLSearchParams();
+    params.set('apiKey', hereApiKey);
+    params.set('transportMode', transportMode);
+    params.set('origin', `${fromPoint.lat},${fromPoint.lng}`);
+    params.set('destination', `${toPoint.lat},${toPoint.lng}`);
+    params.set('return', 'polyline,summary');
+
+    const routeResp = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, {
+      signal: AbortSignal.timeout(20000),
+      headers: { accept: 'application/json' }
+    });
+    const routeData = await routeResp.json().catch(() => null);
+    const routeSection = routeData?.routes?.[0]?.sections?.[0] || null;
+
+    let encodedPolyline = null;
+    if (typeof routeSection?.polyline === 'string' && routeSection.polyline) {
+      const coords = decodeHereFlexiblePolyline(routeSection.polyline);
+      if (coords.length > 1) {
+        encodedPolyline = encodeGooglePolyline(coords);
+      }
+    }
+
+    const fallbackDistanceKm = calculateCrowFliesDistance(fromPoint.lat, fromPoint.lng, toPoint.lat, toPoint.lng);
+    sections.push({
+      polyline: routeSection?.polyline || null,
+      encoded_polyline: encodedPolyline,
+      estimated_distance_km: Number.isFinite(Number(routeSection?.summary?.length)) ? Math.round((Number(routeSection.summary.length) / 1000) * 10) / 10 : Math.round(fallbackDistanceKm * 10) / 10,
+      estimated_duration_minutes: Number.isFinite(Number(routeSection?.summary?.duration)) ? Math.round(Number(routeSection.summary.duration) / 60) : Math.round((fallbackDistanceKm / 40) * 60),
+      coordinates: [fromPoint, toPoint]
+    });
+  }
+
+  return sections;
+};
+
 Deno.serve(async (req) => {
   let origin = null;
   let destination = null;
@@ -224,8 +354,8 @@ Deno.serve(async (req) => {
       const params = new URLSearchParams();
       params.set('apiKey', hereApiKey);
       params.set('departure', buildLocalIso(dateStr, departureTime));
-      params.set('mode', `shortest;${hereTransportMode};traffic:disabled`);
-      params.set('improveFor', 'distance');
+      params.set('mode', `fastest;${hereTransportMode};traffic:disabled`);
+      params.set('improveFor', 'time');
       params.set('start', `driverStart;${originLat},${originLng}`);
 
       sequenceStops.forEach((stop, index) => {
@@ -251,8 +381,8 @@ Deno.serve(async (req) => {
         const retryParams = new URLSearchParams();
         retryParams.set('apiKey', hereApiKey);
         retryParams.set('departure', buildLocalIso(dateStr, departureTime));
-        retryParams.set('mode', `shortest;${hereTransportMode};traffic:disabled`);
-        retryParams.set('improveFor', 'distance');
+        retryParams.set('mode', `fastest;${hereTransportMode};traffic:disabled`);
+        retryParams.set('improveFor', 'time');
         retryParams.set('start', `driverStart;${originLat},${originLng}`);
         sequenceStops.forEach((stop, index) => {
           retryParams.set(`destination${index + 1}`, `${stop.id};${stop.lat},${stop.lng}`);
@@ -326,22 +456,33 @@ Deno.serve(async (req) => {
 
     const interconnectionByToWaypoint = new Map(interconnections.map((item) => [item.toWaypoint, item]));
 
+    const routedSections = preserveWaypointOrder
+      ? []
+      : await buildRoutingSections({
+          hereApiKey,
+          orderedStops,
+          originLat,
+          originLng,
+          normalizedTransportMode
+        });
+
     const orderedPoints = [{ lat: originLat, lng: originLng }, ...orderedStops.map((stop) => ({ lat: stop.lat, lng: stop.lng }))];
     const normalizedSections = orderedStops.map((stop, index) => {
       const leg = interconnectionByToWaypoint.get(stop.id);
       const fromPoint = orderedPoints[index];
       const toPoint = orderedPoints[index + 1];
       const fallbackDistanceKm = calculateCrowFliesDistance(fromPoint.lat, fromPoint.lng, toPoint.lat, toPoint.lng);
-      const estimatedDistanceKm = Number.isFinite(Number(leg?.distance)) ? Math.round((Number(leg.distance) / 1000) * 10) / 10 : Math.round(fallbackDistanceKm * 10) / 10;
-      const estimatedDurationMinutes = Number.isFinite(Number(leg?.time)) ? Math.round(Number(leg.time) / 60) : Math.round((fallbackDistanceKm / 40) * 60);
+      const routedSection = routedSections[index] || null;
+      const estimatedDistanceKm = routedSection?.estimated_distance_km ?? (Number.isFinite(Number(leg?.distance)) ? Math.round((Number(leg.distance) / 1000) * 10) / 10 : Math.round(fallbackDistanceKm * 10) / 10);
+      const estimatedDurationMinutes = routedSection?.estimated_duration_minutes ?? (Number.isFinite(Number(leg?.time)) ? Math.round(Number(leg.time) / 60) : Math.round((fallbackDistanceKm / 40) * 60));
       return {
-        polyline: null,
-        encoded_polyline: null,
+        polyline: routedSection?.polyline || null,
+        encoded_polyline: routedSection?.encoded_polyline || null,
         estimated_distance_km: estimatedDistanceKm,
         estimated_duration_minutes: estimatedDurationMinutes,
         sequence: index + 1,
         waypoint_id: stop.id,
-        coordinates: [fromPoint, toPoint]
+        coordinates: routedSection?.coordinates || [fromPoint, toPoint]
       };
     });
 
@@ -371,14 +512,15 @@ Deno.serve(async (req) => {
         stops_count: sequenceStops.length + 1,
         estimated_distance_km,
         estimated_duration_minutes,
-        optimized_sequence: orderedWaypoints.map((waypoint) => waypoint.id)
+        optimized_sequence: orderedWaypoints.map((waypoint) => waypoint.id),
+        real_road_polylines: normalizedSections.filter((section) => !!section?.encoded_polyline).length
       },
     });
 
     return Response.json({
-      polyline_format: 'sequence',
-      polyline: null,
-      polylines: [],
+      polyline_format: 'google',
+      polyline: normalizedSections[0]?.encoded_polyline || null,
+      polylines: normalizedSections.map((section) => section?.encoded_polyline).filter(Boolean),
       sections: normalizedSections,
       estimated_distance_km,
       estimated_duration_minutes,
