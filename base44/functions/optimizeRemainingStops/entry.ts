@@ -140,8 +140,6 @@ const buildAccessConstraint = (dateStr, startTime, endTime) => {
   return `acc:${weekday}${start}${offset}|${weekday}${end}${offset}`;
 };
 
-const PICKUP_CLUSTER_PRIORITY_RADIUS_KM = 8;
-
 /**
  * Optimize Remaining Stops - staged optimization for driver's route
  */
@@ -320,35 +318,8 @@ Deno.serve(async (req) => {
       .map((delivery) => stops.find((item) => item.delivery.id === delivery.id) || null)
       .filter(Boolean);
 
-    const pendingStops = optimizationStops.filter((stop) => stop.delivery.status === 'pending');
-    const pendingClusterByStoreId = new Map();
-    pendingStops.forEach((stop) => {
-      const storeId = stop.delivery.store_id;
-      if (!storeId) return;
-      const cluster = pendingClusterByStoreId.get(storeId) || {
-        storeId,
-        storeLat: null,
-        storeLng: null,
-        earliestWindowMinutes: Infinity,
-        pendingCount: 0
-      };
-      const store = storeMap.get(storeId);
-      if (store?.latitude != null && store?.longitude != null) {
-        cluster.storeLat = Number(store.latitude);
-        cluster.storeLng = Number(store.longitude);
-      }
-      cluster.pendingCount += 1;
-      const windowMinutes = parseTimeToMinutes(stop.windowStart);
-      if (Number.isFinite(windowMinutes)) {
-        cluster.earliestWindowMinutes = Math.min(cluster.earliestWindowMinutes, windowMinutes);
-      }
-      pendingClusterByStoreId.set(storeId, cluster);
-    });
-
     const nextDeliveryStop = optimizationStops.find((stop) => stop.delivery.isNextDelivery === true) || null;
-    const nextDeliveryCluster = nextDeliveryStop ? pendingClusterByStoreId.get(nextDeliveryStop.delivery.store_id) : null;
-    const shouldUnlockNextForNearbyCluster = !!nextDeliveryStop && !!nextDeliveryCluster && Number.isFinite(nextDeliveryCluster.storeLat) && Number.isFinite(nextDeliveryCluster.storeLng) && calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, nextDeliveryCluster.storeLat, nextDeliveryCluster.storeLng) <= PICKUP_CLUSTER_PRIORITY_RADIUS_KM;
-    const lockedNextStop = nextDeliveryStop && !nextDeliveryStop.hasLateWindow && !shouldUnlockNextForNearbyCluster ? nextDeliveryStop : null;
+    const lockedNextStop = nextDeliveryStop && !nextDeliveryStop.hasLateWindow ? nextDeliveryStop : null;
     const stopsToSequence = lockedNextStop
       ? optimizationStops.filter((stop) => stop.delivery.id !== lockedNextStop.delivery.id)
       : optimizationStops;
@@ -375,29 +346,7 @@ Deno.serve(async (req) => {
         params.set('end', `driverHome;${resolvedHomePosition.lat},${resolvedHomePosition.lng}`);
       }
 
-      const prioritizedStops = [...stopsToSequence]
-        .map((stop) => {
-          const cluster = pendingClusterByStoreId.get(stop.delivery.store_id) || null;
-          const clusterDistanceKm = cluster && Number.isFinite(cluster.storeLat) && Number.isFinite(cluster.storeLng)
-            ? calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, cluster.storeLat, cluster.storeLng)
-            : Infinity;
-          const nearbyClusterPriority = stop.delivery.status !== 'pending' && cluster?.pendingCount > 0 && clusterDistanceKm <= PICKUP_CLUSTER_PRIORITY_RADIUS_KM ? -1 : 0;
-          return {
-            ...stop,
-            clusterDistanceKm,
-            nearbyClusterPriority,
-            clusterEarliestWindowMinutes: Number.isFinite(cluster?.earliestWindowMinutes) ? cluster.earliestWindowMinutes : Infinity
-          };
-        })
-        .sort((a, b) => {
-          if (a.hasLateWindow !== b.hasLateWindow) return a.hasLateWindow ? 1 : -1;
-          if (a.nearbyClusterPriority !== b.nearbyClusterPriority) return a.nearbyClusterPriority - b.nearbyClusterPriority;
-          if (a.clusterDistanceKm !== b.clusterDistanceKm) return a.clusterDistanceKm - b.clusterDistanceKm;
-          if (a.clusterEarliestWindowMinutes !== b.clusterEarliestWindowMinutes) return a.clusterEarliestWindowMinutes - b.clusterEarliestWindowMinutes;
-          return (a.timeMinutes || Infinity) - (b.timeMinutes || Infinity);
-        });
-
-      prioritizedStops.forEach((stop, index) => {
+      stopsToSequence.forEach((stop, index) => {
         const segments = [`${stop.delivery.stop_id || stop.delivery.delivery_id || stop.delivery.id};${stop.lat},${stop.lng}`];
         if (includeTimeWindows) {
           const accessConstraint = buildAccessConstraint(deliveryDate, stop.windowStart, stop.windowEnd);
@@ -406,8 +355,6 @@ Deno.serve(async (req) => {
         segments.push(`st:${Math.round((stop.delivery.extra_time || (stop.isPickup ? 15 : 5)) * 60)}`);
         params.set(`destination${index + 1}`, segments.join(';'));
       });
-
-      return { response, data, includeTimeWindows, prioritizedStops };
 
       attemptedHereCalls += 1;
       const response = await fetch(`https://wps.hereapi.com/v8/findsequence2?${params.toString()}`, {
@@ -419,14 +366,12 @@ Deno.serve(async (req) => {
 
     if (stopsToSequence.length > 0) {
       let hereAttempt = await executeHereSequence(true);
-      let prioritizedStops = hereAttempt.prioritizedStops || stopsToSequence;
       let result = Array.isArray(hereAttempt.data?.results) ? hereAttempt.data.results[0] : null;
       let waypoints = Array.isArray(result?.waypoints) ? result.waypoints : [];
       let interconnections = Array.isArray(result?.interconnections) ? result.interconnections : [];
 
       if ((!hereAttempt.response.ok || !result || waypoints.length === 0) && hereAttempt.includeTimeWindows) {
         hereAttempt = await executeHereSequence(false);
-        prioritizedStops = hereAttempt.prioritizedStops || stopsToSequence;
         usedTimeWindows = false;
         result = Array.isArray(hereAttempt.data?.results) ? hereAttempt.data.results[0] : null;
         waypoints = Array.isArray(result?.waypoints) ? result.waypoints : [];
@@ -435,7 +380,7 @@ Deno.serve(async (req) => {
 
       if (!hereAttempt.response.ok || !result || waypoints.length === 0) {
         console.log('⚠️ [optimizeRemainingStops] HERE sequencing failed - using crow-flies fallback');
-        routeStops = [...routeStops, ...prioritizedStops];
+        routeStops = [...routeStops, ...stopsToSequence];
         let prevPos = currentPosition;
         for (const stop of routeStops) {
           const distKm = calculateCrowFliesDistance(prevPos.lat, prevPos.lng, stop.lat, stop.lng);
@@ -446,7 +391,7 @@ Deno.serve(async (req) => {
         const orderedStops = waypoints
           .filter((waypoint) => waypoint.id !== 'driverStart' && waypoint.id !== 'driverEnd')
           .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
-          .map((waypoint) => ({ stop: prioritizedStops.find((item) => (item.delivery.stop_id || item.delivery.delivery_id || item.delivery.id) === waypoint.id) || null, waypoint }))
+          .map((waypoint, index) => ({ stop: stopsToSequence[index] && stopsToSequence.find((item) => (item.delivery.stop_id || item.delivery.delivery_id || item.delivery.id) === waypoint.id) || null, waypoint }))
           .filter((item) => item.stop);
 
         routeStops = [...routeStops, ...orderedStops.map((item) => item.stop)];
