@@ -137,7 +137,30 @@ export default function HereType1Polylines({
   }, []);
 
   useEffect(() => {
-    const handleDriverRoutePolylinesUpdated = () => {
+    const handleDriverRoutePolylinesUpdated = async (event) => {
+      const updatedPolylines = event?.detail?.polylines || [];
+      if (updatedPolylines.length > 0) {
+        setCache((prev) => {
+          const next = { ...prev };
+          updatedPolylines.forEach((row) => {
+            if (!row?.encoded_polyline) return;
+            const key = getHereCacheKey(
+              { latitude: Number(row.segment_origin_lat), longitude: Number(row.segment_origin_lon) },
+              { latitude: Number(row.segment_dest_lat), longitude: Number(row.segment_dest_lon) },
+              row.transport_mode || 'driving'
+            );
+            if (!key) return;
+            try {
+              const coords = decodePolyline(row.encoded_polyline);
+              if (Array.isArray(coords) && coords.length > 1) {
+                next[key] = coords;
+                localStorage.setItem(key, JSON.stringify(coords));
+              }
+            } catch (_) {}
+          });
+          return next;
+        });
+      }
       setRefreshToken((token) => token + 1);
     };
     window.addEventListener('driverRoutePolylinesUpdated', handleDriverRoutePolylinesUpdated);
@@ -598,16 +621,22 @@ export default function HereType1Polylines({
 
     if (!coords && !optimizing) {
       if (Date.now() - mountTimeRef.current < 1200) return;
-      const lastReq = requestTimesRef.current[key] || 0;
-      const now = Date.now();
-      if (now - lastReq > 4000) {
-        requestTimesRef.current[key] = now;
-        getHerePolyline(driverId, origin, destination, nextStop.delivery_date, getDriverMode(driverId)).then((fetched) => {
-          if (Array.isArray(fetched) && fetched.length > 1) {
-            setCache((p) => ({ ...p, [key]: fetched }));
-          }
-        }).catch(() => {});
-      }
+      hydrateFromOffline(key, driverId, origin, destination, nextStop.delivery_date).then((hydrated) => {
+        if (hydrated) {
+          setRefreshToken((token) => token + 1);
+          return;
+        }
+        const lastReq = requestTimesRef.current[key] || 0;
+        const now = Date.now();
+        if (now - lastReq > 4000) {
+          requestTimesRef.current[key] = now;
+          getHerePolyline(driverId, origin, destination, nextStop.delivery_date, getDriverMode(driverId)).then((fetched) => {
+            if (Array.isArray(fetched) && fetched.length > 1) {
+              setCache((p) => ({ ...p, [key]: fetched }));
+            }
+          }).catch(() => {});
+        }
+      }).catch(() => {});
     }
 
     if (!seenKeys.has(key)) {
