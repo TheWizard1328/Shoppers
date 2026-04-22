@@ -127,8 +127,8 @@ export default function DeliveryPatientSearch({
             placeholder="Search by name, address, phone..."
             value={locked ? '' : patientSearch}
             onChange={(e) => {setPatientSearch(e.target.value);setHighlightedPatientIndex(-1);}}
-            onKeyDown={handlePatientSearchKeyDown}
-            className="pl-10 h-9"
+            onKeyDown={handlePatientSearchKeyDown} className="px-3 py-1 text-base rounded-md flex w-full border shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-9"
+
             disabled={isSaving || locked} />
           
           {patientSearch &&
