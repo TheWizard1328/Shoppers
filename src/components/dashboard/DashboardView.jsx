@@ -231,13 +231,20 @@ export default function DashboardView({
           setShouldFitBounds={setShouldFitBounds} setMapCenter={setMapCenter} setMapZoom={setMapZoom} getMapPadding={getMapPadding}
           mapLockTimeoutRef={mapLockTimeoutRef} mapLockExpiresAtRef={mapLockExpiresAtRef}
           stopCardsContainerRef={stopCardsContainerRef} horizontalStopCardsRef={horizontalStopCardsRef} retractClustersRef={retractClustersRef}
-          optimizationMessage={optimizationMessage} setOptimizationMessage={setOptimizationMessage} isOptimizing={isOptimizing}
           selectedCardId={selectedCardId} handleCardClick={handleCardClick}
           handleEditDelivery={handleEditDelivery} handleEditPatient={handleEditPatient} handleDeleteDelivery={handleDeleteDelivery}
           handleRestartDelivery={handleRestartDelivery} handleStatusUpdate={handleStatusUpdate} handleNotesUpdate={handleNotesUpdate}
           handleCODUpdate={handleCODUpdate} handleCreateReturn={handleCreateReturn} handleStartDelivery={handleStartDelivery}
           refreshUser={refreshUser}
         />
+
+        {optimizationMessage && (
+          <div className="pointer-events-none fixed left-1/2 top-[5.5rem] -translate-x-1/2 z-[9998] w-full max-w-md px-4">
+            <div className="pointer-events-auto rounded-xl border border-slate-200 bg-white/95 px-4 py-3 text-sm font-medium text-slate-800 shadow-xl backdrop-blur-sm">
+              {optimizationMessage}
+            </div>
+          </div>
+        )}
 
         <ApiUsageBadge
           currentUser={currentUser}

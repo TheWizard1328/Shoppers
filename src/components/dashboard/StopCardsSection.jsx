@@ -1,6 +1,4 @@
-import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
-import { X } from "lucide-react";
 import { flushSync } from "react-dom";
 import HorizontalStopCards from "@/components/dashboard/HorizontalStopCards";
 import { getDriverColor } from "@/components/dashboard/DeliveryMap";
@@ -14,7 +12,6 @@ export default function StopCardsSection({
   setShouldFitBounds, setMapCenter, setMapZoom, getMapPadding,
   mapLockTimeoutRef, mapLockExpiresAtRef,
   stopCardsContainerRef, horizontalStopCardsRef, retractClustersRef,
-  optimizationMessage, setOptimizationMessage, isOptimizing,
   selectedCardId, handleCardClick,
   handleEditDelivery, handleEditPatient, handleDeleteDelivery,
   handleRestartDelivery, handleStatusUpdate, handleNotesUpdate,
@@ -34,7 +31,7 @@ export default function StopCardsSection({
     observer.observe(element);
 
     return () => observer.disconnect();
-  }, [horizontalStopCardsRef, deliveriesWithStopOrder.length, selectedCardId, optimizationMessage]);
+  }, [horizontalStopCardsRef, deliveriesWithStopOrder.length, selectedCardId]);
 
   const mobileStopCardsTop = isMobile && mobileCardsHeight > 0
     ? `calc(100% - var(--bottom-nav-height, 0px) - ${mobileCardsHeight}px - 0.25rem)`
@@ -52,16 +49,6 @@ export default function StopCardsSection({
         bottom: isMobile && mobileStopCardsTop ? 'auto' : 'calc(var(--bottom-nav-height, 0px) + 0.25rem)'
       }}
       onClick={() => { if (retractClustersRef.current) retractClustersRef.current(); }}>
-
-      <AnimatePresence>
-        {optimizationMessage && <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="flex justify-center mb-2 pointer-events-auto">
-          <div className="rounded-lg shadow-2xl border-2 border-emerald-500 p-3 flex items-center gap-3 max-w-[90vw]" style={{ background: 'var(--bg-white)' }}>
-            {isOptimizing && <div className="animate-spin w-4 h-4 border-3 border-emerald-500 border-t-transparent rounded-full flex-shrink-0"></div>}
-            <p className="font-medium flex-1 text-sm" style={{ color: 'var(--text-slate-900)' }}>{optimizationMessage}</p>
-            {!isOptimizing && <button onClick={() => setOptimizationMessage(null)} className="text-slate-400 hover:text-slate-600 flex-shrink-0"><X className="w-3.5 h-3.5" style={{ color: 'var(--text-slate-400)' }} /></button>}
-          </div>
-        </motion.div>}
-      </AnimatePresence>
 
       <div
         className="overflow-x-auto overflow-y-visible scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent pointer-events-auto"
