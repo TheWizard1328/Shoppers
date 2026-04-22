@@ -68,10 +68,14 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
     fetchCounts();
     const delayedInitialFetch = setTimeout(fetchCounts, 12000);
     const interval = setInterval(fetchCounts, 120000);
+    const handleRealtimeApiLog = () => fetchCounts();
+
+    window.addEventListener('realtimeUpdate_GoogleAPILog', handleRealtimeApiLog);
 
     return () => {
       clearTimeout(delayedInitialFetch);
       clearInterval(interval);
+      window.removeEventListener('realtimeUpdate_GoogleAPILog', handleRealtimeApiLog);
     };
   }, [currentUser, isOwner]);
 

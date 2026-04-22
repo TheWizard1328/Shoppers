@@ -25,6 +25,7 @@ const eventBuffers = {
   AppUser: new Map(),
   Message: new Map(),
   DriverRoutePolyline: new Map(),
+  GoogleAPILog: new Map(),
 };
 const flushTimers = {};
 
@@ -442,6 +443,7 @@ export const connect = () => {
     subscribeToEntity('Patient');
     subscribeToEntity('AppUser');
     subscribeToEntity('Message');
+    subscribeToEntity('GoogleAPILog');
 
     // Instantly cascade Patient changes to related Deliveries in OFFLINE DB + UI
     window.addEventListener('realtimeUpdate_Patient', async (e) => {
