@@ -681,17 +681,30 @@ Deno.serve(async (req) => {
         }
       }
 
+      const polylineEntity = base44.asServiceRole.entities.DriverRoutePolyline;
+
       if (rowsToUpdate.length > 0) {
         for (let index = 0; index < rowsToUpdate.length; index += 10) {
           const chunk = rowsToUpdate.slice(index, index + 10);
           await Promise.all(chunk.map((row) =>
-            base44.asServiceRole.entities.DriverRoutePolyline.update(row.id, row.data).catch(() => null)
+            polylineEntity.update(row.id, row.data).catch((error) => {
+              console.error('❌ [optimizeRouteRealTime] DriverRoutePolyline update failed:', row.id, error?.message || error);
+              return null;
+            })
           ));
         }
       }
 
       if (rowsToCreate.length > 0) {
-        await base44.asServiceRole.entities.DriverRoutePolyline.bulkCreate(rowsToCreate).catch(() => null);
+        for (let index = 0; index < rowsToCreate.length; index += 20) {
+          const chunk = rowsToCreate.slice(index, index + 20);
+          await Promise.all(chunk.map((row) =>
+            polylineEntity.create(row).catch((error) => {
+              console.error('❌ [optimizeRouteRealTime] DriverRoutePolyline create failed:', error?.message || error);
+              return null;
+            })
+          ));
+        }
       }
     }
 
