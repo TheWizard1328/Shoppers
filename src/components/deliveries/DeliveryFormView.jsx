@@ -412,7 +412,7 @@ export default function DeliveryFormView({
           style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
           
           {/* Header */}
-          <CardHeader className="border-b p-4 flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)' }}>
+          <CardHeader className="px-4 py-3 flex flex-col space-y-1.5 border-b flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)' }}>
             <div className="flex items-center justify-between gap-3">
               <div className={`flex ${useMobileLayout && isMobileDevice ? 'items-center gap-2 min-w-0' : 'items-center gap-3'}`}>
                 <Package className="w-5 h-5 text-emerald-600 flex-shrink-0" />
@@ -925,7 +925,7 @@ export default function DeliveryFormView({
                       </> :
                     null :
                     !(isPickupMode && !delivery) ?
-                    <div className="px-1 py-1 rounded-lg space-y-2 border"
+                    <div className="px-1 py-1 rounded-lg space-y-1 border"
                     style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                       <DeliveryStatusAndTiming
                         formData={formData} setFormData={setFormData}
