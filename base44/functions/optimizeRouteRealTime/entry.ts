@@ -614,7 +614,7 @@ Deno.serve(async (req) => {
 
     const routeLegPoints = [
       activeRouteOrigin,
-      ...orderedRouteStops.map((item) => ({ lat: Number(item.lat), lng: Number(item.lng) })),
+      ...arrangedStops.map((item) => ({ lat: Number(item.stop.lat), lng: Number(item.stop.lng) })),
       endLocation ? { lat: Number(endLocation.lat), lng: Number(endLocation.lng) } : null
     ].filter((point) => point?.lat != null && point?.lng != null);
 
