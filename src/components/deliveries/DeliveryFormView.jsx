@@ -651,7 +651,7 @@ export default function DeliveryFormView({
                       </div>
 
                       {userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) &&
-                      <div className={`${useMobileLayout ? 'w-[3.5rem] min-w-[3.5rem] p-1.5' : 'w-fit p-3'} rounded-lg border flex ${useMobileLayout ? 'flex-col items-center justify-center' : 'flex-col items-start justify-start'} gap-1`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                      <div className={`${useMobileLayout ? 'w-[4.5rem] min-w-[4.5rem] p-1.5' : 'w-fit p-3'} rounded-lg border flex ${useMobileLayout ? 'flex-col items-center justify-center' : 'flex-col items-start justify-start'} gap-1`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                           {!useMobileLayout && (
                             <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Travel Mode</Label>
                           )}
