@@ -48,7 +48,7 @@ const TravelModeButtons = ({ value, onChange, disabled, currentUser, appUsers = 
 
 
   return (
-    <div className="flex flex-row gap-2 shrink-0">
+    <div className={`${window.innerWidth < 768 ? 'flex flex-col gap-1' : 'flex flex-row gap-2'} shrink-0`}>
       {options.map((option) => {
         const Icon = option.icon;
         const isActive = value === option.value;
@@ -652,8 +652,10 @@ export default function DeliveryFormView({
                       </div>
 
                       {userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) &&
-                      <div className={`${useMobileLayout ? 'min-w-0 p-2' : 'w-fit p-3'} rounded-lg border flex ${useMobileLayout ? 'flex-col items-stretch justify-end' : 'flex-col items-start justify-start'} gap-1`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                          <Label className={`${useMobileLayout ? 'text-[11px] leading-tight' : 'text-sm'} font-semibold`} style={{ color: 'var(--text-slate-900)' }}>Travel Mode</Label>
+                      <div className={`${useMobileLayout ? 'min-w-0 p-2' : 'w-fit p-3'} rounded-lg border flex ${useMobileLayout ? 'flex-col items-center justify-center' : 'flex-col items-start justify-start'} gap-1`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                          {!useMobileLayout && (
+                            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Travel Mode</Label>
+                          )}
                           <TravelModeButtons
                           value={formData.finished_leg_transport_mode || delivery?.finished_leg_transport_mode || 'driving'}
                           onChange={async (mode) => {
