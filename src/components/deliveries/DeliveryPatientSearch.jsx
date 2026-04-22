@@ -94,7 +94,7 @@ export default function DeliveryPatientSearch({
   return (
     <div className="space-y-2 px-3 rounded-lg relative flex-1 border min-h-[110px] max-h-[110px]" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
       <div className="my-1.5 py-2 flex items-center justify-between">
-        <Label className="px-1 py-1 text-sm font-semibold peer-disabled:cursor-not-allowed peer-disabled:opacity-70" style={{ color: 'var(--text-slate-900)' }}>Patient Search</Label>
+        <Label className="px-1 py-1.0 text-sm font-semibold peer-disabled:cursor-not-allowed peer-disabled:opacity-70" style={{ color: 'var(--text-slate-900)' }}>Patient Search</Label>
         {selectedPatient &&
         <div className="p-1.5 px-2.5 bg-emerald-50 border border-emerald-200 rounded text-xs flex items-center gap-1.5 min-w-[100px]">
             <span className="text-emerald-700 font-medium truncate">✓ {selectedPatient.full_name}</span>
