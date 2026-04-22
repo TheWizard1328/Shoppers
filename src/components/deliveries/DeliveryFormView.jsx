@@ -708,7 +708,7 @@ export default function DeliveryFormView({
                 <div className={`flex flex-col gap-3 min-w-0 ${delivery || useMobileLayout ? 'flex-1' : 'flex-1 overflow-y-auto min-h-0'} ${isFormDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
 
                   {!isPickupMode ?
-                    <div className={`${useMobileLayout ? 'space-y-2' : 'grid grid-cols-[minmax(0,1.7fr)_minmax(16rem,0.7fr)] gap-3 items-start'}`}>
+                    <div className={`${useMobileLayout ? 'space-y-2' : 'grid grid-cols-[minmax(0,1.7fr)_minmax(16rem,0.7fr)] gap-3 min-h-0 items-start'}`}>
                       <div className="space-y-3 min-w-0">
 
                         {/* Notes */}
@@ -797,7 +797,7 @@ export default function DeliveryFormView({
                       </div>
 
                       {!useMobileLayout &&
-                      <div className="space-y-2 min-w-0">
+                      <div className="space-y-2 min-w-0 min-h-0 overflow-y-auto pr-1">
                           <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                             <SmartBarcodeScanner
                             receiptBarcodeValues={formData.receipt_barcode_values || []}
