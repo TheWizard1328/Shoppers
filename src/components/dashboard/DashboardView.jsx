@@ -68,6 +68,7 @@ export default function DashboardView({
   realTimeETAEnabled,
   isDriverMovingForFAB,
   isImmersiveHidden,
+  hideCards,
   // Misc
   refreshUser, refreshData, dataSource,
 }) {
@@ -204,6 +205,7 @@ export default function DashboardView({
           refreshUser={refreshUser} dataSource={dataSource}
           isMobile={isMobile}
           isImmersiveHidden={isImmersiveHidden}
+          hideCards={hideCards}
         />
         <DashboardMapSection
           currentUser={currentUser} isDriver={isDriver} isDispatcher={isDispatcher} isMobile={isMobile}
@@ -239,6 +241,7 @@ export default function DashboardView({
           handleRestartDelivery={handleRestartDelivery} handleStatusUpdate={handleStatusUpdate} handleNotesUpdate={handleNotesUpdate}
           handleCODUpdate={handleCODUpdate} handleCreateReturn={handleCreateReturn} handleStartDelivery={handleStartDelivery}
           refreshUser={refreshUser}
+          hideCards={hideCards}
         />
 
         {optimizationMessage && (

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 const MOVING_HIDE_DELAY_MS = 10000;
+const CARD_HIDE_DELAY_MS = 300;
 const NEXT_STOP_RESTORE_DISTANCE_KM = 0.5;
 
 const calculateDistanceKm = (lat1, lon1, lat2, lon2) => {
@@ -28,7 +29,9 @@ export default function useImmersiveNavigationMode({
   nextStopCoordinates,
 }) {
   const [isImmersiveHidden, setIsImmersiveHidden] = useState(false);
+  const [hideCards, setHideCards] = useState(false);
   const hideTimerRef = useRef(null);
+  const cardHideTimerRef = useRef(null);
   const isMovingRef = useRef(false);
 
   const isNearNextStop = useMemo(() => {
@@ -56,6 +59,10 @@ export default function useImmersiveNavigationMode({
         clearTimeout(hideTimerRef.current);
         hideTimerRef.current = null;
       }
+      if (cardHideTimerRef.current) {
+        clearTimeout(cardHideTimerRef.current);
+        cardHideTimerRef.current = null;
+      }
       return;
     }
 
@@ -64,7 +71,12 @@ export default function useImmersiveNavigationMode({
         clearTimeout(hideTimerRef.current);
         hideTimerRef.current = null;
       }
+      if (cardHideTimerRef.current) {
+        clearTimeout(cardHideTimerRef.current);
+        cardHideTimerRef.current = null;
+      }
       setIsImmersiveHidden(false);
+      setHideCards(false);
     };
 
     const scheduleHide = () => {
@@ -73,6 +85,15 @@ export default function useImmersiveNavigationMode({
         hideTimerRef.current = null;
         if (isMovingRef.current && !isNearNextStop) {
           setIsImmersiveHidden(true);
+          if (cardHideTimerRef.current) {
+            clearTimeout(cardHideTimerRef.current);
+          }
+          cardHideTimerRef.current = setTimeout(() => {
+            cardHideTimerRef.current = null;
+            if (isMovingRef.current && !isNearNextStop) {
+              setHideCards(true);
+            }
+          }, CARD_HIDE_DELAY_MS);
         }
       }, MOVING_HIDE_DELAY_MS);
     };
@@ -122,11 +143,17 @@ export default function useImmersiveNavigationMode({
         clearTimeout(hideTimerRef.current);
         hideTimerRef.current = null;
       }
+      if (cardHideTimerRef.current) {
+        clearTimeout(cardHideTimerRef.current);
+        cardHideTimerRef.current = null;
+      }
+      setHideCards(false);
     }
   }, [isNearNextStop]);
 
   return {
     isImmersiveHidden,
+    hideCards,
     isNearNextStop,
   };
 }

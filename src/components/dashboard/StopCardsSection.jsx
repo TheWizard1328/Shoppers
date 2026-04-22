@@ -19,6 +19,7 @@ export default function StopCardsSection({
   handleCODUpdate, handleCreateReturn, handleStartDelivery,
   refreshUser,
   isImmersiveHidden = false,
+  hideCards = false,
 }) {
   const [mobileCardsHeight, setMobileCardsHeight] = useState(0);
 
@@ -51,7 +52,7 @@ export default function StopCardsSection({
         bottom: isMobile && mobileStopCardsTop ? 'auto' : 'calc(var(--bottom-nav-height, 0px) + 0.25rem)'
       }}
       initial={false}
-      animate={{ opacity: isImmersiveHidden ? 0 : 1, y: isImmersiveHidden ? 180 : 0 }}
+      animate={{ opacity: hideCards ? 0 : 1, y: hideCards ? 180 : 0 }}
       transition={{ duration: 0.3 }}
       onClick={() => { if (retractClustersRef.current) retractClustersRef.current(); }}>
 
