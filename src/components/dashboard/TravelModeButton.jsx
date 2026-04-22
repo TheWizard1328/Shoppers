@@ -18,18 +18,18 @@ export default function TravelModeButton({ currentUser, appUsers = [], value, on
   const CurrentIcon = isCycling ? Bike : Car;
 
   useEffect(() => {
-    setOptimisticMode(normalizeTravelMode(value));
+    if (value) setOptimisticMode(normalizeTravelMode(value));
   }, [value]);
 
   const handleToggle = async () => {
     if (disabled || !appUser?.id) return;
     const nextValue = isCycling ? 'driving' : 'cycling';
     setOptimisticMode(nextValue);
-    onChange?.(nextValue);
     window.dispatchEvent(new CustomEvent('driverTravelModeChanged', {
       detail: { driverId: currentUser?.id, travelMode: nextValue }
     }));
     await updatePreferredTravelMode(appUsers, currentUser?.id, nextValue);
+    onChange?.(nextValue);
   };
 
   if (!currentUser) return null;
