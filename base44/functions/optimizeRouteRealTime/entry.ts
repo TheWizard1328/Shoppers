@@ -173,6 +173,7 @@ const estimateCrowFliesTravelMinutes = (fromLat, fromLng, toLat, toLng) => {
 
 const isValidEntityId = (value) => /^[a-f0-9]{24}$/i.test(String(value || ''));
 const isActiveRouteStatus = (status) => ACTIVE_ROUTE_STATUSES.includes(status);
+const isFiniteCoordinate = (value) => Number.isFinite(Number(value));
 const round5 = (value) => Number(Number(value).toFixed(5));
 const sameSegmentPoint = (a, b) => {
   if (!a || !b) return false;
@@ -342,7 +343,11 @@ Deno.serve(async (req) => {
     }
 
     const nextDeliveryStop = stops.find((stop) => stop.delivery.isNextDelivery === true) || null;
-    const canKeepLockedNextStop = !!nextDeliveryStop && !nextDeliveryStop.hasLateWindow;
+    const nextDeliveryReachableFromCurrentLocation = !!nextDeliveryStop
+      && !!currentPosition
+      && isFiniteCoordinate(currentPosition.lat)
+      && isFiniteCoordinate(currentPosition.lng);
+    const canKeepLockedNextStop = !!nextDeliveryStop && !nextDeliveryStop.hasLateWindow && nextDeliveryReachableFromCurrentLocation;
     const lockedNextStop = canKeepLockedNextStop ? nextDeliveryStop : null;
     const stopsToSequence = lockedNextStop
       ? stops.filter((stop) => stop.delivery.id !== lockedNextStop.delivery.id)
@@ -622,6 +627,11 @@ Deno.serve(async (req) => {
       endLocation ? { lat: Number(endLocation.lat), lng: Number(endLocation.lng) } : null
     ].filter((point) => point?.lat != null && point?.lng != null);
 
+    const activeLegPoints = [
+      activeRouteOrigin,
+      firstActiveCoords
+    ].filter((point) => point?.lat != null && point?.lng != null);
+
     const routeDirectionsResponse = routeLegPoints.length >= 2
       ? await base44.asServiceRole.functions.invoke('getHereDirections', {
           origin: { lat: routeLegPoints[0].lat, lng: routeLegPoints[0].lng },
@@ -724,8 +734,8 @@ Deno.serve(async (req) => {
       },
       polylineRefresh: {
         shouldRefresh: !!activeSegmentChanged,
-        origin: activeRouteOrigin,
-        destination: firstActiveCoords,
+        origin: activeLegPoints[0] || null,
+        destination: activeLegPoints[1] || null,
         nextStopId: firstActiveStop?.delivery?.id || null
       }
     });
