@@ -2,6 +2,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+const isRateLimitError = (error) => error?.status === 429 || error?.response?.status === 429 || String(error?.message || '').toLowerCase().includes('rate limit');
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
 const ACTIVE_STATUSES = ['in_transit', 'en_route'];
 const TIME_ZONE = 'America/Edmonton';
@@ -526,6 +527,18 @@ Deno.serve(async (req) => {
     });
 
   } catch (error) {
+    if (isRateLimitError(error)) {
+      console.warn('⚠️ [optimizeRemainingStops] Deferred due to rate limit');
+      return Response.json({
+        success: false,
+        routeChanged: false,
+        optimizedCount: 0,
+        apiCallsMade: 0,
+        deferred: true,
+        reason: 'rate_limited'
+      });
+    }
+
     console.error('❌ [optimizeRemainingStops] ERROR:', error.message);
     return Response.json({ 
       error: error.message,
