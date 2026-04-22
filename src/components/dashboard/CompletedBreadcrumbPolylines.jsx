@@ -129,6 +129,7 @@ export default function CompletedBreadcrumbPolylines({
   driverRoutes = [],
   deliveryMarkers = [],
   pickupMarkers = [],
+  driverHomeMarkers = [],
   selectedDriverId = null,
   isAllDriversMode = false,
   highlightedDeliveryId = null,
@@ -159,6 +160,8 @@ export default function CompletedBreadcrumbPolylines({
 
   const storedFinishedStopIds = useMemo(() => new Set(storedFinishedSegments.map((segment) => segment.stopId)), [storedFinishedSegments]);
 
+  const driverHomeMap = useMemo(() => new Map((driverHomeMarkers || []).map((marker) => [marker.driverId, marker])), [driverHomeMarkers]);
+
   const completedSegments = useMemo(() => {
     if (!showBreadcrumbPolylines) return [];
     return (driverRoutes || []).flatMap((route) => {
@@ -171,9 +174,9 @@ export default function CompletedBreadcrumbPolylines({
         ...deliveryMarkers.filter((delivery) => delivery && delivery.driver_id === route.driverId),
       ].sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
-      if (stops.length < 2 || !stops.every((stop) => FINISHED.includes(stop.status))) return [];
+      if (!stops.length || !stops.every((stop) => FINISHED.includes(stop.status))) return [];
 
-      return stops.slice(0, -1).map((fromStop, index) => {
+      const stopToStopSegments = stops.slice(0, -1).map((fromStop, index) => {
         const toStop = stops[index + 1];
         if (!fromStop || !toStop) return null;
         if ([fromStop.latitude, fromStop.longitude, toStop.latitude, toStop.longitude].some((value) => typeof value !== "number" || Number.isNaN(value))) return null;
@@ -213,8 +216,37 @@ export default function CompletedBreadcrumbPolylines({
           hasBreadcrumbs: hasRealBreadcrumbPoints && routePoints.length > 1,
         };
       }).filter(Boolean);
+
+      const lastStop = stops[stops.length - 1];
+      const homeMarker = driverHomeMap.get(route.driverId);
+      const homeSegment = lastStop && homeMarker && Number.isFinite(Number(homeMarker.latitude)) && Number.isFinite(Number(homeMarker.longitude))
+        ? {
+            id: `${route.driverId}-home-final`,
+            driverId: route.driverId,
+            color: color || "#607D8B",
+            opacity: selectedDriverId && selectedDriverId !== "all" && route.driverId === selectedDriverId ? 0.7 : 0.35,
+            fallbackDashArray: "6, 6",
+            deliveryDate: lastStop.delivery_date,
+            start: { latitude: Number(lastStop.latitude), longitude: Number(lastStop.longitude) },
+            end: { latitude: Number(homeMarker.latitude), longitude: Number(homeMarker.longitude) },
+            destinationStopId: `home-${route.driverId}`,
+            destinationPointKey: getPointKey({ latitude: Number(homeMarker.latitude), longitude: Number(homeMarker.longitude) }),
+            finishedLegTransportMode: normalizeTravelMode(lastStop.finished_leg_transport_mode || 'driving'),
+            storedEncodedPolyline: "",
+            breadcrumbPoints: [],
+            routePoints: [
+              { latitude: Number(lastStop.latitude), longitude: Number(lastStop.longitude) },
+              { latitude: Number(homeMarker.latitude), longitude: Number(homeMarker.longitude) }
+            ],
+            hasAnyBreadcrumbs: false,
+            hasBreadcrumbs: false,
+            isHomeFinalSegment: true,
+          }
+        : null;
+
+      return homeSegment ? [...stopToStopSegments, homeSegment] : stopToStopSegments;
     });
-  }, [driverRoutes, pickupMarkers, deliveryMarkers, selectedDriverId, isAllDriversMode, highlightedDeliveryId]);
+  }, [driverRoutes, pickupMarkers, deliveryMarkers, selectedDriverId, isAllDriversMode, highlightedDeliveryId, driverHomeMap]);
 
   const blockedStoredDestinationStopIds = useMemo(() => new Set(
     completedSegments
@@ -334,7 +366,10 @@ export default function CompletedBreadcrumbPolylines({
         <Polyline
           key={`completed-stored-${segment.id}-${polylineRenderKey}-${highlightedDeliveryId || "none"}`}
           positions={coords}
-          pathOptions={getFinishedLegRouteStyle(segment.driverId, segment.finishedLegTransportMode, Math.max(segment.opacity, 0.35))}
+          pathOptions={{
+            ...getFinishedLegRouteStyle(segment.driverId, segment.finishedLegTransportMode, Math.max(segment.opacity, 0.35)),
+            dashArray: segment.isHomeFinalSegment ? '6 6' : undefined
+          }}
           pane="completedBreadcrumbPane"
         />
       );

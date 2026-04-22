@@ -1069,6 +1069,7 @@ export default function DeliveryMap({
             driverRoutes={completedRouteDriverRoutes}
             deliveryMarkers={completedRouteDeliveryMarkers}
             pickupMarkers={completedRoutePickupMarkers}
+            driverHomeMarkers={driverHomeMarkers}
             selectedDriverId={selectedDriverId}
             isAllDriversMode={isAllDriversMode}
             highlightedDeliveryId={highlightedDeliveryId}
