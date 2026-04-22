@@ -4,6 +4,8 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
 const ACTIVE_STATUSES = ['in_transit', 'en_route'];
+const TIME_ZONE = 'America/Edmonton';
+const WEEKDAY_CODES = ['su', 'mo', 'tu', 'we', 'th', 'fr', 'sa'];
 
 const getLatestFinishedDelivery = (deliveries) => [...(deliveries || [])]
   .filter((delivery) => FINISHED_STATUSES.includes(delivery?.status))
@@ -77,6 +79,52 @@ const getEffectiveWindowEnd = (delivery, patient = null) => {
 const isLateWindowStop = (windowStart, currentMinutes) => {
   const startMinutes = parseTimeToMinutes(windowStart);
   return Number.isFinite(startMinutes) && startMinutes > currentMinutes;
+};
+
+const normalizeTimeString = (timeStr, fallback = '00:00:00') => {
+  if (!timeStr || typeof timeStr !== 'string') return fallback;
+  const parts = timeStr.split(':');
+  if (parts.length < 2) return fallback;
+  const hours = String(Number(parts[0]) || 0).padStart(2, '0');
+  const minutes = String(Number(parts[1]) || 0).padStart(2, '0');
+  const seconds = String(Number(parts[2]) || 0).padStart(2, '0');
+  return `${hours}:${minutes}:${seconds}`;
+};
+
+const getWeekdayCode = (dateStr) => {
+  const [year, month, day] = String(dateStr).split('-').map(Number);
+  const utcDate = new Date(Date.UTC(year, (month || 1) - 1, day || 1, 12, 0, 0));
+  return WEEKDAY_CODES[utcDate.getUTCDay()];
+};
+
+const getTimeZoneOffset = (dateStr) => {
+  const [year, month, day] = String(dateStr).split('-').map(Number);
+  const sampleDate = new Date(Date.UTC(year, (month || 1) - 1, day || 1, 12, 0, 0));
+  const tzName = new Intl.DateTimeFormat('en-US', {
+    timeZone: TIME_ZONE,
+    timeZoneName: 'shortOffset',
+    hour: '2-digit'
+  }).formatToParts(sampleDate).find((part) => part.type === 'timeZoneName')?.value || 'GMT-07:00';
+  const match = tzName.match(/GMT([+-])(\d{1,2})(?::?(\d{2}))?/);
+  if (!match) return '-07:00';
+  const sign = match[1];
+  const hours = String(match[2]).padStart(2, '0');
+  const minutes = String(match[3] || '00').padStart(2, '0');
+  return `${sign}${hours}:${minutes}`;
+};
+
+const buildLocalIso = (dateStr, timeStr) => `${dateStr}T${normalizeTimeString(timeStr)}${getTimeZoneOffset(dateStr)}`;
+
+const buildAccessConstraint = (dateStr, startTime, endTime) => {
+  if (!startTime && !endTime) return null;
+  const startMinutes = parseTimeToMinutes(startTime);
+  const endMinutes = parseTimeToMinutes(endTime);
+  if (Number.isFinite(startMinutes) && Number.isFinite(endMinutes) && endMinutes <= startMinutes) return null;
+  const weekday = getWeekdayCode(dateStr);
+  const offset = getTimeZoneOffset(dateStr);
+  const start = normalizeTimeString(startTime, '00:00:00');
+  const end = normalizeTimeString(endTime, '23:59:59');
+  return `acc:${weekday}${start}${offset}|${weekday}${end}${offset}`;
 };
 
 /**
@@ -213,24 +261,7 @@ Deno.serve(async (req) => {
       };
     }).filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lng));
 
-    // STEP 1: CRITICAL - Sort by isNextDelivery FIRST, then by time_window_start (NOT delivery_time_start)
-    stops.sort((a, b) => {
-      if (a.hasLateWindow !== b.hasLateWindow) return a.hasLateWindow ? 1 : -1;
-      if (a.delivery.isNextDelivery !== b.delivery.isNextDelivery) {
-        const aCanLead = a.delivery.isNextDelivery && !a.hasLateWindow;
-        const bCanLead = b.delivery.isNextDelivery && !b.hasLateWindow;
-        if (aCanLead && !bCanLead) return -1;
-        if (!aCanLead && bCanLead) return 1;
-      }
-      const timeA = parseTimeToMinutes(a.windowStart) ?? a.timeMinutes;
-      const timeB = parseTimeToMinutes(b.windowStart) ?? b.timeMinutes;
-      if (timeA !== timeB) return timeA - timeB;
-      if (a.isPickup && !b.isPickup) return -1;
-      if (!a.isPickup && b.isPickup) return 1;
-      return 0;
-    });
-
-    console.log(`📋 [optimizeRemainingStops] Sorted ${stops.length} stops (isNextDelivery first, then by time)`);
+    console.log(`📋 [optimizeRemainingStops] Prepared ${stops.length} stops for HERE sequencing`);
 
     const latestFinishedDelivery = getLatestFinishedDelivery(completedDeliveries);
 
@@ -256,80 +287,107 @@ Deno.serve(async (req) => {
 
     console.log(`📍 [optimizeRemainingStops] Starting from: ${locationSource} (${currentPosition.lat}, ${currentPosition.lng})`);
 
-    // STEP 3: Optimize the full incomplete route in one HERE call
-    const routeStops = [...activeRouteDeliveries, ...pendingRouteDeliveries]
-      .map((delivery) => {
-        const stop = stops.find((item) => item.delivery.id === delivery.id);
-        return stop || null;
-      })
-      .filter(Boolean)
-      .sort((a, b) => {
-        if (a.hasLateWindow !== b.hasLateWindow) return a.hasLateWindow ? 1 : -1;
-        const aIsActive = ACTIVE_STATUSES.includes(a.delivery.status);
-        const bIsActive = ACTIVE_STATUSES.includes(b.delivery.status);
-        if (aIsActive && !bIsActive) return -1;
-        if (!aIsActive && bIsActive) return 1;
-        const aCanLead = a.delivery.isNextDelivery && !a.hasLateWindow;
-        const bCanLead = b.delivery.isNextDelivery && !b.hasLateWindow;
-        if (aCanLead && !bCanLead) return -1;
-        if (!aCanLead && bCanLead) return 1;
-        const windowA = parseTimeToMinutes(a.windowStart || a.delivery.delivery_time_start);
-        const windowB = parseTimeToMinutes(b.windowStart || b.delivery.delivery_time_start);
-        if ((windowA ?? Infinity) !== (windowB ?? Infinity)) return (windowA ?? Infinity) - (windowB ?? Infinity);
-        if (a.isPickup !== b.isPickup) return a.isPickup ? -1 : 1;
-        const orderDiff = (Number(a.delivery.stop_order) || 9999) - (Number(b.delivery.stop_order) || 9999);
-        if (orderDiff !== 0) return orderDiff;
-        return a.timeMinutes - b.timeMinutes;
-      });
+    // STEP 3: Let HERE sequence the full incomplete route in one call
+    const optimizationStops = [...activeRouteDeliveries, ...pendingRouteDeliveries]
+      .map((delivery) => stops.find((item) => item.delivery.id === delivery.id) || null)
+      .filter(Boolean);
 
-    console.log(`\n🎯 [optimizeRemainingStops] Optimizing remaining route: ${routeStops.length} stops`);
+    const nextDeliveryStop = optimizationStops.find((stop) => stop.delivery.isNextDelivery === true) || null;
+    const lockedNextStop = nextDeliveryStop && !nextDeliveryStop.hasLateWindow ? nextDeliveryStop : null;
+    const stopsToSequence = lockedNextStop
+      ? optimizationStops.filter((stop) => stop.delivery.id !== lockedNextStop.delivery.id)
+      : optimizationStops;
 
-    let directionsLegs = [];
+    console.log(`\n🎯 [optimizeRemainingStops] Optimizing remaining route: ${optimizationStops.length} stops`);
+
     let attemptedHereCalls = 0;
+    let usedTimeWindows = true;
+    let routeStops = lockedNextStop ? [lockedNextStop] : [];
+    let directionsLegs = [];
 
-    if (routeStops.length > 0) {
-      const destinationStop = routeStops[routeStops.length - 1];
-      const viaWaypoints = routeStops.slice(0, -1).map((stop) => ({ lat: stop.lat, lng: stop.lng }));
+    const resolvedHomePosition = driverAppUser.home_latitude != null && driverAppUser.home_longitude != null
+      ? { lat: Number(driverAppUser.home_latitude), lng: Number(driverAppUser.home_longitude) }
+      : null;
+
+    const executeHereSequence = async (includeTimeWindows) => {
+      const params = new URLSearchParams();
+      params.set('apiKey', hereApiKey);
+      params.set('departure', buildLocalIso(deliveryDate, currentLocalTime || formatMinutesToTime(currentMinutes)));
+      params.set('mode', `shortest;${hereTransportMode};traffic:disabled`);
+      params.set('improveFor', 'distance');
+      params.set('start', `driverStart;${currentPosition.lat},${currentPosition.lng}`);
+      if (resolvedHomePosition) {
+        params.set('end', `driverHome;${resolvedHomePosition.lat},${resolvedHomePosition.lng}`);
+      }
+
+      stopsToSequence.forEach((stop, index) => {
+        const segments = [`${stop.delivery.stop_id || stop.delivery.delivery_id || stop.delivery.id};${stop.lat},${stop.lng}`];
+        if (includeTimeWindows) {
+          const accessConstraint = buildAccessConstraint(deliveryDate, stop.windowStart, stop.windowEnd);
+          if (accessConstraint) segments.push(accessConstraint);
+        }
+        segments.push(`st:${Math.round((stop.delivery.extra_time || (stop.isPickup ? 15 : 5)) * 60)}`);
+        params.set(`destination${index + 1}`, segments.join(';'));
+      });
 
       attemptedHereCalls += 1;
-      const directionsResponse = await base44.functions.invoke('getHereDirections', {
-        origin: { lat: currentPosition.lat, lng: currentPosition.lng },
-        destination: { lat: destinationStop.lat, lng: destinationStop.lng },
-        waypoints: viaWaypoints,
-        transportMode: preferredTravelMode,
-        routeContext: routeStops.map((stop) => ({
-          id: stop.delivery.id,
-          status: stop.delivery.status,
-          time_window_start: stop.delivery.time_window_start || stop.delivery.delivery_time_start || null,
-          time_window_end: stop.delivery.time_window_end || stop.delivery.delivery_time_end || null
-        }))
-      }).catch((error) => {
-        console.warn('[optimizeRemainingStops] HERE route call failed:', error?.message || error);
-        return null;
+      const response = await fetch(`https://wps.hereapi.com/v8/findsequence2?${params.toString()}`, {
+        signal: AbortSignal.timeout(20000)
       });
+      const data = await response.json().catch(() => null);
+      return { response, data, includeTimeWindows };
+    };
 
-      const directionsData = directionsResponse?.data || directionsResponse || null;
-      if (Array.isArray(directionsData?.sections) && directionsData.sections.length > 0) {
-        directionsLegs = directionsData.sections.map((section) => ({
-          duration: Number(section?.estimated_duration_minutes || 0) * 60,
-          distance: Number(section?.estimated_distance_km || 0) * 1000
-        }));
-        console.log('✅ [optimizeRemainingStops] HERE Routing API success');
-      } else {
-        console.log('⚠️ [optimizeRemainingStops] HERE API failed - using crow-flies fallback');
+    if (stopsToSequence.length > 0) {
+      let hereAttempt = await executeHereSequence(true);
+      let result = Array.isArray(hereAttempt.data?.results) ? hereAttempt.data.results[0] : null;
+      let waypoints = Array.isArray(result?.waypoints) ? result.waypoints : [];
+      let interconnections = Array.isArray(result?.interconnections) ? result.interconnections : [];
+
+      if ((!hereAttempt.response.ok || !result || waypoints.length === 0) && hereAttempt.includeTimeWindows) {
+        hereAttempt = await executeHereSequence(false);
+        usedTimeWindows = false;
+        result = Array.isArray(hereAttempt.data?.results) ? hereAttempt.data.results[0] : null;
+        waypoints = Array.isArray(result?.waypoints) ? result.waypoints : [];
+        interconnections = Array.isArray(result?.interconnections) ? result.interconnections : [];
+      }
+
+      if (!hereAttempt.response.ok || !result || waypoints.length === 0) {
+        console.log('⚠️ [optimizeRemainingStops] HERE sequencing failed - using crow-flies fallback');
+        routeStops = [...routeStops, ...stopsToSequence];
         let prevPos = currentPosition;
         for (const stop of routeStops) {
           const distKm = calculateCrowFliesDistance(prevPos.lat, prevPos.lng, stop.lat, stop.lng);
-          directionsLegs.push({
-            duration: Math.ceil((distKm / 40) * 60 * 60 * 1.3),
-            distance: distKm * 1000
-          });
+          directionsLegs.push({ duration: Math.ceil((distKm / 40) * 60 * 60 * 1.3), distance: distKm * 1000 });
           prevPos = { lat: stop.lat, lng: stop.lng };
         }
+      } else {
+        const orderedStops = waypoints
+          .filter((waypoint) => waypoint.id !== 'driverStart' && waypoint.id !== 'driverEnd')
+          .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
+          .map((waypoint, index) => ({ stop: stopsToSequence[index] && stopsToSequence.find((item) => (item.delivery.stop_id || item.delivery.delivery_id || item.delivery.id) === waypoint.id) || null, waypoint }))
+          .filter((item) => item.stop);
+
+        routeStops = [...routeStops, ...orderedStops.map((item) => item.stop)];
+        const interconnectionByToWaypoint = new Map(interconnections.map((item) => [item.toWaypoint, item]));
+        directionsLegs = routeStops.map((stop, index) => {
+          if (lockedNextStop && index === 0) {
+            const distKm = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, stop.lat, stop.lng);
+            return { duration: Math.ceil((distKm / 40) * 60 * 60 * 1.3), distance: distKm * 1000 };
+          }
+          const routeIndex = lockedNextStop ? index - 1 : index;
+          const waypoint = orderedStops[routeIndex]?.waypoint;
+          const leg = waypoint ? interconnectionByToWaypoint.get(waypoint.id) : null;
+          return {
+            duration: Number(leg?.time || 0),
+            distance: Number(leg?.distance || 0)
+          };
+        });
+        console.log(`✅ [optimizeRemainingStops] HERE sequencing success${usedTimeWindows ? ' with time windows' : ' without time windows'}`);
       }
     }
 
-    // STEP 4: Calculate all ETAs in memory from the single remaining-route response
+    // STEP 4: Calculate ETAs from the sequenced route
     let cumulativeTime = currentMinutes;
     const stageEtaMap = new Map();
 
@@ -339,50 +397,24 @@ Deno.serve(async (req) => {
       const travelMinutes = Math.ceil(travelSeconds / 60);
       cumulativeTime += travelMinutes;
 
-      if (stop.delivery.time_window_start) {
-        const windowStart = parseTimeToMinutes(stop.delivery.time_window_start);
-        if (cumulativeTime < windowStart) {
-          cumulativeTime = windowStart;
-        }
+      const windowStart = parseTimeToMinutes(stop.windowStart || stop.delivery.time_window_start);
+      if (Number.isFinite(windowStart) && cumulativeTime < windowStart) {
+        cumulativeTime = windowStart;
       }
 
       const eta = formatMinutesToTime(cumulativeTime);
       stageEtaMap.set(stop.delivery.id, eta);
-
-      const serviceTime = stop.delivery.extra_time || (stop.isPickup ? 15 : 5);
-      cumulativeTime += serviceTime;
+      cumulativeTime += stop.delivery.extra_time || (stop.isPickup ? 15 : 5);
 
       console.log(`  ✅ [optimizeRemainingStops] ${stop.delivery.patient_name || 'Pickup'} - ETA: ${eta}`);
     }
 
-    const activeStops = incompleteDeliveries.map((delivery) => ({
-      ...delivery,
-      delivery_time_eta: stageEtaMap.get(delivery.id) || delivery.delivery_time_eta
+    const activeStops = routeStops.map((stop) => ({
+      ...stop.delivery,
+      delivery_time_eta: stageEtaMap.get(stop.delivery.id) || stop.delivery.delivery_time_eta
     }));
 
-    // STEP 7: Re-sort activeStops after full optimization is complete
-    activeStops.sort((a, b) => {
-      const aHasLateWindow = isLateWindowStop(a.time_window_start || a.delivery_time_start, currentMinutes);
-      const bHasLateWindow = isLateWindowStop(b.time_window_start || b.delivery_time_start, currentMinutes);
-      if (aHasLateWindow !== bHasLateWindow) return aHasLateWindow ? 1 : -1;
-
-      const aCanLead = a.isNextDelivery && !aHasLateWindow;
-      const bCanLead = b.isNextDelivery && !bHasLateWindow;
-      if (aCanLead && !bCanLead) return -1;
-      if (!aCanLead && bCanLead) return 1;
-
-      const timeA = parseTimeToMinutes(a.time_window_start) ?? parseTimeToMinutes(a.delivery_time_start);
-      const timeB = parseTimeToMinutes(b.time_window_start) ?? parseTimeToMinutes(b.delivery_time_start);
-      if (timeA !== timeB) return timeA - timeB;
-
-      const isAPickup = !a.patient_id;
-      const isBPickup = !b.patient_id;
-      if (isAPickup && !isBPickup) return -1;
-      if (!isAPickup && isBPickup) return 1;
-      return 0;
-    });
-
-    console.log(`\n🔢 [optimizeRemainingStops] Re-sorted ${activeStops.length} stops (isNextDelivery first, then by time)`);
+    console.log(`\n🔢 [optimizeRemainingStops] HERE returned ${activeStops.length} ordered stops`);
 
     // STEP 8: Build one final delivery write batch and update once
     const startingOrder = completedDeliveries.length;
@@ -479,7 +511,8 @@ Deno.serve(async (req) => {
       optimizedCount: activeStops.length,
       stagesCount: 1,
       apiCallsMade: attemptedHereCalls,
-      locationSource
+      locationSource,
+      usedTimeWindows
     });
 
   } catch (error) {
