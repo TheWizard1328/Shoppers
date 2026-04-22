@@ -4,6 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { format } from "date-fns";
 import { queueEntityRequest } from "./requestQueue";
 import { offlineDB } from "./offlineDatabase";
+import { normalizeTravelMode } from "@/components/dashboard/travelModeHelpers";
 
 /**
  * Configuration for route polyline management
@@ -235,6 +236,15 @@ const savePolyline = async ({
 
     if (savedRecord) {
       await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [savedRecord]);
+      if (typeof window !== 'undefined') {
+        const key = `here_${normalizeTravelMode(savedRecord.transport_mode || 'driving')}_${Number(savedRecord.segment_origin_lat).toFixed(5)}_${Number(savedRecord.segment_origin_lon).toFixed(5)}_${Number(savedRecord.segment_dest_lat).toFixed(5)}_${Number(savedRecord.segment_dest_lon).toFixed(5)}`;
+        window.dispatchEvent(new CustomEvent('driverRoutePolylinesUpdated', {
+          detail: { polylines: [savedRecord], source: 'local_save' }
+        }));
+        window.dispatchEvent(new CustomEvent('polylineUpdated', {
+          detail: { key, source: 'local_save' }
+        }));
+      }
     }
   } catch (e) {
     console.log('⏭️ [RoutePolyline] savePolyline failed', e?.message || e);

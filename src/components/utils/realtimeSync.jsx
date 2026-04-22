@@ -13,6 +13,7 @@ import { base44 } from '@/api/base44Client';
 import { offlineDB } from './offlineDatabase';
 import { isDeliveryRelevantToCurrentSelection } from './deliveryCardUtils';
 import { getLocalTimestampFromDate } from './localTimeHelper';
+import { normalizeTravelMode } from '@/components/dashboard/travelModeHelpers';
 
 // Global listeners for real-time updates
 const listeners = new Set();
@@ -62,6 +63,8 @@ async function flushBuffered(entityName) {
       fullReplacementData = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
     } else if (entityName === 'Patient') {
       fullReplacementData = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+    } else if (entityName === 'DriverRoutePolyline') {
+      fullReplacementData = await offlineDB.getAll(offlineDB.STORES.DRIVER_ROUTE_POLYLINES);
     }
   } catch (error) {
     console.warn(`⚠️ [RealtimeSync] Failed to load full replacement data for ${entityName}:`, error.message);
@@ -177,6 +180,23 @@ async function flushBuffered(entityName) {
     window.dispatchEvent(new CustomEvent('patientsUpdated', {
       detail: {
         patients: fullReplacementData,
+        fromRealtime: true,
+        fullReplacement: true
+      }
+    }));
+  }
+
+  if (typeof window !== 'undefined' && entityName === 'DriverRoutePolyline' && Array.isArray(fullReplacementData)) {
+    window.dispatchEvent(new CustomEvent('driverRoutePolylinesUpdated', {
+      detail: {
+        polylines: fullReplacementData,
+        fromRealtime: true,
+        fullReplacement: true
+      }
+    }));
+    window.dispatchEvent(new CustomEvent('polylineUpdated', {
+      detail: {
+        source: 'realtime_sync',
         fromRealtime: true,
         fullReplacement: true
       }
@@ -443,6 +463,7 @@ export const connect = () => {
     subscribeToEntity('Patient');
     subscribeToEntity('AppUser');
     subscribeToEntity('Message');
+    subscribeToEntity('DriverRoutePolyline');
     subscribeToEntity('GoogleAPILog');
 
     // Instantly cascade Patient changes to related Deliveries in OFFLINE DB + UI
@@ -590,6 +611,7 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
     const storeName = entity === 'AppUser' ? offlineDB.STORES.APP_USERS :
       entity === 'Delivery' ? offlineDB.STORES.DELIVERIES :
       entity === 'Patient' ? offlineDB.STORES.PATIENTS :
+      entity === 'DriverRoutePolyline' ? offlineDB.STORES.DRIVER_ROUTE_POLYLINES :
       null;
 
     if (storeName) {
@@ -708,6 +730,23 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
           patients: data ? [data] : undefined,
           deletedId: action === 'delete' ? id : undefined,
           deletedIds: action === 'delete' ? [id] : [],
+          fromRealtime: true
+        }
+      }));
+    }
+
+    if (entity === 'DriverRoutePolyline') {
+      window.dispatchEvent(new CustomEvent('driverRoutePolylinesUpdated', {
+        detail: {
+          polylines: data ? [data] : undefined,
+          deletedId: action === 'delete' ? id : undefined,
+          fromRealtime: true
+        }
+      }));
+      window.dispatchEvent(new CustomEvent('polylineUpdated', {
+        detail: {
+          key: data ? `here_${normalizeTravelMode(data.transport_mode || 'driving')}_${Number(data.segment_origin_lat).toFixed(5)}_${Number(data.segment_origin_lon).toFixed(5)}_${Number(data.segment_dest_lat).toFixed(5)}_${Number(data.segment_dest_lon).toFixed(5)}` : null,
+          source: 'broadcast_mutation',
           fromRealtime: true
         }
       }));

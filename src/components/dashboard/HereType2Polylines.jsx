@@ -39,6 +39,14 @@ export default function HereType2Polylines({
   const [lastNonEmptyLines, setLastNonEmptyLines] = useState([]);
   const requestTimesRef = useRef({});
 
+  useEffect(() => {
+    const handleDriverRoutePolylinesUpdated = () => {
+      setRefreshToken((token) => token + 1);
+    };
+    window.addEventListener('driverRoutePolylinesUpdated', handleDriverRoutePolylinesUpdated);
+    return () => window.removeEventListener('driverRoutePolylinesUpdated', handleDriverRoutePolylinesUpdated);
+  }, []);
+
   // Offline polyline hydration helper
   const round5 = (n) => Number(n.toFixed(5));
   const decodePolyline = (str) => {
