@@ -36,6 +36,17 @@ function round5(value) {
   return Number(Number(value).toFixed(5));
 }
 
+function isValidCoordinatePair(lat, lon) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
+  if (Math.abs(lat) > 90 || Math.abs(lon) > 180) return false;
+  if (lat === 0 && lon === 0) return false;
+  return true;
+}
+
+function isValidPoint(point) {
+  return !!point && isValidCoordinatePair(Number(point.lat), Number(point.lon));
+}
+
 function encodeSigned(value) {
   let signed = value << 1;
   if (value < 0) signed = ~signed;
@@ -646,15 +657,19 @@ Deno.serve(async (req) => {
 
       if (delivery.patient_id) {
         const patient = patientMap.get(delivery.patient_id);
-        if (patient?.latitude != null && patient?.longitude != null) {
-          return { lat: Number(patient.latitude), lon: Number(patient.longitude) };
+        const lat = Number(patient?.latitude);
+        const lon = Number(patient?.longitude);
+        if (isValidCoordinatePair(lat, lon)) {
+          return { lat, lon };
         }
       }
 
       if (delivery.store_id) {
         const store = storeMap.get(delivery.store_id);
-        if (store?.latitude != null && store?.longitude != null) {
-          return { lat: Number(store.latitude), lon: Number(store.longitude) };
+        const lat = Number(store?.latitude);
+        const lon = Number(store?.longitude);
+        if (isValidCoordinatePair(lat, lon)) {
+          return { lat, lon };
         }
       }
 
@@ -693,7 +708,7 @@ Deno.serve(async (req) => {
     if (scope === 'all' || scope === 'completed_only') {
       const homeLat = Number(driverAppUser?.home_latitude);
       const homeLon = Number(driverAppUser?.home_longitude);
-      const hasHomeCoords = Number.isFinite(homeLat) && Number.isFinite(homeLon);
+      const hasHomeCoords = isValidCoordinatePair(homeLat, homeLon);
       const finishedSegmentSpecs = [];
       if (hasHomeCoords && finishedStops.length > 0) {
         const orderedStops = finishedStops
@@ -781,8 +796,7 @@ Deno.serve(async (req) => {
         const seen = new Set();
 
         const pushSegment = (from, to, force = false) => {
-          if (!from || !to) return;
-          if (![from.lat, from.lon, to.lat, to.lon].every((value) => Number.isFinite(value))) return;
+          if (!isValidPoint(from) || !isValidPoint(to)) return;
           const key = makeSegmentKey(driverId, deliveryDate, from, to);
           if (seen.has(key)) return;
           seen.add(key);
@@ -793,11 +807,11 @@ Deno.serve(async (req) => {
         const currentLon = Number(driverAppUser?.current_longitude);
         const homeLat = Number(driverAppUser?.home_latitude);
         const homeLon = Number(driverAppUser?.home_longitude);
-        const hasHomeCoords = Number.isFinite(homeLat) && Number.isFinite(homeLon);
+        const hasHomeCoords = isValidCoordinatePair(homeLat, homeLon);
         const isToday = deliveryDate === getEdmontonDateString();
 
         const originFromFinishedStop = latestFinishedStop ? getLatLon(latestFinishedStop) : null;
-        const useDriverLocationAsOrigin = scope === 'active_only' && firstActive && isToday && Number.isFinite(currentLat) && Number.isFinite(currentLon);
+        const useDriverLocationAsOrigin = scope === 'active_only' && firstActive && isToday && isValidCoordinatePair(currentLat, currentLon);
         const firstLegOrigin = originFromFinishedStop || (hasHomeCoords ? { lat: homeLat, lon: homeLon } : null);
 
         if (useDriverLocationAsOrigin && !originFromFinishedStop) {
@@ -924,7 +938,7 @@ Deno.serve(async (req) => {
         const homeLat = Number(driverAppUser?.home_latitude);
         const homeLon = Number(driverAppUser?.home_longitude);
         const firstFinishedStop = finishedStops[0] || null;
-        const hasHomeCoords = Number.isFinite(homeLat) && Number.isFinite(homeLon);
+        const hasHomeCoords = isValidCoordinatePair(homeLat, homeLon);
         const completedRouteHomeSegment = [];
 
         if (hasHomeCoords && firstFinishedStop) {
