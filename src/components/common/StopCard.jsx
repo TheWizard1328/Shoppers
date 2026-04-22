@@ -537,7 +537,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                     </>
                   ) : <div className="w-full h-[26px]" />}
                 </div>
-                {!routeCompletedForLayout && !isPastDeliveryDate && !shouldRedact && (
+                {!routeCompletedForLayout && !isPastDeliveryDate && !shouldRedact && !isAssignedDispatcher && (
                   <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                     {finalDisplayPhone && (
                       <a
