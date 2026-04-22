@@ -96,7 +96,7 @@ export default function DeliveryPatientSearch({
       <div className="my-1 py-2 flex items-center justify-between">
         <Label className="px-1 py-1 text-sm font-semibold peer-disabled:cursor-not-allowed peer-disabled:opacity-70" style={{ color: 'var(--text-slate-900)' }}>Patient Search</Label>
         {selectedPatient &&
-        <div className="p-1.5 px-2.5 bg-emerald-50 border border-emerald-200 rounded text-xs flex items-center gap-1.5 max-w-[200px]">
+        <div className="p-1.5 px-2.5 bg-emerald-50 border border-emerald-200 rounded text-xs flex items-center gap-1.5 mi-w-[200px]">
             <span className="text-emerald-700 font-medium truncate">✓ {selectedPatient.full_name}</span>
             {stores && selectedPatient.store_id && (() => {
             const patientStore = stores.find((s) => s && s.id === selectedPatient.store_id);
