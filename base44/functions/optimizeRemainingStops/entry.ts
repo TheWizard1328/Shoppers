@@ -8,6 +8,18 @@ const ACTIVE_STATUSES = ['in_transit', 'en_route'];
 const TIME_ZONE = 'America/Edmonton';
 const WEEKDAY_CODES = ['su', 'mo', 'tu', 'we', 'th', 'fr', 'sa'];
 
+const getEdmontonCurrentTime = () => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TIME_ZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).formatToParts(new Date());
+  const hour = parts.find((part) => part.type === 'hour')?.value || '00';
+  const minute = parts.find((part) => part.type === 'minute')?.value || '00';
+  return `${hour}:${minute}`;
+};
+
 const getLatestFinishedDelivery = (deliveries) => [...(deliveries || [])]
   .filter((delivery) => FINISHED_STATUSES.includes(delivery?.status))
   .sort((a, b) => {
@@ -163,16 +175,10 @@ Deno.serve(async (req) => {
       if (timeMatch) {
         currentMinutes = parseInt(timeMatch[1], 10) * 60 + parseInt(timeMatch[2], 10);
       } else {
-        const now = new Date();
-        let mountainHours = now.getUTCHours() - 7;
-        if (mountainHours < 0) mountainHours += 24;
-        currentMinutes = mountainHours * 60 + now.getUTCMinutes();
+        currentMinutes = parseTimeToMinutes(getEdmontonCurrentTime());
       }
     } else {
-      const now = new Date();
-      let mountainHours = now.getUTCHours() - 7;
-      if (mountainHours < 0) mountainHours += 24;
-      currentMinutes = mountainHours * 60 + now.getUTCMinutes();
+      currentMinutes = parseTimeToMinutes(getEdmontonCurrentTime());
     }
 
     console.log(`🔄 [optimizeRemainingStops] Optimizing remaining stops for driver ${driverId} on ${deliveryDate}`);
