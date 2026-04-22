@@ -699,7 +699,10 @@ class LightweightRefreshManager {
       
       // Use offline DB only to avoid AppUser rate-limit polling
       const { offlineDB } = await import('./offlineDatabase');
-      const freshAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+      const [freshAppUsers, offlineType1Polylines] = await Promise.all([
+        offlineDB.getAll(offlineDB.STORES.APP_USERS),
+        offlineDB.getAll(offlineDB.STORES.DRIVER_ROUTE_POLYLINES)
+      ]);
       
       if (!freshAppUsers || freshAppUsers.length === 0) {
         console.warn('⚠️ [SmartRefresh] No offline AppUsers found for polyline update');
@@ -712,28 +715,36 @@ class LightweightRefreshManager {
       );
 
       console.log(`📍 [SmartRefresh] Found ${onDutyDrivers.length} on-duty drivers with valid coordinates`);
+      console.log(`🛣️ [SmartRefresh] Found ${offlineType1Polylines?.length || 0} offline Type 1 polylines`);
 
-      if (onDutyDrivers.length === 0) {
+      if (onDutyDrivers.length === 0 && (!offlineType1Polylines || offlineType1Polylines.length === 0)) {
         return null;
       }
 
       // Save to offline DB
       await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
 
-      // Dispatch event with fresh coordinates for polyline rendering
+      // Dispatch event with fresh coordinates and offline type 1 polylines for rendering
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('polylineUpdateTriggered', {
           detail: { 
             onDutyDrivers,
             freshAppUsers,
+            offlineType1Polylines: offlineType1Polylines || [],
             timestamp: Date.now()
+          }
+        }));
+        window.dispatchEvent(new CustomEvent('driverRoutePolylinesUpdated', {
+          detail: {
+            polylines: offlineType1Polylines || [],
+            source: 'smartRefreshOfflineDB'
           }
         }));
       }
 
-      console.log(`✅ [SmartRefresh] Polyline update dispatched for ${onDutyDrivers.length} drivers`);
+      console.log(`✅ [SmartRefresh] Polyline update dispatched with offline Type 1 polylines`);
       
-      return { onDutyDrivers, freshAppUsers };
+      return { onDutyDrivers, freshAppUsers, offlineType1Polylines: offlineType1Polylines || [] };
     } catch (error) {
        this.recordError(error);
        console.warn('⚠️ [SmartRefresh] Polyline update failed:', error.message);
