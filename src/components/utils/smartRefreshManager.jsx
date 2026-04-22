@@ -632,7 +632,10 @@ class LightweightRefreshManager {
         Object.assign(updates, lightweightUpdates);
       }
 
-      // STEP 4: Dashboard smart refresh must stay offline/WebSocket-first.
+      // STEP 4: Refresh polyline rendering from offline DB during smart refresh
+      await this.updatePolylines(currentData.appUsers || []);
+
+      // STEP 5: Dashboard smart refresh must stay offline/WebSocket-first.
       // Do not pull server reconcile data here because it can reintroduce older route state
       // over the current offline route for the selected day.
       
