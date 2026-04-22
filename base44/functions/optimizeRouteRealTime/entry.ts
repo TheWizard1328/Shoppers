@@ -403,7 +403,8 @@ Deno.serve(async (req) => {
           waypoints: candidateSequencedStops.map((stop) => ({ lat: stop.lat, lng: stop.lng })),
           routeContext: routeContextPayload,
           deliveryDate,
-          currentLocalTime: departureTime
+          currentLocalTime: departureTime,
+          transportMode: String(driverAppUser?.preferred_travel_mode || 'driving').toLowerCase()
         }).catch(() => null)
       : null;
 

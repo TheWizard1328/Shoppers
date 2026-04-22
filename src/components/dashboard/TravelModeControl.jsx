@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Bike, Car } from 'lucide-react';
+import { Bike, Car, Footprints, Circle } from 'lucide-react';
 import ModeSelectionDialog from '@/components/dashboard/ModeSelectionDialog';
 import { getNextModeValue } from '@/components/dashboard/modeButtonHelpers';
 import { normalizeTravelMode, updatePreferredTravelMode } from '@/components/dashboard/travelModeHelpers';
@@ -21,19 +21,18 @@ export default function TravelModeControl({
   onOptimize,
   isSubmitting = false,
 }) {
-  const currentMode = normalizeTravelMode(value) === 'cycling' ? 'cycling' : 'driving';
-  const isCycling = currentMode === 'cycling';
-  const CurrentIcon = isCycling ? Bike : Car;
+  const currentMode = normalizeTravelMode(value);
+  const CurrentIcon = currentMode === 'cycling'
+    ? Bike
+    : currentMode === 'pedestrian'
+      ? Footprints
+      : currentMode === 'scootering'
+        ? Circle
+        : Car;
 
   const handleClick = async () => {
     if (disabled || !currentUser) return;
-    const nextMode = getNextModeValue(currentMode);
-    if (nextMode === 'cycling') {
-      onDialogOpenChange?.(true);
-      return;
-    }
-    await updatePreferredTravelMode(appUsers, currentUser.id, nextMode);
-    onChange?.(nextMode);
+    onDialogOpenChange?.(true);
   };
 
   if (!currentUser) return null;
@@ -47,16 +46,16 @@ export default function TravelModeControl({
         disabled={disabled}
         className="h-8 gap-1.5 px-2 flex-shrink-0"
         style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
-        title={disabled ? 'Available during active route only' : isCycling ? 'Cycling' : 'Driving'}
+        title={disabled ? 'Available during active route only' : currentMode === 'cycling' ? 'Cycling' : currentMode === 'pedestrian' ? 'Walking' : currentMode === 'scootering' ? 'Scootering' : 'Driving'}
       >
         <CurrentIcon className="w-3.5 h-3.5" />
-        <span className="text-xs">{isCycling ? 'Cycling' : 'Driving'}</span>
+        <span className="text-xs">{currentMode === 'cycling' ? 'Cycling' : currentMode === 'pedestrian' ? 'Walking' : currentMode === 'scootering' ? 'Scootering' : 'Driving'}</span>
       </Button>
 
       <ModeSelectionDialog
         open={dialogOpen}
         onOpenChange={onDialogOpenChange}
-        modeLabel="Cycling"
+        modeLabel={currentMode === 'cycling' ? 'Cycling' : currentMode === 'pedestrian' ? 'Walking' : currentMode === 'scootering' ? 'Scootering' : 'Driving'}
         nearbyStops={nearbyStops}
         selectedStopIds={selectedStopIds}
         onToggleStop={onToggleStop}

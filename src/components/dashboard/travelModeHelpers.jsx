@@ -3,11 +3,14 @@ import { base44 } from '@/api/base44Client';
 export const TRAVEL_MODE_OPTIONS = [
   { value: 'driving', label: 'Driving' },
   { value: 'cycling', label: 'Cycling' },
-  { value: 'pedestrian', label: 'Walking' }
+  { value: 'pedestrian', label: 'Walking' },
+  { value: 'scootering', label: 'Scootering' }
 ];
 
 export function normalizeTravelMode(mode) {
-  return ['driving', 'cycling', 'pedestrian'].includes(mode) ? mode : 'driving';
+  if (mode === 'walking') return 'pedestrian';
+  if (mode === 'scooter') return 'scootering';
+  return ['driving', 'cycling', 'pedestrian', 'scootering'].includes(mode) ? mode : 'driving';
 }
 
 export function getTravelModeLineStyle(mode, color) {

@@ -191,11 +191,20 @@ Deno.serve(async (req) => {
       });
     }
     const preferredTravelMode = String(driverAppUser?.preferred_travel_mode || 'driving').toLowerCase();
-    const hereTransportMode = preferredTravelMode === 'cycling'
-      ? 'bicycle'
-      : preferredTravelMode === 'pedestrian'
+    const normalizedTransportMode = preferredTravelMode === 'cycling'
+      ? 'cycling'
+      : preferredTravelMode === 'pedestrian' || preferredTravelMode === 'walking'
         ? 'pedestrian'
-        : 'car';
+        : preferredTravelMode === 'scootering' || preferredTravelMode === 'scooter'
+          ? 'scooter'
+          : 'driving';
+    const hereTransportMode = normalizedTransportMode === 'cycling'
+      ? 'bicycle'
+      : normalizedTransportMode === 'pedestrian'
+        ? 'pedestrian'
+        : normalizedTransportMode === 'scooter'
+          ? 'scooter'
+          : 'car';
 
     const appSettings = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }, '-updated_date', 1);
     const activeApiKeyName = appSettings?.[0]?.setting_value?.selected_api_key || 'HERE_API_KEY';
@@ -324,8 +333,8 @@ Deno.serve(async (req) => {
       const params = new URLSearchParams();
       params.set('apiKey', hereApiKey);
       params.set('departure', buildLocalIso(deliveryDate, currentLocalTime || formatMinutesToTime(currentMinutes)));
-      params.set('mode', `shortest;${hereTransportMode};traffic:disabled`);
-      params.set('improveFor', 'distance');
+      params.set('mode', `fastest;${hereTransportMode};traffic:enabled`);
+      params.set('improveFor', 'time');
       params.set('start', `driverStart;${currentPosition.lat},${currentPosition.lng}`);
       if (resolvedHomePosition) {
         params.set('end', `driverHome;${resolvedHomePosition.lat},${resolvedHomePosition.lng}`);

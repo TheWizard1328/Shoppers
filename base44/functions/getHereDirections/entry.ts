@@ -289,14 +289,20 @@ Deno.serve(async (req) => {
     const routeContext = Array.isArray(body?.routeContext) ? body.routeContext : [];
     const preserveWaypointOrder = body?.preserveWaypointOrder === true;
     const requestedTransportMode = String(body?.transportMode || body?.transport_mode || 'driving').toLowerCase();
-    const hereTransportMode = requestedTransportMode === 'cycling'
-      ? 'bicycle'
-      : requestedTransportMode === 'pedestrian'
+    const normalizedTransportMode = requestedTransportMode === 'cycling'
+      ? 'cycling'
+      : requestedTransportMode === 'pedestrian' || requestedTransportMode === 'walking'
         ? 'pedestrian'
-        : 'car';
-    const normalizedTransportMode = requestedTransportMode === 'cycling' || requestedTransportMode === 'pedestrian'
-      ? requestedTransportMode
-      : 'driving';
+        : requestedTransportMode === 'scootering' || requestedTransportMode === 'scooter'
+          ? 'scooter'
+          : 'driving';
+    const hereTransportMode = normalizedTransportMode === 'cycling'
+      ? 'bicycle'
+      : normalizedTransportMode === 'pedestrian'
+        ? 'pedestrian'
+        : normalizedTransportMode === 'scooter'
+          ? 'scooter'
+          : 'car';
 
     const originLat = Number(origin?.lat);
     const originLng = Number(origin?.lng);
