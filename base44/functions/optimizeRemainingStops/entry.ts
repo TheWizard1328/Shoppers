@@ -195,6 +195,16 @@ Deno.serve(async (req) => {
       : preferredTravelMode === 'pedestrian'
         ? 'pedestrian'
         : 'car';
+
+    const appSettings = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }, '-updated_date', 1);
+    const activeApiKeyName = appSettings?.[0]?.setting_value?.selected_api_key || 'HERE_API_KEY';
+    const hereApiKey = activeApiKeyName.startsWith('HERE') || activeApiKeyName.startsWith('Here')
+      ? Deno.env.get(activeApiKeyName)
+      : Deno.env.get('HERE_API_KEY');
+
+    if (!hereApiKey) {
+      return Response.json({ error: `${activeApiKeyName} secret is not set` }, { status: 500 });
+    }
     
     if (!driverAppUser) {
       return Response.json({ error: 'Driver not found' }, { status: 404 });
