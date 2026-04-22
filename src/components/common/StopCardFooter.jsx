@@ -23,12 +23,12 @@ export default function StopCardFooter(props) {
   const dispatcherRouteStops = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && !isAppOwner(currentUser)
     ? allDeliveries.filter((item) => item && item.driver_id === selectedDriverId && item.delivery_date === selectedDate && dispatcherStoreIds.includes(item.store_id))
     : [];
-  const isDispatcherRouteFinishedForStore = dispatcherRouteStops.length > 0 && dispatcherRouteStops.every((item) => finishedStatuses.includes(item?.status));
+  const hasIncompleteStopsForDispatcher = dispatcherRouteStops.some((item) => !finishedStatuses.includes(item?.status));
 
   const shouldShowFooter = (() => {
     if (shouldCondenseCompletedRouteForDriver) return false;
     if (!isAppOwner(currentUser) && !userHasRole(currentUser, 'admin') && isStrippedForDispatcher) return false;
-    if (isDispatcherRouteFinishedForStore) return false;
+    if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && !isAppOwner(currentUser) && !hasIncompleteStopsForDispatcher) return false;
     if (isExpanded) return true;
     return isAppOwner(currentUser) || userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || isAssignedDriverOrAppOwner || canEdit;
   })();
