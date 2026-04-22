@@ -689,8 +689,6 @@ export default function DeliveryFormView({
                             appUsers={appUsers}
                             disabled={isSaving} />
                         </div>
-                  )}
-                </div>
               )}
 
               {renderDeliveryIdentifiersSection({
