@@ -43,6 +43,14 @@ function isValidCoordinatePair(lat, lon) {
   return true;
 }
 
+function getDriverAvailabilityStatus(driverAppUser) {
+  const status = String(driverAppUser?.driver_status || '').toLowerCase();
+  return {
+    status,
+    isUnavailable: status === 'off_duty' || status === 'on_break'
+  };
+}
+
 function isValidPoint(point) {
   return !!point && isValidCoordinatePair(Number(point.lat), Number(point.lon));
 }
@@ -638,7 +646,9 @@ Deno.serve(async (req) => {
     const patientMap = new Map((patients || []).map((patient) => [patient.id, patient]));
     const storeMap = new Map((stores || []).map((store) => [store.id, store]));
     const driverAppUser = Array.isArray(appUsers) ? appUsers[0] : null;
-    if (!driverAppUser || driverAppUser.driver_status === 'off_duty' || driverAppUser.driver_status === 'on_break') {
+    const driverAvailability = getDriverAvailabilityStatus(driverAppUser);
+    if (!driverAppUser || driverAvailability.isUnavailable) {
+      console.log(`[purgeAndRegeneratePolylines] driver unavailable | driver=${driverDisplayName} | status=${driverAvailability.status || 'missing'} | date=${deliveryDate}`);
       return Response.json({
         success: true,
         skipped: true,
@@ -650,7 +660,7 @@ Deno.serve(async (req) => {
         repairedStopOrders: stopOrderRepairUpdates.length
       });
     }
-    console.log(`# [purgeAndRegeneratePolylines] START | driver=${driverDisplayName} | date=${deliveryDate} | scope=${scope} | totalStops=${deliveries?.length || 0} | existingPolylines=${existingPolylines?.length || 0}`);
+    console.log(`# [purgeAndRegeneratePolylines] START | driver=${driverDisplayName} | date=${deliveryDate} | scope=${scope} | totalStops=${deliveries?.length || 0} | existingPolylines=${existingPolylines?.length || 0} | driver_status=${driverAvailability.status || 'missing'} | home_lat=${driverAppUser?.home_latitude} | home_lon=${driverAppUser?.home_longitude}`);
 
     const getLatLon = (delivery) => {
       if (!delivery) return null;
@@ -662,6 +672,7 @@ Deno.serve(async (req) => {
         if (isValidCoordinatePair(lat, lon)) {
           return { lat, lon };
         }
+        console.warn(`[purgeAndRegeneratePolylines] invalid patient coords | delivery=${delivery.id} | patient_id=${delivery.patient_id} | raw_lat=${patient?.latitude} | raw_lon=${patient?.longitude} | lat=${lat} | lon=${lon}`);
       }
 
       if (delivery.store_id) {
@@ -671,8 +682,10 @@ Deno.serve(async (req) => {
         if (isValidCoordinatePair(lat, lon)) {
           return { lat, lon };
         }
+        console.warn(`[purgeAndRegeneratePolylines] invalid store coords | delivery=${delivery.id} | store_id=${delivery.store_id} | raw_lat=${store?.latitude} | raw_lon=${store?.longitude} | lat=${lat} | lon=${lon}`);
       }
 
+      console.warn(`[purgeAndRegeneratePolylines] no usable coords | delivery=${delivery.id} | patient_id=${delivery.patient_id || ''} | store_id=${delivery.store_id || ''}`);
       return null;
     };
 
