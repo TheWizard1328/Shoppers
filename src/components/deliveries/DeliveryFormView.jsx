@@ -675,6 +675,8 @@ export default function DeliveryFormView({
                               appUsers={appUsers}
                               disabled={isSaving} />
                           </div>
+                        }
+                      </div>
 
                       {useMobileLayout && userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) &&
                         <div className="w-fit p-3 rounded-lg border flex items-center justify-center gap-2" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
@@ -687,7 +689,6 @@ export default function DeliveryFormView({
                             appUsers={appUsers}
                             disabled={isSaving} />
                         </div>
-                    </div>
                   )}
                 </div>
               )}
