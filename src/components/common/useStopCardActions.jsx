@@ -666,7 +666,7 @@ export default function useStopCardActions(params) {
             if (finishedLegEncodedPolyline) await updateDeliveryLocal(delivery.id, { finished_leg_encoded_polyline: finishedLegEncodedPolyline, finished_leg_transport_mode: 'driving', PolylineUpdated: true }, { skipSmartRefresh: true });
           } catch {}
         }));
-        if (shouldRecalculateCompletionEtas && nextStop) backgroundTasks.push(refreshRemainingEtasIfNeeded({ driverRecord: currentDriverAppUser || safeDriver, routeDeliveries, actualTimestamp: completionUpdate.actual_delivery_time }));
+        if (shouldRecalculateCompletionEtas && nextStop) backgroundTasks.push(refreshRemainingEtasIfNeeded({ driverRecord: currentDriverAppUser || safeDriver, routeDeliveries: incompleteDeliveries, actualTimestamp: completionUpdate.actual_delivery_time }));
         backgroundTasks.push(cleanupSquareCodCatalogForDate(delivery.delivery_date));
         const currentDriverAppUserId = currentDriverAppUser?.id || null;
         backgroundTasks.push(params.scheduleCompletionSideEffects({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, nextDeliveryId: nextStop?.id || null, lastCompletedDeliveryId: delivery.id, setOffDuty: !nextStop, appUserId: currentDriverAppUserId }));
@@ -750,7 +750,7 @@ export default function useStopCardActions(params) {
         const driverDeliveries = allDriverDeliveries.map((item) => item.id === delivery.id ? { ...item, ...criticalUpdate, isNextDelivery: false } : item);
         const incompleteDeliveries = driverDeliveries.filter((d) => d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending').sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
         await setAndCenterNextDelivery({ driverDeliveries, targetDeliveryId: incompleteDeliveries[0]?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
-        if (shouldRecalculateFailureEtas && incompleteDeliveries.length > 0) Promise.resolve().then(() => refreshRemainingEtasIfNeeded({ driverRecord: currentDriverAppUser || safeDriver, routeDeliveries: driverDeliveries, actualTimestamp: criticalUpdate.actual_delivery_time }));
+        if (shouldRecalculateFailureEtas && incompleteDeliveries.length > 0) Promise.resolve().then(() => refreshRemainingEtasIfNeeded({ driverRecord: currentDriverAppUser || safeDriver, routeDeliveries: incompleteDeliveries, actualTimestamp: criticalUpdate.actual_delivery_time }));
         onClick?.(null);
         fabControlEvents.notifyPhaseTwoCompleteRecenter();
         if (userHasRole(currentUser, 'driver')) await notifyDriverFailed({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : displayName, delivery: { ...delivery, delivery_notes: updatedNotes }, store, appUsers, failureReason: reason });
