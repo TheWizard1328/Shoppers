@@ -3,6 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import ResetPolylinesButton from "@/components/dashboard/ResetPolylinesButton";
 import { getApiLogProvider, sumApiLogCalls } from "@/components/utils/apiUsageLog";
+import { isAppOwner } from "@/components/utils/userRoles";
 import {
   Tooltip,
   TooltipContent,
@@ -18,6 +19,7 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
   const [googleCount, setGoogleCount] = useState(null);
   const [hereCount, setHereCount] = useState(null);
   const [selectedApiKey, setSelectedApiKey] = useState('HERE_API_KEY');
+  const isOwner = isAppOwner(currentUser);
 
   // Edmonton-local date helpers (match Dashboard behavior)
   const getEdmDate = () => {
@@ -62,7 +64,7 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
   };
 
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser || !isOwner) return;
     fetchCounts();
     const delayedInitialFetch = setTimeout(fetchCounts, 12000);
     const interval = setInterval(fetchCounts, 120000);
@@ -71,7 +73,9 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
       clearTimeout(delayedInitialFetch);
       clearInterval(interval);
     };
-  }, [currentUser]);
+  }, [currentUser, isOwner]);
+
+  if (!isOwner) return null;
 
   return (
     <>
