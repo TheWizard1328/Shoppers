@@ -803,7 +803,7 @@ export default function DeliveryFormView({
 
                           <div className="space-y-3 p-3 rounded-lg border min-h-[320px] flex flex-col" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                             <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Preferences</Label>
-                            <div className="flex-1 flex flex-col justify-between">
+                            <div className="flex-1 flex flex-col justify-around">
                               <CheckboxField id="mailbox_ok" label="MailBox OK" checked={formData.mailbox_ok} onChange={(c) => setFormData((p) => ({ ...p, mailbox_ok: c }))} disabled={isSaving} />
                               <CheckboxField id="ring_bell" label="Ring Bell" checked={formData.ring_bell} onChange={(c) => setFormData((p) => ({ ...p, ring_bell: c }))} disabled={isSaving} />
                               <CheckboxField id="call_upon_arrival" label="Call Upon Arrival" checked={formData.call_upon_arrival} onChange={(c) => setFormData((p) => ({ ...p, call_upon_arrival: c }))} disabled={isSaving} />
