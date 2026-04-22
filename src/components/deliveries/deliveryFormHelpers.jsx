@@ -23,9 +23,9 @@ export function renderDeliveryIdentifiersSection({
   if (!isAppOwner(currentUser) || !delivery) return null;
 
   return (
-    <div className="px-2 py-3 rounded-lg space-y-1 border" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-200)' }}>
+    <div className="px-1 py-1 rounded-lg space-y-1 border" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-200)' }}>
       <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Identifiers</Label>
-      <div className="flex gap-3">
+      <div className="flex gap-2">
         <div className="flex-1 space-y-1">
           <Label className="text-xs">TR#</Label>
           <Input value={formData.tracking_number || ''} onChange={(e) => setFormData((prev) => ({ ...prev, tracking_number: e.target.value }))} className="h-9 text-sm" disabled={isSaving} />
