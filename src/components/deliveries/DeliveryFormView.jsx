@@ -41,13 +41,14 @@ const CheckboxField = ({ id, label, checked, onChange, disabled }) =>
     <Label htmlFor={id} className={`text-sm font-medium leading-none ${disabled ? 'text-slate-400' : ''}`}>{label}</Label>
   </div>;
 
-const TravelModeButtons = ({ value, onChange, disabled, currentUser, appUsers = [], useMobileLayout = false }) => {
+const TravelModeButtons = ({ value, onChange, disabled, currentUser, appUsers = [] }) => {
   const options = [
   { value: 'driving', label: 'Driving', icon: Car },
   { value: 'cycling', label: 'Cycling', icon: Bike }];
 
+
   return (
-    <div className={`${useMobileLayout ? 'flex flex-col gap-1' : 'flex flex-row gap-2'} shrink-0`}>
+    <div className="flex flex-row gap-2 shrink-0">
       {options.map((option) => {
         const Icon = option.icon;
         const isActive = value === option.value;
@@ -62,7 +63,7 @@ const TravelModeButtons = ({ value, onChange, disabled, currentUser, appUsers = 
               await onChange(option.value, currentUser, appUsers);
             }}
             disabled={disabled}
-            className={`${useMobileLayout ? 'h-7 w-10 rounded-full' : 'h-9 w-9 rounded-full'} border transition-all flex items-center justify-center ${isActive ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white text-slate-700'}`}>
+            className={`h-9 w-9 rounded-full border transition-all flex items-center justify-center ${isActive ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white text-slate-700'}`}>
             <Icon className="w-4 h-4" />
           </button>);
 
@@ -404,7 +405,7 @@ export default function DeliveryFormView({
         ref={formRef}
         initial={{ opacity: 0, scale: useMobileLayout && isMobileDevice ? 1 : 0.95 }}
         animate={{ opacity: 1, y: 0 }}
-        className={`w-full ${useMobileLayout && isMobileDevice ? 'h-[calc(100%-4rem)] overflow-hidden' : isPickupMode ? 'max-w-[780px] h-[715px] max-h-[715px]' : !delivery ? 'max-w-[87.5rem] h-[95vh] max-h-[95vh]' : 'max-w-[50rem] h-[100vh] max-h-[100vh]'} flex`}>
+        className={`w-full ${useMobileLayout && isMobileDevice ? 'h-[calc(100%-4rem)]' : !delivery ? isPickupMode ? 'max-w-[780px] h-[90vh] max-h-[90vh]' : 'max-w-[87.5rem] h-[90vh] max-h-[90vh]' : 'max-w-[50rem] h-[90vh] max-h-[90vh]'} flex`}>
         <Card
           onKeyDown={handleGlobalKeyDown}
           className={`border-0 flex flex-col w-full ${useMobileLayout && isMobileDevice ? 'h-full' : 'rounded-xl shadow-xl'}`}
@@ -412,11 +413,11 @@ export default function DeliveryFormView({
           
           {/* Header */}
           <CardHeader className="border-b p-4 flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)' }}>
-            <div className="flex items-center justify-between gap-3">
-              <div className={`flex ${useMobileLayout && isMobileDevice ? 'items-center gap-2 min-w-0' : 'items-center gap-3'}`}>
-                <Package className="w-5 h-5 text-emerald-600 flex-shrink-0" />
-                <div className={`flex items-center gap-2 ${useMobileLayout && isMobileDevice ? 'min-w-0' : ''}`}>
-                  <CardTitle className="text-xl font-bold truncate" style={{ color: 'var(--text-slate-900)' }}>
+            <div className="flex items-center justify-between">
+              <div className={`flex ${useMobileLayout && isMobileDevice ? 'flex-col items-start gap-2' : 'items-center gap-3'}`}>
+                <Package className="w-5 h-5 text-emerald-600" />
+                <div className={`flex items-center gap-2 ${useMobileLayout && isMobileDevice ? 'w-full' : ''}`}>
+                  <CardTitle className="text-xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
                     {delivery ? isPickupMode ? 'Edit Pickup' : 'Edit Delivery' : 'Add To Route'}
                   </CardTitle>
                   {(() => {
@@ -433,7 +434,7 @@ export default function DeliveryFormView({
                   })()}
                 </div>
                 {!delivery &&
-                <div className={`flex gap-2 ${useMobileLayout && isMobileDevice ? 'ml-4 flex-wrap' : 'ml-4'}`}>
+                <div className={`flex gap-2 ${useMobileLayout && isMobileDevice ? 'ml-0 w-full flex-wrap' : 'ml-4'}`}>
                     <Button type="button" size="sm" onClick={() => {setIsPickupMode(false);setIsInterStoreMode?.(false);}} className={!isPickupMode && !isInterStoreMode ? "bg-emerald-600 hover:bg-emerald-700 !text-white" : ""} style={isPickupMode || isInterStoreMode ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>
                       Add Delivery
                     </Button>
@@ -457,8 +458,8 @@ export default function DeliveryFormView({
             </div>
           }
 
-          <CardContent className={`p-3 flex-1 relative ${useMobileLayout ? 'overflow-y-auto overflow-x-hidden min-h-0' : 'overflow-hidden'}`}>
-            <div className={`h-full min-h-0 ${!delivery && !useMobileLayout && !isPickupMode ? 'grid grid-cols-[minmax(0,1fr)_300px] gap-3' : 'flex flex-col gap-3'}`}>
+          <CardContent className="p-3 flex-1 relative overflow-hidden">
+            <div className="h-full min-h-0 flex flex-col gap-3">
               <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
 
               {/* Pickup mode: Row 1 = Location + Date + Driver */}
@@ -577,7 +578,7 @@ export default function DeliveryFormView({
                       </> :
 
                     <>
-                        <div className="relative min-w-0 self-stretch">
+                        <div className="relative min-w-0">
                           <DeliveryPatientSearch
                           patientSearch={patientSearch} setPatientSearch={setPatientSearch}
                           selectedPatient={selectedPatient} filteredPatients={filteredPatients}
@@ -593,12 +594,14 @@ export default function DeliveryFormView({
                           handleSearchKeyDown={handleSearchKeyDown} />
                         </div>
 
-                        <div className="min-w-0 h-[102px] flex flex-col justify-end space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                        <div className="min-w-0 flex flex-col justify-end gap-1 p-3 rounded-lg border min-h-[88px]" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                          <div className="min-h-[28px]" />
                           <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Date *</Label>
                           <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
                         </div>
 
-                        <div className={`min-w-0 h-[102px] flex flex-col justify-end space-y-1 p-3 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                        <div className={`min-w-0 flex flex-col justify-end gap-1 p-3 rounded-lg border min-h-[88px] ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                          <div className="min-h-[28px]" />
                           <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver {delivery ? '*' : ''}</Label>
                           <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
                           const newDriverId = driverId === 'all' ? '' : driverId;
@@ -623,14 +626,15 @@ export default function DeliveryFormView({
                   </div> :
 
                   <div className={`${useMobileLayout ? 'flex flex-col gap-3 w-full' : 'flex gap-3 flex-row w-full'}`}>
-                    <div className={`${useMobileLayout ? userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) ? 'grid grid-cols-[1.35fr_1fr_auto] gap-2 w-full items-stretch' : 'grid grid-cols-2 gap-2 w-full' : 'flex gap-3 flex-row w-full'}`}>
-                      <div className={`${useMobileLayout ? 'min-w-0 p-2' : 'min-w-0 flex-1 p-3'} space-y-1 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                        <Label className="text-[11px] font-semibold leading-tight" style={{ color: 'var(--text-slate-900)' }}>Delivery Date *</Label>
-                        <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className={`${useMobileLayout ? 'h-8 text-xs px-2' : 'h-9'}`} />
+                    <div className={`${useMobileLayout ? 'grid grid-cols-2 gap-3 w-full min-[431px]:grid-cols-2 max-[430px]:grid-cols-1' : 'flex gap-3 flex-row w-full'}`}>
+                      <div className={`${useMobileLayout ? 'w-full min-[431px]:w-[calc(50%-0.375rem)]' : 'min-w-0 flex-1'} flex flex-col justify-end gap-1 p-3 rounded-lg border min-h-[88px]`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>                        <div className="min-h-[28px]" />
+                        <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Date *</Label>
+                        <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
                       </div>
 
-                      <div className={`${useMobileLayout ? 'min-w-0 p-2' : 'min-w-0 flex-1 p-3'} space-y-1 rounded-lg border ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                        <Label className="text-[11px] font-semibold leading-tight" style={{ color: 'var(--text-slate-900)' }}>Driver {delivery ? '*' : ''}</Label>
+                      <div className={`${useMobileLayout ? 'w-[calc(50%-0.375rem)]' : 'min-w-0 flex-1'} flex flex-col justify-end gap-1 p-3 rounded-lg border min-h-[88px] ${requiresDriverSelection ? 'border-red-400 ring-2 ring-red-300 bg-red-50' : ''}`} style={requiresDriverSelection ? { background: '#fef2f2', borderColor: '#f87171' } : { background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                        <div className="min-h-[28px]" />
+                        <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver {delivery ? '*' : ''}</Label>
                         <Select open={forceOpenDriverSelect} onOpenChange={setForceOpenDriverSelect} value={formData.driver_id || 'all'} onValueChange={(driverId) => {
                           const newDriverId = driverId === 'all' ? '' : driverId;
                           const driver = driverId === 'all' ? null : allDrivers.find((d) => d.id === driverId);
@@ -642,7 +646,7 @@ export default function DeliveryFormView({
                           }
                           setForceOpenDriverSelect(false);
                         }} disabled={isSaving}>
-                          <SelectTrigger data-delivery-driver-select-trigger className={`${useMobileLayout ? 'h-8 text-xs px-2' : 'h-9'}`}><SelectValue placeholder="Select driver" /></SelectTrigger>
+                          <SelectTrigger data-delivery-driver-select-trigger className="h-9"><SelectValue placeholder="Select driver" /></SelectTrigger>
                           <SelectContent className="z-[999999]">
                             {!delivery && <SelectItem value="all">All Drivers</SelectItem>}
                             {allDrivers.map((driver) => <SelectItem key={driver.id} value={driver.id}>{getDriverDisplayName(driver)}</SelectItem>)}
@@ -650,11 +654,9 @@ export default function DeliveryFormView({
                         </Select>
                       </div>
 
-                      {userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) &&
-                      <div className={`${useMobileLayout ? 'w-[3.5rem] min-w-[3.5rem] p-1.5' : 'w-fit p-3'} rounded-lg border flex ${useMobileLayout ? 'flex-col items-center justify-center' : 'flex-col items-start justify-start'} gap-1`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                          {!useMobileLayout && (
-                            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Travel Mode</Label>
-                          )}
+                      {!useMobileLayout && userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) &&
+                      <div className="w-fit p-3 rounded-lg border flex flex-col items-start justify-start gap-2" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Travel Mode</Label>
                           <TravelModeButtons
                           value={formData.finished_leg_transport_mode || delivery?.finished_leg_transport_mode || 'driving'}
                           onChange={async (mode) => {
@@ -662,11 +664,26 @@ export default function DeliveryFormView({
                           }}
                           currentUser={currentUser}
                           appUsers={appUsers}
-                          useMobileLayout={useMobileLayout}
                           disabled={isSaving} />
+                        
                         </div>
                       }
                     </div>
+
+
+                    {useMobileLayout && userHasRole(currentUser, 'driver') && (delivery || editingStagedId || isPickupMode || isInterStoreMode) &&
+                    <div className="w-fit p-3 rounded-lg border flex items-center justify-center gap-2" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                        <TravelModeButtons
+                        value={formData.finished_leg_transport_mode || delivery?.finished_leg_transport_mode || 'driving'}
+                        onChange={async (mode) => {
+                          setFormData((prev) => ({ ...prev, finished_leg_transport_mode: mode }));
+                        }}
+                        currentUser={currentUser}
+                        appUsers={appUsers}
+                        disabled={isSaving} />
+                      
+                      </div>
+                    }
                   </div>
                   }
 
@@ -957,7 +974,7 @@ export default function DeliveryFormView({
           </CardContent>
 
           {/* Footer */}
-          <CardFooter className="border-t p-3 flex-shrink-0" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+          <CardFooter className="flex items-center border-t p-3 flex-shrink-0" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
             <div className="flex items-center justify-between w-full gap-4">
               <div className="flex items-center gap-4">
                 {!delivery && useMobileLayout && !isPickupMode &&
