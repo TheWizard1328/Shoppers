@@ -1,5 +1,6 @@
 import { base44 } from '@/api/base44Client';
 import { shouldRefreshEtasForCompletionDrift, markEtaRefreshRun } from './etaRefreshRules';
+import { hasStopOrderChanged } from './offlineMutations';
 
 const hasCardCodPayment = (delivery) => (
   (Array.isArray(delivery?.cod_payments) && delivery.cod_payments.some((payment) =>
@@ -79,6 +80,7 @@ export const runTerminalDeliverySideEffects = ({ delivery, previousStatus, nextS
   const nextDelivery = { ...delivery, ...overrides, status: nextStatus };
   const deliveryDate = nextDelivery.delivery_date;
   const driverId = nextDelivery.driver_id;
+  const stopOrderChanged = hasStopOrderChanged(delivery, nextDelivery);
 
   // If no arrival_time recorded, synthesize one as 1 minute before actual_delivery_time
   if (!nextDelivery.arrival_time && nextDelivery.actual_delivery_time) {
@@ -100,6 +102,10 @@ export const runTerminalDeliverySideEffects = ({ delivery, previousStatus, nextS
   triggerPatientLastDeliverySync({ delivery: nextDelivery, previousStatus });
   triggerPickupCompletionSync({ delivery: nextDelivery, previousStatus });
   triggerSquareCodDelete({ deliveryId: nextDelivery.id, nextStatus, delivery: nextDelivery });
+
+  if (!stopOrderChanged) {
+    return;
+  }
 
   if (
     nextStatus === 'completed' &&

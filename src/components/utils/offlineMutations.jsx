@@ -27,6 +27,12 @@ const normalizeComparableValue = (value) => {
 
 const FORCE_DELIVERY_UPDATE_FIELDS = new Set(['arrival_time', 'actual_delivery_time']);
 
+export const hasStopOrderChanged = (previousDelivery = {}, nextDelivery = {}) => {
+  const previousStopOrder = previousDelivery?.stop_order ?? null;
+  const nextStopOrder = nextDelivery?.stop_order ?? previousStopOrder;
+  return normalizeComparableValue(previousStopOrder) !== normalizeComparableValue(nextStopOrder);
+};
+
 const getMeaningfulDeliveryUpdates = async (existingDelivery, updates = {}) => {
   const sanitizedUpdates = await sanitizeDeliveryPayload(updates);
   return Object.entries(sanitizedUpdates).reduce((acc, [key, value]) => {
@@ -591,6 +597,7 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
       ...meaningfulUpdates,
       updated_date: getLocalTimestamp()
     };
+    const stopOrderChanged = hasStopOrderChanged(existingDelivery, updatedDelivery);
 
     if ('actual_delivery_time' in updatedDelivery || 'arrival_time' in updatedDelivery) {
       console.warn('[OfflineMutations][Retro] saving locally', {
@@ -610,7 +617,11 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
       type: 'update', 
       entity: 'Delivery', 
       id: deliveryId,
-      data: { ...meaningfulUpdates, updated_date: updatedDelivery.updated_date }
+      data: {
+        ...meaningfulUpdates,
+        updated_date: updatedDelivery.updated_date,
+        _polylineStructuralChange: stopOrderChanged
+      }
     });
     console.log('🔔 [OfflineMutations] UI notified immediately after local save');
 
