@@ -8,6 +8,7 @@ import { format } from "date-fns";
 import { queueEntityRequest } from "./requestQueue";
 import { touchUserCache } from "./auth";
 import { globalFilters } from "./globalFilters";
+import { syncDriverRoutePolylinesForDate } from "./hereRouting";
 
 const shouldAutoCenterNextDeliveryFromSmartRefresh = (deliveries = [], selectedDriverId = 'all', currentUser = null) => {
   if (!Array.isArray(deliveries) || deliveries.length === 0 || !currentUser) return false;
@@ -640,6 +641,21 @@ class LightweightRefreshManager {
       if (Array.isArray(updates.deliveries) && Array.isArray(currentData?.deliveries) && currentData.deliveries.length > 0 && updates.deliveries.length === 0) {
         delete updates.deliveries;
         delete updates.isFullReplacementDeliveries;
+      }
+
+      const selectedDriverId = globalFilters.getSelectedDriverId();
+      const selectedDateStr = globalFilters.getSelectedDate();
+      if (selectedDriverId && selectedDriverId !== 'all' && selectedDateStr) {
+        try {
+          const polylineRows = await syncDriverRoutePolylinesForDate(selectedDriverId, selectedDateStr, true);
+          if (Array.isArray(polylineRows) && polylineRows.length >= 0 && typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('polylineUpdated', {
+              detail: { driverId: selectedDriverId, deliveryDate: selectedDateStr, source: 'smartRefresh' }
+            }));
+          }
+        } catch (error) {
+          console.warn('⚠️ [SmartRefresh] Polyline resync failed:', error?.message || error);
+        }
       }
 
       // STEP 5: Notify subscribers if we have updates
