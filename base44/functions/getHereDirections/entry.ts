@@ -351,6 +351,7 @@ Deno.serve(async (req) => {
 
     const dateStr = String(body?.deliveryDate || body?.date || new Date().toISOString().slice(0, 10));
     const departureTime = String(body?.departureTime || body?.currentLocalTime || '08:00');
+    console.log(`🕒 [getHereDirections] departure=${departureTime} date=${dateStr} preserveWaypointOrder=${preserveWaypointOrder}`);
     const allStops = [
       { lat: originLat, lng: originLng, id: 'origin', sequenceIndex: -1 },
       ...waypoints.map((point, index) => ({

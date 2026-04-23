@@ -107,21 +107,8 @@ const extractTimeFromDateTime = (value) => {
   return match ? match[1] : null;
 };
 
-const resolveEtaBaseTime = (deliveryDate, completedDeliveries, fallbackTime) => {
-  const now = getEdmontonNowParts();
-  const routeIsPastDate = deliveryDate < now.date;
-  const routeIsLateToday = deliveryDate === now.date && (parseTimeToMinutes(now.time) ?? 0) >= (21 * 60);
-  const shouldUseFinishedStopTime = routeIsPastDate || routeIsLateToday;
-
-  if (!shouldUseFinishedStopTime) {
-    return fallbackTime;
-  }
-
-  const latestFinished = [...completedDeliveries]
-    .filter((delivery) => delivery?.actual_delivery_time)
-    .sort((a, b) => new Date(b.actual_delivery_time).getTime() - new Date(a.actual_delivery_time).getTime())[0];
-
-  return extractTimeFromDateTime(latestFinished?.actual_delivery_time) || fallbackTime;
+const resolveEtaBaseTime = (_deliveryDate, _completedDeliveries, fallbackTime) => {
+  return fallbackTime;
 };
 
 const resolveCurrentTime = ({ currentLocalTime, deviceTime }) => {
@@ -382,6 +369,7 @@ Deno.serve(async (req) => {
 
     const fallbackDepartureTime = resolveCurrentTime({ currentLocalTime, deviceTime });
     const departureTime = resolveEtaBaseTime(deliveryDate, completedDeliveries, fallbackDepartureTime);
+    console.log(`🕒 [optimizeRouteRealTime] Using departure time ${departureTime} (fallback=${fallbackDepartureTime}) for driver ${targetDriverId} on ${deliveryDate}`);
     const endLocation = (resolvedHomeLat != null && resolvedHomeLng != null)
       ? { lat: Number(resolvedHomeLat), lng: Number(resolvedHomeLng) }
       : null;
