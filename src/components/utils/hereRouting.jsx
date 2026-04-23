@@ -527,7 +527,7 @@ async function canGenerateForDriver(driverId) {
   }
 }
 
-export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate, transportMode = 'driving') => {
+export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate, transportMode = 'driving', waypoints = []) => {
   if (!fromStop || !toStop) return null;
   await ensureSelectedApiKeyLoaded();
   // Normalize coords to numbers (tablet sometimes sends strings)
@@ -624,7 +624,11 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate, 
     console.info('[HERE][client] Invoking getHereDirections', { cacheKey, origin: { lat: fromStop.latitude, lng: fromStop.longitude }, destination: { lat: toStop.latitude, lng: toStop.longitude } });
     const res = await base44.functions.invoke('getHereDirections', {
       origin: { lat: fromStop.latitude, lng: fromStop.longitude },
-      destination: { lat: toStop.latitude, lng: toStop.longitude }
+      destination: { lat: toStop.latitude, lng: toStop.longitude },
+      waypoints: Array.isArray(waypoints) ? waypoints.map((point) => ({
+        lat: Number(point?.latitude ?? point?.lat),
+        lng: Number(point?.longitude ?? point?.lon ?? point?.lng)
+      })).filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng)) : []
     });
 
     const coords = decodeRouteGeometry(res?.data);

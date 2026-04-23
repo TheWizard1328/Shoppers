@@ -220,6 +220,7 @@ export default function HereType1Polylines({
   }, [selectedDriverId, showAll]);
   const requestTimesRef = useRef({});
   const mountTimeRef = useRef(Date.now());
+  const pendingBatchFetchRef = useRef(new Set());
 
   const driverStops = useMemo(() => {
     const map = new Map();
@@ -330,9 +331,12 @@ export default function HereType1Polylines({
     };
   }, []);
 
-  // Hydrate last-completed -> next-stop from offline DB ONLY (no backend calls)
+  // Hydrate last-completed -> next-stop from offline DB, then batch-fetch missing legs via HERE
   useEffect(() => {
     if (optimizing || (Date.now() - mountTimeRef.current < 1200)) return;
+
+    const missingByDriverDate = new Map();
+
     driverStops.forEach((stops, driverId) => {
       if (stops.incomplete.length === 0 || stops.complete.length === 0) return;
       const completedSorted = [...stops.complete].sort((a, b) => {
@@ -344,15 +348,45 @@ export default function HereType1Polylines({
       const nextStop = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
       if (!lastCompleted || !nextStop) return;
 
-      const originLat = Number(lastCompleted.latitude);
-      const originLon = Number(lastCompleted.longitude);
-
-      const key = getHereCacheKey({ latitude: originLat, longitude: originLon }, nextStop, getDriverMode(driverId));
+      const origin = { latitude: Number(lastCompleted.latitude), longitude: Number(lastCompleted.longitude) };
+      const destination = { latitude: Number(nextStop.latitude), longitude: Number(nextStop.longitude) };
+      const mode = getDriverMode(driverId);
+      const key = getHereCacheKey(origin, destination, mode);
       if (cache[key]) return;
-      // ONLY hydrate from offline DB - no backend calls
-      hydrateFromOffline(key, driverId, { latitude: Number(originLat), longitude: Number(originLon) }, { latitude: Number(nextStop.latitude), longitude: Number(nextStop.longitude) }, lastCompleted.delivery_date);
+
+      hydrateFromOffline(key, driverId, origin, destination, lastCompleted.delivery_date).then((hydrated) => {
+        if (hydrated) return;
+        const batchKey = `${driverId}|${lastCompleted.delivery_date}|${mode}`;
+        const pointKey = `${Number(origin.latitude).toFixed(5)},${Number(origin.longitude).toFixed(5)}->${Number(destination.latitude).toFixed(5)},${Number(destination.longitude).toFixed(5)}`;
+        if (pendingBatchFetchRef.current.has(`${batchKey}|${pointKey}`)) return;
+        pendingBatchFetchRef.current.add(`${batchKey}|${pointKey}`);
+        if (!missingByDriverDate.has(batchKey)) missingByDriverDate.set(batchKey, []);
+        missingByDriverDate.get(batchKey).push({ driverId, deliveryDate: lastCompleted.delivery_date, mode, origin, destination, key });
+      }).catch(() => {});
     });
-  }, [isViewingCurrentDate, driverStops, refreshToken]);
+
+    const timer = setTimeout(async () => {
+      const groups = Array.from(missingByDriverDate.entries());
+      await Promise.all(groups.map(async ([batchKey, segments]) => {
+        if (!segments.length) return;
+        const first = segments[0];
+        const orderedPoints = [first.origin, ...segments.map((segment) => segment.destination)];
+        try {
+          const route = await getHerePolyline(first.driverId, orderedPoints[0], orderedPoints[orderedPoints.length - 1], first.deliveryDate, first.mode, orderedPoints.slice(1, -1));
+          if (!Array.isArray(route) || route.length <= 1) return;
+          setRefreshToken((token) => token + 1);
+        } catch (_) {
+        } finally {
+          segments.forEach((segment) => {
+            const pointKey = `${Number(segment.origin.latitude).toFixed(5)},${Number(segment.origin.longitude).toFixed(5)}->${Number(segment.destination.latitude).toFixed(5)},${Number(segment.destination.longitude).toFixed(5)}`;
+            pendingBatchFetchRef.current.delete(`${batchKey}|${pointKey}`);
+          });
+        }
+      }));
+    }, 150);
+
+    return () => clearTimeout(timer);
+  }, [isViewingCurrentDate, driverStops, refreshToken, optimizing, cache, driverTravelModes, localDriverTravelModes]);
 
   // Hydrate last-completed -> home from offline DB ONLY (no backend calls)
   useEffect(() => {
