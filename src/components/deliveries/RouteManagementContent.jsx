@@ -3,16 +3,18 @@ import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Pencil, Package } from "lucide-react";
+import { Pencil, Package, Trash2 } from "lucide-react";
 import StopCard from "../common/StopCard";
 import StopDetailsPanel from "./StopDetailsPanel";
 import DeliveryListView from "../dashboard/DeliveryListView";
 import BulkEditStopsPanel from "./BulkEditStopsPanel";
+import DeleteConfirmDialog from "./DeleteConfirmDialog";
 import { isMobileDevice } from "../utils/deviceUtils";
-import { createDeliveryLocal } from "../utils/entityMutations";
+import { createDeliveryLocal, deleteDeliveryLocal } from "../utils/entityMutations";
 import { invalidate } from "../utils/dataManager";
 import { userHasRole } from "../utils/userRoles";
 import { applyBulkEditStops } from "./bulkEditHelpers.jsx";
+import { base44 } from "@/api/base44Client";
 
 export default function RouteManagementContent({
   deliveries,
@@ -41,6 +43,7 @@ export default function RouteManagementContent({
   const [selectedBulkDeliveryIds, setSelectedBulkDeliveryIds] = useState([]);
   const [isBulkEditPanelOpen, setIsBulkEditPanelOpen] = useState(false);
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+  const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
@@ -110,6 +113,36 @@ export default function RouteManagementContent({
     });
   }, [allDeliveries, bulkEditableDrivers, currentUser, deliveries, loadData, selectedBulkDeliveryIds]);
 
+  const handleBulkDelete = useCallback(async () => {
+    if (selectedBulkDeliveryIds.length === 0) return;
+    setIsBulkUpdating(true);
+    try {
+      const deliveriesToDelete = (deliveries || []).filter((delivery) => selectedBulkDeliveryIds.includes(delivery.id));
+      await Promise.all(deliveriesToDelete.map((delivery) => deleteDeliveryLocal(delivery.id)));
+
+      const affectedDriverDates = Array.from(new Set(
+        deliveriesToDelete
+          .filter((delivery) => delivery?.driver_id && delivery?.delivery_date)
+          .map((delivery) => `${delivery.driver_id}|${delivery.delivery_date}`)
+      ));
+
+      await Promise.all(
+        affectedDriverDates.map((entry) => {
+          const [driverId, deliveryDate] = entry.split("|");
+          return base44.functions.invoke("purgeAndRegeneratePolylines", { driverId, deliveryDate }).catch(() => {});
+        })
+      );
+
+      await invalidate("Delivery");
+      await loadData(true);
+      setSelectedBulkDeliveryIds([]);
+      setBulkEditMode(false);
+      setIsBulkDeleteDialogOpen(false);
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  }, [deliveries, loadData, selectedBulkDeliveryIds]);
+
   const handleCreateReturn = useCallback(async ({ originalDelivery, returnPatient, store }) => {
     const currentDate = format(new Date(), "yyyy-MM-dd");
     await createDeliveryLocal({
@@ -177,6 +210,10 @@ export default function RouteManagementContent({
                   <Button className="gap-2" onClick={() => setIsBulkEditPanelOpen(true)} disabled={selectedBulkDeliveryIds.length === 0 || isBulkUpdating}>
                     <Pencil className="w-4 h-4" />
                     Edit Selected
+                  </Button>
+                  <Button variant="destructive" className="gap-2" onClick={() => setIsBulkDeleteDialogOpen(true)} disabled={selectedBulkDeliveryIds.length === 0 || isBulkUpdating}>
+                    <Trash2 className="w-4 h-4" />
+                    Delete Selected
                   </Button>
                   <Button variant="ghost" onClick={handleCancelBulkEdit} disabled={isBulkUpdating}>
                     Cancel
@@ -315,6 +352,12 @@ export default function RouteManagementContent({
         currentUser={currentUser}
         onApply={handleBulkEditApply}
         isSaving={isBulkUpdating} />
+
+      <DeleteConfirmDialog
+        isOpen={isBulkDeleteDialogOpen}
+        onConfirm={handleBulkDelete}
+        onCancel={() => setIsBulkDeleteDialogOpen(false)}
+        stopName={`${selectedBulkDeliveryIds.length} selected stop${selectedBulkDeliveryIds.length === 1 ? "" : "s"}`} />
     </div>);
 
 
