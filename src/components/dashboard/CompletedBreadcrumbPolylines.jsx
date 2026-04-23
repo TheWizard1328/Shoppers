@@ -338,8 +338,6 @@ export default function CompletedBreadcrumbPolylines({
     };
   }, [directSegmentLegs, breadcrumbRouteLegs, cache, polylineRenderKey]);
 
-  const renderedLines = [];
-
   useEffect(() => {
     if (storedFinishedSegments.length === 0) return;
 
@@ -360,6 +358,8 @@ export default function CompletedBreadcrumbPolylines({
       return changed ? next : previous;
     });
   }, [storedFinishedSegments, polylineRenderKey]);
+
+  const renderedLines = [];
 
   storedFinishedSegments.forEach((segment) => {
     if (!showStoredPolylines) return;
