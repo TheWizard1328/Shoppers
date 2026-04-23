@@ -234,7 +234,7 @@ function Dashboard() {
   const [showEndOfDayStats, setShowEndOfDayStats] = useState(false);
   const [endOfDayDriver, setEndOfDayDriver] = useState(null);
   const [snapshotData, setSnapshotData] = useState(null);
-  const [pullToSyncKey, setPullToSyncKey] = useState(0);
+  const [pullToSyncKey] = useState(0);
   const statusUpdateLockRef = useRef(new Set());
 
   const handleSnapshotSelect = (data) => {
@@ -1484,12 +1484,6 @@ function Dashboard() {
     const interval = setInterval(async () => {
       runPeriodicSmartRefresh();
       if (smartRefreshManager?.checkHeartbeatAndSync) smartRefreshManager.checkHeartbeatAndSync();
-      if (showDeliveryForm || showPatientForm || showOptimizationSettings || showAIAssistant) return;
-      const ds = format(selectedDate, 'yyyy-MM-dd');
-      if (ds !== getEdmDate()) return;
-      const m = await offlineDB.getSyncMetadata('Delivery'),t = new Date(m?.last_sync_time || m?.last_sync_date || m?.last_synced_timestamp || 0).getTime();
-      const active = deliveries.some((d) => d && d.delivery_date === ds && !['completed', 'failed', 'cancelled', 'returned'].includes(d.status));
-      if (!t || Date.now() - t >= (active ? 60000 : 300000)) window.dispatchEvent(new CustomEvent('triggerPullToSync', { detail: { silent: true, reason: active ? 'today_active_routes' : 'today_completed_routes' } }));
     }, 60000);
     return () => {clearTimeout(initialDelay);clearInterval(interval);};
   }, [isDataLoaded, currentUser?.id, isFiltersReady, deliveries, patients, stores, cities, appUsers, drivers, selectedDate, showAllDriverMarkers, showDeliveryForm, showPatientForm, showOptimizationSettings, showAIAssistant]);
