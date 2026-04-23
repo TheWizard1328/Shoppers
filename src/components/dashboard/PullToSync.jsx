@@ -308,9 +308,7 @@ export default function PullToSync({
   // Listen for silent sync trigger (e.g., after AppUser updates)
   useEffect(() => {
     const handleSilentSync = async () => {
-      if (isSyncing || (window.__dashboardSyncing && window.__activePullToSyncRunId)) return;
-      console.log('🔇 [PullToSync] Silent sync triggered after AppUser update');
-      await performSync(true);
+      return;
     };
 
     window.addEventListener('triggerSilentSync', handleSilentSync);
