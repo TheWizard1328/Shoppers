@@ -3,8 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { RefreshCw } from 'lucide-react';
 import { offlineDB } from '@/components/utils/offlineDatabase';
 import { base44 } from '@/api/base44Client';
-import calculateRealTimeETA from '@/functions/calculateRealTimeETA';
-import repairMissingPolylines from '@/functions/repairMissingPolylines';
+import { calculateRealTimeETA } from '@/functions/calculateRealTimeETA';
+import { repairMissingPolylines } from '@/functions/repairMissingPolylines';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { globalFilters } from '@/components/utils/globalFilters';
@@ -265,15 +265,14 @@ export default function PullToSync({
 
           // ETA recalculation for active stops only
           calculateRealTimeETA({
-            driverId: targetDriverId,
-            deliveryDate: selectedDateStr,
-            currentLocalTime,
-            deviceTime: currentLocalTime
+            driver: { id: targetDriverId },
+            deliveries: incompleteDeliveries,
+            currentLocation: null
           }).then(etaRes => {
-            const etaUpdates = etaRes?.data?.durationUpdates || etaRes?.data?.etas || etaRes?.etas || [];
+            const etaUpdates = etaRes?.data?.etaEstimates || etaRes?.etaEstimates || [];
             if (Array.isArray(etaUpdates) && etaUpdates.length > 0) {
               window.dispatchEvent(new CustomEvent('etaUpdated', {
-                detail: { updates: etaUpdates.map(u => ({ deliveryId: u.deliveryId || u.delivery_id, newEta: u.eta || u.newETA })) }
+                detail: { updates: etaUpdates.map(u => ({ deliveryId: u.deliveryId || u.delivery_id, newEta: u.estimated_arrival_time || u.eta || u.newETA })) }
               }));
             }
           }).catch(e => console.warn('⚠️ [Pull to Sync] Background ETA update failed:', e?.message));
