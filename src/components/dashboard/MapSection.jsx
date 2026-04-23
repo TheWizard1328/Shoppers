@@ -107,12 +107,12 @@ export default function MapSection({
             }
           }}
           retractClustersRef={retractClustersRef}
-          areStopCardsVisible={deliveriesWithStopOrder.length > 0}
+          areStopCardsVisible={!immersiveHidden && deliveriesWithStopOrder.length > 0}
           highlightedDeliveryId={highlightedCardId}
-          stopCardsHeight={stopCardsBaseHeight}
+          stopCardsHeight={!immersiveHidden ? stopCardsBaseHeight : 0}
           mapViewPhase={1}
           isMapViewLocked={false}
-          topOverlayHeight={topOverlayHeight}
+          topOverlayHeight={!immersiveHidden ? topOverlayHeight : 0}
           preferredTravelMode={preferredTravelMode}
           onTravelModeChange={onTravelModeChange}
           onMapReady={() => {
