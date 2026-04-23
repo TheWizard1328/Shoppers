@@ -287,9 +287,22 @@ Deno.serve(async (req) => {
     let currentPosition;
     let locationSource;
 
-    if (latestFinishedDelivery) {
+    const explicitNextDelivery = incompleteDeliveries.find((delivery) => delivery?.isNextDelivery === true) || null;
+    const explicitNextCoords = explicitNextDelivery ? getDeliveryCoords(explicitNextDelivery, patientMap, storeMap) : null;
+
+    if (explicitNextCoords) {
+      currentPosition = explicitNextCoords;
+      locationSource = 'next_delivery_stop';
+    }
+
+    if (!currentPosition && latestFinishedDelivery) {
       currentPosition = getDeliveryCoords(latestFinishedDelivery, patientMap, storeMap);
       locationSource = currentPosition ? 'last_finished_stop' : null;
+    }
+
+    if (!currentPosition && driverAppUser.current_latitude != null && driverAppUser.current_longitude != null) {
+      currentPosition = { lat: Number(driverAppUser.current_latitude), lng: Number(driverAppUser.current_longitude) };
+      locationSource = 'driver_gps';
     }
 
     if (!currentPosition && driverAppUser.home_latitude != null && driverAppUser.home_longitude != null) {
@@ -304,6 +317,7 @@ Deno.serve(async (req) => {
     }
 
     console.log(`📍 [optimizeRemainingStops] Starting from: ${locationSource} (${currentPosition.lat}, ${currentPosition.lng})`);
+    console.log(`🎯 [optimizeRemainingStops] Active next stop: ${explicitNextDelivery?.id || 'none'}`);
     console.log(`🏁 [optimizeRemainingStops] Home remains locked as final destination${driverAppUser.home_latitude != null && driverAppUser.home_longitude != null ? '' : ' (not set)'}`);
 
     // STEP 3: Let HERE sequence the full incomplete route in one call
@@ -316,7 +330,7 @@ Deno.serve(async (req) => {
       : optimizationStops;
 
     const nextDeliveryStop = orderedOptimizationStops.find((stop) => stop.delivery.isNextDelivery === true) || null;
-    const lockedNextStop = !preserveExistingOrder && nextDeliveryStop ? nextDeliveryStop : null;
+    const lockedNextStop = !preserveExistingOrder && nextDeliveryStop && locationSource !== 'next_delivery_stop' ? nextDeliveryStop : null;
     const stopsToSequence = lockedNextStop
       ? orderedOptimizationStops.filter((stop) => stop.delivery.id !== lockedNextStop.delivery.id)
       : orderedOptimizationStops;
