@@ -363,6 +363,7 @@ export default function HereType1Polylines({
           setRefreshToken((token) => token + 1);
           return;
         }
+        if (window.__isPrimaryTrackingDevice !== true) return;
         const batchKey = `${driverId}|${lastCompleted.delivery_date}|${mode}`;
         const pointKey = `${Number(origin.latitude).toFixed(5)},${Number(origin.longitude).toFixed(5)}->${Number(destination.latitude).toFixed(5)},${Number(destination.longitude).toFixed(5)}`;
         if (pendingBatchFetchRef.current.has(`${batchKey}|${pointKey}`)) return;
@@ -373,26 +374,35 @@ export default function HereType1Polylines({
     });
 
     const timer = setTimeout(async () => {
-      const groups = Array.from(missingByDriverDate.entries());
-      await Promise.all(groups.map(async ([batchKey, segments]) => {
-        if (!segments.length) return;
-        const first = segments[0];
-        const orderedPoints = [first.origin, ...segments.map((segment) => segment.destination)];
-        try {
-          const route = await getHerePolyline(first.driverId, orderedPoints[0], orderedPoints[orderedPoints.length - 1], first.deliveryDate, first.mode, orderedPoints.slice(1, -1));
-          if (!Array.isArray(route) || route.length <= 1) return;
-          setRefreshToken((token) => token + 1);
-        } catch (_) {
-        } finally {
-          segments.forEach((segment) => {
-            const pointKey = `${Number(segment.origin.latitude).toFixed(5)},${Number(segment.origin.longitude).toFixed(5)}->${Number(segment.destination.latitude).toFixed(5)},${Number(segment.destination.longitude).toFixed(5)}`;
-            pendingBatchFetchRef.current.delete(`${batchKey}|${pointKey}`);
-          });
-        }
-      }));
+    if (window.__isPrimaryTrackingDevice !== true) return;
+    const groups = Array.from(missingByDriverDate.entries());
+    await Promise.all(groups.map(async ([batchKey, segments]) => {
+      if (!segments.length) return;
+      const first = segments[0];
+      const orderedPoints = [first.origin, ...segments.map((segment) => segment.destination)];
+      try {
+        const route = await getHerePolyline(first.driverId, orderedPoints[0], orderedPoints[orderedPoints.length - 1], first.deliveryDate, first.mode, orderedPoints.slice(1, -1));
+        if (!Array.isArray(route) || route.length <= 1) return;
+        setRefreshToken((token) => token + 1);
+      } catch (_) {
+      } finally {
+        segments.forEach((segment) => {
+          const pointKey = `${Number(segment.origin.latitude).toFixed(5)},${Number(segment.origin.longitude).toFixed(5)}->${Number(segment.destination.latitude).toFixed(5)},${Number(segment.destination.longitude).toFixed(5)}`;
+          pendingBatchFetchRef.current.delete(`${batchKey}|${pointKey}`);
+        });
+      }
+    }));
     }, 150);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      Array.from(missingByDriverDate.entries()).forEach(([batchKey, segments]) => {
+        segments.forEach((segment) => {
+          const pointKey = `${Number(segment.origin.latitude).toFixed(5)},${Number(segment.origin.longitude).toFixed(5)}->${Number(segment.destination.latitude).toFixed(5)},${Number(segment.destination.longitude).toFixed(5)}`;
+          pendingBatchFetchRef.current.delete(`${batchKey}|${pointKey}`);
+        });
+      });
+    };
   }, [isViewingCurrentDate, driverStops, refreshToken, optimizing, cache, driverTravelModes, localDriverTravelModes]);
 
   // Hydrate last-completed -> home from offline DB ONLY (no backend calls)

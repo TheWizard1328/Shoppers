@@ -123,6 +123,7 @@ async function flushPolylinePersists() {
         created_date: item.created_date || new Date().toISOString(),
         updated_date: new Date().toISOString()
       })));
+      await offlineDB.deduplicateDriverRoutePolylines(uniquePayloads[0]?.delivery_date || null);
     }
   } catch (err) {
     console.warn('[HERE][client] Bulk persist failed', err);
@@ -261,85 +262,35 @@ export async function clearHereCacheForDriverDate(driverId, deliveryDate) {
 }
 
 let polylineSubscribed = false;
+let polylineUnsubscribe = null;
 export const ensurePolylineSubscription = () => {
   if (polylineSubscribed) return;
   polylineSubscribed = true;
   try {
-    const unsubscribe = (() => () => {})();
-    const event = null;
-    (async () => {
+    polylineUnsubscribe = base44.entities.DriverRoutePolyline.subscribe(async (event) => {
       try {
-        if (event.type === 'delete') {
-          let deletedRecord = null;
-          try {
-            const allRows = await offlineDB.getAll(offlineDB.STORES.DRIVER_ROUTE_POLYLINES);
-            deletedRecord = (allRows || []).find((row) => row?.id === event.id) || null;
-          } catch (_) {}
-          if (deletedRecord?.segment_origin_lat != null && deletedRecord?.segment_origin_lon != null && deletedRecord?.segment_dest_lat != null && deletedRecord?.segment_dest_lon != null) {
-            clearHereCacheForSegment(
-              { latitude: deletedRecord.segment_origin_lat, longitude: deletedRecord.segment_origin_lon },
-              { latitude: deletedRecord.segment_dest_lat, longitude: deletedRecord.segment_dest_lon }
-            );
-          }
+        if (event?.type === 'delete') {
           await offlineDB.deleteRecord(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, event.id);
-        } else if (event.data) {
-          const rec = event.data;
-          await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [rec]);
-          // Also clear any stale localStorage key for the same segment before re-saving
-          try {
-            if (rec.segment_origin_lat != null && rec.segment_origin_lon != null && rec.segment_dest_lat != null && rec.segment_dest_lon != null) {
-              const key = `here_${rec.transport_mode || 'driving'}_${Number(rec.segment_origin_lat).toFixed(5)}_${Number(rec.segment_origin_lon).toFixed(5)}_${Number(rec.segment_dest_lat).toFixed(5)}_${Number(rec.segment_dest_lon).toFixed(5)}`;
-              try { backoffCache.delete(`${key}:fail_until`); } catch (_) {}
-            }
-          } catch (_) {}
-          // Offline de-dup for same segment (keep latest by updated_date/last_generated_at)
-          try {
-            const rounded = (n) => Number(Number(n).toFixed(5));
-            const rows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date,', rec.delivery_date);
-          } catch(_) {}
-          try {
-            const rounded = (n) => Number(Number(n).toFixed(5));
-            const rows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', rec.delivery_date);
-            const same = (rows || []).filter(r => r.driver_id === rec.driver_id &&
-              Number(r.segment_origin_lat)?.toFixed(5) === rounded(rec.segment_origin_lat).toFixed(5) &&
-              Number(r.segment_origin_lon)?.toFixed(5) === rounded(rec.segment_origin_lon).toFixed(5) &&
-              Number(r.segment_dest_lat)?.toFixed(5) === rounded(rec.segment_dest_lat).toFixed(5) &&
-              Number(r.segment_dest_lon)?.toFixed(5) === rounded(rec.segment_dest_lon).toFixed(5)
-            );
-            if (same.length > 1) {
-              const pick = same.reduce((best, cur) => {
-                const bt = new Date(best.updated_date || best.last_generated_at || 0).getTime();
-                const ct = new Date(cur.updated_date || cur.last_generated_at || 0).getTime();
-                return ct > bt ? cur : best;
-              });
-              for (const row of same) {
-                if (row.id !== pick.id) {
-                  await offlineDB.deleteRecord(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, row.id);
-                }
-              }
-            }
-          } catch(_) {}
-          // Invalidate caches for this segment
-          const key = rec && rec.segment_origin_lat != null && rec.segment_origin_lon != null && rec.segment_dest_lat != null && rec.segment_dest_lon != null
-            ? `here_${rec.transport_mode || 'driving'}_${Number(rec.segment_origin_lat).toFixed(5)}_${Number(rec.segment_origin_lon).toFixed(5)}_${Number(rec.segment_dest_lat).toFixed(5)}_${Number(rec.segment_dest_lon).toFixed(5)}`
-            : null;
-          if (key) {
-            try {
-              if (rec.encoded_polyline) {
-                const coords = decodeGooglePolyline(rec.encoded_polyline);
-                if (Array.isArray(coords) && coords.length > 1) {
-                  memoryCache.set(key, coords);
-                }
-              }
-            } catch (_) {}
-            try { window.dispatchEvent(new CustomEvent('polylineUpdated', { detail: { driverId: rec.driver_id, deliveryDate: rec.delivery_date, key } })); } catch (_) {}
+          return;
+        }
+        const rec = event?.data;
+        if (!rec) return;
+        await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [rec]);
+        await offlineDB.deduplicateDriverRoutePolylines(rec.delivery_date);
+        const key = rec.segment_origin_lat != null && rec.segment_origin_lon != null && rec.segment_dest_lat != null && rec.segment_dest_lon != null
+          ? `here_${rec.transport_mode || 'driving'}_${Number(rec.segment_origin_lat).toFixed(5)}_${Number(rec.segment_origin_lon).toFixed(5)}_${Number(rec.segment_dest_lat).toFixed(5)}_${Number(rec.segment_dest_lon).toFixed(5)}`
+          : null;
+        if (key && rec.encoded_polyline) {
+          const coords = decodeGooglePolyline(rec.encoded_polyline);
+          if (Array.isArray(coords) && coords.length > 1) {
+            memoryCache.set(key, coords);
           }
+          window.dispatchEvent(new CustomEvent('polylineUpdated', { detail: { driverId: rec.driver_id, deliveryDate: rec.delivery_date, key } }));
         }
       } catch (e) {
         console.warn('[HERE][client] Realtime polyline offline sync failed', e);
       }
-    })();
-    // Optional: store unsubscribe somewhere if needed
+    });
   } catch (e) {
     console.warn('[HERE][client] Failed to subscribe to DriverRoutePolyline realtime', e?.message || e);
     polylineSubscribed = false;
