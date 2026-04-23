@@ -215,14 +215,17 @@ export default function HereType1Polylines({
 
   const hydrateFromOnline = async (key, driverId, from, to, date) => {
     try {
-      const rows = await base44.entities.DriverRoutePolyline.filter({ driver_id: driverId, delivery_date: date }, '-updated_date', 200);
       const fLat = round5(from.latitude), fLon = round5(from.longitude);
       const tLat = round5(to.latitude), tLon = round5(to.longitude);
+      const rows = await base44.entities.DriverRoutePolyline.filter({
+        driver_id: driverId,
+        delivery_date: date,
+        segment_origin_lat: fLat,
+        segment_origin_lon: fLon,
+        segment_dest_lat: tLat,
+        segment_dest_lon: tLon
+      }, '-updated_date', 10);
       const match = (rows || []).find((r) =>
-        round5(r.segment_origin_lat) === fLat &&
-        round5(r.segment_origin_lon) === fLon &&
-        round5(r.segment_dest_lat) === tLat &&
-        round5(r.segment_dest_lon) === tLon &&
         normalizeTravelMode(r.transport_mode) === normalizeTravelMode(getDriverMode(driverId)) &&
         r.encoded_polyline
       );
@@ -303,7 +306,7 @@ export default function HereType1Polylines({
 
   useDriverRoutePolylineBackgroundSync({
     targets: polylineSyncTargets,
-    enabled: polylineSyncTargets.length > 0,
+    enabled: false,
     intervalMs: 30000,
     onSync: () => setRefreshToken((token) => token + 1)
   });
