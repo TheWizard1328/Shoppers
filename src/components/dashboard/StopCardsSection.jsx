@@ -19,24 +19,6 @@ export default function StopCardsSection({
   handleCODUpdate, handleCreateReturn, handleStartDelivery,
   refreshUser,
 }) {
-  const [mobileCardsHeight, setMobileCardsHeight] = useState(0);
-
-  useEffect(() => {
-    const element = horizontalStopCardsRef?.current;
-    if (!element) return;
-
-    const updateHeight = () => setMobileCardsHeight(element.offsetHeight || 0);
-    updateHeight();
-
-    const observer = new ResizeObserver(updateHeight);
-    observer.observe(element);
-
-    return () => observer.disconnect();
-  }, [horizontalStopCardsRef, deliveriesWithStopOrder.length, selectedCardId]);
-
-  const mobileStopCardsHeight = isMobile && mobileCardsHeight > 0
-    ? `${mobileCardsHeight}px`
-    : undefined;
 
   return (
     <div
@@ -48,8 +30,8 @@ export default function StopCardsSection({
         left: isSnapshotModeActive ? '5rem' : '0',
         top: 'auto',
         bottom: 'calc(var(--bottom-nav-height, 0px) + 0.25rem)',
-        height: mobileStopCardsHeight,
-        minHeight: isMobile ? mobileStopCardsHeight : undefined,
+        height: 'auto',
+        minHeight: undefined,
         transform: immersiveHidden ? 'translateY(calc(100% + 1rem))' : 'translateY(0)',
         opacity: immersiveHidden ? 0 : 1,
         pointerEvents: immersiveHidden ? 'none' : 'auto'
