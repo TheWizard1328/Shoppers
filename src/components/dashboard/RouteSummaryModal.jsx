@@ -179,10 +179,10 @@ export default function RouteSummaryModal({ deliveries, patients, stores, driver
         exit={{ opacity: 0, scale: 0.9 }}
         className="w-full max-w-lg">
         
-        <Card className="bg-white border-slate-200 shadow-2xl">
-          <CardHeader className="border-b border-slate-200 bg-gradient-to-r from-emerald-50 to-blue-50">
+        <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 shadow-2xl">
+          <CardHeader className="border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-emerald-50 to-blue-50 dark:from-emerald-950/40 dark:to-blue-950/40">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-2xl font-bold text-slate-900 flex items-center gap-3">
+              <CardTitle className="text-2xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-3">
                 <div className="p-2 bg-emerald-500 rounded-lg">
                   <CheckCircle className="w-6 h-6 text-white" />
                 </div>
@@ -197,40 +197,40 @@ export default function RouteSummaryModal({ deliveries, patients, stores, driver
           <CardContent className="p-6 space-y-6">
             {/* Stop Summary */}
             <div>
-              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">
+              <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
                 Stop Summary
               </h3>
               <div className="grid grid-cols-2 gap-4">
-                <div className="bg-slate-50 rounded-lg p-4">
+                <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-1">
                     <Package className="w-4 h-4 text-blue-600" />
-                    <span className="text-sm text-slate-600">Total Stops</span>
+                    <span className="text-sm text-slate-600 dark:text-slate-300">Total Stops</span>
                   </div>
-                  <p className="text-2xl font-bold text-slate-900">{stats.totalStops}</p>
+                  <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{stats.totalStops}</p>
                 </div>
 
-                <div className="bg-slate-50 rounded-lg p-4">
+                <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-1">
                     <Home className="w-4 h-4 text-emerald-600" />
-                    <span className="text-sm text-slate-600">Pickups</span>
+                    <span className="text-sm text-slate-600 dark:text-slate-300">Pickups</span>
                   </div>
-                  <p className="text-2xl font-bold text-slate-900">{stats.totalPickups}</p>
+                  <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{stats.totalPickups}</p>
                 </div>
 
-                <div className="bg-slate-50 rounded-lg p-4">
+                <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-1">
                     <Truck className="w-4 h-4 text-purple-600" />
-                    <span className="text-sm text-slate-600">Deliveries</span>
+                    <span className="text-sm text-slate-600 dark:text-slate-300">Deliveries</span>
                   </div>
-                  <p className="text-2xl font-bold text-slate-900">{stats.totalDeliveries}</p>
+                  <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{stats.totalDeliveries}</p>
                 </div>
 
-                <div className="bg-slate-50 rounded-lg p-4">
+                <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-1">
                     <XCircle className="w-4 h-4 text-red-600" />
-                    <span className="text-sm text-slate-600">Failed/Returned</span>
+                    <span className="text-sm text-slate-600 dark:text-slate-300">Failed/Returned</span>
                   </div>
-                  <p className="text-2xl font-bold text-slate-900">
+                  <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">
                     {stats.failed} / {stats.returned}
                   </p>
                 </div>
@@ -239,59 +239,59 @@ export default function RouteSummaryModal({ deliveries, patients, stores, driver
 
             {/* Time & Distance */}
             <div>
-              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">
+              <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
                 Performance Metrics
               </h3>
               <div className="space-y-3">
-                <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg p-4 border border-blue-200">
+                <div className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-950/40 dark:to-blue-900/30 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Clock className="w-5 h-5 text-blue-600" />
-                      <span className="text-sm font-medium text-blue-900">Total Time on Road</span>
+                      <span className="text-sm font-medium text-blue-900 dark:text-blue-200">Total Time on Road</span>
                     </div>
-                    <p className="text-xl font-bold text-blue-900">
+                    <p className="text-xl font-bold text-blue-900 dark:text-blue-100">
                       {stats.totalTime.hours}h {stats.totalTime.minutes}m
                     </p>
                   </div>
-                  <div className="mt-2 text-xs text-blue-700">
+                  <div className="mt-2 text-xs text-blue-700 dark:text-blue-300">
                     {stats.firstStopTime} → {stats.lastStopTime}
                   </div>
                 </div>
 
-                <div className="bg-gradient-to-r from-emerald-50 to-emerald-100 rounded-lg p-4 border border-emerald-200">
+                <div className="bg-gradient-to-r from-emerald-50 to-emerald-100 dark:from-emerald-950/40 dark:to-emerald-900/30 rounded-lg p-4 border border-emerald-200 dark:border-emerald-800">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <MapPin className="w-5 h-5 text-emerald-600" />
-                      <span className="text-sm font-medium text-emerald-900">Total Distance</span>
+                      <span className="text-sm font-medium text-emerald-900 dark:text-emerald-200">Total Distance</span>
                     </div>
-                    <p className="text-xl font-bold text-emerald-900">
+                    <p className="text-xl font-bold text-emerald-900 dark:text-emerald-100">
                       {stats.totalDistance} km
                     </p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+                  <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700">
                     <div className="flex items-center gap-2 mb-1">
                       <TrendingUp className="w-4 h-4 text-slate-600" />
-                      <span className="text-xs text-slate-600">Avg Time/Stop</span>
+                      <span className="text-xs text-slate-600 dark:text-slate-300">Avg Time/Stop</span>
                     </div>
-                    <p className="text-lg font-bold text-slate-900">{stats.avgTimeBetweenStops} min</p>
+                    <p className="text-lg font-bold text-slate-900 dark:text-slate-100">{stats.avgTimeBetweenStops} min</p>
                   </div>
 
-                  <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+                  <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700">
                     <div className="flex items-center gap-2 mb-1">
                       <TrendingUp className="w-4 h-4 text-slate-600" />
-                      <span className="text-xs text-slate-600">Avg Dist/Stop</span>
+                      <span className="text-xs text-slate-600 dark:text-slate-300">Avg Dist/Stop</span>
                     </div>
-                    <p className="text-lg font-bold text-slate-900">{stats.avgDistanceBetweenStops} km</p>
+                    <p className="text-lg font-bold text-slate-900 dark:text-slate-100">{stats.avgDistanceBetweenStops} km</p>
                   </div>
                 </div>
               </div>
             </div>
           </CardContent>
 
-          <div className="border-t border-slate-200 bg-slate-50 p-4">
+          <div className="border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-4">
             <Button 
               onClick={onClose} 
               className="w-full bg-emerald-600 hover:bg-emerald-700 gap-2"

@@ -20,7 +20,7 @@ export default function ModeSelectionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ModeIcon className="w-4 h-4" />
@@ -29,11 +29,11 @@ export default function ModeSelectionDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="rounded-xl border border-slate-200 p-3">
-            <div className="text-sm font-medium text-slate-900">Nearby stops within 5 km</div>
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950/30 p-3">
+            <div className="text-sm font-medium text-slate-900 dark:text-slate-100">Nearby stops within 5 km</div>
             <div className="mt-3 space-y-2 max-h-72 overflow-y-auto pr-1">
               {nearbyStops.length === 0 && (
-                <div className="text-sm text-slate-500">No nearby stops found for this mode.</div>
+                <div className="text-sm text-slate-500 dark:text-slate-400">No nearby stops found for this mode.</div>
               )}
 
               {nearbyStops.map((stop) => {
@@ -41,14 +41,14 @@ export default function ModeSelectionDialog({
                 return (
                   <label
                     key={stop.id}
-                    className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 cursor-pointer hover:bg-slate-50"
+                    className="flex items-start gap-3 rounded-lg border border-slate-200 dark:border-slate-700 p-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800"
                   >
                     <Checkbox checked={checked} onCheckedChange={() => onToggleStop(stop.id)} />
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium text-slate-900 truncate">{stop.label}</div>
-                      <div className="text-xs text-slate-500 truncate">{stop.subtitle}</div>
+                      <div className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{stop.label}</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400 truncate">{stop.subtitle}</div>
                     </div>
-                    <div className="text-xs font-medium text-slate-600 whitespace-nowrap">
+                    <div className="text-xs font-medium text-slate-600 dark:text-slate-300 whitespace-nowrap">
                       {stop.distanceKm.toFixed(1)} km
                     </div>
                   </label>
@@ -57,9 +57,9 @@ export default function ModeSelectionDialog({
             </div>
           </div>
 
-          <label className="flex items-center gap-3 rounded-xl border border-slate-200 p-3 cursor-pointer hover:bg-slate-50">
+          <label className="flex items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-700 p-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">
             <Checkbox checked={returnToCurrentLocation} onCheckedChange={onToggleReturn} />
-            <div className="flex items-center gap-2 text-sm font-medium text-slate-900">
+            <div className="flex items-center gap-2 text-sm font-medium text-slate-900 dark:text-slate-100">
               <MapPin className="w-4 h-4" />
               Return to current location
             </div>
@@ -68,7 +68,7 @@ export default function ModeSelectionDialog({
           <Button
             onClick={onOptimize}
             disabled={isSubmitting || selectedStopIds.length === 0}
-            className="w-full"
+            className="w-full bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
           >
             {isSubmitting ? 'Optimizing...' : 'Optimize Route'}
           </Button>

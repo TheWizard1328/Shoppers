@@ -310,10 +310,8 @@ export default function RealTimeRouteOptimizer({
           style={{ transform: 'none' }}
         >
           <div 
-            className="rounded-xl shadow-2xl p-4 border-2"
+            className="rounded-xl shadow-2xl p-4 border-2 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
             style={{ 
-              background: 'var(--bg-white)', 
-              borderColor: 'var(--border-slate-300)',
               boxShadow: '0 25px 50px -12px var(--shadow-color)'
             }}
           >
