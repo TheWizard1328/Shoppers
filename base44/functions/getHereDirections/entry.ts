@@ -336,6 +336,17 @@ Deno.serve(async (req) => {
     const destinationLat = Number(destination?.lat);
     const destinationLng = Number(destination?.lng);
 
+    console.log('[getHereDirections] request payload', {
+      origin,
+      destination,
+      waypoints,
+      routeContext,
+      originLat,
+      originLng,
+      destinationLat,
+      destinationLng
+    });
+
     if (![originLat, originLng, destinationLat, destinationLng].every(Number.isFinite)) {
       return Response.json({ error: 'Missing origin or destination' }, { status: 400 });
     }
@@ -399,6 +410,8 @@ Deno.serve(async (req) => {
         if (accessConstraint) segments.push(accessConstraint);
         params.set(`destination${index + 1}`, segments.join(';'));
       });
+
+      console.log('[getHereDirections] sequence stops', sequenceStops);
 
       routeCallCount += 1;
       resp = await fetch(`https://wps.hereapi.com/v8/findsequence2?${params.toString()}`, {

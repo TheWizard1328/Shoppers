@@ -483,6 +483,18 @@ async function getMultiSegmentDirections(base44, segmentSpecs, transportMode = '
   const destination = safeSpecs[safeSpecs.length - 1].to;
   const waypoints = safeSpecs.slice(0, -1).map((segment) => ({ lat: segment.to.lat, lng: segment.to.lon }));
 
+  console.log('[purgeAndRegeneratePolylines] HERE payload preview', {
+    transportMode,
+    origin,
+    destination,
+    waypoints,
+    segmentSpecs: safeSpecs.map((segment, index) => ({
+      index,
+      from: segment.from,
+      to: segment.to
+    }))
+  });
+
   try {
     const routeContext = [origin, ...safeSpecs.map((segment) => segment.to)];
     const response = await base44.functions.invoke('getHereDirections', {
