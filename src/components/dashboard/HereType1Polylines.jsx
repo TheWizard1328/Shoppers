@@ -1,9 +1,8 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { Polyline } from "react-leaflet";
-import { getHerePolyline, ensurePolylineSubscription } from "../utils/hereRouting";
+import { ensurePolylineSubscription } from "../utils/hereRouting";
 import useDriverRoutePolylineBackgroundSync from "../utils/useDriverRoutePolylineBackgroundSync";
 import { getRouteOptimizationSettings } from "./RouteOptimizationSettings";
-import { generateDriverColor } from "../utils/colorGenerator";
 import { getTravelModeLineStyle, normalizeTravelMode } from "./travelModeHelpers";
 
 const FINISHED = ["completed", "failed", "cancelled", "returned"];
@@ -499,17 +498,15 @@ export default function HereType1Polylines({
 
   const isGrace = Date.now() - mountTimeRef.current < 600;
   const lines = [];
-  const getDriverPolylineColor = (driverId) => generateDriverColor(String(driverId || 'driver'));
   const getType1PolylineColor = () => '#2563EB';
   const getDriverMode = (driverId) => normalizeTravelMode(localDriverTravelModes[driverId] ?? driverTravelModes[driverId]);
   const getDriverRouteStyle = (driverId, opacityOverride) => {
     const mode = getDriverMode(driverId);
-    const isCycling = mode === 'cycling';
     const base = getTravelModeLineStyle(mode, getType1PolylineColor(driverId));
     return {
       ...base,
-      color: isCycling ? '#16A34A' : base.color,
-      opacity: opacityOverride ?? base.opacity,
+      color: getType1PolylineColor(),
+      opacity: opacityOverride ?? 0.95,
       lineJoin: 'round',
       lineCap: 'round'
     };
@@ -562,115 +559,48 @@ export default function HereType1Polylines({
     }
   });
 
-  // Render last-completed -> next-stop using HERE, or hybrid breadcrumb + remaining leg when deviated
+  // Render only the current active planned leg in blue using stored DriverRoutePolyline data
   driverStops.forEach((stops, driverId) => {
     if (!showAll && selectedDriverId && selectedDriverId !== 'all' && driverId !== selectedDriverId) return;
-    if (stops.incomplete.length === 0 || stops.complete.length === 0) return;
-    
-    // CRITICAL: Match backend logic - find next stop first, then find last completed by stop_order
+
     const nextStop = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
     if (!nextStop) return;
-    
-    const nextStopOrder = Number(nextStop.stop_order || 0);
-    // Find completed stops with stop_order < nextStopOrder, then take the highest one
-    const completedBeforeNext = stops.complete.filter((s) => Number(s?.stop_order || 0) < nextStopOrder);
-    const lastCompleted = completedBeforeNext.sort((a, b) => Number(b?.stop_order || 0) - Number(a?.stop_order || 0))[0];
-    
-    if (!lastCompleted) return;
 
-    const origin = { latitude: Number(lastCompleted.latitude), longitude: Number(lastCompleted.longitude) };
-    const destination = { latitude: Number(nextStop.latitude), longitude: Number(nextStop.longitude) };
-    const key = getHereCacheKey(origin, destination, getDriverMode(driverId));
-    const segmentId = getSegmentKey(driverId, origin, destination);
-    const hybrid = segmentId ? deviationSegments[segmentId] : null;
-
-
-    if (hybrid?.remainingCoords?.length > 1 && !seenKeys.has(`${key}_deviation_remaining`)) {
-      seenKeys.add(`${key}_deviation_remaining`);
-      lines.push(
-        <Polyline
-          key={`type1-next-remaining-${driverId}-${getDriverMode(driverId)}`}
-          positions={hybrid.remainingCoords}
-          pathOptions={getDriverRouteStyle(driverId, 0.95)}
-          pane="routeBasePane"
-        />
-      );
-      return;
-    }
-
-    if (segmentId && deviationMetaRef.current[segmentId]) {
-      return;
-    }
-
-    let coords = getCachedPolyline(key, cache);
-
-    if (!coords && !optimizing && !isViewingCurrentDate) {
-      if (Date.now() - mountTimeRef.current < 1200) return;
-      const lastReq = requestTimesRef.current[key] || 0;
-      const now = Date.now();
-      if (now - lastReq > 4000) {
-        requestTimesRef.current[key] = now;
-        getHerePolyline(driverId, origin, destination, nextStop.delivery_date, getDriverMode(driverId)).then((fetched) => {
-          if (Array.isArray(fetched) && fetched.length > 1) {
-            setCache((p) => ({ ...p, [key]: fetched }));
-          }
-        }).catch(() => {});
+    let origin = null;
+    if (stops.complete.length > 0) {
+      const nextStopOrder = Number(nextStop.stop_order || 0);
+      const completedBeforeNext = stops.complete.filter((s) => Number(s?.stop_order || 0) < nextStopOrder);
+      const lastCompleted = completedBeforeNext.sort((a, b) => Number(b?.stop_order || 0) - Number(a?.stop_order || 0))[0];
+      if (lastCompleted) {
+        origin = { latitude: Number(lastCompleted.latitude), longitude: Number(lastCompleted.longitude) };
       }
     }
+
+    if (!origin) {
+      const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
+      if (!home) return;
+      origin = { latitude: Number(home.latitude), longitude: Number(home.longitude) };
+    }
+
+    const destination = { latitude: Number(nextStop.latitude), longitude: Number(nextStop.longitude) };
+    const key = getHereCacheKey(origin, destination, getDriverMode(driverId));
+    const coords = getCachedPolyline(key, cache);
+    if (!coords) return;
 
     if (!seenKeys.has(key)) {
       seenKeys.add(key);
       lines.push(
         <Polyline
           key={`type1-next-${driverId}-${getDriverMode(driverId)}`}
-          positions={coords || makeFallback(origin, destination)}
-          pathOptions={{
-            ...getDriverRouteStyle(driverId, coords ? 0.9 : 0.7),
-            dashArray: coords ? getDriverRouteStyle(driverId).dashArray : '8,8'
-          }}
+          positions={coords}
+          pathOptions={getDriverRouteStyle(driverId, 0.95)}
           pane="routeBasePane"
         />
       );
     }
   });
 
-  // Render last-completed -> home for completed routes (visibility follows home marker visibility)
-  driversWithCompleteRoute.forEach((driverId) => {
-    const homeVisible = driverHomeMarkers.some((h) => h && h.driverId === driverId);
-    if (!homeVisible) return;
-    const all = driverStops.get(driverId) || { complete: [] };
-    const lastCompleted = [...(all.complete || [])]
-      .filter((s) => s.actual_delivery_time)
-      .sort((a, b) => new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time))[all.complete.length - 1];
-    const home = driverHomeMarkers.find((h) => h.driverId === driverId);
-    if (!lastCompleted || !home) return;
-    const key = getHereCacheKey(lastCompleted, home, getDriverMode(driverId));
-    let coords = cache[key];
-    if (!coords) {
-      try {
-        const cached = localStorage.getItem(key);
-        if (cached) {
-          const c = JSON.parse(cached);
-          if (Array.isArray(c) && c.length > 1) coords = c;
-        }
-      } catch (_) {}
-    }
-    // Show dashed fallback immediately; HERE polyline will hydrate when ready
-    if (!seenKeys.has(key)) {
-      seenKeys.add(key);
-      lines.push(
-        <Polyline
-          key={`type1-home-${driverId}-${getDriverMode(driverId)}`}
-          positions={coords || makeFallback(lastCompleted, home)}
-          pathOptions={{
-            ...getDriverRouteStyle(driverId, coords ? 0.9 : 0.7),
-            dashArray: coords ? getDriverRouteStyle(driverId).dashArray : '8,8'
-          }}
-          pane="routeBasePane"
-        />
-      );
-    }
-  });
+  // Completed-route return-home leg stays hidden from current type 1 view
 
   // Preserve last non-empty set only in multi-driver showAll mode to prevent ghost lines on driver switch
   useEffect(() => { if (lines.length && showAll) setLastNonEmptyLines(lines); }, [lines.length, showAll, refreshToken, deliveryMarkers.length, pickupMarkers.length]);
