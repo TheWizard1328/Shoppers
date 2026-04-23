@@ -15,7 +15,7 @@ import { getData, invalidate, loadPriorityDeliveriesForSelection } from "@/compo
 import { offlineDB } from "@/components/utils/offlineDatabase";
 import { offlineFirstManager } from "@/components/utils/offlineFirstManager";
 import DashboardScreen from '@/features/dashboard/components/DashboardScreen';
-import { createDashboardViewModel } from '@/features/dashboard/services/dashboardViewModel';
+import { useDashboardViewModel } from '@/features/dashboard/services/dashboardViewModel';
 import { getDriverColor } from "@/components/dashboard/DeliveryMap";
 import HorizontalStopCards from "@/components/dashboard/HorizontalStopCards";
 import DeliveryForm from "@/components/deliveries/DeliveryForm";
@@ -101,6 +101,7 @@ import { getFabTargetDriverMapLocation, isDriverOffDuty, getSelfDriverLocationFo
 import { collectPhase3SingleDriverCoordinates } from "@/components/dashboard/phase3BoundsHelper";
 import { centerDeliveryCard, centerNextDeliveryCard, getNextDeliveryCard } from '@/components/utils/deliveryCardUtils';
 import { loadDashboardOfflineDateData, mergeDeliveriesForDate, hasDeliveryDataForSelection } from '@/components/dashboard/dashboardInitialLoadHelpers';
+import useDriverLocationSync from '@/components/dashboard/useDriverLocationSync';
 
 function Dashboard() {
   const { currentUser, isLoadingUser, refreshUser } = useUser();
@@ -1355,106 +1356,26 @@ function Dashboard() {
     updateDeliveriesLocally
   });
 
-  // Get driver's location for blue dot display
-  // MOBILE: Use device GPS
-  // NON-MOBILE: Use shared location from AppUser entity
-  useEffect(() => {
-    if (!isDriver || !currentUser) return;
-
-    let watchId = null;
-
-    const startWatchingPosition = () => {
-      // NON-MOBILE: Use shared location from AppUser entity (no device GPS)
-      if (!isMobile) {
-        // Use AppUser data from context instead of polling
-        const appUser = appUsers?.find((au) => au?.user_id === currentUser.id);
-
-        if (appUser?.current_latitude && appUser?.current_longitude && appUser?.location_updated_at) {
-          const newLocation = {
-            latitude: appUser.current_latitude,
-            longitude: appUser.current_longitude,
-            timestamp: appUser.location_updated_at,
-            accuracy: null,
-            source: 'shared_location'
-          };
-          setDriverLocation(newLocation);
-
-          // NOTE: Removed map re-trigger on WebSocket location update - prevents unwanted rezoom on every location ping
-        } else {
-          setDriverLocation(null);
-        }
-
-        return () => {};
-      }
-
-      // MOBILE: Prefer tracker events when native tracking is active
-      const syncMobileLocation = (newLocation) => {
-        setDriverLocation(newLocation);
-        if (!isMobile || !newLocation.latitude || !newLocation.longitude) return;
-        const now = Date.now();
-        if (mapViewPhaseRef.current === 2 && isMapViewLockedRef.current) {
-          if (now - lastProgrammaticMapMoveRef.current > 1200) {lastProgrammaticMapMoveRef.current = now;window._lastProgrammaticMapMove = now;setMapViewTrigger((prev) => prev + 1);}
-          const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
-          if (nextCard) document.getElementById(`stop-card-${nextCard.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-          return;
-        }
-        if (mapViewPhaseRef.current === 3 && isMapViewLockedRef.current) {
-          if (now - lastProgrammaticMapMoveRef.current > 1800) {lastProgrammaticMapMoveRef.current = now;window._lastProgrammaticMapMove = now;setMapViewTrigger((prev) => prev + 1);}
-          return;
-        }
-        if (isMapViewLocked || now - lastUserInteractionRef.current < 300000 || now - lastProximitySnapTimeRef.current < 60000) return;
-        for (const delivery of deliveriesWithStopOrder.filter((d) => d && ['in_transit', 'en_route'].includes(d.status))) {
-          const patient = delivery.patient_id ? patients.find((p) => p && p.id === delivery.patient_id) : null;
-          const store = !delivery.patient_id && delivery.store_id ? stores.find((s) => s && s.id === delivery.store_id) : null;
-          const stopLat = patient?.latitude || store?.latitude;
-          const stopLon = patient?.longitude || store?.longitude;
-          if (!stopLat || !stopLon) continue;
-          if (calculateDistance(newLocation.latitude, newLocation.longitude, stopLat, stopLon) > 0.1) continue;
-          const cardElement = document.getElementById(`stop-card-${delivery.id}`);
-          const container = stopCardsContainerRef.current?.querySelector('.overflow-x-auto');
-          if (cardElement && container) {
-            const c = container.getBoundingClientRect();
-            const r = cardElement.getBoundingClientRect();
-            if (Math.abs(r.left + r.width / 2 - (c.left + c.width / 2)) < 50) continue;
-          }
-          lastProximitySnapTimeRef.current = Date.now();
-          cardElement?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-          break;
-        }
-      };
-
-      const trackerStatus = locationTracker.getStatus();
-      if (trackerStatus.lastLocation?.latitude && trackerStatus.lastLocation?.longitude) syncMobileLocation({ latitude: trackerStatus.lastLocation.latitude, longitude: trackerStatus.lastLocation.longitude, timestamp: new Date().toISOString(), accuracy: trackerStatus.lastLocation.accuracy, source: trackerStatus.providerName || 'tracker' });
-      const handleTrackerPosition = (event) => {
-        const { userId, latitude, longitude, timestamp, accuracy, source } = event.detail || {};
-        if (userId && userId !== currentUser.id) return;
-        if (!latitude || !longitude) return;
-        syncMobileLocation({ latitude, longitude, timestamp, accuracy, source: source || 'tracker' });
-      };
-      window.addEventListener('driverPositionUpdated', handleTrackerPosition);
-      if (!trackerStatus.isTracking && navigator.geolocation) {
-        watchId = navigator.geolocation.watchPosition(
-          (position) => syncMobileLocation({ latitude: position.coords.latitude, longitude: position.coords.longitude, timestamp: new Date(position.timestamp).toISOString(), accuracy: position.coords.accuracy, source: 'device_gps' }),
-          (error) => console.warn('⚠️ [Dashboard] GPS error:', error.message),
-          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-        );
-      } else if (!trackerStatus.isTracking) {
-        console.warn('⚠️ [Dashboard] Geolocation not available on this device');
-      }
-      return () => window.removeEventListener('driverPositionUpdated', handleTrackerPosition);
-    };
-
-    const cleanup = startWatchingPosition();
-
-    return () => {
-      if (cleanup) {
-        cleanup(); // For non-mobile interval cleanup
-      }
-      if (watchId !== null) {
-        navigator.geolocation.clearWatch(watchId);
-      }
-    };
-  }, [isDriver, currentUser, isMobile, deliveriesWithStopOrder, patients, stores, mapViewPhase, getMapPadding, appUsers]);
+  useDriverLocationSync({
+    isDriver,
+    currentUser,
+    appUsers,
+    isMobile,
+    deliveriesWithStopOrder,
+    patients,
+    stores,
+    mapViewPhaseRef,
+    isMapViewLockedRef,
+    isMapViewLocked,
+    lastProgrammaticMapMoveRef,
+    lastUserInteractionRef,
+    lastProximitySnapTimeRef,
+    stopCardsContainerRef,
+    setMapViewTrigger,
+    setDriverLocation,
+    calculateDistance,
+    locationTracker,
+  });
 
   // REMOVED: Driver location updates should NOT trigger FAB reactivation
   // FAB only reactivates on:
@@ -5232,7 +5153,7 @@ function Dashboard() {
     }
   }, [isDataLoaded, deliveries, selectedDateStr]);
 
-  const dashboardViewModel = createDashboardViewModel({
+  const dashboardViewModel = useDashboardViewModel({
     isLoadingUser,
     isFiltersReady,
     isDataLoaded,
