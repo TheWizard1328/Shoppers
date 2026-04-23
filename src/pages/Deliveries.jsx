@@ -698,23 +698,11 @@ export default function DeliveriesPage() {
     return () => { unsubD(); unsubP(); };
   }, []);
 
-  // Fetch fresh AppUser data periodically for accurate driver_status
+  // Keep fresh AppUser state driven by smart refresh / realtime updates only
   useEffect(() => {
     if (!isDriverOverviewMode) return;
-
-    const fetchFreshAppUsers = async () => {
-      try {
-        const freshData = await base44.entities.AppUser.list();
-        setFreshAppUsers(freshData || []);
-      } catch (error) {
-        console.warn('Failed to fetch fresh AppUser data:', error);
-      }
-    };
-
-    fetchFreshAppUsers();
-    const interval = setInterval(fetchFreshAppUsers, 10000);
-    return () => clearInterval(interval);
-  }, [isDriverOverviewMode]);
+    setFreshAppUsers(contextUsers || []);
+  }, [isDriverOverviewMode, contextUsers]);
 
   useEffect(() => {
     if (!contextDataLoaded || !initialLoadDone.current || !dataLoaded) {
