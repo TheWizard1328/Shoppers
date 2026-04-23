@@ -38,6 +38,8 @@ export default function FABControls({
   setIsEntityUpdating,
   isAIEnabled, showAIAssistant,
   refreshData,
+  immersiveHidden = false,
+  topOverlayHeight = 0,
 }) {
   useEffect(() => {
     const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
@@ -79,11 +81,11 @@ export default function FABControls({
           setMapZoom(null);
         }
         handleMapViewCycle();
-      }} currentPhase={mapViewPhase} hasVisibleCards={deliveriesWithStopOrder.length > 0} isAIVisible={showAIAssistant && isAIEnabled} isLocked={isMapViewLocked} isEnabled={isMapCycleEnabled} stopCardsHeight={cardsReadyForFAB ? stopCardsBaseHeight : 0} isMotionDimmed={isPrimaryDriverDeviceInMotion} />
+      }} currentPhase={mapViewPhase} hasVisibleCards={!immersiveHidden && deliveriesWithStopOrder.length > 0} isAIVisible={showAIAssistant && isAIEnabled} isLocked={isMapViewLocked} isEnabled={isMapCycleEnabled} stopCardsHeight={!immersiveHidden && cardsReadyForFAB ? stopCardsBaseHeight : 0} isMotionDimmed={isPrimaryDriverDeviceInMotion} />
 
       {isAppOwner(currentUser) && selectedDriverId !== 'all' &&
-        <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }} transition={{ type: "spring", stiffness: 260, damping: 20 }} className="z-[100]"
-          style={{ position: fabPosition, bottom: `${(deliveriesWithStopOrder.length > 0 && cardsReadyForFAB ? stopCardsBaseHeight : 0) + 10}px`, right: '64px' }}>
+        <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: immersiveHidden ? 0 : 1 }} exit={{ scale: 0, opacity: 0 }} transition={{ type: "spring", stiffness: 260, damping: 20 }} className="z-[100]"
+          style={{ position: fabPosition, bottom: `${(!immersiveHidden && deliveriesWithStopOrder.length > 0 && cardsReadyForFAB ? stopCardsBaseHeight : 0) + 10}px`, right: '64px', pointerEvents: immersiveHidden ? 'none' : 'auto' }}>
           <Button
             onClick={async () => {
               if (isReoptimizing) return;

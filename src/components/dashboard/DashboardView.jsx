@@ -264,7 +264,7 @@ export default function DashboardView({
 
         <ApiUsageBadge
           currentUser={currentUser}
-          stopCardsHeight={stopCardsBaseHeight}
+          stopCardsHeight={immersiveHidden ? 0 : stopCardsBaseHeight}
         />
       </div>
 
@@ -291,6 +291,8 @@ export default function DashboardView({
           setIsEntityUpdating={setIsEntityUpdating}
           isAIEnabled={isAIEnabled} showAIAssistant={showAIAssistant}
           refreshData={refreshData}
+          immersiveHidden={immersiveHidden}
+          topOverlayHeight={immersiveHidden ? 0 : statsCardBaseHeight}
         />
         </div>
       }
