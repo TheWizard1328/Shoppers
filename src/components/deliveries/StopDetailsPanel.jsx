@@ -28,6 +28,8 @@ import {
   Home,
   ArrowLeft,
   Image,
+  Car,
+  Bike,
   FileSignature,
   Camera,
   X
@@ -47,6 +49,7 @@ import { toast } from "sonner";
 import { calculateRealTimeETA } from "@/functions/calculateRealTimeETA";
 import { recalculateAndUpdateStopOrders } from "../utils/stopOrderManager";
 import { isRouteCompleted } from "../utils/routeCompletionChecker";
+import { normalizeTravelMode } from "../dashboard/travelModeHelpers";
 
 const statusConfig = {
   pending: { color: 'bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-700', label: 'Pending', icon: Clock },
@@ -224,6 +227,9 @@ export default function StopDetailsPanel({
 
   const canDeleteCodInCurrentState = canEditCodInCurrentState && (!delivery?.cod_payments || delivery.cod_payments.length === 0);
   const hasCodChanges = Number(codAmountRequired || 0) !== Number(delivery?.cod_total_amount_required || 0);
+  const selectedTravelMode = normalizeTravelMode(driver?.preferred_travel_mode || currentUser?.preferred_travel_mode);
+  const TravelModeIcon = selectedTravelMode === 'cycling' ? Bike : Car;
+  const travelModeLabel = selectedTravelMode === 'cycling' ? 'Cycling' : 'Driving';
 
   const handleStatusChange = (value) => {
     const wasCompletionStatus = completionStatuses.includes(editableStatus);
@@ -520,6 +526,12 @@ export default function StopDetailsPanel({
                     <a href={`tel:${patient.phone}`} className="text-sm hover:underline" style={{ color: 'var(--text-slate-700)' }}>
                       {formatPhoneNumber(patient.phone)}
                     </a>
+                    {isDriverUser && (
+                      <div className="ml-auto flex items-center gap-1 text-xs" style={{ color: selectedTravelMode === 'cycling' ? '#16A34A' : 'var(--text-slate-500)' }} title={travelModeLabel}>
+                        <TravelModeIcon className="w-3.5 h-3.5" />
+                        <span>{travelModeLabel}</span>
+                      </div>
+                    )}
                   </div>
                 )}
 
