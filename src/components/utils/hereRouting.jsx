@@ -108,7 +108,6 @@ async function flushPolylinePersists() {
   pendingPolylinePayloads.length = 0;
   
   try {
-    // Deduplicate payloads by segment
     const uniquePayloadsMap = new Map();
     for (const p of payloads) {
       const key = `${p.driver_id}_${p.delivery_date}_${p.segment_origin_lat}_${p.segment_origin_lon}_${p.segment_dest_lat}_${p.segment_dest_lon}`;
@@ -117,12 +116,43 @@ async function flushPolylinePersists() {
     const uniquePayloads = Array.from(uniquePayloadsMap.values());
     
     if (uniquePayloads.length > 0) {
-      await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, uniquePayloads.map((item, index) => ({
-        ...item,
-        id: item.id || `offline_polyline_${Date.now()}_${index}`,
-        created_date: item.created_date || new Date().toISOString(),
-        updated_date: new Date().toISOString()
-      })));
+      const nowIso = new Date().toISOString();
+      const onlineRecords = await Promise.all(uniquePayloads.map(async (item) => {
+        const existing = await base44.entities.DriverRoutePolyline.filter({
+          driver_id: item.driver_id,
+          delivery_date: item.delivery_date,
+          segment_origin_lat: item.segment_origin_lat,
+          segment_origin_lon: item.segment_origin_lon,
+          segment_dest_lat: item.segment_dest_lat,
+          segment_dest_lon: item.segment_dest_lon
+        }, '-updated_date', 1);
+
+        if (Array.isArray(existing) && existing[0]?.id) {
+          return await base44.entities.DriverRoutePolyline.update(existing[0].id, {
+            encoded_polyline: item.encoded_polyline,
+            estimated_distance_km: item.estimated_distance_km,
+            estimated_duration_minutes: item.estimated_duration_minutes,
+            last_generated_at: item.last_generated_at || nowIso,
+            transport_mode: item.transport_mode || 'driving'
+          });
+        }
+
+        return await base44.entities.DriverRoutePolyline.create({
+          driver_id: item.driver_id,
+          delivery_date: item.delivery_date,
+          encoded_polyline: item.encoded_polyline,
+          segment_origin_lat: item.segment_origin_lat,
+          segment_origin_lon: item.segment_origin_lon,
+          segment_dest_lat: item.segment_dest_lat,
+          segment_dest_lon: item.segment_dest_lon,
+          estimated_distance_km: item.estimated_distance_km,
+          estimated_duration_minutes: item.estimated_duration_minutes,
+          last_generated_at: item.last_generated_at || nowIso,
+          transport_mode: item.transport_mode || 'driving'
+        });
+      }));
+
+      await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, onlineRecords.filter(Boolean));
       await offlineDB.deduplicateDriverRoutePolylines(uniquePayloads[0]?.delivery_date || null);
     }
   } catch (err) {
@@ -148,7 +178,6 @@ async function persistGeneratedPolyline(driverId, deliveryDate, fromStop, toStop
     transport_mode: transportMode
   };
 
-  // Save to offline DB immediately for local use
   const tempRecord = {
     ...payload,
     id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -170,29 +199,9 @@ async function persistGeneratedPolyline(driverId, deliveryDate, fromStop, toStop
     }));
   } catch (_) {}
 
-  // Check if we already have a real backend record for this segment in offlineDB
-  try {
-    const rows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', deliveryDate);
-    const existing = (rows || []).filter(r => 
-      r.driver_id === driverId &&
-      r.segment_origin_lat === payload.segment_origin_lat &&
-      r.segment_origin_lon === payload.segment_origin_lon &&
-      r.segment_dest_lat === payload.segment_dest_lat &&
-      r.segment_dest_lon === payload.segment_dest_lon &&
-      r.id && !r.id.startsWith('temp_')
-    );
-
-    if (existing.length === 0) {
-      pendingPolylinePayloads.push(payload);
-      if (polylinePersistTimer) clearTimeout(polylinePersistTimer);
-      polylinePersistTimer = setTimeout(flushPolylinePersists, 2000);
-    }
-  } catch (err) {
-    // Fallback to queueing if offlineDB read fails
-    pendingPolylinePayloads.push(payload);
-    if (polylinePersistTimer) clearTimeout(polylinePersistTimer);
-    polylinePersistTimer = setTimeout(flushPolylinePersists, 2000);
-  }
+  pendingPolylinePayloads.push(payload);
+  if (polylinePersistTimer) clearTimeout(polylinePersistTimer);
+  polylinePersistTimer = setTimeout(flushPolylinePersists, 300);
 
   return tempRecord;
 }
