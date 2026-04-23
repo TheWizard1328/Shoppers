@@ -109,36 +109,26 @@ export const fetchPolylineForSegment = async (originLat, originLon, destLat, des
   const transportMode = normalizeTravelMode(options.transportMode || 'driving');
 
   try {
-    if (routePoints.length >= 2) {
-      const response = await base44.functions.invoke('getHereDirections', {
-        origin: { lat: Number(routePoints[0].lat), lng: Number(routePoints[0].lon) },
-        destination: { lat: Number(routePoints[routePoints.length - 1].lat), lng: Number(routePoints[routePoints.length - 1].lon) },
-        waypoints: routePoints.slice(1, -1).map((point) => ({ lat: Number(point.lat), lng: Number(point.lon) })),
-        routeContext: routePoints.map((point) => ({ lat: Number(point.lat), lng: Number(point.lon) })),
-        transportMode
-      });
+    if (routePoints.length < 2) return null;
 
-      const polylines = response?.data?.polylines;
-      if (Array.isArray(polylines) && polylines.length > 0) {
-        const merged = polylines.flatMap((encoded, index) => {
-          const coords = decodeGooglePolyline(encoded);
-          if (!Array.isArray(coords) || coords.length === 0) return [];
-          return index === 0 ? coords : coords.slice(1);
-        });
-        if (merged.length > 1) {
-          return merged;
-        }
-      }
-    }
-
-    if (!originLat || !originLon || !destLat || !destLon) return null;
-    const fallbackResponse = await base44.functions.invoke('getHereDirections', {
-      origin: { lat: Number(originLat), lng: Number(originLon) },
-      destination: { lat: Number(destLat), lng: Number(destLon) },
+    const response = await base44.functions.invoke('getHereDirections', {
+      origin: { lat: Number(routePoints[0].lat), lng: Number(routePoints[0].lon) },
+      destination: { lat: Number(routePoints[routePoints.length - 1].lat), lng: Number(routePoints[routePoints.length - 1].lon) },
+      waypoints: routePoints.slice(1, -1).map((point) => ({ lat: Number(point.lat), lng: Number(point.lon) })),
+      routeContext: routePoints.map((point) => ({ lat: Number(point.lat), lng: Number(point.lon) })),
       transportMode
     });
-    const fallbackEncoded = fallbackResponse?.data?.polyline;
-    return fallbackEncoded ? decodeGooglePolyline(fallbackEncoded) : null;
+
+    const polylines = response?.data?.polylines;
+    if (!Array.isArray(polylines) || polylines.length === 0) return null;
+
+    const merged = polylines.flatMap((encoded, index) => {
+      const coords = decodeGooglePolyline(encoded);
+      if (!Array.isArray(coords) || coords.length === 0) return [];
+      return index === 0 ? coords : coords.slice(1);
+    });
+
+    return merged.length > 1 ? merged : null;
   } catch (error) {
     console.error('❌ [DynamicPolylineManager] Failed to fetch HERE polyline:', error);
     return null;

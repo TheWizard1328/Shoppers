@@ -224,6 +224,69 @@ async function getSegmentDirections(base44, from, to, transportMode = 'driving',
   };
 }
 
+function buildSegmentSpecsFromPoints(points = []) {
+  const specs = [];
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const from = points[index];
+    const to = points[index + 1];
+    if (!from || !to) continue;
+    specs.push({ from, to });
+  }
+  return specs;
+}
+
+function findMatchingPolylineRecord(existingPolylines = [], driverId, deliveryDate, from, to) {
+  return (existingPolylines || []).find((row) =>
+    row?.driver_id === driverId &&
+    row?.delivery_date === deliveryDate &&
+    round5(row?.segment_origin_lat) === round5(from.lat) &&
+    round5(row?.segment_origin_lon) === round5(from.lon) &&
+    round5(row?.segment_dest_lat) === round5(to.lat) &&
+    round5(row?.segment_dest_lon) === round5(to.lon)
+  ) || null;
+}
+
+async function persistRouteSections(base44, driverId, deliveryDate, segmentSpecs = [], routeSections = [], existingPolylines = [], transportMode = 'driving') {
+  if (!driverId || !deliveryDate || segmentSpecs.length === 0) return 0;
+
+  let writes = 0;
+  for (let index = 0; index < segmentSpecs.length; index += 1) {
+    const spec = segmentSpecs[index];
+    const section = routeSections[index];
+    if (!spec?.from || !spec?.to || !section?.encoded_polyline) continue;
+
+    const payload = {
+      driver_id: driverId,
+      delivery_date: deliveryDate,
+      encoded_polyline: section.encoded_polyline,
+      segment_origin_lat: round5(spec.from.lat),
+      segment_origin_lon: round5(spec.from.lon),
+      segment_dest_lat: round5(spec.to.lat),
+      segment_dest_lon: round5(spec.to.lon),
+      estimated_distance_km: section.estimated_distance_km ?? null,
+      estimated_duration_minutes: section.estimated_duration_minutes ?? null,
+      transport_mode: section.transport_mode || transportMode,
+      last_generated_at: new Date().toISOString()
+    };
+
+    const existing = findMatchingPolylineRecord(existingPolylines, driverId, deliveryDate, spec.from, spec.to);
+    if (existing?.id) {
+      await base44.asServiceRole.entities.DriverRoutePolyline.update(existing.id, payload).catch(async (error) => {
+        if (isNotFoundError(error)) {
+          await base44.asServiceRole.entities.DriverRoutePolyline.create(payload);
+          return null;
+        }
+        throw error;
+      });
+    } else {
+      await base44.asServiceRole.entities.DriverRoutePolyline.create(payload);
+    }
+    writes += 1;
+  }
+
+  return writes;
+}
+
 async function getMultiStopRoute(base44, points, transportMode = 'driving') {
   const validPoints = (points || []).filter((point) => Number.isFinite(point?.lat) && Number.isFinite(point?.lon));
   if (validPoints.length < 2) {
@@ -496,46 +559,30 @@ Deno.serve(async (req) => {
         return coords ? { lat: coords.lat, lon: coords.lon } : null;
       }).filter(Boolean)
     ];
+    const segmentSpecs = buildSegmentSpecsFromPoints(remainingRoutePoints);
     const multiStopRoute = await getMultiStopRoute(base44, remainingRoutePoints, preferredTravelMode);
-    const directions = multiStopRoute.sections[0] || await getSegmentDirections(base44, effectiveOriginCoords, nextStopCoords, preferredTravelMode, existingPolylines, driverId, deliveryDate);
+    const routeSections = Array.isArray(multiStopRoute?.sections) ? multiStopRoute.sections : [];
+    const directions = routeSections[0] || await getSegmentDirections(base44, effectiveOriginCoords, nextStopCoords, preferredTravelMode, existingPolylines, driverId, deliveryDate);
 
-    const payload = {
-      driver_id: driverId,
-      delivery_date: deliveryDate,
-      encoded_polyline: directions.encoded_polyline,
-      segment_origin_lat: round5(effectiveOriginCoords.lat),
-      segment_origin_lon: round5(effectiveOriginCoords.lon),
-      segment_dest_lat: round5(nextStopCoords.lat),
-      segment_dest_lon: round5(nextStopCoords.lon),
-      estimated_distance_km: directions.estimated_distance_km,
-      estimated_duration_minutes: directions.estimated_duration_minutes,
-      transport_mode: directions.transport_mode || preferredTravelMode,
-      daily_generation_count: directions.from_cache ? Number(existingType1?.daily_generation_count || 0) : Number(existingType1?.daily_generation_count || 0) + 1,
-      last_generated_at: directions.from_cache ? (existingType1?.last_generated_at || new Date().toISOString()) : new Date().toISOString()
-    };
+    if (routeSections.length > 0) {
+      await persistRouteSections(base44, driverId, deliveryDate, segmentSpecs, routeSections, existingPolylines, preferredTravelMode);
+    } else if (!directions.from_cache) {
+      const payload = {
+        driver_id: driverId,
+        delivery_date: deliveryDate,
+        encoded_polyline: directions.encoded_polyline,
+        segment_origin_lat: round5(effectiveOriginCoords.lat),
+        segment_origin_lon: round5(effectiveOriginCoords.lon),
+        segment_dest_lat: round5(nextStopCoords.lat),
+        segment_dest_lon: round5(nextStopCoords.lon),
+        estimated_distance_km: directions.estimated_distance_km,
+        estimated_duration_minutes: directions.estimated_duration_minutes,
+        transport_mode: directions.transport_mode || preferredTravelMode,
+        daily_generation_count: Number(existingType1?.daily_generation_count || 0) + 1,
+        last_generated_at: new Date().toISOString()
+      };
 
-    // Validation handled by determining originCoords; if we reach here, coordinates are considered valid.
-
-    // Aggressive cleanup: delete any existing duplicate polylines for the exact origin-destination pair
-    const exactMatchingSegments = existingPolylines.filter(row =>
-      round5(row?.segment_origin_lat) === round5(effectiveOriginCoords.lat) &&
-      round5(row?.segment_origin_lon) === round5(effectiveOriginCoords.lon) &&
-      round5(row?.segment_dest_lat) === round5(nextStopCoords.lat) &&
-      round5(row?.segment_dest_lon) === round5(nextStopCoords.lon)
-    );
-
-    let polylineRecordToUpdate = null;
-    if (exactMatchingSegments.length > 0) {
-      polylineRecordToUpdate = exactMatchingSegments[0];
-      for (let i = 1; i < exactMatchingSegments.length; i++) {
-        await base44.asServiceRole.entities.DriverRoutePolyline.delete(exactMatchingSegments[i].id).catch((error) => {
-          if (isNotFoundError(error)) return null;
-          throw error;
-        });
-      }
-    }
-
-    if (!directions.from_cache) {
+      const polylineRecordToUpdate = findMatchingPolylineRecord(existingPolylines, driverId, deliveryDate, effectiveOriginCoords, nextStopCoords);
       if (polylineRecordToUpdate?.id) {
         await base44.asServiceRole.entities.DriverRoutePolyline.update(polylineRecordToUpdate.id, payload).catch(async (error) => {
           if (isNotFoundError(error)) {
@@ -556,7 +603,8 @@ Deno.serve(async (req) => {
       deliveryDate,
       nextStopId: nextActiveStop?.id || 'HOME_LOCATION',
       originStopId: mostRecentFinishedStop?.id || null,
-      repairedStopOrders: stopOrderRepairUpdates.length
+      repairedStopOrders: stopOrderRepairUpdates.length,
+      segmentCount: segmentSpecs.length
     });
   } catch (error) {
     console.error('[regenerateType1Polyline] Error:', error?.message || error);
