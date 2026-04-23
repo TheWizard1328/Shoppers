@@ -350,8 +350,8 @@ Deno.serve(async (req) => {
       const params = new URLSearchParams();
       params.set('apiKey', hereApiKey);
       params.set('departure', buildLocalIso(deliveryDate, currentLocalTime || formatMinutesToTime(currentMinutes)));
-      params.set('mode', `shortest;${hereTransportMode};traffic:disabled`);
-      params.set('improveFor', 'distance');
+      params.set('mode', `fastest;${hereTransportMode};traffic:disabled`);
+      params.set('improveFor', 'time');
       params.set('start', `driverStart;${currentPosition.lat},${currentPosition.lng}`);
       if (resolvedHomePosition) {
         params.set('end', `driverHome;${resolvedHomePosition.lat},${resolvedHomePosition.lng}`);
