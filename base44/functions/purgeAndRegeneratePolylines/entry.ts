@@ -841,13 +841,7 @@ Deno.serve(async (req) => {
           const previousStop = activeStops[index - 1];
           const from = previousStop
             ? getLatLon(previousStop)
-            : originFromFinishedStop || (() => {
-              const store = storeMap.get(stop?.store_id);
-              if (store?.latitude != null && store?.longitude != null) {
-                return { lat: Number(store.latitude), lon: Number(store.longitude) };
-              }
-              return null;
-            })();
+            : originFromFinishedStop || (hasHomeCoords ? { lat: homeLat, lon: homeLon } : null);
           const to = getLatLon(stop);
           pushSegment(from, to);
         }
