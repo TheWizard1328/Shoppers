@@ -352,15 +352,31 @@ export const ensurePolylineSubscription = () => {
             ? `here_${rec.transport_mode || 'driving'}_${Number(rec.segment_origin_lat).toFixed(5)}_${Number(rec.segment_origin_lon).toFixed(5)}_${Number(rec.segment_dest_lat).toFixed(5)}_${Number(rec.segment_dest_lon).toFixed(5)}`
             : null;
           if (key) {
+            let decodedCoords = null;
             try {
               if (rec.encoded_polyline) {
-                const coords = decodeGooglePolyline(rec.encoded_polyline);
-                if (Array.isArray(coords) && coords.length > 1) {
-                  memoryCache.set(key, coords);
+                decodedCoords = decodeGooglePolyline(rec.encoded_polyline);
+                if (Array.isArray(decodedCoords) && decodedCoords.length > 1) {
+                  memoryCache.set(key, decodedCoords);
+                  try { localStorage.setItem(key, JSON.stringify(decodedCoords)); } catch (_) {}
                 }
               }
             } catch (_) {}
-            try { window.dispatchEvent(new CustomEvent('polylineUpdated', { detail: { driverId: rec.driver_id, deliveryDate: rec.delivery_date, key } })); } catch (_) {}
+            try {
+              window.dispatchEvent(new CustomEvent('polylineUpdated', {
+                detail: {
+                  driverId: rec.driver_id,
+                  deliveryDate: rec.delivery_date,
+                  key,
+                  coords: Array.isArray(decodedCoords) && decodedCoords.length > 1 ? decodedCoords : null,
+                  segment_origin_lat: rec.segment_origin_lat,
+                  segment_origin_lon: rec.segment_origin_lon,
+                  segment_dest_lat: rec.segment_dest_lat,
+                  segment_dest_lon: rec.segment_dest_lon,
+                  transport_mode: rec.transport_mode || 'driving'
+                }
+              }));
+            } catch (_) {}
           }
         }
       } catch (e) {

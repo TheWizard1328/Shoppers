@@ -266,7 +266,15 @@ export default function HereType1Polylines({
     const onOptimizationComplete = () => { setOptimizing(false); invalidate(); };
     const onPolyline = (e) => {
       const key = e?.detail?.key;
+      const coordsFromEvent = e?.detail?.coords;
       if (!key) return;
+
+      if (Array.isArray(coordsFromEvent) && coordsFromEvent.length > 1) {
+        try { localStorage.setItem(key, JSON.stringify(coordsFromEvent)); } catch (_) {}
+        setCache((p) => ({ ...p, [key]: coordsFromEvent }));
+        return;
+      }
+
       try {
         const cached = localStorage.getItem(key);
         if (cached) {
