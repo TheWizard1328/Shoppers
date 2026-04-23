@@ -108,6 +108,7 @@ async function flushPolylinePersists() {
   pendingPolylinePayloads.length = 0;
   
   try {
+    // Deduplicate payloads by segment
     const uniquePayloadsMap = new Map();
     for (const p of payloads) {
       const key = `${p.driver_id}_${p.delivery_date}_${p.segment_origin_lat}_${p.segment_origin_lon}_${p.segment_dest_lat}_${p.segment_dest_lon}`;
@@ -116,44 +117,10 @@ async function flushPolylinePersists() {
     const uniquePayloads = Array.from(uniquePayloadsMap.values());
     
     if (uniquePayloads.length > 0) {
-      const nowIso = new Date().toISOString();
-      const onlineRecords = await Promise.all(uniquePayloads.map(async (item) => {
-        const existing = await base44.entities.DriverRoutePolyline.filter({
-          driver_id: item.driver_id,
-          delivery_date: item.delivery_date,
-          segment_origin_lat: item.segment_origin_lat,
-          segment_origin_lon: item.segment_origin_lon,
-          segment_dest_lat: item.segment_dest_lat,
-          segment_dest_lon: item.segment_dest_lon
-        }, '-updated_date', 1);
-
-        if (Array.isArray(existing) && existing[0]?.id) {
-          return await base44.entities.DriverRoutePolyline.update(existing[0].id, {
-            encoded_polyline: item.encoded_polyline,
-            estimated_distance_km: item.estimated_distance_km,
-            estimated_duration_minutes: item.estimated_duration_minutes,
-            last_generated_at: item.last_generated_at || nowIso,
-            transport_mode: item.transport_mode || 'driving'
-          });
-        }
-
-        return await base44.entities.DriverRoutePolyline.create({
-          driver_id: item.driver_id,
-          delivery_date: item.delivery_date,
-          encoded_polyline: item.encoded_polyline,
-          segment_origin_lat: item.segment_origin_lat,
-          segment_origin_lon: item.segment_origin_lon,
-          segment_dest_lat: item.segment_dest_lat,
-          segment_dest_lon: item.segment_dest_lon,
-          estimated_distance_km: item.estimated_distance_km,
-          estimated_duration_minutes: item.estimated_duration_minutes,
-          last_generated_at: item.last_generated_at || nowIso,
-          transport_mode: item.transport_mode || 'driving'
-        });
-      }));
-
-      await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, onlineRecords.filter(Boolean));
-      await offlineDB.deduplicateDriverRoutePolylines(uniquePayloads[0]?.delivery_date || null);
+      const created = await base44.entities.DriverRoutePolyline.bulkCreate(uniquePayloads);
+      if (Array.isArray(created) && created.length > 0) {
+        await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, created);
+      }
     }
   } catch (err) {
     console.warn('[HERE][client] Bulk persist failed', err);
@@ -178,6 +145,7 @@ async function persistGeneratedPolyline(driverId, deliveryDate, fromStop, toStop
     transport_mode: transportMode
   };
 
+  // Save to offline DB immediately for local use
   const tempRecord = {
     ...payload,
     id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -199,9 +167,29 @@ async function persistGeneratedPolyline(driverId, deliveryDate, fromStop, toStop
     }));
   } catch (_) {}
 
-  pendingPolylinePayloads.push(payload);
-  if (polylinePersistTimer) clearTimeout(polylinePersistTimer);
-  polylinePersistTimer = setTimeout(flushPolylinePersists, 300);
+  // Check if we already have a real backend record for this segment in offlineDB
+  try {
+    const rows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', deliveryDate);
+    const existing = (rows || []).filter(r => 
+      r.driver_id === driverId &&
+      r.segment_origin_lat === payload.segment_origin_lat &&
+      r.segment_origin_lon === payload.segment_origin_lon &&
+      r.segment_dest_lat === payload.segment_dest_lat &&
+      r.segment_dest_lon === payload.segment_dest_lon &&
+      r.id && !r.id.startsWith('temp_')
+    );
+
+    if (existing.length === 0) {
+      pendingPolylinePayloads.push(payload);
+      if (polylinePersistTimer) clearTimeout(polylinePersistTimer);
+      polylinePersistTimer = setTimeout(flushPolylinePersists, 2000);
+    }
+  } catch (err) {
+    // Fallback to queueing if offlineDB read fails
+    pendingPolylinePayloads.push(payload);
+    if (polylinePersistTimer) clearTimeout(polylinePersistTimer);
+    polylinePersistTimer = setTimeout(flushPolylinePersists, 2000);
+  }
 
   return tempRecord;
 }
@@ -271,35 +259,83 @@ export async function clearHereCacheForDriverDate(driverId, deliveryDate) {
 }
 
 let polylineSubscribed = false;
-let polylineUnsubscribe = null;
 export const ensurePolylineSubscription = () => {
   if (polylineSubscribed) return;
   polylineSubscribed = true;
   try {
-    polylineUnsubscribe = base44.entities.DriverRoutePolyline.subscribe(async (event) => {
+    const unsubscribe = base44.entities.DriverRoutePolyline.subscribe(async (event) => {
       try {
-        if (event?.type === 'delete') {
-          await offlineDB.deleteRecord(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, event.id);
-          return;
-        }
-        const rec = event?.data;
-        if (!rec) return;
-        await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [rec]);
-        await offlineDB.deduplicateDriverRoutePolylines(rec.delivery_date);
-        const key = rec.segment_origin_lat != null && rec.segment_origin_lon != null && rec.segment_dest_lat != null && rec.segment_dest_lon != null
-          ? `here_${rec.transport_mode || 'driving'}_${Number(rec.segment_origin_lat).toFixed(5)}_${Number(rec.segment_origin_lon).toFixed(5)}_${Number(rec.segment_dest_lat).toFixed(5)}_${Number(rec.segment_dest_lon).toFixed(5)}`
-          : null;
-        if (key && rec.encoded_polyline) {
-          const coords = decodeGooglePolyline(rec.encoded_polyline);
-          if (Array.isArray(coords) && coords.length > 1) {
-            memoryCache.set(key, coords);
+        if (event.type === 'delete') {
+          let deletedRecord = null;
+          try {
+            const allRows = await offlineDB.getAll(offlineDB.STORES.DRIVER_ROUTE_POLYLINES);
+            deletedRecord = (allRows || []).find((row) => row?.id === event.id) || null;
+          } catch (_) {}
+          if (deletedRecord?.segment_origin_lat != null && deletedRecord?.segment_origin_lon != null && deletedRecord?.segment_dest_lat != null && deletedRecord?.segment_dest_lon != null) {
+            clearHereCacheForSegment(
+              { latitude: deletedRecord.segment_origin_lat, longitude: deletedRecord.segment_origin_lon },
+              { latitude: deletedRecord.segment_dest_lat, longitude: deletedRecord.segment_dest_lon }
+            );
           }
-          window.dispatchEvent(new CustomEvent('polylineUpdated', { detail: { driverId: rec.driver_id, deliveryDate: rec.delivery_date, key } }));
+          await offlineDB.deleteRecord(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, event.id);
+        } else if (event.data) {
+          const rec = event.data;
+          await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [rec]);
+          // Also clear any stale localStorage key for the same segment before re-saving
+          try {
+            if (rec.segment_origin_lat != null && rec.segment_origin_lon != null && rec.segment_dest_lat != null && rec.segment_dest_lon != null) {
+              const key = `here_${rec.transport_mode || 'driving'}_${Number(rec.segment_origin_lat).toFixed(5)}_${Number(rec.segment_origin_lon).toFixed(5)}_${Number(rec.segment_dest_lat).toFixed(5)}_${Number(rec.segment_dest_lon).toFixed(5)}`;
+              try { backoffCache.delete(`${key}:fail_until`); } catch (_) {}
+            }
+          } catch (_) {}
+          // Offline de-dup for same segment (keep latest by updated_date/last_generated_at)
+          try {
+            const rounded = (n) => Number(Number(n).toFixed(5));
+            const rows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date,', rec.delivery_date);
+          } catch(_) {}
+          try {
+            const rounded = (n) => Number(Number(n).toFixed(5));
+            const rows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', rec.delivery_date);
+            const same = (rows || []).filter(r => r.driver_id === rec.driver_id &&
+              Number(r.segment_origin_lat)?.toFixed(5) === rounded(rec.segment_origin_lat).toFixed(5) &&
+              Number(r.segment_origin_lon)?.toFixed(5) === rounded(rec.segment_origin_lon).toFixed(5) &&
+              Number(r.segment_dest_lat)?.toFixed(5) === rounded(rec.segment_dest_lat).toFixed(5) &&
+              Number(r.segment_dest_lon)?.toFixed(5) === rounded(rec.segment_dest_lon).toFixed(5)
+            );
+            if (same.length > 1) {
+              const pick = same.reduce((best, cur) => {
+                const bt = new Date(best.updated_date || best.last_generated_at || 0).getTime();
+                const ct = new Date(cur.updated_date || cur.last_generated_at || 0).getTime();
+                return ct > bt ? cur : best;
+              });
+              for (const row of same) {
+                if (row.id !== pick.id) {
+                  await offlineDB.deleteRecord(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, row.id);
+                }
+              }
+            }
+          } catch(_) {}
+          // Invalidate caches for this segment
+          const key = rec && rec.segment_origin_lat != null && rec.segment_origin_lon != null && rec.segment_dest_lat != null && rec.segment_dest_lon != null
+            ? `here_${rec.transport_mode || 'driving'}_${Number(rec.segment_origin_lat).toFixed(5)}_${Number(rec.segment_origin_lon).toFixed(5)}_${Number(rec.segment_dest_lat).toFixed(5)}_${Number(rec.segment_dest_lon).toFixed(5)}`
+            : null;
+          if (key) {
+            try {
+              if (rec.encoded_polyline) {
+                const coords = decodeGooglePolyline(rec.encoded_polyline);
+                if (Array.isArray(coords) && coords.length > 1) {
+                  memoryCache.set(key, coords);
+                }
+              }
+            } catch (_) {}
+            try { window.dispatchEvent(new CustomEvent('polylineUpdated', { detail: { driverId: rec.driver_id, deliveryDate: rec.delivery_date, key } })); } catch (_) {}
+          }
         }
       } catch (e) {
         console.warn('[HERE][client] Realtime polyline offline sync failed', e);
       }
     });
+    // Optional: store unsubscribe somewhere if needed
   } catch (e) {
     console.warn('[HERE][client] Failed to subscribe to DriverRoutePolyline realtime', e?.message || e);
     polylineSubscribed = false;
@@ -444,15 +480,54 @@ export function encodeGooglePolyline(points) {
 }
 
 // Primary device gate for HERE polyline generation
-async function canGenerateForDriver() {
+// DEPRECATED: primary-device restriction removed
+let __meCache = { id: null, ts: 0 };
+let __myRolesCache = { roles: null, ts: 0 };
+async function canGenerateForDriver(driverId) {
   try {
-    return window.__isPrimaryTrackingDevice === true;
+    const now = Date.now();
+    // Cache current user
+    if (!__meCache.id || (now - __meCache.ts) > 30000) {
+      const me = await base44.auth.me();
+      __meCache.id = me?.id || null;
+      __meCache.ts = now;
+    }
+    if (!__meCache.id) return false;
+
+    // Allow admins/dispatchers to generate polylines (useful from Dashboard)
+    if (!__myRolesCache.roles || (now - __myRolesCache.ts) > 30000) {
+      try {
+        const mine = await base44.entities.AppUser.filter({ user_id: __meCache.id }, '-updated_date', 1);
+        __myRolesCache.roles = (Array.isArray(mine) && mine[0]?.app_roles) || [];
+      } catch (_) {
+        __myRolesCache.roles = [];
+      }
+      __myRolesCache.ts = now;
+    }
+    const isAdminDispatcher = (__myRolesCache.roles || []).some((r) => r === 'admin' || r === 'dispatcher');
+    if (isAdminDispatcher) return true;
+
+    // Driver self-generation: driverId may be AppUser.id → map to user_id
+    let allowedByDriver = false;
+    if (driverId && driverId === __meCache.id) {
+      allowedByDriver = true;
+    } else if (driverId) {
+      try {
+        const recs = await base44.entities.AppUser.filter({ id: driverId }, '-updated_date', 1);
+        const appUser = Array.isArray(recs) ? recs[0] : null;
+        if (appUser?.user_id && appUser.user_id === __meCache.id) allowedByDriver = true;
+      } catch (_) {}
+    }
+    if (!allowedByDriver) return false;
+
+    // Primary device check removed; any authenticated owner (driver/admin/dispatcher) may generate
+    return true;
   } catch (_) {
     return false;
   }
 }
 
-export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate, transportMode = 'driving', waypoints = []) => {
+export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate, transportMode = 'driving') => {
   if (!fromStop || !toStop) return null;
   await ensureSelectedApiKeyLoaded();
   // Normalize coords to numbers (tablet sometimes sends strings)
@@ -523,11 +598,6 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate, 
     console.warn('[HERE][client] Offline polyline lookup failed', e);
   }
 
-  if (!(await canGenerateForDriver())) {
-    fetchingKeys.delete(cacheKey);
-    return null;
-  }
-
   // If we previously stored a hard error flag for this key, short-circuit for a bit to avoid hammering APIs
   const failKey = `${cacheKey}:fail_until`;
   try {
@@ -554,11 +624,7 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate, 
     console.info('[HERE][client] Invoking getHereDirections', { cacheKey, origin: { lat: fromStop.latitude, lng: fromStop.longitude }, destination: { lat: toStop.latitude, lng: toStop.longitude } });
     const res = await base44.functions.invoke('getHereDirections', {
       origin: { lat: fromStop.latitude, lng: fromStop.longitude },
-      destination: { lat: toStop.latitude, lng: toStop.longitude },
-      waypoints: Array.isArray(waypoints) ? waypoints.map((point) => ({
-        lat: Number(point?.latitude ?? point?.lat),
-        lng: Number(point?.longitude ?? point?.lon ?? point?.lng)
-      })).filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng)) : []
+      destination: { lat: toStop.latitude, lng: toStop.longitude }
     });
 
     const coords = decodeRouteGeometry(res?.data);

@@ -99,10 +99,6 @@ Deno.serve(async (req) => {
 
     console.log(`✅ [handleStartDelivery] Started new delivery: ${deliveryId}`);
 
-    if (optimization?.routeChanged === true) {
-      await wait(500);
-    }
-
     return Response.json({
       success: true,
       distanceTransferred: 0,

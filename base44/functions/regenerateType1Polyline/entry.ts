@@ -535,18 +535,17 @@ Deno.serve(async (req) => {
       }
     }
 
-    let savedPolylineRecord = exactExistingType1 || null;
-
     if (!directions.from_cache) {
       if (polylineRecordToUpdate?.id) {
-        savedPolylineRecord = await base44.asServiceRole.entities.DriverRoutePolyline.update(polylineRecordToUpdate.id, payload).catch(async (error) => {
+        await base44.asServiceRole.entities.DriverRoutePolyline.update(polylineRecordToUpdate.id, payload).catch(async (error) => {
           if (isNotFoundError(error)) {
-            return await base44.asServiceRole.entities.DriverRoutePolyline.create(payload);
+            await base44.asServiceRole.entities.DriverRoutePolyline.create(payload);
+            return null;
           }
           throw error;
         });
       } else {
-        savedPolylineRecord = await base44.asServiceRole.entities.DriverRoutePolyline.create(payload);
+        await base44.asServiceRole.entities.DriverRoutePolyline.create(payload);
       }
     }
 
@@ -557,8 +556,7 @@ Deno.serve(async (req) => {
       deliveryDate,
       nextStopId: nextActiveStop?.id || 'HOME_LOCATION',
       originStopId: mostRecentFinishedStop?.id || null,
-      repairedStopOrders: stopOrderRepairUpdates.length,
-      polyline: savedPolylineRecord || payload
+      repairedStopOrders: stopOrderRepairUpdates.length
     });
   } catch (error) {
     console.error('[regenerateType1Polyline] Error:', error?.message || error);

@@ -467,8 +467,10 @@ class LightweightRefreshManager {
         }
       }
 
-      // AppUser polling fully disabled; rely on WebSocket only
+      // CRITICAL: Skip AppUser polling entirely - AppUser.list() has RLS rules and returns only current user
+      // ONLY rely on WebSocket real-time subscriptions for cross-device AppUser syncing
       if (this.shouldRefresh('appUsers')) {
+        console.log(`👥 [LightweightRefresh] Skipping AppUser API poll - WebSocket subscriptions handle all cross-device sync`);
         this.markRefreshed('appUsers');
       }
 
@@ -630,10 +632,7 @@ class LightweightRefreshManager {
         Object.assign(updates, lightweightUpdates);
       }
 
-      // STEP 4: Refresh polyline rendering from offline DB during smart refresh
-      await this.updatePolylines(currentData.appUsers || []);
-
-      // STEP 5: Dashboard smart refresh must stay offline/WebSocket-first.
+      // STEP 4: Dashboard smart refresh must stay offline/WebSocket-first.
       // Do not pull server reconcile data here because it can reintroduce older route state
       // over the current offline route for the selected day.
       
@@ -697,10 +696,7 @@ class LightweightRefreshManager {
       
       // Use offline DB only to avoid AppUser rate-limit polling
       const { offlineDB } = await import('./offlineDatabase');
-      const [freshAppUsers, offlineType1Polylines] = await Promise.all([
-        offlineDB.getAll(offlineDB.STORES.APP_USERS),
-        offlineDB.getAll(offlineDB.STORES.DRIVER_ROUTE_POLYLINES)
-      ]);
+      const freshAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
       
       if (!freshAppUsers || freshAppUsers.length === 0) {
         console.warn('⚠️ [SmartRefresh] No offline AppUsers found for polyline update');
@@ -713,36 +709,28 @@ class LightweightRefreshManager {
       );
 
       console.log(`📍 [SmartRefresh] Found ${onDutyDrivers.length} on-duty drivers with valid coordinates`);
-      console.log(`🛣️ [SmartRefresh] Found ${offlineType1Polylines?.length || 0} offline Type 1 polylines`);
 
-      if (onDutyDrivers.length === 0 && (!offlineType1Polylines || offlineType1Polylines.length === 0)) {
+      if (onDutyDrivers.length === 0) {
         return null;
       }
 
       // Save to offline DB
       await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
 
-      // Dispatch event with fresh coordinates and offline type 1 polylines for rendering
+      // Dispatch event with fresh coordinates for polyline rendering
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('polylineUpdateTriggered', {
           detail: { 
             onDutyDrivers,
             freshAppUsers,
-            offlineType1Polylines: offlineType1Polylines || [],
             timestamp: Date.now()
-          }
-        }));
-        window.dispatchEvent(new CustomEvent('driverRoutePolylinesUpdated', {
-          detail: {
-            polylines: offlineType1Polylines || [],
-            source: 'smartRefreshOfflineDB'
           }
         }));
       }
 
-      console.log(`✅ [SmartRefresh] Polyline update dispatched with offline Type 1 polylines`);
+      console.log(`✅ [SmartRefresh] Polyline update dispatched for ${onDutyDrivers.length} drivers`);
       
-      return { onDutyDrivers, freshAppUsers, offlineType1Polylines: offlineType1Polylines || [] };
+      return { onDutyDrivers, freshAppUsers };
     } catch (error) {
        this.recordError(error);
        console.warn('⚠️ [SmartRefresh] Polyline update failed:', error.message);
@@ -754,7 +742,34 @@ class LightweightRefreshManager {
    * Check if user's heartbeat is older than 1 minute and trigger pull-to-sync if needed
    */
   async checkHeartbeatAndSync() {
-    return false;
+    try {
+      // CRITICAL: Check if user activity monitor shows staleness
+      const { userActivityMonitor } = await import('./userActivityMonitor');
+      const idleDuration = userActivityMonitor.getIdleDuration();
+      const oneMinute = 60 * 1000;
+      
+      if (idleDuration > oneMinute) {
+        console.log(`⏱️ [HeartbeatCheck] User idle for ${Math.floor(idleDuration / 1000)}s - triggering pull-to-sync`);
+        
+        // Dispatch event to trigger pull-to-sync
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('triggerPullToSync', {
+            detail: { 
+              reason: 'heartbeat_stale',
+              idleDuration: Math.floor(idleDuration / 1000)
+            }
+          }));
+        }
+        
+        return true;
+      } else {
+        console.log(`✅ [HeartbeatCheck] User active within last ${Math.floor(idleDuration / 1000)}s - no sync needed`);
+        return false;
+      }
+    } catch (error) {
+      console.warn('⚠️ [HeartbeatCheck] Failed:', error.message);
+      return false;
+    }
   }
 
   /**

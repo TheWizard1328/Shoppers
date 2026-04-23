@@ -27,7 +27,13 @@ export default function TravelModeControl({
 
   const handleClick = async () => {
     if (disabled || !currentUser) return;
-    onDialogOpenChange?.(true);
+    const nextMode = getNextModeValue(currentMode);
+    if (nextMode === 'cycling') {
+      onDialogOpenChange?.(true);
+      return;
+    }
+    await updatePreferredTravelMode(appUsers, currentUser.id, nextMode);
+    onChange?.(nextMode);
   };
 
   if (!currentUser) return null;
@@ -50,7 +56,7 @@ export default function TravelModeControl({
       <ModeSelectionDialog
         open={dialogOpen}
         onOpenChange={onDialogOpenChange}
-        modeLabel={isCycling ? 'Cycling' : 'Driving'}
+        modeLabel="Cycling"
         nearbyStops={nearbyStops}
         selectedStopIds={selectedStopIds}
         onToggleStop={onToggleStop}

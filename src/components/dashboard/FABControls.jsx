@@ -37,9 +37,7 @@ export default function FABControls({
   optimizationMessage, setOptimizationMessage,
   setIsEntityUpdating,
   isAIEnabled, showAIAssistant,
-  isDriverMovingForFAB,
   refreshData,
-  isImmersiveHidden = false,
 }) {
   useEffect(() => {
     const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
@@ -66,29 +64,26 @@ export default function FABControls({
   const selectedStore = stores.find((store) => store?.id === filteredDeliveries?.[0]?.store_id);
   const isPrimaryDriverDeviceInMotion = useMemo(() => {
     if (!isDriver) return false;
-    return isDriverMovingForFAB === true;
-  }, [isDriver, isDriverMovingForFAB]);
+    const isPrimaryDevice = currentUser?.driver_status === 'on_duty' && driverLocation?.source !== 'shared_location';
+    const speed = Number(driverLocation?.speed ?? 0);
+    return isPrimaryDevice && speed > 0;
+  }, [isDriver, currentUser?.driver_status, driverLocation]);
 
   return (
     <>
-      <motion.div
-        initial={false}
-        animate={{ opacity: isImmersiveHidden ? 0 : 1, y: isImmersiveHidden ? 120 : 0 }}
-        transition={{ duration: 0.3 }}>
-        <MapViewCycleFAB onClick={() => {
-          if (isDispatcher && mapViewPhase === 1 && selectedStore) {
-            const pad = getMapPadding();
-            setShouldFitBounds({ bounds: buildRadiusBoundsFromStore(selectedStore, 2.5), options: { ...pad, maxZoom: 14, animate: true } });
-            setMapCenter(null);
-            setMapZoom(null);
-          }
-          handleMapViewCycle();
-        }} currentPhase={mapViewPhase} hasVisibleCards={deliveriesWithStopOrder.length > 0 && !isImmersiveHidden} isAIVisible={showAIAssistant && isAIEnabled} isLocked={isMapViewLocked} isEnabled={isMapCycleEnabled} stopCardsHeight={isImmersiveHidden ? 0 : cardsReadyForFAB ? stopCardsBaseHeight : 0} isMotionDimmed={isPrimaryDriverDeviceInMotion} />
-      </motion.div>
+      <MapViewCycleFAB onClick={() => {
+        if (isDispatcher && mapViewPhase === 1 && selectedStore) {
+          const pad = getMapPadding();
+          setShouldFitBounds({ bounds: buildRadiusBoundsFromStore(selectedStore, 2.5), options: { ...pad, maxZoom: 14, animate: true } });
+          setMapCenter(null);
+          setMapZoom(null);
+        }
+        handleMapViewCycle();
+      }} currentPhase={mapViewPhase} hasVisibleCards={deliveriesWithStopOrder.length > 0} isAIVisible={showAIAssistant && isAIEnabled} isLocked={isMapViewLocked} isEnabled={isMapCycleEnabled} stopCardsHeight={cardsReadyForFAB ? stopCardsBaseHeight : 0} isMotionDimmed={isPrimaryDriverDeviceInMotion} />
 
       {isAppOwner(currentUser) && selectedDriverId !== 'all' &&
-        <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: isImmersiveHidden ? 0.9 : 1, opacity: isImmersiveHidden ? 0 : 1, y: isImmersiveHidden ? 120 : 0 }} exit={{ scale: 0, opacity: 0 }} transition={{ type: "spring", stiffness: 260, damping: 20 }} className="z-[100]"
-          style={{ position: fabPosition, bottom: `${(isImmersiveHidden ? 0 : deliveriesWithStopOrder.length > 0 && cardsReadyForFAB ? stopCardsBaseHeight : 0) + 10}px`, right: '64px' }}>
+        <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }} transition={{ type: "spring", stiffness: 260, damping: 20 }} className="z-[100]"
+          style={{ position: fabPosition, bottom: `${(deliveriesWithStopOrder.length > 0 && cardsReadyForFAB ? stopCardsBaseHeight : 0) + 10}px`, right: '64px' }}>
           <Button
             onClick={async () => {
               if (isReoptimizing) return;
@@ -118,24 +113,11 @@ export default function FABControls({
                 const data = response?.data || response;
                 if (data?.success) {
                   setOptimizationMessage(`Route optimized! ${data.optimizedCount} stops updated.`);
-                  const freshDeliveries = await base44.entities.Delivery.filter({
-                    delivery_date: deliveryDate,
-                    driver_id: currentUser.id
-                  });
-                  window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                    detail: {
-                      driverId: currentUser.id,
-                      deliveryDate,
-                      triggeredBy: 'reoptimizeRoute',
-                      alreadyOptimized: true,
-                      preserveLocalState: true,
-                      freshDeliveries
-                    }
-                  }));
-                  window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
                   invalidateDeliveriesForDate(deliveryDate);
+                  // CRITICAL: Use Promise.race to prevent UI freeze if refreshData hangs
                   const refreshTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error('Refresh timeout')), 8000));
                   await Promise.race([refreshData(), refreshTimeout]).catch(() => {});
+                  window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { driverId: currentUser.id, deliveryDate, triggeredBy: 'reoptimizeRoute', alreadyOptimized: true } }));
                   setIsMapViewLocked(true); setMapViewTrigger(p => p + 1);
                   setTimeout(() => { setOptimizationMessage(null); setIsMapViewLocked(false); }, 3000);
                 } else { setOptimizationMessage(data?.error || 'Optimization failed'); setTimeout(() => setOptimizationMessage(null), 5000); }

@@ -137,30 +137,7 @@ export default function HereType1Polylines({
   }, []);
 
   useEffect(() => {
-    const handleDriverRoutePolylinesUpdated = async (event) => {
-      const updatedPolylines = event?.detail?.polylines || [];
-      if (updatedPolylines.length > 0) {
-        setCache((prev) => {
-          const next = { ...prev };
-          updatedPolylines.forEach((row) => {
-            if (!row?.encoded_polyline) return;
-            const key = getHereCacheKey(
-              { latitude: Number(row.segment_origin_lat), longitude: Number(row.segment_origin_lon) },
-              { latitude: Number(row.segment_dest_lat), longitude: Number(row.segment_dest_lon) },
-              row.transport_mode || 'driving'
-            );
-            if (!key) return;
-            try {
-              const coords = decodePolyline(row.encoded_polyline);
-              if (Array.isArray(coords) && coords.length > 1) {
-                next[key] = coords;
-                localStorage.setItem(key, JSON.stringify(coords));
-              }
-            } catch (_) {}
-          });
-          return next;
-        });
-      }
+    const handleDriverRoutePolylinesUpdated = () => {
       setRefreshToken((token) => token + 1);
     };
     window.addEventListener('driverRoutePolylinesUpdated', handleDriverRoutePolylinesUpdated);
@@ -211,8 +188,6 @@ export default function HereType1Polylines({
     }
     return false;
   };
-
-  const hydrateFromOnline = async () => false;
   const [optimizing, setOptimizing] = useState(false);
   const [lastNonEmptyLines, setLastNonEmptyLines] = useState([]);
   useEffect(() => {
@@ -222,7 +197,6 @@ export default function HereType1Polylines({
   }, [selectedDriverId, showAll]);
   const requestTimesRef = useRef({});
   const mountTimeRef = useRef(Date.now());
-  const pendingBatchFetchRef = useRef(new Set());
 
   const driverStops = useMemo(() => {
     const map = new Map();
@@ -270,7 +244,7 @@ export default function HereType1Polylines({
 
   useDriverRoutePolylineBackgroundSync({
     targets: polylineSyncTargets,
-    enabled: false,
+    enabled: polylineSyncTargets.length > 0,
     intervalMs: 30000,
     onSync: () => setRefreshToken((token) => token + 1)
   });
@@ -333,12 +307,9 @@ export default function HereType1Polylines({
     };
   }, []);
 
-  // Hydrate last-completed -> next-stop from offline DB, then batch-fetch missing legs via HERE
+  // Hydrate last-completed -> next-stop from offline DB ONLY (no backend calls)
   useEffect(() => {
     if (optimizing || (Date.now() - mountTimeRef.current < 1200)) return;
-
-    const missingByDriverDate = new Map();
-
     driverStops.forEach((stops, driverId) => {
       if (stops.incomplete.length === 0 || stops.complete.length === 0) return;
       const completedSorted = [...stops.complete].sort((a, b) => {
@@ -350,83 +321,15 @@ export default function HereType1Polylines({
       const nextStop = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
       if (!lastCompleted || !nextStop) return;
 
-      const origin = { latitude: Number(lastCompleted.latitude), longitude: Number(lastCompleted.longitude) };
-      const destination = { latitude: Number(nextStop.latitude), longitude: Number(nextStop.longitude) };
-      const mode = getDriverMode(driverId);
-      const key = getHereCacheKey(origin, destination, mode);
+      const originLat = Number(lastCompleted.latitude);
+      const originLon = Number(lastCompleted.longitude);
+
+      const key = getHereCacheKey({ latitude: originLat, longitude: originLon }, nextStop, getDriverMode(driverId));
       if (cache[key]) return;
-
-      hydrateFromOffline(key, driverId, origin, destination, lastCompleted.delivery_date).then(async (hydrated) => {
-        if (hydrated) return;
-        const onlineHydrated = await hydrateFromOnline(key, driverId, origin, destination, lastCompleted.delivery_date);
-        if (onlineHydrated) {
-          setRefreshToken((token) => token + 1);
-          return;
-        }
-        if (window.__isPrimaryTrackingDevice !== true) return;
-        const batchKey = `${driverId}|${lastCompleted.delivery_date}|${mode}`;
-        const pointKey = `${Number(origin.latitude).toFixed(5)},${Number(origin.longitude).toFixed(5)}->${Number(destination.latitude).toFixed(5)},${Number(destination.longitude).toFixed(5)}`;
-        if (pendingBatchFetchRef.current.has(`${batchKey}|${pointKey}`)) return;
-        pendingBatchFetchRef.current.add(`${batchKey}|${pointKey}`);
-        if (!missingByDriverDate.has(batchKey)) missingByDriverDate.set(batchKey, []);
-        missingByDriverDate.get(batchKey).push({ driverId, deliveryDate: lastCompleted.delivery_date, mode, origin, destination, key });
-      }).catch(() => {});
+      // ONLY hydrate from offline DB - no backend calls
+      hydrateFromOffline(key, driverId, { latitude: Number(originLat), longitude: Number(originLon) }, { latitude: Number(nextStop.latitude), longitude: Number(nextStop.longitude) }, lastCompleted.delivery_date);
     });
-
-    const timer = setTimeout(async () => {
-    if (window.__isPrimaryTrackingDevice !== true) return;
-    const groups = Array.from(missingByDriverDate.entries());
-    await Promise.all(groups.map(async ([batchKey, segments]) => {
-      if (!segments.length) return;
-      const first = segments[0];
-      const orderedPoints = [first.origin, ...segments.map((segment) => segment.destination)];
-      try {
-        const route = await getHerePolyline(first.driverId, orderedPoints[0], orderedPoints[orderedPoints.length - 1], first.deliveryDate, first.mode, orderedPoints.slice(1, -1));
-        if (!Array.isArray(route) || route.length <= 1) return;
-        let cursor = 0;
-        segments.forEach((segment, index) => {
-          const segmentKey = getHereCacheKey(segment.origin, segment.destination, segment.mode);
-          let segmentCoords = null;
-          if (index === 0) {
-            const destinationIndex = route.findIndex((point, pointIndex) => pointIndex > 0 && Math.abs(Number(point?.[0]) - Number(segment.destination.latitude)) < 0.00001 && Math.abs(Number(point?.[1]) - Number(segment.destination.longitude)) < 0.00001);
-            if (destinationIndex > 0) {
-              segmentCoords = route.slice(0, destinationIndex + 1);
-              cursor = destinationIndex;
-            }
-          } else {
-            const destinationIndex = route.findIndex((point, pointIndex) => pointIndex > cursor && Math.abs(Number(point?.[0]) - Number(segment.destination.latitude)) < 0.00001 && Math.abs(Number(point?.[1]) - Number(segment.destination.longitude)) < 0.00001);
-            if (destinationIndex > cursor) {
-              segmentCoords = route.slice(cursor, destinationIndex + 1);
-              cursor = destinationIndex;
-            }
-          }
-          const coordsToStore = Array.isArray(segmentCoords) && segmentCoords.length > 1 ? segmentCoords : makeFallback(segment.origin, segment.destination);
-          if (segmentKey && Array.isArray(coordsToStore) && coordsToStore.length > 1) {
-            setCache((prev) => ({ ...prev, [segmentKey]: coordsToStore }));
-            try { localStorage.setItem(segmentKey, JSON.stringify(coordsToStore)); } catch (_) {}
-          }
-        });
-        setRefreshToken((token) => token + 1);
-      } catch (_) {
-      } finally {
-        segments.forEach((segment) => {
-          const pointKey = `${Number(segment.origin.latitude).toFixed(5)},${Number(segment.origin.longitude).toFixed(5)}->${Number(segment.destination.latitude).toFixed(5)},${Number(segment.destination.longitude).toFixed(5)}`;
-          pendingBatchFetchRef.current.delete(`${batchKey}|${pointKey}`);
-        });
-      }
-    }));
-    }, 150);
-
-    return () => {
-      clearTimeout(timer);
-      Array.from(missingByDriverDate.entries()).forEach(([batchKey, segments]) => {
-        segments.forEach((segment) => {
-          const pointKey = `${Number(segment.origin.latitude).toFixed(5)},${Number(segment.origin.longitude).toFixed(5)}->${Number(segment.destination.latitude).toFixed(5)},${Number(segment.destination.longitude).toFixed(5)}`;
-          pendingBatchFetchRef.current.delete(`${batchKey}|${pointKey}`);
-        });
-      });
-    };
-  }, [isViewingCurrentDate, driverStops, refreshToken, optimizing, cache, driverTravelModes, localDriverTravelModes]);
+  }, [isViewingCurrentDate, driverStops, refreshToken]);
 
   // Hydrate last-completed -> home from offline DB ONLY (no backend calls)
   useEffect(() => {
@@ -443,11 +346,8 @@ export default function HereType1Polylines({
       if (!lastCompleted || !home) return;
       const key = getHereCacheKey(lastCompleted, home, getDriverMode(driverId));
       if (cache[key]) return;
-      hydrateFromOffline(key, driverId, { latitude: Number(lastCompleted.latitude), longitude: Number(lastCompleted.longitude) }, { latitude: Number(home.latitude), longitude: Number(home.longitude) }, lastCompleted.delivery_date).then(async (hydrated) => {
-        if (hydrated) return;
-        const onlineHydrated = await hydrateFromOnline(key, driverId, { latitude: Number(lastCompleted.latitude), longitude: Number(lastCompleted.longitude) }, { latitude: Number(home.latitude), longitude: Number(home.longitude) }, lastCompleted.delivery_date);
-        if (onlineHydrated) setRefreshToken((token) => token + 1);
-      });
+      // ONLY hydrate from offline DB - no backend calls
+      hydrateFromOffline(key, driverId, { latitude: Number(lastCompleted.latitude), longitude: Number(lastCompleted.longitude) }, { latitude: Number(home.latitude), longitude: Number(home.longitude) }, lastCompleted.delivery_date);
     });
   }, [isViewingCurrentDate, driversWithCompleteRoute, driverStops, driverHomeMarkers, refreshToken]);
 
@@ -468,11 +368,8 @@ export default function HereType1Polylines({
 
       const key = getHereCacheKey({ latitude: originLat, longitude: originLon }, next, getDriverMode(driverId));
       if (cache[key]) return;
-      hydrateFromOffline(key, driverId, { latitude: originLat, longitude: originLon }, next, next.delivery_date).then(async (hydrated) => {
-        if (hydrated) return;
-        const onlineHydrated = await hydrateFromOnline(key, driverId, { latitude: originLat, longitude: originLon }, next, next.delivery_date);
-        if (onlineHydrated) setRefreshToken((token) => token + 1);
-      });
+      // ONLY hydrate from offline DB - no backend calls
+      hydrateFromOffline(key, driverId, { latitude: originLat, longitude: originLon }, next, next.delivery_date);
     });
   }, [isViewingCurrentDate, driverStops, driverHomeMarkers, optimizing, refreshToken]);
 
@@ -552,11 +449,7 @@ export default function HereType1Polylines({
               let remainingCoords = getCachedPolyline(remainingKey, cache);
               if (!remainingCoords) {
                 remainingCoords = await hydrateFromOffline(remainingKey, driverId, current, destination, nextStop.delivery_date)
-                  .then(async (hydrated) => {
-                    if (hydrated) return getCachedPolyline(remainingKey, cache);
-                    const onlineHydrated = await hydrateFromOnline(remainingKey, driverId, current, destination, nextStop.delivery_date);
-                    return onlineHydrated ? getCachedPolyline(remainingKey, cache) : null;
-                  });
+                  .then((hydrated) => hydrated ? getCachedPolyline(remainingKey, cache) : null);
               }
               if (cancelled) return;
               if (!remainingCoords || remainingCoords.length <= 1) {
@@ -705,28 +598,16 @@ export default function HereType1Polylines({
 
     if (!coords && !optimizing) {
       if (Date.now() - mountTimeRef.current < 1200) return;
-      hydrateFromOffline(key, driverId, origin, destination, nextStop.delivery_date).then(async (hydrated) => {
-        if (hydrated) {
-          setRefreshToken((token) => token + 1);
-          return;
-        }
-        const onlineHydrated = await hydrateFromOnline(key, driverId, origin, destination, nextStop.delivery_date);
-        if (onlineHydrated) {
-          setRefreshToken((token) => token + 1);
-          return;
-        }
-        if (window.__isPrimaryTrackingDevice !== true) return;
-        const lastReq = requestTimesRef.current[key] || 0;
-        const now = Date.now();
-        if (now - lastReq > 4000) {
-          requestTimesRef.current[key] = now;
-          getHerePolyline(driverId, origin, destination, nextStop.delivery_date, getDriverMode(driverId)).then((fetched) => {
-            if (Array.isArray(fetched) && fetched.length > 1) {
-              setCache((p) => ({ ...p, [key]: fetched }));
-            }
-          }).catch(() => {});
-        }
-      }).catch(() => {});
+      const lastReq = requestTimesRef.current[key] || 0;
+      const now = Date.now();
+      if (now - lastReq > 4000) {
+        requestTimesRef.current[key] = now;
+        getHerePolyline(driverId, origin, destination, nextStop.delivery_date, getDriverMode(driverId)).then((fetched) => {
+          if (Array.isArray(fetched) && fetched.length > 1) {
+            setCache((p) => ({ ...p, [key]: fetched }));
+          }
+        }).catch(() => {});
+      }
     }
 
     if (!seenKeys.has(key)) {

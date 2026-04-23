@@ -2,7 +2,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 const TIME_ZONE = 'America/Edmonton';
-const PRIMARY_DEVICE_KEY = 'rxdeliver_device_identifier';
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
 const ACTIVE_ROUTE_STATUSES = ['in_transit', 'en_route'];
 
@@ -108,8 +107,21 @@ const extractTimeFromDateTime = (value) => {
   return match ? match[1] : null;
 };
 
-const resolveEtaBaseTime = (_deliveryDate, _completedDeliveries, fallbackTime) => {
-  return fallbackTime;
+const resolveEtaBaseTime = (deliveryDate, completedDeliveries, fallbackTime) => {
+  const now = getEdmontonNowParts();
+  const routeIsPastDate = deliveryDate < now.date;
+  const routeIsLateToday = deliveryDate === now.date && (parseTimeToMinutes(now.time) ?? 0) >= (21 * 60);
+  const shouldUseFinishedStopTime = routeIsPastDate || routeIsLateToday;
+
+  if (!shouldUseFinishedStopTime) {
+    return fallbackTime;
+  }
+
+  const latestFinished = [...completedDeliveries]
+    .filter((delivery) => delivery?.actual_delivery_time)
+    .sort((a, b) => new Date(b.actual_delivery_time).getTime() - new Date(a.actual_delivery_time).getTime())[0];
+
+  return extractTimeFromDateTime(latestFinished?.actual_delivery_time) || fallbackTime;
 };
 
 const resolveCurrentTime = ({ currentLocalTime, deviceTime }) => {
@@ -161,7 +173,6 @@ const estimateCrowFliesTravelMinutes = (fromLat, fromLng, toLat, toLng) => {
 
 const isValidEntityId = (value) => /^[a-f0-9]{24}$/i.test(String(value || ''));
 const isActiveRouteStatus = (status) => ACTIVE_ROUTE_STATUSES.includes(status);
-const isFiniteCoordinate = (value) => Number.isFinite(Number(value));
 const round5 = (value) => Number(Number(value).toFixed(5));
 const sameSegmentPoint = (a, b) => {
   if (!a || !b) return false;
@@ -191,34 +202,20 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const { driverId, selectedDriverId, deliveryDate, startLocation, currentLocalTime, deviceTime } = body;
     const targetDriverId = selectedDriverId || driverId;
-    const routeChangeSource = String(body?.routeChangeSource || body?.source || 'refresh').toLowerCase();
-    const requestDeviceIdentifier = String(body?.deviceIdentifier || body?.primaryDeviceIdentifier || '').trim();
 
     if (!targetDriverId || !deliveryDate) {
       return Response.json({ error: 'Missing required parameters: driverId, deliveryDate' }, { status: 400 });
     }
 
 
-    const [driverAppUsers, callerAppUsers, driverUsers, targetDriverDevices] = await Promise.all([
+    const [driverAppUsers, callerAppUsers, driverUsers] = await Promise.all([
       base44.asServiceRole.entities.AppUser.filter({ user_id: targetDriverId }),
       base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }, '-updated_date', 1),
-      base44.asServiceRole.entities.User.filter({ id: targetDriverId }, '-updated_date', 1),
-      base44.asServiceRole.entities.UserDevice.filter({ user_id: targetDriverId, status: 'active' }, '-updated_date', 100)
+      base44.asServiceRole.entities.User.filter({ id: targetDriverId }, '-updated_date', 1)
     ]);
     const driverAppUser = driverAppUsers?.[0];
     const callerAppUser = callerAppUsers?.[0];
     const driverUser = driverUsers?.[0];
-    const actorRoles = Array.isArray(callerAppUser?.app_roles) ? callerAppUser.app_roles : [];
-    const actorIsDispatcher = actorRoles.includes('dispatcher');
-    const actorIsAdmin = actorRoles.includes('admin');
-    const actorIsDriver = actorRoles.includes('driver');
-    const actorIsSameDriver = user.id === targetDriverId && actorIsDriver;
-    const isAssignAllFlow = routeChangeSource === 'assign_all' || routeChangeSource === 'assign_accept_all' || routeChangeSource === 'accept_all';
-    const primaryDevice = (targetDriverDevices || []).find((device) => device?.is_primary_tracker === true) || null;
-    const primaryDeviceIdentifier = String(primaryDevice?.device_identifier || '').trim();
-    const primaryDeviceType = String(primaryDevice?.device_info?.device_type || '').trim();
-    const requestMatchesPrimaryDevice = !!requestDeviceIdentifier && !!primaryDeviceIdentifier && requestDeviceIdentifier === primaryDeviceIdentifier;
-    const isPrimaryMobileDriverRequest = actorIsSameDriver && requestMatchesPrimaryDevice && primaryDeviceType === 'Mobile';
 
     if (!driverAppUser || driverAppUser.driver_status === 'off_duty' || driverAppUser.driver_status === 'on_break') {
       return Response.json({
@@ -230,39 +227,6 @@ Deno.serve(async (req) => {
         totalStops: 0,
         apiCallsMade: 0,
         driverId: targetDriverId
-      });
-    }
-
-    if (actorIsDispatcher && !isAssignAllFlow) {
-      return Response.json({
-        success: true,
-        skipped: true,
-        reason: 'dispatcher_requires_assign_all',
-        routeChanged: false,
-        optimizedRoute: [],
-        totalStops: 0,
-        apiCallsMade: 0,
-        driverId: targetDriverId
-      });
-    }
-
-    if (!actorIsDispatcher && !isAssignAllFlow && !isPrimaryMobileDriverRequest && !actorIsAdmin) {
-      return Response.json({
-        success: true,
-        skipped: true,
-        reason: 'primary_mobile_driver_only',
-        routeChanged: false,
-        optimizedRoute: [],
-        totalStops: 0,
-        apiCallsMade: 0,
-        driverId: targetDriverId,
-        details: {
-          actorIsSameDriver,
-          hasPrimaryDevice: !!primaryDeviceIdentifier,
-          requestMatchesPrimaryDevice,
-          primaryDeviceType: primaryDeviceType || null,
-          routeChangeSource
-        }
       });
     }
     const resolvedHomeLat = driverAppUser?.home_latitude ?? driverUser?.home_latitude ?? null;
@@ -378,11 +342,7 @@ Deno.serve(async (req) => {
     }
 
     const nextDeliveryStop = stops.find((stop) => stop.delivery.isNextDelivery === true) || null;
-    const nextDeliveryReachableFromCurrentLocation = !!nextDeliveryStop
-      && !!currentPosition
-      && isFiniteCoordinate(currentPosition.lat)
-      && isFiniteCoordinate(currentPosition.lng);
-    const canKeepLockedNextStop = !!nextDeliveryStop && !nextDeliveryStop.hasLateWindow && nextDeliveryReachableFromCurrentLocation;
+    const canKeepLockedNextStop = !!nextDeliveryStop && !nextDeliveryStop.hasLateWindow;
     const lockedNextStop = canKeepLockedNextStop ? nextDeliveryStop : null;
     const stopsToSequence = lockedNextStop
       ? stops.filter((stop) => stop.delivery.id !== lockedNextStop.delivery.id)
@@ -417,7 +377,6 @@ Deno.serve(async (req) => {
 
     const fallbackDepartureTime = resolveCurrentTime({ currentLocalTime, deviceTime });
     const departureTime = resolveEtaBaseTime(deliveryDate, completedDeliveries, fallbackDepartureTime);
-    console.log(`🕒 [optimizeRouteRealTime] Using departure time ${departureTime} (fallback=${fallbackDepartureTime}) for driver ${targetDriverId} on ${deliveryDate}`);
     const endLocation = (resolvedHomeLat != null && resolvedHomeLng != null)
       ? { lat: Number(resolvedHomeLat), lng: Number(resolvedHomeLng) }
       : null;
@@ -444,8 +403,7 @@ Deno.serve(async (req) => {
           waypoints: candidateSequencedStops.map((stop) => ({ lat: stop.lat, lng: stop.lng })),
           routeContext: routeContextPayload,
           deliveryDate,
-          currentLocalTime: departureTime,
-          transportMode: String(driverAppUser?.preferred_travel_mode || 'driving').toLowerCase()
+          currentLocalTime: departureTime
         }).catch(() => null)
       : null;
 
@@ -586,11 +544,7 @@ Deno.serve(async (req) => {
           active_statuses_only: true,
           locked_next_delivery: !!nextDeliveryStop,
           distance_meters: Math.round(Number(sequencingData?.estimated_distance_km || 0) * 1000),
-          duration_seconds: Math.round(Number(sequencingData?.estimated_duration_minutes || 0) * 60),
-          route_change_source: routeChangeSource,
-          requester_device_identifier: requestDeviceIdentifier || null,
-          primary_device_identifier: primaryDeviceIdentifier || null,
-          primary_device_type: primaryDeviceType || null
+          duration_seconds: Math.round(Number(sequencingData?.estimated_duration_minutes || 0) * 60)
         }
       });
     } catch (_logError) {}
@@ -667,11 +621,6 @@ Deno.serve(async (req) => {
       endLocation ? { lat: Number(endLocation.lat), lng: Number(endLocation.lng) } : null
     ].filter((point) => point?.lat != null && point?.lng != null);
 
-    const activeLegPoints = [
-      activeRouteOrigin,
-      firstActiveCoords
-    ].filter((point) => point?.lat != null && point?.lng != null);
-
     const routeDirectionsResponse = routeLegPoints.length >= 2
       ? await base44.asServiceRole.functions.invoke('getHereDirections', {
           origin: { lat: routeLegPoints[0].lat, lng: routeLegPoints[0].lng },
@@ -731,30 +680,17 @@ Deno.serve(async (req) => {
         }
       }
 
-      const polylineEntity = base44.asServiceRole.entities.DriverRoutePolyline;
-
       if (rowsToUpdate.length > 0) {
         for (let index = 0; index < rowsToUpdate.length; index += 10) {
           const chunk = rowsToUpdate.slice(index, index + 10);
           await Promise.all(chunk.map((row) =>
-            polylineEntity.update(row.id, row.data).catch((error) => {
-              console.error('❌ [optimizeRouteRealTime] DriverRoutePolyline update failed:', row.id, error?.message || error);
-              return null;
-            })
+            base44.asServiceRole.entities.DriverRoutePolyline.update(row.id, row.data).catch(() => null)
           ));
         }
       }
 
       if (rowsToCreate.length > 0) {
-        for (let index = 0; index < rowsToCreate.length; index += 20) {
-          const chunk = rowsToCreate.slice(index, index + 20);
-          await Promise.all(chunk.map((row) =>
-            polylineEntity.create(row).catch((error) => {
-              console.error('❌ [optimizeRouteRealTime] DriverRoutePolyline create failed:', error?.message || error);
-              return null;
-            })
-          ));
-        }
+        await base44.asServiceRole.entities.DriverRoutePolyline.bulkCreate(rowsToCreate).catch(() => null);
       }
     }
 
@@ -774,8 +710,8 @@ Deno.serve(async (req) => {
       },
       polylineRefresh: {
         shouldRefresh: !!activeSegmentChanged,
-        origin: activeLegPoints[0] || null,
-        destination: activeLegPoints[1] || null,
+        origin: activeRouteOrigin,
+        destination: firstActiveCoords,
         nextStopId: firstActiveStop?.delivery?.id || null
       }
     });

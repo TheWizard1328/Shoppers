@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef } from "react";
+import { isMobileDevice } from "./deviceUtils";
 import { syncDriverRoutePolylinesForDate } from "./hereRouting";
 
 export default function useDriverRoutePolylineBackgroundSync({ targets = [], enabled = true, intervalMs = 30000, onSync }) {
+  const isMobile = useMemo(() => isMobileDevice(), []);
   const isSyncingRef = useRef(false);
 
   const uniqueTargets = useMemo(() => {
@@ -14,7 +16,7 @@ export default function useDriverRoutePolylineBackgroundSync({ targets = [], ena
   }, [targets]);
 
   useEffect(() => {
-    if (!enabled || uniqueTargets.length === 0) return;
+    if (!enabled || !isMobile || uniqueTargets.length === 0) return;
 
     let cancelled = false;
 
@@ -51,5 +53,5 @@ export default function useDriverRoutePolylineBackgroundSync({ targets = [], ena
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [enabled, intervalMs, uniqueTargets, onSync]);
+  }, [enabled, intervalMs, isMobile, uniqueTargets, onSync]);
 }

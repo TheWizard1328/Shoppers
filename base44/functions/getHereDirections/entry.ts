@@ -151,18 +151,7 @@ const encodeSigned = (value) => {
   return encoded;
 };
 
-const filterDuplicateConsecutiveCoordinates = (points) => {
-  if (!Array.isArray(points)) return [];
-  return points.filter((point, index) => {
-    if (!Array.isArray(point) || point.length < 2) return false;
-    if (index === 0) return true;
-    const prev = points[index - 1];
-    return Array.isArray(prev) && (prev[0] !== point[0] || prev[1] !== point[1]);
-  });
-};
-
 const encodeGooglePolyline = (points) => {
-  const normalizedPoints = filterDuplicateConsecutiveCoordinates(points);
   let lastLat = 0;
   let lastLng = 0;
   let encoded = '';
@@ -223,47 +212,6 @@ const decodeHereFlexiblePolyline = (encoded) => {
   return coordinates;
 };
 
-const getHereTransportMode = (normalizedTransportMode) => {
-  return normalizedTransportMode === 'cycling'
-    ? 'bicycle'
-    : normalizedTransportMode === 'pedestrian'
-      ? 'pedestrian'
-      : 'car';
-};
-
-const fetchRouteSection = async ({ hereApiKey, fromPoint, toPoint, transportMode }) => {
-  const params = new URLSearchParams();
-  params.set('apiKey', hereApiKey);
-  params.set('transportMode', transportMode);
-  params.set('origin', `${fromPoint.lat},${fromPoint.lng}`);
-  params.set('destination', `${toPoint.lat},${toPoint.lng}`);
-  params.set('return', 'polyline,summary');
-
-  const routeResp = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, {
-    signal: AbortSignal.timeout(20000),
-    headers: { accept: 'application/json' }
-  });
-  const routeData = await routeResp.json().catch(() => null);
-  const routeSection = routeData?.routes?.[0]?.sections?.[0] || null;
-
-  let encodedPolyline = null;
-  if (typeof routeSection?.polyline === 'string' && routeSection.polyline) {
-    const coords = decodeHereFlexiblePolyline(routeSection.polyline);
-    if (coords.length > 1) {
-      encodedPolyline = encodeGooglePolyline(coords);
-    }
-  }
-
-  return {
-    polyline: routeSection?.polyline || null,
-    encoded_polyline: encodedPolyline,
-    estimated_distance_km: Number.isFinite(Number(routeSection?.summary?.length)) ? Math.round((Number(routeSection.summary.length) / 1000) * 10) / 10 : null,
-    estimated_duration_minutes: Number.isFinite(Number(routeSection?.summary?.duration)) ? Math.round(Number(routeSection.summary.duration) / 60) : null,
-    route_found: !!routeSection,
-    transport_mode: transportMode
-  };
-};
-
 const buildRoutingSections = async ({ hereApiKey, orderedStops, originLat, originLng, normalizedTransportMode }) => {
   if (orderedStops.length === 0) return [];
 
@@ -275,33 +223,41 @@ const buildRoutingSections = async ({ hereApiKey, orderedStops, originLat, origi
       : { lat: orderedStops[index - 1].lat, lng: orderedStops[index - 1].lng };
     const toPoint = { lat: orderedStops[index].lat, lng: orderedStops[index].lng };
 
-    let selectedSection = null;
+    const transportMode = normalizedTransportMode === 'cycling'
+      ? 'bicycle'
+      : normalizedTransportMode === 'pedestrian'
+        ? 'pedestrian'
+        : 'car';
 
-    if (normalizedTransportMode === 'cycling') {
-      const [bicycleSection, pedestrianSection] = await Promise.all([
-        fetchRouteSection({ hereApiKey, fromPoint, toPoint, transportMode: 'bicycle' }),
-        fetchRouteSection({ hereApiKey, fromPoint, toPoint, transportMode: 'pedestrian' })
-      ]);
+    const params = new URLSearchParams();
+    params.set('apiKey', hereApiKey);
+    params.set('transportMode', transportMode);
+    params.set('origin', `${fromPoint.lat},${fromPoint.lng}`);
+    params.set('destination', `${toPoint.lat},${toPoint.lng}`);
+    params.set('return', 'polyline,summary');
 
-      const candidates = [bicycleSection, pedestrianSection].filter((section) => section?.route_found && Number.isFinite(section?.estimated_duration_minutes));
-      selectedSection = candidates.sort((a, b) => a.estimated_duration_minutes - b.estimated_duration_minutes)[0] || bicycleSection || pedestrianSection;
-    } else {
-      selectedSection = await fetchRouteSection({
-        hereApiKey,
-        fromPoint,
-        toPoint,
-        transportMode: getHereTransportMode(normalizedTransportMode)
-      });
+    const routeResp = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, {
+      signal: AbortSignal.timeout(20000),
+      headers: { accept: 'application/json' }
+    });
+    const routeData = await routeResp.json().catch(() => null);
+    const routeSection = routeData?.routes?.[0]?.sections?.[0] || null;
+
+    let encodedPolyline = null;
+    if (typeof routeSection?.polyline === 'string' && routeSection.polyline) {
+      const coords = decodeHereFlexiblePolyline(routeSection.polyline);
+      if (coords.length > 1) {
+        encodedPolyline = encodeGooglePolyline(coords);
+      }
     }
 
     const fallbackDistanceKm = calculateCrowFliesDistance(fromPoint.lat, fromPoint.lng, toPoint.lat, toPoint.lng);
     sections.push({
-      polyline: selectedSection?.polyline || null,
-      encoded_polyline: selectedSection?.encoded_polyline || null,
-      estimated_distance_km: Number.isFinite(Number(selectedSection?.estimated_distance_km)) ? selectedSection.estimated_distance_km : Math.round(fallbackDistanceKm * 10) / 10,
-      estimated_duration_minutes: Number.isFinite(Number(selectedSection?.estimated_duration_minutes)) ? selectedSection.estimated_duration_minutes : Math.round((fallbackDistanceKm / 40) * 60),
-      coordinates: [fromPoint, toPoint],
-      segment_transport_mode: selectedSection?.transport_mode || getHereTransportMode(normalizedTransportMode)
+      polyline: routeSection?.polyline || null,
+      encoded_polyline: encodedPolyline,
+      estimated_distance_km: Number.isFinite(Number(routeSection?.summary?.length)) ? Math.round((Number(routeSection.summary.length) / 1000) * 10) / 10 : Math.round(fallbackDistanceKm * 10) / 10,
+      estimated_duration_minutes: Number.isFinite(Number(routeSection?.summary?.duration)) ? Math.round(Number(routeSection.summary.duration) / 60) : Math.round((fallbackDistanceKm / 40) * 60),
+      coordinates: [fromPoint, toPoint]
     });
   }
 
@@ -333,41 +289,19 @@ Deno.serve(async (req) => {
     const routeContext = Array.isArray(body?.routeContext) ? body.routeContext : [];
     const preserveWaypointOrder = body?.preserveWaypointOrder === true;
     const requestedTransportMode = String(body?.transportMode || body?.transport_mode || 'driving').toLowerCase();
-    const normalizedTransportMode = requestedTransportMode === 'cycling'
-      ? 'cycling'
-      : requestedTransportMode === 'pedestrian' || requestedTransportMode === 'walking'
+    const hereTransportMode = requestedTransportMode === 'cycling'
+      ? 'bicycle'
+      : requestedTransportMode === 'pedestrian'
         ? 'pedestrian'
-        : requestedTransportMode === 'scootering' || requestedTransportMode === 'scooter'
-          ? 'scooter'
-          : 'driving';
-    const hereTransportMode = getHereTransportMode(normalizedTransportMode);
+        : 'car';
+    const normalizedTransportMode = requestedTransportMode === 'cycling' || requestedTransportMode === 'pedestrian'
+      ? requestedTransportMode
+      : 'driving';
 
     const originLat = Number(origin?.lat);
     const originLng = Number(origin?.lng);
     const destinationLat = Number(destination?.lat);
     const destinationLng = Number(destination?.lng);
-
-    console.log('[getHereDirections] request payload', {
-      origin,
-      destination,
-      waypoints,
-      routeContext,
-      originLat,
-      originLng,
-      destinationLat,
-      destinationLng
-    });
-
-    console.log('[getHereDirections] request payload', {
-      origin,
-      destination,
-      waypoints,
-      routeContext,
-      originLat,
-      originLng,
-      destinationLat,
-      destinationLng
-    });
 
     if (![originLat, originLng, destinationLat, destinationLng].every(Number.isFinite)) {
       return Response.json({ error: 'Missing origin or destination' }, { status: 400 });
@@ -384,7 +318,6 @@ Deno.serve(async (req) => {
 
     const dateStr = String(body?.deliveryDate || body?.date || new Date().toISOString().slice(0, 10));
     const departureTime = String(body?.departureTime || body?.currentLocalTime || '08:00');
-    console.log(`🕒 [getHereDirections] departure=${departureTime} date=${dateStr} preserveWaypointOrder=${preserveWaypointOrder}`);
     const allStops = [
       { lat: originLat, lng: originLng, id: 'origin', sequenceIndex: -1 },
       ...waypoints.map((point, index) => ({
@@ -432,8 +365,6 @@ Deno.serve(async (req) => {
         if (accessConstraint) segments.push(accessConstraint);
         params.set(`destination${index + 1}`, segments.join(';'));
       });
-
-      console.log('[getHereDirections] sequence stops', sequenceStops);
 
       routeCallCount += 1;
       resp = await fetch(`https://wps.hereapi.com/v8/findsequence2?${params.toString()}`, {
@@ -525,13 +456,15 @@ Deno.serve(async (req) => {
 
     const interconnectionByToWaypoint = new Map(interconnections.map((item) => [item.toWaypoint, item]));
 
-    const routedSections = await buildRoutingSections({
-      hereApiKey,
-      orderedStops,
-      originLat,
-      originLng,
-      normalizedTransportMode
-    });
+    const routedSections = preserveWaypointOrder
+      ? []
+      : await buildRoutingSections({
+          hereApiKey,
+          orderedStops,
+          originLat,
+          originLng,
+          normalizedTransportMode
+        });
 
     const orderedPoints = [{ lat: originLat, lng: originLng }, ...orderedStops.map((stop) => ({ lat: stop.lat, lng: stop.lng }))];
     const normalizedSections = orderedStops.map((stop, index) => {
@@ -580,8 +513,7 @@ Deno.serve(async (req) => {
         estimated_distance_km,
         estimated_duration_minutes,
         optimized_sequence: orderedWaypoints.map((waypoint) => waypoint.id),
-        real_road_polylines: normalizedSections.filter((section) => !!section?.encoded_polyline).length,
-        hybrid_segment_modes: normalizedSections.map((section) => section?.segment_transport_mode).filter(Boolean)
+        real_road_polylines: normalizedSections.filter((section) => !!section?.encoded_polyline).length
       },
     });
 
@@ -593,7 +525,6 @@ Deno.serve(async (req) => {
       estimated_distance_km,
       estimated_duration_minutes,
       transport_mode: normalizedTransportMode,
-      hybrid_mode_enabled: normalizedTransportMode === 'cycling',
       optimized_waypoint_ids: orderedWaypoints.map((waypoint) => waypoint.id),
       used_time_windows: preserveWaypointOrder ? false : true,
       api_call_count: routeCallCount

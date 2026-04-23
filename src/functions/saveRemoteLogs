@@ -1,0 +1,60 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
+
+Deno.serve(async (req) => {
+  try {
+    const base44 = createClientFromRequest(req);
+    const body = await req.json();
+    const logs = Array.isArray(body?.logs) ? body.logs : [];
+
+    if (logs.length === 0) {
+      return Response.json({ saved: 0 });
+    }
+
+    const user = await base44.auth.me().catch(() => null);
+    const settings = await base44.asServiceRole.entities.RemoteLoggingSettings.filter({ scope: 'global' }, '-updated_date', 1);
+    const config = settings?.[0] || null;
+
+    if (!config?.enabled) {
+      return Response.json({ saved: 0, disabled: true });
+    }
+
+    const included = Array.isArray(config.included_user_ids) ? config.included_user_ids : [];
+    const excluded = Array.isArray(config.excluded_user_ids) ? config.excluded_user_ids : [];
+    const levels = Array.isArray(config.capture_levels) && config.capture_levels.length > 0 ? config.capture_levels : ['log', 'info', 'warn', 'error', 'debug'];
+    const currentUserId = user?.id || body?.user_id || null;
+
+    if (excluded.includes(currentUserId)) {
+      return Response.json({ saved: 0, excluded: true });
+    }
+
+    if (included.length > 0 && !included.includes(currentUserId)) {
+      return Response.json({ saved: 0, not_included: true });
+    }
+
+    const sanitizedLogs = logs
+      .filter((entry) => entry && typeof entry.message === 'string' && levels.includes(entry.level))
+      .slice(0, Math.max(1, Math.min(Number(config.batch_size) || 20, 100)))
+      .map((entry) => ({
+        level: entry.level,
+        message: entry.message.slice(0, 5000),
+        timestamp: entry.timestamp || new Date().toISOString(),
+        user_id: entry.user_id || currentUserId,
+        user_name: entry.user_name || body?.user_name || user?.full_name || null,
+        device_identifier: entry.device_identifier || body?.device_identifier || null,
+        device_type: entry.device_type || body?.device_type || null,
+        os: entry.os || body?.os || null,
+        page: entry.page || body?.page || null,
+        session_id: entry.session_id || body?.session_id || null,
+        metadata: entry.metadata && typeof entry.metadata === 'object' ? entry.metadata : {}
+      }));
+
+    if (sanitizedLogs.length === 0) {
+      return Response.json({ saved: 0 });
+    }
+
+    await base44.asServiceRole.entities.RemoteLogEntry.bulkCreate(sanitizedLogs);
+    return Response.json({ saved: sanitizedLogs.length });
+  } catch (error) {
+    return Response.json({ error: error.message }, { status: 500 });
+  }
+});

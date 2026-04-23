@@ -24,21 +24,12 @@ export default function ResetPolylinesButton({
 
   const clearPolylineCache = async () => {
     try {
-      for (const driverId of driverIds) {
-        const rows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', selectedDate);
-        const matchingRows = (rows || []).filter((row) => row?.driver_id === driverId);
-
-        matchingRows.forEach((row) => {
-          const mode = row?.transport_mode || 'driving';
-          const key = `here_${mode}_${Number(row?.segment_origin_lat).toFixed(5)}_${Number(row?.segment_origin_lon).toFixed(5)}_${Number(row?.segment_dest_lat).toFixed(5)}_${Number(row?.segment_dest_lon).toFixed(5)}`;
+      Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith("here_")) {
           localStorage.removeItem(key);
-          localStorage.removeItem(`${key}:fail_until`);
-        });
-
-        await Promise.all(
-          matchingRows.map((row) => offlineDB.deleteRecord(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, row.id))
-        );
-      }
+        }
+      });
+      await offlineDB.clearStore(offlineDB.STORES.DRIVER_ROUTE_POLYLINES);
     } catch (_) {}
   };
 
@@ -66,7 +57,6 @@ export default function ResetPolylinesButton({
     return refreshedDeliveries;
   };
 
-
   const handleReset = async () => {
     if (isResetting || disabled || driverIds.length === 0 || !selectedDate) return;
 
@@ -85,7 +75,7 @@ export default function ResetPolylinesButton({
         await new Promise(resolve => setTimeout(resolve, 300));
       }
 
-      // 2. Clear local cached polylines before rebuilding completed-route legs
+      // 2. Clear cached polylines only when regenerating polylines
       if (selectedPolylineOption === 'polylines') {
         await clearPolylineCache();
         window.dispatchEvent(new CustomEvent("polylineCacheCleared", {
@@ -120,10 +110,9 @@ export default function ResetPolylinesButton({
             const response = await base44.functions.invoke('purgeAndRegeneratePolylines', {
               driverId,
               deliveryDate: selectedDate,
-              scope: 'completed_only',
+              scope: 'all',
               reason: 'manual',
-              routeSource: selectedPolylineOption,
-              ignoreDriverStatus: true
+              routeSource: selectedPolylineOption
             });
             result = response?.data || response || {};
             if (!result.success) {

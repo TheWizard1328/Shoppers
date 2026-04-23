@@ -532,9 +532,6 @@ export async function syncNextDeliveryFlagsLocally({ driverDeliveries = [], next
 export async function refreshDriverRoute({ driverId, deliveryDate, forceRefreshDriverDeliveries, triggeredBy, actualDeliveryTime = null }) {
   invalidate("Delivery");
   await forceRefreshDriverDeliveries(driverId, deliveryDate);
-  window.dispatchEvent(new CustomEvent('driverRoutePolylinesUpdated', {
-    detail: { source: 'refreshDriverRoute', driverId, deliveryDate }
-  }));
 
   if (actualDeliveryTime && shouldRefreshEtasForCompletionDrift({
     driverId,

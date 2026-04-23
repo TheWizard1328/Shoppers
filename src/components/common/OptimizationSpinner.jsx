@@ -39,12 +39,12 @@ export default function OptimizationSpinner() {
           className="fixed inset-0 pointer-events-none"
           style={{ zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', left: 0, right: 0 }}
         >
-          <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm rounded-2xl p-6 shadow-2xl border border-slate-200 dark:border-slate-700 flex flex-col items-center gap-3">
+          <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 shadow-2xl flex flex-col items-center gap-3">
             <div className="relative">
-              <Loader2 className="w-12 h-12 text-blue-600 dark:text-blue-400 animate-spin" />
-              <Navigation className="w-6 h-6 text-blue-600 dark:text-blue-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+              <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
+              <Navigation className="w-6 h-6 text-blue-600 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
             </div>
-            <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Optimizing route...</p>
+            <p className="text-sm font-medium text-slate-700">Optimizing route...</p>
           </div>
         </motion.div>
       )}

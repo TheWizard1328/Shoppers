@@ -8,32 +8,13 @@ const ACTIVE_STATUSES = ['in_transit', 'en_route'];
 const TIME_ZONE = 'America/Edmonton';
 const WEEKDAY_CODES = ['su', 'mo', 'tu', 'we', 'th', 'fr', 'sa'];
 
-const getEdmontonCurrentTime = () => {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: TIME_ZONE,
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  }).formatToParts(new Date());
-  const hour = parts.find((part) => part.type === 'hour')?.value || '00';
-  const minute = parts.find((part) => part.type === 'minute')?.value || '00';
-  return `${hour}:${minute}`;
-};
-
-const getSortableDeliveryTimestamp = (delivery) => {
-  if (delivery?.actual_delivery_time && typeof delivery.actual_delivery_time === 'string') {
-    const match = delivery.actual_delivery_time.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
-    if (match) {
-      const [, year, month, day, hour, minute, second = '00'] = match;
-      return Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second));
-    }
-  }
-  return new Date(delivery?.updated_date || delivery?.created_date || 0).getTime();
-};
-
 const getLatestFinishedDelivery = (deliveries) => [...(deliveries || [])]
   .filter((delivery) => FINISHED_STATUSES.includes(delivery?.status))
-  .sort((a, b) => getSortableDeliveryTimestamp(b) - getSortableDeliveryTimestamp(a))[0] || null;
+  .sort((a, b) => {
+    const aTime = new Date(a?.actual_delivery_time || a?.updated_date || a?.created_date || 0).getTime();
+    const bTime = new Date(b?.actual_delivery_time || b?.updated_date || b?.created_date || 0).getTime();
+    return bTime - aTime;
+  })[0] || null;
 
 const getDeliveryCoords = (delivery, patientMap, storeMap) => {
   if (!delivery) return null;
@@ -182,10 +163,16 @@ Deno.serve(async (req) => {
       if (timeMatch) {
         currentMinutes = parseInt(timeMatch[1], 10) * 60 + parseInt(timeMatch[2], 10);
       } else {
-        currentMinutes = parseTimeToMinutes(getEdmontonCurrentTime());
+        const now = new Date();
+        let mountainHours = now.getUTCHours() - 7;
+        if (mountainHours < 0) mountainHours += 24;
+        currentMinutes = mountainHours * 60 + now.getUTCMinutes();
       }
     } else {
-      currentMinutes = parseTimeToMinutes(getEdmontonCurrentTime());
+      const now = new Date();
+      let mountainHours = now.getUTCHours() - 7;
+      if (mountainHours < 0) mountainHours += 24;
+      currentMinutes = mountainHours * 60 + now.getUTCMinutes();
     }
 
     console.log(`🔄 [optimizeRemainingStops] Optimizing remaining stops for driver ${driverId} on ${deliveryDate}`);
@@ -204,20 +191,11 @@ Deno.serve(async (req) => {
       });
     }
     const preferredTravelMode = String(driverAppUser?.preferred_travel_mode || 'driving').toLowerCase();
-    const normalizedTransportMode = preferredTravelMode === 'cycling'
-      ? 'cycling'
-      : preferredTravelMode === 'pedestrian' || preferredTravelMode === 'walking'
-        ? 'pedestrian'
-        : preferredTravelMode === 'scootering' || preferredTravelMode === 'scooter'
-          ? 'scooter'
-          : 'driving';
-    const hereTransportMode = normalizedTransportMode === 'cycling'
+    const hereTransportMode = preferredTravelMode === 'cycling'
       ? 'bicycle'
-      : normalizedTransportMode === 'pedestrian'
+      : preferredTravelMode === 'pedestrian'
         ? 'pedestrian'
-        : normalizedTransportMode === 'scooter'
-          ? 'scooter'
-          : 'car';
+        : 'car';
 
     const appSettings = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }, '-updated_date', 1);
     const activeApiKeyName = appSettings?.[0]?.setting_value?.selected_api_key || 'HERE_API_KEY';
@@ -302,12 +280,7 @@ Deno.serve(async (req) => {
     let currentPosition;
     let locationSource;
 
-    if (driverAppUser.current_latitude != null && driverAppUser.current_longitude != null) {
-      currentPosition = { lat: Number(driverAppUser.current_latitude), lng: Number(driverAppUser.current_longitude) };
-      locationSource = 'current_gps';
-    }
-
-    if (!currentPosition && latestFinishedDelivery) {
+    if (latestFinishedDelivery) {
       currentPosition = getDeliveryCoords(latestFinishedDelivery, patientMap, storeMap);
       locationSource = currentPosition ? 'last_finished_stop' : null;
     }
@@ -331,8 +304,7 @@ Deno.serve(async (req) => {
       .filter(Boolean);
 
     const nextDeliveryStop = optimizationStops.find((stop) => stop.delivery.isNextDelivery === true) || null;
-    const nextDeliveryReachableFromCurrentGps = !!nextDeliveryStop && locationSource === 'current_gps';
-    const lockedNextStop = nextDeliveryStop && !nextDeliveryStop.hasLateWindow && nextDeliveryReachableFromCurrentGps ? nextDeliveryStop : null;
+    const lockedNextStop = nextDeliveryStop && !nextDeliveryStop.hasLateWindow ? nextDeliveryStop : null;
     const stopsToSequence = lockedNextStop
       ? optimizationStops.filter((stop) => stop.delivery.id !== lockedNextStop.delivery.id)
       : optimizationStops;
@@ -352,8 +324,8 @@ Deno.serve(async (req) => {
       const params = new URLSearchParams();
       params.set('apiKey', hereApiKey);
       params.set('departure', buildLocalIso(deliveryDate, currentLocalTime || formatMinutesToTime(currentMinutes)));
-      params.set('mode', `fastest;${hereTransportMode};traffic:enabled`);
-      params.set('improveFor', 'time');
+      params.set('mode', `shortest;${hereTransportMode};traffic:disabled`);
+      params.set('improveFor', 'distance');
       params.set('start', `driverStart;${currentPosition.lat},${currentPosition.lng}`);
       if (resolvedHomePosition) {
         params.set('end', `driverHome;${resolvedHomePosition.lat},${resolvedHomePosition.lng}`);

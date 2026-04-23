@@ -28,8 +28,6 @@ import {
   Home,
   ArrowLeft,
   Image,
-  Car,
-  Bike,
   FileSignature,
   Camera,
   X
@@ -49,7 +47,6 @@ import { toast } from "sonner";
 import { calculateRealTimeETA } from "@/functions/calculateRealTimeETA";
 import { recalculateAndUpdateStopOrders } from "../utils/stopOrderManager";
 import { isRouteCompleted } from "../utils/routeCompletionChecker";
-import { normalizeTravelMode, updatePreferredTravelMode } from "../dashboard/travelModeHelpers";
 
 const statusConfig = {
   pending: { color: 'bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-700', label: 'Pending', icon: Clock },
@@ -90,8 +87,6 @@ export default function StopDetailsPanel({
     delivery?.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'HH:mm') : format(new Date(), 'HH:mm')
   );
 
-  const [travelModeValue, setTravelModeValue] = useState(normalizeTravelMode(driver?.preferred_travel_mode || currentUser?.preferred_travel_mode));
-
   useEffect(() => {
     if (!delivery) return;
     setEditableStatus(delivery?.status || 'pending');
@@ -102,10 +97,6 @@ export default function StopDetailsPanel({
       delivery?.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'HH:mm') : format(new Date(), 'HH:mm')
     );
   }, [delivery?.id, delivery?.status, delivery?.delivery_time_start, delivery?.delivery_time_end, delivery?.actual_delivery_time]);
-
-  useEffect(() => {
-    setTravelModeValue(normalizeTravelMode(driver?.preferred_travel_mode || currentUser?.preferred_travel_mode));
-  }, [driver?.preferred_travel_mode, currentUser?.preferred_travel_mode]);
 
   if (!delivery) {
     return (
@@ -233,7 +224,6 @@ export default function StopDetailsPanel({
 
   const canDeleteCodInCurrentState = canEditCodInCurrentState && (!delivery?.cod_payments || delivery.cod_payments.length === 0);
   const hasCodChanges = Number(codAmountRequired || 0) !== Number(delivery?.cod_total_amount_required || 0);
-  const selectedTravelMode = normalizeTravelMode(travelModeValue);
 
   const handleStatusChange = (value) => {
     const wasCompletionStatus = completionStatuses.includes(editableStatus);
@@ -391,22 +381,6 @@ export default function StopDetailsPanel({
     }
   };
 
-  const handleTravelModeChange = async (nextMode) => {
-    if (!isDriverUser || isUpdating || !currentUser?.id) return;
-    const normalizedNextMode = normalizeTravelMode(nextMode);
-    if (normalizedNextMode === selectedTravelMode) return;
-    setIsUpdating(true);
-    try {
-      await updatePreferredTravelMode([{ id: driver?.id, user_id: currentUser.id }].filter((item) => item?.id), currentUser.id, normalizedNextMode);
-      setTravelModeValue(normalizedNextMode);
-      window.dispatchEvent(new CustomEvent('driverTravelModeChanged', {
-        detail: { driverId: currentUser.id, travelMode: normalizedNextMode }
-      }));
-    } finally {
-      setIsUpdating(false);
-    }
-  };
-
   return (
     <div className="h-full flex flex-col overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
       <style>{`
@@ -546,32 +520,6 @@ export default function StopDetailsPanel({
                     <a href={`tel:${patient.phone}`} className="text-sm hover:underline" style={{ color: 'var(--text-slate-700)' }}>
                       {formatPhoneNumber(patient.phone)}
                     </a>
-                    {isDriverUser && (
-                      <div className="ml-auto flex flex-row gap-2 shrink-0">
-                        <button
-                          type="button"
-                          title="Driving"
-                          aria-label="Driving"
-                          onClick={() => handleTravelModeChange('driving')}
-                          disabled={isUpdating}
-                          className={`h-6 w-12 rounded-full border transition-all flex items-center justify-center disabled:opacity-50 ${selectedTravelMode === 'driving' ? 'bg-emerald-600 border-emerald-600 text-white' : ''}`}
-                          style={selectedTravelMode === 'driving' ? undefined : { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
-                        >
-                          <Car className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          title="Cycling"
-                          aria-label="Cycling"
-                          onClick={() => handleTravelModeChange('cycling')}
-                          disabled={isUpdating}
-                          className={`h-6 w-12 rounded-full border transition-all flex items-center justify-center disabled:opacity-50 ${selectedTravelMode === 'cycling' ? 'bg-emerald-600 border-emerald-600 text-white' : ''}`}
-                          style={selectedTravelMode === 'cycling' ? undefined : { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
-                        >
-                          <Bike className="w-4 h-4" />
-                        </button>
-                      </div>
-                    )}
                   </div>
                 )}
 

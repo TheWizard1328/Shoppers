@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { RefreshCw } from 'lucide-react';
 import { offlineDB } from '@/components/utils/offlineDatabase';
 import { base44 } from '@/api/base44Client';
+import calculateRealTimeETA from '@/functions/calculateRealTimeETA';
+import repairMissingPolylines from '@/functions/repairMissingPolylines';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { globalFilters } from '@/components/utils/globalFilters';
@@ -167,12 +169,11 @@ export default function PullToSync({
       }
 
       // ─── STEP 3: Load from offline DB + update UI ─────────────────────────
-      const [offlineDeliveriesRaw, freshAppUsers, freshCities, freshStores, offlineTypePolylines] = await Promise.all([
+      const [offlineDeliveriesRaw, freshAppUsers, freshCities, freshStores] = await Promise.all([
         offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr),
         offlineDB.getAll(offlineDB.STORES.APP_USERS).then(r => (r || []).filter(u => u?.user_id && u.user_id !== 'undefined')),
         offlineDB.getAll(offlineDB.STORES.CITIES),
-        offlineDB.getAll(offlineDB.STORES.STORES),
-        offlineDB.getAll(offlineDB.STORES.DRIVER_ROUTE_POLYLINES)
+        offlineDB.getAll(offlineDB.STORES.STORES)
       ]);
 
       const offlineDeliveries = Array.isArray(offlineDeliveriesRaw)
@@ -196,20 +197,6 @@ export default function PullToSync({
           batchedUiUpdate: true,
           preserveLocalState: true,
           syncRunId
-        }
-      }));
-      window.dispatchEvent(new CustomEvent('driverRoutePolylinesUpdated', {
-        detail: {
-          polylines: offlineTypePolylines || [],
-          source: 'pullToSync'
-        }
-      }));
-      window.dispatchEvent(new CustomEvent('polylineUpdateTriggered', {
-        detail: {
-          offlineType1Polylines: offlineTypePolylines || [],
-          freshAppUsers: safeAppUsers,
-          timestamp: Date.now(),
-          source: 'pullToSync'
         }
       }));
 
@@ -246,7 +233,6 @@ export default function PullToSync({
       // ─── STEP 4 (background): Polylines + ETAs for active stops only ────────
       // Runs entirely in background — does NOT block UI
       const targetDriverId = currentDriverId && currentDriverId !== 'all' ? currentDriverId : null;
-      const isPrimaryDevice = window.__isPrimaryTrackingDevice === true;
       if (targetDriverId) {
         Promise.resolve().then(async () => {
           const incompleteDeliveries = (offlineDeliveries || []).filter(d => 
@@ -258,22 +244,21 @@ export default function PullToSync({
           const now = new Date();
           const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-          // Polyline repair only on explicit manual pull-to-sync from the primary device
-          if (!silent && isPrimaryDevice) {
-            Promise.resolve(base44.functions.invoke('repairMissingPolylines', { driverId: targetDriverId, deliveryDate: selectedDateStr, reason: 'manual' }))
-              .catch(e => console.warn('⚠️ [Pull to Sync] Background polyline repair failed:', e?.message || e));
-          }
+          // Polyline repair only on manual sync
+          Promise.resolve(repairMissingPolylines({ driverId: targetDriverId, deliveryDate: selectedDateStr, reason: 'manual' }))
+            .catch(e => console.warn('⚠️ [Pull to Sync] Background polyline repair failed:', e?.message || e));
 
           // ETA recalculation for active stops only
-          base44.functions.invoke('calculateRealTimeETA', {
-            driver: { id: targetDriverId },
-            deliveries: incompleteDeliveries,
-            currentLocation: null
+          calculateRealTimeETA({
+            driverId: targetDriverId,
+            deliveryDate: selectedDateStr,
+            currentLocalTime,
+            deviceTime: currentLocalTime
           }).then(etaRes => {
-            const etaUpdates = etaRes?.data?.etaEstimates || etaRes?.etaEstimates || [];
+            const etaUpdates = etaRes?.data?.durationUpdates || etaRes?.data?.etas || etaRes?.etas || [];
             if (Array.isArray(etaUpdates) && etaUpdates.length > 0) {
               window.dispatchEvent(new CustomEvent('etaUpdated', {
-                detail: { updates: etaUpdates.map(u => ({ deliveryId: u.deliveryId || u.delivery_id, newEta: u.estimated_arrival_time || u.eta || u.newETA })) }
+                detail: { updates: etaUpdates.map(u => ({ deliveryId: u.deliveryId || u.delivery_id, newEta: u.eta || u.newETA })) }
               }));
             }
           }).catch(e => console.warn('⚠️ [Pull to Sync] Background ETA update failed:', e?.message));
@@ -308,7 +293,9 @@ export default function PullToSync({
   // Listen for silent sync trigger (e.g., after AppUser updates)
   useEffect(() => {
     const handleSilentSync = async () => {
-      return;
+      if (isSyncing || (window.__dashboardSyncing && window.__activePullToSyncRunId)) return;
+      console.log('🔇 [PullToSync] Silent sync triggered after AppUser update');
+      await performSync(true);
     };
 
     window.addEventListener('triggerSilentSync', handleSilentSync);
@@ -385,7 +372,7 @@ export default function PullToSync({
                   className="text-sm mt-1"
                   style={{ color: 'var(--text-slate-600)' }}
                 >
-                  Updating deliveries, patients, drivers & polylines
+                  Updating deliveries, patients & drivers
                 </p>
               </div>
             </div>

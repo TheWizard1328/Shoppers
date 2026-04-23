@@ -18,10 +18,7 @@ Deno.serve(async (req) => {
 
     const result = await base44.functions.invoke('purgeAndRegeneratePolylines', {
       driverId,
-      deliveryDate,
-      scope: 'completed_only',
-      reason: 'manual',
-      ignoreDriverStatus: true
+      deliveryDate
     });
 
     return Response.json(result?.data || result || { success: true });

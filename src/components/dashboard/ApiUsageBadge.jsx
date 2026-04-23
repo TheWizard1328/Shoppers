@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { motion } from "framer-motion";
 import { base44 } from "@/api/base44Client";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import ResetPolylinesButton from "@/components/dashboard/ResetPolylinesButton";
@@ -16,7 +15,7 @@ import {
 // Props:
 // - currentUser: object (used by parent to gate rendering)
 // - stopCardsHeight: number (px) to position the badge just above stop cards
-export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRoutes = true, showBreadcrumbs = false, showCompletedRouteControls = false, selectedDate = null, selectedDriverIds = [], selectedPolylineOption = 'polylines', onPolylineOptionChange, isImmersiveHidden = false }) {
+export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRoutes = true, showBreadcrumbs = false, showCompletedRouteControls = false, selectedDate = null, selectedDriverIds = [], selectedPolylineOption = 'polylines', onPolylineOptionChange }) {
   const [googleCount, setGoogleCount] = useState(null);
   const [hereCount, setHereCount] = useState(null);
   const [selectedApiKey, setSelectedApiKey] = useState('HERE_API_KEY');
@@ -84,7 +83,7 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
 
   return (
     <>
-      <motion.div className="absolute left-6 z-[100] pointer-events-auto" style={{ bottom: `${(stopCardsHeight || 0) + 10}px` }} initial={false} animate={{ opacity: isImmersiveHidden ? 0 : 1, y: isImmersiveHidden ? 120 : 0 }} transition={{ duration: 0.3 }}>
+      <div className="absolute left-6 z-[100] pointer-events-auto" style={{ bottom: `${(stopCardsHeight || 0) + 10}px` }}>
         <TooltipProvider delayDuration={200}>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -110,7 +109,7 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
-      </motion.div>
+      </div>
       {showCompletedRouteControls &&
       <div className="absolute top-4 right-4 z-[180] pointer-events-auto">
           <div className="px-2 py-2 rounded-xl border shadow-lg space-y-1" style={{ background: 'transparent', borderColor: 'var(--border-slate-200)' }}>

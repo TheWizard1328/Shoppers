@@ -2,7 +2,7 @@ import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Bike, Car, MapPin } from 'lucide-react';
+import { Bike, MapPin } from 'lucide-react';
 
 export default function ModeSelectionDialog({
   open,
@@ -16,24 +16,22 @@ export default function ModeSelectionDialog({
   onOptimize,
   isSubmitting = false,
 }) {
-  const ModeIcon = modeLabel === 'Cycling' ? Bike : Car;
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <ModeIcon className="w-4 h-4" />
+            <Bike className="w-4 h-4" />
             {modeLabel} route options
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950/30 p-3">
-            <div className="text-sm font-medium text-slate-900 dark:text-slate-100">Nearby stops within 5 km</div>
+          <div className="rounded-xl border border-slate-200 p-3">
+            <div className="text-sm font-medium text-slate-900">Nearby stops within 5 km</div>
             <div className="mt-3 space-y-2 max-h-72 overflow-y-auto pr-1">
               {nearbyStops.length === 0 && (
-                <div className="text-sm text-slate-500 dark:text-slate-400">No nearby stops found for this mode.</div>
+                <div className="text-sm text-slate-500">No nearby stops found for this mode.</div>
               )}
 
               {nearbyStops.map((stop) => {
@@ -41,14 +39,14 @@ export default function ModeSelectionDialog({
                 return (
                   <label
                     key={stop.id}
-                    className="flex items-start gap-3 rounded-lg border border-slate-200 dark:border-slate-700 p-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800"
+                    className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 cursor-pointer hover:bg-slate-50"
                   >
                     <Checkbox checked={checked} onCheckedChange={() => onToggleStop(stop.id)} />
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{stop.label}</div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400 truncate">{stop.subtitle}</div>
+                      <div className="text-sm font-medium text-slate-900 truncate">{stop.label}</div>
+                      <div className="text-xs text-slate-500 truncate">{stop.subtitle}</div>
                     </div>
-                    <div className="text-xs font-medium text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                    <div className="text-xs font-medium text-slate-600 whitespace-nowrap">
                       {stop.distanceKm.toFixed(1)} km
                     </div>
                   </label>
@@ -57,9 +55,9 @@ export default function ModeSelectionDialog({
             </div>
           </div>
 
-          <label className="flex items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-700 p-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">
+          <label className="flex items-center gap-3 rounded-xl border border-slate-200 p-3 cursor-pointer hover:bg-slate-50">
             <Checkbox checked={returnToCurrentLocation} onCheckedChange={onToggleReturn} />
-            <div className="flex items-center gap-2 text-sm font-medium text-slate-900 dark:text-slate-100">
+            <div className="flex items-center gap-2 text-sm font-medium text-slate-900">
               <MapPin className="w-4 h-4" />
               Return to current location
             </div>
@@ -68,7 +66,7 @@ export default function ModeSelectionDialog({
           <Button
             onClick={onOptimize}
             disabled={isSubmitting || selectedStopIds.length === 0}
-            className="w-full bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+            className="w-full"
           >
             {isSubmitting ? 'Optimizing...' : 'Optimize Route'}
           </Button>
