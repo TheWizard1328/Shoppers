@@ -5,7 +5,6 @@ import { toast } from "@/components/ui/use-toast";
 
 import { offlineDB } from "@/components/utils/offlineDatabase";
 import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
-import { normalizeTravelMode } from "@/components/dashboard/travelModeHelpers";
 import { recalculateAndUpdateStopOrders } from "@/components/utils/stopOrderManager";
 import { Loader2, RotateCcw } from "lucide-react";
 
@@ -58,44 +57,6 @@ export default function ResetPolylinesButton({
     return refreshedDeliveries;
   };
 
-  const syncDriverRoutePolylinesFromBackend = async (successfulDriverIds) => {
-    const polylineGroups = [];
-    for (const driverId of successfulDriverIds) {
-      try {
-        const results = await base44.entities.DriverRoutePolyline.filter(
-          { driver_id: driverId, delivery_date: selectedDate },
-          '-updated_date',
-          5000
-        );
-        polylineGroups.push(results || []);
-        await new Promise(resolve => setTimeout(resolve, 200));
-      } catch (err) {
-        console.warn(`Failed to sync polylines for driver ${driverId}:`, err);
-      }
-    }
-
-    const refreshedPolylines = polylineGroups.flat().filter(Boolean);
-    if (successfulDriverIds.length > 0) {
-      const existingRows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', selectedDate);
-      const rowsToDelete = (existingRows || []).filter((row) => successfulDriverIds.includes(row?.driver_id));
-      await Promise.all(rowsToDelete.map((row) => offlineDB.deleteRecord(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, row.id).catch(() => null)));
-    }
-    if (refreshedPolylines.length > 0) {
-      await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, refreshedPolylines);
-      await offlineDB.deduplicateDriverRoutePolylines(selectedDate);
-      window.dispatchEvent(new CustomEvent('driverRoutePolylinesUpdated', {
-        detail: { polylines: refreshedPolylines, triggeredBy: 'resetPolylines_sync' }
-      }));
-      refreshedPolylines.forEach((row) => {
-        const key = `here_${normalizeTravelMode(row.transport_mode || 'driving')}_${Number(row.segment_origin_lat).toFixed(5)}_${Number(row.segment_origin_lon).toFixed(5)}_${Number(row.segment_dest_lat).toFixed(5)}_${Number(row.segment_dest_lon).toFixed(5)}`;
-        window.dispatchEvent(new CustomEvent('polylineUpdated', {
-          detail: { key, driverId: row.driver_id, deliveryDate: row.delivery_date, triggeredBy: 'resetPolylines_sync' }
-        }));
-      });
-    }
-
-    return refreshedPolylines;
-  };
 
   const handleReset = async () => {
     if (isResetting || disabled || driverIds.length === 0 || !selectedDate) return;
@@ -115,7 +76,7 @@ export default function ResetPolylinesButton({
         await new Promise(resolve => setTimeout(resolve, 300));
       }
 
-      // 2. Clear cached polylines only when regenerating polylines
+      // 2. Clear local cached polylines before rebuilding completed-route legs
       if (selectedPolylineOption === 'polylines') {
         await clearPolylineCache();
         window.dispatchEvent(new CustomEvent("polylineCacheCleared", {
@@ -150,7 +111,7 @@ export default function ResetPolylinesButton({
             const response = await base44.functions.invoke('purgeAndRegeneratePolylines', {
               driverId,
               deliveryDate: selectedDate,
-              scope: 'all',
+              scope: 'completed_only',
               reason: 'manual',
               routeSource: selectedPolylineOption,
               ignoreDriverStatus: true
@@ -162,9 +123,6 @@ export default function ResetPolylinesButton({
           }
 
           await syncDriverDateDeliveriesFromBackend([driverId]);
-          if (selectedPolylineOption === 'polylines') {
-            await syncDriverRoutePolylinesFromBackend([driverId]);
-          }
 
           window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
             detail: { driverId, deliveryDate: selectedDate, triggeredBy: 'resetPolylines_chunk' }
