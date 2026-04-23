@@ -22,6 +22,11 @@ import { updateDelivery as updateDeliveryLocal } from './entityMutations';
 export const reorderStops = async (driverId, deliveryDate, allDeliveries, currentLocalTime = null, options = {}) => {
   console.log('🔄 [Reorder] Starting stop reordering for driver:', driverId, 'date:', deliveryDate);
   
+  const {
+    optimizeRemainingStops: shouldOptimizeOption = true,
+    etaOnly = false
+  } = options;
+  
   // Get current local time if not provided
   const localTime = currentLocalTime || (() => {
     const now = new Date();
@@ -39,7 +44,7 @@ export const reorderStops = async (driverId, deliveryDate, allDeliveries, curren
   
   if (driverDeliveries.length === 0) {
     console.log('⏭️ [Reorder] No deliveries found for this driver/date');
-    return [];
+    return { reorderedDeliveries: [], updates: [], stopOrderChanged: false, etaRefreshTriggered: false, fullOptimizationTriggered: false };
   }
   
   const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
@@ -90,23 +95,36 @@ export const reorderStops = async (driverId, deliveryDate, allDeliveries, curren
 
   console.log(`✅ [Reorder] Updated ${updates.length} stop orders`);
 
-  const shouldOptimizeRemainingStops = options.optimizeRemainingStops !== false &&
+  const stopOrderChanged = updates.length > 0;
+  const shouldOptimizeRemainingStops = shouldOptimizeOption &&
     driverId &&
     deliveryDate &&
     incompleteDeliveries.length > 0;
+
+  let etaRefreshTriggered = false;
+  let fullOptimizationTriggered = false;
 
   if (shouldOptimizeRemainingStops) {
     try {
       await base44.functions.invoke('optimizeRemainingStops', {
         driverId,
         deliveryDate,
-        currentLocalTime: localTime
+        currentLocalTime: localTime,
+        preserveExistingOrder: etaOnly
       });
-      console.log('✅ [Reorder] Remaining stops re-optimized with ETA refresh');
+      etaRefreshTriggered = true;
+      fullOptimizationTriggered = !etaOnly;
+      console.log(etaOnly ? '✅ [Reorder] Remaining stop ETAs refreshed without route optimization' : '✅ [Reorder] Remaining stops re-optimized with ETA refresh');
     } catch (error) {
       console.warn('⚠️ [Reorder] optimizeRemainingStops failed:', error?.message || error);
     }
   }
 
-  return reorderedDeliveries;
+  return {
+    reorderedDeliveries,
+    updates,
+    stopOrderChanged,
+    etaRefreshTriggered,
+    fullOptimizationTriggered
+  };
 };

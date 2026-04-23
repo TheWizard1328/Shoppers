@@ -116,8 +116,21 @@ export async function runDeliverySubmitSideEffects({
   if (delivery && formData.driver_id && formData.delivery_date && !isPickupMode && (driverChanged || dateChanged || timeWindowChanged || statusChangedToCompletion || actualDeliveryTimeChanged)) {
     try {
       setTimeout(() => {
-        reorderStops(formData.driver_id, formData.delivery_date, allDeliveries)
-          .then(() => console.log('✅ [DeliveryForm] Stop reordering complete (bg)'))
+        const isCompletionStatus = ['completed', 'failed', 'cancelled'].includes(formData.status);
+        const shouldRunEtaOnly = statusChangedToCompletion && isCompletionStatus && delivery.isNextDelivery === true;
+        const shouldRunFullOptimization = !shouldRunEtaOnly;
+
+        reorderStops(formData.driver_id, formData.delivery_date, allDeliveries, null, {
+          optimizeRemainingStops: shouldRunEtaOnly || shouldRunFullOptimization,
+          etaOnly: shouldRunEtaOnly
+        })
+          .then((result) => {
+            if (shouldRunEtaOnly) {
+              console.log('✅ [DeliveryForm] Next-stop completion processed with ETA-only refresh');
+              return;
+            }
+            console.log('✅ [DeliveryForm] Stop reordering complete (bg)', result);
+          })
           .catch((error) => console.error('❌ [DeliveryForm] Stop reordering failed (bg):', error));
       }, 0);
     } catch (error) {

@@ -145,7 +145,7 @@ Deno.serve(async (req) => {
     console.log('✅ [optimizeRemainingStops] User authenticated:', user.email);
 
     const body = await req.json();
-    const { driverId, deliveryDate, currentLocalTime, deviceTime } = body;
+    const { driverId, deliveryDate, currentLocalTime, deviceTime, preserveExistingOrder = false } = body;
     
     if (!driverId || !deliveryDate) {
       return Response.json({ 
@@ -303,11 +303,15 @@ Deno.serve(async (req) => {
       .map((delivery) => stops.find((item) => item.delivery.id === delivery.id) || null)
       .filter(Boolean);
 
-    const nextDeliveryStop = optimizationStops.find((stop) => stop.delivery.isNextDelivery === true) || null;
-    const lockedNextStop = nextDeliveryStop && !nextDeliveryStop.hasLateWindow ? nextDeliveryStop : null;
-    const stopsToSequence = lockedNextStop
-      ? optimizationStops.filter((stop) => stop.delivery.id !== lockedNextStop.delivery.id)
+    const orderedOptimizationStops = preserveExistingOrder
+      ? optimizationStops.slice().sort((a, b) => (Number(a.delivery?.stop_order) || 99999) - (Number(b.delivery?.stop_order) || 99999))
       : optimizationStops;
+
+    const nextDeliveryStop = orderedOptimizationStops.find((stop) => stop.delivery.isNextDelivery === true) || null;
+    const lockedNextStop = !preserveExistingOrder && nextDeliveryStop && !nextDeliveryStop.hasLateWindow ? nextDeliveryStop : null;
+    const stopsToSequence = lockedNextStop
+      ? orderedOptimizationStops.filter((stop) => stop.delivery.id !== lockedNextStop.delivery.id)
+      : orderedOptimizationStops;
 
     console.log(`\n🎯 [optimizeRemainingStops] Optimizing remaining route: ${optimizationStops.length} stops`);
 
@@ -349,7 +353,16 @@ Deno.serve(async (req) => {
       return { response, data, includeTimeWindows };
     };
 
-    if (stopsToSequence.length > 0) {
+    if (preserveExistingOrder) {
+      routeStops = [...orderedOptimizationStops];
+      let prevPos = currentPosition;
+      for (const stop of routeStops) {
+        const distKm = calculateCrowFliesDistance(prevPos.lat, prevPos.lng, stop.lat, stop.lng);
+        directionsLegs.push({ duration: Math.ceil((distKm / 40) * 60 * 60 * 1.3), distance: distKm * 1000 });
+        prevPos = { lat: stop.lat, lng: stop.lng };
+      }
+      console.log('✅ [optimizeRemainingStops] Preserving existing order and refreshing ETAs only');
+    } else if (stopsToSequence.length > 0) {
       let hereAttempt = await executeHereSequence(true);
       let result = Array.isArray(hereAttempt.data?.results) ? hereAttempt.data.results[0] : null;
       let waypoints = Array.isArray(result?.waypoints) ? result.waypoints : [];
@@ -434,8 +447,10 @@ Deno.serve(async (req) => {
       .sort((a, b) => (Number(a?.stop_order) || 99999) - (Number(b?.stop_order) || 99999))
       .map((delivery) => String(delivery.id));
     const optimizedActiveOrder = activeStops.map((stop) => String(stop.id));
-    const routeOrderChanged = originalActiveOrder.length !== optimizedActiveOrder.length
-      || originalActiveOrder.some((id, index) => id !== optimizedActiveOrder[index]);
+    const routeOrderChanged = preserveExistingOrder
+      ? false
+      : originalActiveOrder.length !== optimizedActiveOrder.length
+        || originalActiveOrder.some((id, index) => id !== optimizedActiveOrder[index]);
     const finalDeliveryWriteBatch = [];
     const finalizedById = new Map(activeStops.map((stop) => [stop.id, stop]));
 
@@ -469,7 +484,7 @@ Deno.serve(async (req) => {
 
     for (let i = 0; i < activeStops.length; i++) {
       const stop = activeStops[i];
-      const newOrder = startingOrder + i + 1;
+      const newOrder = preserveExistingOrder ? Number(stop.stop_order || i + 1) : startingOrder + i + 1;
       const pendingStartTime = resolvePendingStartTime(stop);
       const updateData = {
         stop_order: newOrder,
@@ -524,7 +539,8 @@ Deno.serve(async (req) => {
       stagesCount: 1,
       apiCallsMade: attemptedHereCalls,
       locationSource,
-      usedTimeWindows
+      usedTimeWindows,
+      preserveExistingOrder
     });
 
   } catch (error) {
