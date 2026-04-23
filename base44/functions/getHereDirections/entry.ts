@@ -151,7 +151,18 @@ const encodeSigned = (value) => {
   return encoded;
 };
 
+const filterDuplicateConsecutiveCoordinates = (points) => {
+  if (!Array.isArray(points)) return [];
+  return points.filter((point, index) => {
+    if (!Array.isArray(point) || point.length < 2) return false;
+    if (index === 0) return true;
+    const prev = points[index - 1];
+    return Array.isArray(prev) && (prev[0] !== point[0] || prev[1] !== point[1]);
+  });
+};
+
 const encodeGooglePolyline = (points) => {
+  const normalizedPoints = filterDuplicateConsecutiveCoordinates(points);
   let lastLat = 0;
   let lastLng = 0;
   let encoded = '';
