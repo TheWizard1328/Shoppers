@@ -117,10 +117,12 @@ async function flushPolylinePersists() {
     const uniquePayloads = Array.from(uniquePayloadsMap.values());
     
     if (uniquePayloads.length > 0) {
-      const created = await base44.entities.DriverRoutePolyline.bulkCreate(uniquePayloads);
-      if (Array.isArray(created) && created.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, created);
-      }
+      await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, uniquePayloads.map((item, index) => ({
+        ...item,
+        id: item.id || `offline_polyline_${Date.now()}_${index}`,
+        created_date: item.created_date || new Date().toISOString(),
+        updated_date: new Date().toISOString()
+      })));
     }
   } catch (err) {
     console.warn('[HERE][client] Bulk persist failed', err);
@@ -263,7 +265,9 @@ export const ensurePolylineSubscription = () => {
   if (polylineSubscribed) return;
   polylineSubscribed = true;
   try {
-    const unsubscribe = base44.entities.DriverRoutePolyline.subscribe(async (event) => {
+    const unsubscribe = (() => () => {})();
+    const event = null;
+    (async () => {
       try {
         if (event.type === 'delete') {
           let deletedRecord = null;
@@ -334,7 +338,7 @@ export const ensurePolylineSubscription = () => {
       } catch (e) {
         console.warn('[HERE][client] Realtime polyline offline sync failed', e);
       }
-    });
+    })();
     // Optional: store unsubscribe somewhere if needed
   } catch (e) {
     console.warn('[HERE][client] Failed to subscribe to DriverRoutePolyline realtime', e?.message || e);
