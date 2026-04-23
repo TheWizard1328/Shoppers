@@ -24,12 +24,21 @@ export default function ResetPolylinesButton({
 
   const clearPolylineCache = async () => {
     try {
-      Object.keys(localStorage).forEach((key) => {
-        if (key.startsWith("here_")) {
+      for (const driverId of driverIds) {
+        const rows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', selectedDate);
+        const matchingRows = (rows || []).filter((row) => row?.driver_id === driverId);
+
+        matchingRows.forEach((row) => {
+          const mode = row?.transport_mode || 'driving';
+          const key = `here_${mode}_${Number(row?.segment_origin_lat).toFixed(5)}_${Number(row?.segment_origin_lon).toFixed(5)}_${Number(row?.segment_dest_lat).toFixed(5)}_${Number(row?.segment_dest_lon).toFixed(5)}`;
           localStorage.removeItem(key);
-        }
-      });
-      await offlineDB.clearStore(offlineDB.STORES.DRIVER_ROUTE_POLYLINES);
+          localStorage.removeItem(`${key}:fail_until`);
+        });
+
+        await Promise.all(
+          matchingRows.map((row) => offlineDB.deleteRecord(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, row.id))
+        );
+      }
     } catch (_) {}
   };
 
