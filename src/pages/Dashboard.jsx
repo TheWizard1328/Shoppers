@@ -1174,6 +1174,7 @@ function Dashboard() {
   // Track when the last programmatic map move happened (to debounce interaction handler)
   const lastProgrammaticMapMoveRef = useRef(0);
   const isMapViewLockedRef = useRef(isMapViewLocked);
+  const [mapViewTrigger, setMapViewTrigger] = useState(0);
 
   // Track previous values for detecting changes that should trigger map repositioning
   const prevSelectedDriverIdRef = useRef(selectedDriverId);
@@ -1665,9 +1666,6 @@ function Dashboard() {
 
   // Track if the current map positioning was triggered by FAB (not by data refresh)
   const mapPositioningTriggerRef = useRef(null);
-
-  // Track a counter to force useEffect to re-run when FAB is clicked
-  const [mapViewTrigger, setMapViewTrigger] = useState(0);
 
   // Track the last trigger value to prevent re-running on every state change
   const lastAppliedTriggerRef = useRef(0);
