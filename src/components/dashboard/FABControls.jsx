@@ -129,7 +129,7 @@ export default function FABControls({
             disabled={isReoptimizing || isDateFinished || !filteredDeliveries.some(d => d && d.status === 'in_transit')}
             title="Re-optimize entire route using Google Maps"
             className={`inline-flex items-center justify-center h-10 w-10 rounded-lg shadow-2xl p-0 transition-all duration-200 ${isReoptimizing ? 'bg-amber-500 hover:bg-amber-600' : 'bg-emerald-600 hover:bg-emerald-700'}`}
-            style={{ pointerEvents: 'auto', touchAction: 'manipulation', opacity: isPrimaryDriverDeviceInMotion ? 0.45 : 1 }}>
+            style={{ pointerEvents: immersiveHidden ? 'none' : 'auto', touchAction: 'manipulation', opacity: immersiveHidden ? 0 : (isPrimaryDriverDeviceInMotion ? 0.45 : 1) }}>
             {isReoptimizing ? <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full" /> : <Navigation className="w-5 h-5 text-white" />}
           </Button>
         </motion.div>

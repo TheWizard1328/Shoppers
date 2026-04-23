@@ -269,14 +269,6 @@ export default function DashboardView({
       </div>
 
       {(isDriver || isDispatcher) &&
-        <div
-          className="transition-transform duration-500 ease-in-out"
-          style={{
-            transform: immersiveHidden ? 'translateY(calc(100% + 1rem))' : 'translateY(0)',
-            opacity: immersiveHidden ? 0 : 1,
-            pointerEvents: immersiveHidden ? 'none' : 'auto'
-          }}
-        >
         <FABControls
           currentUser={currentUser} isDriver={isDriver} isDispatcher={isDispatcher}
           patients={patients} stores={stores} deliveriesWithStopOrder={deliveriesWithStopOrder} filteredDeliveries={filteredDeliveries}
@@ -294,7 +286,6 @@ export default function DashboardView({
           immersiveHidden={immersiveHidden}
           topOverlayHeight={immersiveHidden ? 0 : statsCardBaseHeight}
         />
-        </div>
       }
 
       <DashboardDialogs
