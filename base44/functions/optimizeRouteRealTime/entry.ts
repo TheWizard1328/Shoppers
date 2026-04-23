@@ -2,6 +2,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 const TIME_ZONE = 'America/Edmonton';
+const PRIMARY_DEVICE_KEY = 'rxdeliver_device_identifier';
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
 const ACTIVE_ROUTE_STATUSES = ['in_transit', 'en_route'];
 
@@ -190,20 +191,34 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const { driverId, selectedDriverId, deliveryDate, startLocation, currentLocalTime, deviceTime } = body;
     const targetDriverId = selectedDriverId || driverId;
+    const routeChangeSource = String(body?.routeChangeSource || body?.source || 'refresh').toLowerCase();
+    const requestDeviceIdentifier = String(body?.deviceIdentifier || body?.primaryDeviceIdentifier || '').trim();
 
     if (!targetDriverId || !deliveryDate) {
       return Response.json({ error: 'Missing required parameters: driverId, deliveryDate' }, { status: 400 });
     }
 
 
-    const [driverAppUsers, callerAppUsers, driverUsers] = await Promise.all([
+    const [driverAppUsers, callerAppUsers, driverUsers, targetDriverDevices] = await Promise.all([
       base44.asServiceRole.entities.AppUser.filter({ user_id: targetDriverId }),
       base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }, '-updated_date', 1),
-      base44.asServiceRole.entities.User.filter({ id: targetDriverId }, '-updated_date', 1)
+      base44.asServiceRole.entities.User.filter({ id: targetDriverId }, '-updated_date', 1),
+      base44.asServiceRole.entities.UserDevice.filter({ user_id: targetDriverId, status: 'active' }, '-updated_date', 100)
     ]);
     const driverAppUser = driverAppUsers?.[0];
     const callerAppUser = callerAppUsers?.[0];
     const driverUser = driverUsers?.[0];
+    const actorRoles = Array.isArray(callerAppUser?.app_roles) ? callerAppUser.app_roles : [];
+    const actorIsDispatcher = actorRoles.includes('dispatcher');
+    const actorIsAdmin = actorRoles.includes('admin');
+    const actorIsDriver = actorRoles.includes('driver');
+    const actorIsSameDriver = user.id === targetDriverId && actorIsDriver;
+    const isAssignAllFlow = routeChangeSource === 'assign_all' || routeChangeSource === 'assign_accept_all' || routeChangeSource === 'accept_all';
+    const primaryDevice = (targetDriverDevices || []).find((device) => device?.is_primary_tracker === true) || null;
+    const primaryDeviceIdentifier = String(primaryDevice?.device_identifier || '').trim();
+    const primaryDeviceType = String(primaryDevice?.device_info?.device_type || '').trim();
+    const requestMatchesPrimaryDevice = !!requestDeviceIdentifier && !!primaryDeviceIdentifier && requestDeviceIdentifier === primaryDeviceIdentifier;
+    const isPrimaryMobileDriverRequest = actorIsSameDriver && requestMatchesPrimaryDevice && primaryDeviceType === 'Mobile';
 
     if (!driverAppUser || driverAppUser.driver_status === 'off_duty' || driverAppUser.driver_status === 'on_break') {
       return Response.json({
@@ -215,6 +230,39 @@ Deno.serve(async (req) => {
         totalStops: 0,
         apiCallsMade: 0,
         driverId: targetDriverId
+      });
+    }
+
+    if (actorIsDispatcher && !isAssignAllFlow) {
+      return Response.json({
+        success: true,
+        skipped: true,
+        reason: 'dispatcher_requires_assign_all',
+        routeChanged: false,
+        optimizedRoute: [],
+        totalStops: 0,
+        apiCallsMade: 0,
+        driverId: targetDriverId
+      });
+    }
+
+    if (!actorIsDispatcher && !isAssignAllFlow && !isPrimaryMobileDriverRequest && !actorIsAdmin) {
+      return Response.json({
+        success: true,
+        skipped: true,
+        reason: 'primary_mobile_driver_only',
+        routeChanged: false,
+        optimizedRoute: [],
+        totalStops: 0,
+        apiCallsMade: 0,
+        driverId: targetDriverId,
+        details: {
+          actorIsSameDriver,
+          hasPrimaryDevice: !!primaryDeviceIdentifier,
+          requestMatchesPrimaryDevice,
+          primaryDeviceType: primaryDeviceType || null,
+          routeChangeSource
+        }
       });
     }
     const resolvedHomeLat = driverAppUser?.home_latitude ?? driverUser?.home_latitude ?? null;
@@ -538,7 +586,11 @@ Deno.serve(async (req) => {
           active_statuses_only: true,
           locked_next_delivery: !!nextDeliveryStop,
           distance_meters: Math.round(Number(sequencingData?.estimated_distance_km || 0) * 1000),
-          duration_seconds: Math.round(Number(sequencingData?.estimated_duration_minutes || 0) * 60)
+          duration_seconds: Math.round(Number(sequencingData?.estimated_duration_minutes || 0) * 60),
+          route_change_source: routeChangeSource,
+          requester_device_identifier: requestDeviceIdentifier || null,
+          primary_device_identifier: primaryDeviceIdentifier || null,
+          primary_device_type: primaryDeviceType || null
         }
       });
     } catch (_logError) {}
