@@ -514,15 +514,13 @@ Deno.serve(async (req) => {
 
     const interconnectionByToWaypoint = new Map(interconnections.map((item) => [item.toWaypoint, item]));
 
-    const routedSections = preserveWaypointOrder
-      ? []
-      : await buildRoutingSections({
-          hereApiKey,
-          orderedStops,
-          originLat,
-          originLng,
-          normalizedTransportMode
-        });
+    const routedSections = await buildRoutingSections({
+      hereApiKey,
+      orderedStops,
+      originLat,
+      originLng,
+      normalizedTransportMode
+    });
 
     const orderedPoints = [{ lat: originLat, lng: originLng }, ...orderedStops.map((stop) => ({ lat: stop.lat, lng: stop.lng }))];
     const normalizedSections = orderedStops.map((stop, index) => {
