@@ -13,6 +13,7 @@ export default function StopCardsSection({
   mapLockTimeoutRef, mapLockExpiresAtRef,
   stopCardsContainerRef, horizontalStopCardsRef, retractClustersRef,
   selectedCardId, handleCardClick,
+  immersiveHidden,
   handleEditDelivery, handleEditPatient, handleDeleteDelivery,
   handleRestartDelivery, handleStatusUpdate, handleNotesUpdate,
   handleCODUpdate, handleCreateReturn, handleStartDelivery,
@@ -40,7 +41,7 @@ export default function StopCardsSection({
   return (
     <div
       ref={stopCardsContainerRef}
-      className={`horizontal-cards-container absolute left-0 right-0 ${isMobile ? 'z-[240]' : 'z-[150]'} px-4 pb-1 pointer-events-none flex flex-col justify-end`}
+      className={`horizontal-cards-container absolute left-0 right-0 ${isMobile ? 'z-[240]' : 'z-[150]'} px-4 pb-1 pointer-events-none flex flex-col justify-end transition-transform duration-500 ease-in-out`}
       style={{
         position: 'absolute',
         isolation: 'isolate',
@@ -48,7 +49,10 @@ export default function StopCardsSection({
         top: 'auto',
         bottom: 'calc(var(--bottom-nav-height, 0px) + 0.25rem)',
         height: mobileStopCardsHeight,
-        minHeight: isMobile ? mobileStopCardsHeight : undefined
+        minHeight: isMobile ? mobileStopCardsHeight : undefined,
+        transform: immersiveHidden ? 'translateY(calc(100% + 1rem))' : 'translateY(0)',
+        opacity: immersiveHidden ? 0 : 1,
+        pointerEvents: immersiveHidden ? 'none' : 'auto'
       }}
       onClick={() => { if (retractClustersRef.current) retractClustersRef.current(); }}>
 

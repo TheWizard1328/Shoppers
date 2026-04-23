@@ -23,6 +23,7 @@ export default function MapSection({
   polylineResetKey,
   realTimeETAEnabled, showDeliveryForm, showPatientForm, showOptimizationSettings,
   preferredTravelMode, onTravelModeChange,
+  immersiveHidden, isDriverMoving, immersiveOverrideActive, onImmersiveMapTap,
   topOverlayHeight = 0,
 }) {
   const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
@@ -94,8 +95,11 @@ export default function MapSection({
           areCardsVisible={areCardsVisible}
           onLegendInteraction={handleCardInteraction}
           onDriverRoutesCalculated={setDriverRoutes}
-          onMapInteraction={() => {}}
+          onMapInteraction={() => {
+            onImmersiveMapTap?.();
+          }}
           onDoubleTap={() => {
+            onImmersiveMapTap?.();
             fabControlEvents.reactivateFAB(false, { forceWhileUserInteracting: true, reason: 'map_double_tap' });
             const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
             if (nextCard?.id) {

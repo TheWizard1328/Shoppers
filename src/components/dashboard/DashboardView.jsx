@@ -66,6 +66,8 @@ export default function DashboardView({
   preferredTravelMode, onTravelModeChange,
   // Live ETA
   realTimeETAEnabled,
+  // Immersive mode
+  immersiveHidden, isDriverMoving, immersiveOverrideActive, onImmersiveMapTap,
   // Misc
   refreshUser, refreshData, dataSource,
 }) {
@@ -174,6 +176,14 @@ export default function DashboardView({
       }
 
       <div className="flex-1 w-full relative min-h-0 overflow-hidden">
+        <div
+          className="transition-transform duration-500 ease-in-out"
+          style={{
+            transform: immersiveHidden ? 'translateY(calc(-100% - 1rem))' : 'translateY(0)',
+            opacity: immersiveHidden ? 0 : 1,
+            pointerEvents: immersiveHidden ? 'none' : 'auto'
+          }}
+        >
         <DashboardStatsPanel
           currentUser={currentUser} isDriver={isDriver} isAdmin={isAdmin} isDispatcher={isDispatcher}
           deliveries={deliveries} filteredDeliveries={filteredDeliveries} drivers={drivers} stores={stores} appUsers={appUsers} driversList={driversList}
@@ -202,6 +212,7 @@ export default function DashboardView({
           refreshUser={refreshUser} dataSource={dataSource}
           isMobile={isMobile}
         />
+        </div>
         <DashboardMapSection
           currentUser={currentUser} isDriver={isDriver} isDispatcher={isDispatcher} isMobile={isMobile}
           deliveries={deliveries} patients={patients} stores={stores} drivers={drivers} appUsers={appUsers}
@@ -221,6 +232,10 @@ export default function DashboardView({
           dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded}
           realTimeETAEnabled={realTimeETAEnabled}
           showDeliveryForm={showDeliveryForm} showPatientForm={showPatientForm} showOptimizationSettings={showOptimizationSettings}
+          immersiveHidden={immersiveHidden}
+          isDriverMoving={isDriverMoving}
+          immersiveOverrideActive={immersiveOverrideActive}
+          onImmersiveMapTap={onImmersiveMapTap}
         />
 
         <StopCardsSection
@@ -232,6 +247,7 @@ export default function DashboardView({
           mapLockTimeoutRef={mapLockTimeoutRef} mapLockExpiresAtRef={mapLockExpiresAtRef}
           stopCardsContainerRef={stopCardsContainerRef} horizontalStopCardsRef={horizontalStopCardsRef} retractClustersRef={retractClustersRef}
           selectedCardId={selectedCardId} handleCardClick={handleCardClick}
+          immersiveHidden={immersiveHidden}
           handleEditDelivery={handleEditDelivery} handleEditPatient={handleEditPatient} handleDeleteDelivery={handleDeleteDelivery}
           handleRestartDelivery={handleRestartDelivery} handleStatusUpdate={handleStatusUpdate} handleNotesUpdate={handleNotesUpdate}
           handleCODUpdate={handleCODUpdate} handleCreateReturn={handleCreateReturn} handleStartDelivery={handleStartDelivery}
