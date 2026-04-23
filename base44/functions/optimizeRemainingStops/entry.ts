@@ -297,6 +297,7 @@ Deno.serve(async (req) => {
     }
 
     console.log(`📍 [optimizeRemainingStops] Starting from: ${locationSource} (${currentPosition.lat}, ${currentPosition.lng})`);
+    console.log(`🏁 [optimizeRemainingStops] Home remains locked as final destination${driverAppUser.home_latitude != null && driverAppUser.home_longitude != null ? '' : ' (not set)'}`);
 
     // STEP 3: Let HERE sequence the full incomplete route in one call
     const optimizationStops = [...activeRouteDeliveries, ...pendingRouteDeliveries]
@@ -308,7 +309,7 @@ Deno.serve(async (req) => {
       : optimizationStops;
 
     const nextDeliveryStop = orderedOptimizationStops.find((stop) => stop.delivery.isNextDelivery === true) || null;
-    const lockedNextStop = !preserveExistingOrder && nextDeliveryStop && !nextDeliveryStop.hasLateWindow ? nextDeliveryStop : null;
+    const lockedNextStop = !preserveExistingOrder && nextDeliveryStop ? nextDeliveryStop : null;
     const stopsToSequence = lockedNextStop
       ? orderedOptimizationStops.filter((stop) => stop.delivery.id !== lockedNextStop.delivery.id)
       : orderedOptimizationStops;
@@ -395,7 +396,7 @@ Deno.serve(async (req) => {
         routeStops = [...routeStops, ...orderedStops.map((item) => item.stop)];
         const interconnectionByToWaypoint = new Map(interconnections.map((item) => [item.toWaypoint, item]));
         directionsLegs = routeStops.map((stop, index) => {
-          if (lockedNextStop && index === 0) {
+          if (index === 0) {
             const distKm = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, stop.lat, stop.lng);
             return { duration: Math.ceil((distKm / 40) * 60 * 60 * 1.3), distance: distKm * 1000 };
           }
