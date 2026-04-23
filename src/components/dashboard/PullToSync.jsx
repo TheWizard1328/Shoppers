@@ -246,6 +246,7 @@ export default function PullToSync({
       // ─── STEP 4 (background): Polylines + ETAs for active stops only ────────
       // Runs entirely in background — does NOT block UI
       const targetDriverId = currentDriverId && currentDriverId !== 'all' ? currentDriverId : null;
+      const isPrimaryDevice = window.__isPrimaryTrackingDevice === true;
       if (targetDriverId) {
         Promise.resolve().then(async () => {
           const incompleteDeliveries = (offlineDeliveries || []).filter(d => 
@@ -257,8 +258,8 @@ export default function PullToSync({
           const now = new Date();
           const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-          // Polyline repair only on explicit manual pull-to-sync, never on silent smart refresh cycles
-          if (!silent) {
+          // Polyline repair only on explicit manual pull-to-sync from the primary device
+          if (!silent && isPrimaryDevice) {
             Promise.resolve(base44.functions.invoke('repairMissingPolylines', { driverId: targetDriverId, deliveryDate: selectedDateStr, reason: 'manual' }))
               .catch(e => console.warn('⚠️ [Pull to Sync] Background polyline repair failed:', e?.message || e));
           }

@@ -237,10 +237,9 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
       detail: { silent: true, requestedAt: Date.now() }
     }));
 
-    // Also trigger offline polyline reload + repair immediately
+    // Also trigger offline polyline reload, and only repair from the primary device
     try {
       const { offlineDB } = await import('../utils/offlineDatabase');
-      const { repairMissingPolylines } = await import('@/functions/repairMissingPolylines');
       const now = new Date();
       const fallbackDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
       const selectedDate = window.__selectedDashboardDate || fallbackDate;
@@ -259,7 +258,8 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
           source: 'manualRefreshSpinner'
         }
       }));
-      if (selectedDriverId && selectedDriverId !== 'all' && /^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) {
+      if (window.__isPrimaryTrackingDevice === true && selectedDriverId && selectedDriverId !== 'all' && /^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) {
+        const { repairMissingPolylines } = await import('@/functions/repairMissingPolylines');
         repairMissingPolylines({ driverId: selectedDriverId, deliveryDate: selectedDate }).catch(() => null);
       }
     } catch(_) {}
