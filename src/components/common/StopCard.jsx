@@ -548,7 +548,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                         <Phone className="w-6 h-6" />
                       </a>
                     )}
-                    {isNextDelivery && finalDisplayAddress && (
+                    {isNextDelivery && Number.isFinite(stopLat) && Number.isFinite(stopLon) && (
                       isWithinActiveStopRange ? (
                         <button
                           type="button"
@@ -559,7 +559,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                         </button>
                       ) : (
                         <a
-                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(finalDisplayAddress)}`}
+                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${stopLat},${stopLon}`)}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
