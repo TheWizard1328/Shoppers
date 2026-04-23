@@ -217,7 +217,23 @@ async function getOfflineSegmentPolyline(fromStop, toStop, deliveryDate = null, 
 
   const record = await findLatestExactOfflineSegment(rows, fromStop, toStop, driverId, deliveryDate, transportMode);
   if (!record?.encoded_polyline) return null;
+  if (!(Number(record?.estimated_distance_km || 0) > 0 || Number(record?.estimated_duration_minutes || 0) > 0)) return null;
 
+  const coords = decodeGooglePolyline(record.encoded_polyline);
+  if (Array.isArray(coords) && coords.length > 1) return coords;
+
+  const flexibleCoords = decodeHereFlexiblePolyline(record.encoded_polyline);
+  return Array.isArray(flexibleCoords) && flexibleCoords.length > 1 ? flexibleCoords : null;
+}
+
+async function getOnlineSegmentPolyline(fromStop, toStop, deliveryDate = null, driverId = null, transportMode = 'driving') {
+  if (!driverId || !deliveryDate) return null;
+  const rows = await base44.entities.DriverRoutePolyline.filter({ driver_id: driverId, delivery_date: deliveryDate }, '-updated_date', 50000);
+  const record = findLatestExactOfflineSegment(rows, fromStop, toStop, driverId, deliveryDate, transportMode);
+  if (!record?.encoded_polyline) return null;
+  if (!(Number(record?.estimated_distance_km || 0) > 0 || Number(record?.estimated_duration_minutes || 0) > 0)) return null;
+
+  await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [record]);
   const coords = decodeGooglePolyline(record.encoded_polyline);
   if (Array.isArray(coords) && coords.length > 1) return coords;
 
@@ -494,7 +510,6 @@ async function canGenerateForDriver(driverId) {
     }
     if (!__meCache.id) return false;
 
-    // Allow admins/dispatchers to generate polylines (useful from Dashboard)
     if (!__myRolesCache.roles || (now - __myRolesCache.ts) > 30000) {
       try {
         const mine = await base44.entities.AppUser.filter({ user_id: __meCache.id }, '-updated_date', 1);
@@ -504,8 +519,6 @@ async function canGenerateForDriver(driverId) {
       }
       __myRolesCache.ts = now;
     }
-    const isAdminDispatcher = (__myRolesCache.roles || []).some((r) => r === 'admin' || r === 'dispatcher');
-    if (isAdminDispatcher) return true;
 
     // Driver self-generation: driverId may be AppUser.id → map to user_id
     let allowedByDriver = false;
@@ -520,8 +533,16 @@ async function canGenerateForDriver(driverId) {
     }
     if (!allowedByDriver) return false;
 
-    // Primary device check removed; any authenticated owner (driver/admin/dispatcher) may generate
-    return true;
+    const currentDeviceId = localStorage.getItem('rxdeliver_device_identifier');
+    if (!currentDeviceId) return false;
+
+    try {
+      const devices = await base44.entities.UserDevice.filter({ user_id: __meCache.id, device_identifier: currentDeviceId });
+      const currentDevice = Array.isArray(devices) ? devices[0] : null;
+      return currentDevice?.is_primary_tracker === true;
+    } catch (_) {
+      return false;
+    }
   } catch (_) {
     return false;
   }
@@ -586,16 +607,23 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate, 
 
   // in-flight dedupe handled earlier above (no-op here)
 
-  // Try offline DB cache first; only use HERE for missing segments.
+  // Try offline DB first, then online DriverRoutePolyline, and only then consider HERE.
   try {
-    const coords = await getOfflineSegmentPolyline(fromStop, toStop, deliveryDate, driverId, transportMode);
-    if (coords) {
-      memoryCache.set(cacheKey, coords);
+    const offlineCoords = await getOfflineSegmentPolyline(fromStop, toStop, deliveryDate, driverId, transportMode);
+    if (offlineCoords) {
+      memoryCache.set(cacheKey, offlineCoords);
       fetchingKeys.delete(cacheKey);
-      return coords;
+      return offlineCoords;
+    }
+
+    const onlineCoords = await getOnlineSegmentPolyline(fromStop, toStop, deliveryDate, driverId, transportMode);
+    if (onlineCoords) {
+      memoryCache.set(cacheKey, onlineCoords);
+      fetchingKeys.delete(cacheKey);
+      return onlineCoords;
     }
   } catch (e) {
-    console.warn('[HERE][client] Offline polyline lookup failed', e);
+    console.warn('[HERE][client] Offline/online polyline lookup failed', e);
   }
 
   // If we previously stored a hard error flag for this key, short-circuit for a bit to avoid hammering APIs
@@ -638,7 +666,7 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate, 
 
       ensurePolylineSubscription();
 
-      if (driverId && deliveryDate && await canGenerateForDriver(driverId)) {
+      if (driverId && deliveryDate) {
         try {
           await persistGeneratedPolyline(driverId, deliveryDate, fromStop, toStop, coords, {
             estimated_distance_km: res?.data?.estimated_distance_km ?? null,
