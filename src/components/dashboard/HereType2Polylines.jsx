@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { Polyline } from "react-leaflet";
 import { base44 } from "@/api/base44Client";
-import { getHerePolyline } from "../utils/hereRouting";
+import { getHerePolyline, syncDriverRoutePolylinesForDate } from "../utils/hereRouting";
 import { generateDriverColor } from "../utils/colorGenerator";
 import { getTravelModeLineStyle, normalizeTravelMode } from "./travelModeHelpers";
 
@@ -289,25 +289,30 @@ export default function HereType2Polylines({
 
             const sections = response?.data?.sections || [];
             if (sections.length > 0) {
-              setCache((prev) => {
-                const next = { ...prev };
-                for (let i = 0; i < stops.length - 1; i++) {
+              const deliveryDate = stops[0]?.delivery_date;
+
+              await Promise.all(
+                sections.slice(0, stops.length - 1).map((section, i) => {
+                  if (!section?.encoded_polyline) return Promise.resolve();
                   const a = stops[i];
                   const b = stops[i + 1];
-                  const key = `here_${getDriverMode(driverId)}_${Number(a.latitude).toFixed(5)}_${Number(a.longitude).toFixed(5)}_${Number(b.latitude).toFixed(5)}_${Number(b.longitude).toFixed(5)}`;
-                  const encoded = sections[i]?.encoded_polyline;
-                  if (encoded) {
-                    try {
-                      const coords = decodePolyline(encoded);
-                      if (Array.isArray(coords) && coords.length > 1) {
-                        next[key] = coords;
-                        localStorage.setItem(key, JSON.stringify(coords));
-                      }
-                    } catch (_) {}
-                  }
-                }
-                return next;
-              });
+                  return base44.entities.DriverRoutePolyline.create({
+                    driver_id: driverId,
+                    delivery_date: deliveryDate,
+                    encoded_polyline: section.encoded_polyline,
+                    transport_mode: getDriverMode(driverId),
+                    segment_origin_lat: Number(Number(a.latitude).toFixed(5)),
+                    segment_origin_lon: Number(Number(a.longitude).toFixed(5)),
+                    segment_dest_lat: Number(Number(b.latitude).toFixed(5)),
+                    segment_dest_lon: Number(Number(b.longitude).toFixed(5)),
+                    estimated_distance_km: section.estimated_distance_km ?? null,
+                    estimated_duration_minutes: section.estimated_duration_minutes ?? null,
+                    last_generated_at: new Date().toISOString()
+                  });
+                })
+              );
+
+              await syncDriverRoutePolylinesForDate(driverId, deliveryDate, true);
               return;
             }
           } catch (_) {}
