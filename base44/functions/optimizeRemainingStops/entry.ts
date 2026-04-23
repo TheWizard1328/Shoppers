@@ -47,6 +47,13 @@ const calculateCrowFliesDistance = (lat1, lng1, lat2, lng2) => {
   return R * c; // Distance in kilometers
 };
 
+const addRouteToHomePenalty = (routeStops, homePosition) => {
+  if (!homePosition || !routeStops.length) return 0;
+  const lastStop = routeStops[routeStops.length - 1];
+  if (!lastStop) return 0;
+  return calculateCrowFliesDistance(lastStop.lat, lastStop.lng, homePosition.lat, homePosition.lng);
+};
+
 /**
  * Parse time string (HH:mm) to minutes since midnight
  */
@@ -379,7 +386,13 @@ Deno.serve(async (req) => {
 
       if (!hereAttempt.response.ok || !result || waypoints.length === 0) {
         console.log('⚠️ [optimizeRemainingStops] HERE sequencing failed - using crow-flies fallback');
-        routeStops = [...routeStops, ...stopsToSequence];
+        routeStops = [...routeStops, ...stopsToSequence].sort((a, b) => {
+          const distA = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, a.lat, a.lng);
+          const distB = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, b.lat, b.lng);
+          const homePenaltyA = resolvedHomePosition ? calculateCrowFliesDistance(a.lat, a.lng, resolvedHomePosition.lat, resolvedHomePosition.lng) : 0;
+          const homePenaltyB = resolvedHomePosition ? calculateCrowFliesDistance(b.lat, b.lng, resolvedHomePosition.lat, resolvedHomePosition.lng) : 0;
+          return (distA - homePenaltyA * 0.15) - (distB - homePenaltyB * 0.15);
+        });
         let prevPos = currentPosition;
         for (const stop of routeStops) {
           const distKm = calculateCrowFliesDistance(prevPos.lat, prevPos.lng, stop.lat, stop.lng);
@@ -452,6 +465,8 @@ Deno.serve(async (req) => {
       ? false
       : originalActiveOrder.length !== optimizedActiveOrder.length
         || originalActiveOrder.some((id, index) => id !== optimizedActiveOrder[index]);
+
+    console.log('🏠 [optimizeRemainingStops] Final-route distance to home penalty applied:', addRouteToHomePenalty(routeStops, resolvedHomePosition).toFixed(2), 'km');
     const finalDeliveryWriteBatch = [];
     const finalizedById = new Map(activeStops.map((stop) => [stop.id, stop]));
 
