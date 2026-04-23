@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
-import { base44 } from "@/api/base44Client";
 import { Polyline } from "react-leaflet";
 import { getHerePolyline, ensurePolylineSubscription } from "../utils/hereRouting";
 import useDriverRoutePolylineBackgroundSync from "../utils/useDriverRoutePolylineBackgroundSync";
@@ -213,42 +212,7 @@ export default function HereType1Polylines({
     return false;
   };
 
-  const hydrateFromOnline = async (key, driverId, from, to, date) => {
-    try {
-      const fLat = round5(from.latitude), fLon = round5(from.longitude);
-      const tLat = round5(to.latitude), tLon = round5(to.longitude);
-      const rows = await base44.entities.DriverRoutePolyline.filter({
-        driver_id: driverId,
-        delivery_date: date,
-        segment_origin_lat: fLat,
-        segment_origin_lon: fLon,
-        segment_dest_lat: tLat,
-        segment_dest_lon: tLon
-      }, '-updated_date', 10);
-      const match = (rows || []).find((r) =>
-        normalizeTravelMode(r.transport_mode) === normalizeTravelMode(getDriverMode(driverId)) &&
-        r.encoded_polyline
-      );
-      if (!match) {
-        console.log(`[Type1] No matching polyline found in online DB for segment ${from.latitude},${from.longitude} -> ${to.latitude},${to.longitude}`);
-        return false;
-      }
-      const coords = decodePolyline(match.encoded_polyline);
-      if (!Array.isArray(coords) || coords.length <= 1) return false;
-      const { offlineDB } = await import('../utils/offlineDatabase');
-      await offlineDB.save(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, match).catch(() => {});
-      setCache((p) => ({ ...p, [key]: coords }));
-      try { localStorage.setItem(key, JSON.stringify(coords)); } catch (_) {}
-      window.dispatchEvent(new CustomEvent('driverRoutePolylinesUpdated', {
-        detail: { polylines: [match], source: 'onlineHydration' }
-      }));
-      console.log(`[Type1] Restored matching polyline from online DB for segment ${from.latitude},${from.longitude} -> ${to.latitude},${to.longitude}`);
-      return true;
-    } catch (err) {
-      console.error(`[Type1] Error hydrating from online DB:`, err);
-      return false;
-    }
-  };
+  const hydrateFromOnline = async () => false;
   const [optimizing, setOptimizing] = useState(false);
   const [lastNonEmptyLines, setLastNonEmptyLines] = useState([]);
   useEffect(() => {

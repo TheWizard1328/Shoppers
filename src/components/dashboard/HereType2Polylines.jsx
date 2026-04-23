@@ -102,7 +102,9 @@ export default function HereType2Polylines({
       }
     } catch (_) {}
     return false;
-    };
+  };
+
+  const hydrateFromOnline = async () => false;
 
     const getType2PolylineColor = (driverId) => {
       const driverColor = generateDriverColor(String(driverId || 'driver'));
