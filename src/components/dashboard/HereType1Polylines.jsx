@@ -682,6 +682,7 @@ export default function HereType1Polylines({
           setRefreshToken((token) => token + 1);
           return;
         }
+        if (window.__isPrimaryTrackingDevice !== true) return;
         const lastReq = requestTimesRef.current[key] || 0;
         const now = Date.now();
         if (now - lastReq > 4000) {

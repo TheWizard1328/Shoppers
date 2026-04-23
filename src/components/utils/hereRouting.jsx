@@ -484,48 +484,9 @@ export function encodeGooglePolyline(points) {
 }
 
 // Primary device gate for HERE polyline generation
-// DEPRECATED: primary-device restriction removed
-let __meCache = { id: null, ts: 0 };
-let __myRolesCache = { roles: null, ts: 0 };
-async function canGenerateForDriver(driverId) {
+async function canGenerateForDriver() {
   try {
-    const now = Date.now();
-    // Cache current user
-    if (!__meCache.id || (now - __meCache.ts) > 30000) {
-      const me = await base44.auth.me();
-      __meCache.id = me?.id || null;
-      __meCache.ts = now;
-    }
-    if (!__meCache.id) return false;
-
-    // Allow admins/dispatchers to generate polylines (useful from Dashboard)
-    if (!__myRolesCache.roles || (now - __myRolesCache.ts) > 30000) {
-      try {
-        const mine = await base44.entities.AppUser.filter({ user_id: __meCache.id }, '-updated_date', 1);
-        __myRolesCache.roles = (Array.isArray(mine) && mine[0]?.app_roles) || [];
-      } catch (_) {
-        __myRolesCache.roles = [];
-      }
-      __myRolesCache.ts = now;
-    }
-    const isAdminDispatcher = (__myRolesCache.roles || []).some((r) => r === 'admin' || r === 'dispatcher');
-    if (isAdminDispatcher) return true;
-
-    // Driver self-generation: driverId may be AppUser.id → map to user_id
-    let allowedByDriver = false;
-    if (driverId && driverId === __meCache.id) {
-      allowedByDriver = true;
-    } else if (driverId) {
-      try {
-        const recs = await base44.entities.AppUser.filter({ id: driverId }, '-updated_date', 1);
-        const appUser = Array.isArray(recs) ? recs[0] : null;
-        if (appUser?.user_id && appUser.user_id === __meCache.id) allowedByDriver = true;
-      } catch (_) {}
-    }
-    if (!allowedByDriver) return false;
-
-    // Primary device check removed; any authenticated owner (driver/admin/dispatcher) may generate
-    return true;
+    return window.__isPrimaryTrackingDevice === true;
   } catch (_) {
     return false;
   }
@@ -600,6 +561,11 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate, 
     }
   } catch (e) {
     console.warn('[HERE][client] Offline polyline lookup failed', e);
+  }
+
+  if (!(await canGenerateForDriver())) {
+    fetchingKeys.delete(cacheKey);
+    return null;
   }
 
   // If we previously stored a hard error flag for this key, short-circuit for a bit to avoid hammering APIs
