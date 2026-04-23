@@ -117,15 +117,13 @@ export default function RouteManagementContent({
     setIsBulkUpdating(true);
     try {
       await batchDeleteDeliveriesLocal(selectedBulkDeliveryIds);
-      await invalidate("Delivery");
-      await loadData(true);
       setSelectedBulkDeliveryIds([]);
       setBulkEditMode(false);
       setIsBulkDeleteDialogOpen(false);
     } finally {
       setIsBulkUpdating(false);
     }
-  }, [loadData, selectedBulkDeliveryIds]);
+  }, [selectedBulkDeliveryIds]);
 
   const handleCreateReturn = useCallback(async ({ originalDelivery, returnPatient, store }) => {
     const currentDate = format(new Date(), "yyyy-MM-dd");
