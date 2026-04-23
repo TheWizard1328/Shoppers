@@ -217,7 +217,11 @@ export default function PolylineViewer({ users = [] }) {
       }
     });
 
-    return Array.from(deduped.values());
+    return Array.from(deduped.values()).sort((a, b) => {
+      const aTs = new Date(a.last_generated_at || a.updated_date || a.created_date || 0).getTime();
+      const bTs = new Date(b.last_generated_at || b.updated_date || b.created_date || 0).getTime();
+      return bTs - aTs;
+    });
   }, [polylines, driverFilter, dateFilter]);
 
   const filteredBreadcrumbs = useMemo(() => {
@@ -532,6 +536,9 @@ export default function PolylineViewer({ users = [] }) {
                             <div className="text-xs text-slate-600 space-y-1">
                               <div>📅 {format(new Date(polyline.delivery_date + 'T00:00:00'), 'MMM d, yyyy')}</div>
                               <div className="flex justify-between"><span>🕒 {polyline.estimated_duration_minutes?.toFixed(1) || '0'} min</span><span>📏 {polyline.estimated_distance_km?.toFixed(2) || '0'} km</span></div>
+                              <div>🟢 Origin: {Number(polyline.segment_origin_lat).toFixed(5)}, {Number(polyline.segment_origin_lon).toFixed(5)}</div>
+                              <div>🔴 Destination: {Number(polyline.segment_dest_lat).toFixed(5)}, {Number(polyline.segment_dest_lon).toFixed(5)}</div>
+                              {polyline.last_generated_at && <div className="text-slate-400">Updated: {format(new Date(polyline.last_generated_at), 'MMM d, h:mm a')}</div>}
                             </div>
                           </div>
                         </div>
@@ -678,9 +685,11 @@ export default function PolylineViewer({ users = [] }) {
                               <span>🕒 {polyline.estimated_duration_minutes?.toFixed(1) || '0'} min</span>
                               <span>📏 {polyline.estimated_distance_km?.toFixed(2) || '0'} km</span>
                             </div>
+                            <div>🟢 Origin: {Number(polyline.segment_origin_lat).toFixed(5)}, {Number(polyline.segment_origin_lon).toFixed(5)}</div>
+                            <div>🔴 Destination: {Number(polyline.segment_dest_lat).toFixed(5)}, {Number(polyline.segment_dest_lon).toFixed(5)}</div>
                             {polyline.last_generated_at && (
                               <div className="text-slate-400">
-                                Updated: {format(new Date(polyline.last_generated_at), 'h:mm a')}
+                                Updated: {format(new Date(polyline.last_generated_at), 'MMM d, h:mm a')}
                               </div>
                             )}
                           </div>
