@@ -647,7 +647,7 @@ export default function GoogleAPILogViewer() {
           {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Hourly Call Volume */}
-          <div className="bg-white border rounded-lg p-4">
+          <div className="relative z-30 bg-white border rounded-lg p-4">
             <h3 className="font-semibold text-slate-900 mb-4">
               {dateFilter === 'hour' ? 'Last Hour Call Volume (by minute)' :
                 dateFilter === 'today' ? 'Last 24 Hours Call Volume' :
@@ -726,7 +726,7 @@ export default function GoogleAPILogViewer() {
           </div>
           
           {/* API Type Distribution */}
-          <div className="bg-white border rounded-lg p-4">
+          <div className="relative z-30 bg-white border rounded-lg p-4">
             <h3 className="font-semibold text-slate-900 mb-4">Calls by API Type</h3>
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={apiTypeChartData}>
