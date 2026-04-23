@@ -257,9 +257,11 @@ export default function PullToSync({
           const now = new Date();
           const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-          // Polyline repair only on manual sync
-          Promise.resolve(base44.functions.invoke('repairMissingPolylines', { driverId: targetDriverId, deliveryDate: selectedDateStr, reason: 'manual' }))
-            .catch(e => console.warn('⚠️ [Pull to Sync] Background polyline repair failed:', e?.message || e));
+          // Polyline repair only on explicit manual pull-to-sync, never on silent smart refresh cycles
+          if (!silent) {
+            Promise.resolve(base44.functions.invoke('repairMissingPolylines', { driverId: targetDriverId, deliveryDate: selectedDateStr, reason: 'manual' }))
+              .catch(e => console.warn('⚠️ [Pull to Sync] Background polyline repair failed:', e?.message || e));
+          }
 
           // ETA recalculation for active stops only
           base44.functions.invoke('calculateRealTimeETA', {
