@@ -249,7 +249,7 @@ export default function DashboardView({
             className="pointer-events-none absolute left-1/2 -translate-x-1/2 z-[10010] w-full max-w-md px-4"
             style={{ bottom: `${Math.max((isImmersiveHidden ? 0 : stopCardsBaseHeight) + 16, 24)}px` }}
           >
-            <div className="pointer-events-auto rounded-xl border border-slate-200 bg-white/95 px-4 py-3 text-sm font-medium text-slate-800 shadow-xl backdrop-blur-sm">
+            <div className="pointer-events-auto rounded-xl border border-slate-200 bg-white/95 px-4 py-3 text-center text-sm font-medium text-slate-800 shadow-xl backdrop-blur-sm">
               {optimizationMessage}
             </div>
           </div>
