@@ -147,8 +147,10 @@ export default function GoogleAPILogViewer() {
       const logDate = new Date(log.timestamp);
       let passesDateFilter = true;
 
-      if (dateFilter === 'today') {
-        // Last 24 hours from current time
+      if (dateFilter === 'hour') {
+        const oneHourAgo = subHours(new Date(), 1);
+        passesDateFilter = logDate >= oneHourAgo;
+      } else if (dateFilter === 'today') {
         const twentyFourHoursAgo = subHours(new Date(), 24);
         passesDateFilter = logDate >= twentyFourHoursAgo;
       } else if (dateFilter === 'yesterday') {
@@ -229,8 +231,36 @@ export default function GoogleAPILogViewer() {
   const hourlyChartData = useMemo(() => {
     const isAllUsers = !userFilter;
 
-    if (dateFilter === 'today') {
-      // HOURLY VIEW: Last 24 hours from current time
+    if (dateFilter === 'hour') {
+      const now = new Date();
+      const minuteMap = {};
+
+      for (let i = 59; i >= 0; i--) {
+        const minuteDate = new Date(now.getTime() - i * 60 * 1000);
+        const minuteKey = format(minuteDate, 'MMM dd HH:mm');
+        minuteMap[minuteKey] = { hour: format(minuteDate, 'HH:mm'), calls: 0, sortOrder: 59 - i };
+
+        if (isAllUsers) {
+          uniqueUsers.forEach((user) => {
+            minuteMap[minuteKey][user] = 0;
+          });
+        }
+      }
+
+      filteredLogs.forEach((log) => {
+        const logDate = new Date(log.timestamp);
+        const minuteKey = format(logDate, 'MMM dd HH:mm');
+        if (minuteMap[minuteKey]) {
+          const callCount = getApiLogCallCount(log);
+          minuteMap[minuteKey].calls += callCount;
+          if (isAllUsers && log.user_name) {
+            minuteMap[minuteKey][log.user_name] = (minuteMap[minuteKey][log.user_name] || 0) + callCount;
+          }
+        }
+      });
+
+      return Object.values(minuteMap).sort((a, b) => a.sortOrder - b.sortOrder);
+    } else if (dateFilter === 'today') {
       const now = new Date();
       const hourlyMap = {};
 
@@ -516,6 +546,7 @@ export default function GoogleAPILogViewer() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="hour">Last Hour</SelectItem>
                     <SelectItem value="today">Last 24 Hours</SelectItem>
                     <SelectItem value="yesterday">Yesterday</SelectItem>
                     <SelectItem value="week">Last 7 Days</SelectItem>
@@ -618,7 +649,8 @@ export default function GoogleAPILogViewer() {
           {/* Hourly Call Volume */}
           <div className="bg-white border rounded-lg p-4">
             <h3 className="font-semibold text-slate-900 mb-4">
-              {dateFilter === 'today' ? 'Last 24 Hours Call Volume' :
+              {dateFilter === 'hour' ? 'Last Hour Call Volume (by minute)' :
+                dateFilter === 'today' ? 'Last 24 Hours Call Volume' :
                 dateFilter === 'yesterday' ? 'Yesterday\'s Call Volume (00:00-23:59)' :
                 dateFilter === 'week' ? 'Last 7 Days Call Volume (6-hour periods)' :
                 'Call Volume by Day'}
@@ -628,11 +660,11 @@ export default function GoogleAPILogViewer() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis
                     dataKey="hour"
-                    tick={{ fontSize: dateFilter === 'week' ? 9 : 11 }}
+                    tick={{ fontSize: dateFilter === 'week' ? 9 : dateFilter === 'hour' ? 9 : 11 }}
                     stroke="#64748b"
-                    angle={dateFilter === 'week' ? -45 : 0}
-                    textAnchor={dateFilter === 'week' ? 'end' : 'middle'}
-                    height={dateFilter === 'week' ? 60 : 30} />
+                    angle={dateFilter === 'week' ? -45 : dateFilter === 'hour' ? -45 : 0}
+                    textAnchor={dateFilter === 'week' || dateFilter === 'hour' ? 'end' : 'middle'}
+                    height={dateFilter === 'week' || dateFilter === 'hour' ? 60 : 30} />
                   
                 <YAxis tick={{ fontSize: 11 }} stroke="#64748b" />
                 <Tooltip
