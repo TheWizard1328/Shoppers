@@ -70,6 +70,18 @@ const hasDebitOrCreditCod = (deliveryRecord, paymentList = null) => {
   return ['Debit', 'Credit'].includes(deliveryRecord?.cod_payment_type);
 };
 
+const formatCoordinateValue = (value) => {
+  const numericValue = typeof value === 'number' ? value : Number(String(value ?? '').trim());
+  return Number.isFinite(numericValue) ? String(numericValue) : null;
+};
+
+const buildGoogleMapsCoordinateUrl = (latitude, longitude) => {
+  const lat = formatCoordinateValue(latitude);
+  const lon = formatCoordinateValue(longitude);
+  if (!lat || !lon) return null;
+  return `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
+};
+
 export default function StopCard({ delivery, store, driver, patients = [], currentUser, showDriverName = false, onStatusUpdate, onNotesUpdate, onEdit, onDelete, onRestart, allDeliveries = [], selectedDate, onEditPatient, drivers = [], onDriverChange, canEdit = false, getDriverColor, onClick, isSelected, pendingPickups = [], onSelectionChange, onCODUpdate, stores = [], onCreateReturn, onStartDelivery, onDriverStatusChange, appUsers = [], showDragHandle = false, dragHandleProps, compact = false, isRailCentered = true }) {
   const isNextDelivery = delivery?.isNextDelivery || false;
   const [, setRangeRefreshTick] = useState(0);
@@ -291,6 +303,22 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     return !hasLaterDelivery;
   }, [delivery, allDeliveries, patient, isPickup, hasFutureReturn]);
 
+  useEffect(() => {
+    if (!isNextDelivery || !navigationHref) return;
+    console.log('[StopCard navigation]', {
+      deliveryId: delivery?.id,
+      patientId: delivery?.patient_id,
+      isPickup,
+      rawStopLatitude,
+      rawStopLongitude,
+      numericStopLat: stopLat,
+      numericStopLon: stopLon,
+      patientAddress: patient?.address,
+      storeAddress: store?.address,
+      navigationHref
+    });
+  }, [delivery?.id, delivery?.patient_id, isNextDelivery, isPickup, navigationHref, patient?.address, rawStopLatitude, rawStopLongitude, stopLat, stopLon, store?.address]);
+
   const isAssignedDriverOrAppOwner = useMemo(() => {
     if (!currentUser || !delivery) return false;
     if (isAppOwner(currentUser)) return true;
@@ -453,11 +481,15 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     });
   };
 
-  const stopLat = Number(isPickup ? store?.latitude : patient?.latitude);
-  const stopLon = Number(isPickup ? store?.longitude : patient?.longitude);
+  const rawStopLatitude = isPickup ? store?.latitude : patient?.latitude;
+  const rawStopLongitude = isPickup ? store?.longitude : patient?.longitude;
+  const stopLat = Number(rawStopLatitude);
+  const stopLon = Number(rawStopLongitude);
+  const navigationHref = buildGoogleMapsCoordinateUrl(rawStopLatitude, rawStopLongitude);
+  const shouldShowNavigationButton = isNextDelivery && !!navigationHref;
   const driverLat = Number(currentDriverAppUser?.current_latitude ?? currentUser?.current_latitude);
   const driverLon = Number(currentDriverAppUser?.current_longitude ?? currentUser?.current_longitude);
-  const isWithinActiveStopRange = Number.isFinite(driverLat) && Number.isFinite(driverLon) && Number.isFinite(stopLat) && Number.isFinite(stopLon) && calculateHaversineDistance(driverLat, driverLon, stopLat, stopLon) <= 100;
+  const isWithinActiveStopRange = Number.isFinite(driverLat) && Number.isFinite(driverLon) && !!navigationHref && calculateHaversineDistance(driverLat, driverLon, stopLat, stopLon) <= 100;
 
   return (
     <motion.div
@@ -548,7 +580,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                         <Phone className="w-6 h-6" />
                       </a>
                     )}
-                    {isNextDelivery && Number.isFinite(stopLat) && Number.isFinite(stopLon) && (
+                    {isNextDelivery && navigationHref && (
                       isWithinActiveStopRange ? (
                         <button
                           type="button"
@@ -559,10 +591,22 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                         </button>
                       ) : (
                         <a
-                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${stopLat},${stopLon}`)}`}
+                          href={navigationHref}
+                          data-navigation-href={navigationHref}
                           target="_blank"
                           rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            console.log('[StopCard navigation click]', {
+                              deliveryId: delivery?.id,
+                              patientId: delivery?.patient_id,
+                              navigationHref,
+                              rawStopLatitude,
+                              rawStopLongitude,
+                              patientAddress: patient?.address,
+                              storeAddress: store?.address
+                            });
+                          }}
                           className="inline-flex h-14 w-14 items-center justify-center rounded-full transition-colors bg-blue-100 text-blue-600 hover:bg-blue-200"
                         >
                           <Navigation className="w-6 h-6" />
