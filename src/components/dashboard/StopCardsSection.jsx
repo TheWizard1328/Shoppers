@@ -33,8 +33,8 @@ export default function StopCardsSection({
     return () => observer.disconnect();
   }, [horizontalStopCardsRef, deliveriesWithStopOrder.length, selectedCardId]);
 
-  const mobileStopCardsTop = isMobile && mobileCardsHeight > 0
-    ? `calc(100% - var(--bottom-nav-height, 0px) - ${mobileCardsHeight}px - 0.25rem)`
+  const mobileStopCardsHeight = isMobile && mobileCardsHeight > 0
+    ? `${mobileCardsHeight}px`
     : undefined;
 
   return (
@@ -45,8 +45,10 @@ export default function StopCardsSection({
         position: 'absolute',
         isolation: 'isolate',
         left: isSnapshotModeActive ? '5rem' : '0',
-        top: mobileStopCardsTop,
-        bottom: isMobile && mobileStopCardsTop ? 'auto' : 'calc(var(--bottom-nav-height, 0px) + 0.25rem)'
+        top: 'auto',
+        bottom: 'calc(var(--bottom-nav-height, 0px) + 0.25rem)',
+        height: mobileStopCardsHeight,
+        minHeight: isMobile ? mobileStopCardsHeight : undefined
       }}
       onClick={() => { if (retractClustersRef.current) retractClustersRef.current(); }}>
 

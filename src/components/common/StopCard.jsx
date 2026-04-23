@@ -361,7 +361,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const shouldFade = isFinishedDelivery && routeHasIncompleteStops && !isSelected && !isHovered;
   const isMobileCard = isMobileDevice();
   const cardZIndex = isMobileCard ? (isExpanded ? 320 : isHovered && !isRailCentered ? 260 : isRailCentered ? 250 : 240) : (isExpanded ? 70 : isHovered && !isRailCentered ? 52 : isRailCentered ? 51 : 50);
-  const shouldAnchorExpandedCard = isMobileCard && isSelected && !isStrippedDelivery;
+  const shouldAnchorExpandedCard = false;
 
   const rawStopLatitude = isPickup ? store?.latitude : patient?.latitude;
   const rawStopLongitude = isPickup ? store?.longitude : patient?.longitude;

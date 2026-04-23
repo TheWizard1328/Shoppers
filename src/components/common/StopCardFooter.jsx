@@ -37,7 +37,7 @@ export default function StopCardFooter(props) {
   if (!shouldShowFooter) return null;
 
   return (
-    <div className={shouldAnchorExpandedCard ? 'sticky bottom-0 z-10' : ''} style={shouldAnchorExpandedCard ? { background: 'var(--bg-white)' } : undefined}>
+    <div>
       <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
         <div className={`mx-1 flex justify-between items-center ${showCenteredIncompleteCollapsed ? 'mt-1 mb-0' : 'my-1'}`}>
           <StopCardActionButtons {...props} />
