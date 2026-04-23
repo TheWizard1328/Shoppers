@@ -444,19 +444,9 @@ export default function Layout({ children, currentPageName }) {
   useEffect(() => {
     if (!currentUser) return;
 
-    // CRITICAL: Background sync - run ONCE after init, skip if already running
+    // Background sync timer disabled here to prevent non-primary devices from re-triggering route hydration.
     let bgSyncHasRun = false;
-    const bgSyncTimer = setTimeout(async () => {
-      if (currentPageName !== 'Dashboard' || !initialGlobalFiltersSet || !currentUser || !dataLoaded || isFormOverlayOpen || bgSyncHasRun) return;
-      bgSyncHasRun = true;
-
-      const selectedDateStr = globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd');
-      const cityStoreIds = stores.map((s) => s?.id).filter(Boolean);
-
-      console.log('🔄 [Layout] Starting ONE-TIME background sync for current month...');
-      const { performBackgroundSync } = await import('./components/utils/offlineSync');
-      performBackgroundSync(selectedDateStr, cityStoreIds).catch(() => {});
-    }, 60000);
+    const bgSyncTimer = null;
 
     // Set up periodic mutation processing (every 60 seconds to avoid rate limits)
     const mutationSyncInterval = setInterval(() => {
@@ -715,7 +705,7 @@ export default function Layout({ children, currentPageName }) {
     realtimeSync.connect();
 
     return () => {
-      clearTimeout(bgSyncTimer);
+      if (bgSyncTimer) clearTimeout(bgSyncTimer);
       clearInterval(mutationSyncInterval);
       unsubscribeMutations();
       realtimeSync.disconnect();

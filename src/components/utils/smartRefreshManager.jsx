@@ -467,7 +467,7 @@ class LightweightRefreshManager {
         }
       }
 
-      // AppUser polling disabled here; rely on WebSocket and manual sync only
+      // AppUser polling fully disabled; rely on WebSocket only
       if (this.shouldRefresh('appUsers')) {
         this.markRefreshed('appUsers');
       }
