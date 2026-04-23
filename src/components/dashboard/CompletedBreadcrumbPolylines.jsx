@@ -4,6 +4,42 @@ import { getHerePolyline } from "../utils/hereRouting";
 import { generateDriverColor } from "../utils/colorGenerator";
 import { getTravelModeLineStyle, normalizeTravelMode } from "./travelModeHelpers";
 
+const decodeGooglePolyline = (encoded) => {
+  if (!encoded || typeof encoded !== 'string') return null;
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
+  const coordinates = [];
+
+  while (index < encoded.length) {
+    let shift = 0;
+    let result = 0;
+    let byte;
+
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+
+    shift = 0;
+    result = 0;
+
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    coordinates.push([lat / 1e5, lng / 1e5]);
+  }
+
+  return coordinates.length > 1 ? coordinates : null;
+};
+
 const FINISHED = ["completed", "failed", "cancelled"];
 const getType3PolylineColor = (driverId) => {
   const driverColor = generateDriverColor(String(driverId || 'driver'));
@@ -76,41 +112,6 @@ const getCachedPolyline = (key, cache) => {
   }
 };
 
-const decodePolyline = (encoded) => {
-  if (!encoded || typeof encoded !== 'string') return null;
-  let index = 0;
-  let lat = 0;
-  let lng = 0;
-  const coordinates = [];
-
-  while (index < encoded.length) {
-    let shift = 0;
-    let result = 0;
-    let byte;
-
-    do {
-      byte = encoded.charCodeAt(index++) - 63;
-      result |= (byte & 0x1f) << shift;
-      shift += 5;
-    } while (byte >= 0x20);
-
-    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
-
-    shift = 0;
-    result = 0;
-
-    do {
-      byte = encoded.charCodeAt(index++) - 63;
-      result |= (byte & 0x1f) << shift;
-      shift += 5;
-    } while (byte >= 0x20);
-
-    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
-    coordinates.push([lat / 1e5, lng / 1e5]);
-  }
-
-  return coordinates.length > 1 ? coordinates : null;
-};
 
 const parseBreadcrumbPoints = (breadcrumbsValue) => {
   try {
@@ -313,7 +314,7 @@ export default function CompletedBreadcrumbPolylines({
       if (!key || getCachedPolyline(key, cache)) return;
 
       if (leg.storedEncodedPolyline) {
-        const decoded = decodePolyline(leg.storedEncodedPolyline);
+        const decoded = decodeGooglePolyline(leg.storedEncodedPolyline);
         if (decoded) {
           setCache((previous) => ({ ...previous, [key]: decoded }));
           return;
@@ -339,9 +340,30 @@ export default function CompletedBreadcrumbPolylines({
 
   const renderedLines = [];
 
+  useEffect(() => {
+    if (storedFinishedSegments.length === 0) return;
+
+    setCache((previous) => {
+      const next = { ...previous };
+      let changed = false;
+
+      storedFinishedSegments.forEach((segment) => {
+        const key = `finished_leg_${segment.stopId}`;
+        if (next[key]) return;
+        const decoded = decodeGooglePolyline(segment.encodedPolyline);
+        if (decoded) {
+          next[key] = decoded;
+          changed = true;
+        }
+      });
+
+      return changed ? next : previous;
+    });
+  }, [storedFinishedSegments, polylineRenderKey]);
+
   storedFinishedSegments.forEach((segment) => {
     if (!showStoredPolylines) return;
-    const coords = decodePolyline(segment.encodedPolyline);
+    const coords = cache[`finished_leg_${segment.stopId}`] || decodeGooglePolyline(segment.encodedPolyline);
     if (!coords) return;
 
     renderedLines.push(
@@ -362,7 +384,7 @@ export default function CompletedBreadcrumbPolylines({
       if (segment.destinationPointKey && blockedStoredDestinationPointKeys.has(segment.destinationPointKey)) return;
 
       const key = getLegKey(segment.start, segment.end);
-      const coords = getCachedPolyline(key, cache) || decodePolyline(segment.storedEncodedPolyline);
+      const coords = getCachedPolyline(key, cache) || decodeGooglePolyline(segment.storedEncodedPolyline);
       if (!coords) return;
 
       renderedLines.push(
