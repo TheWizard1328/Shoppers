@@ -640,7 +640,7 @@ Deno.serve(async (req) => {
         repairedStopOrders: stopOrderRepairUpdates.length
       });
     }
-    console.log(`# [purgeAndRegeneratePolylines] START | driver=${driverDisplayName} | date=${deliveryDate} | scope=${scope} | totalStops=${deliveries?.length || 0} | existingPolylines=${existingPolylines?.length || 0} | driver_status=${driverAvailability.status || 'missing'} | historical=${isHistoricalDate} | home_lat=${driverAppUser?.home_latitude} | home_lon=${driverAppUser?.home_longitude}`);
+    console.log(`# [purgeAndRegeneratePolylines] START | driver=${driverDisplayName} | date=${deliveryDate} | scope=${scope} | totalStops=${deliveries?.length || 0} | driver_status=${driverAvailability.status || 'missing'} | historical=${isHistoricalDate} | home_lat=${driverAppUser?.home_latitude} | home_lon=${driverAppUser?.home_longitude}`);
 
     const getLatLon = (delivery) => {
       if (!delivery) return null;
