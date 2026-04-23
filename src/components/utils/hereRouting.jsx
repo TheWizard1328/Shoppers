@@ -80,6 +80,22 @@ export async function syncDriverRoutePolylinesForDate(driverId, deliveryDate, fo
 
   const promise = (async () => {
     try {
+      const onlineRows = await base44.entities.DriverRoutePolyline.filter({ driver_id: driverId, delivery_date: deliveryDate }, '-updated_date', 50000).catch(() => []);
+      if (Array.isArray(onlineRows) && onlineRows.length > 0) {
+        const offlineRows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', deliveryDate);
+        const staleIds = (offlineRows || [])
+          .filter((row) => row?.driver_id === driverId)
+          .filter((row) => !onlineRows.some((online) => online?.id === row?.id))
+          .map((row) => row.id)
+          .filter(Boolean);
+
+        await Promise.all(staleIds.map((id) => offlineDB.deleteRecord(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, id).catch(() => null)));
+        await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, onlineRows);
+        await offlineDB.deduplicateDriverRoutePolylines(deliveryDate);
+        polylineDateSyncCache.set(syncKey, Date.now());
+        return onlineRows;
+      }
+
       const rows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', deliveryDate);
       const filteredRows = (rows || []).filter((row) => row?.driver_id === driverId);
       if (filteredRows.length > 0) {
@@ -88,7 +104,7 @@ export async function syncDriverRoutePolylinesForDate(driverId, deliveryDate, fo
       polylineDateSyncCache.set(syncKey, Date.now());
       return filteredRows;
     } catch (error) {
-      console.warn('[HERE][client] DriverRoutePolyline offline sync failed', { driverId, deliveryDate, error: error?.message || error });
+      console.warn('[HERE][client] DriverRoutePolyline sync failed', { driverId, deliveryDate, error: error?.message || error });
       return [];
     } finally {
       polylineDateSyncInflight.delete(syncKey);

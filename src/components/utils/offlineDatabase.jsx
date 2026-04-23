@@ -1192,12 +1192,23 @@ const deduplicateDriverRoutePolylines = async (dateStr = null) => {
 
     let removed = 0;
     for (const [, arr] of groups) {
-      if (!arr || arr.length <= 1) continue;
+      if (!arr || arr.length === 0) continue;
       arr.sort((a, b) => {
-        const ta = new Date(a.last_generated_at || a.updated_date || a.created_date || 0).getTime();
-        const tb = new Date(b.last_generated_at || b.updated_date || b.created_date || 0).getTime();
-        return tb - ta;
+        const score = (row) => {
+          const hasRealId = row?.id && !String(row.id).startsWith('temp_') ? 1 : 0;
+          const hasTotals = Number(row?.estimated_distance_km || 0) > 0 || Number(row?.estimated_duration_minutes || 0) > 0 ? 1 : 0;
+          const hasPolyline = typeof row?.encoded_polyline === 'string' && row.encoded_polyline.trim().length > 0 ? 1 : 0;
+          const ts = new Date(row.last_generated_at || row.updated_date || row.created_date || 0).getTime();
+          return [hasRealId, hasTotals, hasPolyline, ts];
+        };
+        const [aid, atotals, apoly, ats] = score(a);
+        const [bid, btotals, bpoly, bts] = score(b);
+        if (bid !== aid) return bid - aid;
+        if (btotals !== atotals) return btotals - atotals;
+        if (bpoly !== apoly) return bpoly - apoly;
+        return bts - ats;
       });
+      const keeper = arr[0];
       const toDelete = arr.slice(1);
       await Promise.all(
         toDelete.map((rec) =>
@@ -1206,6 +1217,10 @@ const deduplicateDriverRoutePolylines = async (dateStr = null) => {
             .catch(() => null)
         )
       );
+
+      if (!(Number(keeper?.estimated_distance_km || 0) > 0 || Number(keeper?.estimated_duration_minutes || 0) > 0)) {
+        await deleteRecord(STORES.DRIVER_ROUTE_POLYLINES, keeper.id).then(() => { removed++; }).catch(() => null);
+      }
     }
 
     return { success: true, removed };
