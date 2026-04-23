@@ -347,6 +347,17 @@ Deno.serve(async (req) => {
       destinationLng
     });
 
+    console.log('[getHereDirections] request payload', {
+      origin,
+      destination,
+      waypoints,
+      routeContext,
+      originLat,
+      originLng,
+      destinationLat,
+      destinationLng
+    });
+
     if (![originLat, originLng, destinationLat, destinationLng].every(Number.isFinite)) {
       return Response.json({ error: 'Missing origin or destination' }, { status: 400 });
     }
