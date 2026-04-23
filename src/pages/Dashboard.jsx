@@ -1173,6 +1173,7 @@ function Dashboard() {
 
   // Track when the last programmatic map move happened (to debounce interaction handler)
   const lastProgrammaticMapMoveRef = useRef(0);
+  const isMapViewLockedRef = useRef(isMapViewLocked);
 
   // Track previous values for detecting changes that should trigger map repositioning
   const prevSelectedDriverIdRef = useRef(selectedDriverId);
@@ -2424,8 +2425,6 @@ function Dashboard() {
         }, 500);});});
   }, [renderSequence.fullDeliveriesLoaded, renderSequence.fabPhaseReady, initialMapViewApplied, deliveriesWithStopOrder.length, isDriver, driverLocation, deliveriesWithStopOrder, nextStopCoordinates, deliveries.length, allDriverLocations.length, showAllDriverMarkers, cardsReadyForFAB]);
 
-  // CRITICAL: Use a ref to track current lock state to avoid stale closure issues in GPS callback
-  const isMapViewLockedRef = useRef(isMapViewLocked);
   useEffect(() => {
     isMapViewLockedRef.current = isMapViewLocked;
   }, [isMapViewLocked]);
