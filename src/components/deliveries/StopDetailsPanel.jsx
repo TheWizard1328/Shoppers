@@ -547,26 +547,28 @@ export default function StopDetailsPanel({
                       {formatPhoneNumber(patient.phone)}
                     </a>
                     {isDriverUser && (
-                      <div className="ml-auto flex items-center gap-1">
+                      <div className="ml-auto flex flex-row gap-2 shrink-0">
                         <button
                           type="button"
+                          title="Driving"
+                          aria-label="Driving"
                           onClick={() => handleTravelModeChange('driving')}
                           disabled={isUpdating}
-                          className="rounded-full p-1 transition-opacity disabled:opacity-50"
-                          style={{ color: selectedTravelMode === 'driving' ? 'var(--text-slate-900)' : 'var(--text-slate-400)', background: selectedTravelMode === 'driving' ? 'var(--bg-slate-100)' : 'transparent' }}
-                          title="Driving"
+                          className={`h-6 w-12 rounded-full border transition-all flex items-center justify-center disabled:opacity-50 ${selectedTravelMode === 'driving' ? 'bg-emerald-600 border-emerald-600 text-white' : ''}`}
+                          style={selectedTravelMode === 'driving' ? undefined : { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
                         >
-                          <Car className="w-3.5 h-3.5" />
+                          <Car className="w-4 h-4" />
                         </button>
                         <button
                           type="button"
+                          title="Cycling"
+                          aria-label="Cycling"
                           onClick={() => handleTravelModeChange('cycling')}
                           disabled={isUpdating}
-                          className="rounded-full p-1 transition-opacity disabled:opacity-50"
-                          style={{ color: selectedTravelMode === 'cycling' ? '#16A34A' : 'var(--text-slate-400)', background: selectedTravelMode === 'cycling' ? 'var(--bg-slate-100)' : 'transparent' }}
-                          title="Cycling"
+                          className={`h-6 w-12 rounded-full border transition-all flex items-center justify-center disabled:opacity-50 ${selectedTravelMode === 'cycling' ? 'bg-emerald-600 border-emerald-600 text-white' : ''}`}
+                          style={selectedTravelMode === 'cycling' ? undefined : { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
                         >
-                          <Bike className="w-3.5 h-3.5" />
+                          <Bike className="w-4 h-4" />
                         </button>
                       </div>
                     )}
