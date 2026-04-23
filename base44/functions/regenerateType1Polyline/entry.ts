@@ -358,10 +358,6 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'driverId, deliveryDate, and currentLocation are required' }, { status: 400 });
     }
 
-    if (isPollingFlow && !isPrimaryDevice) {
-      return Response.json({ success: true, skipped: true, reason: 'non_primary_poll_skipped' });
-    }
-
     const [driverAppUser, driverUser, requesterAppUser] = await Promise.all([
       base44.asServiceRole.entities.AppUser.filter({ user_id: driverId }),
       base44.asServiceRole.entities.User.filter({ id: driverId }, '-updated_date', 1),
@@ -381,9 +377,6 @@ Deno.serve(async (req) => {
 
     if (!targetDriverAppUser || !targetIsDriver) {
       return Response.json({ success: true, skipped: true, reason: 'target_not_driver' });
-    }
-    if (!isDriverPrimaryPoll && !isExplicitOverrideFlow) {
-      return Response.json({ success: true, skipped: true, reason: 'unauthorized_actor' });
     }
     if (actorIsDispatcher && !isAssignAcceptAllFlow) {
       return Response.json({ success: true, skipped: true, reason: 'dispatcher_requires_assign_accept_all' });
@@ -470,10 +463,11 @@ Deno.serve(async (req) => {
     }
 
     let baseOriginCoords = null;
+    const isHomeStartType1 = !mostRecentFinishedStop && Number.isFinite(homeLat) && Number.isFinite(homeLon);
     if (mostRecentFinishedStop) {
       baseOriginCoords = getLatLon(mostRecentFinishedStop);
       console.log(`[regenerateType1Polyline] Using most recent finished stop ${mostRecentFinishedStop.id} as base origin`);
-    } else if (Number.isFinite(homeLat) && Number.isFinite(homeLon)) {
+    } else if (isHomeStartType1) {
       baseOriginCoords = { lat: homeLat, lon: homeLon };
       console.log('[regenerateType1Polyline] Using driver home location as base origin');
     } else {
@@ -486,6 +480,11 @@ Deno.serve(async (req) => {
     }
 
     const effectiveOriginCoords = baseOriginCoords;
+    const allowNonPrimaryHomeStartGeneration = isPollingFlow && isHomeStartType1;
+
+    if (!isDriverPrimaryPoll && !isExplicitOverrideFlow && !allowNonPrimaryHomeStartGeneration) {
+      return Response.json({ success: true, skipped: true, reason: 'unauthorized_actor' });
+    }
 
     const exactExistingType1 = (existingPolylines || []).find((row) =>
       round5(row?.segment_origin_lat) === round5(effectiveOriginCoords.lat) &&
