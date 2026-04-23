@@ -383,6 +383,14 @@ export default function HereType1Polylines({
       try {
         const route = await getHerePolyline(first.driverId, orderedPoints[0], orderedPoints[orderedPoints.length - 1], first.deliveryDate, first.mode, orderedPoints.slice(1, -1));
         if (!Array.isArray(route) || route.length <= 1) return;
+        segments.forEach((segment) => {
+          const segmentKey = getHereCacheKey(segment.origin, segment.destination, segment.mode);
+          const fallbackSegment = makeFallback(segment.origin, segment.destination);
+          if (segmentKey && Array.isArray(fallbackSegment) && fallbackSegment.length > 1) {
+            setCache((prev) => ({ ...prev, [segmentKey]: fallbackSegment }));
+            try { localStorage.setItem(segmentKey, JSON.stringify(fallbackSegment)); } catch (_) {}
+          }
+        });
         setRefreshToken((token) => token + 1);
       } catch (_) {
       } finally {
