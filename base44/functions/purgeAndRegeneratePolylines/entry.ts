@@ -502,7 +502,9 @@ async function getMultiSegmentDirections(base44, segmentSpecs, transportMode = '
       const routePolyline = routePolylines[index] || null;
       let polyline = null;
 
-      if (section?.polyline && data?.polyline_format === 'flexible') {
+      if (typeof section?.encoded_polyline === 'string' && section.encoded_polyline) {
+        polyline = section.encoded_polyline;
+      } else if (section?.polyline && data?.polyline_format === 'flexible') {
         const coords = decodeHereFlexiblePolyline(section.polyline);
         if (coords.length > 1) polyline = encodeGooglePolyline(coords);
       } else if (typeof section?.polyline === 'string' && section.polyline) {

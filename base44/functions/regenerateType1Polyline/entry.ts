@@ -189,15 +189,18 @@ function buildStopOrderRepairUpdates(deliveries) {
 }
 
 function findExactStoredPolyline(rows, driverId, deliveryDate, from, to) {
-  return (rows || []).find((row) =>
-    row?.driver_id === driverId &&
-    row?.delivery_date === deliveryDate &&
-    round5(row?.segment_origin_lat) === round5(from.lat) &&
-    round5(row?.segment_origin_lon) === round5(from.lon) &&
-    round5(row?.segment_dest_lat) === round5(to.lat) &&
-    round5(row?.segment_dest_lon) === round5(to.lon) &&
-    typeof row?.encoded_polyline === 'string' && row.encoded_polyline.trim().length > 0
-  ) || null;
+  return (rows || []).find((row) => {
+    const hasEncoded = typeof row?.encoded_polyline === 'string' && row.encoded_polyline.trim().length > 0;
+    const hasNonZeroTotals = Number(row?.estimated_distance_km || 0) > 0 || Number(row?.estimated_duration_minutes || 0) > 0;
+    return row?.driver_id === driverId &&
+      row?.delivery_date === deliveryDate &&
+      round5(row?.segment_origin_lat) === round5(from.lat) &&
+      round5(row?.segment_origin_lon) === round5(from.lon) &&
+      round5(row?.segment_dest_lat) === round5(to.lat) &&
+      round5(row?.segment_dest_lon) === round5(to.lon) &&
+      hasEncoded &&
+      hasNonZeroTotals;
+  }) || null;
 }
 
 async function getSegmentDirections(base44, from, to, transportMode = 'driving', existingPolylines = [], driverId = null, deliveryDate = null) {
@@ -309,7 +312,9 @@ async function getMultiStopRoute(base44, points, transportMode = 'driving') {
       const section = sections[index] || {};
       let polyline = null;
 
-      if (section?.polyline_format === 'flexible' && typeof section?.polyline === 'string') {
+      if (typeof section?.encoded_polyline === 'string' && section.encoded_polyline) {
+        polyline = section.encoded_polyline;
+      } else if (section?.polyline_format === 'flexible' && typeof section?.polyline === 'string') {
         const coords = decodeHereFlexiblePolyline(section.polyline);
         if (coords.length > 1) {
           polyline = encodeGooglePolyline(coords);
@@ -486,13 +491,16 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, skipped: true, reason: 'unauthorized_actor' });
     }
 
-    const exactExistingType1 = (existingPolylines || []).find((row) =>
-      round5(row?.segment_origin_lat) === round5(effectiveOriginCoords.lat) &&
-      round5(row?.segment_origin_lon) === round5(effectiveOriginCoords.lon) &&
-      round5(row?.segment_dest_lat) === round5(nextStopCoords.lat) &&
-      round5(row?.segment_dest_lon) === round5(nextStopCoords.lon) &&
-      typeof row?.encoded_polyline === 'string' && row.encoded_polyline.trim().length > 0
-    ) || null;
+    const exactExistingType1 = (existingPolylines || []).find((row) => {
+      const hasEncoded = typeof row?.encoded_polyline === 'string' && row.encoded_polyline.trim().length > 0;
+      const hasNonZeroTotals = Number(row?.estimated_distance_km || 0) > 0 || Number(row?.estimated_duration_minutes || 0) > 0;
+      return round5(row?.segment_origin_lat) === round5(effectiveOriginCoords.lat) &&
+        round5(row?.segment_origin_lon) === round5(effectiveOriginCoords.lon) &&
+        round5(row?.segment_dest_lat) === round5(nextStopCoords.lat) &&
+        round5(row?.segment_dest_lon) === round5(nextStopCoords.lon) &&
+        hasEncoded &&
+        hasNonZeroTotals;
+    }) || null;
 
     if (exactExistingType1) {
       return Response.json({ success: true, skipped: true, reason: 'cached_exact_segment', driverId, deliveryDate, nextStopId: nextActiveStop.id, repairedStopOrders: stopOrderRepairUpdates.length });
@@ -501,7 +509,8 @@ Deno.serve(async (req) => {
     const existingType1 = (existingPolylines || []).find((row) =>
       round5(row?.segment_dest_lat) === round5(nextStopCoords.lat) &&
       round5(row?.segment_dest_lon) === round5(nextStopCoords.lon) &&
-      row.encoded_polyline
+      typeof row?.encoded_polyline === 'string' && row.encoded_polyline.trim().length > 0 &&
+      (Number(row?.estimated_distance_km || 0) > 0 || Number(row?.estimated_duration_minutes || 0) > 0)
     ) || null;
 
     if (!body?.force && !allowDeviationCheck) {
