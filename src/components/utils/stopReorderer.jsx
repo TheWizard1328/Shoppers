@@ -8,6 +8,7 @@
  */
 
 import { base44 } from '@/api/base44Client';
+import { updateDelivery as updateDeliveryLocal } from './entityMutations';
 
 /**
  * Reorder stops for a driver's route on a specific date
@@ -18,7 +19,7 @@ import { base44 } from '@/api/base44Client';
  * @param {string} currentLocalTime - Optional current local time (HH:mm) from client device
  * @returns {Promise<Array>} - The reordered deliveries
  */
-export const reorderStops = async (driverId, deliveryDate, allDeliveries, currentLocalTime = null) => {
+export const reorderStops = async (driverId, deliveryDate, allDeliveries, currentLocalTime = null, options = {}) => {
   console.log('🔄 [Reorder] Starting stop reordering for driver:', driverId, 'date:', deliveryDate);
   
   // Get current local time if not provided
@@ -70,22 +71,42 @@ export const reorderStops = async (driverId, deliveryDate, allDeliveries, curren
     console.log(`  ${idx + 1}. ${d.patient_name || 'Pickup'} - ${d.status} - ${d.actual_delivery_time ? new Date(d.actual_delivery_time).toLocaleTimeString() : d.delivery_time_eta}`);
   });
   
-  // Update stop_order in database
   const updates = [];
   for (let i = 0; i < reorderedDeliveries.length; i++) {
     const delivery = reorderedDeliveries[i];
     const newStopOrder = i + 1;
-    
-    // Only update if stop_order changed
+
     if (delivery.stop_order !== newStopOrder) {
-      await base44.entities.Delivery.update(delivery.id, {
+      await updateDeliveryLocal(delivery.id, {
         stop_order: newStopOrder
+      }, {
+        deferPolylineRefresh: true,
+        skipSmartRefresh: true,
+        isBatchOperation: true
       });
       updates.push({ id: delivery.id, stop_order: newStopOrder });
     }
   }
-  
+
   console.log(`✅ [Reorder] Updated ${updates.length} stop orders`);
-  
+
+  const shouldOptimizeRemainingStops = options.optimizeRemainingStops !== false &&
+    driverId &&
+    deliveryDate &&
+    incompleteDeliveries.length > 0;
+
+  if (shouldOptimizeRemainingStops) {
+    try {
+      await base44.functions.invoke('optimizeRemainingStops', {
+        driverId,
+        deliveryDate,
+        currentLocalTime: localTime
+      });
+      console.log('✅ [Reorder] Remaining stops re-optimized with ETA refresh');
+    } catch (error) {
+      console.warn('⚠️ [Reorder] optimizeRemainingStops failed:', error?.message || error);
+    }
+  }
+
   return reorderedDeliveries;
 };
