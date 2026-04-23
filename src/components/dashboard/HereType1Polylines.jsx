@@ -383,12 +383,27 @@ export default function HereType1Polylines({
       try {
         const route = await getHerePolyline(first.driverId, orderedPoints[0], orderedPoints[orderedPoints.length - 1], first.deliveryDate, first.mode, orderedPoints.slice(1, -1));
         if (!Array.isArray(route) || route.length <= 1) return;
-        segments.forEach((segment) => {
+        let cursor = 0;
+        segments.forEach((segment, index) => {
           const segmentKey = getHereCacheKey(segment.origin, segment.destination, segment.mode);
-          const fallbackSegment = makeFallback(segment.origin, segment.destination);
-          if (segmentKey && Array.isArray(fallbackSegment) && fallbackSegment.length > 1) {
-            setCache((prev) => ({ ...prev, [segmentKey]: fallbackSegment }));
-            try { localStorage.setItem(segmentKey, JSON.stringify(fallbackSegment)); } catch (_) {}
+          let segmentCoords = null;
+          if (index === 0) {
+            const destinationIndex = route.findIndex((point, pointIndex) => pointIndex > 0 && Math.abs(Number(point?.[0]) - Number(segment.destination.latitude)) < 0.00001 && Math.abs(Number(point?.[1]) - Number(segment.destination.longitude)) < 0.00001);
+            if (destinationIndex > 0) {
+              segmentCoords = route.slice(0, destinationIndex + 1);
+              cursor = destinationIndex;
+            }
+          } else {
+            const destinationIndex = route.findIndex((point, pointIndex) => pointIndex > cursor && Math.abs(Number(point?.[0]) - Number(segment.destination.latitude)) < 0.00001 && Math.abs(Number(point?.[1]) - Number(segment.destination.longitude)) < 0.00001);
+            if (destinationIndex > cursor) {
+              segmentCoords = route.slice(cursor, destinationIndex + 1);
+              cursor = destinationIndex;
+            }
+          }
+          const coordsToStore = Array.isArray(segmentCoords) && segmentCoords.length > 1 ? segmentCoords : makeFallback(segment.origin, segment.destination);
+          if (segmentKey && Array.isArray(coordsToStore) && coordsToStore.length > 1) {
+            setCache((prev) => ({ ...prev, [segmentKey]: coordsToStore }));
+            try { localStorage.setItem(segmentKey, JSON.stringify(coordsToStore)); } catch (_) {}
           }
         });
         setRefreshToken((token) => token + 1);
