@@ -112,7 +112,8 @@ export default function ResetPolylinesButton({
               deliveryDate: selectedDate,
               scope: 'all',
               reason: 'manual',
-              routeSource: selectedPolylineOption
+              routeSource: selectedPolylineOption,
+              ignoreDriverStatus: true
             });
             result = response?.data || response || {};
             if (!result.success) {

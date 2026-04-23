@@ -548,7 +548,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { driverId, deliveryDate, scope = 'active_only', reason = 'manual', routeSource = 'polylines' } = body || {};
+    const { driverId, deliveryDate, scope = 'active_only', reason = 'manual', routeSource = 'polylines', ignoreDriverStatus = false } = body || {};
 
     if (!driverId || !deliveryDate) {
       return Response.json({ error: 'driverId and deliveryDate are required' }, { status: 400 });
@@ -652,7 +652,7 @@ Deno.serve(async (req) => {
         repairedStopOrders: stopOrderRepairUpdates.length
       });
     }
-    if (driverAvailability.isUnavailable && !isHistoricalDate) {
+    if (driverAvailability.isUnavailable && !isHistoricalDate && !ignoreDriverStatus) {
       console.log(`[purgeAndRegeneratePolylines] driver unavailable | driver=${driverDisplayName} | status=${driverAvailability.status || 'missing'} | date=${deliveryDate}`);
       return Response.json({
         success: true,
@@ -821,46 +821,22 @@ Deno.serve(async (req) => {
           segmentSpecs.push({ from, to, force });
         };
 
-        const currentLat = Number(driverAppUser?.current_latitude);
-        const currentLon = Number(driverAppUser?.current_longitude);
         const homeLat = Number(driverAppUser?.home_latitude);
         const homeLon = Number(driverAppUser?.home_longitude);
         const hasHomeCoords = isValidCoordinatePair(homeLat, homeLon);
-        const isToday = deliveryDate === getEdmontonDateString();
+        const orderedRouteStops = [...deliveries]
+          .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0))
+          .map((stop) => ({ stop, coords: getLatLon(stop) }))
+          .filter((entry) => entry.coords);
 
-        const originFromFinishedStop = latestFinishedStop ? getLatLon(latestFinishedStop) : null;
-        const useDriverLocationAsOrigin = scope === 'active_only' && firstActive && isToday && isValidCoordinatePair(currentLat, currentLon);
-        const firstLegOrigin = originFromFinishedStop || (hasHomeCoords ? { lat: homeLat, lon: homeLon } : null);
+        if (hasHomeCoords && orderedRouteStops.length > 0) {
+          pushSegment({ lat: homeLat, lon: homeLon }, orderedRouteStops[0].coords, true);
 
-        if (useDriverLocationAsOrigin && !originFromFinishedStop) {
-          pushSegment({ lat: currentLat, lon: currentLon }, firstActive);
-        }
+          for (let index = 1; index < orderedRouteStops.length; index += 1) {
+            pushSegment(orderedRouteStops[index - 1].coords, orderedRouteStops[index].coords, true);
+          }
 
-        for (let index = 0; index < activeStops.length; index += 1) {
-          const stop = activeStops[index];
-          const previousStop = activeStops[index - 1];
-          const from = previousStop
-            ? getLatLon(previousStop)
-            : originFromFinishedStop || (() => {
-              const store = storeMap.get(stop?.store_id);
-              if (store?.latitude != null && store?.longitude != null) {
-                return { lat: Number(store.latitude), lon: Number(store.longitude) };
-              }
-              return null;
-            })();
-          const to = getLatLon(stop);
-          pushSegment(from, to);
-        }
-
-        const lastActive = getLatLon(activeStops[activeStops.length - 1]);
-
-        const shouldAddHomeStartLeg = hasHomeCoords && firstActive && !originFromFinishedStop;
-        if (shouldAddHomeStartLeg) {
-          pushSegment({ lat: homeLat, lon: homeLon }, firstActive, true);
-        }
-
-        if (hasHomeCoords && lastActive) {
-          pushSegment(lastActive, { lat: homeLat, lon: homeLon }, true);
+          pushSegment(orderedRouteStops[orderedRouteStops.length - 1].coords, { lat: homeLat, lon: homeLon }, true);
         }
 
         const segmentsToKeep = new Set();
