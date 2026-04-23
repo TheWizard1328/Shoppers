@@ -10,11 +10,10 @@ import DeliveryListView from "../dashboard/DeliveryListView";
 import BulkEditStopsPanel from "./BulkEditStopsPanel";
 import DeleteConfirmDialog from "./DeleteConfirmDialog";
 import { isMobileDevice } from "../utils/deviceUtils";
-import { createDeliveryLocal, deleteDeliveryLocal } from "../utils/entityMutations";
+import { createDeliveryLocal, batchDeleteDeliveriesLocal } from "../utils/entityMutations";
 import { invalidate } from "../utils/dataManager";
 import { userHasRole } from "../utils/userRoles";
 import { applyBulkEditStops } from "./bulkEditHelpers.jsx";
-import { base44 } from "@/api/base44Client";
 
 export default function RouteManagementContent({
   deliveries,
@@ -117,22 +116,7 @@ export default function RouteManagementContent({
     if (selectedBulkDeliveryIds.length === 0) return;
     setIsBulkUpdating(true);
     try {
-      const deliveriesToDelete = (deliveries || []).filter((delivery) => selectedBulkDeliveryIds.includes(delivery.id));
-      await Promise.all(deliveriesToDelete.map((delivery) => deleteDeliveryLocal(delivery.id)));
-
-      const affectedDriverDates = Array.from(new Set(
-        deliveriesToDelete
-          .filter((delivery) => delivery?.driver_id && delivery?.delivery_date)
-          .map((delivery) => `${delivery.driver_id}|${delivery.delivery_date}`)
-      ));
-
-      await Promise.all(
-        affectedDriverDates.map((entry) => {
-          const [driverId, deliveryDate] = entry.split("|");
-          return base44.functions.invoke("purgeAndRegeneratePolylines", { driverId, deliveryDate }).catch(() => {});
-        })
-      );
-
+      await batchDeleteDeliveriesLocal(selectedBulkDeliveryIds);
       await invalidate("Delivery");
       await loadData(true);
       setSelectedBulkDeliveryIds([]);
@@ -141,7 +125,7 @@ export default function RouteManagementContent({
     } finally {
       setIsBulkUpdating(false);
     }
-  }, [deliveries, loadData, selectedBulkDeliveryIds]);
+  }, [loadData, selectedBulkDeliveryIds]);
 
   const handleCreateReturn = useCallback(async ({ originalDelivery, returnPatient, store }) => {
     const currentDate = format(new Date(), "yyyy-MM-dd");
