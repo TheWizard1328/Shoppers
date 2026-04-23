@@ -702,7 +702,7 @@ export default function GoogleAPILogViewer() {
               </LineChart>
             </ResponsiveContainer>
             {!userFilter && uniqueUsers.length > 1 && (
-              <div className="mt-3 space-y-2 text-xs text-slate-600">
+              <div className="relative z-20 mt-3 space-y-2 text-xs text-slate-600">
                 {legendRows.map((row, rowIndex) => row.length > 0 ? (
                   <div key={rowIndex} className="flex flex-wrap items-center gap-x-4 gap-y-2">
                     {row.map((item) => (
