@@ -20,13 +20,20 @@ const getEdmontonCurrentTime = () => {
   return `${hour}:${minute}`;
 };
 
+const getSortableDeliveryTimestamp = (delivery) => {
+  if (delivery?.actual_delivery_time && typeof delivery.actual_delivery_time === 'string') {
+    const match = delivery.actual_delivery_time.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
+    if (match) {
+      const [, year, month, day, hour, minute, second = '00'] = match;
+      return Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second));
+    }
+  }
+  return new Date(delivery?.updated_date || delivery?.created_date || 0).getTime();
+};
+
 const getLatestFinishedDelivery = (deliveries) => [...(deliveries || [])]
   .filter((delivery) => FINISHED_STATUSES.includes(delivery?.status))
-  .sort((a, b) => {
-    const aTime = new Date(a?.actual_delivery_time || a?.updated_date || a?.created_date || 0).getTime();
-    const bTime = new Date(b?.actual_delivery_time || b?.updated_date || b?.created_date || 0).getTime();
-    return bTime - aTime;
-  })[0] || null;
+  .sort((a, b) => getSortableDeliveryTimestamp(b) - getSortableDeliveryTimestamp(a))[0] || null;
 
 const getDeliveryCoords = (delivery, patientMap, storeMap) => {
   if (!delivery) return null;

@@ -10,8 +10,8 @@ export default function useDashboardImmersiveMode({
   selectedDriverId,
 }) {
   const immersiveProps = useMemo(() => ({
-    enabled: Boolean(isMobile && isPrimaryDevice && selectedDriverId && selectedDriverId !== 'all'),
-    isDriver: Boolean(isDriver || (isMobile && isPrimaryDevice && selectedDriverId && selectedDriverId !== 'all')),
+    enabled: Boolean(isDriver && isMobile && isPrimaryDevice && selectedDriverId && selectedDriverId !== 'all'),
+    isDriver: Boolean(isDriver),
     isMobile,
     driverLocation,
     nextStopCoordinates,
