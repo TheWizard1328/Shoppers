@@ -302,7 +302,12 @@ Deno.serve(async (req) => {
     let currentPosition;
     let locationSource;
 
-    if (latestFinishedDelivery) {
+    if (driverAppUser.current_latitude != null && driverAppUser.current_longitude != null) {
+      currentPosition = { lat: Number(driverAppUser.current_latitude), lng: Number(driverAppUser.current_longitude) };
+      locationSource = 'current_gps';
+    }
+
+    if (!currentPosition && latestFinishedDelivery) {
       currentPosition = getDeliveryCoords(latestFinishedDelivery, patientMap, storeMap);
       locationSource = currentPosition ? 'last_finished_stop' : null;
     }
@@ -326,7 +331,8 @@ Deno.serve(async (req) => {
       .filter(Boolean);
 
     const nextDeliveryStop = optimizationStops.find((stop) => stop.delivery.isNextDelivery === true) || null;
-    const lockedNextStop = nextDeliveryStop && !nextDeliveryStop.hasLateWindow ? nextDeliveryStop : null;
+    const nextDeliveryReachableFromCurrentGps = !!nextDeliveryStop && locationSource === 'current_gps';
+    const lockedNextStop = nextDeliveryStop && !nextDeliveryStop.hasLateWindow && nextDeliveryReachableFromCurrentGps ? nextDeliveryStop : null;
     const stopsToSequence = lockedNextStop
       ? optimizationStops.filter((stop) => stop.delivery.id !== lockedNextStop.delivery.id)
       : optimizationStops;
