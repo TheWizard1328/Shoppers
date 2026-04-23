@@ -235,12 +235,12 @@ export const handleBatchSaveDelivery = async ({
 
         if (stopPatient?.time_window_end) {
           stop.delivery_time_end = stopPatient.time_window_end;
-        } else if (correspondingPickup?.delivery_time_end) {
-          stop.delivery_time_end = correspondingPickup.delivery_time_end;
+        } else {
+          stop.delivery_time_end = '';
         }
 
         stop.time_window_start = stop.delivery_time_start;
-        stop.time_window_end = stop.delivery_time_end || stop.time_window_end || '';
+        stop.time_window_end = stop.delivery_time_end || '';
         // DISABLED: No longer auto-assign 9:00 PM default - leave blank if patient has no time window
       }
     }
@@ -260,11 +260,11 @@ export const handleBatchSaveDelivery = async ({
       }
       if (stopPatient?.time_window_end) {
         stop.delivery_time_end = stopPatient.time_window_end;
-      } else if (correspondingPickup?.delivery_time_end) {
-        stop.delivery_time_end = correspondingPickup.delivery_time_end;
+      } else {
+        stop.delivery_time_end = '';
       }
       stop.time_window_start = stop.delivery_time_start;
-      stop.time_window_end = stop.delivery_time_end || stop.time_window_end || '';
+      stop.time_window_end = stop.delivery_time_end || '';
     }
 
     // First, set AM/PM on all pickups based on their scheduled time
