@@ -429,6 +429,13 @@ Deno.serve(async (req) => {
 
     // STEP 8: Build one final delivery write batch and update once
     const startingOrder = completedDeliveries.length;
+    const originalActiveOrder = activeRouteDeliveries
+      .slice()
+      .sort((a, b) => (Number(a?.stop_order) || 99999) - (Number(b?.stop_order) || 99999))
+      .map((delivery) => String(delivery.id));
+    const optimizedActiveOrder = activeStops.map((stop) => String(stop.id));
+    const routeOrderChanged = originalActiveOrder.length !== optimizedActiveOrder.length
+      || originalActiveOrder.some((id, index) => id !== optimizedActiveOrder[index]);
     const finalDeliveryWriteBatch = [];
     const finalizedById = new Map(activeStops.map((stop) => [stop.id, stop]));
 
@@ -500,14 +507,17 @@ Deno.serve(async (req) => {
 
     // Tracking numbers are intentionally delayed until Assign All / Accept All.
 
-    try {
-      await base44.asServiceRole.functions.invoke('purgeAndRegeneratePolylines', {
-        driverId,
-        deliveryDate
-      });
-      console.log('🧹 [optimizeRemainingStops] Polylines purged and regenerated');
-    } catch (polylineError) {
-      console.warn('[optimizeRemainingStops] purgeAndRegeneratePolylines failed (non-fatal):', polylineError?.message || polylineError);
+    if (routeOrderChanged) {
+      try {
+        await base44.asServiceRole.functions.invoke('purgeAndRegeneratePolylines', {
+          driverId,
+          deliveryDate,
+          reason: 'route_reordered'
+        });
+        console.log('🧹 [optimizeRemainingStops] Polylines purged and regenerated after route order change');
+      } catch (polylineError) {
+        console.warn('[optimizeRemainingStops] purgeAndRegeneratePolylines failed (non-fatal):', polylineError?.message || polylineError);
+      }
     }
 
     // HERE usage is logged inside getHereDirections so dashboard counts stay aligned to real HTTP calls.
@@ -518,7 +528,7 @@ Deno.serve(async (req) => {
       success: true,
       driverId,
       deliveryDate,
-      routeChanged: true,
+      routeChanged: routeOrderChanged,
       optimizedCount: activeStops.length,
       stagesCount: 1,
       apiCallsMade: attemptedHereCalls,
