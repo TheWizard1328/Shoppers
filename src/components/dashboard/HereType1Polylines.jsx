@@ -244,7 +244,7 @@ export default function HereType1Polylines({
 
   useDriverRoutePolylineBackgroundSync({
     targets: polylineSyncTargets,
-    enabled: polylineSyncTargets.length > 0,
+    enabled: polylineSyncTargets.length > 0 && isViewingCurrentDate,
     intervalMs: 30000,
     onSync: () => setRefreshToken((token) => token + 1)
   });
@@ -596,7 +596,7 @@ export default function HereType1Polylines({
 
     let coords = getCachedPolyline(key, cache);
 
-    if (!coords && !optimizing) {
+    if (!coords && !optimizing && !isViewingCurrentDate) {
       if (Date.now() - mountTimeRef.current < 1200) return;
       const lastReq = requestTimesRef.current[key] || 0;
       const now = Date.now();

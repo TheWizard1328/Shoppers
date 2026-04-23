@@ -20,13 +20,13 @@ export default function useDriverRoutePolylineBackgroundSync({ targets = [], ena
 
     let cancelled = false;
 
-    const runSync = async () => {
+    const runSync = async (force = false) => {
       if (cancelled || isSyncingRef.current || document.visibilityState !== "visible") return;
       isSyncingRef.current = true;
 
       try {
         const results = await Promise.all(
-          uniqueTargets.map((target) => syncDriverRoutePolylinesForDate(target.driverId, target.deliveryDate, true))
+          uniqueTargets.map((target) => syncDriverRoutePolylinesForDate(target.driverId, target.deliveryDate, force))
         );
 
         if (cancelled) return;
@@ -37,13 +37,13 @@ export default function useDriverRoutePolylineBackgroundSync({ targets = [], ena
       }
     };
 
-    const intervalId = window.setInterval(runSync, intervalMs);
-    const onFocus = () => runSync();
+    const intervalId = window.setInterval(() => runSync(false), intervalMs);
+    const onFocus = () => runSync(false);
     const onVisibilityChange = () => {
-      if (document.visibilityState === "visible") runSync();
+      if (document.visibilityState === "visible") runSync(false);
     };
 
-    runSync();
+    runSync(false);
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisibilityChange);
 

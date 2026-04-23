@@ -1587,7 +1587,7 @@ function Dashboard() {
             segment.destLon
           );
 
-          setCurrentToNextPolyline(polyline);
+          setCurrentToNextPolyline(Array.isArray(polyline) && polyline.length > 1 ? polyline : null);
         } else {
           setCurrentToNextPolyline(null);
         }
@@ -1612,11 +1612,9 @@ function Dashboard() {
     const handlePolylineUpdated = () => {
       fetchPolyline();
     };
-    window.addEventListener('deliveriesUpdated', handlePolylineUpdated);
     window.addEventListener('routeReordered', handlePolylineUpdated);
 
     return () => {
-      window.removeEventListener('deliveriesUpdated', handlePolylineUpdated);
       window.removeEventListener('routeReordered', handlePolylineUpdated);
     };
   }, [currentUser?.id, selectedDriverId, selectedDate, filteredDeliveries, patients, stores, appUsers]);
