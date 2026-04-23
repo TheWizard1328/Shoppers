@@ -46,7 +46,7 @@ export default function GoogleAPILogViewer() {
   });
 
   // Filters
-  const [dateFilter, setDateFilter] = useState('today');
+  const [dateFilter, setDateFilter] = useState('hourly');
   const [customDateStart, setCustomDateStart] = useState('');
   const [customDateEnd, setCustomDateEnd] = useState('');
   const [apiTypeFilter, setApiTypeFilter] = useState('all');
@@ -147,7 +147,11 @@ export default function GoogleAPILogViewer() {
       const logDate = new Date(log.timestamp);
       let passesDateFilter = true;
 
-      if (dateFilter === 'today') {
+      if (dateFilter === 'hourly') {
+        // Last 1 hour from current time
+        const oneHourAgo = subHours(new Date(), 1);
+        passesDateFilter = logDate >= oneHourAgo;
+      } else if (dateFilter === 'today') {
         // Last 24 hours from current time
         const twentyFourHoursAgo = subHours(new Date(), 24);
         passesDateFilter = logDate >= twentyFourHoursAgo;
@@ -229,7 +233,36 @@ export default function GoogleAPILogViewer() {
   const hourlyChartData = useMemo(() => {
     const isAllUsers = !userFilter;
 
-    if (dateFilter === 'today') {
+    if (dateFilter === 'hourly') {
+      const now = new Date();
+      const hourlyMap = {};
+
+      for (let i = 59; i >= 0; i--) {
+        const minuteDate = new Date(now.getTime() - i * 60 * 1000);
+        const minuteKey = format(minuteDate, 'MMM dd HH:mm');
+        hourlyMap[minuteKey] = { hour: format(minuteDate, 'HH:mm'), calls: 0, sortOrder: 59 - i };
+
+        if (isAllUsers) {
+          uniqueUsers.forEach((user) => {
+            hourlyMap[minuteKey][user] = 0;
+          });
+        }
+      }
+
+      filteredLogs.forEach((log) => {
+        const logDate = new Date(log.timestamp);
+        const minuteKey = format(logDate, 'MMM dd HH:mm');
+        if (hourlyMap[minuteKey]) {
+          const callCount = getApiLogCallCount(log);
+          hourlyMap[minuteKey].calls += callCount;
+          if (isAllUsers && log.user_name) {
+            hourlyMap[minuteKey][log.user_name] = (hourlyMap[minuteKey][log.user_name] || 0) + callCount;
+          }
+        }
+      });
+
+      return Object.values(hourlyMap).sort((a, b) => a.sortOrder - b.sortOrder);
+    } else if (dateFilter === 'today') {
       // HOURLY VIEW: Last 24 hours from current time
       const now = new Date();
       const hourlyMap = {};
@@ -390,7 +423,7 @@ export default function GoogleAPILogViewer() {
   }, [filteredLogs]);
 
   const clearFilters = () => {
-    setDateFilter('today');
+    setDateFilter('hourly');
     setCustomDateStart('');
     setCustomDateEnd('');
     setApiTypeFilter('all');
@@ -444,18 +477,69 @@ export default function GoogleAPILogViewer() {
               Real-time monitoring of Google and HERE API usage totals
             </p>
           </div>
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-2 flex-wrap items-end">
             <Button
               onClick={() => setShowFilters(!showFilters)}
               variant="outline"
-              className="gap-2">
+              className="gap-2 md:hidden">
               
               <Filter className="w-4 h-4" />
               Filters
-              {(dateFilter !== 'today' || apiTypeFilter !== 'all' || userFilter) &&
+              {(dateFilter !== 'hourly' || apiTypeFilter !== 'all' || userFilter) &&
               <Badge className="ml-1 bg-blue-500 text-white">Active</Badge>
               }
             </Button>
+            <div className="hidden md:flex items-end gap-2 flex-wrap">
+              <div className="min-w-[170px]">
+                <label className="text-xs font-medium text-slate-600 mb-1 block">Date Range</label>
+                <Select value={dateFilter} onValueChange={setDateFilter}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="hourly">Last Hour</SelectItem>
+                    <SelectItem value="today">Last 24 Hours</SelectItem>
+                    <SelectItem value="yesterday">Yesterday</SelectItem>
+                    <SelectItem value="week">Last 7 Days</SelectItem>
+                    <SelectItem value="all">All Time</SelectItem>
+                    <SelectItem value="custom">Custom Range</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="min-w-[180px]">
+                <label className="text-xs font-medium text-slate-600 mb-1 block">API Type</label>
+                <Select value={apiTypeFilter} onValueChange={setApiTypeFilter}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="Google Directions">Google Directions</SelectItem>
+                    <SelectItem value="HERE Directions">HERE Directions</SelectItem>
+                    <SelectItem value="Google Distance Matrix">Google Distance Matrix</SelectItem>
+                    <SelectItem value="HERE Distance Matrix">HERE Distance Matrix</SelectItem>
+                    <SelectItem value="Google Places Autocomplete">Google Places Autocomplete</SelectItem>
+                    <SelectItem value="Google Place Details">Google Place Details</SelectItem>
+                    <SelectItem value="Google Geocoding">Google Geocoding</SelectItem>
+                    <SelectItem value="HERE Geocoding">HERE Geocoding</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="min-w-[180px]">
+                <label className="text-xs font-medium text-slate-600 mb-1 block">User</label>
+                <Select value={userFilter || 'all'} onValueChange={(v) => setUserFilter(v === 'all' ? '' : v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Users" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Users</SelectItem>
+                    {uniqueUsers.map((user) =>
+                    <SelectItem key={user} value={user}>{user}</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
             <Button
               onClick={() => loadLogs()}
               disabled={isLoading}
@@ -516,6 +600,7 @@ export default function GoogleAPILogViewer() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="hourly">Last Hour</SelectItem>
                     <SelectItem value="today">Last 24 Hours</SelectItem>
                     <SelectItem value="yesterday">Yesterday</SelectItem>
                     <SelectItem value="week">Last 7 Days</SelectItem>
@@ -618,7 +703,8 @@ export default function GoogleAPILogViewer() {
           {/* Hourly Call Volume */}
           <div className="bg-white border rounded-lg p-4">
             <h3 className="font-semibold text-slate-900 mb-4">
-              {dateFilter === 'today' ? 'Last 24 Hours Call Volume' :
+              {dateFilter === 'hourly' ? 'Last Hour Call Volume' :
+                dateFilter === 'today' ? 'Last 24 Hours Call Volume' :
                 dateFilter === 'yesterday' ? 'Yesterday\'s Call Volume (00:00-23:59)' :
                 dateFilter === 'week' ? 'Last 7 Days Call Volume (6-hour periods)' :
                 'Call Volume by Day'}
@@ -628,11 +714,11 @@ export default function GoogleAPILogViewer() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis
                     dataKey="hour"
-                    tick={{ fontSize: dateFilter === 'week' ? 9 : 11 }}
+                    tick={{ fontSize: dateFilter === 'week' ? 9 : dateFilter === 'hourly' ? 10 : 11 }}
                     stroke="#64748b"
-                    angle={dateFilter === 'week' ? -45 : 0}
-                    textAnchor={dateFilter === 'week' ? 'end' : 'middle'}
-                    height={dateFilter === 'week' ? 60 : 30} />
+                    angle={dateFilter === 'week' ? -45 : dateFilter === 'hourly' ? -30 : 0}
+                    textAnchor={dateFilter === 'week' || dateFilter === 'hourly' ? 'end' : 'middle'}
+                    height={dateFilter === 'week' ? 60 : dateFilter === 'hourly' ? 45 : 30} />
                   
                 <YAxis tick={{ fontSize: 11 }} stroke="#64748b" />
                 <Tooltip
