@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const MOTION_DISTANCE_METERS = 25;
 const MOTION_WINDOW_MS = 12000;
+const STOPPED_IDLE_MS = 5000;
 const MAP_TAP_OVERRIDE_MS = 30000;
 
 const toRad = (value) => (value * Math.PI) / 180;
@@ -29,11 +30,16 @@ export default function useImmersiveMode({ isDriver, isMobile, driverLocation, e
   const [isDriverMoving, setIsDriverMoving] = useState(false);
   const [isOverrideActive, setIsOverrideActive] = useState(false);
   const overrideTimeoutRef = useRef(null);
+  const stoppedTimeoutRef = useRef(null);
   const locationHistoryRef = useRef([]);
 
   useEffect(() => {
     if (!enabled || !isDriver || !isMobile || !driverLocation?.latitude || !driverLocation?.longitude) {
       locationHistoryRef.current = [];
+      if (stoppedTimeoutRef.current) {
+        clearTimeout(stoppedTimeoutRef.current);
+        stoppedTimeoutRef.current = null;
+      }
       setIsDriverMoving(false);
       return;
     }
@@ -52,6 +58,12 @@ export default function useImmersiveMode({ isDriver, isMobile, driverLocation, e
     locationHistoryRef.current = nextHistory;
 
     if (nextHistory.length < 2) {
+      if (stoppedTimeoutRef.current) clearTimeout(stoppedTimeoutRef.current);
+      stoppedTimeoutRef.current = setTimeout(() => {
+        locationHistoryRef.current = locationHistoryRef.current.slice(-1);
+        setIsDriverMoving(false);
+        stoppedTimeoutRef.current = null;
+      }, STOPPED_IDLE_MS);
       setIsDriverMoving(false);
       return;
     }
@@ -59,12 +71,31 @@ export default function useImmersiveMode({ isDriver, isMobile, driverLocation, e
     const firstPoint = nextHistory[0];
     const lastPoint = nextHistory[nextHistory.length - 1];
     const movedDistance = getDistanceMeters(firstPoint, lastPoint);
-    setIsDriverMoving(movedDistance >= MOTION_DISTANCE_METERS);
+    const moving = movedDistance >= MOTION_DISTANCE_METERS;
+
+    if (stoppedTimeoutRef.current) {
+      clearTimeout(stoppedTimeoutRef.current);
+      stoppedTimeoutRef.current = null;
+    }
+
+    if (moving) {
+      setIsDriverMoving(true);
+      return;
+    }
+
+    stoppedTimeoutRef.current = setTimeout(() => {
+      locationHistoryRef.current = locationHistoryRef.current.slice(-1);
+      setIsDriverMoving(false);
+      stoppedTimeoutRef.current = null;
+    }, STOPPED_IDLE_MS);
   }, [enabled, isDriver, isMobile, driverLocation?.latitude, driverLocation?.longitude]);
 
   useEffect(() => () => {
     if (overrideTimeoutRef.current) {
       clearTimeout(overrideTimeoutRef.current);
+    }
+    if (stoppedTimeoutRef.current) {
+      clearTimeout(stoppedTimeoutRef.current);
     }
   }, []);
 
