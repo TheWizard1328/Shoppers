@@ -118,11 +118,24 @@ export default function FABControls({
                 const data = response?.data || response;
                 if (data?.success) {
                   setOptimizationMessage(`Route optimized! ${data.optimizedCount} stops updated.`);
+                  const freshDeliveries = await base44.entities.Delivery.filter({
+                    delivery_date: deliveryDate,
+                    driver_id: currentUser.id
+                  });
+                  window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                    detail: {
+                      driverId: currentUser.id,
+                      deliveryDate,
+                      triggeredBy: 'reoptimizeRoute',
+                      alreadyOptimized: true,
+                      preserveLocalState: true,
+                      freshDeliveries
+                    }
+                  }));
+                  window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
                   invalidateDeliveriesForDate(deliveryDate);
-                  // CRITICAL: Use Promise.race to prevent UI freeze if refreshData hangs
                   const refreshTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error('Refresh timeout')), 8000));
                   await Promise.race([refreshData(), refreshTimeout]).catch(() => {});
-                  window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { driverId: currentUser.id, deliveryDate, triggeredBy: 'reoptimizeRoute', alreadyOptimized: true } }));
                   setIsMapViewLocked(true); setMapViewTrigger(p => p + 1);
                   setTimeout(() => { setOptimizationMessage(null); setIsMapViewLocked(false); }, 3000);
                 } else { setOptimizationMessage(data?.error || 'Optimization failed'); setTimeout(() => setOptimizationMessage(null), 5000); }
