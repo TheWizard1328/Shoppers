@@ -124,20 +124,35 @@ async function flushPolylinePersists() {
   pendingPolylinePayloads.length = 0;
   
   try {
-    // Deduplicate payloads by segment
     const uniquePayloadsMap = new Map();
     for (const p of payloads) {
       const key = `${p.driver_id}_${p.delivery_date}_${p.segment_origin_lat}_${p.segment_origin_lon}_${p.segment_dest_lat}_${p.segment_dest_lon}`;
       uniquePayloadsMap.set(key, p);
     }
     const uniquePayloads = Array.from(uniquePayloadsMap.values());
-    
-    if (uniquePayloads.length > 0) {
-      const created = await base44.entities.DriverRoutePolyline.bulkCreate(uniquePayloads);
-      if (Array.isArray(created) && created.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, created);
+
+    for (const payload of uniquePayloads) {
+      const existing = await base44.entities.DriverRoutePolyline.filter({
+        driver_id: payload.driver_id,
+        delivery_date: payload.delivery_date
+      }, '-updated_date', 50000).then((rows) => (rows || []).find((row) =>
+        Number(row?.segment_origin_lat).toFixed(5) === Number(payload.segment_origin_lat).toFixed(5) &&
+        Number(row?.segment_origin_lon).toFixed(5) === Number(payload.segment_origin_lon).toFixed(5) &&
+        Number(row?.segment_dest_lat).toFixed(5) === Number(payload.segment_dest_lat).toFixed(5) &&
+        Number(row?.segment_dest_lon).toFixed(5) === Number(payload.segment_dest_lon).toFixed(5)
+      ) || null).catch(() => null);
+
+      const saved = existing?.id
+        ? await base44.entities.DriverRoutePolyline.update(existing.id, payload)
+        : await base44.entities.DriverRoutePolyline.create(payload);
+
+      if (saved) {
+        await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [saved]);
       }
     }
+
+    const affectedDates = [...new Set(uniquePayloads.map((p) => p.delivery_date).filter(Boolean))];
+    await Promise.all(affectedDates.map((date) => offlineDB.deduplicateDriverRoutePolylines(date).catch(() => null)));
   } catch (err) {
     console.warn('[HERE][client] Bulk persist failed', err);
   }

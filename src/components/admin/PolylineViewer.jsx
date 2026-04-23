@@ -188,7 +188,7 @@ export default function PolylineViewer({ users = [] }) {
 
   const filteredPolylines = useMemo(() => {
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
-    const effectiveDate = dateFilter || today; // Always restrict to today unless a date is explicitly chosen
+    const effectiveDate = dateFilter || today;
 
     let filtered = polylines;
 
@@ -197,11 +197,27 @@ export default function PolylineViewer({ users = [] }) {
     }
 
     filtered = filtered.filter(p => p.delivery_date === effectiveDate);
-
-    // Hide records with no encoded polyline (nothing to display on map)
     filtered = filtered.filter(p => typeof p.encoded_polyline === 'string' && p.encoded_polyline.length > 0);
 
-    return filtered;
+    const deduped = new Map();
+    filtered.forEach((row) => {
+      const key = [
+        row.driver_id,
+        row.delivery_date,
+        Number(row.segment_origin_lat).toFixed(5),
+        Number(row.segment_origin_lon).toFixed(5),
+        Number(row.segment_dest_lat).toFixed(5),
+        Number(row.segment_dest_lon).toFixed(5)
+      ].join('|');
+      const existing = deduped.get(key);
+      const existingTs = existing ? new Date(existing.last_generated_at || existing.updated_date || existing.created_date || 0).getTime() : 0;
+      const currentTs = new Date(row.last_generated_at || row.updated_date || row.created_date || 0).getTime();
+      if (!existing || currentTs > existingTs) {
+        deduped.set(key, row);
+      }
+    });
+
+    return Array.from(deduped.values());
   }, [polylines, driverFilter, dateFilter]);
 
   const filteredBreadcrumbs = useMemo(() => {
