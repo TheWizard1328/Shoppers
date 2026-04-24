@@ -189,10 +189,12 @@ export default function HereType1Polylines({
   };
   const [optimizing, setOptimizing] = useState(false);
   const [lastNonEmptyLines, setLastNonEmptyLines] = useState([]);
+  const lastHydratedSegmentKeysRef = useRef({});
   useEffect(() => {
     setLastNonEmptyLines([]);
     setDeviationSegments({});
     deviationMetaRef.current = {};
+    lastHydratedSegmentKeysRef.current = {};
   }, [selectedDriverId, showAll]);
   const requestTimesRef = useRef({});
   const mountTimeRef = useRef(Date.now());
@@ -332,8 +334,12 @@ export default function HereType1Polylines({
       const originLon = Number(lastCompleted.longitude);
 
       const key = getHereCacheKey({ latitude: originLat, longitude: originLon }, nextStop, getDriverMode(driverId));
-      if (cache[key]) return;
-      // ONLY hydrate from offline DB - no backend calls
+      if (cache[key]) {
+        lastHydratedSegmentKeysRef.current[driverId] = key;
+        return;
+      }
+      if (lastHydratedSegmentKeysRef.current[driverId] === key) return;
+      lastHydratedSegmentKeysRef.current[driverId] = key;
       hydrateFromOffline(key, driverId, { latitude: Number(originLat), longitude: Number(originLon) }, { latitude: Number(nextStop.latitude), longitude: Number(nextStop.longitude) }, lastCompleted.delivery_date);
     });
   }, [isViewingCurrentDate, driverStops, refreshToken]);
@@ -352,8 +358,12 @@ export default function HereType1Polylines({
       const home = driverHomeMarkers.find((h) => h.driverId === driverId);
       if (!lastCompleted || !home) return;
       const key = getHereCacheKey(lastCompleted, home, getDriverMode(driverId));
-      if (cache[key]) return;
-      // ONLY hydrate from offline DB - no backend calls
+      if (cache[key]) {
+        lastHydratedSegmentKeysRef.current[driverId] = key;
+        return;
+      }
+      if (lastHydratedSegmentKeysRef.current[driverId] === key) return;
+      lastHydratedSegmentKeysRef.current[driverId] = key;
       hydrateFromOffline(key, driverId, { latitude: Number(lastCompleted.latitude), longitude: Number(lastCompleted.longitude) }, { latitude: Number(home.latitude), longitude: Number(home.longitude) }, lastCompleted.delivery_date);
     });
   }, [isViewingCurrentDate, driversWithCompleteRoute, driverStops, driverHomeMarkers, refreshToken]);
@@ -374,8 +384,12 @@ export default function HereType1Polylines({
       if (!next || originLat === undefined || originLon === undefined) return;
 
       const key = getHereCacheKey({ latitude: originLat, longitude: originLon }, next, getDriverMode(driverId));
-      if (cache[key]) return;
-      // ONLY hydrate from offline DB - no backend calls
+      if (cache[key]) {
+        lastHydratedSegmentKeysRef.current[driverId] = key;
+        return;
+      }
+      if (lastHydratedSegmentKeysRef.current[driverId] === key) return;
+      lastHydratedSegmentKeysRef.current[driverId] = key;
       hydrateFromOffline(key, driverId, { latitude: originLat, longitude: originLon }, next, next.delivery_date);
     });
   }, [isViewingCurrentDate, driverStops, driverHomeMarkers, optimizing, refreshToken]);

@@ -683,11 +683,31 @@ class LightweightRefreshManager {
       const selectedDateStr = globalFilters.getSelectedDate();
       if (selectedDriverId && selectedDriverId !== 'all' && selectedDateStr) {
         try {
-          const polylineRows = await syncDriverRoutePolylinesForDate(selectedDriverId, selectedDateStr, true);
-          if (Array.isArray(polylineRows) && polylineRows.length >= 0 && typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('polylineUpdated', {
-              detail: { driverId: selectedDriverId, deliveryDate: selectedDateStr, source: 'smartRefresh' }
+          const { offlineDB } = await import('./offlineDatabase');
+          const offlinePolylineRows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', selectedDateStr);
+          const hasOfflinePolylines = (offlinePolylineRows || []).some((row) => row?.driver_id === selectedDriverId && row?.encoded_polyline);
+
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('driverRoutePolylinesUpdated', {
+              detail: {
+                driverId: selectedDriverId,
+                deliveryDate: selectedDateStr,
+                source: hasOfflinePolylines ? 'smartRefresh-offline' : 'smartRefresh'
+              }
             }));
+          }
+
+          if (!hasOfflinePolylines) {
+            const polylineRows = await syncDriverRoutePolylinesForDate(selectedDriverId, selectedDateStr, true);
+            if (Array.isArray(polylineRows) && typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('driverRoutePolylinesUpdated', {
+                detail: {
+                  driverId: selectedDriverId,
+                  deliveryDate: selectedDateStr,
+                  source: 'smartRefresh-server'
+                }
+              }));
+            }
           }
         } catch (error) {
           console.warn('⚠️ [SmartRefresh] Polyline resync failed:', error?.message || error);
