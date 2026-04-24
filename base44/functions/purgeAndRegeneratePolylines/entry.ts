@@ -579,19 +579,7 @@ Deno.serve(async (req) => {
     const appUsersForDriverName = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId }, '-updated_date', 1);
     const driverNameAppUser = Array.isArray(appUsersForDriverName) ? appUsersForDriverName[0] : null;
     const driverDisplayName = driverNameAppUser?.user_name || driverNameAppUser?.full_name || driverId;
-
-    const stopOrderRepairUpdates = buildStopOrderRepairUpdates(deliveries);
-    if (stopOrderRepairUpdates.length > 0) {
-      console.log(`# [purgeAndRegeneratePolylines] BEFORE stopOrderRepair bulkUpdateDeliveries | driver=${driverDisplayName} | date=${deliveryDate} | totalStops=${deliveries?.length || 0} | repairCount=${stopOrderRepairUpdates.length}`);
-      const stopOrderUpdatesById = new Map(stopOrderRepairUpdates.map((update) => [update.id, { stop_order: update.stop_order }]));
-      deliveries = await bulkUpdateDeliveries(base44, deliveries, stopOrderUpdatesById);
-      const afterStopOrderRepairDeliveries = await base44.asServiceRole.entities.Delivery.filter({
-        driver_id: driverId,
-        delivery_date: deliveryDate
-      }, 'stop_order', 50000);
-      console.log(`# [purgeAndRegeneratePolylines] AFTER stopOrderRepair bulkUpdateDeliveries | driver=${driverDisplayName} | date=${deliveryDate} | totalStops=${afterStopOrderRepairDeliveries?.length || 0} | repairCount=${stopOrderRepairUpdates.length}`);
-      deliveries = afterStopOrderRepairDeliveries;
-    }
+    const repairedStopOrders = 0;
 
     const existingPolylines = await base44.asServiceRole.entities.DriverRoutePolyline.filter({
       driver_id: driverId,
@@ -608,7 +596,7 @@ Deno.serve(async (req) => {
         deleted: 0,
         created: 0,
         apiCallsMade: 0,
-        repairedStopOrders: stopOrderRepairUpdates.length
+        repairedStopOrders: repairedStopOrders
       });
     }
 
@@ -666,7 +654,7 @@ Deno.serve(async (req) => {
         deleted: 0,
         created: 0,
         apiCallsMade: 0,
-        repairedStopOrders: stopOrderRepairUpdates.length
+        repairedStopOrders: repairedStopOrders
       });
     }
     if (driverAvailability.isUnavailable && !isHistoricalDate && !bypassDriverStatus) {
@@ -679,7 +667,7 @@ Deno.serve(async (req) => {
         deleted: 0,
         created: 0,
         apiCallsMade: 0,
-        repairedStopOrders: stopOrderRepairUpdates.length
+        repairedStopOrders: repairedStopOrders
       });
     }
     console.log(`# [purgeAndRegeneratePolylines] START | driver=${driverDisplayName} | date=${deliveryDate} | scope=${scope} | totalStops=${deliveries?.length || 0} | existingPolylines=${existingPolylines?.length || 0} | driver_status=${driverAvailability.status || 'missing'} | historical=${isHistoricalDate} | home_lat=${driverAppUser?.home_latitude} | home_lon=${driverAppUser?.home_longitude}`);
@@ -718,28 +706,14 @@ Deno.serve(async (req) => {
         .map((item) => [item.deliveryId, item])
     );
     const deliveryById = new Map((deliveries || []).filter((delivery) => delivery?.id).map((delivery) => [delivery.id, delivery]));
-    const explicitOrderedDeliveries = explicitStopOrderIds
-      .map((id) => deliveryById.get(id) || null)
-      .filter(Boolean);
+    const orderedDeliveries = (explicitStopOrderIds.length > 0
+      ? explicitStopOrderIds.map((id) => deliveryById.get(id) || null).filter(Boolean)
+      : [...deliveries].sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0))
+    );
 
-    const finishedStops = explicitOrderedStopsOnly
-      ? explicitOrderedDeliveries.filter((delivery) => FINISHED_STATUSES.has(delivery.status))
-      : deliveries
-          .filter((delivery) => FINISHED_STATUSES.has(delivery.status))
-          .sort((a, b) => {
-            const stopOrderDiff = (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0);
-            if (stopOrderDiff !== 0) return stopOrderDiff;
-            const aTime = new Date(a.actual_delivery_time || a.updated_date || a.created_date || 0).getTime();
-            const bTime = new Date(b.actual_delivery_time || b.updated_date || b.created_date || 0).getTime();
-            return aTime - bTime;
-          });
-
+    const finishedStops = orderedDeliveries.filter((delivery) => FINISHED_STATUSES.has(delivery.status));
     const latestFinishedStop = finishedStops[finishedStops.length - 1] || null;
-    const activeStops = explicitOrderedStopsOnly
-      ? explicitOrderedDeliveries.filter((delivery) => ACTIVE_STATUSES.has(delivery.status))
-      : deliveries
-          .filter((delivery) => ACTIVE_STATUSES.has(delivery.status))
-          .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+    const activeStops = orderedDeliveries.filter((delivery) => ACTIVE_STATUSES.has(delivery.status));
 
     let apiCallsMade = 0;
     let deletedPolylineCount = 0;
@@ -869,13 +843,13 @@ Deno.serve(async (req) => {
         const homeLon = Number(driverAppUser?.home_longitude);
         const hasHomeCoords = isValidCoordinatePair(homeLat, homeLon);
         const isToday = deliveryDate === getEdmontonDateString();
-        const lockHomeOrigin = explicitOrderedStopsOnly && explicitRouteOrigin === 'home' && hasHomeCoords;
-        const lockHomeDestination = explicitOrderedStopsOnly && explicitRouteDestination === 'home' && hasHomeCoords;
+        const lockHomeOrigin = explicitRouteOrigin === 'home' && hasHomeCoords;
+        const lockHomeDestination = explicitRouteDestination === 'home' && hasHomeCoords;
 
-        const originFromFinishedStop = explicitOrderedStopsOnly
-          ? (lockHomeOrigin ? { lat: homeLat, lon: homeLon } : (latestFinishedStop ? getLatLon(latestFinishedStop) : null))
+        const originFromFinishedStop = lockHomeOrigin
+          ? { lat: homeLat, lon: homeLon }
           : (latestFinishedStop ? getLatLon(latestFinishedStop) : null);
-        const useDriverLocationAsOrigin = !explicitOrderedStopsOnly && scope === 'active_only' && firstActive && isToday && isValidCoordinatePair(currentLat, currentLon);
+        const useDriverLocationAsOrigin = !explicitStopOrderIds.length && scope === 'active_only' && firstActive && isToday && isValidCoordinatePair(currentLat, currentLon);
 
         if (useDriverLocationAsOrigin && !originFromFinishedStop) {
           pushSegment({ lat: currentLat, lon: currentLon }, firstActive);
@@ -888,14 +862,14 @@ Deno.serve(async (req) => {
             ? getLatLon(previousStop)
             : originFromFinishedStop || (hasHomeCoords ? { lat: homeLat, lon: homeLon } : null);
           const to = getLatLon(stop);
-          pushSegment(from, to, explicitOrderedStopsOnly);
+          pushSegment(from, to, !!explicitStopOrderIds.length);
         }
 
         const lastActive = getLatLon(activeStops[activeStops.length - 1]);
 
         if (lockHomeDestination && lastActive) {
           pushSegment(lastActive, { lat: homeLat, lon: homeLon }, true);
-        } else {
+        } else if (!explicitStopOrderIds.length) {
           const shouldAddHomeStartLeg = hasHomeCoords && firstActive && !originFromFinishedStop;
           if (shouldAddHomeStartLeg) {
             pushSegment({ lat: homeLat, lon: homeLon }, firstActive, true);

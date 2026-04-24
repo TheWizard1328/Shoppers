@@ -212,36 +212,42 @@ const decodeHereFlexiblePolyline = (encoded) => {
   return coordinates;
 };
 
-const buildRoutingSections = async ({ hereApiKey, orderedStops, originLat, originLng, normalizedTransportMode }) => {
-  if (orderedStops.length === 0) return [];
+const buildRoutingSections = async ({ hereApiKey, orderedStops, originLat, originLng, destinationLat, destinationLng, normalizedTransportMode }) => {
+  const orderedPoints = [
+    { lat: originLat, lng: originLng },
+    ...orderedStops.map((stop) => ({ lat: stop.lat, lng: stop.lng })),
+    { lat: destinationLat, lng: destinationLng }
+  ].filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng));
 
-  const sections = [];
+  if (orderedPoints.length < 2) return [];
 
-  for (let index = 0; index < orderedStops.length; index += 1) {
-    const fromPoint = index === 0
-      ? { lat: originLat, lng: originLng }
-      : { lat: orderedStops[index - 1].lat, lng: orderedStops[index - 1].lng };
-    const toPoint = { lat: orderedStops[index].lat, lng: orderedStops[index].lng };
+  const transportMode = normalizedTransportMode === 'cycling'
+    ? 'bicycle'
+    : normalizedTransportMode === 'pedestrian'
+      ? 'pedestrian'
+      : 'car';
 
-    const transportMode = normalizedTransportMode === 'cycling'
-      ? 'bicycle'
-      : normalizedTransportMode === 'pedestrian'
-        ? 'pedestrian'
-        : 'car';
+  const params = new URLSearchParams();
+  params.set('apiKey', hereApiKey);
+  params.set('transportMode', transportMode);
+  params.set('origin', `${originLat},${originLng}`);
+  params.set('destination', `${destinationLat},${destinationLng}`);
+  params.set('return', 'polyline,summary');
 
-    const params = new URLSearchParams();
-    params.set('apiKey', hereApiKey);
-    params.set('transportMode', transportMode);
-    params.set('origin', `${fromPoint.lat},${fromPoint.lng}`);
-    params.set('destination', `${toPoint.lat},${toPoint.lng}`);
-    params.set('return', 'polyline,summary');
+  orderedStops.forEach((stop) => {
+    params.append('via', `${stop.lat},${stop.lng}`);
+  });
 
-    const routeResp = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, {
-      signal: AbortSignal.timeout(20000),
-      headers: { accept: 'application/json' }
-    });
-    const routeData = await routeResp.json().catch(() => null);
-    const routeSection = routeData?.routes?.[0]?.sections?.[0] || null;
+  const routeResp = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, {
+    signal: AbortSignal.timeout(20000),
+    headers: { accept: 'application/json' }
+  });
+  const routeData = await routeResp.json().catch(() => null);
+  const routeSections = Array.isArray(routeData?.routes?.[0]?.sections) ? routeData.routes[0].sections : [];
+
+  return orderedPoints.slice(0, -1).map((fromPoint, index) => {
+    const toPoint = orderedPoints[index + 1];
+    const routeSection = routeSections[index] || null;
 
     let encodedPolyline = null;
     if (typeof routeSection?.polyline === 'string' && routeSection.polyline) {
@@ -252,16 +258,14 @@ const buildRoutingSections = async ({ hereApiKey, orderedStops, originLat, origi
     }
 
     const fallbackDistanceKm = calculateCrowFliesDistance(fromPoint.lat, fromPoint.lng, toPoint.lat, toPoint.lng);
-    sections.push({
+    return {
       polyline: routeSection?.polyline || null,
       encoded_polyline: encodedPolyline,
       estimated_distance_km: Number.isFinite(Number(routeSection?.summary?.length)) ? Math.round((Number(routeSection.summary.length) / 1000) * 10) / 10 : Math.round(fallbackDistanceKm * 10) / 10,
       estimated_duration_minutes: Number.isFinite(Number(routeSection?.summary?.duration)) ? Math.round(Number(routeSection.summary.duration) / 60) : Math.round((fallbackDistanceKm / 40) * 60),
       coordinates: [fromPoint, toPoint]
-    });
-  }
-
-  return sections;
+    };
+  });
 };
 
 Deno.serve(async (req) => {
@@ -456,15 +460,15 @@ Deno.serve(async (req) => {
 
     const interconnectionByToWaypoint = new Map(interconnections.map((item) => [item.toWaypoint, item]));
 
-    const routedSections = preserveWaypointOrder
-      ? []
-      : await buildRoutingSections({
-          hereApiKey,
-          orderedStops,
-          originLat,
-          originLng,
-          normalizedTransportMode
-        });
+    const routedSections = await buildRoutingSections({
+      hereApiKey,
+      orderedStops,
+      originLat,
+      originLng,
+      destinationLat,
+      destinationLng,
+      normalizedTransportMode
+    });
 
     const orderedPoints = [{ lat: originLat, lng: originLng }, ...orderedStops.map((stop) => ({ lat: stop.lat, lng: stop.lng }))];
     const normalizedSections = orderedStops.map((stop, index) => {
