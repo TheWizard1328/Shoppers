@@ -107,6 +107,18 @@ export default function ResetPolylinesButton({
               pendingBreadcrumbIds: Array.isArray(result?.pendingBreadcrumbIds) ? result.pendingBreadcrumbIds : []
             });
           } else {
+            const routeDeliveries = await base44.entities.Delivery.filter(
+              { driver_id: driverId, delivery_date: selectedDate },
+              'stop_order',
+              5000
+            );
+
+            const orderedStopIds = (routeDeliveries || [])
+              .filter(Boolean)
+              .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0))
+              .map((delivery) => delivery.id)
+              .filter(Boolean);
+
             const response = await base44.functions.invoke('purgeAndRegeneratePolylines', {
               driverId,
               deliveryDate: selectedDate,
@@ -114,7 +126,9 @@ export default function ResetPolylinesButton({
               reason: 'manual',
               routeSource: 'polylines',
               bypassDriverStatus: true,
-              bypassPolylineUpdated: true
+              bypassPolylineUpdated: true,
+              routeStopOrder: orderedStopIds,
+              routePattern: ['home', ...orderedStopIds, 'home']
             });
             result = response?.data || response || {};
             if (!result.success) {
