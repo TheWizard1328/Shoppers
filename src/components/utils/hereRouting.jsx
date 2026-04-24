@@ -8,7 +8,8 @@ const inFlightPromises = new Map();
 const apiKeySelectionState = {
   loaded: false,
   loading: null,
-  selectedApiKey: 'HERE_API_KEY'
+  selectedApiKey: 'HERE_API_KEY',
+  lastLoadedAt: 0
 };
 const backoffCache = new Map();
 const backoffNoticeCache = new Map();
@@ -45,15 +46,24 @@ function buildDriverDateKey(driverId, deliveryDate) {
 }
 
 export async function ensureSelectedApiKeyLoaded() {
-  if (apiKeySelectionState.loaded) return apiKeySelectionState.selectedApiKey;
+  const now = Date.now();
+  if (apiKeySelectionState.loaded && now - apiKeySelectionState.lastLoadedAt < 300000) {
+    return apiKeySelectionState.selectedApiKey;
+  }
   if (apiKeySelectionState.loading) return apiKeySelectionState.loading;
 
   apiKeySelectionState.loading = (async () => {
     try {
       const appSettings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
-      apiKeySelectionState.selectedApiKey = appSettings?.[0]?.setting_value?.selected_api_key || 'HERE_API_KEY';
+      apiKeySelectionState.selectedApiKey = appSettings?.[0]?.setting_value?.selected_api_key || apiKeySelectionState.selectedApiKey || 'HERE_API_KEY';
       apiKeySelectionState.loaded = true;
+      apiKeySelectionState.lastLoadedAt = Date.now();
       return apiKeySelectionState.selectedApiKey;
+    } catch (error) {
+      console.warn('[HERE][client] Using cached API key selection after AppSettings rate limit/error', error?.message || error);
+      apiKeySelectionState.loaded = true;
+      apiKeySelectionState.lastLoadedAt = Date.now();
+      return apiKeySelectionState.selectedApiKey || 'HERE_API_KEY';
     } finally {
       apiKeySelectionState.loading = null;
     }
@@ -64,6 +74,17 @@ export async function ensureSelectedApiKeyLoaded() {
 
 export function getSelectedApiKeyName() {
   return apiKeySelectionState.selectedApiKey;
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('app-settings-updated', (event) => {
+    const selectedApiKey = event?.detail?.settings?.selected_api_key;
+    if (selectedApiKey) {
+      apiKeySelectionState.selectedApiKey = selectedApiKey;
+      apiKeySelectionState.loaded = true;
+      apiKeySelectionState.lastLoadedAt = Date.now();
+    }
+  });
 }
 
 export async function syncDriverRoutePolylinesForDate(driverId, deliveryDate, force = false) {
