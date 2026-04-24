@@ -147,7 +147,7 @@ export default function StatsPanel({
         id: driverId,
         user_id: driverId,
         user_name: driverAppUser?.user_name || driverListUser?.user_name || driverListUser?.full_name || driverName,
-        sort_order: driverAppUser?.sort_order ?? driverListUser?.sort_order,
+        sort_order: driverAppUser?.sort_order ?? driverListUser?.sort_order
       };
     }));
   })();
@@ -163,7 +163,7 @@ export default function StatsPanel({
 
   return (
     <div className={statsCardPositioning} style={{ zIndex: isMobile && isExpanded ? 40 : isMobile ? 100 : 600, position: 'absolute', pointerEvents: 'none' }}>
-      <div className="flex flex-col items-center gap-1 min-w-[340px] max-w-[345px] relative"
+      <div className="flex flex-col items-center gap-1 min-w-[350px] max-w-[350px] relative"
       style={{ opacity: statsPanelOpacity, transition: 'opacity 0.5s ease-in-out', pointerEvents: 'auto' }}
       onMouseEnter={() => handleStatsPanelInteraction(true)}
       onMouseLeave={() => handleStatsPanelInteraction(false)}>
@@ -293,7 +293,7 @@ export default function StatsPanel({
               liveTimeOnDuty={finalizedDutyTime ?? liveTimeOnDuty}
               isLoadingPayrollStats={isLoadingPayrollStats} />
             {!isDispatcherLockedExpanded &&
-              <Button variant="ghost" size="sm" onClick={(e) => {e.stopPropagation();setIsExpanded(!isExpanded);}} className="h-8 w-8 p-0 flex-shrink-0">
+            <Button variant="ghost" size="sm" onClick={(e) => {e.stopPropagation();setIsExpanded(!isExpanded);}} className="h-8 w-8 p-0 flex-shrink-0">
                 {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </Button>
             }
@@ -415,20 +415,20 @@ export default function StatsPanel({
                 {isDispatcherLockedExpanded && <div className="flex-1 min-w-[120px]" />}
 
                 {!isDispatcherLockedExpanded &&
-                  <Button variant="outline" size="sm" onClick={() => setShowOptimizationSettings(true)} className="h-8 w-8 p-0 flex-shrink-0" title="Route Optimization Settings" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                <Button variant="outline" size="sm" onClick={() => setShowOptimizationSettings(true)} className="h-8 w-8 p-0 flex-shrink-0" title="Route Optimization Settings" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                     <Settings className="w-3.5 h-3.5" />
                   </Button>
                 }
 
                 <Button variant="default" size="sm" onClick={() => {
-                      const nextShowRoutes = !showRoutes;
-                      setShowRoutes(nextShowRoutes);
-                      if (nextShowRoutes) {
-                        setShowBreadcrumbs(false);
-                        setBreadcrumbsData({ historical: [], current: [] });
-                      }
-                      setIsExpanded(false);
-                    }} className={`gap-2 h-8 flex-shrink-0 ${showRoutes ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'} text-white`}>
+                  const nextShowRoutes = !showRoutes;
+                  setShowRoutes(nextShowRoutes);
+                  if (nextShowRoutes) {
+                    setShowBreadcrumbs(false);
+                    setBreadcrumbsData({ historical: [], current: [] });
+                  }
+                  setIsExpanded(false);
+                }} className={`gap-2 h-8 flex-shrink-0 ${showRoutes ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'} text-white`}>
                   <Truck className="w-3.5 h-3.5" />{showRoutes ? 'Hide' : 'Show'}
                 </Button>
               </div>
