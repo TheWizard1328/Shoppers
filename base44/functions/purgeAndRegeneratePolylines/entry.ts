@@ -738,7 +738,7 @@ Deno.serve(async (req) => {
 
     const createdSegments = [];
 
-    if (scope === 'all' || scope === 'completed_only') {
+    if ((scope === 'completed_only' || (scope === 'all' && explicitStopOrderIds.length === 0 && !explicitOrderedStopsOnly))) {
       const homeLat = Number(driverAppUser?.home_latitude);
       const homeLon = Number(driverAppUser?.home_longitude);
       const hasHomeCoords = isValidCoordinatePair(homeLat, homeLon);
@@ -955,14 +955,16 @@ Deno.serve(async (req) => {
         });
 
         const allowedActiveSegmentKeys = new Set(segmentSpecs.map((spec) => makeSegmentKey(driverId, deliveryDate, spec.from, spec.to)));
+        const existingPolylineIds = new Set((existingPolylines || []).map((row) => row?.id).filter(Boolean));
         const rowsToDelete = (existingPolylines || []).filter((row) => {
+          if (!existingPolylineIds.has(row?.id)) return false;
           if (segmentsToKeep.has(row.id)) return false;
           const rowKey = makeSegmentKey(driverId, deliveryDate, { lat: row?.segment_origin_lat, lon: row?.segment_origin_lon }, { lat: row?.segment_dest_lat, lon: row?.segment_dest_lon });
           return !allowedActiveSegmentKeys.has(rowKey);
         });
         if (rowsToDelete.length > 0) {
           console.log(`#[purgeAndRegeneratePolylines] BEFORE delete old polylines | driver=${driverDisplayName} | date=${deliveryDate} | rowsToDelete=${rowsToDelete.length} | totalStops=${deliveries?.length || 0}`);
-          await processInChunks(rowsToDelete, 5, (row) =>
+          await processInChunks(rowsToDelete, 20, (row) =>
             base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id).catch((error) => {
               if (isNotFoundError(error)) return null;
               throw error;
@@ -1053,13 +1055,15 @@ Deno.serve(async (req) => {
         });
 
         const allowedCompletedSegmentKeys = new Set(completedRouteHomeSegment.map((spec) => makeSegmentKey(driverId, deliveryDate, spec.from, spec.to)));
+        const existingPolylineIds = new Set((existingPolylines || []).map((row) => row?.id).filter(Boolean));
         const rowsToDelete = (existingPolylines || []).filter((row) => {
+          if (!existingPolylineIds.has(row?.id)) return false;
           if (segmentsToKeep.has(row.id)) return false;
           const rowKey = makeSegmentKey(driverId, deliveryDate, { lat: row?.segment_origin_lat, lon: row?.segment_origin_lon }, { lat: row?.segment_dest_lat, lon: row?.segment_dest_lon });
           return !allowedCompletedSegmentKeys.has(rowKey);
         });
         if (rowsToDelete.length > 0) {
-          await processInChunks(rowsToDelete, 5, (row) =>
+          await processInChunks(rowsToDelete, 20, (row) =>
             base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id).catch((error) => {
               if (isNotFoundError(error)) return null;
               throw error;
