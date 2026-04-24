@@ -21,9 +21,9 @@ export default function StopCardFooter(props) {
   const selectedDate = props?.delivery?.delivery_date;
   const allDeliveries = Array.isArray(props?.allDeliveries) ? props.allDeliveries : [];
   const isDispatcherOnly = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && !isAppOwner(currentUser);
-  const dispatcherRouteStops = isDispatcherOnly
-    ? allDeliveries.filter((item) => item && item.driver_id === selectedDriverId && item.delivery_date === selectedDate && dispatcherStoreIds.includes(item.store_id))
-    : [];
+  const dispatcherRouteStops = isDispatcherOnly ?
+  allDeliveries.filter((item) => item && item.driver_id === selectedDriverId && item.delivery_date === selectedDate && dispatcherStoreIds.includes(item.store_id)) :
+  [];
   const hasIncompleteStopsForDispatcher = dispatcherRouteStops.some((item) => !finishedStatuses.includes(item?.status));
 
   const shouldShowFooter = (() => {
@@ -39,10 +39,10 @@ export default function StopCardFooter(props) {
   return (
     <div>
       <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
-        <div className={`mx-1 flex justify-between items-center ${showCenteredIncompleteCollapsed ? 'mt-1 mb-0' : 'my-1'}`}>
+        <div className="mx-1 flex justify-between items-center mt-1 mb-0.5">
           <StopCardActionButtons {...props} />
         </div>
       </div>
-    </div>
-  );
+    </div>);
+
 }
