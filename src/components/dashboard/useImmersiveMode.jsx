@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-const MOTION_DISTANCE_METERS = 25;
+const MOTION_DISTANCE_METERS = 50;
 const MOTION_WINDOW_MS = 12000;
-const STOPPED_IDLE_MS = 5000;
+const STOPPED_IDLE_MS = 15000;
 const MAP_TAP_OVERRIDE_MS = 30000;
 const NEXT_STOP_DISABLE_DISTANCE_METERS = 250;
 const POST_STOP_ACTION_COOLDOWN_MS = 30000;
