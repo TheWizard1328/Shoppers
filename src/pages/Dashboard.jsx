@@ -2140,27 +2140,7 @@ function Dashboard() {
 
         // 3. Only fit bounds if we have actual markers to show (NO city center fallback)
         if (allCoordinatesPhase3.length > 0) {
-          const hasVisibleCards = deliveriesWithStopOrder.some((d) => d && d.status !== 'pending');
-          const statsCardCurrHeight = statsCardRef.current?.offsetHeight || 75;
-          const topPadding = isMobile ? statsCardCurrHeight + 25 : 25;
-
-          let bottomPadding = 25;
-          if (hasVisibleCards) {
-            const stopCardsContainer = stopCardsContainerRef.current;
-            if (stopCardsContainer) {
-              const measuredHeight = stopCardsContainer.offsetHeight;
-              if (measuredHeight > 0) {
-                bottomPadding = measuredHeight + 10;
-              }
-            } else if (stopCardsBaseHeight > 0) {
-              bottomPadding = stopCardsBaseHeight + 10;
-            }
-          }
-
-          const padding = {
-            paddingTopLeft: [25, topPadding],
-            paddingBottomRight: [25, bottomPadding]
-          };
+          const padding = getMapPadding(false);
 
           let minLat = Infinity,maxLat = -Infinity,minLon = Infinity,maxLon = -Infinity;
           allCoordinatesPhase3.forEach(([lat, lon]) => {
