@@ -116,6 +116,17 @@ export default function useImmersiveMode({ isDriver, isMobile, driverLocation, e
     return isDriverMoving;
   }, [enabled, isDriver, isMobile, isOverrideActive, isDriverMoving]);
 
+  const previousImmersiveHiddenRef = useRef(immersiveHidden);
+
+  useEffect(() => {
+    if (previousImmersiveHiddenRef.current !== immersiveHidden) {
+      import('@/components/utils/fabControlEvents').then(({ fabControlEvents }) => {
+        fabControlEvents.notifyImmersiveModeToggled();
+      });
+    }
+    previousImmersiveHiddenRef.current = immersiveHidden;
+  }, [immersiveHidden]);
+
   return {
     immersiveHidden,
     isDriverMoving,

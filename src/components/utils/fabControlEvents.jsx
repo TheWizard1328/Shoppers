@@ -225,5 +225,16 @@ export const fabControlEvents = {
         console.error('Error in FAB event listener:', error);
       }
     });
+  },
+
+  notifyImmersiveModeToggled: () => {
+    console.log('📢 [FAB Events] Broadcasting immersive mode toggle - reactivating FAB');
+    fabControlListeners.forEach(callback => {
+      try {
+        callback({ type: 'IMMERSIVE_MODE_TOGGLED' });
+      } catch (error) {
+        console.error('Error in FAB event listener:', error);
+      }
+    });
   }
   };

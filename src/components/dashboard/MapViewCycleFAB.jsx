@@ -55,17 +55,17 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
         return;
       }
 
-      if (event?.type !== 'REACTIVATE_FAB') return;
-      if ((window.__suppressCardAutoCenterUntil || 0) > Date.now()) return;
+      if (event?.type !== 'REACTIVATE_FAB' && event?.type !== 'IMMERSIVE_MODE_TOGGLED') return;
+      if (event?.type === 'REACTIVATE_FAB' && (window.__suppressCardAutoCenterUntil || 0) > Date.now()) return;
       setIsTemporarilyDeactivated(false);
       if (deactivateTimeoutRef.current) clearTimeout(deactivateTimeoutRef.current);
       if (event?.suppressIfPhase1 && currentPhase === 1) return;
       if (currentPhase === 1) {
         deactivateTimeoutRef.current = setTimeout(() => {
           setIsTemporarilyDeactivated(true);
-        }, 3000);
+        }, 500);
       }
-      flashUpdate(event?.reason || 'generic');
+      flashUpdate(event?.reason || 'route_change');
     });
 
     return () => {
