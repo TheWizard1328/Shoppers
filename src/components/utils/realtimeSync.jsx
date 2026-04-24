@@ -98,6 +98,12 @@ async function flushBuffered(entityName) {
         window.dispatchEvent(new CustomEvent('appSettingsUpdated', {
           detail: { type: eventType, id, data, fromRealtime: true }
         }));
+        window.dispatchEvent(new CustomEvent('refreshCurrentUserFromSmartRefresh', {
+          detail: { source: 'appSettingsRealtime', type: eventType, id, data }
+        }));
+        window.dispatchEvent(new CustomEvent('adminUtilitiesAppSettingsUpdated', {
+          detail: { source: 'appSettingsRealtime', type: eventType, id, data }
+        }));
       }
     }
   });
