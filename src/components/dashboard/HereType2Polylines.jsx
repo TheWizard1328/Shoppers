@@ -124,8 +124,18 @@ export default function HereType2Polylines({
     grouped.forEach((stops, driverId) => {
       const incomplete = stops.filter((s) => s.status === "in_transit" || s.status === "en_route");
       if (incomplete.length === 0) return;
-      // Ensure they are sorted by stop_order so the sequence is correct
-      incomplete.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+      incomplete.sort((a, b) => {
+        const stopOrderA = Number(a?.stop_order);
+        const stopOrderB = Number(b?.stop_order);
+        const hasAOrder = Number.isFinite(stopOrderA) && stopOrderA > 0;
+        const hasBOrder = Number.isFinite(stopOrderB) && stopOrderB > 0;
+        if (hasAOrder && hasBOrder && stopOrderA !== stopOrderB) return stopOrderA - stopOrderB;
+        if (hasAOrder && !hasBOrder) return -1;
+        if (!hasAOrder && hasBOrder) return 1;
+        const etaA = a?.delivery_time_eta || a?.delivery_time_start || '';
+        const etaB = b?.delivery_time_eta || b?.delivery_time_start || '';
+        return etaA.localeCompare(etaB);
+      });
       
       // Use all incomplete stops to draw the full remaining route
       map.set(driverId, incomplete);

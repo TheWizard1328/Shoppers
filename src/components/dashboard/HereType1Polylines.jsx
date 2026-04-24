@@ -327,7 +327,19 @@ export default function HereType1Polylines({
         return bt - at;
       });
       const lastCompleted = completedSorted[0];
-      const nextStop = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
+      const orderedIncompleteStops = [...stops.incomplete].sort((a, b) => {
+        const stopOrderA = Number(a?.stop_order);
+        const stopOrderB = Number(b?.stop_order);
+        const hasAOrder = Number.isFinite(stopOrderA) && stopOrderA > 0;
+        const hasBOrder = Number.isFinite(stopOrderB) && stopOrderB > 0;
+        if (hasAOrder && hasBOrder && stopOrderA !== stopOrderB) return stopOrderA - stopOrderB;
+        if (hasAOrder && !hasBOrder) return -1;
+        if (!hasAOrder && hasBOrder) return 1;
+        const etaA = a?.delivery_time_eta || a?.delivery_time_start || '';
+        const etaB = b?.delivery_time_eta || b?.delivery_time_start || '';
+        return etaA.localeCompare(etaB);
+      });
+      const nextStop = orderedIncompleteStops.find((s) => s.isNextDelivery === true) || orderedIncompleteStops[0];
       if (!lastCompleted || !nextStop) return;
 
       const originLat = Number(lastCompleted.latitude);

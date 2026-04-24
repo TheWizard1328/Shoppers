@@ -297,40 +297,29 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     };
   }, [selectedCardId, scrollToCenterCard]);
 
-  // Dashboard ordering: finished stops first by actual delivery time, then incomplete stops by ETA
+  // Dashboard ordering: always follow stop_order, with pending stops last
   const sortedPickupCards = [...validCards].sort((a, b) => {
     if (!a || !b) return 0;
 
-    const isAFinished = finishedStatuses.includes(a.status);
-    const isBFinished = finishedStatuses.includes(b.status);
+    const isAPending = a.status === 'pending';
+    const isBPending = b.status === 'pending';
+    if (isAPending && !isBPending) return 1;
+    if (!isAPending && isBPending) return -1;
 
-    if (isAFinished && !isBFinished) return -1;
-    if (!isAFinished && isBFinished) return 1;
+    const stopOrderA = Number(a.stop_order);
+    const stopOrderB = Number(b.stop_order);
+    const hasAOrder = Number.isFinite(stopOrderA) && stopOrderA > 0;
+    const hasBOrder = Number.isFinite(stopOrderB) && stopOrderB > 0;
 
-    if (isAFinished && isBFinished) {
-      // For finished stops, always sort by stop_order (original route sequence)
-      // This ensures completed/failed/cancelled stops appear in their logical route order
-      const stopOrderA = a.stop_order ?? Infinity;
-      const stopOrderB = b.stop_order ?? Infinity;
-      if (stopOrderA !== stopOrderB) return stopOrderA - stopOrderB;
-    }
+    if (hasAOrder && hasBOrder && stopOrderA !== stopOrderB) return stopOrderA - stopOrderB;
+    if (hasAOrder && !hasBOrder) return -1;
+    if (!hasAOrder && hasBOrder) return 1;
 
-    if (!isAFinished && !isBFinished) {
-      const stopOrderA = a.stop_order ?? Infinity;
-      const stopOrderB = b.stop_order ?? Infinity;
-      if (stopOrderA !== stopOrderB) return stopOrderA - stopOrderB;
+    const etaA = a.delivery_time_eta || a.delivery_time_start || '';
+    const etaB = b.delivery_time_eta || b.delivery_time_start || '';
+    if (etaA !== etaB) return etaA.localeCompare(etaB);
 
-      const etaA = a.delivery_time_eta || a.delivery_time_start || '';
-      const etaB = b.delivery_time_eta || b.delivery_time_start || '';
-      if (etaA !== etaB) return etaA.localeCompare(etaB);
-    }
-
-    const driverA = (drivers || []).find((d) => d && d.id === a.driver_id);
-    const driverB = (drivers || []).find((d) => d && d.id === b.driver_id);
-    const sortOrderA = driverA?.sort_order ?? 999;
-    const sortOrderB = driverB?.sort_order ?? 999;
-
-    return sortOrderA - sortOrderB;
+    return 0;
   });
 
   React.useEffect(() => {
