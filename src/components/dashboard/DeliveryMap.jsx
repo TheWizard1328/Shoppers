@@ -1133,7 +1133,7 @@ export default function DeliveryMap({
         {showBreadcrumbs && <MapBreadcrumbs breadcrumbsData={breadcrumbsData} currentZoom={currentZoom} />}
       </MapContainer>
 
-      <MapCrosshair stopCardsHeight={areStopCardsVisible ? stopCardsHeight : 0} statsCardHeight={isMobile ? (effectiveTopOverlayHeight || (isStatsCardExpanded ? 216 : 116)) : 0} isMobile={isMobile} />
+      <MapCrosshair stopCardsHeight={areStopCardsVisible ? stopCardsHeight : 0} statsCardHeight={isMobile ? (effectiveTopOverlayHeight || (isStatsCardExpanded ? 216 : 116)) : 0} isMobile={isMobile} immersiveHidden={immersiveHidden} />
     </div>
   );
 }

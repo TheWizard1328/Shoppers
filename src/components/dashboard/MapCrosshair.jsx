@@ -8,9 +8,9 @@ import React from 'react';
  * 
  * This is a pure overlay - not part of the map, so it doesn't move when panning.
  */
-export default function MapCrosshair({ stopCardsHeight = 75, statsCardHeight = 0, isMobile = false }) {
-  const topObscured = isMobile ? statsCardHeight : 0;
-  const bottomObscured = stopCardsHeight;
+export default function MapCrosshair({ stopCardsHeight = 75, statsCardHeight = 0, isMobile = false, immersiveHidden = false }) {
+  const topObscured = immersiveHidden ? 0 : (isMobile ? statsCardHeight : 0);
+  const bottomObscured = immersiveHidden ? 0 : stopCardsHeight;
   const visibleCenterOffset = Math.round((topObscured - bottomObscured) / 2);
   const verticalShift = topObscured === 0 && bottomObscured === 0 ? 0 : visibleCenterOffset;
 
