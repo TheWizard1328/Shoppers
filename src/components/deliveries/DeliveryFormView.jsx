@@ -433,22 +433,22 @@ export default function DeliveryFormView({
                     } catch {return null;}
                   })()}
                 </div>
-                {!delivery &&
-                <div className={`flex gap-2 ${useMobileLayout && isMobileDevice ? 'ml-4 flex-wrap' : 'ml-4'}`}>
-                    <Button type="button" size="sm" onClick={() => {setIsPickupMode(false);setIsInterStoreMode?.(false);}} className={!isPickupMode && !isInterStoreMode ? "bg-emerald-600 hover:bg-emerald-700 !text-white" : ""} style={isPickupMode || isInterStoreMode ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>
-                      Add Delivery
-                    </Button>
-                    <Button type="button" size="sm" onClick={() => {setIsPickupMode(false);setIsInterStoreMode?.(true);}} className={isInterStoreMode ? "bg-emerald-600 hover:bg-emerald-700 !text-white" : ""} style={!isInterStoreMode ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>
-                      InterStores
-                    </Button>
-                    <Button type="button" size="sm" onClick={() => {setIsPickupMode(true);setIsInterStoreMode?.(false);}} className={isPickupMode && !isInterStoreMode ? "bg-emerald-600 hover:bg-emerald-700 !text-white" : ""} style={!isPickupMode || isInterStoreMode ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>
-                      Add Pickup
-                    </Button>
-                  </div>
-                }
               </div>
               <Button variant="ghost" size="icon" onClick={handleCancelClick} disabled={isSaving}><X className="w-4 h-4" /></Button>
             </div>
+            {!delivery &&
+            <div className={`flex gap-2 ${useMobileLayout && isMobileDevice ? 'w-full flex-nowrap' : 'ml-7 flex-wrap'}`}>
+                <Button type="button" size="sm" className={`${useMobileLayout && isMobileDevice ? 'flex-1 px-2 text-[11px]' : ''} ${!isPickupMode && !isInterStoreMode ? "bg-emerald-600 hover:bg-emerald-700 !text-white" : ""}`} onClick={() => {setIsPickupMode(false);setIsInterStoreMode?.(false);}} style={isPickupMode || isInterStoreMode ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>
+                  Add Delivery
+                </Button>
+                <Button type="button" size="sm" className={`${useMobileLayout && isMobileDevice ? 'flex-1 px-2 text-[11px]' : ''} ${isInterStoreMode ? "bg-emerald-600 hover:bg-emerald-700 !text-white" : ""}`} onClick={() => {setIsPickupMode(false);setIsInterStoreMode?.(true);}} style={!isInterStoreMode ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>
+                  InterStores
+                </Button>
+                <Button type="button" size="sm" className={`${useMobileLayout && isMobileDevice ? 'flex-1 px-2 text-[11px]' : ''} ${isPickupMode && !isInterStoreMode ? "bg-emerald-600 hover:bg-emerald-700 !text-white" : ""}`} onClick={() => {setIsPickupMode(true);setIsInterStoreMode?.(false);}} style={!isPickupMode || isInterStoreMode ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>
+                  Add Pickup
+                </Button>
+              </div>
+            }
           </CardHeader>
 
           {error && <div className="p-3 text-sm text-center" style={{ background: '#fee2e2', color: '#991b1b' }}>Error: {error}</div>}
