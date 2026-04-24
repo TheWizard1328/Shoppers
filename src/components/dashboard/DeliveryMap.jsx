@@ -632,7 +632,7 @@ export default function DeliveryMap({
         return hasVisibleStops;
       }
       if (showOtherDriverDeliveries || isAllDriversMode) return hasVisibleStops;
-      return driverKey === selectedDriverId || driverKey === currentUser.id;
+      return hasVisibleStops;
     }).map((user) => {
       const driverKey = user?.id || user?.user_id;
       return {
