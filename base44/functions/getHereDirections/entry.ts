@@ -354,6 +354,9 @@ Deno.serve(async (req) => {
           time: Math.round((fallbackDistanceKm / 40) * 3600)
         };
       });
+
+      result = { waypoints: returnedWaypoints, interconnections };
+      routeCallCount += 1;
     } else {
       const params = new URLSearchParams();
       params.set('apiKey', hereApiKey);
