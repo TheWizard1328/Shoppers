@@ -9,16 +9,11 @@ import React from 'react';
  * This is a pure overlay - not part of the map, so it doesn't move when panning.
  */
 export default function MapCrosshair({ stopCardsHeight = 75, statsCardHeight = 0, isMobile = false }) {
-  // Calculate vertical shift to center crosshair in the visible map area
-  // On mobile: center between bottom of StatsCard and top of StopCards
-  // On desktop: center between top of map edge and top of StopCards
-  
   const topObscured = isMobile ? statsCardHeight : 0;
   const bottomObscured = stopCardsHeight;
-  
-  // Net shift = (bottomObscured - topObscured) / 2
-  // Positive = shift up, Negative = shift down
-  const verticalShift = Math.round((bottomObscured - topObscured) / 2) + 5;
+  const verticalShift = topObscured === 0 && bottomObscured === 0
+    ? 0
+    : Math.round((bottomObscured - topObscured) / 2) + 5;
 
   return (
     <div 
