@@ -757,13 +757,14 @@ export default function PatientForm({
   const pidBackgroundColor = isPIDValid === null ? '' : isPIDValid ? 'bg-emerald-50' : 'bg-red-50';
 
   return (
-    <div className={`fixed inset-0 bg-black/60 flex items-center justify-center ${isMobile ? 'p-0 pt-0' : 'p-4 pt-20 lg:pt-4'} z-[10020] lg:pl-64`}>
+    <div className={`fixed inset-0 bg-black/60 flex items-center justify-center ${isMobile ? 'p-0 pt-0' : 'p-4 pt-20 lg:pt-4'} z-[10020] lg:pl-64`}
+      style={isMobile ? { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 72px)', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 72px)' } : undefined}>
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
         className={`flex flex-col ${isMobile ? 'w-screen rounded-none' : 'w-full max-w-[30rem] max-h-[90vh] rounded-lg'}`}
-        style={isMobile ? { height: '100dvh', maxHeight: '100dvh', paddingBottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))' } : undefined}>
+        style={isMobile ? { height: '100%', maxHeight: '100%' } : undefined}>
 
         <Card className="shadow-xl flex flex-col overflow-hidden" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
           <CardHeader className="px-4 py-2 flex flex-col space-y-1.5 border-b flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
@@ -778,7 +779,7 @@ export default function PatientForm({
             </div>
           </CardHeader>
 
-          <CardContent className="px-2 py-2 overflow-y-auto flex-1" style={{ background: 'var(--bg-white)', paddingBottom: isMobile ? 'calc(1rem + env(safe-area-inset-bottom, 0px))' : undefined }}>
+          <CardContent className="px-2 py-2 overflow-y-auto flex-1" style={{ background: 'var(--bg-white)' }}>
             <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="space-y-2">
               {/* AppOwner Only: GPS & Distance Section */}
               {isAppOwner(currentUser) &&
@@ -1184,7 +1185,7 @@ export default function PatientForm({
             </form>
           </CardContent>
 
-          <CardFooter className="px-4 py-2 border-t flex items-center justify-end flex-shrink-0" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)', paddingBottom: isMobile ? 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' : undefined }}>
+          <CardFooter className="px-4 py-2 border-t flex items-center justify-end flex-shrink-0" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
             <div className="flex gap-3">
               <Button type="button" variant="outline" onClick={onCancel} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                 Cancel
