@@ -115,6 +115,12 @@ export default function PolylineViewer({ users = [] }) {
         setIsLoading(true);
         if (viewMode === 'polylines') {
           if (dataSource === 'online') {
+            const polylinesData = await queueEntityRequest(
+              () => base44.entities.DriverRoutePolyline.list('-delivery_date', 250),
+              'Routes: DriverRoutePolyline.list'
+            );
+            setPolylines(polylinesData || []);
+          } else {
             const { offlineDB } = await import('../utils/offlineDatabase');
             const rows = await offlineDB.getAll(offlineDB.STORES.DRIVER_ROUTE_POLYLINES);
             const sorted = (rows || [])
@@ -126,12 +132,6 @@ export default function PolylineViewer({ users = [] }) {
               })
               .slice(0, 500);
             setPolylines(sorted);
-          } else {
-            const polylinesData = await queueEntityRequest(
-              () => base44.entities.DriverRoutePolyline.list('-delivery_date', 250),
-              'Routes: DriverRoutePolyline.list'
-            );
-            setPolylines(polylinesData || []);
           }
         } else {
           try {
