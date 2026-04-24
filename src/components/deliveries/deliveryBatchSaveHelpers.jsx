@@ -113,6 +113,7 @@ export const buildExistingDeliveryBatchUpdate = (delivery) => {
 
   return {
     status: finalStatus,
+    finished_leg_transport_mode: delivery.finished_leg_transport_mode || 'driving',
     delivery_time_start: finalStatus === 'in_transit' ? currentLocalTime : delivery.delivery_time_start,
     delivery_notes: delivery.delivery_notes || '',
     prescription_number: delivery.prescription_number || '',

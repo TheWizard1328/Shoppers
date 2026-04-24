@@ -37,7 +37,9 @@ export const prepareDeliverySaveData = ({ formData, delivery, isCompletionStatus
     }
   }
 
-  if (formData.finished_leg_transport_mode || delivery?.finished_leg_transport_mode) {
+  const transitionsToPending = dataToSave.status === 'pending' && delivery?.status !== 'pending';
+  const isNewDeliveryCreation = !delivery?.id;
+  if (formData.finished_leg_transport_mode || delivery?.finished_leg_transport_mode || isNewDeliveryCreation || transitionsToPending) {
     dataToSave.finished_leg_transport_mode = formData.finished_leg_transport_mode || delivery?.finished_leg_transport_mode || 'driving';
   }
 
