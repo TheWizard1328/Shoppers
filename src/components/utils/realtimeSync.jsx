@@ -27,6 +27,7 @@ const eventBuffers = {
   Message: new Map(),
   DriverRoutePolyline: new Map(),
   GoogleAPILog: new Map(),
+  AppSettings: new Map(),
 };
 const flushTimers = {};
 
@@ -65,6 +66,8 @@ async function flushBuffered(entityName) {
       fullReplacementData = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
     } else if (entityName === 'DriverRoutePolyline') {
       fullReplacementData = await offlineDB.getAll(offlineDB.STORES.DRIVER_ROUTE_POLYLINES);
+    } else if (entityName === 'AppSettings') {
+      fullReplacementData = null;
     }
   } catch (error) {
     console.warn(`⚠️ [RealtimeSync] Failed to load full replacement data for ${entityName}:`, error.message);
@@ -90,6 +93,11 @@ async function flushBuffered(entityName) {
       window.dispatchEvent(new CustomEvent(`realtimeUpdate_${entityName}`, { detail: { type: eventType, id, data, updatedBy, changedFields } }));
       if (entityName === 'AppUser' && (eventType === 'create' || eventType === 'update') && data) {
         window.dispatchEvent(new CustomEvent('appUserUpdated', { detail: { appUser: data, fromRealtime: true } }));
+      }
+      if (entityName === 'AppSettings' && data) {
+        window.dispatchEvent(new CustomEvent('appSettingsUpdated', {
+          detail: { type: eventType, id, data, fromRealtime: true }
+        }));
       }
     }
   });
@@ -465,6 +473,7 @@ export const connect = () => {
     subscribeToEntity('Message');
     subscribeToEntity('DriverRoutePolyline');
     subscribeToEntity('GoogleAPILog');
+    subscribeToEntity('AppSettings');
 
     // Instantly cascade Patient changes to related Deliveries in OFFLINE DB + UI
     window.addEventListener('realtimeUpdate_Patient', async (e) => {

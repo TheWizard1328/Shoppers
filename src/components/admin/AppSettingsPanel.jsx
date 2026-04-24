@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Settings, Save, RefreshCw, Loader2, Clock, AlertCircle, RotateCcw, Power, MapPinned, KeyRound } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { smartRefreshManager } from '../utils/smartRefreshManager';
+import { realtimeSync } from '../utils/realtimeSync';
 
 // Default refresh intervals (in milliseconds)
 const DEFAULT_INTERVALS = {
@@ -208,6 +209,17 @@ export default function AppSettingsPanel() {
   }, [loadSettings]);
 
   useEffect(() => {
+    const handleAppSettingsUpdated = async (event) => {
+      const updatedSetting = event?.detail?.data;
+      if (updatedSetting?.setting_key !== 'refresh_intervals') return;
+      await loadSettings();
+    };
+
+    window.addEventListener('appSettingsUpdated', handleAppSettingsUpdated);
+    return () => window.removeEventListener('appSettingsUpdated', handleAppSettingsUpdated);
+  }, [loadSettings]);
+
+  useEffect(() => {
     const updateRefreshTimes = () => {
       setLastRefreshTimes({ ...smartRefreshManager.lastRefreshTimes });
     };
@@ -248,18 +260,21 @@ export default function AppSettingsPanel() {
         selected_api_key: selectedApiKey
       };
 
+      let savedRecord;
       if (existing && existing.length > 0) {
-        await base44.entities.AppSettings.update(existing[0].id, {
+        savedRecord = await base44.entities.AppSettings.update(existing[0].id, {
           setting_value: updatedSettings,
           description: 'Smart refresh interval and app version settings'
         });
       } else {
-        await base44.entities.AppSettings.create({
+        savedRecord = await base44.entities.AppSettings.create({
           setting_key: 'refresh_intervals',
           setting_value: updatedSettings,
           description: 'Smart refresh interval and app version settings'
         });
       }
+
+      realtimeSync.broadcast('AppSettings', existing?.[0] ? 'update' : 'create', savedRecord?.id, savedRecord);
 
       smartRefreshManager._enabled = smartRefreshEnabled;
       smartRefreshManager._initialized = true;
@@ -338,18 +353,21 @@ export default function AppSettingsPanel() {
 
       const existing = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
       
+      let savedRecord;
       if (existing && existing.length > 0) {
-        await base44.entities.AppSettings.update(existing[0].id, {
+        savedRecord = await base44.entities.AppSettings.update(existing[0].id, {
           setting_value: settingsToSave,
           description: 'Smart refresh interval and app version settings'
         });
       } else {
-        await base44.entities.AppSettings.create({
+        savedRecord = await base44.entities.AppSettings.create({
           setting_key: 'refresh_intervals',
           setting_value: settingsToSave,
           description: 'Smart refresh interval and app version settings'
         });
       }
+
+      realtimeSync.broadcast('AppSettings', existing?.[0] ? 'update' : 'create', savedRecord?.id, savedRecord);
 
       smartRefreshManager._enabled = smartRefreshEnabled;
       smartRefreshManager._initialized = true;
@@ -394,17 +412,19 @@ export default function AppSettingsPanel() {
       const currentSettings = existing?.[0]?.setting_value || {};
       const updatedSettings = { ...currentSettings, appVersion: newVersion };
       
+      let savedRecord;
       if (existing && existing.length > 0) {
-        await base44.entities.AppSettings.update(existing[0].id, {
+        savedRecord = await base44.entities.AppSettings.update(existing[0].id, {
           setting_value: updatedSettings
         });
       } else {
-        await base44.entities.AppSettings.create({
+        savedRecord = await base44.entities.AppSettings.create({
           setting_key: 'refresh_intervals',
           setting_value: updatedSettings,
           description: 'Smart refresh interval and app version settings'
         });
       }
+      realtimeSync.broadcast('AppSettings', existing?.[0] ? 'update' : 'create', savedRecord?.id, savedRecord);
       setSavedAppVersion(newVersion);
       alert(`Build incremented to v${newVersion.major}.${newVersion.minor}.${newVersion.build}`);
     } catch (error) {
@@ -521,17 +541,19 @@ export default function AppSettingsPanel() {
                   const currentSettings = existing?.[0]?.setting_value || {};
                   const updatedSettings = { ...currentSettings, smartRefreshEnabled: checked, appVersion: appVersion };
                   
+                  let savedRecord;
                   if (existing && existing.length > 0) {
-                    await base44.entities.AppSettings.update(existing[0].id, {
+                    savedRecord = await base44.entities.AppSettings.update(existing[0].id, {
                       setting_value: updatedSettings
                     });
                   } else {
-                    await base44.entities.AppSettings.create({
+                    savedRecord = await base44.entities.AppSettings.create({
                       setting_key: 'refresh_intervals',
                       setting_value: updatedSettings,
                       description: 'Smart refresh interval and app version settings'
                     });
                   }
+                  realtimeSync.broadcast('AppSettings', existing?.[0] ? 'update' : 'create', savedRecord?.id, savedRecord);
                   setSavedSmartRefreshEnabled(checked);
                 } catch (error) {
                   console.error('Failed to save smart refresh toggle:', error);
