@@ -113,11 +113,20 @@ export default function ResetPolylinesButton({
               5000
             );
 
-            const orderedStopIds = (routeDeliveries || [])
+            const orderedDeliveries = (routeDeliveries || [])
               .filter(Boolean)
-              .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0))
+              .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
+
+            const orderedStopIds = orderedDeliveries
               .map((delivery) => delivery.id)
               .filter(Boolean);
+
+            const firstStop = orderedDeliveries[0] || null;
+            const lastStop = orderedDeliveries[orderedDeliveries.length - 1] || null;
+
+            if (!firstStop || !lastStop) {
+              throw new Error('No route stops found for this driver and date');
+            }
 
             const response = await base44.functions.invoke('purgeAndRegeneratePolylines', {
               driverId,
@@ -128,7 +137,10 @@ export default function ResetPolylinesButton({
               bypassDriverStatus: true,
               bypassPolylineUpdated: true,
               routeStopOrder: orderedStopIds,
-              routePattern: ['home', ...orderedStopIds, 'home']
+              routePattern: ['home', ...orderedStopIds, 'home'],
+              explicitOrderedStopsOnly: true,
+              explicitRouteOrigin: 'home',
+              explicitRouteDestination: 'home'
             });
             result = response?.data || response || {};
             if (!result.success) {
