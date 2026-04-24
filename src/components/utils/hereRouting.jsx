@@ -4,6 +4,7 @@ import { offlineDB } from './offlineDatabase';
 const fetchingKeys = new Set();
 const memoryCache = new Map();
 const routeRequestTimestamps = new Map();
+const inFlightPromises = new Map();
 const apiKeySelectionState = {
   loaded: false,
   loading: null,
@@ -612,11 +613,11 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate, 
   const cacheKey = `here_${transportMode}_${fromStop.latitude.toFixed(5)}_${fromStop.longitude.toFixed(5)}_${toStop.latitude.toFixed(5)}_${toStop.longitude.toFixed(5)}`;
   console.debug('[HERE][client] Cache key', { cacheKey, driverId, deliveryDate });
   const recentFailure = failureCache.get(cacheKey);
-  if (recentFailure && Date.now() - recentFailure < 120000) {
+  if (recentFailure && Date.now() - recentFailure < 300000) {
     return null;
   }
   const lastRequestedAt = routeRequestTimestamps.get(cacheKey) || 0;
-  if (Date.now() - lastRequestedAt < 30000) {
+  if (Date.now() - lastRequestedAt < 120000) {
     return memoryCache.get(cacheKey) || null;
   }
   routeRequestTimestamps.set(cacheKey, Date.now());
@@ -638,16 +639,9 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate, 
 
 
   // Early in-flight dedupe to prevent burst duplicates after cache purges
-  if (fetchingKeys.has(cacheKey)) {
+  if (inFlightPromises.has(cacheKey)) {
     console.debug('[HERE][client] Awaiting in-flight (early)', { cacheKey });
-    return await new Promise((resolve) => {
-      let waited = 0;
-      const iv = setInterval(() => {
-        if (memoryCache.has(cacheKey)) { clearInterval(iv); resolve(memoryCache.get(cacheKey)); return; }
-        if (!fetchingKeys.has(cacheKey) || waited > 12000) { clearInterval(iv); resolve(memoryCache.get(cacheKey) || null); }
-        waited += 250;
-      }, 250);
-    });
+    return inFlightPromises.get(cacheKey);
   }
   // Mark as in-flight before any DB/entity lookups to collapse concurrent callers
   if (!fetchingKeys.has(cacheKey)) fetchingKeys.add(cacheKey);
@@ -655,101 +649,98 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate, 
   // in-flight dedupe handled earlier above (no-op here)
 
   // Try offline DB first, then online DriverRoutePolyline, and only then consider HERE.
-  try {
-    const offlineCoords = await getOfflineSegmentPolyline(fromStop, toStop, deliveryDate, driverId, transportMode);
-    if (offlineCoords) {
-      memoryCache.set(cacheKey, offlineCoords);
-      fetchingKeys.delete(cacheKey);
-      return offlineCoords;
-    }
-
-    const onlineCoords = await getOnlineSegmentPolyline(fromStop, toStop, deliveryDate, driverId, transportMode);
-    if (onlineCoords) {
-      memoryCache.set(cacheKey, onlineCoords);
-      fetchingKeys.delete(cacheKey);
-      return onlineCoords;
-    }
-  } catch (e) {
-    console.warn('[HERE][client] Offline/online polyline lookup failed', e);
-  }
-
-  // If we previously stored a hard error flag for this key, short-circuit for a bit to avoid hammering APIs
-  const failKey = `${cacheKey}:fail_until`;
-  try {
-    const until = backoffCache.get(failKey);
-    if (until && Date.now() < Number(until)) {
-      const ms = Number(until) - Date.now();
-      const lastNotice = backoffNoticeCache.get(cacheKey) || 0;
-      if (Date.now() - lastNotice > 10000) {
-        console.info('[HERE][client] Backoff active; using fallback line', { cacheKey, msRemaining: ms });
-        backoffNoticeCache.set(cacheKey, Date.now());
+  const requestPromise = (async () => {
+    try {
+      const offlineCoords = await getOfflineSegmentPolyline(fromStop, toStop, deliveryDate, driverId, transportMode);
+      if (offlineCoords) {
+        memoryCache.set(cacheKey, offlineCoords);
+        return offlineCoords;
       }
-      fetchingKeys.delete(cacheKey);
-      return null;
+
+      const onlineCoords = await getOnlineSegmentPolyline(fromStop, toStop, deliveryDate, driverId, transportMode);
+      if (onlineCoords) {
+        memoryCache.set(cacheKey, onlineCoords);
+        return onlineCoords;
+      }
+    } catch (e) {
+      console.warn('[HERE][client] Offline/online polyline lookup failed', e);
     }
-  } catch (_) {}
-  fetchingKeys.add(cacheKey);
 
-  let __lockId = null;
-  if (USE_CROSS_DEVICE_LOCK) {
-    // Client-side entity locks removed to avoid extra Base44 traffic; fetchingKeys already dedupes in-flight requests in this session.
-  }
-
-  try {
-    console.info('[HERE][client] Invoking getHereDirections', { cacheKey, origin: { lat: fromStop.latitude, lng: fromStop.longitude }, destination: { lat: toStop.latitude, lng: toStop.longitude } });
-    const res = await base44.functions.invoke('getHereDirections', {
-      origin: { lat: fromStop.latitude, lng: fromStop.longitude },
-      destination: { lat: toStop.latitude, lng: toStop.longitude }
-    });
-
-    const coords = decodeRouteGeometry(res?.data);
-
-    if (coords) {
-      console.info('[HERE][client] Route OK', { cacheKey, points: coords.length, shape: res?.data?.polyline_format === 'flexible' ? 'here-polyline' : Array.isArray(res?.data?.coordinates) ? 'coordinates' : 'polyline' });
-      memoryCache.set(cacheKey, coords);
-      try { backoffCache.delete(failKey); } catch (_) {}
-      try { backoffNoticeCache.delete(cacheKey); } catch (_) {}
-      try { failureCache.delete(cacheKey); } catch (_) {}
-
-      ensurePolylineSubscription();
-
-      if (driverId && deliveryDate) {
-        try {
-          await persistGeneratedPolyline(driverId, deliveryDate, fromStop, toStop, coords, {
-            estimated_distance_km: res?.data?.estimated_distance_km ?? null,
-            estimated_duration_minutes: res?.data?.estimated_duration_minutes ?? null,
-            transport_mode: transportMode
-          });
-        } catch (persistError) {
-          console.warn('[HERE][client] Persist generated polyline failed', { cacheKey, error: persistError?.message || persistError });
+    const failKey = `${cacheKey}:fail_until`;
+    try {
+      const until = backoffCache.get(failKey);
+      if (until && Date.now() < Number(until)) {
+        const ms = Number(until) - Date.now();
+        const lastNotice = backoffNoticeCache.get(cacheKey) || 0;
+        if (Date.now() - lastNotice > 10000) {
+          console.info('[HERE][client] Backoff active; using fallback line', { cacheKey, msRemaining: ms });
+          backoffNoticeCache.set(cacheKey, Date.now());
         }
+        return null;
       }
+    } catch (_) {}
 
-      // Clear lock after success
-      try { if (__lockId) { await base44.entities.AppSettings.delete(__lockId); __lockId = null; } } catch (_) {}
-      fetchingKeys.delete(cacheKey);
-      return coords;
-    } else {
-      // Keep dashed fallback if HERE returns nothing
+    let __lockId = null;
+    if (USE_CROSS_DEVICE_LOCK) {
+      // Client-side entity locks removed to avoid extra Base44 traffic; fetchingKeys already dedupes in-flight requests in this session.
     }
 
-  } catch (err) {
-    console.warn('[HERE][client] HERE fetch failed', { cacheKey, err: err?.message || err });
-  } finally {
-    // Ensure lock is cleared on error/timeout
-    try { if (__lockId) { await base44.entities.AppSettings.delete(__lockId); __lockId = null; } } catch (_) {}
-  }
-  
-  // Backoff 30s for this key on failure
-  try {
-    backoffCache.set(`${cacheKey}:fail_until`, Date.now() + 30000);
-    backoffNoticeCache.set(cacheKey, Date.now());
-    failureCache.set(cacheKey, Date.now());
-    console.info('[HERE][client] Set backoff fallback window', { cacheKey, ms: 30000 });
-  } catch (_) {}
+    try {
+      console.info('[HERE][client] Invoking getHereDirections', { cacheKey, origin: { lat: fromStop.latitude, lng: fromStop.longitude }, destination: { lat: toStop.latitude, lng: toStop.longitude } });
+      const res = await base44.functions.invoke('getHereDirections', {
+        origin: { lat: fromStop.latitude, lng: fromStop.longitude },
+        destination: { lat: toStop.latitude, lng: toStop.longitude }
+      });
 
-  fetchingKeys.delete(cacheKey);
-  return null;
+      const coords = decodeRouteGeometry(res?.data);
+
+      if (coords) {
+        console.info('[HERE][client] Route OK', { cacheKey, points: coords.length, shape: res?.data?.polyline_format === 'flexible' ? 'here-polyline' : Array.isArray(res?.data?.coordinates) ? 'coordinates' : 'polyline' });
+        memoryCache.set(cacheKey, coords);
+        try { backoffCache.delete(failKey); } catch (_) {}
+        try { backoffNoticeCache.delete(cacheKey); } catch (_) {}
+        try { failureCache.delete(cacheKey); } catch (_) {}
+
+        ensurePolylineSubscription();
+
+        if (driverId && deliveryDate) {
+          try {
+            await persistGeneratedPolyline(driverId, deliveryDate, fromStop, toStop, coords, {
+              estimated_distance_km: res?.data?.estimated_distance_km ?? null,
+              estimated_duration_minutes: res?.data?.estimated_duration_minutes ?? null,
+              transport_mode: transportMode
+            });
+          } catch (persistError) {
+            console.warn('[HERE][client] Persist generated polyline failed', { cacheKey, error: persistError?.message || persistError });
+          }
+        }
+
+        return coords;
+      }
+    } catch (err) {
+      console.warn('[HERE][client] HERE fetch failed', { cacheKey, err: err?.message || err });
+    } finally {
+      try { if (__lockId) { await base44.entities.AppSettings.delete(__lockId); __lockId = null; } } catch (_) {}
+    }
+    
+    try {
+      backoffCache.set(`${cacheKey}:fail_until`, Date.now() + 300000);
+      backoffNoticeCache.set(cacheKey, Date.now());
+      failureCache.set(cacheKey, Date.now());
+      console.info('[HERE][client] Set backoff fallback window', { cacheKey, ms: 300000 });
+    } catch (_) {}
+
+    return null;
+  })();
+
+  inFlightPromises.set(cacheKey, requestPromise);
+
+  try {
+    return await requestPromise;
+  } finally {
+    inFlightPromises.delete(cacheKey);
+    fetchingKeys.delete(cacheKey);
+  }
 };
 
 export const getHereEncodedPolyline = async (driverId, fromStop, toStop, deliveryDate, transportMode = 'driving', _waypoints = []) => {
