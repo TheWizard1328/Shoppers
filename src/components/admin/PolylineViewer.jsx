@@ -125,12 +125,14 @@ export default function PolylineViewer({ users = [] }) {
           } else {
             const { offlineDB } = await import('../utils/offlineDatabase');
             const rows = await offlineDB.getAll(offlineDB.STORES.DRIVER_ROUTE_POLYLINES);
-            const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
-            const todays = (rows || []).filter(r => r?.delivery_date === today);
-            // CRITICAL: Filter out records that exist in online DB - only show truly offline-only records
-            const onlineIds = new Set((polylines || []).map(p => p.id));
-            const offlineOnly = (todays || []).filter(r => !onlineIds.has(r.id));
-            const sorted = (offlineOnly || []).sort((a,b) => String(b.delivery_date||'').localeCompare(String(a.delivery_date||''))).slice(0,500);
+            const sorted = (rows || [])
+              .filter((row) => typeof row?.encoded_polyline === 'string' && row.encoded_polyline.length > 0)
+              .sort((a, b) => {
+                const aTs = new Date(a.last_generated_at || a.updated_date || a.created_date || 0).getTime();
+                const bTs = new Date(b.last_generated_at || b.updated_date || b.created_date || 0).getTime();
+                return bTs - aTs;
+              })
+              .slice(0, 500);
             setPolylines(sorted);
           }
         } else {
@@ -649,7 +651,7 @@ export default function PolylineViewer({ users = [] }) {
                     />
                     <h3 className="font-semibold text-sm">
                       {viewMode === 'polylines' ? `Polyline Records (${filteredPolylines.length})` : `Breadcrumb Records (${filteredBreadcrumbs.length})`}
-                   {viewMode === 'polylines' && polylines.length === 0 && (
+                   {viewMode === 'polylines' && dataSource === 'online' && polylines.length === 0 && (
                      <span className="ml-2 text-xs text-slate-500">(No online data — switch to Offline to manage cached records)</span>
                    )}
                     </h3>
