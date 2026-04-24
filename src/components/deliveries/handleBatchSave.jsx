@@ -316,7 +316,11 @@ export async function handleBatchSave({
 
         await restartBatchSmartRefresh(() => setBatchFormSaving(false));
 
-        if (deliveriesToUpdate.length > 0 && newDeliveries.length === 0) {
+        const hasOnlyPendingOrStagedChanges = [...deliveriesReadyForDB, ...existingDeliveriesWithTRs]
+          .filter(Boolean)
+          .every((delivery) => ['pending', 'Staged'].includes(String(delivery?.status || '')));
+
+        if (hasOnlyPendingOrStagedChanges || deliveriesToUpdate.length > 0 && newDeliveries.length === 0) {
           window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryDate: formData.delivery_date, driverId: formData.driver_id, triggeredBy: 'doneButtonUpdates', immediate: true } }));
         } else {
           const refreshDriverId = deliveriesReadyForDB.find((delivery) => delivery?.patient_id)?.driver_id || existingDeliveriesWithTRs[0]?.driver_id || formData.driver_id;

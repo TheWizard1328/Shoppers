@@ -173,6 +173,18 @@ export default function ResetPolylinesButton({
             'stop_order',
             5000
           );
+
+          const polylineUpdatedFalseIds = (deliveriesAfterPurge || [])
+            .filter((delivery) => delivery?.id && delivery?.PolylineUpdated === false)
+            .map((delivery) => delivery.id);
+
+          if (polylineUpdatedFalseIds.length > 0) {
+            await Promise.all(
+              polylineUpdatedFalseIds.map((id) =>
+                base44.entities.Delivery.update(id, { PolylineUpdated: true })
+              )
+            );
+          }
           const orderedDeliveriesAfterPurge = (deliveriesAfterPurge || [])
             .filter(Boolean)
             .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));

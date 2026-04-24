@@ -8,7 +8,9 @@ export async function deleteDeliveryWithPolylineRefresh({ deliveryId, deliveries
   setAllDeliveries((prev) => prev.filter((delivery) => delivery.id !== deliveryId));
   await deleteDeliveryLocal(deliveryId);
 
-  if (deletedDelivery?.driver_id && deletedDelivery?.delivery_date) {
+  const shouldSkipPolylineRefresh = ['pending', 'Staged'].includes(String(deletedDelivery?.status || ''));
+
+  if (!shouldSkipPolylineRefresh && deletedDelivery?.driver_id && deletedDelivery?.delivery_date) {
     try {
       await base44.functions.invoke("purgeAndRegeneratePolylines", {
         driverId: deletedDelivery.driver_id,
