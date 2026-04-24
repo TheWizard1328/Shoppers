@@ -21,6 +21,7 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
   const [selectedApiKey, setSelectedApiKey] = useState('HERE_API_KEY');
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
   const tooltipTimerRef = useRef(null);
+  const tooltipLockUntilRef = useRef(0);
   const isOwner = isAppOwner(currentUser);
 
   // Edmonton-local date helpers (match Dashboard behavior)
@@ -93,11 +94,20 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
     if (tooltipTimerRef.current) {
       clearTimeout(tooltipTimerRef.current);
     }
+    tooltipLockUntilRef.current = Date.now() + 3000;
     setIsTooltipOpen(true);
     tooltipTimerRef.current = setTimeout(() => {
       setIsTooltipOpen(false);
       tooltipTimerRef.current = null;
+      tooltipLockUntilRef.current = 0;
     }, 3000);
+  };
+
+  const handleTooltipOpenChange = (open) => {
+    if (!open && Date.now() < tooltipLockUntilRef.current) {
+      return;
+    }
+    setIsTooltipOpen(open);
   };
 
   if (!isOwner) return null;
@@ -106,7 +116,7 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
     <>
       <div className="absolute left-6 z-[100] pointer-events-auto" style={{ bottom: `${(stopCardsHeight || 0) + 10}px` }}>
         <TooltipProvider delayDuration={200}>
-          <Tooltip open={isTooltipOpen} onOpenChange={setIsTooltipOpen}>
+          <Tooltip open={isTooltipOpen} onOpenChange={handleTooltipOpenChange}>
             <TooltipTrigger asChild>
               <button
                 type="button" className="px-1 text-xs font-medium rounded-md border shadow-sm"
