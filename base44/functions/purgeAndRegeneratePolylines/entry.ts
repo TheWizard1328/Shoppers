@@ -28,6 +28,29 @@ async function processInChunks(items, chunkSize, processor) {
   return results;
 }
 
+async function deletePolylinesIfPresent(base44, rows) {
+  const safeRows = Array.isArray(rows) ? rows.filter((row) => row?.id) : [];
+  if (safeRows.length === 0) return 0;
+
+  const currentRows = await base44.asServiceRole.entities.DriverRoutePolyline.filter({
+    id: { $in: safeRows.map((row) => row.id) }
+  }, '-updated_date', safeRows.length);
+
+  const currentIds = new Set((currentRows || []).map((row) => row?.id).filter(Boolean));
+  const rowsThatExist = safeRows.filter((row) => currentIds.has(row.id));
+
+  if (rowsThatExist.length === 0) return 0;
+
+  await processInChunks(rowsThatExist, 20, (row) =>
+    base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id).catch((error) => {
+      if (isNotFoundError(error)) return null;
+      throw error;
+    })
+  );
+
+  return rowsThatExist.length;
+}
+
 function isRateLimitError(error) {
   return error?.status === 429 || error?.response?.status === 429 || String(error?.message || '').toLowerCase().includes('rate limit exceeded');
 }
@@ -639,7 +662,7 @@ Deno.serve(async (req) => {
     const driverDisplayName = driverNameAppUser?.user_name || driverNameAppUser?.full_name || driverId;
     const repairedStopOrders = 0;
 
-    const existingPolylines = await base44.asServiceRole.entities.DriverRoutePolyline.filter({
+    let existingPolylines = await base44.asServiceRole.entities.DriverRoutePolyline.filter({
       driver_id: driverId,
       delivery_date: deliveryDate
     }, '-updated_date', 50000);
@@ -1014,15 +1037,12 @@ Deno.serve(async (req) => {
         });
         if (!bypassPolylineDelete && rowsToDelete.length > 0) {
           console.log(`#[purgeAndRegeneratePolylines] BEFORE delete old polylines | driver=${driverDisplayName} | date=${deliveryDate} | rowsToDelete=${rowsToDelete.length} | totalStops=${deliveries?.length || 0}`);
-          await processInChunks(rowsToDelete, 20, (row) =>
-            base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id).catch((error) => {
-              if (isNotFoundError(error)) return null;
-              throw error;
-            })
-          );
-          console.log(`# [purgeAndRegeneratePolylines] AFTER delete old polylines | driver=${driverDisplayName} | date=${deliveryDate} | rowsToDelete=${rowsToDelete.length} | totalStops=${deliveries?.length || 0}`);
+          deletedPolylineCount = await deletePolylinesIfPresent(base44, rowsToDelete);
+          existingPolylines = (existingPolylines || []).filter((row) => !rowsToDelete.some((candidate) => candidate.id === row?.id));
+          console.log(`# [purgeAndRegeneratePolylines] AFTER delete old polylines | driver=${driverDisplayName} | date=${deliveryDate} | deleted=${deletedPolylineCount} | totalStops=${deliveries?.length || 0}`);
+        } else {
+          deletedPolylineCount = 0;
         }
-        deletedPolylineCount = bypassPolylineDelete ? 0 : rowsToDelete.length;
 
         if (createdSegments.length > 0) {
           console.log(`# [purgeAndRegeneratePolylines] BEFORE DriverRoutePolyline.bulkCreate | driver=${driverDisplayName} | date=${deliveryDate} | createdSegments=${createdSegments.length} | totalStops=${deliveries?.length || 0}`);
@@ -1113,14 +1133,11 @@ Deno.serve(async (req) => {
           return !allowedCompletedSegmentKeys.has(rowKey);
         });
         if (!bypassPolylineDelete && rowsToDelete.length > 0) {
-          await processInChunks(rowsToDelete, 20, (row) =>
-            base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id).catch((error) => {
-              if (isNotFoundError(error)) return null;
-              throw error;
-            })
-          );
+          deletedPolylineCount = await deletePolylinesIfPresent(base44, rowsToDelete);
+          existingPolylines = (existingPolylines || []).filter((row) => !rowsToDelete.some((candidate) => candidate.id === row?.id));
+        } else {
+          deletedPolylineCount = 0;
         }
-        deletedPolylineCount = bypassPolylineDelete ? 0 : rowsToDelete.length;
 
         if (createdSegments.length > 0) {
           await base44.asServiceRole.entities.DriverRoutePolyline.bulkCreate(createdSegments);
