@@ -65,6 +65,9 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
           setIsTemporarilyDeactivated(true);
         }, 500);
       }
+      if (event?.type === 'IMMERSIVE_MODE_TOGGLED' && (currentPhase === 2 || currentPhase === 3)) {
+        return;
+      }
       flashUpdate(event?.reason || 'route_change');
     });
 

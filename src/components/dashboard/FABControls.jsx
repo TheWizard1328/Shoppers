@@ -72,6 +72,38 @@ export default function FABControls({
     return isPrimaryDevice && speed > 0;
   }, [isDriver, currentUser?.driver_status, driverLocation]);
 
+  useEffect(() => {
+    const unsubscribe = fabControlEvents.subscribe((event) => {
+      if (event?.type !== 'IMMERSIVE_MODE_TOGGLED') return;
+      if (mapViewPhase !== 2 && mapViewPhase !== 3) return;
+
+      if (mapLockTimeoutRef.current) {
+        clearTimeout(mapLockTimeoutRef.current);
+        mapLockTimeoutRef.current = null;
+      }
+      mapLockExpiresAtRef.current = null;
+      setIsMapViewLocked(false);
+
+      setTimeout(() => {
+        setIsMapViewLocked(true);
+        setMapViewTrigger((prev) => prev + 1);
+
+        const lockDuration = 3000;
+        const expiresAt = Date.now() + lockDuration;
+        mapLockExpiresAtRef.current = expiresAt;
+        mapLockTimeoutRef.current = setTimeout(() => {
+          if (mapLockExpiresAtRef.current === expiresAt) {
+            setIsMapViewLocked(false);
+            mapLockExpiresAtRef.current = null;
+            mapLockTimeoutRef.current = null;
+          }
+        }, lockDuration);
+      }, 50);
+    });
+
+    return unsubscribe;
+  }, [mapViewPhase, setIsMapViewLocked, setMapViewTrigger, mapLockTimeoutRef, mapLockExpiresAtRef]);
+
   return (
     <>
       <MapViewCycleFAB onClick={() => {
