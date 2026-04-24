@@ -559,7 +559,12 @@ Deno.serve(async (req) => {
       reason = 'manual',
       routeSource = 'polylines',
       bypassDriverStatus = false,
-      bypassPolylineUpdated = false
+      bypassPolylineUpdated = false,
+      routeStopOrder = [],
+      orderedStopsWithTransportMode = [],
+      explicitOrderedStopsOnly = false,
+      explicitRouteOrigin = null,
+      explicitRouteDestination = null
     } = body || {};
 
     if (!driverId || !deliveryDate) {
@@ -706,20 +711,35 @@ Deno.serve(async (req) => {
       return null;
     };
 
-    const finishedStops = deliveries
-      .filter((delivery) => FINISHED_STATUSES.has(delivery.status))
-      .sort((a, b) => {
-        const stopOrderDiff = (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0);
-        if (stopOrderDiff !== 0) return stopOrderDiff;
-        const aTime = new Date(a.actual_delivery_time || a.updated_date || a.created_date || 0).getTime();
-        const bTime = new Date(b.actual_delivery_time || b.updated_date || b.created_date || 0).getTime();
-        return aTime - bTime;
-      });
+    const explicitStopOrderIds = Array.isArray(routeStopOrder) ? routeStopOrder.filter(Boolean) : [];
+    const explicitStopMetaById = new Map(
+      (Array.isArray(orderedStopsWithTransportMode) ? orderedStopsWithTransportMode : [])
+        .filter((item) => item?.deliveryId)
+        .map((item) => [item.deliveryId, item])
+    );
+    const deliveryById = new Map((deliveries || []).filter((delivery) => delivery?.id).map((delivery) => [delivery.id, delivery]));
+    const explicitOrderedDeliveries = explicitStopOrderIds
+      .map((id) => deliveryById.get(id) || null)
+      .filter(Boolean);
+
+    const finishedStops = explicitOrderedStopsOnly
+      ? explicitOrderedDeliveries.filter((delivery) => FINISHED_STATUSES.has(delivery.status))
+      : deliveries
+          .filter((delivery) => FINISHED_STATUSES.has(delivery.status))
+          .sort((a, b) => {
+            const stopOrderDiff = (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0);
+            if (stopOrderDiff !== 0) return stopOrderDiff;
+            const aTime = new Date(a.actual_delivery_time || a.updated_date || a.created_date || 0).getTime();
+            const bTime = new Date(b.actual_delivery_time || b.updated_date || b.created_date || 0).getTime();
+            return aTime - bTime;
+          });
 
     const latestFinishedStop = finishedStops[finishedStops.length - 1] || null;
-    const activeStops = deliveries
-      .filter((delivery) => ACTIVE_STATUSES.has(delivery.status))
-      .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+    const activeStops = explicitOrderedStopsOnly
+      ? explicitOrderedDeliveries.filter((delivery) => ACTIVE_STATUSES.has(delivery.status))
+      : deliveries
+          .filter((delivery) => ACTIVE_STATUSES.has(delivery.status))
+          .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
     let apiCallsMade = 0;
     let deletedPolylineCount = 0;
@@ -762,8 +782,10 @@ Deno.serve(async (req) => {
             to,
             new Date(stop?.actual_delivery_time || stop?.arrival_time || stop?.updated_date || stop?.created_date || Date.now()).getTime()
           );
-          const normalizedTransportMode = ['driving', 'cycling'].includes(String(stop?.finished_leg_transport_mode || '').toLowerCase())
-            ? String(stop.finished_leg_transport_mode).toLowerCase()
+          const explicitMeta = explicitStopMetaById.get(stop?.id) || null;
+          const rawTransportMode = explicitMeta?.finished_leg_transport_mode || stop?.finished_leg_transport_mode || '';
+          const normalizedTransportMode = ['driving', 'cycling', 'pedestrian'].includes(String(rawTransportMode).toLowerCase())
+            ? String(rawTransportMode).toLowerCase()
             : 'driving';
           finishedSegmentSpecs.push({
             stop,
@@ -847,10 +869,13 @@ Deno.serve(async (req) => {
         const homeLon = Number(driverAppUser?.home_longitude);
         const hasHomeCoords = isValidCoordinatePair(homeLat, homeLon);
         const isToday = deliveryDate === getEdmontonDateString();
+        const lockHomeOrigin = explicitOrderedStopsOnly && explicitRouteOrigin === 'home' && hasHomeCoords;
+        const lockHomeDestination = explicitOrderedStopsOnly && explicitRouteDestination === 'home' && hasHomeCoords;
 
-        const originFromFinishedStop = latestFinishedStop ? getLatLon(latestFinishedStop) : null;
-        const useDriverLocationAsOrigin = scope === 'active_only' && firstActive && isToday && isValidCoordinatePair(currentLat, currentLon);
-        const firstLegOrigin = originFromFinishedStop || (hasHomeCoords ? { lat: homeLat, lon: homeLon } : null);
+        const originFromFinishedStop = explicitOrderedStopsOnly
+          ? (lockHomeOrigin ? { lat: homeLat, lon: homeLon } : (latestFinishedStop ? getLatLon(latestFinishedStop) : null))
+          : (latestFinishedStop ? getLatLon(latestFinishedStop) : null);
+        const useDriverLocationAsOrigin = !explicitOrderedStopsOnly && scope === 'active_only' && firstActive && isToday && isValidCoordinatePair(currentLat, currentLon);
 
         if (useDriverLocationAsOrigin && !originFromFinishedStop) {
           pushSegment({ lat: currentLat, lon: currentLon }, firstActive);
@@ -863,18 +888,22 @@ Deno.serve(async (req) => {
             ? getLatLon(previousStop)
             : originFromFinishedStop || (hasHomeCoords ? { lat: homeLat, lon: homeLon } : null);
           const to = getLatLon(stop);
-          pushSegment(from, to);
+          pushSegment(from, to, explicitOrderedStopsOnly);
         }
 
         const lastActive = getLatLon(activeStops[activeStops.length - 1]);
 
-        const shouldAddHomeStartLeg = hasHomeCoords && firstActive && !originFromFinishedStop;
-        if (shouldAddHomeStartLeg) {
-          pushSegment({ lat: homeLat, lon: homeLon }, firstActive, true);
-        }
-
-        if (hasHomeCoords && lastActive) {
+        if (lockHomeDestination && lastActive) {
           pushSegment(lastActive, { lat: homeLat, lon: homeLon }, true);
+        } else {
+          const shouldAddHomeStartLeg = hasHomeCoords && firstActive && !originFromFinishedStop;
+          if (shouldAddHomeStartLeg) {
+            pushSegment({ lat: homeLat, lon: homeLon }, firstActive, true);
+          }
+
+          if (hasHomeCoords && lastActive) {
+            pushSegment(lastActive, { lat: homeLat, lon: homeLon }, true);
+          }
         }
 
         const segmentsToKeep = new Set();
