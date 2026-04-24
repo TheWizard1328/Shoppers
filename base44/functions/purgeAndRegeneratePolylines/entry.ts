@@ -552,7 +552,15 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { driverId, deliveryDate, scope = 'active_only', reason = 'manual', routeSource = 'polylines' } = body || {};
+    const {
+      driverId,
+      deliveryDate,
+      scope = 'active_only',
+      reason = 'manual',
+      routeSource = 'polylines',
+      bypassDriverStatus = false,
+      bypassPolylineUpdated = false
+    } = body || {};
 
     if (!driverId || !deliveryDate) {
       return Response.json({ error: 'driverId and deliveryDate are required' }, { status: 400 });
@@ -656,7 +664,7 @@ Deno.serve(async (req) => {
         repairedStopOrders: stopOrderRepairUpdates.length
       });
     }
-    if (driverAvailability.isUnavailable && !isHistoricalDate) {
+    if (driverAvailability.isUnavailable && !isHistoricalDate && !bypassDriverStatus) {
       console.log(`[purgeAndRegeneratePolylines] driver unavailable | driver=${driverDisplayName} | status=${driverAvailability.status || 'missing'} | date=${deliveryDate}`);
       return Response.json({
         success: true,
@@ -797,7 +805,7 @@ Deno.serve(async (req) => {
           finished_leg_encoded_polyline: directions?.encoded_polyline || null,
           finished_leg_transport_mode: directions?.encoded_polyline ? segment.transportMode : null,
           travel_dist: directions?.estimated_distance_km ?? null,
-          PolylineUpdated: true
+          PolylineUpdated: bypassPolylineUpdated ? false : true
         });
       });
 
@@ -1061,13 +1069,21 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`# [purgeAndRegeneratePolylines] BEFORE markDeliveriesPolylineUpdated | driver=${driverDisplayName} | date=${deliveryDate} | totalStops=${deliveries?.length || 0}`);
-    await markDeliveriesPolylineUpdated(base44, deliveries, true);
-    const finalDeliveries = await base44.asServiceRole.entities.Delivery.filter({
-      driver_id: driverId,
-      delivery_date: deliveryDate
-    }, 'stop_order', 50000);
-    console.log(`# [purgeAndRegeneratePolylines] AFTER markDeliveriesPolylineUpdated | driver=${driverDisplayName} | date=${deliveryDate} | totalStops=${finalDeliveries?.length || 0}`);
+    let finalDeliveries;
+    if (bypassPolylineUpdated) {
+      finalDeliveries = await base44.asServiceRole.entities.Delivery.filter({
+        driver_id: driverId,
+        delivery_date: deliveryDate
+      }, 'stop_order', 50000);
+    } else {
+      console.log(`# [purgeAndRegeneratePolylines] BEFORE markDeliveriesPolylineUpdated | driver=${driverDisplayName} | date=${deliveryDate} | totalStops=${deliveries?.length || 0}`);
+      await markDeliveriesPolylineUpdated(base44, deliveries, true);
+      finalDeliveries = await base44.asServiceRole.entities.Delivery.filter({
+        driver_id: driverId,
+        delivery_date: deliveryDate
+      }, 'stop_order', 50000);
+      console.log(`# [purgeAndRegeneratePolylines] AFTER markDeliveriesPolylineUpdated | driver=${driverDisplayName} | date=${deliveryDate} | totalStops=${finalDeliveries?.length || 0}`);
+    }
 
     const consolidatedLegs = [];
     const completedLikeStops = (finalDeliveries || [])
