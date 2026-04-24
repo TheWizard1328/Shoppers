@@ -121,6 +121,12 @@ export default function ResetPolylinesButton({
               .map((delivery) => delivery.id)
               .filter(Boolean);
 
+            const orderedStopsWithTransportMode = orderedDeliveries.map((delivery) => ({
+              deliveryId: delivery.id,
+              stopOrder: Number(delivery?.stop_order) || 0,
+              finished_leg_transport_mode: delivery?.finished_leg_transport_mode || null
+            }));
+
             const firstStop = orderedDeliveries[0] || null;
             const lastStop = orderedDeliveries[orderedDeliveries.length - 1] || null;
 
@@ -137,6 +143,7 @@ export default function ResetPolylinesButton({
               bypassDriverStatus: true,
               bypassPolylineUpdated: true,
               routeStopOrder: orderedStopIds,
+              orderedStopsWithTransportMode,
               routePattern: ['home', ...orderedStopIds, 'home'],
               explicitOrderedStopsOnly: true,
               explicitRouteOrigin: 'home',
