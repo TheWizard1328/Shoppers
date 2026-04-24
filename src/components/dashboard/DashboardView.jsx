@@ -238,21 +238,30 @@ export default function DashboardView({
           onImmersiveMapTap={onImmersiveMapTap}
         />
 
-        <StopCardsSection
-          currentUser={currentUser} isDriver={isDriver} isAdmin={isAdmin} isDispatcher={isDispatcher} isMobile={isMobile}
-          deliveries={deliveries} patients={patients} stores={stores} drivers={drivers} deliveriesWithStopOrder={deliveriesWithStopOrder}
-          selectedDate={selectedDate} isAllDriversMode={isAllDriversMode} isSnapshotModeActive={isSnapshotModeActive}
-          mapViewPhase={mapViewPhase} isMapViewLocked={isMapViewLocked} setIsMapViewLocked={setIsMapViewLocked} setMapViewPhase={setMapViewPhase}
-          setShouldFitBounds={setShouldFitBounds} setMapCenter={setMapCenter} setMapZoom={setMapZoom} getMapPadding={getMapPadding}
-          mapLockTimeoutRef={mapLockTimeoutRef} mapLockExpiresAtRef={mapLockExpiresAtRef}
-          stopCardsContainerRef={stopCardsContainerRef} horizontalStopCardsRef={horizontalStopCardsRef} retractClustersRef={retractClustersRef}
-          selectedCardId={selectedCardId} handleCardClick={handleCardClick}
-          immersiveHidden={immersiveHidden}
-          handleEditDelivery={handleEditDelivery} handleEditPatient={handleEditPatient} handleDeleteDelivery={handleDeleteDelivery}
-          handleRestartDelivery={handleRestartDelivery} handleStatusUpdate={handleStatusUpdate} handleNotesUpdate={handleNotesUpdate}
-          handleCODUpdate={handleCODUpdate} handleCreateReturn={handleCreateReturn} handleStartDelivery={handleStartDelivery}
-          refreshUser={refreshUser}
-        />
+        <div
+          className="absolute inset-x-0 bottom-0 z-[150]"
+          style={{
+            height: immersiveHidden ? 0 : undefined,
+            overflow: immersiveHidden ? 'hidden' : 'visible',
+            pointerEvents: immersiveHidden ? 'none' : 'auto'
+          }}
+        >
+          <StopCardsSection
+            currentUser={currentUser} isDriver={isDriver} isAdmin={isAdmin} isDispatcher={isDispatcher} isMobile={isMobile}
+            deliveries={deliveries} patients={patients} stores={stores} drivers={drivers} deliveriesWithStopOrder={deliveriesWithStopOrder}
+            selectedDate={selectedDate} isAllDriversMode={isAllDriversMode} isSnapshotModeActive={isSnapshotModeActive}
+            mapViewPhase={mapViewPhase} isMapViewLocked={isMapViewLocked} setIsMapViewLocked={setIsMapViewLocked} setMapViewPhase={setMapViewPhase}
+            setShouldFitBounds={setShouldFitBounds} setMapCenter={setMapCenter} setMapZoom={setMapZoom} getMapPadding={getMapPadding}
+            mapLockTimeoutRef={mapLockTimeoutRef} mapLockExpiresAtRef={mapLockExpiresAtRef}
+            stopCardsContainerRef={stopCardsContainerRef} horizontalStopCardsRef={horizontalStopCardsRef} retractClustersRef={retractClustersRef}
+            selectedCardId={selectedCardId} handleCardClick={handleCardClick}
+            immersiveHidden={immersiveHidden}
+            handleEditDelivery={handleEditDelivery} handleEditPatient={handleEditPatient} handleDeleteDelivery={handleDeleteDelivery}
+            handleRestartDelivery={handleRestartDelivery} handleStatusUpdate={handleStatusUpdate} handleNotesUpdate={handleNotesUpdate}
+            handleCODUpdate={handleCODUpdate} handleCreateReturn={handleCreateReturn} handleStartDelivery={handleStartDelivery}
+            refreshUser={refreshUser}
+          />
+        </div>
 
         {optimizationMessage && (
           <div className="pointer-events-none fixed left-1/2 top-[5.5rem] -translate-x-1/2 z-[9998] w-full max-w-md px-4">
