@@ -573,7 +573,8 @@ Deno.serve(async (req) => {
       orderedStopsWithTransportMode = [],
       explicitOrderedStopsOnly = false,
       explicitRouteOrigin = null,
-      explicitRouteDestination = null
+      explicitRouteDestination = null,
+      bypassPolylineDelete = false
     } = body || {};
 
     if (!driverId || !deliveryDate) {
@@ -962,7 +963,7 @@ Deno.serve(async (req) => {
           const rowKey = makeSegmentKey(driverId, deliveryDate, { lat: row?.segment_origin_lat, lon: row?.segment_origin_lon }, { lat: row?.segment_dest_lat, lon: row?.segment_dest_lon });
           return !allowedActiveSegmentKeys.has(rowKey);
         });
-        if (rowsToDelete.length > 0) {
+        if (!bypassPolylineDelete && rowsToDelete.length > 0) {
           console.log(`#[purgeAndRegeneratePolylines] BEFORE delete old polylines | driver=${driverDisplayName} | date=${deliveryDate} | rowsToDelete=${rowsToDelete.length} | totalStops=${deliveries?.length || 0}`);
           await processInChunks(rowsToDelete, 20, (row) =>
             base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id).catch((error) => {
@@ -972,7 +973,7 @@ Deno.serve(async (req) => {
           );
           console.log(`# [purgeAndRegeneratePolylines] AFTER delete old polylines | driver=${driverDisplayName} | date=${deliveryDate} | rowsToDelete=${rowsToDelete.length} | totalStops=${deliveries?.length || 0}`);
         }
-        deletedPolylineCount = rowsToDelete.length;
+        deletedPolylineCount = bypassPolylineDelete ? 0 : rowsToDelete.length;
 
         if (createdSegments.length > 0) {
           console.log(`# [purgeAndRegeneratePolylines] BEFORE DriverRoutePolyline.bulkCreate | driver=${driverDisplayName} | date=${deliveryDate} | createdSegments=${createdSegments.length} | totalStops=${deliveries?.length || 0}`);
@@ -1062,7 +1063,7 @@ Deno.serve(async (req) => {
           const rowKey = makeSegmentKey(driverId, deliveryDate, { lat: row?.segment_origin_lat, lon: row?.segment_origin_lon }, { lat: row?.segment_dest_lat, lon: row?.segment_dest_lon });
           return !allowedCompletedSegmentKeys.has(rowKey);
         });
-        if (rowsToDelete.length > 0) {
+        if (!bypassPolylineDelete && rowsToDelete.length > 0) {
           await processInChunks(rowsToDelete, 20, (row) =>
             base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id).catch((error) => {
               if (isNotFoundError(error)) return null;
@@ -1070,7 +1071,7 @@ Deno.serve(async (req) => {
             })
           );
         }
-        deletedPolylineCount = rowsToDelete.length;
+        deletedPolylineCount = bypassPolylineDelete ? 0 : rowsToDelete.length;
 
         if (createdSegments.length > 0) {
           await base44.asServiceRole.entities.DriverRoutePolyline.bulkCreate(createdSegments);

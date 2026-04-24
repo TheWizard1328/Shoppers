@@ -158,7 +158,8 @@ export default function ResetPolylinesButton({
               routePattern: ['home', ...orderedStopIds, 'home'],
               explicitOrderedStopsOnly: true,
               explicitRouteOrigin: 'home',
-              explicitRouteDestination: 'home'
+              explicitRouteDestination: 'home',
+              bypassPolylineDelete: true
             });
             result = response?.data || response || {};
             if (!result.success) {
