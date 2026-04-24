@@ -119,9 +119,7 @@ export default function PolylineViewer({ users = [] }) {
               () => base44.entities.DriverRoutePolyline.list('-delivery_date', 250),
               'Routes: DriverRoutePolyline.list'
             );
-            const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
-            const todays = (polylinesData || []).filter(p => p?.delivery_date === today);
-            setPolylines(todays);
+            setPolylines(polylinesData || []);
           } else {
             const { offlineDB } = await import('../utils/offlineDatabase');
             const rows = await offlineDB.getAll(offlineDB.STORES.DRIVER_ROUTE_POLYLINES);
@@ -189,16 +187,16 @@ export default function PolylineViewer({ users = [] }) {
   };
 
   const filteredPolylines = useMemo(() => {
-    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
-    const effectiveDate = dateFilter || today;
-
     let filtered = polylines;
 
     if (driverFilter !== 'all') {
       filtered = filtered.filter(p => p.driver_id === driverFilter);
     }
 
-    filtered = filtered.filter(p => p.delivery_date === effectiveDate);
+    if (dateFilter) {
+      filtered = filtered.filter(p => p.delivery_date === dateFilter);
+    }
+
     filtered = filtered.filter(p => typeof p.encoded_polyline === 'string' && p.encoded_polyline.length > 0);
 
     const deduped = new Map();
