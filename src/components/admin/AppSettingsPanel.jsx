@@ -129,6 +129,7 @@ export default function AppSettingsPanel() {
   ]);
   const [isTopSectionSaving, setIsTopSectionSaving] = useState(false);
   const [topSectionSaved, setTopSectionSaved] = useState(false);
+  const [activeTopSection, setActiveTopSection] = useState(null);
   const topSectionAutoSaveTimeoutRef = useRef(null);
 
   // Load settings from database
@@ -278,16 +279,24 @@ export default function AppSettingsPanel() {
   useEffect(() => {
     if (isLoading) return;
 
-    const topSectionChanged =
-      smartRefreshEnabled !== savedSmartRefreshEnabled ||
+    let changedSection = null;
+    if (
       appVersion.major !== savedAppVersion.major ||
       appVersion.minor !== savedAppVersion.minor ||
-      appVersion.build !== savedAppVersion.build ||
-      appFeesPerDelivery !== savedAppFees ||
-      selectedApiKey !== savedSelectedApiKey;
+      appVersion.build !== savedAppVersion.build
+    ) {
+      changedSection = 'version';
+    } else if (smartRefreshEnabled !== savedSmartRefreshEnabled) {
+      changedSection = 'refresh';
+    } else if (selectedApiKey !== savedSelectedApiKey) {
+      changedSection = 'apiKeys';
+    } else if (appFeesPerDelivery !== savedAppFees) {
+      changedSection = 'adminSettings';
+    }
 
-    if (!topSectionChanged) return;
+    if (!changedSection) return;
 
+    setActiveTopSection(changedSection);
     setTopSectionSaved(false);
     if (topSectionAutoSaveTimeoutRef.current) {
       clearTimeout(topSectionAutoSaveTimeoutRef.current);
@@ -418,7 +427,7 @@ export default function AppSettingsPanel() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className={`transition-colors ${topSectionSaved ? 'border-green-500 bg-green-50/40' : isTopSectionSaving ? 'border-emerald-300' : ''}`}>
+        <Card className={`transition-colors ${activeTopSection === 'version' && topSectionSaved ? 'border-green-500 bg-green-50/40' : activeTopSection === 'version' && isTopSectionSaving ? 'border-emerald-300' : ''}`}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Settings className="w-5 h-5" />
@@ -480,7 +489,7 @@ export default function AppSettingsPanel() {
           </CardContent>
         </Card>
 
-        <Card className={`${!smartRefreshEnabled ? 'border-red-300 bg-red-50' : ''} ${topSectionSaved ? 'border-green-500 bg-green-50/40' : isTopSectionSaving ? 'border-emerald-300' : ''}`.trim()}>
+        <Card className={`${!smartRefreshEnabled ? 'border-red-300 bg-red-50' : ''} ${activeTopSection === 'refresh' && topSectionSaved ? 'border-green-500 bg-green-50/40' : activeTopSection === 'refresh' && isTopSectionSaving ? 'border-emerald-300' : ''}`.trim()}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Power className={`w-5 h-5 ${smartRefreshEnabled ? 'text-emerald-500' : 'text-red-500'}`} />
@@ -538,7 +547,7 @@ export default function AppSettingsPanel() {
         </CardContent>
       </Card>
 
-        <Card className={`transition-colors ${topSectionSaved ? 'border-green-500 bg-green-50/40' : isTopSectionSaving ? 'border-emerald-300' : ''}`}>
+        <Card className={`transition-colors ${activeTopSection === 'apiKeys' && topSectionSaved ? 'border-green-500 bg-green-50/40' : activeTopSection === 'apiKeys' && isTopSectionSaving ? 'border-emerald-300' : ''}`}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <MapPinned className="w-5 h-5" />
@@ -571,7 +580,7 @@ export default function AppSettingsPanel() {
           </CardContent>
         </Card>
 
-        <Card className={`transition-colors ${topSectionSaved ? 'border-green-500 bg-green-50/40' : isTopSectionSaving ? 'border-emerald-300' : ''}`}>
+        <Card className={`transition-colors ${activeTopSection === 'adminSettings' && topSectionSaved ? 'border-green-500 bg-green-50/40' : activeTopSection === 'adminSettings' && isTopSectionSaving ? 'border-emerald-300' : ''}`}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Settings className="w-5 h-5" />
