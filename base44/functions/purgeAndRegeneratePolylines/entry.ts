@@ -492,6 +492,7 @@ async function getMultiSegmentDirections(base44, segmentSpecs, transportMode = '
       destination: { lat: destination.lat, lng: destination.lon },
       waypoints,
       routeContext: routeContext.map((point) => ({ lat: point.lat, lng: point.lon })),
+      preserveWaypointOrder: true,
       transportMode
     });
 
