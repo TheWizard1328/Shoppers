@@ -24,6 +24,7 @@ export default function MapSection({
   realTimeETAEnabled, showDeliveryForm, showPatientForm, showOptimizationSettings,
   preferredTravelMode, onTravelModeChange,
   immersiveHidden, isDriverMoving, immersiveOverrideActive, onImmersiveMapTap,
+  mapViewPhase = 1, isMapViewLocked = false,
   topOverlayHeight = 0,
 }) {
   const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
@@ -110,8 +111,8 @@ export default function MapSection({
           areStopCardsVisible={!immersiveHidden && deliveriesWithStopOrder.length > 0}
           highlightedDeliveryId={highlightedCardId}
           stopCardsHeight={immersiveHidden ? 0 : stopCardsBaseHeight}
-          mapViewPhase={1}
-          isMapViewLocked={false}
+          mapViewPhase={mapViewPhase}
+          isMapViewLocked={isMapViewLocked}
           topOverlayHeight={!immersiveHidden ? topOverlayHeight : 0}
           preferredTravelMode={preferredTravelMode}
           onTravelModeChange={onTravelModeChange}

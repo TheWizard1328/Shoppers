@@ -2865,7 +2865,7 @@ function Dashboard() {
             if (delivery.isNextDelivery && window.__fabRelockPhase) {setMapViewPhase(window.__fabRelockPhase);setIsMapViewLocked(true);}
           }, 350);
         } else {
-          const padding = getMapPadding(false),appUser = appUsers.find((u) => u?.user_id === delivery.driver_id || u?.id === delivery.driver_id),bounds = [];
+          const padding = getMapPadding(immersiveHidden),appUser = appUsers.find((u) => u?.user_id === delivery.driver_id || u?.id === delivery.driver_id),bounds = [];
           if (delivery.patient_id) {
             const patient = patients.find((p) => p.id === delivery.patient_id);
             if (patient?.latitude && patient?.longitude) bounds.push([patient.latitude, patient.longitude]);

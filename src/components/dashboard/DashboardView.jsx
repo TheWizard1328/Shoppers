@@ -236,6 +236,8 @@ export default function DashboardView({
           isDriverMoving={isDriverMoving}
           immersiveOverrideActive={immersiveOverrideActive}
           onImmersiveMapTap={onImmersiveMapTap}
+          mapViewPhase={mapViewPhase}
+          isMapViewLocked={isMapViewLocked}
         />
 
         <div
