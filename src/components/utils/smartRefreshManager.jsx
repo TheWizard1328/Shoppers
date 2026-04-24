@@ -43,6 +43,7 @@ class LightweightRefreshManager {
       cities: 1800000,       // 30min - Cities dataset (less frequent to avoid 429)
       stores: 1800000,       // 30min - Stores dataset (less frequent to avoid 429)
       appUsers: 60000,       // 60sec - Backup poll ONLY if no recent WebSocket update
+      appSettings: 60000,    // 60sec - App-wide settings like active API key
       offlineSync: 0,        // DISABLED - offlineDB reads, not syncs
       cacheRefresh: 600000   // 10min - Cache consistency check
     };
@@ -51,6 +52,7 @@ class LightweightRefreshManager {
       cities: 0,
       stores: 0,
       appUsers: 0,
+      appSettings: 0,
       offlineSync: 0,
       cacheRefresh: 0
     };
@@ -179,6 +181,7 @@ class LightweightRefreshManager {
         cities: 0,
         stores: 0,
         appUsers: 0,
+        appSettings: 0,
         offlineSync: 0,
         cacheRefresh: 0
       };
@@ -465,6 +468,39 @@ class LightweightRefreshManager {
         } catch (e) {
           this.recordError(e);
           console.warn('⚠️ [LightweightRefresh] Stores refresh failed:', e.message);
+        }
+      }
+
+      // Refresh App Settings every 60 seconds so app-wide settings stay current
+      if (this.shouldRefresh('appSettings')) {
+        try {
+          console.log('⚙️ [LightweightRefresh] Syncing App Settings');
+          await this.waitForRateLimit();
+          const settings = await queueEntityRequest(
+            () => base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }),
+            'AppSettings refresh_intervals'
+          );
+
+          this.recordSuccess();
+          const currentSettings = currentData.appSettings || null;
+          const nextSettings = settings?.[0] || null;
+          const currentValue = JSON.stringify(currentSettings?.setting_value || null);
+          const nextValue = JSON.stringify(nextSettings?.setting_value || null);
+
+          if (nextSettings && currentValue !== nextValue) {
+            updates.appSettings = nextSettings;
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('appSettingsUpdated', {
+                detail: { data: nextSettings, source: 'smartRefreshManager' }
+              }));
+            }
+            console.log('✅ [LightweightRefresh] App Settings updated');
+          }
+
+          this.markRefreshed('appSettings');
+        } catch (e) {
+          this.recordError(e);
+          console.warn('⚠️ [LightweightRefresh] App Settings refresh failed:', e.message);
         }
       }
 

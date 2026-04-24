@@ -275,6 +275,9 @@ export default function AppSettingsPanel() {
       }
 
       realtimeSync.broadcast('AppSettings', existing?.[0] ? 'update' : 'create', savedRecord?.id, savedRecord);
+      window.dispatchEvent(new CustomEvent('appSettingsUpdated', {
+        detail: { data: savedRecord, source: 'AppSettingsPanel' }
+      }));
 
       smartRefreshManager._enabled = smartRefreshEnabled;
       smartRefreshManager._initialized = true;
@@ -368,6 +371,9 @@ export default function AppSettingsPanel() {
       }
 
       realtimeSync.broadcast('AppSettings', existing?.[0] ? 'update' : 'create', savedRecord?.id, savedRecord);
+      window.dispatchEvent(new CustomEvent('appSettingsUpdated', {
+        detail: { data: savedRecord, source: 'AppSettingsPanel' }
+      }));
 
       smartRefreshManager._enabled = smartRefreshEnabled;
       smartRefreshManager._initialized = true;
@@ -425,6 +431,9 @@ export default function AppSettingsPanel() {
         });
       }
       realtimeSync.broadcast('AppSettings', existing?.[0] ? 'update' : 'create', savedRecord?.id, savedRecord);
+      window.dispatchEvent(new CustomEvent('appSettingsUpdated', {
+        detail: { data: savedRecord, source: 'AppSettingsPanel' }
+      }));
       setSavedAppVersion(newVersion);
       alert(`Build incremented to v${newVersion.major}.${newVersion.minor}.${newVersion.build}`);
     } catch (error) {
@@ -554,6 +563,9 @@ export default function AppSettingsPanel() {
                     });
                   }
                   realtimeSync.broadcast('AppSettings', existing?.[0] ? 'update' : 'create', savedRecord?.id, savedRecord);
+                  window.dispatchEvent(new CustomEvent('appSettingsUpdated', {
+                    detail: { data: savedRecord, source: 'AppSettingsPanel' }
+                  }));
                   setSavedSmartRefreshEnabled(checked);
                 } catch (error) {
                   console.error('Failed to save smart refresh toggle:', error);
