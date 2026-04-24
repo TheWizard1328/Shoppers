@@ -121,6 +121,12 @@ export default function AppSettingsPanel() {
   const [savedAppFees, setSavedAppFees] = useState('0.00');
   const [selectedApiKey, setSelectedApiKey] = useState('HERE_API_KEY');
   const [savedSelectedApiKey, setSavedSelectedApiKey] = useState('HERE_API_KEY');
+  const [availableApiKeys, setAvailableApiKeys] = useState([
+    'HERE_API_KEY',
+    'Here_API_Key_2',
+    'Here_API_Key_3',
+    'GOOGLE_MAPS_API_KEY'
+  ]);
 
   // Load settings from database
   const loadSettings = useCallback(async () => {
@@ -150,9 +156,15 @@ export default function AppSettingsPanel() {
           setSavedAppFees(fees);
         }
 
+        const configuredApiKeys = Array.isArray(settings[0].setting_value.available_api_keys) && settings[0].setting_value.available_api_keys.length > 0
+          ? settings[0].setting_value.available_api_keys
+          : ['HERE_API_KEY', 'Here_API_Key_2', 'Here_API_Key_3', 'GOOGLE_MAPS_API_KEY'];
+        setAvailableApiKeys(configuredApiKeys);
+
         const activeApiKey = settings[0].setting_value.selected_api_key
           || settings[0].setting_value.selected_here_api_key
           || settings[0].setting_value.selected_google_maps_api_key
+          || configuredApiKeys[0]
           || 'HERE_API_KEY';
         setSelectedApiKey(activeApiKey);
         setSavedSelectedApiKey(activeApiKey);
@@ -167,6 +179,7 @@ export default function AppSettingsPanel() {
       } else {
         setIntervals(DEFAULT_INTERVALS);
         setSavedIntervals(DEFAULT_INTERVALS);
+        setAvailableApiKeys(['HERE_API_KEY', 'Here_API_Key_2', 'Here_API_Key_3', 'GOOGLE_MAPS_API_KEY']);
         setSelectedApiKey('HERE_API_KEY');
         setSavedSelectedApiKey('HERE_API_KEY');
         if (!smartRefreshManager._initialized) {
@@ -178,6 +191,7 @@ export default function AppSettingsPanel() {
       console.error('Failed to load app settings:', error);
       setIntervals(DEFAULT_INTERVALS);
       setSavedIntervals(DEFAULT_INTERVALS);
+      setAvailableApiKeys(['HERE_API_KEY', 'Here_API_Key_2', 'Here_API_Key_3', 'GOOGLE_MAPS_API_KEY']);
       setSelectedApiKey('HERE_API_KEY');
       setSavedSelectedApiKey('HERE_API_KEY');
     } finally {
@@ -223,6 +237,7 @@ export default function AppSettingsPanel() {
         smartRefreshEnabled: smartRefreshEnabled,
         appVersion: appVersion,
         app_fees_per_delivery: parseFloat(appFeesPerDelivery),
+        available_api_keys: availableApiKeys,
         selected_api_key: selectedApiKey
       };
 
@@ -456,15 +471,15 @@ export default function AppSettingsPanel() {
                     <SelectValue placeholder="Select active API key" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="HERE_API_KEY">HERE_API_KEY</SelectItem>
-                    <SelectItem value="Here_API_Key_2">Here_API_Key_2</SelectItem>
-                    <SelectItem value="GOOGLE_MAPS_API_KEY">GOOGLE_MAPS_API_KEY</SelectItem>
+                    {availableApiKeys.map((apiKey) => (
+                      <SelectItem key={apiKey} value={apiKey}>{apiKey}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="rounded-lg border bg-slate-50 p-3 text-xs text-slate-600 flex items-start gap-2">
                 <KeyRound className="w-4 h-4 mt-0.5 text-slate-500" />
-                <span>The dropdown always shows the API key currently saved as active.</span>
+                <span>The dropdown reads from the <code className="mx-1 rounded bg-slate-200 px-1 py-0.5">available_api_keys</code> app setting, so updating that list will update what appears here.</span>
               </div>
             </div>
           </CardContent>
