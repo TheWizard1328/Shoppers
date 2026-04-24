@@ -75,7 +75,7 @@ export default function MapSection({
           currentUser={currentUser}
           driverLocations={allDriverLocations}
           deliveriesForLocationFilter={deliveries}
-          showOtherDriverDeliveries={showAllDriverMarkers || selectedDriverId === 'all'}
+          showOtherDriverDeliveries={showAllDriverMarkers || selectedDriverId === 'all' || (userHasRole(currentUser, 'admin') && !!selectedDriverId && selectedDriverId !== currentUser?.id)}
           currentDriverLocation={driverLocation}
           currentToNextPolyline={currentToNextPolyline}
           showBreadcrumbs={showBreadcrumbs}
