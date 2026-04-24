@@ -210,7 +210,7 @@ export default function StatsPanel({
           transition={{ duration: 0.3 }}
           onMouseEnter={() => handleCardInteraction(true)}
           onMouseLeave={() => handleCardInteraction(false)}
-          onClick={(e) => {e.stopPropagation();handleCardInteraction(true);if (retractClustersRef.current) retractClustersRef.current();}} className="px-2 py-0.5 rounded-2xl shadow-xl border min-w-[340px] max-w-[345px] cursor-pointer"
+          onClick={(e) => {e.stopPropagation();handleCardInteraction(true);if (retractClustersRef.current) retractClustersRef.current();}} className="px-2 py-0.5 rounded-2xl shadow-xl border min-w-auto max-w-auto cursor-pointer"
 
           style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', pointerEvents: 'auto', touchAction: 'none', position: 'relative' }}>
 
