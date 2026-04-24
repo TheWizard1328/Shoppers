@@ -4,29 +4,37 @@
   "properties": {
     "driver_id": {
       "type": "string",
-      "description": "Driver user ID that owns this live breadcrumb stream"
+      "description": "ID of the driver this live breadcrumb batch belongs to"
     },
-    "delivery_id": {
+    "delivery_start_time": {
       "type": "string",
-      "description": "Delivery ID this breadcrumb stream belongs to (optional context only)"
+      "description": "Actual delivery completion timestamp of the previous stop that started this leg"
+    },
+    "delivery_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Route date for these live breadcrumbs (YYYY-MM-DD)"
     },
     "stop_order": {
       "type": "number",
-      "description": "Stop order used as the unique live breadcrumb leg identifier per driver per day"
+      "description": "Stop order for reference only"
     },
     "breadcrumbs": {
       "type": "array",
-      "description": "Live breadcrumb points as [latitude, longitude, timestamp_ms] tuples",
+      "description": "Live GPS breadcrumb points captured before consolidation as [lat, lng, timestamp_ms]",
       "items": {
         "type": "array",
         "items": {
           "type": "number"
-        }
+        },
+        "minItems": 2,
+        "maxItems": 3
       }
     }
   },
   "required": [
     "driver_id",
-    "stop_order"
+    "delivery_start_time",
+    "delivery_date"
   ]
 }

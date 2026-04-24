@@ -363,19 +363,13 @@ async function reintegratePendingBreadcrumbLive(base44, driverId, deliveryDate, 
       .filter((stopOrder) => Number.isFinite(stopOrder))
   )];
 
-  const pendingRows = relevantStopOrders.length > 0
-    ? await base44.asServiceRole.entities.PendingBreadcrumbLive.filter(
-        { driver_id: driverId, stop_order: { $in: relevantStopOrders } },
-        '-updated_date',
-        50000
-      )
-    : [];
+  const pendingRows = await base44.asServiceRole.entities.PendingBreadcrumbLive.filter(
+    { driver_id: driverId, delivery_date: deliveryDate },
+    '-updated_date',
+    50000
+  );
 
-  const rowsForDate = (pendingRows || []).filter((row) => {
-    const breadcrumbPoints = Array.isArray(row?.breadcrumbs) ? row.breadcrumbs : [];
-    const firstValidTs = breadcrumbPoints.find((point) => Array.isArray(point) && Number.isFinite(Number(point?.[2])))?.[2];
-    return getEdmontonDateString(firstValidTs || Date.now()) === deliveryDate;
-  });
+  const rowsForDate = pendingRows || [];
 
   if (rowsForDate.length === 0) {
     return { mergedCount: 0, sourceRows: 0, updatedDeliveryIds: [] };
@@ -413,24 +407,32 @@ async function reintegratePendingBreadcrumbLive(base44, driverId, deliveryDate, 
     if (normalizedPoints.length === 0) return;
 
     let matchedDeliveryId = null;
-    const firstTs = normalizedPoints[0][2];
-    const lastTs = normalizedPoints[normalizedPoints.length - 1][2];
+    const crumbStartTime = String(row?.delivery_start_time || '');
 
-    const overlapMatch = stopWindows.find((window) => {
-      const startsBeforeWindowEnds = firstTs <= window.endTs;
-      const endsAfterWindowStarts = window.startTs == null || lastTs > window.startTs;
-      return startsBeforeWindowEnds && endsAfterWindowStarts;
-    });
+    if (crumbStartTime) {
+      const exactWindow = stopWindows.find((window) => String(window.delivery?.actual_delivery_time || '') === crumbStartTime);
+      matchedDeliveryId = exactWindow?.delivery?.id || null;
+    }
 
-    if (overlapMatch?.delivery?.id) {
-      matchedDeliveryId = overlapMatch.delivery.id;
-    } else {
-      const nearestWindow = stopWindows.reduce((best, window) => {
-        const distance = Math.abs((window.endTs || 0) - lastTs);
-        if (!best || distance < best.distance) return { deliveryId: window.delivery.id, distance };
-        return best;
-      }, null);
-      matchedDeliveryId = nearestWindow?.deliveryId || null;
+    if (!matchedDeliveryId) {
+      const firstTs = normalizedPoints[0][2];
+      const lastTs = normalizedPoints[normalizedPoints.length - 1][2];
+      const overlapMatch = stopWindows.find((window) => {
+        const startsBeforeWindowEnds = firstTs <= window.endTs;
+        const endsAfterWindowStarts = window.startTs == null || lastTs > window.startTs;
+        return startsBeforeWindowEnds && endsAfterWindowStarts;
+      });
+
+      if (overlapMatch?.delivery?.id) {
+        matchedDeliveryId = overlapMatch.delivery.id;
+      } else {
+        const nearestWindow = stopWindows.reduce((best, window) => {
+          const distance = Math.abs((window.endTs || 0) - lastTs);
+          if (!best || distance < best.distance) return { deliveryId: window.delivery.id, distance };
+          return best;
+        }, null);
+        matchedDeliveryId = nearestWindow?.deliveryId || null;
+      }
     }
 
     if (!matchedDeliveryId) return;
@@ -752,10 +754,14 @@ Deno.serve(async (req) => {
             to,
             new Date(stop?.actual_delivery_time || stop?.arrival_time || stop?.updated_date || stop?.created_date || Date.now()).getTime()
           );
+          const normalizedTransportMode = ['driving', 'cycling'].includes(String(stop?.finished_leg_transport_mode || '').toLowerCase())
+            ? String(stop.finished_leg_transport_mode).toLowerCase()
+            : 'driving';
           finishedSegmentSpecs.push({
             stop,
             from,
             to,
+            transportMode: normalizedTransportMode,
             breadcrumbDirections: parseBreadcrumbPolyline(existingBreadcrumbs),
             fallbackBreadcrumbs,
             usedFallbackBreadcrumbs: !existingBreadcrumbs && !!fallbackBreadcrumbs
@@ -765,15 +771,19 @@ Deno.serve(async (req) => {
 
       const finishedDirectionsByStopId = new Map();
       if (routeSource === 'polylines' && finishedSegmentSpecs.length > 0) {
-        const finishedDirections = await getMultiSegmentDirections(
-          base44,
-          finishedSegmentSpecs.map((segment) => ({ from: segment.from, to: segment.to })),
-          finishedStops[0]?.finished_leg_transport_mode || 'driving'
-        );
-        apiCallsMade += 1;
-        finishedSegmentSpecs.forEach((segment, index) => {
-          finishedDirectionsByStopId.set(segment.stop.id, finishedDirections[index] || null);
-        });
+        for (const mode of ['driving', 'cycling']) {
+          const segmentsForMode = finishedSegmentSpecs.filter((segment) => segment.transportMode === mode);
+          if (segmentsForMode.length === 0) continue;
+          const finishedDirections = await getMultiSegmentDirections(
+            base44,
+            segmentsForMode.map((segment) => ({ from: segment.from, to: segment.to })),
+            mode
+          );
+          apiCallsMade += 1;
+          segmentsForMode.forEach((segment, index) => {
+            finishedDirectionsByStopId.set(segment.stop.id, finishedDirections[index] || null);
+          });
+        }
       }
 
       finishedSegmentSpecs.forEach((segment) => {
@@ -785,7 +795,7 @@ Deno.serve(async (req) => {
           ...(deliveryUpdatesById.get(segment.stop.id) || {}),
           delivery_route_breadcrumbs: segment.usedFallbackBreadcrumbs ? segment.fallbackBreadcrumbs : (deliveryUpdatesById.get(segment.stop.id)?.delivery_route_breadcrumbs || segment.stop?.delivery_route_breadcrumbs),
           finished_leg_encoded_polyline: directions?.encoded_polyline || null,
-          finished_leg_transport_mode: directions?.encoded_polyline ? (segment.stop?.finished_leg_transport_mode || 'driving') : null,
+          finished_leg_transport_mode: directions?.encoded_polyline ? segment.transportMode : null,
           travel_dist: directions?.estimated_distance_km ?? null,
           PolylineUpdated: true
         });

@@ -123,11 +123,16 @@ function parseBreadcrumbPoints(deliveryRouteBreadcrumbs) {
 
 async function getPendingLiveBreadcrumbPoints({ delivery, driverId }) {
   const resolvedDriverId = driverId || delivery?.driver_id;
-  if (!resolvedDriverId || !delivery?.id) return [];
+  const deliveryStartTime = delivery?.actual_delivery_time;
+  if (!resolvedDriverId || !deliveryStartTime || !delivery?.delivery_date) return [];
 
   try {
-    const matches = await offlineDB.getByIndex(offlineDB.STORES.PENDING_BREADCRUMB_LIVE, 'delivery_id', delivery.id).catch(() => []);
-    const matchingRecord = (matches || []).find((item) => item?.driver_id === resolvedDriverId) || matches?.[0] || null;
+    const localRows = await offlineDB.getAll(offlineDB.STORES.PENDING_BREADCRUMB_LIVE).catch(() => []);
+    const matchingRecord = (localRows || []).find((item) =>
+      item?.driver_id === resolvedDriverId &&
+      item?.delivery_date === delivery.delivery_date &&
+      item?.delivery_start_time === deliveryStartTime
+    ) || null;
     const parsed = parseBreadcrumbPoints(matchingRecord?.breadcrumbs || null);
     if (parsed.length > 0) return parsed;
   } catch {}
@@ -135,7 +140,8 @@ async function getPendingLiveBreadcrumbPoints({ delivery, driverId }) {
   try {
     const serverMatches = await base44.entities.PendingBreadcrumbLive.filter({
       driver_id: resolvedDriverId,
-      delivery_id: delivery.id
+      delivery_date: delivery.delivery_date,
+      delivery_start_time: deliveryStartTime
     });
     const parsed = parseBreadcrumbPoints(serverMatches?.[0]?.breadcrumbs || null);
     if (parsed.length > 0) return parsed;
@@ -557,7 +563,7 @@ export async function refreshDriverRoute({ driverId, deliveryDate, forceRefreshD
 }
 
 export async function rehydrateLiveBreadcrumbsForRestart(delivery) {
-  if (!delivery?.driver_id || !delivery?.id || !delivery?.delivery_route_breadcrumbs) return;
+  if (!delivery?.driver_id || !delivery?.actual_delivery_time || !delivery?.delivery_date || !delivery?.delivery_route_breadcrumbs) return;
 
   let parsedBreadcrumbs = null;
   try {
@@ -574,7 +580,8 @@ export async function rehydrateLiveBreadcrumbsForRestart(delivery) {
     if (!base44.entities.PendingBreadcrumbLive) return;
     const existing = await base44.entities.PendingBreadcrumbLive.filter({
       driver_id: delivery.driver_id,
-      delivery_id: delivery.id
+      delivery_date: delivery.delivery_date,
+      delivery_start_time: delivery.actual_delivery_time
     });
 
     if (existing && existing[0]?.id) {
@@ -585,7 +592,8 @@ export async function rehydrateLiveBreadcrumbsForRestart(delivery) {
     } else {
       await base44.entities.PendingBreadcrumbLive.create({
         driver_id: delivery.driver_id,
-        delivery_id: delivery.id,
+        delivery_date: delivery.delivery_date,
+        delivery_start_time: delivery.actual_delivery_time,
         stop_order: Number(delivery.stop_order || 0),
         breadcrumbs: parsedBreadcrumbs
       });

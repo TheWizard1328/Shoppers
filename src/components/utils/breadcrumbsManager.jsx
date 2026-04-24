@@ -24,9 +24,9 @@ export async function loadBreadcrumbsForDriver(driverId, selectedDateStr, appUse
   let current = [];
 
   try {
-    const liveRecords = await base44.entities.PendingBreadcrumbLive.filter({ driver_id: driverId });
+    const liveRecords = await base44.entities.PendingBreadcrumbLive.filter({ driver_id: driverId, delivery_date: selectedDateStr });
     current = (liveRecords || [])
-      .sort((a, b) => Number(a?.stop_order || 0) - Number(b?.stop_order || 0))
+      .sort((a, b) => String(a?.delivery_start_time || '').localeCompare(String(b?.delivery_start_time || '')))
       .flatMap((record) => Array.isArray(record?.breadcrumbs) ? record.breadcrumbs : [])
       .map(([lat, lng, timestamp]) => ({ lat: Number(lat), lng: Number(lng), timestamp }))
       .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng))
