@@ -1182,6 +1182,19 @@ Deno.serve(async (req) => {
       console.log(`# [purgeAndRegeneratePolylines] AFTER markDeliveriesPolylineUpdated | driver=${driverDisplayName} | date=${deliveryDate} | totalStops=${finalDeliveries?.length || 0}`);
     }
 
+    const trackingRecalcResponse = await base44.asServiceRole.functions.invoke('recalculateTrackingNumbers', {
+      driverId,
+      deliveryDate
+    }).catch((error) => {
+      console.warn(`[purgeAndRegeneratePolylines] Tracking number recalculation failed | driver=${driverDisplayName} | date=${deliveryDate} | error=${error?.message || error}`);
+      return null;
+    });
+    const trackingRecalcData = trackingRecalcResponse?.data || trackingRecalcResponse || null;
+    finalDeliveries = await base44.asServiceRole.entities.Delivery.filter({
+      driver_id: driverId,
+      delivery_date: deliveryDate
+    }, 'stop_order', 50000);
+
     const consolidatedLegs = [];
     const completedLikeStops = (finalDeliveries || [])
       .filter((delivery) => FINISHED_STATUSES.has(String(delivery?.status || '')))
@@ -1201,7 +1214,8 @@ Deno.serve(async (req) => {
       recalculatedTravelDistances: sortedForTravelDistance.length,
       originStrategy: latestFinishedStop ? 'last_finished_stop' : 'home_through_remaining_route',
       consolidatedLegs,
-      pendingBreadcrumbLiveMerge
+      pendingBreadcrumbLiveMerge,
+      trackingNumbersUpdated: Number(trackingRecalcData?.updated || 0)
     });
   } catch (error) {
     console.error('[purgeAndRegeneratePolylines] Error:', error?.message || error);
