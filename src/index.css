@@ -190,6 +190,10 @@ button:focus-visible {
     padding: 0;
     background: hsl(var(--background));
   }
+
+  [data-state="active"][role="tabpanel"] {
+    min-height: 0;
+  }
 }
 
 .text-xs {
