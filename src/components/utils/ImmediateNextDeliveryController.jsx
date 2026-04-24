@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react';
-import { optimizeRouteRealTime } from '@/functions/optimizeRouteRealTime';
 import { useAppData } from './AppDataContext';
 import { centerDeliveryCard } from './deliveryCardUtils';
 
@@ -99,19 +98,6 @@ export default function ImmediateNextDeliveryController() {
         const currentLocalTime = getCurrentLocalTimeString();
         let etaUpdates = [];
 
-        try {
-          const etaRes = await optimizeRouteRealTime({
-            driverId,
-            deliveryDate,
-            currentLocalTime,
-            deviceTime: currentLocalTime,
-            generatePolyline: false
-          });
-          const etaData = etaRes?.data || etaRes;
-          etaUpdates = etaData?.optimizedRoute || etaData?.durationUpdates || etaData?.etas || [];
-        } catch (error) {
-          console.warn('[ImmediateNextDeliveryController] ETA refresh skipped:', error?.message || error);
-        }
 
         if (!Array.isArray(deliveriesRef.current) || deliveriesRef.current.length === 0) {
           return;
