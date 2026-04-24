@@ -5,6 +5,7 @@ export function useDashboardViewModel(props) {
     isDriver: props.isDriver,
     isMobile: props.isMobile,
     driverLocation: props.driverLocation,
+    nextStopLocation: props.nextStopCoordinates,
     enabled: true
   });
 

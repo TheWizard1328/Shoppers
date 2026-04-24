@@ -5163,7 +5163,7 @@ function Dashboard() {
     isDriverDropdownDisabled, isAllDriversMode, isDateFinished,
     mapCenter, mapZoom, shouldFitBounds, setShouldFitBounds, setMapCenter, setMapZoom,
     mapMode, setMapMode, mapViewPhase, setMapViewPhase, isMapViewLocked, setIsMapViewLocked,
-    driverLocation, allDriverLocations, currentToNextPolyline, driverRoutes, setDriverRoutes,
+    driverLocation, allDriverLocations, currentToNextPolyline, driverRoutes, setDriverRoutes, nextStopCoordinates,
     showRoutes, setShowRoutes, showAllDriverMarkers, setShowAllDriverMarkers,
     showBreadcrumbs, setShowBreadcrumbs, breadcrumbsData, setBreadcrumbsData,
     highlightedCardId, retractClustersRef, renderSequence, setRenderSequence,
