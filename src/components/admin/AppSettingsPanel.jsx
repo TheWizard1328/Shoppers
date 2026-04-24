@@ -417,15 +417,8 @@ export default function AppSettingsPanel() {
 
   return (
     <div className="space-y-6">
-      <div className={`grid grid-cols-1 md:grid-cols-4 gap-6 rounded-xl border-2 p-2 transition-colors ${topSectionSaved ? 'border-green-500 bg-green-50/40' : isTopSectionSaving ? 'border-emerald-300' : 'border-transparent'}`}>
-        {(isTopSectionSaving || topSectionSaved) && (
-          <div className="md:col-span-4 flex justify-end px-1">
-            <span className={`text-xs font-medium ${topSectionSaved ? 'text-green-700' : 'text-emerald-700'}`}>
-              {topSectionSaved ? 'Saved' : 'Saving...'}
-            </span>
-          </div>
-        )}
-        <Card>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <Card className={`transition-colors ${topSectionSaved ? 'border-green-500 bg-green-50/40' : isTopSectionSaving ? 'border-emerald-300' : ''}`}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Settings className="w-5 h-5" />
@@ -487,7 +480,7 @@ export default function AppSettingsPanel() {
           </CardContent>
         </Card>
 
-        <Card className={!smartRefreshEnabled ? 'border-red-300 bg-red-50' : ''}>
+        <Card className={`${!smartRefreshEnabled ? 'border-red-300 bg-red-50' : ''} ${topSectionSaved ? 'border-green-500 bg-green-50/40' : isTopSectionSaving ? 'border-emerald-300' : ''}`.trim()}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Power className={`w-5 h-5 ${smartRefreshEnabled ? 'text-emerald-500' : 'text-red-500'}`} />
@@ -545,7 +538,7 @@ export default function AppSettingsPanel() {
         </CardContent>
       </Card>
 
-        <Card>
+        <Card className={`transition-colors ${topSectionSaved ? 'border-green-500 bg-green-50/40' : isTopSectionSaving ? 'border-emerald-300' : ''}`}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <MapPinned className="w-5 h-5" />
@@ -578,7 +571,7 @@ export default function AppSettingsPanel() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className={`transition-colors ${topSectionSaved ? 'border-green-500 bg-green-50/40' : isTopSectionSaving ? 'border-emerald-300' : ''}`}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Settings className="w-5 h-5" />
