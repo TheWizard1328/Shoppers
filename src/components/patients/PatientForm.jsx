@@ -755,18 +755,22 @@ export default function PatientForm({
 
   const isPIDValid = formData.patient_id ? validateId(formData.patient_id, 5) : null;
   const pidBackgroundColor = isPIDValid === null ? '' : isPIDValid ? 'bg-emerald-50' : 'bg-red-50';
+  const mobileViewportHeight = typeof window !== 'undefined' ? window.innerHeight : 0;
+  const mobileHeaderHeight = typeof document !== 'undefined' ? document.querySelector('[data-mobile-header]')?.offsetHeight || 0 : 0;
+  const mobileBottomNavHeight = typeof document !== 'undefined' ? document.querySelector('[data-mobile-bottom-nav]')?.offsetHeight || 0 : 0;
+  const mobileAvailableHeight = Math.max(0, mobileViewportHeight - mobileHeaderHeight - mobileBottomNavHeight);
 
   return (
-    <div className={`fixed inset-0 bg-black/60 flex items-center justify-center ${isMobile ? 'p-0 pt-0' : 'p-4 pt-20 lg:pt-4'} z-[10020] lg:pl-64`}
-      style={isMobile ? { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 72px)', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 72px)' } : undefined}>
+    <div className={`fixed inset-0 bg-black/60 flex items-center justify-center ${isMobile ? 'p-0 items-start' : 'p-4 pt-20 lg:pt-4'} z-[10020] lg:pl-64`}
+      style={isMobile ? { paddingTop: `${mobileHeaderHeight}px`, paddingBottom: `${mobileBottomNavHeight}px` } : undefined}>
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
         className={`flex flex-col ${isMobile ? 'w-screen rounded-none' : 'w-full max-w-[30rem] max-h-[90vh] rounded-lg'}`}
-        style={isMobile ? { height: '100%', maxHeight: '100%' } : undefined}>
+        style={isMobile ? { height: `${mobileAvailableHeight}px`, maxHeight: `${mobileAvailableHeight}px` } : undefined}>
 
-        <Card className="shadow-xl flex flex-col overflow-hidden" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
+        <Card className="shadow-xl flex flex-col overflow-hidden" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)', height: '100%', maxHeight: '100%' }}>
           <CardHeader className="px-4 py-2 flex flex-col space-y-1.5 border-b flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
             <div className="flex items-center justify-between">
               <CardTitle className="text-xl font-bold flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
