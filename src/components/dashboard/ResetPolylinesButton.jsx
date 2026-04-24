@@ -127,6 +127,17 @@ export default function ResetPolylinesButton({
               finished_leg_transport_mode: delivery?.finished_leg_transport_mode || null
             }));
 
+            console.log('[ResetPolylinesButton] BEFORE purgeAndRegeneratePolylines', {
+              driverId,
+              selectedDate,
+              stopOrders: orderedDeliveries.map((delivery) => ({
+                id: delivery.id,
+                stop_order: Number(delivery?.stop_order) || 0,
+                status: delivery?.status || null
+              })),
+              routeStopOrder: orderedStopIds
+            });
+
             const firstStop = orderedDeliveries[0] || null;
             const lastStop = orderedDeliveries[orderedDeliveries.length - 1] || null;
 
@@ -154,6 +165,25 @@ export default function ResetPolylinesButton({
               throw new Error(result.error || 'Polyline regeneration failed');
             }
           }
+
+          const deliveriesAfterPurge = await base44.entities.Delivery.filter(
+            { driver_id: driverId, delivery_date: selectedDate },
+            'stop_order',
+            5000
+          );
+          const orderedDeliveriesAfterPurge = (deliveriesAfterPurge || [])
+            .filter(Boolean)
+            .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
+
+          console.log('[ResetPolylinesButton] AFTER purgeAndRegeneratePolylines', {
+            driverId,
+            selectedDate,
+            stopOrders: orderedDeliveriesAfterPurge.map((delivery) => ({
+              id: delivery.id,
+              stop_order: Number(delivery?.stop_order) || 0,
+              status: delivery?.status || null
+            }))
+          });
 
           await syncDriverDateDeliveriesFromBackend([driverId]);
 
