@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import ResetPolylinesButton from "@/components/dashboard/ResetPolylinesButton";
@@ -19,6 +19,8 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
   const [googleCount, setGoogleCount] = useState(null);
   const [hereCount, setHereCount] = useState(null);
   const [selectedApiKey, setSelectedApiKey] = useState('HERE_API_KEY');
+  const [isTooltipOpen, setIsTooltipOpen] = useState(false);
+  const tooltipTimerRef = useRef(null);
   const isOwner = isAppOwner(currentUser);
 
   // Edmonton-local date helpers (match Dashboard behavior)
@@ -79,17 +81,37 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
     };
   }, [currentUser, isOwner]);
 
+  useEffect(() => {
+    return () => {
+      if (tooltipTimerRef.current) {
+        clearTimeout(tooltipTimerRef.current);
+      }
+    };
+  }, []);
+
+  const showApiTooltipForTouch = () => {
+    if (tooltipTimerRef.current) {
+      clearTimeout(tooltipTimerRef.current);
+    }
+    setIsTooltipOpen(true);
+    tooltipTimerRef.current = setTimeout(() => {
+      setIsTooltipOpen(false);
+      tooltipTimerRef.current = null;
+    }, 3000);
+  };
+
   if (!isOwner) return null;
 
   return (
     <>
       <div className="absolute left-6 z-[100] pointer-events-auto" style={{ bottom: `${(stopCardsHeight || 0) + 10}px` }}>
         <TooltipProvider delayDuration={200}>
-          <Tooltip>
+          <Tooltip open={isTooltipOpen} onOpenChange={setIsTooltipOpen}>
             <TooltipTrigger asChild>
               <button
                 type="button" className="px-1 text-xs font-medium rounded-md border shadow-sm"
-
+                onTouchStart={showApiTooltipForTouch}
+                onClick={showApiTooltipForTouch}
                 style={{ background: "color-mix(in srgb, var(--bg-white) 55%, transparent)", borderColor: "var(--border-slate-200)", color: "var(--text-slate-600)" }}>
                 
                 🛣️ {googleCount ?? "..."} / {hereCount ?? "..."}
