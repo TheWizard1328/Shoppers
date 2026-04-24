@@ -221,7 +221,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     };
 
     const handleSmartRefreshComplete = () => {
-    if (typeof window !== 'undefined' && (window.__suppressCardAutoCenterUntil || 0) > Date.now()) return;
+      if (typeof window !== 'undefined' && (window.__suppressCardAutoCenterUntil || 0) > Date.now()) return;
     };
 
     window.addEventListener('incompleteDeliveriesCountChanged', handleIncompleteCountChanged);
@@ -525,7 +525,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
 
   return (
     <div
-      ref={setRefs} className="flex gap-1 overflow-x-auto overflow-y-visible items-end min-h-[70px] pointer-events-auto z-[200]"
+      ref={setRefs} className="flex gap-1.5 overflow-x-auto overflow-y-visible items-end min-h-[70px] pointer-events-auto z-[200]"
       style={{
         position: 'static',
         display: 'flex',
@@ -699,8 +699,8 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
               currentUser={currentUser}
               onClick={(clickedCard) => {
                 if (!clickedCard) {
-                  if (onSelectionChange) onSelectionChange(null, false);
-                  else if (onCardClick) onCardClick(null);
+                  if (onSelectionChange) onSelectionChange(null, false);else
+                  if (onCardClick) onCardClick(null);
                   return;
                 }
                 onCardClick(clickedCard);
