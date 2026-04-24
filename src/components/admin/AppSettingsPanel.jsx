@@ -454,7 +454,7 @@ export default function AppSettingsPanel() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6 h-full min-h-0 overflow-y-auto pb-2 md:pb-0">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card className={`transition-colors ${activeTopSection === 'version' && topSectionSaved ? 'border-green-500 bg-green-50/40' : activeTopSection === 'version' && isTopSectionSaving ? 'border-emerald-300' : ''}`}>
           <CardHeader>

@@ -10,10 +10,10 @@ import DriverSyncManagementTab from '../admin/DriverSyncManagementTab';
 export default function AdminUtilitiesExtraTabs({ appUsers = [], stores = [] }) {
   return (
     <>
-      <TabsContent value="sync-management">
+      <TabsContent value="sync-management" className="mt-4 md:mt-6">
         <DriverSyncManagementTab appUsers={appUsers || []} />
       </TabsContent>
-      <TabsContent value="app-settings">
+      <TabsContent value="app-settings" className="mt-4 md:mt-6 flex-1 min-h-0 overflow-hidden">
         <AppSettingsPanel />
       </TabsContent>
 
