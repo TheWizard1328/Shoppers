@@ -660,7 +660,17 @@ Deno.serve(async (req) => {
     const appUsersForDriverName = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId }, '-updated_date', 1);
     const driverNameAppUser = Array.isArray(appUsersForDriverName) ? appUsersForDriverName[0] : null;
     const driverDisplayName = driverNameAppUser?.user_name || driverNameAppUser?.full_name || driverId;
-    const repairedStopOrders = 0;
+
+    const stopOrderRepairUpdates = buildStopOrderRepairUpdates(deliveries);
+    if (stopOrderRepairUpdates.length > 0) {
+      const stopOrderUpdateMap = new Map(stopOrderRepairUpdates.map((update) => [update.id, { stop_order: update.stop_order }]));
+      console.log(`# [purgeAndRegeneratePolylines] REPAIR stop_order BEFORE route build | driver=${driverDisplayName} | date=${deliveryDate} | repairs=${stopOrderRepairUpdates.length}`);
+      deliveries = await bulkUpdateDeliveries(base44, deliveries, stopOrderUpdateMap);
+      deliveries = await base44.asServiceRole.entities.Delivery.filter({
+        driver_id: driverId,
+        delivery_date: deliveryDate
+      }, 'stop_order', 50000);
+    }
 
     let existingPolylines = await base44.asServiceRole.entities.DriverRoutePolyline.filter({
       driver_id: driverId,
