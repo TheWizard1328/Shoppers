@@ -31,6 +31,8 @@ export default function DashboardView({
   mapLockTimeoutRef, mapLockExpiresAtRef, lastProgrammaticMapMoveRef,
   // FAB
   handleMapViewCycle, mapViewTrigger, setMapViewTrigger, getMapPadding,
+  // Immersive mode
+  immersiveHidden, isDriverMoving, immersiveOverrideActive, onImmersiveMapTap,
   // Stats panel
   statsPanelOpacity, isExpanded, setIsExpanded, areCardsVisible,
   handleStatsPanelInteraction, handleCardInteraction, isStatsCardCentered,
@@ -66,8 +68,6 @@ export default function DashboardView({
   preferredTravelMode, onTravelModeChange,
   // Live ETA
   realTimeETAEnabled,
-  // Immersive mode
-  immersiveHidden, isDriverMoving, immersiveOverrideActive, onImmersiveMapTap,
   // Misc
   refreshUser, refreshData, dataSource,
 }) {

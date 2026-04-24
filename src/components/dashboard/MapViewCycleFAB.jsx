@@ -5,7 +5,7 @@ import { Target, Maximize2, Minimize2 } from 'lucide-react';
 import { isMobileDevice } from '@/components/utils/deviceUtils';
 import { fabControlEvents } from '@/components/utils/fabControlEvents';
 
-export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards = false, isAIVisible = false, isLocked = false, isEnabled = true, stopCardsHeight = 75, isMotionDimmed = false }) {
+export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards = false, isAIVisible = false, isLocked = false, isEnabled = true, stopCardsHeight = 75, isMotionDimmed = false, immersiveHidden = false }) {
   const [isFlashing, setIsFlashing] = useState(false);
   const [isTemporarilyDeactivated, setIsTemporarilyDeactivated] = useState(false);
   const flashTimeoutRef = useRef(null);
@@ -75,7 +75,7 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
   }, [currentPhase, flashUpdate]);
 
   // CRITICAL: Fixed position - uses base collapsed height, doesn't move with expansion
-  const bottomPixels = (hasVisibleCards ? stopCardsHeight : 0) + 10;
+  const bottomPixels = ((hasVisibleCards && !immersiveHidden) ? stopCardsHeight : 0) + 10;
   const fabPosition = isMobileDevice() ? 'absolute' : 'fixed';
 
   const fabOpacity = useMemo(() => {

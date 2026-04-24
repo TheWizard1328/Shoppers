@@ -436,10 +436,10 @@ function Dashboard() {
   // Note: paddingTopLeft = [horizontal, vertical from top]
   //       paddingBottomRight = [horizontal, vertical from bottom]
 
-  const getMapPadding = useCallback(() => {
+  const getMapPadding = useCallback((isImmersiveHidden = false) => {
     const paddingBuffer = 30;
-    const statsCardCurrHeight = statsCardRef.current?.offsetHeight || statsCardBaseHeight || 75;
-    const baseHeight = stopCardsBaseHeight || 0;
+    const statsCardCurrHeight = isImmersiveHidden ? 0 : statsCardRef.current?.offsetHeight || statsCardBaseHeight || 75;
+    const baseHeight = isImmersiveHidden ? 0 : stopCardsBaseHeight || 0;
 
     const topPadding = isMobile ?
     statsCardCurrHeight + paddingBuffer :
@@ -1915,7 +1915,7 @@ function Dashboard() {
             [closestCity.latitude - latOffset, closestCity.longitude - lonOffset],
             [closestCity.latitude + latOffset, closestCity.longitude + lonOffset]];
 
-            const padding = getMapPadding();
+            const padding = getMapPadding(false);
             setShouldFitBounds({
               bounds,
               options: {
@@ -1949,7 +1949,7 @@ function Dashboard() {
           const baseZoom = 16 - Math.log2(spanKm + 1) * 1.2;
           const phase1MaxZoom = Math.max(12.0, Math.min(19, Math.round(baseZoom * 10) / 10));
 
-          const padding = getMapPadding();
+          const padding = getMapPadding(false);
 
           setShouldFitBounds({
             bounds: allCoordinates,
@@ -2005,7 +2005,7 @@ function Dashboard() {
           });
 
           if (phase2DispatcherCoords.length > 0) {
-            const padding = getMapPadding();
+            const padding = getMapPadding(false);
             setShouldFitBounds({
               bounds: phase2DispatcherCoords,
               options: { ...padding, maxZoom: 17.5, animate: true, duration: 0.9, easeLinearity: 0.15 }
@@ -2030,13 +2030,13 @@ function Dashboard() {
           [fabTargetDriverLocation.latitude, fabTargetDriverLocation.longitude],
           [nextStopCoordinates.lat, nextStopCoordinates.lon]];
 
-          const padding = getMapPadding();
+          const padding = getMapPadding(false);
 
           setShouldFitBounds({ bounds, options: { ...padding, maxZoom: 17.5, animate: true, duration: 0.9, easeLinearity: 0.15 } });
           setMapCenter(null);
           setMapZoom(null);
         } else if (fabTargetDriverLocation?.latitude && fabTargetDriverLocation?.longitude) {
-          const padding = getMapPadding();
+          const padding = getMapPadding(false);
 
           setShouldFitBounds({
             bounds: [[fabTargetDriverLocation.latitude, fabTargetDriverLocation.longitude]],
@@ -2885,7 +2885,7 @@ function Dashboard() {
             if (delivery.isNextDelivery && window.__fabRelockPhase) {setMapViewPhase(window.__fabRelockPhase);setIsMapViewLocked(true);}
           }, 350);
         } else {
-          const padding = getMapPadding(),appUser = appUsers.find((u) => u?.user_id === delivery.driver_id || u?.id === delivery.driver_id),bounds = [];
+          const padding = getMapPadding(false),appUser = appUsers.find((u) => u?.user_id === delivery.driver_id || u?.id === delivery.driver_id),bounds = [];
           if (delivery.patient_id) {
             const patient = patients.find((p) => p.id === delivery.patient_id);
             if (patient?.latitude && patient?.longitude) bounds.push([patient.latitude, patient.longitude]);
