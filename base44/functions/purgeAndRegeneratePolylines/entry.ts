@@ -832,7 +832,6 @@ Deno.serve(async (req) => {
       }
 
       const finishedDirectionsByStopId = new Map();
-      let finalReturnHomeDirection = null;
       if (routeSource === 'polylines' && finishedSegmentSpecs.length > 0) {
         for (const mode of ['driving', 'cycling']) {
           const segmentsForMode = finishedSegmentSpecs.filter((segment) => segment.transportMode === mode);
@@ -847,35 +846,13 @@ Deno.serve(async (req) => {
             finishedDirectionsByStopId.set(segment.stop.id, finishedDirections[index] || null);
           });
         }
-
-        if (explicitOrderedStopsOnly && finishedSegmentSpecs.length > 0) {
-          const lastFinishedSegment = finishedSegmentSpecs[finishedSegmentSpecs.length - 1];
-          if (lastFinishedSegment && isValidCoordinatePair(homeLat, homeLon)) {
-            const lastStopCoords = getLatLon(lastFinishedSegment.stop);
-            if (lastStopCoords && !samePoint(lastStopCoords, { lat: homeLat, lon: homeLon })) {
-              const returnHomeDirections = await getMultiSegmentDirections(
-                base44,
-                [{ from: lastStopCoords, to: { lat: homeLat, lon: homeLon } }],
-                lastFinishedSegment.transportMode
-              );
-              apiCallsMade += 1;
-              finalReturnHomeDirection = returnHomeDirections[0] || null;
-            }
-          }
-        }
       }
 
-      finishedSegmentSpecs.forEach((segment, index) => {
+      finishedSegmentSpecs.forEach((segment) => {
         const directions = routeSource === 'polylines'
           ? finishedDirectionsByStopId.get(segment.stop.id) || null
           : segment.breadcrumbDirections || null;
-        const isLastFinishedStop = index === finishedSegmentSpecs.length - 1;
-        const mergedFinishedPolyline = isLastFinishedStop && routeSource === 'polylines'
-          ? combineEncodedPolylines(
-              directions?.encoded_polyline || null,
-              finalReturnHomeDirection?.encoded_polyline || null
-            ) || directions?.encoded_polyline || finalReturnHomeDirection?.encoded_polyline || null
-          : directions?.encoded_polyline || null;
+        const mergedFinishedPolyline = directions?.encoded_polyline || null;
         regeneratedFinishedLegStopIds.push(segment.stop.id);
         deliveryUpdatesById.set(segment.stop.id, {
           ...(deliveryUpdatesById.get(segment.stop.id) || {}),
