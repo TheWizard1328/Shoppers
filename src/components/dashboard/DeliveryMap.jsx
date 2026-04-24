@@ -828,7 +828,7 @@ export default function DeliveryMap({
 
     const paddingKey = [
       isMobile ? (immersiveHidden ? 25 : effectiveTopOverlayHeight + 25) : 60,
-      (areStopCardsVisible && !immersiveHidden) ? stopCardsHeight + 10 : 60
+      immersiveHidden ? 25 : ((areStopCardsVisible && !immersiveHidden) ? stopCardsHeight + 10 : 60)
     ].join(":");
     const currentDriverFitLocation = {
       latitude: Number(targetDriverMarker.latitude),
@@ -874,7 +874,7 @@ export default function DeliveryMap({
       ],
       {
         paddingTopLeft: [25, isMobile ? (immersiveHidden ? 25 : effectiveTopOverlayHeight + 25) : 60],
-        paddingBottomRight: [25, (areStopCardsVisible && !immersiveHidden) ? stopCardsHeight + 10 : 60],
+        paddingBottomRight: [25, immersiveHidden ? 25 : ((areStopCardsVisible && !immersiveHidden) ? stopCardsHeight + 10 : 60)],
         maxZoom: 17.5,
         animate: false
       }
@@ -897,7 +897,7 @@ export default function DeliveryMap({
 
     const updateCrosshairCoords = () => {
       const topObscured = isMobile ? (immersiveHidden ? 0 : (effectiveTopOverlayHeight || (isStatsCardExpanded ? 216 : 116))) : 0;
-      const bottomObscured = (areStopCardsVisible && !immersiveHidden) ? stopCardsHeight : 0;
+      const bottomObscured = immersiveHidden ? 0 : ((areStopCardsVisible && !immersiveHidden) ? stopCardsHeight : 0);
       const verticalShift = Math.round((bottomObscured - topObscured) / 2) + 5;
       const size = map.getSize();
       const point = L.point(size.x / 2, size.y / 2 - verticalShift);
@@ -940,7 +940,7 @@ export default function DeliveryMap({
     const targetZoom = Math.max(currentZoom, 15);
     const size = map.getSize();
     const topObscured = isMobile ? (immersiveHidden ? 0 : (effectiveTopOverlayHeight || 116)) : 0;
-    const bottomObscured = (areStopCardsVisible && !immersiveHidden) ? stopCardsHeight : 0;
+    const bottomObscured = immersiveHidden ? 0 : ((areStopCardsVisible && !immersiveHidden) ? stopCardsHeight : 0);
     // Place marker slightly below the vertical midpoint of the visible area
     const verticalCenter = topObscured + (size.y - topObscured - bottomObscured) * 0.38;
     const point = map.project([lat, lng], targetZoom);
