@@ -762,13 +762,13 @@ export default function PatientForm({
 
   return (
     <div className={`fixed inset-0 bg-black/60 flex items-center justify-center ${isMobile ? 'p-0 items-start' : 'p-4 pt-20 lg:pt-4'} z-[10020] lg:pl-64`}
-      style={isMobile ? { paddingTop: `${mobileHeaderHeight}px`, paddingBottom: `${mobileBottomNavHeight}px` } : undefined}>
+      style={isMobile ? { top: `${mobileHeaderHeight}px`, bottom: `${mobileBottomNavHeight}px` } : undefined}>
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className={`flex flex-col ${isMobile ? 'w-screen rounded-none' : 'w-full max-w-[30rem] max-h-[90vh] rounded-lg'}`}
-        style={isMobile ? { height: `${mobileAvailableHeight}px`, maxHeight: `${mobileAvailableHeight}px` } : undefined}>
+        className={`flex flex-col ${isMobile ? 'w-screen rounded-none h-full' : 'w-full max-w-[30rem] max-h-[90vh] rounded-lg'}`}
+        style={isMobile ? { height: '100%', maxHeight: '100%' } : undefined}>
 
         <Card className="shadow-xl flex flex-col overflow-hidden" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)', height: '100%', maxHeight: '100%' }}>
           <CardHeader className="px-4 py-2 flex flex-col space-y-1.5 border-b flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
