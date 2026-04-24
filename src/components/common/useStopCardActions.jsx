@@ -224,10 +224,9 @@ export default function useStopCardActions(params) {
           const optimizeResponse = await base44.functions.invoke('optimizeRouteRealTime', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime, generatePolyline: false });
           const optimizeData = optimizeResponse?.data || optimizeResponse;
 
-          sortedPending.forEach((pendingDelivery, i) => {
+          sortedPending.forEach((pendingDelivery) => {
             queueDeliveryUpdate(pendingDelivery.id, {
-              delivery_time_start: deliveryTimeStart,
-              tracking_number: incrementTrackingNumber(delivery.tracking_number, i + 1)
+              delivery_time_start: deliveryTimeStart
             });
           });
 
@@ -239,6 +238,12 @@ export default function useStopCardActions(params) {
             window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: delivery.driver_id, updates: optimizeData.optimizedRoute.map((stop) => ({ deliveryId: stop.deliveryId || stop.delivery_id, newEta: stop.newETA || stop.eta })).filter((stop) => stop.deliveryId && stop.newEta) } }));
             window.dispatchEvent(new CustomEvent('routeReordered', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, source: 'acceptAllAutoOptimize' } }));
           }
+
+          await base44.functions.invoke('recalculateTrackingNumbers', {
+            driverId: delivery.driver_id,
+            deliveryDate: delivery.delivery_date
+          }).catch(() => null);
+
           const refreshedRouteDeliveries = await base44.entities.Delivery.filter({ driver_id: delivery.driver_id, delivery_date: delivery.delivery_date });
           const nextOptimizedStop = getNextActiveDelivery(refreshedRouteDeliveries, null, FINISHED_STATUSES);
           await setAndCenterNextDelivery({ driverDeliveries: refreshedRouteDeliveries, targetDeliveryId: nextOptimizedStop?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
@@ -521,6 +526,10 @@ export default function useStopCardActions(params) {
             if (backendOptimizedRoute.length > 0) {
               window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { updates: backendOptimizedRoute.map((u) => ({ deliveryId: u.deliveryId || u.delivery_id, newEta: u.eta || u.newETA })) } }));
             }
+            await base44.functions.invoke('recalculateTrackingNumbers', {
+              driverId: delivery.driver_id,
+              deliveryDate: delivery.delivery_date
+            }).catch(() => null);
             fabControlEvents.reactivatePhaseTwoIfAvailable();
             window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true } }));
           } catch (optErr) {
