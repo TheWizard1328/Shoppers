@@ -5,6 +5,7 @@ const MOTION_WINDOW_MS = 12000;
 const STOPPED_IDLE_MS = 5000;
 const MAP_TAP_OVERRIDE_MS = 30000;
 const NEXT_STOP_DISABLE_DISTANCE_METERS = 250;
+const POST_STOP_ACTION_COOLDOWN_MS = 30000;
 
 const toRad = (value) => (value * Math.PI) / 180;
 
@@ -32,6 +33,7 @@ export default function useImmersiveMode({ isDriver, isMobile, driverLocation, n
   const [isOverrideActive, setIsOverrideActive] = useState(false);
   const overrideTimeoutRef = useRef(null);
   const stoppedTimeoutRef = useRef(null);
+  const postActionCooldownUntilRef = useRef(0);
   const locationHistoryRef = useRef([]);
 
   useEffect(() => {
@@ -46,6 +48,16 @@ export default function useImmersiveMode({ isDriver, isMobile, driverLocation, n
     }
 
     const now = Date.now();
+    if (now < postActionCooldownUntilRef.current) {
+      locationHistoryRef.current = [];
+      if (stoppedTimeoutRef.current) {
+        clearTimeout(stoppedTimeoutRef.current);
+        stoppedTimeoutRef.current = null;
+      }
+      setIsDriverMoving(false);
+      return;
+    }
+
     const nextPoint = {
       latitude: Number(driverLocation.latitude),
       longitude: Number(driverLocation.longitude),
@@ -98,6 +110,28 @@ export default function useImmersiveMode({ isDriver, isMobile, driverLocation, n
     if (stoppedTimeoutRef.current) {
       clearTimeout(stoppedTimeoutRef.current);
     }
+  }, []);
+
+  useEffect(() => {
+    const handlePostStopAction = () => {
+      postActionCooldownUntilRef.current = Date.now() + POST_STOP_ACTION_COOLDOWN_MS;
+      setIsDriverMoving(false);
+      locationHistoryRef.current = [];
+      if (stoppedTimeoutRef.current) {
+        clearTimeout(stoppedTimeoutRef.current);
+        stoppedTimeoutRef.current = null;
+      }
+    };
+
+    const handleDeliveriesUpdated = (event) => {
+      const trigger = event?.detail?.triggeredBy;
+      if (trigger === 'statusUpdate') {
+        handlePostStopAction();
+      }
+    };
+
+    window.addEventListener('deliveriesUpdated', handleDeliveriesUpdated);
+    return () => window.removeEventListener('deliveriesUpdated', handleDeliveriesUpdated);
   }, []);
 
   const forceShowUI = useCallback(() => {
