@@ -217,7 +217,7 @@ export function StopCardPendingPickupsSection({ isFinishedDelivery, isPickup, de
   if (isFinishedDelivery || !isPickup || delivery.status !== 'en_route' || !pendingPickups || pendingPickups.length === 0) return null;
 
   return (
-    <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+    <div className="pt-1 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
       <div className="mb-1 flex items-center justify-between">
         <h4 className="text-base font-bold flex items-center gap-2" style={{ color: 'var(--text-slate-700)' }}>
           <Package className="w-3.5 h-3.5" />
