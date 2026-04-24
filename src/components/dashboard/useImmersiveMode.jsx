@@ -4,6 +4,7 @@ const MOTION_DISTANCE_METERS = 25;
 const MOTION_WINDOW_MS = 12000;
 const STOPPED_IDLE_MS = 5000;
 const MAP_TAP_OVERRIDE_MS = 30000;
+const NEXT_STOP_DISABLE_DISTANCE_METERS = 250;
 
 const toRad = (value) => (value * Math.PI) / 180;
 
@@ -26,7 +27,7 @@ const getDistanceMeters = (from, to) => {
   return earthRadius * c;
 };
 
-export default function useImmersiveMode({ isDriver, isMobile, driverLocation, enabled = true }) {
+export default function useImmersiveMode({ isDriver, isMobile, driverLocation, nextStopLocation = null, enabled = true }) {
   const [isDriverMoving, setIsDriverMoving] = useState(false);
   const [isOverrideActive, setIsOverrideActive] = useState(false);
   const overrideTimeoutRef = useRef(null);
@@ -110,11 +111,19 @@ export default function useImmersiveMode({ isDriver, isMobile, driverLocation, e
     }, MAP_TAP_OVERRIDE_MS);
   }, []);
 
+  const isNearNextStop = useMemo(() => {
+    if (!driverLocation?.latitude || !driverLocation?.longitude || !nextStopLocation?.latitude || !nextStopLocation?.longitude) {
+      return false;
+    }
+    return getDistanceMeters(driverLocation, nextStopLocation) <= NEXT_STOP_DISABLE_DISTANCE_METERS;
+  }, [driverLocation?.latitude, driverLocation?.longitude, nextStopLocation?.latitude, nextStopLocation?.longitude]);
+
   const immersiveHidden = useMemo(() => {
     if (!enabled || !isDriver || !isMobile) return false;
     if (isOverrideActive) return false;
+    if (isNearNextStop) return false;
     return isDriverMoving;
-  }, [enabled, isDriver, isMobile, isOverrideActive, isDriverMoving]);
+  }, [enabled, isDriver, isMobile, isOverrideActive, isNearNextStop, isDriverMoving]);
 
   const previousImmersiveHiddenRef = useRef(immersiveHidden);
 
