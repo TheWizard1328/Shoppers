@@ -83,6 +83,54 @@ function encodeGooglePolyline(points) {
   return encoded;
 }
 
+function decodeGooglePolyline(encoded) {
+  if (!encoded || typeof encoded !== 'string') return [];
+  const coordinates = [];
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
+
+  while (index < encoded.length) {
+    let result = 0;
+    let shift = 0;
+    let byte;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+
+    result = 0;
+    shift = 0;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+
+    coordinates.push([lat / 1e5, lng / 1e5]);
+  }
+
+  return coordinates;
+}
+
+function combineEncodedPolylines(...encodedPolylines) {
+  const mergedPoints = [];
+
+  encodedPolylines.filter(Boolean).forEach((encoded) => {
+    const decoded = decodeGooglePolyline(encoded);
+    decoded.forEach((point, index) => {
+      const previous = mergedPoints[mergedPoints.length - 1];
+      if (index === 0 && previous && previous[0] === point[0] && previous[1] === point[1]) return;
+      mergedPoints.push(point);
+    });
+  });
+
+  return mergedPoints.length >= 2 ? encodeGooglePolyline(mergedPoints) : null;
+}
+
 function distanceMeters(lat1, lon1, lat2, lon2) {
   const toRad = (value) => (value * Math.PI) / 180;
   const R = 6371000;
@@ -739,7 +787,7 @@ Deno.serve(async (req) => {
 
     const createdSegments = [];
 
-    if ((scope === 'completed_only' || (scope === 'all' && explicitStopOrderIds.length === 0 && !explicitOrderedStopsOnly))) {
+    if (scope === 'completed_only' || scope === 'all') {
       const homeLat = Number(driverAppUser?.home_latitude);
       const homeLon = Number(driverAppUser?.home_longitude);
       const hasHomeCoords = isValidCoordinatePair(homeLat, homeLon);
@@ -784,6 +832,7 @@ Deno.serve(async (req) => {
       }
 
       const finishedDirectionsByStopId = new Map();
+      let finalReturnHomeDirection = null;
       if (routeSource === 'polylines' && finishedSegmentSpecs.length > 0) {
         for (const mode of ['driving', 'cycling']) {
           const segmentsForMode = finishedSegmentSpecs.filter((segment) => segment.transportMode === mode);
@@ -798,18 +847,41 @@ Deno.serve(async (req) => {
             finishedDirectionsByStopId.set(segment.stop.id, finishedDirections[index] || null);
           });
         }
+
+        if (explicitOrderedStopsOnly && finishedSegmentSpecs.length > 0) {
+          const lastFinishedSegment = finishedSegmentSpecs[finishedSegmentSpecs.length - 1];
+          if (lastFinishedSegment && isValidCoordinatePair(homeLat, homeLon)) {
+            const lastStopCoords = getLatLon(lastFinishedSegment.stop);
+            if (lastStopCoords && !samePoint(lastStopCoords, { lat: homeLat, lon: homeLon })) {
+              const returnHomeDirections = await getMultiSegmentDirections(
+                base44,
+                [{ from: lastStopCoords, to: { lat: homeLat, lon: homeLon } }],
+                lastFinishedSegment.transportMode
+              );
+              apiCallsMade += 1;
+              finalReturnHomeDirection = returnHomeDirections[0] || null;
+            }
+          }
+        }
       }
 
-      finishedSegmentSpecs.forEach((segment) => {
+      finishedSegmentSpecs.forEach((segment, index) => {
         const directions = routeSource === 'polylines'
           ? finishedDirectionsByStopId.get(segment.stop.id) || null
           : segment.breadcrumbDirections || null;
+        const isLastFinishedStop = index === finishedSegmentSpecs.length - 1;
+        const mergedFinishedPolyline = isLastFinishedStop && routeSource === 'polylines'
+          ? combineEncodedPolylines(
+              directions?.encoded_polyline || null,
+              finalReturnHomeDirection?.encoded_polyline || null
+            ) || directions?.encoded_polyline || finalReturnHomeDirection?.encoded_polyline || null
+          : directions?.encoded_polyline || null;
         regeneratedFinishedLegStopIds.push(segment.stop.id);
         deliveryUpdatesById.set(segment.stop.id, {
           ...(deliveryUpdatesById.get(segment.stop.id) || {}),
           delivery_route_breadcrumbs: segment.usedFallbackBreadcrumbs ? segment.fallbackBreadcrumbs : (deliveryUpdatesById.get(segment.stop.id)?.delivery_route_breadcrumbs || segment.stop?.delivery_route_breadcrumbs),
-          finished_leg_encoded_polyline: directions?.encoded_polyline || null,
-          finished_leg_transport_mode: directions?.encoded_polyline ? segment.transportMode : null,
+          finished_leg_encoded_polyline: mergedFinishedPolyline,
+          finished_leg_transport_mode: mergedFinishedPolyline ? segment.transportMode : null,
           travel_dist: directions?.estimated_distance_km ?? null,
           PolylineUpdated: bypassPolylineUpdated ? false : true
         });
