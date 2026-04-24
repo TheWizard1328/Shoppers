@@ -22,6 +22,7 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
   const tooltipTimerRef = useRef(null);
   const tooltipLockUntilRef = useRef(0);
+  const bottomNavHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bottom-nav-height') || '0', 10) || 0;
   const isOwner = isAppOwner(currentUser);
 
   // Edmonton-local date helpers (match Dashboard behavior)
@@ -114,7 +115,7 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
 
   return (
     <>
-      <div className="absolute left-6 z-[100] pointer-events-auto" style={{ bottom: `${(stopCardsHeight || parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bottom-nav-height') || '0', 10)) + 10}px` }}>
+      <div className="absolute left-6 z-[100] pointer-events-auto" style={{ bottom: `${(stopCardsHeight || bottomNavHeight) + 10}px` }}>
         <TooltipProvider delayDuration={200}>
           <Tooltip open={isTooltipOpen} onOpenChange={handleTooltipOpenChange}>
             <TooltipTrigger asChild>

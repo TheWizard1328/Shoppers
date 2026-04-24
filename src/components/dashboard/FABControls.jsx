@@ -63,6 +63,7 @@ export default function FABControls({
   const hasAnyStops = deliveriesWithStopOrder.some((delivery) => !!delivery);
   const isMapCycleEnabled = hasAnyStops;
   const fabPosition = isMobileDevice() ? 'absolute' : 'fixed';
+  const bottomNavHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bottom-nav-height') || '0', 10) || 0;
   const selectedStore = stores.find((store) => store?.id === filteredDeliveries?.[0]?.store_id);
   const isPrimaryDriverDeviceInMotion = useMemo(() => {
     if (!isDriver) return false;
@@ -85,7 +86,7 @@ export default function FABControls({
 
       {isAppOwner(currentUser) && selectedDriverId !== 'all' &&
         <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: immersiveHidden ? 0 : 1 }} exit={{ scale: 0, opacity: 0 }} transition={{ type: "spring", stiffness: 260, damping: 20 }} className="z-[100]"
-          style={{ position: fabPosition, bottom: `${(!immersiveHidden && deliveriesWithStopOrder.length > 0 && cardsReadyForFAB ? stopCardsBaseHeight : parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bottom-nav-height') || '0', 10)) + 10}px`, right: '64px', pointerEvents: immersiveHidden ? 'none' : 'auto' }}>
+          style={{ position: fabPosition, bottom: `${(!immersiveHidden && deliveriesWithStopOrder.length > 0 && cardsReadyForFAB ? stopCardsBaseHeight : bottomNavHeight) + 10}px`, right: '64px', pointerEvents: immersiveHidden ? 'none' : 'auto' }}>
           <Button
             onClick={async () => {
               if (isReoptimizing) return;

@@ -109,7 +109,7 @@ export default function MapSection({
           retractClustersRef={retractClustersRef}
           areStopCardsVisible={!immersiveHidden && deliveriesWithStopOrder.length > 0}
           highlightedDeliveryId={highlightedCardId}
-          stopCardsHeight={0}
+          stopCardsHeight={immersiveHidden ? 0 : stopCardsBaseHeight}
           mapViewPhase={1}
           isMapViewLocked={false}
           topOverlayHeight={!immersiveHidden ? topOverlayHeight : 0}
