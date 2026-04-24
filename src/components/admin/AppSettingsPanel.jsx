@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -127,6 +127,9 @@ export default function AppSettingsPanel() {
     'Here_API_Key_3',
     'GOOGLE_MAPS_API_KEY'
   ]);
+  const [isTopSectionSaving, setIsTopSectionSaving] = useState(false);
+  const [topSectionSaved, setTopSectionSaved] = useState(false);
+  const topSectionAutoSaveTimeoutRef = useRef(null);
 
   // Load settings from database
   const loadSettings = useCallback(async () => {
@@ -228,6 +231,89 @@ export default function AppSettingsPanel() {
   const handleIntervalChange = (key, value) => {
     setIntervals(prev => ({ ...prev, [key]: value }));
   };
+
+  const saveTopSectionSettings = useCallback(async () => {
+    setIsTopSectionSaving(true);
+    setTopSectionSaved(false);
+    try {
+      const existing = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+      const currentSettings = existing?.[0]?.setting_value || {};
+      const updatedSettings = {
+        ...currentSettings,
+        smartRefreshEnabled,
+        appVersion,
+        app_fees_per_delivery: parseFloat(appFeesPerDelivery || 0),
+        available_api_keys: availableApiKeys,
+        selected_api_key: selectedApiKey
+      };
+
+      if (existing && existing.length > 0) {
+        await base44.entities.AppSettings.update(existing[0].id, {
+          setting_value: updatedSettings,
+          description: 'Smart refresh interval and app version settings'
+        });
+      } else {
+        await base44.entities.AppSettings.create({
+          setting_key: 'refresh_intervals',
+          setting_value: updatedSettings,
+          description: 'Smart refresh interval and app version settings'
+        });
+      }
+
+      smartRefreshManager._enabled = smartRefreshEnabled;
+      smartRefreshManager._initialized = true;
+      setSavedSmartRefreshEnabled(smartRefreshEnabled);
+      setSavedAppVersion({ ...appVersion });
+      setSavedAppFees(appFeesPerDelivery);
+      setSavedSelectedApiKey(selectedApiKey);
+      setTopSectionSaved(true);
+    } catch (error) {
+      console.error('Failed to auto-save top settings:', error);
+      setTopSectionSaved(false);
+    } finally {
+      setIsTopSectionSaving(false);
+    }
+  }, [smartRefreshEnabled, appVersion, appFeesPerDelivery, availableApiKeys, selectedApiKey]);
+
+  useEffect(() => {
+    if (isLoading) return;
+
+    const topSectionChanged =
+      smartRefreshEnabled !== savedSmartRefreshEnabled ||
+      appVersion.major !== savedAppVersion.major ||
+      appVersion.minor !== savedAppVersion.minor ||
+      appVersion.build !== savedAppVersion.build ||
+      appFeesPerDelivery !== savedAppFees ||
+      selectedApiKey !== savedSelectedApiKey;
+
+    if (!topSectionChanged) return;
+
+    setTopSectionSaved(false);
+    if (topSectionAutoSaveTimeoutRef.current) {
+      clearTimeout(topSectionAutoSaveTimeoutRef.current);
+    }
+
+    topSectionAutoSaveTimeoutRef.current = setTimeout(() => {
+      saveTopSectionSettings();
+    }, 3000);
+
+    return () => {
+      if (topSectionAutoSaveTimeoutRef.current) {
+        clearTimeout(topSectionAutoSaveTimeoutRef.current);
+      }
+    };
+  }, [
+    isLoading,
+    smartRefreshEnabled,
+    savedSmartRefreshEnabled,
+    appVersion,
+    savedAppVersion,
+    appFeesPerDelivery,
+    savedAppFees,
+    selectedApiKey,
+    savedSelectedApiKey,
+    saveTopSectionSettings
+  ]);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -331,7 +417,14 @@ export default function AppSettingsPanel() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className={`grid grid-cols-1 md:grid-cols-4 gap-6 rounded-xl border-2 p-2 transition-colors ${topSectionSaved ? 'border-green-500 bg-green-50/40' : isTopSectionSaving ? 'border-emerald-300' : 'border-transparent'}`}>
+        {(isTopSectionSaving || topSectionSaved) && (
+          <div className="md:col-span-4 flex justify-end px-1">
+            <span className={`text-xs font-medium ${topSectionSaved ? 'text-green-700' : 'text-emerald-700'}`}>
+              {topSectionSaved ? 'Saved' : 'Saving...'}
+            </span>
+          </div>
+        )}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
