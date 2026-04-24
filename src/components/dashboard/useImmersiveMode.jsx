@@ -1,20 +1,31 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-const MOTION_DISTANCE_METERS = 50;
-const MOTION_WINDOW_MS = 12000;
-const STOPPED_IDLE_MS = 15000;
+const MOTION_DISTANCE_METERS = 120;
+const MOTION_WINDOW_MS = 20000;
+const STOPPED_IDLE_MS = 10000;
 const MAP_TAP_OVERRIDE_MS = 30000;
 const NEXT_STOP_DISABLE_DISTANCE_METERS = 250;
 const POST_STOP_ACTION_COOLDOWN_MS = 30000;
+const LOCATION_ACCURACY_BUFFER_METERS = 35;
 
 const toRad = (value) => (value * Math.PI) / 180;
 
+const getCoordinate = (point, latKey, lonKey) => {
+  if (!point) return { latitude: NaN, longitude: NaN };
+  return {
+    latitude: Number(point.latitude ?? point.lat ?? latKey),
+    longitude: Number(point.longitude ?? point.lon ?? lonKey)
+  };
+};
+
 const getDistanceMeters = (from, to) => {
   if (!from || !to) return 0;
-  const lat1 = Number(from.latitude);
-  const lon1 = Number(from.longitude);
-  const lat2 = Number(to.latitude);
-  const lon2 = Number(to.longitude);
+  const fromCoords = getCoordinate(from);
+  const toCoords = getCoordinate(to);
+  const lat1 = fromCoords.latitude;
+  const lon1 = fromCoords.longitude;
+  const lat2 = toCoords.latitude;
+  const lon2 = toCoords.longitude;
   if (![lat1, lon1, lat2, lon2].every(Number.isFinite)) return 0;
 
   const earthRadius = 6371000;
@@ -59,8 +70,9 @@ export default function useImmersiveMode({ isDriver, isMobile, driverLocation, n
     }
 
     const nextPoint = {
-      latitude: Number(driverLocation.latitude),
-      longitude: Number(driverLocation.longitude),
+      latitude: Number(driverLocation.latitude ?? driverLocation.lat),
+      longitude: Number(driverLocation.longitude ?? driverLocation.lon),
+      accuracy: Number(driverLocation.accuracy || 0),
       timestamp: now
     };
 
@@ -84,7 +96,9 @@ export default function useImmersiveMode({ isDriver, isMobile, driverLocation, n
     const firstPoint = nextHistory[0];
     const lastPoint = nextHistory[nextHistory.length - 1];
     const movedDistance = getDistanceMeters(firstPoint, lastPoint);
-    const moving = movedDistance >= MOTION_DISTANCE_METERS;
+    const worstAccuracy = Math.max(firstPoint?.accuracy || 0, lastPoint?.accuracy || 0);
+    const effectiveMovedDistance = Math.max(0, movedDistance - Math.min(worstAccuracy, LOCATION_ACCURACY_BUFFER_METERS));
+    const moving = effectiveMovedDistance >= MOTION_DISTANCE_METERS;
 
     if (stoppedTimeoutRef.current) {
       clearTimeout(stoppedTimeoutRef.current);
@@ -146,11 +160,20 @@ export default function useImmersiveMode({ isDriver, isMobile, driverLocation, n
   }, []);
 
   const isNearNextStop = useMemo(() => {
-    if (!driverLocation?.latitude || !driverLocation?.longitude || !nextStopLocation?.latitude || !nextStopLocation?.longitude) {
+    const driverLat = Number(driverLocation?.latitude ?? driverLocation?.lat);
+    const driverLon = Number(driverLocation?.longitude ?? driverLocation?.lon);
+    const stopLat = Number(nextStopLocation?.latitude ?? nextStopLocation?.lat);
+    const stopLon = Number(nextStopLocation?.longitude ?? nextStopLocation?.lon);
+
+    if (![driverLat, driverLon, stopLat, stopLon].every(Number.isFinite)) {
       return false;
     }
-    return getDistanceMeters(driverLocation, nextStopLocation) <= NEXT_STOP_DISABLE_DISTANCE_METERS;
-  }, [driverLocation?.latitude, driverLocation?.longitude, nextStopLocation?.latitude, nextStopLocation?.longitude]);
+
+    return getDistanceMeters(
+      { latitude: driverLat, longitude: driverLon },
+      { latitude: stopLat, longitude: stopLon }
+    ) <= NEXT_STOP_DISABLE_DISTANCE_METERS;
+  }, [driverLocation?.latitude, driverLocation?.longitude, driverLocation?.lat, driverLocation?.lon, nextStopLocation?.latitude, nextStopLocation?.longitude, nextStopLocation?.lat, nextStopLocation?.lon]);
 
   const immersiveHidden = useMemo(() => {
     if (!enabled || !isDriver || !isMobile) return false;
