@@ -3,17 +3,16 @@ import React from 'react';
 /**
  * Map Crosshair Overlay Component
  * 
- * Renders a fixed crosshair at the visual center of the map area.
- * Adjusts position to account for UI overlays (StatsCard at top, StopCards at bottom).
+ * Renders a fixed crosshair at the visual center of the remaining visible map area.
+ * Adjusts position symmetrically for top and bottom UI overlays.
  * 
  * This is a pure overlay - not part of the map, so it doesn't move when panning.
  */
 export default function MapCrosshair({ stopCardsHeight = 75, statsCardHeight = 0, isMobile = false }) {
   const topObscured = isMobile ? statsCardHeight : 0;
   const bottomObscured = stopCardsHeight;
-  const verticalShift = topObscured === 0 && bottomObscured === 0
-    ? 0
-    : Math.round((bottomObscured - topObscured) / 2) + 5;
+  const visibleCenterOffset = Math.round((topObscured - bottomObscured) / 2);
+  const verticalShift = topObscured === 0 && bottomObscured === 0 ? 0 : visibleCenterOffset;
 
   return (
     <div 
@@ -28,7 +27,7 @@ export default function MapCrosshair({ stopCardsHeight = 75, statsCardHeight = 0
       <div 
         className="relative w-6 h-6"
         style={{
-          transform: verticalShift !== 0 ? `translateY(${verticalShift > 0 ? '-' : ''}${Math.abs(verticalShift)}px)` : 'none'
+          transform: verticalShift !== 0 ? `translateY(${verticalShift}px)` : 'none'
         }}
       >
         {/* Horizontal line */}
