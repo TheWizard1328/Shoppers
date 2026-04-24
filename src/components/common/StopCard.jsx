@@ -137,7 +137,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     if (delivery?.delivery_date !== localDeviceTodayStr) return;
     try {
       const { data } = await setDriverStatus({ newStatus: 'on_duty' });
-      try { await locationTracker.startTracking({ ...currentUser, appUserId: data?.appUserId }); } catch (trackingError) { console.warn('Could not start location tracking:', trackingError.message); }
+      try {await locationTracker.startTracking({ ...currentUser, appUserId: data?.appUserId });} catch (trackingError) {console.warn('Could not start location tracking:', trackingError.message);}
       if (onDriverStatusChange) onDriverStatusChange('on_duty');
     } catch (error) {
       console.error('Failed to auto-toggle driver online:', error);
@@ -147,8 +147,8 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const isFinishedDelivery = FINISHED_STATUSES.includes(delivery?.status);
   const isExpanded = isStrippedForDispatcher ? false : compact ? false : isSelected;
 
-  useEffect(() => { setNotesInput(delivery?.delivery_notes || "No driver notes"); }, [delivery?.delivery_notes]);
-  useEffect(() => { if (!showCODCollection) setCodPayments(delivery?.cod_payments || []); }, [delivery?.cod_payments, showCODCollection]);
+  useEffect(() => {setNotesInput(delivery?.delivery_notes || "No driver notes");}, [delivery?.delivery_notes]);
+  useEffect(() => {if (!showCODCollection) setCodPayments(delivery?.cod_payments || []);}, [delivery?.cod_payments, showCODCollection]);
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -159,7 +159,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     }).catch(() => {
       if (isMounted) setIsPrimaryDevice(true);
     });
-    return () => { isMounted = false; };
+    return () => {isMounted = false;};
   }, [currentUser?.id]);
 
   useEffect(() => subscribeDeliveryActionLock(setActiveDeliveryAction), []);
@@ -199,8 +199,8 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
 
   useEffect(() => {
     if (showDeleteConfirm && isPickup && pendingPickups?.length > 0) {
-      if (availableTransferPickups.length === 0) setSelectedTransferPickupId('delete_all');
-      else if (availableTransferPickups.length >= 1) setSelectedTransferPickupId(availableTransferPickups[0].id);
+      if (availableTransferPickups.length === 0) setSelectedTransferPickupId('delete_all');else
+      if (availableTransferPickups.length >= 1) setSelectedTransferPickupId(availableTransferPickups[0].id);
     }
   }, [showDeleteConfirm, isPickup, pendingPickups, availableTransferPickups]);
 
@@ -246,7 +246,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
 
   const selectedRouteDateStr = selectedDate ? format(new Date(selectedDate), 'yyyy-MM-dd') : localNowParts.date;
   const localDeviceTodayStr = localNowParts.date;
-  const selectedDateSourceStr = selectedDate ? (typeof selectedDate === 'string' ? selectedDate.slice(0, 10) : format(new Date(selectedDate), 'yyyy-MM-dd')) : null;
+  const selectedDateSourceStr = selectedDate ? typeof selectedDate === 'string' ? selectedDate.slice(0, 10) : format(new Date(selectedDate), 'yyyy-MM-dd') : null;
   const comparisonRouteDateStr = delivery?.delivery_date || selectedDateSourceStr || selectedRouteDateStr;
   const isPastDeliveryDate = useMemo(() => !!comparisonRouteDateStr && comparisonRouteDateStr < localDeviceTodayStr, [comparisonRouteDateStr, localDeviceTodayStr]);
   const shouldUseRegularStopTiming = useMemo(() => shouldUseRegularTiming({ deliveryDate: comparisonRouteDateStr, todayDateString: localDeviceTodayStr, currentTimeString: localNowParts.time }), [comparisonRouteDateStr, localDeviceTodayStr, localNowParts.time]);
@@ -360,7 +360,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
 
   const shouldFade = isFinishedDelivery && routeHasIncompleteStops && !isSelected && !isHovered;
   const isMobileCard = isMobileDevice();
-  const cardZIndex = isMobileCard ? (isExpanded ? 320 : isHovered && !isRailCentered ? 260 : isRailCentered ? 250 : 240) : (isExpanded ? 70 : isHovered && !isRailCentered ? 52 : isRailCentered ? 51 : 50);
+  const cardZIndex = isMobileCard ? isExpanded ? 320 : isHovered && !isRailCentered ? 260 : isRailCentered ? 250 : 240 : isExpanded ? 70 : isHovered && !isRailCentered ? 52 : isRailCentered ? 51 : 50;
   const shouldAnchorExpandedCard = false;
 
   const rawStopLatitude = isPickup ? store?.latitude : patient?.latitude;
@@ -486,7 +486,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
       storeId: delivery.store_id,
       stores,
       mapCrosshairCoords: window.__mapCrosshairCoords || null,
-      preferCrosshair: delivery?.status === 'completed' || (!isMobileDevice() && !isPrimaryDevice),
+      preferCrosshair: delivery?.status === 'completed' || !isMobileDevice() && !isPrimaryDevice,
       currentPatientCoords: { latitude: patient?.latitude, longitude: patient?.longitude }
     });
   };
@@ -501,25 +501,25 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
       className={`w-full cursor-pointer transition-all ${showCenteredIncompleteCollapsed ? 'self-start' : ''} ${isSelected && !isStrippedDelivery ? 'ring-2 ring-blue-500' : ''}`}
       style={{ scrollSnapAlign: 'center', position: 'relative', zIndex: cardZIndex, isolation: isExpanded ? 'isolate' : 'auto' }}
       onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
+      onMouseLeave={() => setIsHovered(false)}>
+      
       <Card
-        data-route-completed-condensed={showCompletedRouteCenteredCondensed ? "true" : "false"}
-        className={`bg-card text-card-foreground rounded-xl border shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 overflow-hidden ${forceCompactCollapsed ? 'h-[72px] min-h-[72px]' : isStrippedForDispatcher ? 'h-[72px] min-h-[72px]' : showCompletedRouteCenteredCondensed ? 'h-[72px] min-h-[72px]' : !isRailCentered && !isExpanded ? 'h-[72px] min-h-[72px]' : showCenteredIncompleteCollapsed ? 'min-h-0 h-auto self-start' : isFinishedDelivery && isExpanded ? 'h-auto min-h-[120px]' : 'min-h-[120px]'} min-w-[338px] max-w-[338px] border-blue-500`}
+        data-route-completed-condensed={showCompletedRouteCenteredCondensed ? "true" : "false"} className="bg-card text-card-foreground rounded-xl border shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 overflow-hidden min-h-0 h-auto self-start min-w-[345px] max-w-[345px] border-blue-500"
+
         onClick={(e) => {
           const actionButton = e.target?.closest?.('[data-stopcard-action="start"], [data-stopcard-action="complete"], [data-stopcard-action="restart"], [data-stopcard-action="retry"], [data-stopcard-action="return"]');
           if (startTapLockRef.current || completeTapLockRef.current || actionTapLockRef.current || isStarting || isCompleting || isRestarting || isProcessingBackground || isFailing || actionButton) return;
           onClick && onClick(delivery);
         }}
-        style={{ background: 'var(--bg-white)', borderColor: isNextDelivery ? '#10B981' : '#3B82F6', opacity: shouldFade ? 0.4 : 1, transition: 'opacity 0.2s ease-in-out', maxHeight: shouldAnchorExpandedCard ? 'calc(100dvh - var(--bottom-nav-height, 64px) - 1rem)' : undefined }}
-      >
+        style={{ background: 'var(--bg-white)', borderColor: isNextDelivery ? '#10B981' : '#3B82F6', opacity: shouldFade ? 0.4 : 1, transition: 'opacity 0.2s ease-in-out', maxHeight: shouldAnchorExpandedCard ? 'calc(100dvh - var(--bottom-nav-height, 64px) - 1rem)' : undefined }}>
+        
         <CardContent className={`p-6 px-1 flex flex-col py-0 ${shouldAnchorExpandedCard ? 'max-h-full overflow-y-auto overscroll-contain' : ''}`}>
           <div className="flex items-start">
-            {showDragHandle && dragHandleProps && !FINISHED_STATUSES.includes(delivery.status) && (
-              <div {...dragHandleProps} className="flex items-center justify-center cursor-grab active:cursor-grabbing pt-1 mr-1">
+            {showDragHandle && dragHandleProps && !FINISHED_STATUSES.includes(delivery.status) &&
+            <div {...dragHandleProps} className="flex items-center justify-center cursor-grab active:cursor-grabbing pt-1 mr-1">
                 <GripVertical className="w-5 h-5 text-slate-400 hover:text-slate-600" />
               </div>
-            )}
+            }
             <StopCardHeader
               delivery={delivery}
               store={store}
@@ -535,89 +535,89 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
               driverBadgeTextColor={driverBadgeTextColor}
               currentUser={currentUser}
               appUsers={appUsers}
-              isReturnDelivery={false}
-            />
+              isReturnDelivery={false} />
+            
           </div>
 
           {showMiddleSection && <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}></div>}
 
-          {showMiddleSection && (
-            <div className="flex flex-col">
+          {showMiddleSection &&
+          <div className="flex flex-col">
               <div className="flex items-start justify-between">
                 <div className="flex flex-col justify-center gap-0.5 flex-1 min-w-0 min-h-[55px]">
-                  {finalDisplayAddress ? (
-                    <>
+                  {finalDisplayAddress ?
+                <>
                       <div className="flex items-start gap-2 text-lg" style={{ color: 'var(--text-slate-700)' }}>
                         <span className="text-xl font-medium truncate">{isPickup ? store?.address || '' : patient?.address || ''}</span>
                       </div>
-                      {!isStrippedDelivery && !shouldRedact && (
-                        <div className="flex items-center gap-3 min-h-[26px]" style={{ color: 'var(--text-slate-600)' }}>
+                      {!isStrippedDelivery && !shouldRedact &&
+                  <div className="flex items-center gap-3 min-h-[26px]" style={{ color: 'var(--text-slate-600)' }}>
                           {(() => {
-                            const unitNum = !isPickup ? delivery?.unit_number || patient?.unit_number : null;
-                            const fullAddress = isPickup ? store?.address || '' : patient?.address || '';
-                            const buzzerMatch = fullAddress.match(/buzz(?:er)?\s*(\d+)/i);
-                            const buzzerNum = buzzerMatch ? buzzerMatch[1] : null;
-                            return (
-                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                      const unitNum = !isPickup ? delivery?.unit_number || patient?.unit_number : null;
+                      const fullAddress = isPickup ? store?.address || '' : patient?.address || '';
+                      const buzzerMatch = fullAddress.match(/buzz(?:er)?\s*(\d+)/i);
+                      const buzzerNum = buzzerMatch ? buzzerMatch[1] : null;
+                      return (
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
                                 {unitNum && <span className="text-md">#{unitNum}</span>}
                                 {buzzerNum && <span className="text-lg font-medium">Buzz {buzzerNum}</span>}
-                              </div>
-                            );
-                          })()}
+                              </div>);
+
+                    })()}
                         </div>
-                      )}
-                    </>
-                  ) : <div className="w-full h-[26px]" />}
+                  }
+                    </> :
+                <div className="w-full h-[26px]" />}
                 </div>
-                {!routeCompletedForLayout && !isPastDeliveryDate && !shouldRedact && !isAssignedDispatcher && (
-                  <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                    {finalDisplayPhone && (
-                      <a
-                        href={`tel:${String(finalDisplayPhone).replace(/\D/g, '')}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 transition-colors hover:bg-emerald-200"
-                      >
+                {!routeCompletedForLayout && !isPastDeliveryDate && !shouldRedact && !isAssignedDispatcher &&
+              <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                    {finalDisplayPhone &&
+                <a
+                  href={`tel:${String(finalDisplayPhone).replace(/\D/g, '')}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 transition-colors hover:bg-emerald-200">
+                  
                         <Phone className="w-6 h-6" />
                       </a>
-                    )}
+                }
                     {isNextDelivery && navigationHref && (
-                      isWithinActiveStopRange ? (
-                        <button
-                          type="button"
-                          onClick={handleUpdateGPS}
-                          className="inline-flex h-14 w-14 items-center justify-center rounded-full transition-colors bg-emerald-600 text-white hover:bg-emerald-700"
-                        >
+                isWithinActiveStopRange ?
+                <button
+                  type="button"
+                  onClick={handleUpdateGPS}
+                  className="inline-flex h-14 w-14 items-center justify-center rounded-full transition-colors bg-emerald-600 text-white hover:bg-emerald-700">
+                  
                           <LocateFixed className="w-6 h-6" />
-                        </button>
-                      ) : (
-                        <a
-                          href={navigationHref}
-                          data-navigation-href={navigationHref}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            console.log('[StopCard navigation click]', {
-                              deliveryId: delivery?.id,
-                              patientId: delivery?.patient_id,
-                              navigationHref,
-                              rawStopLatitude,
-                              rawStopLongitude,
-                              patientAddress: patient?.address,
-                              storeAddress: store?.address
-                            });
-                          }}
-                          className="inline-flex h-14 w-14 items-center justify-center rounded-full transition-colors bg-blue-100 text-blue-600 hover:bg-blue-200"
-                        >
+                        </button> :
+
+                <a
+                  href={navigationHref}
+                  data-navigation-href={navigationHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    console.log('[StopCard navigation click]', {
+                      deliveryId: delivery?.id,
+                      patientId: delivery?.patient_id,
+                      navigationHref,
+                      rawStopLatitude,
+                      rawStopLongitude,
+                      patientAddress: patient?.address,
+                      storeAddress: store?.address
+                    });
+                  }}
+                  className="inline-flex h-14 w-14 items-center justify-center rounded-full transition-colors bg-blue-100 text-blue-600 hover:bg-blue-200">
+                  
                           <Navigation className="w-6 h-6" />
-                        </a>
-                      )
-                    )}
+                        </a>)
+
+                }
                   </div>
-                )}
+              }
               </div>
             </div>
-          )}
+          }
 
           <StopCardConfirmDialogs
             showDeleteConfirm={showDeleteConfirm}
@@ -632,8 +632,8 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
             selectedTransferPickupId={selectedTransferPickupId}
             setSelectedTransferPickupId={setSelectedTransferPickupId}
             allDeliveries={allDeliveries}
-            onDeleteDelivery={onDelete}
-          />
+            onDeleteDelivery={onDelete} />
+          
 
           <StopCardReturnDialog
             showReturnConfirm={showReturnConfirm}
@@ -644,8 +644,8 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
             store={store || stores.find((s) => s && s.id === delivery?.store_id)}
             delivery={delivery}
             driver={driver}
-            patient={patient}
-          />
+            patient={patient} />
+          
 
           <StopCardPOD
             delivery={delivery}
@@ -662,69 +662,69 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
             setShowPhotoCapture={setShowPhotoCapture}
             forceRefreshDriverDeliveries={forceRefreshDriverDeliveries}
             showButtons={false}
-            currentUser={currentUser}
-          />
+            currentUser={currentUser} />
+          
 
           <FailureReasonDialog
             isOpen={showFailureReasonDialog}
-            onClose={() => { setShowFailureReasonDialog(false); setPendingFailureStatus(null); }}
+            onClose={() => {setShowFailureReasonDialog(false);setPendingFailureStatus(null);}}
             onConfirm={handleFailureConfirm}
             deliveryName={displayName}
             isPickup={isPickup}
-            statusType={pendingFailureStatus}
-          />
+            statusType={pendingFailureStatus} />
+          
 
-          {showBodySection && (
-            <StopCardBody
-              isExpanded={isExpanded}
-              isStrippedForDispatcher={isStrippedForDispatcher}
-              finalDisplayPhone={finalDisplayPhone}
-              alternateDisplayPhone={patient?.phone_secondary || ''}
-              isFinishedDelivery={isFinishedDelivery}
-              isPickup={isPickup}
-              hasCODRequired={hasCODRequired}
-              codTotalRequired={codTotalRequired}
-              codPayments={codPayments}
-              setCodPayments={setCodPayments}
-              showCODCollection={showCODCollection}
-              setShowCODCollection={setShowCODCollection}
-              handleAddCODPayment={handleAddCODPayment}
-              isStrippedForDriver={isStrippedForDriver}
-              currentUser={currentUser}
-              codTotalCollected={codTotalCollected}
-              isCODComplete={isCODComplete}
-              delivery={delivery}
-              patient={patient}
-              store={store}
-              patients={patients}
-              pendingPickups={pendingPickups}
-              canAccessAcceptButtons={canAccessAcceptButtons}
-              isAcceptingAll={isAcceptingAll}
-              acceptButtonText={acceptButtonText}
-              handleAcceptAllStops={handleAcceptAllStops}
-              onEdit={onEdit}
-              onCODUpdate={onCODUpdate}
-              allDeliveries={allDeliveries}
-              FINISHED_STATUSES={FINISHED_STATUSES}
-              forceRefreshDriverDeliveries={forceRefreshDriverDeliveries}
-              isCompleting={isCompleting}
-              setIsCompleting={setIsCompleting}
-              onSelectionChange={onSelectionChange}
-              onClick={onClick}
-              notesInput={notesInput}
-              setNotesInput={setNotesInput}
-              onNotesUpdate={onNotesUpdate}
-              isCompleted={isCompleted}
-              userHasRole={userHasRole}
-              Textarea={Textarea}
-              isAppOwnerFn={isAppOwner}
-              isPastDate={isPastDeliveryDate}
-              appUsers={appUsers}
-              preferredTravelMode={currentDriverAppUser?.preferred_travel_mode || currentUser?.preferred_travel_mode || 'driving'}
-              onTravelModeChange={null}
-              travelModeDisabled={true}
-            />
-          )}
+          {showBodySection &&
+          <StopCardBody
+            isExpanded={isExpanded}
+            isStrippedForDispatcher={isStrippedForDispatcher}
+            finalDisplayPhone={finalDisplayPhone}
+            alternateDisplayPhone={patient?.phone_secondary || ''}
+            isFinishedDelivery={isFinishedDelivery}
+            isPickup={isPickup}
+            hasCODRequired={hasCODRequired}
+            codTotalRequired={codTotalRequired}
+            codPayments={codPayments}
+            setCodPayments={setCodPayments}
+            showCODCollection={showCODCollection}
+            setShowCODCollection={setShowCODCollection}
+            handleAddCODPayment={handleAddCODPayment}
+            isStrippedForDriver={isStrippedForDriver}
+            currentUser={currentUser}
+            codTotalCollected={codTotalCollected}
+            isCODComplete={isCODComplete}
+            delivery={delivery}
+            patient={patient}
+            store={store}
+            patients={patients}
+            pendingPickups={pendingPickups}
+            canAccessAcceptButtons={canAccessAcceptButtons}
+            isAcceptingAll={isAcceptingAll}
+            acceptButtonText={acceptButtonText}
+            handleAcceptAllStops={handleAcceptAllStops}
+            onEdit={onEdit}
+            onCODUpdate={onCODUpdate}
+            allDeliveries={allDeliveries}
+            FINISHED_STATUSES={FINISHED_STATUSES}
+            forceRefreshDriverDeliveries={forceRefreshDriverDeliveries}
+            isCompleting={isCompleting}
+            setIsCompleting={setIsCompleting}
+            onSelectionChange={onSelectionChange}
+            onClick={onClick}
+            notesInput={notesInput}
+            setNotesInput={setNotesInput}
+            onNotesUpdate={onNotesUpdate}
+            isCompleted={isCompleted}
+            userHasRole={userHasRole}
+            Textarea={Textarea}
+            isAppOwnerFn={isAppOwner}
+            isPastDate={isPastDeliveryDate}
+            appUsers={appUsers}
+            preferredTravelMode={currentDriverAppUser?.preferred_travel_mode || currentUser?.preferred_travel_mode || 'driving'}
+            onTravelModeChange={null}
+            travelModeDisabled={true} />
+
+          }
 
           <StopCardFooter
             shouldAnchorExpandedCard={shouldAnchorExpandedCard}
@@ -789,10 +789,10 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
             stores={stores}
             allDeliveries={allDeliveries}
             onStartDelivery={onStartDelivery}
-            handleCompleteAction={handleCompleteAction}
-          />
+            handleCompleteAction={handleCompleteAction} />
+          
         </CardContent>
       </Card>
-    </motion.div>
-  );
+    </motion.div>);
+
 }
