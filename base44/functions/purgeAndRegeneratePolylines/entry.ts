@@ -485,6 +485,14 @@ async function getMultiSegmentDirections(base44, segmentSpecs, transportMode = '
   const destination = safeSpecs[safeSpecs.length - 1].to;
   const waypoints = safeSpecs.slice(0, -1).map((segment) => ({ lat: segment.to.lat, lng: segment.to.lon }));
 
+  console.log('[purgeAndRegeneratePolylines] getMultiSegmentDirections points', {
+    segmentCount: safeSpecs.length,
+    totalPoints: safeSpecs.length + 1,
+    origin,
+    destination,
+    waypointCount: waypoints.length
+  });
+
   try {
     const routeContext = [origin, ...safeSpecs.map((segment) => segment.to)];
     const response = await base44.functions.invoke('getHereDirections', {
@@ -822,7 +830,7 @@ Deno.serve(async (req) => {
 
     if ((scope === 'all' || scope === 'active_only') && routeSource === 'polylines') {
       const firstActive = getLatLon(activeStops.find((stop) => stop.isNextDelivery === true) || activeStops[0]);
-      const preservedType1Row = scope === 'active_only' && firstActive
+      const preservedType1Row = scope === 'active_only' && firstActive && !explicitOrderedStopsOnly
         ? (existingPolylines || []).find((row) => samePoint({ lat: row?.segment_dest_lat, lon: row?.segment_dest_lon }, firstActive)) || null
         : null;
 
@@ -868,7 +876,7 @@ Deno.serve(async (req) => {
 
         const lastActive = getLatLon(activeStops[activeStops.length - 1]);
 
-        if (lockHomeDestination && lastActive) {
+        if ((lockHomeDestination || explicitOrderedStopsOnly) && lastActive && hasHomeCoords) {
           pushSegment(lastActive, { lat: homeLat, lon: homeLon }, true);
         } else if (!explicitStopOrderIds.length) {
           const shouldAddHomeStartLeg = hasHomeCoords && firstActive && !originFromFinishedStop;
@@ -912,7 +920,11 @@ Deno.serve(async (req) => {
           }
         });
 
-        const uncachedDirections = await getMultiSegmentDirections(base44, uncachedSegments);
+        const uncachedDirections = await getMultiSegmentDirections(
+          base44,
+          uncachedSegments,
+          explicitStopMetaById.get(activeStops[0]?.id)?.finished_leg_transport_mode || driverAppUser?.preferred_travel_mode || 'driving'
+        );
         if (uncachedSegments.length > 0) apiCallsMade += 1;
 
         uncachedSegments.forEach((spec, index) => {
