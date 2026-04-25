@@ -8,8 +8,8 @@ import { getActiveHereApiKey } from "@/functions/getActiveHereApiKey";
 
 const buildHereLightTileUrl = (apiKey) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=explore.day&size=512&apiKey=${apiKey}`;
 const buildHereDarkTileUrl = (apiKey) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=explore.night&size=512&apiKey=${apiKey}`;
-const buildHereSatelliteTileUrl = (apiKey) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/jpg?style=satellite.day&size=512&apiKey=${apiKey}`;
-const buildHereHybridTileUrl = (apiKey) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/jpg?style=hybrid.day&size=512&apiKey=${apiKey}`;
+const buildHereSatelliteTileUrl = (apiKey) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/jpeg?style=satellite.day&size=512&apiKey=${apiKey}`;
+const buildHereHybridTileUrl = (apiKey) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/jpeg?style=hybrid.day&size=512&apiKey=${apiKey}`;
 import { isMobileDevice } from "../utils/deviceUtils";
 import { getStoreColor } from "../utils/colorGenerator";
 import { userHasRole } from "../utils/userRoles";
