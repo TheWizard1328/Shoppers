@@ -9,7 +9,8 @@ import { getActiveHereApiKey } from "@/functions/getActiveHereApiKey";
 const buildHereLightTileUrl = (apiKey) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=explore.day&size=512&apiKey=${apiKey}`;
 const buildHereDarkTileUrl = (apiKey) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=explore.night&size=512&apiKey=${apiKey}`;
 const buildHereSatelliteTileUrl = (apiKey) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/jpeg?style=satellite.day&size=512&apiKey=${apiKey}`;
-const buildHereHybridTileUrl = (apiKey) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/jpeg?style=hybrid.day&size=512&apiKey=${apiKey}`;
+const buildHereHybridBaseTileUrl = (apiKey) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/jpeg?style=satellite.day&size=512&apiKey=${apiKey}`;
+const buildHereHybridLabelsTileUrl = (apiKey) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=explore.day&features=labels:all&size=512&apiKey=${apiKey}`;
 import { isMobileDevice } from "../utils/deviceUtils";
 import { getStoreColor } from "../utils/colorGenerator";
 import { userHasRole } from "../utils/userRoles";
@@ -580,13 +581,23 @@ export default function DeliveryMap({
     });
   }, [driverLocationMarkers, routeLocationSnapshot]);
 
-  const tileLayerUrl = useMemo(() => {
+  const tileLayerConfig = useMemo(() => {
     if (!hereApiKey) return null;
-    if (mapStyle === "satellite") return buildHereSatelliteTileUrl(hereApiKey);
-    if (mapStyle === "hybrid") return buildHereHybridTileUrl(hereApiKey);
-    return document.documentElement.classList.contains("dark-theme") || (document.documentElement.classList.contains("auto-theme") && window.matchMedia("(prefers-color-scheme: dark)").matches)
-      ? buildHereDarkTileUrl(hereApiKey)
-      : buildHereLightTileUrl(hereApiKey);
+    if (mapStyle === "satellite") {
+      return { base: buildHereSatelliteTileUrl(hereApiKey), overlay: null };
+    }
+    if (mapStyle === "hybrid") {
+      return {
+        base: buildHereHybridBaseTileUrl(hereApiKey),
+        overlay: buildHereHybridLabelsTileUrl(hereApiKey)
+      };
+    }
+    return {
+      base: document.documentElement.classList.contains("dark-theme") || (document.documentElement.classList.contains("auto-theme") && window.matchMedia("(prefers-color-scheme: dark)").matches)
+        ? buildHereDarkTileUrl(hereApiKey)
+        : buildHereLightTileUrl(hereApiKey),
+      overlay: null
+    };
   }, [hereApiKey, mapStyle]);
 
   const driversWithCompleteRoute = useMemo(() => {
@@ -1082,12 +1093,20 @@ export default function DeliveryMap({
           setVisibleBounds(instance.target.getBounds());
         }}
       >
-        {tileLayerUrl && (
+        {tileLayerConfig?.base && (
           <TileLayer
             attribution='&copy; <a href="https://www.here.com/">HERE</a>'
-            url={tileLayerUrl}
+            url={tileLayerConfig.base}
             tileSize={512}
             zoomOffset={-1}
+          />
+        )}
+        {tileLayerConfig?.overlay && (
+          <TileLayer
+            url={tileLayerConfig.overlay}
+            tileSize={512}
+            zoomOffset={-1}
+            opacity={1}
           />
         )}
 
