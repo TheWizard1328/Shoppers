@@ -342,9 +342,7 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
   const [values, setValues] = useState(initialValues);
 
   useEffect(() => {
-    if (!open) {
-      setValues(initialValues);
-    }
+    setValues(initialValues);
   }, [initialValues, open]);
 
   const content = (
