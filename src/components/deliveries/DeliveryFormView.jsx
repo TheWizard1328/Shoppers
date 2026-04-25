@@ -31,6 +31,7 @@ import { recalculateAndUpdateStopOrders } from '../utils/stopOrderManager';
 import { handleBatchSaveDelivery } from '@/components/dashboard/handleBatchSaveDelivery.jsx';
 import { toast } from 'sonner';
 import { globalFilters } from '@/components/utils/globalFilters';
+import { fabControlEvents } from '@/components/utils/fabControlEvents';
 import { acquireDeliveryActionLock, releaseDeliveryActionLock, getActiveDeliveryAction, subscribeDeliveryActionLock } from '../utils/deliveryActionLock';
 import { renderDeliveryIdentifiersSection } from './deliveryFormHelpers';
 import { buildDeliveryStagedPanelProps } from './deliveryStagedPanelPropsHelper';
@@ -1013,7 +1014,7 @@ export default function DeliveryFormView({
                 </Button>
 
                 {buttonState === 'done' ?
-                <Button type="button" size="sm" onClick={(e) => {e.preventDefault();e.stopPropagation();runLockedAction('batch_save', handleBatchSave);}} className="inline-flex items-center justify-center whitespace-nowrap font-medium h-8 rounded-md px-3 text-xs !text-white bg-emerald-600 hover:bg-emerald-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || openMode !== 'add_to_route' && !hasChanges}>
+                <Button type="button" size="sm" onClick={(e) => {e.preventDefault();e.stopPropagation();runLockedAction('batch_save', async () => { await handleBatchSave(); fabControlEvents.resetToPhaseOneAfterDone(500); });}} className="inline-flex items-center justify-center whitespace-nowrap font-medium h-8 rounded-md px-3 text-xs !text-white bg-emerald-600 hover:bg-emerald-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || openMode !== 'add_to_route' && !hasChanges}>
                     {isSaving ? <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />Saving...</> : <><CheckCircle className="w-4 h-4" />Done</>}
                   </Button> :
                 buttonState === 'updateStaged' ?
