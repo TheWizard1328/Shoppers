@@ -883,12 +883,13 @@ Deno.serve(async (req) => {
         for (const mode of ['driving', 'cycling']) {
           const segmentsForMode = finishedSegmentSpecs.filter((segment) => segment.transportMode === mode);
           if (segmentsForMode.length === 0) continue;
-          const finishedDirections = await getMultiSegmentDirections(
-            base44,
-            segmentsForMode.map((segment) => ({ from: segment.from, to: segment.to })),
-            mode
+          const finishedDirections = await Promise.all(
+            segmentsForMode.map((segment) =>
+              getMultiSegmentDirections(base44, [{ from: segment.from, to: segment.to }], mode)
+                .then((results) => results?.[0] || null)
+            )
           );
-          apiCallsMade += 1;
+          apiCallsMade += segmentsForMode.length;
           segmentsForMode.forEach((segment, index) => {
             finishedDirectionsByStopId.set(segment.stop.id, finishedDirections[index] || null);
           });
