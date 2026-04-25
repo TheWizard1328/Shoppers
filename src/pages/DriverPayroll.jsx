@@ -731,9 +731,9 @@ export default function DriverPayroll() {
   useEffect(() => {
     if (!sortedCities.length) return;
     if (selectedCityId && sortedCities.some((city) => city.id === selectedCityId)) return;
-    const fallbackCityId = currentUser?.city_id && sortedCities.some((city) => city.id === currentUser.city_id)
-      ? currentUser.city_id
-      : sortedCities[0]?.id || '';
+    const fallbackCityId = currentUser?.city_id && sortedCities.some((city) => city.id === currentUser.city_id) ?
+    currentUser.city_id :
+    sortedCities[0]?.id || '';
     if (fallbackCityId && fallbackCityId !== selectedCityId) {
       setSelectedCityId(fallbackCityId);
     }
@@ -944,7 +944,7 @@ export default function DriverPayroll() {
       <span className="ml-3 text-lg text-slate-600">Loading payroll data...</span>
     </div> :
 
-  <div className="h-full w-full max-w-full overflow-y-auto overflow-x-hidden flex flex-col p-4 md:p-6" style={{ background: 'var(--bg-slate-50)' }}>
+  <div className="px-3 py-2 h-full w-full max-w-full overflow-y-auto overflow-x-hidden flex flex-col md:p-6" style={{ background: 'var(--bg-slate-50)' }}>
       <div className="max-w-7xl w-full mx-auto flex flex-col min-h-full min-w-0" ref={contentRef}>
         {/* Header */}
         <div className="bg-[var(--bg-slate-50)]/95 pt-1 pb-1 sticky top-0 z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 backdrop-blur supports-[backdrop-filter]:bg-[var(--bg-slate-50)]/75 w-full min-w-0 overflow-x-hidden">
@@ -1015,7 +1015,7 @@ export default function DriverPayroll() {
                 setSelectedYear(Number(v));
               });
             }}>
-                <SelectTrigger className="w-auto min-w-[88px] md:min-w-[96px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
