@@ -640,7 +640,7 @@ export default function HereType1Polylines({
   // Safety: dedupe by key at the very end to ensure no accidental duplicates sneak in
   const uniqueLines = React.useMemo(() => {
     const used = new Set();
-    return React.Children.toArray(lines).filter((child) => {
+    return lines.filter((child) => {
       const k = child?.key;
       if (!k) return true;
       if (used.has(k)) return false;
