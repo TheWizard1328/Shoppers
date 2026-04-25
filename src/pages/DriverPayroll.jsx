@@ -1119,7 +1119,7 @@ export default function DriverPayroll() {
       
 
         {/* Content Area for Screenshot */}
-        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-36 md:pb-12 overscroll-contain">
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-4 md:pb- overscroll-contain">
           {/* Grid (mobile collapsible) */}
           <div className="lg:hidden mb-3">
             <Button size="sm" variant="outline" className="w-full" onClick={() => setDetailsOpen(!detailsOpen)}>
