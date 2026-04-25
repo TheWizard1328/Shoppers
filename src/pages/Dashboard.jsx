@@ -224,8 +224,7 @@ function Dashboard() {
   const [showQuickAdjustments, setShowQuickAdjustments] = useState(false);
   const cardExpandedAtRef = useRef(null);
   const [showAllDriverMarkers, setShowAllDriverMarkers] = useState(false);
-  const [showSmartPrioritization, setShowSmartPrioritization] = useState(false);
-  const [showBreadcrumbs, setShowBreadcrumbs] = useState(false);
+  const [showSmartPrioritization, setShowSmartPrioritization] = useState(false), [showBreadcrumbs, setShowBreadcrumbs] = useState(false), [mapStyle, setMapStyle] = useState('explore');
   const [preferredTravelMode, setPreferredTravelMode] = useState('driving');
   const [breadcrumbsData, setBreadcrumbsData] = useState({ historical: [], current: [] });
   const [performanceStats, setPerformanceStats] = useState(null);
@@ -5172,7 +5171,7 @@ function Dashboard() {
     isSnapshotModeActive, setIsSnapshotModeActive, snapshotData, setSnapshotData,
     performanceStats, deliveryStats, liveDistance, liveTimeOnDuty, isLoadingPayrollStats,
     dailyPolylineCount, isAIEnabled, showAIAssistant, preferredTravelMode, realTimeETAEnabled,
-    refreshUser, refreshData, dataSource
+    mapStyle, setMapStyle, refreshUser, refreshData, dataSource
   });
 
   return <DashboardScreen {...dashboardViewModel} />;
