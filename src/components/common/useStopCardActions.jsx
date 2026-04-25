@@ -233,7 +233,7 @@ export default function useStopCardActions(params) {
       Promise.resolve().then(async () => {
         window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
         try {
-          const optimizeResponse = await base44.functions.invoke('optimizeRouteRealTime', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime, generatePolyline: false });
+          const optimizeResponse = await base44.functions.invoke('optimizeRemainingStops', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime, deviceTime: now.toISOString() });
           const optimizeData = optimizeResponse?.data || optimizeResponse;
 
           sortedPending.forEach((pendingDelivery) => {
