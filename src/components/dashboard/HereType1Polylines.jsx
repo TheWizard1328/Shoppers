@@ -572,17 +572,16 @@ export default function HereType1Polylines({
           seenKeys.add(key);
           const segmentPositions = coords || makeFallback({ latitude: originLat, longitude: originLon }, next);
           lines.push(
-            <React.Fragment key={`type1-pre-home-${driverId}-${getDriverMode(driverId)}`}>
-              <Polyline
-                positions={segmentPositions}
-                pathOptions={{
-                  ...getDriverRouteStyle(driverId, coords ? 0.95 : 0.75),
-                  dashArray: coords ? getDriverRouteStyle(driverId).dashArray : '8,8'
-                }}
-                pane="routeBasePane"
-              />
-              <RouteDirectionDecorator positions={segmentPositions} color={getType1PolylineColor()} />
-            </React.Fragment>
+            <Polyline
+              key={`type1-pre-home-line-${driverId}-${getDriverMode(driverId)}`}
+              positions={segmentPositions}
+              pathOptions={{
+                ...getDriverRouteStyle(driverId, coords ? 0.95 : 0.75),
+                dashArray: coords ? getDriverRouteStyle(driverId).dashArray : '8,8'
+              }}
+              pane="routeBasePane"
+            />,
+            <RouteDirectionDecorator key={`type1-pre-home-arrow-${driverId}-${getDriverMode(driverId)}`} positions={segmentPositions} color={getType1PolylineColor()} />
           );
         }
       }
@@ -620,14 +619,13 @@ export default function HereType1Polylines({
     if (!seenKeys.has(key)) {
       seenKeys.add(key);
       lines.push(
-        <React.Fragment key={`type1-next-${driverId}-${getDriverMode(driverId)}`}>
-          <Polyline
-            positions={coords}
-            pathOptions={getDriverRouteStyle(driverId, 0.95)}
-            pane="routeBasePane"
-          />
-          <RouteDirectionDecorator positions={coords} color={getType1PolylineColor()} />
-        </React.Fragment>
+        <Polyline
+          key={`type1-next-line-${driverId}-${getDriverMode(driverId)}`}
+          positions={coords}
+          pathOptions={getDriverRouteStyle(driverId, 0.95)}
+          pane="routeBasePane"
+        />,
+        <RouteDirectionDecorator key={`type1-next-arrow-${driverId}-${getDriverMode(driverId)}`} positions={coords} color={getType1PolylineColor()} />
       );
     }
   });
