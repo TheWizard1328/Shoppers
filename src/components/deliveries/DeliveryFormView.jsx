@@ -278,6 +278,14 @@ export default function DeliveryFormView({
 
   );
 
+  const mobileHeaderHeight = typeof document !== 'undefined' ? document.querySelector('[data-mobile-header]')?.offsetHeight || 0 : 0;
+  const mobileBottomNavHeight = typeof document !== 'undefined' ? document.querySelector('[data-mobile-bottom-nav]')?.offsetHeight || 0 : 0;
+  const mobileFormInsetStyle = useMobileLayout && isMobileDevice ? {
+    top: `${mobileHeaderHeight}px`,
+    bottom: `${mobileBottomNavHeight}px`,
+    background: 'var(--bg-white)'
+  } : undefined;
+
   // Auto-focus COD amount when a staged or pending item is selected (desktop only)
   React.useEffect(() => {
     if (editingStagedId && shouldAutoFocusFields) {
@@ -403,7 +411,7 @@ export default function DeliveryFormView({
   return (
     <div
       className={`fixed inset-0 z-[10020] overflow-hidden ${useMobileLayout && isMobileDevice ? '' : 'bg-black/60 flex items-center justify-center p-4'}`}
-      style={useMobileLayout && isMobileDevice ? { background: 'var(--bg-white)' } : undefined}>
+      style={mobileFormInsetStyle}>
       
       <motion.div
         ref={formRef}
