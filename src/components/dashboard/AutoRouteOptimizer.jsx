@@ -85,12 +85,11 @@ export default function AutoRouteOptimizer({
 
       console.log('🤖 [Auto-Optimize] Running AI route optimization...');
       
-      const response = await base44.functions.invoke('optimizeRouteRealTime', {
+      const response = await base44.functions.invoke('optimizeRemainingStops', {
         driverId: currentUser.id,
         deliveryDate: dateStr,
         currentLocalTime: localTimeString,
-        deviceTime: now.toISOString(),
-        generatePolyline: true
+        deviceTime: now.toISOString()
       });
 
       const data = response?.data || response;

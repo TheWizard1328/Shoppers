@@ -58,7 +58,7 @@ export default function RouteActionButtons({
             const deliveryDate = format(selectedDate, "yyyy-MM-dd");
             const now = new Date();
             const currentLocalTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-            const response = await base44.functions.invoke("optimizeRouteRealTime", {
+            const response = await base44.functions.invoke("optimizeRemainingStops", {
               driverId: selectedDriverId,
               deliveryDate,
               currentLocalTime,

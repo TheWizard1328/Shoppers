@@ -76,10 +76,11 @@ Deno.serve(async (req) => {
     };
 
     try {
-      const optimizationResponse = await base44.asServiceRole.functions.invoke('optimizeRouteRealTime', {
+      const optimizationResponse = await base44.asServiceRole.functions.invoke('optimizeRemainingStops', {
         driverId,
         deliveryDate,
-        currentLocalTime: getCurrentLocalTimeString()
+        currentLocalTime: getCurrentLocalTimeString(),
+        deviceTime: new Date().toISOString()
       });
       const optimizationData = optimizationResponse?.data || optimizationResponse || {};
       optimization = {
@@ -93,7 +94,7 @@ Deno.serve(async (req) => {
           reason: 'rate_limited'
         };
       } else {
-        console.warn('⚠️ [handleStartDelivery] optimizeRouteRealTime failed:', error?.message || error);
+        console.warn('⚠️ [handleStartDelivery] optimizeRemainingStops failed:', error?.message || error);
       }
     }
 

@@ -563,12 +563,11 @@ export const handleBatchSaveDelivery = async ({
         if (allActive && hasIncompleteStops) {
           const now = new Date();
           const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-          await base44.functions.invoke('optimizeRouteRealTime', {
+          await base44.functions.invoke('optimizeRemainingStops', {
             driverId: batchDriverId,
             deliveryDate: batchDeliveryDate,
             currentLocalTime: localTimeString,
-            deviceTime: now.toISOString(),
-            generatePolyline: true
+            deviceTime: now.toISOString()
           });
           await base44.functions.invoke('recalculateTrackingNumbers', {
             driverId: batchDriverId,

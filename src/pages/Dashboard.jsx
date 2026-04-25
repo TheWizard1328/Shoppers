@@ -3642,12 +3642,11 @@ function Dashboard() {
         const now = new Date();
         const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-        await base44.functions.invoke('optimizeRouteRealTime', {
+        await base44.functions.invoke('optimizeRemainingStops', {
           driverId: driverId,
           deliveryDate: deliveryDate,
           currentLocalTime: localTimeString,
-          deviceTime: now.toISOString(),
-          generatePolyline: true
+          deviceTime: now.toISOString()
         });
 
         await base44.functions.invoke('calculateRealTimeETA', {
@@ -4343,7 +4342,7 @@ function Dashboard() {
         if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
           const now = new Date();
           const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-          base44.functions.invoke('optimizeRouteRealTime', { driverId, deliveryDate, currentLocalTime: localTimeString, deviceTime: now.toISOString() }).then((response) => {const data = response?.data || response;if (!data?.success || !Array.isArray(data.optimizedRoute) || !data.optimizedRoute.length) return;window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId, updates: data.optimizedRoute.map((stop) => ({ deliveryId: stop.deliveryId || stop.delivery_id, newEta: stop.newETA || stop.eta })).filter((stop) => stop.deliveryId && stop.newEta) } }));window.dispatchEvent(new CustomEvent('routeReordered', { detail: { driverId, deliveryDate, source: 'statusUpdateAutoOptimize' } }));window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { driverId, deliveryDate, source: 'statusUpdateAutoOptimize' } }));}).catch((error) => console.warn('⚠️ Route auto-optimization failed:', error));
+          base44.functions.invoke('optimizeRemainingStops', { driverId, deliveryDate, currentLocalTime: localTimeString, deviceTime: now.toISOString() }).then((response) => {const data = response?.data || response;if (!data?.success || !Array.isArray(data.optimizedRoute) || !data.optimizedRoute.length) return;window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId, updates: data.optimizedRoute.map((stop) => ({ deliveryId: stop.deliveryId || stop.delivery_id, newEta: stop.newETA || stop.eta })).filter((stop) => stop.deliveryId && stop.newEta) } }));window.dispatchEvent(new CustomEvent('routeReordered', { detail: { driverId, deliveryDate, source: 'statusUpdateAutoOptimize' } }));window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { driverId, deliveryDate, source: 'statusUpdateAutoOptimize' } }));}).catch((error) => console.warn('⚠️ Route auto-optimization failed:', error));
         }
 
         // Payroll stats fetch disabled on Dashboard to avoid rate limits; handled only on DriverPayroll page.
@@ -4490,7 +4489,7 @@ function Dashboard() {
       try {await forceRefreshDriverDeliveries(originalDelivery.driver_id, routeDate);} catch (_) {}
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'return', driverId: originalDelivery.driver_id, deliveryDate: routeDate } }));
       window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'return', driverId: originalDelivery.driver_id, deliveryDate: routeDate } }));
-      base44.functions.invoke('optimizeRouteRealTime', { driverId: originalDelivery.driver_id, deliveryDate: routeDate, currentLocalTime: `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`, generatePolyline: false }).catch((e) => console.warn('⚠️ [CREATE RETURN] Background optimize failed:', e?.message || e)).finally(() => window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'return', driverId: originalDelivery.driver_id, deliveryDate: routeDate } })));
+      base44.functions.invoke('optimizeRemainingStops', { driverId: originalDelivery.driver_id, deliveryDate: routeDate, currentLocalTime: `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`, deviceTime: new Date().toISOString() }).catch((e) => console.warn('⚠️ [CREATE RETURN] Background optimize failed:', e?.message || e)).finally(() => window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'return', driverId: originalDelivery.driver_id, deliveryDate: routeDate } })));
 
     } catch (error) {
       console.error('❌ [CREATE RETURN] Error:', error);
