@@ -1161,7 +1161,7 @@ export default function PayrollSummaryCard({
           filename={`payroll-summary-${currentPeriod?.label || 'report'}.png`} />
 
 
-      <CardContent ref={contentRef} className="px-2">
+      <CardContent ref={contentRef} className="px-1">
         <div className="space-y-4">
           {payrollData.filter((data) => data.graphDeliveryCount > 0).map((data, idx) => {
               const hasTaxOrDeductions = data.taxAmount > 0 || data.deductions > 0;
