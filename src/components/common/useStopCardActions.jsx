@@ -191,9 +191,12 @@ export default function useStopCardActions(params) {
       const sortedPending = [...allPendingDeliveries].sort((a, b) => (a.patient_name || '').localeCompare(b.patient_name || ''));
 
       const routeDeliveries = allDeliveries.filter((item) => item && item.driver_id === delivery.driver_id && item.delivery_date === delivery.delivery_date);
-      const clearExistingNextStops = routeDeliveries
-        .filter((item) => item?.isNextDelivery === true && item.id !== delivery.id)
-        .map((item) => updateDeliveryLocal(item.id, { isNextDelivery: false }, { skipSmartRefresh: true }));
+      const shouldUpdateNextDeliveryFlags = delivery.isNextDelivery !== true;
+      const clearExistingNextStops = shouldUpdateNextDeliveryFlags
+        ? routeDeliveries
+            .filter((item) => item?.isNextDelivery === true && item.id !== delivery.id)
+            .map((item) => updateDeliveryLocal(item.id, { isNextDelivery: false }, { skipSmartRefresh: true }))
+        : [];
 
       const localUpdates = sortedPending.map((pendingDelivery) => ({
         id: pendingDelivery.id,
@@ -204,7 +207,7 @@ export default function useStopCardActions(params) {
 
       await Promise.all([
         ...clearExistingNextStops,
-        updateDeliveryLocal(delivery.id, { isNextDelivery: true }, { skipSmartRefresh: true }),
+        ...(shouldUpdateNextDeliveryFlags ? [updateDeliveryLocal(delivery.id, { isNextDelivery: true }, { skipSmartRefresh: true })] : []),
         ...localUpdates.map((update) => updateDeliveryLocal(update.id, update, { skipSmartRefresh: true }))
       ]);
       fabControlEvents.notifyAcceptAllClicked();
