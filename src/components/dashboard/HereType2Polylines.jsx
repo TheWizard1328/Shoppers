@@ -3,6 +3,7 @@ import { Polyline } from "react-leaflet";
 import { getHerePolyline } from "../utils/hereRouting";
 import { generateDriverColor } from "../utils/colorGenerator";
 import { getTravelModeLineStyle, normalizeTravelMode } from "./travelModeHelpers";
+import RouteDirectionDecorator from "./RouteDirectionDecorator";
 
 const FINISHED = ["completed", "failed", "cancelled"];
 
@@ -282,21 +283,24 @@ export default function HereType2Polylines({
         } catch (_) {}
       }
       // Show dashed fallback immediately; HERE polyline will hydrate when ready
+      const segmentPositions = coords || makeFallback(a, b);
       lines.push(
-        <Polyline
-          key={`type2-here-${driverId}-${i}-${getDriverMode(driverId)}`}
-          positions={coords || makeFallback(a, b)}
-          pathOptions={{
-            ...getDriverRouteStyle(driverId, coords ? (() => {
-              if (totalLegs <= 1) return 0.85;
-              const t = i / (totalLegs - 1);
-              const start = 0.95, end = 0.25;
-              return Math.max(end, start + (end - start) * t);
-            })() : 0.35),
-            dashArray: coords ? getDriverRouteStyle(driverId).dashArray : '6,6'
-          }}
-          pane="routeBasePane"
-        />
+        <React.Fragment key={`type2-here-${driverId}-${i}-${getDriverMode(driverId)}`}>
+          <Polyline
+            positions={segmentPositions}
+            pathOptions={{
+              ...getDriverRouteStyle(driverId, coords ? (() => {
+                if (totalLegs <= 1) return 0.85;
+                const t = i / (totalLegs - 1);
+                const start = 0.95, end = 0.25;
+                return Math.max(end, start + (end - start) * t);
+              })() : 0.35),
+              dashArray: coords ? getDriverRouteStyle(driverId).dashArray : '6,6'
+            }}
+            pane="routeBasePane"
+          />
+          <RouteDirectionDecorator positions={segmentPositions} color={getDriverRouteStyle(driverId).color} />
+        </React.Fragment>
       );
     }
   });

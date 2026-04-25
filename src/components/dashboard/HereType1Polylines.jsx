@@ -4,6 +4,7 @@ import { ensurePolylineSubscription } from "../utils/hereRouting";
 import useDriverRoutePolylineBackgroundSync from "../utils/useDriverRoutePolylineBackgroundSync";
 import { getRouteOptimizationSettings } from "./RouteOptimizationSettings";
 import { getTravelModeLineStyle, normalizeTravelMode } from "./travelModeHelpers";
+import RouteDirectionDecorator from "./RouteDirectionDecorator";
 
 const FINISHED = ["completed", "failed", "cancelled", "returned"];
 
@@ -569,16 +570,19 @@ export default function HereType1Polylines({
         
         if (!seenKeys.has(key)) {
           seenKeys.add(key);
+          const segmentPositions = coords || makeFallback({ latitude: originLat, longitude: originLon }, next);
           lines.push(
-            <Polyline
-              key={`type1-pre-home-${driverId}-${getDriverMode(driverId)}`}
-              positions={coords || makeFallback({ latitude: originLat, longitude: originLon }, next)}
-              pathOptions={{
-                ...getDriverRouteStyle(driverId, coords ? 0.95 : 0.75),
-                dashArray: coords ? getDriverRouteStyle(driverId).dashArray : '8,8'
-              }}
-              pane="routeBasePane"
-            />
+            <React.Fragment key={`type1-pre-home-${driverId}-${getDriverMode(driverId)}`}>
+              <Polyline
+                positions={segmentPositions}
+                pathOptions={{
+                  ...getDriverRouteStyle(driverId, coords ? 0.95 : 0.75),
+                  dashArray: coords ? getDriverRouteStyle(driverId).dashArray : '8,8'
+                }}
+                pane="routeBasePane"
+              />
+              <RouteDirectionDecorator positions={segmentPositions} color={getType1PolylineColor()} />
+            </React.Fragment>
           );
         }
       }
@@ -616,12 +620,14 @@ export default function HereType1Polylines({
     if (!seenKeys.has(key)) {
       seenKeys.add(key);
       lines.push(
-        <Polyline
-          key={`type1-next-${driverId}-${getDriverMode(driverId)}`}
-          positions={coords}
-          pathOptions={getDriverRouteStyle(driverId, 0.95)}
-          pane="routeBasePane"
-        />
+        <React.Fragment key={`type1-next-${driverId}-${getDriverMode(driverId)}`}>
+          <Polyline
+            positions={coords}
+            pathOptions={getDriverRouteStyle(driverId, 0.95)}
+            pane="routeBasePane"
+          />
+          <RouteDirectionDecorator positions={coords} color={getType1PolylineColor()} />
+        </React.Fragment>
       );
     }
   });
