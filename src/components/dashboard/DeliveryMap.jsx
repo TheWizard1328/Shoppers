@@ -4,10 +4,10 @@ import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { format } from "date-fns";
 import { base44 } from "@/api/base44Client";
+import { getActiveHereApiKey } from "@/functions/getActiveHereApiKey";
 
-const HERE_RASTER_API_KEY = import.meta.env.VITE_HERE_API_KEY;
-const HERE_LIGHT_TILE_URL = `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=explore.day&size=512&apiKey=${HERE_RASTER_API_KEY}`;
-const HERE_DARK_TILE_URL = `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=explore.night&size=512&apiKey=${HERE_RASTER_API_KEY}`;
+const buildHereLightTileUrl = (apiKey) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=explore.day&size=512&apiKey=${apiKey}`;
+const buildHereDarkTileUrl = (apiKey) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=explore.night&size=512&apiKey=${apiKey}`;
 import { isMobileDevice } from "../utils/deviceUtils";
 import { getStoreColor } from "../utils/colorGenerator";
 import { userHasRole } from "../utils/userRoles";
@@ -205,6 +205,7 @@ export default function DeliveryMap({
   const [routeRenderKey, setRouteRenderKey] = useState(0);
   const [polylineRenderKey, setPolylineRenderKey] = useState(0);
   const [measuredTopOverlayHeight, setMeasuredTopOverlayHeight] = useState(0);
+  const [hereApiKey, setHereApiKey] = useState(null);
   const hasNotifiedMapReady = useRef(false);
   const prevDriverHomeMarkersRef = useRef([]);
   const prevDriverLocationMarkersRef = useRef([]);
@@ -227,6 +228,26 @@ export default function DeliveryMap({
       setRealtimeAppUsers((prev) => mergeAppUsersByFreshness(prev, users));
     }
   }, [users]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadHereApiKey = async () => {
+      const response = await getActiveHereApiKey({});
+      const nextApiKey = response?.data?.apiKey;
+      if (mounted && nextApiKey) {
+        setHereApiKey(nextApiKey);
+      }
+    };
+
+    loadHereApiKey();
+    window.addEventListener("appSettingsUpdated", loadHereApiKey);
+
+    return () => {
+      mounted = false;
+      window.removeEventListener("appSettingsUpdated", loadHereApiKey);
+    };
+  }, []);
 
   useEffect(() => {
     if (!retractClustersRef) return;
@@ -1049,14 +1070,16 @@ export default function DeliveryMap({
           setVisibleBounds(instance.target.getBounds());
         }}
       >
-        <TileLayer
-          attribution='&copy; <a href="https://www.here.com/">HERE</a>'
-          url={document.documentElement.classList.contains("dark-theme") || (document.documentElement.classList.contains("auto-theme") && window.matchMedia("(prefers-color-scheme: dark)").matches)
-            ? HERE_DARK_TILE_URL
-            : HERE_LIGHT_TILE_URL}
-          tileSize={512}
-          zoomOffset={-1}
-        />
+        {hereApiKey && (
+          <TileLayer
+            attribution='&copy; <a href="https://www.here.com/">HERE</a>'
+            url={document.documentElement.classList.contains("dark-theme") || (document.documentElement.classList.contains("auto-theme") && window.matchMedia("(prefers-color-scheme: dark)").matches)
+              ? buildHereDarkTileUrl(hereApiKey)
+              : buildHereLightTileUrl(hereApiKey)}
+            tileSize={512}
+            zoomOffset={-1}
+          />
+        )}
 
         <MapController
           onMapInteraction={onMapInteraction}
