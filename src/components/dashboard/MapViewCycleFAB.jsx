@@ -55,6 +55,16 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
         return;
       }
 
+      if (event?.type === 'DONE_RESET_TO_PHASE_ONE') {
+        setIsTemporarilyDeactivated(false);
+        if (deactivateTimeoutRef.current) clearTimeout(deactivateTimeoutRef.current);
+        deactivateTimeoutRef.current = setTimeout(() => {
+          setIsTemporarilyDeactivated(true);
+        }, event?.duration || 500);
+        flashUpdate('route_change');
+        return;
+      }
+
       if (event?.type !== 'REACTIVATE_FAB' && event?.type !== 'IMMERSIVE_MODE_TOGGLED') return;
       if (event?.type === 'REACTIVATE_FAB' && (window.__suppressCardAutoCenterUntil || 0) > Date.now()) return;
       setIsTemporarilyDeactivated(false);

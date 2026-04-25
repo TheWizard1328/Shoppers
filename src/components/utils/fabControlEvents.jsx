@@ -101,11 +101,22 @@ export const fabControlEvents = {
    * Notify when Done button is clicked - FAB should activate phase 1 temporarily (3000ms)
    * Called after DeliveryForm Done button saves and closes
    */
-  notifyDoneButtonClicked: () => {
-    console.log('📢 [FAB Events] Broadcasting done button clicked - activating phase 1 for 3000ms');
+  notifyDoneButtonClicked: (duration = 500) => {
+    console.log('📢 [FAB Events] Broadcasting done button clicked - activating phase 1 for', duration, 'ms');
     fabControlListeners.forEach(callback => {
       try {
-        callback({ type: 'DONE_BUTTON_CLICKED' });
+        callback({ type: 'DONE_BUTTON_CLICKED', duration });
+      } catch (error) {
+        console.error('Error in FAB event listener:', error);
+      }
+    });
+  },
+
+  resetToPhaseOneAfterDone: (duration = 500) => {
+    console.log('📢 [FAB Events] Broadcasting done reset - unlock + phase 1 for', duration, 'ms');
+    fabControlListeners.forEach(callback => {
+      try {
+        callback({ type: 'DONE_RESET_TO_PHASE_ONE', duration });
       } catch (error) {
         console.error('Error in FAB event listener:', error);
       }

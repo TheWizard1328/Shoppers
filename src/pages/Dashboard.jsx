@@ -2918,9 +2918,7 @@ function Dashboard() {
         invalidate('Delivery');
         await handleDualDriverOptimization(originalDriverId, driverId, deliveryDate);
         await refreshData();
-        setShowDeliveryForm(false);
-        setEditingDelivery(null);
-        hasAutoSelectedRef.current = false; // Reset flag to allow auto-selection after driver transfer
+        setShowDeliveryForm(false), setEditingDelivery(null), hasAutoSelectedRef.current = false, fabControlEvents.resetToPhaseOneAfterDone(500);
         return;
       }
 
@@ -2978,8 +2976,7 @@ function Dashboard() {
         invalidate('Delivery');
         await refreshData();
 
-        setShowDeliveryForm(false);
-        setEditingDelivery(null);
+        setShowDeliveryForm(false), setEditingDelivery(null), fabControlEvents.resetToPhaseOneAfterDone(500);
         return;
       }
 
@@ -3417,6 +3414,7 @@ function Dashboard() {
 
 
       hasAutoSelectedRef.current = false; // Reset to allow auto-selection after saving
+      setShowDeliveryForm(false), setEditingDelivery(null), fabControlEvents.resetToPhaseOneAfterDone(500);
 
     } catch (error) {
       console.error('');
