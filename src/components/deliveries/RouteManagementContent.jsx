@@ -3,6 +3,16 @@ import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from "@/components/ui/alert-dialog";
 import { Pencil, Package, Trash2 } from "lucide-react";
 import StopCard from "../common/StopCard";
 import StopDetailsPanel from "./StopDetailsPanel";
@@ -40,6 +50,7 @@ export default function RouteManagementContent({
   const [bulkEditMode, setBulkEditMode] = useState(false);
   const [selectedBulkDeliveryIds, setSelectedBulkDeliveryIds] = useState([]);
   const [isBulkEditPanelOpen, setIsBulkEditPanelOpen] = useState(false);
+  const [isBulkDeleteConfirmOpen, setIsBulkDeleteConfirmOpen] = useState(false);
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
 
   useEffect(() => {
@@ -91,6 +102,7 @@ export default function RouteManagementContent({
 
   const handleCancelBulkEdit = useCallback(() => {
     setIsBulkEditPanelOpen(false);
+    setIsBulkDeleteConfirmOpen(false);
     setBulkEditMode(false);
     setSelectedBulkDeliveryIds([]);
   }, []);
@@ -112,14 +124,13 @@ export default function RouteManagementContent({
 
   const handleBulkDeleteSelected = useCallback(async () => {
     if (selectedBulkDeliveryIds.length === 0 || isBulkUpdating) return;
-    const confirmed = window.confirm(`Delete ${selectedBulkDeliveryIds.length} selected stop${selectedBulkDeliveryIds.length === 1 ? "" : "s"}?`);
-    if (!confirmed) return;
 
     setIsBulkUpdating(true);
     try {
       for (const deliveryId of selectedBulkDeliveryIds) {
         await onDelete(deliveryId);
       }
+      setIsBulkDeleteConfirmOpen(false);
       setSelectedBulkDeliveryIds([]);
       setBulkEditMode(false);
     } finally {
@@ -195,7 +206,7 @@ export default function RouteManagementContent({
                     <Pencil className="w-4 h-4" />
                     Edit Selected
                   </Button>
-                  <Button variant="destructive" className="gap-2" onClick={handleBulkDeleteSelected} disabled={selectedBulkDeliveryIds.length === 0 || isBulkUpdating}>
+                  <Button variant="destructive" className="gap-2" onClick={() => setIsBulkDeleteConfirmOpen(true)} disabled={selectedBulkDeliveryIds.length === 0 || isBulkUpdating}>
                     <Trash2 className="w-4 h-4" />
                     Delete Selected
                   </Button>
@@ -336,6 +347,23 @@ export default function RouteManagementContent({
         currentUser={currentUser}
         onApply={handleBulkEditApply}
         isSaving={isBulkUpdating} />
+
+      <AlertDialog open={isBulkDeleteConfirmOpen} onOpenChange={setIsBulkDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete selected stops?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete {selectedBulkDeliveryIds.length} selected stop{selectedBulkDeliveryIds.length === 1 ? "" : "s"}.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBulkUpdating}>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleBulkDeleteSelected} disabled={isBulkUpdating}>
+              {isBulkUpdating ? "Deleting..." : "Delete Stops"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>);
 
 
