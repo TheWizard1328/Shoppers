@@ -757,7 +757,7 @@ export default function PayrollSummaryCard({
         }
       `}</style>
      <Card className="mt-4" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-       <CardHeader className="px-6 py-1 flex flex-col">
+       <CardHeader className="px-3 py-1 space-y-1.5 flex flex-col">
         {/* Mobile View: 2 rows */}
         <div className="md:hidden flex flex-col gap-2">
           <div className="flex items-start justify-between gap-3">
@@ -767,49 +767,49 @@ export default function PayrollSummaryCard({
                 Payroll
               </CardTitle>
 
-              {isAdmin && driversWithDeliveriesIds.length > 0 && selectedDriverId === 'all' && !isAdminFinalized && (
+              {isAdmin && driversWithDeliveriesIds.length > 0 && selectedDriverId === 'all' && !isAdminFinalized &&
                 <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
                   <Users className="w-3 h-3 inline mr-1" />
                   {finalizedDriversCount}/{driversWithDeliveriesIds.length} confirmed
                 </span>
-              )}
+                }
             </div>
 
             <div className="flex items-center gap-2 justify-end">
-              {isAdmin && driversWithDeliveriesIds.length > 0 && selectedDriverId === 'all' && !isAdminFinalized && (
+              {isAdmin && driversWithDeliveriesIds.length > 0 && selectedDriverId === 'all' && !isAdminFinalized &&
                 <Button
                   size="sm"
                   onClick={() => setShowConfirmDialog(true)}
                   disabled={isFinalizing || !canFinalize || isAdminFinalized}
                   className={`gap-2 h-8 ${allDriversFinalized && canFinalize ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'}`}
                   title={isAdminFinalized ? 'Already finalized' : !canFinalize ? 'Cannot finalize until pay period ends' : ''}>
-                  {allDriversFinalized ? (
-                    <>
+                  {allDriversFinalized ?
+                  <>
                       <CheckCircle className="w-4 h-4" />
                       {isFinalizing ? 'Finalizing...' : 'Finalize All'}
-                    </>
-                  ) : (
-                    <>
+                    </> :
+
+                  <>
                       <Clock className="w-4 h-4" />
                       {isFinalizing ? 'Finalizing...' : 'Finalize All'}
                     </>
-                  )}
+                  }
                 </Button>
-              )}
+                }
 
               {(isDriver && selectedDriverId === currentUser?.id ||
                 isAdmin && userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id) &&
-                !isCurrentDriverFinalized && (
-                  <Button
-                    size="sm"
-                    onClick={() => setShowConfirmDialog(true)}
-                    disabled={isFinalizing || !canFinalize || isCurrentDriverFinalized}
-                    className="gap-2 bg-emerald-600 hover:bg-emerald-700 h-8"
-                    title={isCurrentDriverFinalized ? 'Already confirmed' : !canFinalize ? 'Cannot finalize until pay period ends' : ''}>
+                !isCurrentDriverFinalized &&
+                <Button
+                  size="sm"
+                  onClick={() => setShowConfirmDialog(true)}
+                  disabled={isFinalizing || !canFinalize || isCurrentDriverFinalized}
+                  className="gap-2 bg-emerald-600 hover:bg-emerald-700 h-8"
+                  title={isCurrentDriverFinalized ? 'Already confirmed' : !canFinalize ? 'Cannot finalize until pay period ends' : ''}>
                     <CheckCircle className="w-4 h-4" />
                     {isFinalizing ? 'Finalizing...' : 'Confirm My Payroll'}
                   </Button>
-                )}
+                }
 
               <Button size="sm" variant="outline" onClick={() => handleExport(stores || [])} className="gap-2 h-8" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                 <Download className="w-4 h-4" />
@@ -818,21 +818,21 @@ export default function PayrollSummaryCard({
             </div>
           </div>
 
-          {(isAdmin && driversWithDeliveriesIds.length > 0 && selectedDriverId === 'all' && isAdminFinalized) && (
+          {isAdmin && driversWithDeliveriesIds.length > 0 && selectedDriverId === 'all' && isAdminFinalized &&
             <div className="flex items-center justify-end gap-1 text-sm text-emerald-600 font-medium px-2">
               <CheckCircle className="w-4 h-4" />
               Finalized
             </div>
-          )}
+            }
 
-          {((isDriver && selectedDriverId === currentUser?.id) ||
-            (isAdmin && userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id)) &&
-            isCurrentDriverFinalized && (
-              <div className="flex items-center justify-end gap-1 text-sm text-emerald-600 font-medium px-2">
+          {(isDriver && selectedDriverId === currentUser?.id ||
+            isAdmin && userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id) &&
+            isCurrentDriverFinalized &&
+            <div className="flex items-center justify-end gap-1 text-sm text-emerald-600 font-medium px-2">
                 <CheckCircle className="w-4 h-4" />
                 Confirmed
               </div>
-            )}
+            }
         </div>
         
         {/* Desktop View: Original single row layout */}
