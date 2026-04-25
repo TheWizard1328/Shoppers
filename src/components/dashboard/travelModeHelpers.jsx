@@ -13,12 +13,12 @@ export function normalizeTravelMode(mode) {
 export function getTravelModeLineStyle(mode, color) {
   const normalized = normalizeTravelMode(mode);
   if (normalized === 'cycling') {
-    return { color: '#16A34A', weight: 2, opacity: 0.9, dashArray: '2 4' };
+    return { color: '#16A34A', weight: 3, opacity: 0.9, dashArray: '2 4' };
   }
   if (normalized === 'pedestrian') {
-    return { color, weight: 2, opacity: 0.9, dashArray: '3 8' };
+    return { color, weight: 3, opacity: 0.9, dashArray: '3 8' };
   }
-  return { color, weight: 2, opacity: 0.9, dashArray: '' };
+  return { color, weight: 3, opacity: 0.9, dashArray: '' };
 }
 
 export function getPreferredTravelMode(appUsers = [], currentUserId) {

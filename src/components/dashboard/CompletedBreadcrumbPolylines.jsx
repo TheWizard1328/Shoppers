@@ -6,9 +6,14 @@ import { getTravelModeLineStyle, normalizeTravelMode } from "./travelModeHelpers
 
 const FINISHED = ["completed", "failed", "cancelled"];
 const getType3PolylineColor = (driverId) => {
-  const driverColor = generateDriverColor(String(driverId || 'driver'));
-  const disallowedBlueShades = new Set(['#2563EB', '#1E90FF', '#3B82F6', '#60A5FA']);
-  return disallowedBlueShades.has(driverColor) ? '#7C3AED' : driverColor;
+  const driverColor = generateDriverColor(String(driverId || 'driver')).toLowerCase();
+  const nonBlueFallbacks = ['#7c3aed', '#9333ea', '#a16207', '#dc2626', '#16a34a'];
+  const isBlueShade = driverColor.includes('2563eb') || driverColor.includes('1e90ff') || driverColor.includes('3b82f6') || driverColor.includes('60a5fa') || driverColor.includes('0ea5e9') || driverColor.includes('06b6d4');
+  if (isBlueShade) {
+    const hashSeed = String(driverId || 'driver').split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
+    return nonBlueFallbacks[hashSeed % nonBlueFallbacks.length];
+  }
+  return driverColor;
 };
 const getFinishedLegRouteStyle = (driverId, deliveryTravelMode, opacityOverride) => {
   const mode = normalizeTravelMode(deliveryTravelMode || 'driving');
