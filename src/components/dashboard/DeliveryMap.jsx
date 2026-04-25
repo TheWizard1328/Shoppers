@@ -927,10 +927,15 @@ export default function DeliveryMap({
 
   useEffect(() => {
     if (!map || !tileLayerConfig?.base) return;
-    map.eachLayer((layer) => {
-      if (layer instanceof L.TileLayer) {
-        layer.redraw();
-      }
+
+    requestAnimationFrame(() => {
+      map.invalidateSize(true);
+      map.eachLayer((layer) => {
+        if (layer instanceof L.TileLayer) {
+          layer.redraw();
+        }
+      });
+      map.panBy([0, 0], { animate: false });
     });
   }, [map, mapStyle, tileLayerConfig]);
 
