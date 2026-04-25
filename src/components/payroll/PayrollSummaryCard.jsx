@@ -757,7 +757,7 @@ export default function PayrollSummaryCard({
         }
       `}</style>
      <Card className="mt-4" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-       <CardHeader className="px-3 py-1 space-y-1.5 flex flex-col">
+       <CardHeader className="px-4 space-y-1.5 flex flex-col">
         {/* Mobile View: 2 rows */}
         <div className="md:hidden flex flex-col gap-2">
           <div className="flex items-start justify-between gap-3">
