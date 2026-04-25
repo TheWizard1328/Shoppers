@@ -7,9 +7,13 @@ export default function RouteDirectionDecorator({ positions = [], color = "#2563
   const map = useMap();
 
   useEffect(() => {
-    if (!map || !Array.isArray(positions) || positions.length < 2) return;
+    const validPositions = Array.isArray(positions)
+      ? positions.filter((point) => Array.isArray(point) && point.length >= 2 && Number.isFinite(Number(point[0])) && Number.isFinite(Number(point[1])))
+      : [];
 
-    const decorator = L.polylineDecorator(positions, {
+    if (!map || validPositions.length < 2) return;
+
+    const decorator = L.polylineDecorator(validPositions, {
       patterns: [
         {
           offset: pattern,

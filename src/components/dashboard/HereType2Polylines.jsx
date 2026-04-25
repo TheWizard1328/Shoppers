@@ -306,6 +306,9 @@ export default function HereType2Polylines({
 
 
   // Preserve last non-empty set only in multi-driver mode to avoid ghost lines when switching drivers
-  useEffect(() => { if (lines.length && multiDriverMode) setLastNonEmptyLines(lines); }, [lines.length, multiDriverMode, refreshToken, deliveryMarkers.length, pickupMarkers.length]);
-  return lines.length ? <>{lines}</> : (lastNonEmptyLines.length ? <>{lastNonEmptyLines}</> : null);
+  useEffect(() => {
+    if (lines.length && multiDriverMode) setLastNonEmptyLines(lines);
+    if (!multiDriverMode) setLastNonEmptyLines([]);
+  }, [lines.length, multiDriverMode, refreshToken, deliveryMarkers.length, pickupMarkers.length]);
+  return lines.length ? <>{lines}</> : null;
 }

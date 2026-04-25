@@ -633,7 +633,10 @@ export default function HereType1Polylines({
   // Completed-route return-home leg stays hidden from current type 1 view
 
   // Preserve last non-empty set only in multi-driver showAll mode to prevent ghost lines on driver switch
-  useEffect(() => { if (lines.length && showAll) setLastNonEmptyLines(lines); }, [lines.length, showAll, refreshToken, deliveryMarkers.length, pickupMarkers.length]);
+  useEffect(() => {
+    if (lines.length && showAll) setLastNonEmptyLines(lines);
+    if (!showAll) setLastNonEmptyLines([]);
+  }, [lines.length, showAll, refreshToken, deliveryMarkers.length, pickupMarkers.length]);
 
   // Safety: dedupe by key at the very end to ensure no accidental duplicates sneak in
   const uniqueLines = React.useMemo(() => {
@@ -648,5 +651,5 @@ export default function HereType1Polylines({
   }, [lines]);
 
 
-  return isGrace ? null : (uniqueLines.length ? <>{uniqueLines}</> : ((showAll && lastNonEmptyLines.length) ? <>{lastNonEmptyLines}</> : null));
+  return isGrace ? null : (uniqueLines.length ? <>{uniqueLines}</> : null);
 }
