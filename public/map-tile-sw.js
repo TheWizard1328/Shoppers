@@ -1,21 +1,26 @@
-const TILE_CACHE_NAME = 'rxdeliver-map-tiles-v1';
-const MAX_CACHE_ENTRIES = 1200;
-const TILE_HOST_PATTERNS = [
-  'cartocdn.com',
-  'hereapi.com',
-  'maps.hereapi.com'
+const CACHE_NAME = 'here-raster-tiles-v3';
+const HERE_TILE_HOSTS = [
+  'maps.hereapi.com',
+  'maps.here.com'
 ];
 
-const isTileRequest = (request) => {
-  const url = new URL(request.url);
-  return TILE_HOST_PATTERNS.some((host) => url.hostname.includes(host));
+const isHereTileRequest = (requestUrl) => {
+  try {
+    const url = new URL(requestUrl);
+    if (!HERE_TILE_HOSTS.includes(url.hostname)) return false;
+    return /\/v3\/base\//.test(url.pathname);
+  } catch {
+    return false;
+  }
 };
 
-const trimCache = async (cache) => {
-  const keys = await cache.keys();
-  if (keys.length <= MAX_CACHE_ENTRIES) return;
-  const overflow = keys.length - MAX_CACHE_ENTRIES;
-  await Promise.all(keys.slice(0, overflow).map((request) => cache.delete(request)));
+const buildCacheKey = (request) => {
+  const url = new URL(request.url);
+  const style = url.searchParams.get('style') || '';
+  const size = url.searchParams.get('size') || '';
+  const lang = url.searchParams.get('lang') || '';
+  const ppi = url.searchParams.get('ppi') || '';
+  return `${url.origin}${url.pathname}?style=${style}&size=${size}&lang=${lang}&ppi=${ppi}`;
 };
 
 self.addEventListener('install', (event) => {
@@ -27,18 +32,30 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET' || !isTileRequest(event.request)) return;
+  const { request } = event;
+
+  if (request.method !== 'GET' || !isHereTileRequest(request.url)) {
+    return;
+  }
 
   event.respondWith((async () => {
-    const cache = await caches.open(TILE_CACHE_NAME);
-    const cached = await cache.match(event.request);
-    if (cached) return cached;
+    const cache = await caches.open(CACHE_NAME);
+    const cacheKey = buildCacheKey(request);
+    const cached = await cache.match(cacheKey);
 
-    const response = await fetch(event.request);
-    if (response.ok) {
-      cache.put(event.request, response.clone());
-      trimCache(cache);
+    if (cached) {
+      return cached;
     }
+
+    const response = await fetch(request, {
+      mode: 'cors',
+      credentials: 'omit'
+    });
+
+    if (response.ok) {
+      cache.put(cacheKey, response.clone()).catch(() => {});
+    }
+
     return response;
   })());
 });
