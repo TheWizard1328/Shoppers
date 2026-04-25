@@ -904,6 +904,8 @@ export default function DeliveryMap({
       Number(nextStop.longitude).toFixed(6)
     ].join(":");
 
+    if (!map?._loaded || !map?._container || !map?._mapPane) return;
+
     const now = Date.now();
     const destinationChanged = phase2FollowKeyRef.current !== nextKey;
     const currentMapBounds = map.getBounds();
