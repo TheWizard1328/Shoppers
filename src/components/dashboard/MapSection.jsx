@@ -23,6 +23,7 @@ export default function MapSection({
   polylineResetKey,
   realTimeETAEnabled, showDeliveryForm, showPatientForm, showOptimizationSettings,
   preferredTravelMode, onTravelModeChange,
+  mapStyle,
   immersiveHidden, isDriverMoving, immersiveOverrideActive, onImmersiveMapTap,
   mapViewPhase = 1, isMapViewLocked = false,
   topOverlayHeight = 0,
@@ -114,6 +115,7 @@ export default function MapSection({
           mapViewPhase={mapViewPhase}
           isMapViewLocked={isMapViewLocked}
           topOverlayHeight={!immersiveHidden ? topOverlayHeight : 0}
+          mapStyle={mapStyle}
           preferredTravelMode={preferredTravelMode}
           onTravelModeChange={onTravelModeChange}
           onMapReady={() => {

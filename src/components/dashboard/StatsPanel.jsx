@@ -460,13 +460,13 @@ export default function StatsPanel({
               {showMapStyleOptions && <>
                 <div className="pt-1 border-t border-slate-200"></div>
                 <div className="flex items-center gap-1">
-                  <Button variant="outline" size="sm" onClick={() => setMapStyle('explore')} className="h-8 px-2 flex-shrink-0" style={{ background: mapStyle === 'explore' ? 'var(--bg-slate-100)' : 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                  <Button variant="outline" size="sm" onClick={() => setMapStyle('explore')} className="h-8 px-2 flex-shrink-0" style={{ background: mapStyle === 'explore' ? '#16a34a' : 'var(--bg-white)', borderColor: mapStyle === 'explore' ? '#16a34a' : 'var(--border-slate-300)', color: mapStyle === 'explore' ? '#ffffff' : 'var(--text-slate-900)' }}>
                     <span className="text-xs">Explore</span>
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => setMapStyle('satellite')} className="h-8 px-2 flex-shrink-0" style={{ background: mapStyle === 'satellite' ? 'var(--bg-slate-100)' : 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                  <Button variant="outline" size="sm" onClick={() => setMapStyle('satellite')} className="h-8 px-2 flex-shrink-0" style={{ background: mapStyle === 'satellite' ? '#16a34a' : 'var(--bg-white)', borderColor: mapStyle === 'satellite' ? '#16a34a' : 'var(--border-slate-300)', color: mapStyle === 'satellite' ? '#ffffff' : 'var(--text-slate-900)' }}>
                     <span className="text-xs">Satellite</span>
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => setMapStyle('hybrid')} className="h-8 px-2 flex-shrink-0" style={{ background: mapStyle === 'hybrid' ? 'var(--bg-slate-100)' : 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                  <Button variant="outline" size="sm" onClick={() => setMapStyle('hybrid')} className="h-8 px-2 flex-shrink-0" style={{ background: mapStyle === 'hybrid' ? '#16a34a' : 'var(--bg-white)', borderColor: mapStyle === 'hybrid' ? '#16a34a' : 'var(--border-slate-300)', color: mapStyle === 'hybrid' ? '#ffffff' : 'var(--text-slate-900)' }}>
                     <span className="text-xs">Hybrid</span>
                   </Button>
                 </div>
