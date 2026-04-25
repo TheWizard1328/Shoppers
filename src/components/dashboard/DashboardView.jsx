@@ -66,6 +66,7 @@ export default function DashboardView({
   // AI
   isAIEnabled, showAIAssistant,
   preferredTravelMode, onTravelModeChange,
+  mapStyle, setMapStyle,
   // Live ETA
   realTimeETAEnabled,
   // Misc
@@ -211,6 +212,8 @@ export default function DashboardView({
           finalizedDutyTime={finalizedDutyTime}
           refreshUser={refreshUser} dataSource={dataSource}
           isMobile={isMobile}
+          mapStyle={mapStyle}
+          setMapStyle={setMapStyle}
         />
         </div>
         <DashboardMapSection
@@ -238,6 +241,7 @@ export default function DashboardView({
           onImmersiveMapTap={onImmersiveMapTap}
           mapViewPhase={mapViewPhase}
           isMapViewLocked={isMapViewLocked}
+          mapStyle={mapStyle}
         />
 
         <div
