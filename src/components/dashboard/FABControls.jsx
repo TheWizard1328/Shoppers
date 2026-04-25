@@ -84,7 +84,7 @@ export default function FABControls({
 
   return (
     <>
-      <MapViewCycleFAB onClick={() => {
+      <MapViewCycleFAB currentUser={currentUser} filteredDeliveries={filteredDeliveries} onClick={() => {
         if (isDispatcher && mapViewPhase === 1 && selectedStore) {
           const pad = getMapPadding();
           setShouldFitBounds({ bounds: buildRadiusBoundsFromStore(selectedStore, 2.5), options: { ...pad, maxZoom: 14, animate: true } });

@@ -8,6 +8,35 @@ const fabControlListeners = new Set();
 const isUserControllingMap = () => typeof window !== 'undefined' && (window._userMapControlUntil || 0) > Date.now();
 const isUserSwipingStopCards = () => typeof window !== 'undefined' && (window.__suppressCardAutoCenterUntil || 0) > Date.now();
 
+const hasDispatcherActiveStopsForStore = () => {
+  if (typeof window === 'undefined') return false;
+  const currentUser = window.__currentUserForFAB;
+  const deliveries = window.__fabContextDeliveries || [];
+  if (!currentUser || !Array.isArray(currentUser.app_roles) || !currentUser.app_roles.includes('dispatcher')) return false;
+  const storeIds = Array.isArray(currentUser.store_ids) ? currentUser.store_ids : [];
+  if (storeIds.length === 0) return false;
+  return deliveries.some((delivery) => delivery && storeIds.includes(delivery.store_id) && delivery.status === 'in_transit');
+};
+
+const shouldAllowRefreshDrivenFABReactivation = () => {
+  if (typeof window === 'undefined') return false;
+  const currentUser = window.__currentUserForFAB;
+  const currentPhase = window.__currentMapViewPhase || 1;
+  const isLocked = window.__currentMapViewFABLocked === true;
+
+  if (!currentUser || !Array.isArray(currentUser.app_roles)) return false;
+
+  if (currentUser.app_roles.includes('dispatcher')) {
+    return hasDispatcherActiveStopsForStore();
+  }
+
+  if (currentUser.app_roles.includes('driver')) {
+    return (currentPhase === 2 || currentPhase === 3) && !isLocked;
+  }
+
+  return false;
+};
+
 export const fabControlEvents = {
   /**
    * Subscribe to FAB control events
@@ -87,6 +116,10 @@ export const fabControlEvents = {
    * Called after background data loads, date changes, or driver changes complete
    */
   notifyDataReady: () => {
+    if (!shouldAllowRefreshDrivenFABReactivation()) {
+      console.log('📢 [FAB Events] Skipping data-ready FAB reactivation due to role/phase rules');
+      return;
+    }
     console.log('📢 [FAB Events] Broadcasting data ready - reactivating current FAB phase');
     fabControlListeners.forEach(callback => {
       try {

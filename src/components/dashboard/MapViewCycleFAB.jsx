@@ -5,7 +5,7 @@ import { Target, Maximize2, Minimize2 } from 'lucide-react';
 import { isMobileDevice } from '@/components/utils/deviceUtils';
 import { fabControlEvents } from '@/components/utils/fabControlEvents';
 
-export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards = false, isAIVisible = false, isLocked = false, isEnabled = true, stopCardsHeight = 75, isMotionDimmed = false, immersiveHidden = false }) {
+export default function MapViewCycleFAB({ currentUser = null, filteredDeliveries = [], onClick, currentPhase, hasVisibleCards = false, isAIVisible = false, isLocked = false, isEnabled = true, stopCardsHeight = 75, isMotionDimmed = false, immersiveHidden = false }) {
   const [isFlashing, setIsFlashing] = useState(false);
   const [isTemporarilyDeactivated, setIsTemporarilyDeactivated] = useState(false);
   const flashTimeoutRef = useRef(null);
@@ -37,12 +37,18 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
   useEffect(() => {
     window.__fabFlashUpdate = flashUpdate;
     window.__currentMapViewPhase = currentPhase;
+    window.__currentMapViewFABLocked = isLocked;
+    window.__currentUserForFAB = currentUser || null;
+    window.__fabContextDeliveries = filteredDeliveries || [];
     return () => {
       if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
       delete window.__fabFlashUpdate;
       delete window.__currentMapViewPhase;
+      delete window.__currentMapViewFABLocked;
+      delete window.__currentUserForFAB;
+      delete window.__fabContextDeliveries;
     };
-  }, [currentPhase, flashUpdate]);
+  }, [currentPhase, flashUpdate, isLocked, currentUser, filteredDeliveries]);
 
   useEffect(() => {
     const unsubscribe = fabControlEvents.subscribe((event) => {
@@ -65,8 +71,8 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
         return;
       }
 
-      if (event?.type !== 'REACTIVATE_FAB' && event?.type !== 'IMMERSIVE_MODE_TOGGLED') return;
-      if (event?.type === 'REACTIVATE_FAB' && (window.__suppressCardAutoCenterUntil || 0) > Date.now()) return;
+      if (event?.type !== 'REACTIVATE_FAB' && event?.type !== 'IMMERSIVE_MODE_TOGGLED' && event?.type !== 'DATA_READY') return;
+      if ((event?.type === 'REACTIVATE_FAB' || event?.type === 'DATA_READY') && (window.__suppressCardAutoCenterUntil || 0) > Date.now()) return;
       setIsTemporarilyDeactivated(false);
       if (deactivateTimeoutRef.current) clearTimeout(deactivateTimeoutRef.current);
       if (event?.suppressIfPhase1 && currentPhase === 1) return;
