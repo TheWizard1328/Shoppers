@@ -4,6 +4,10 @@ import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { format } from "date-fns";
 import { base44 } from "@/api/base44Client";
+
+const HERE_RASTER_API_KEY = import.meta.env.VITE_HERE_API_KEY;
+const HERE_LIGHT_TILE_URL = `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=explore.day&size=512&apiKey=${HERE_RASTER_API_KEY}`;
+const HERE_DARK_TILE_URL = `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=explore.night&size=512&apiKey=${HERE_RASTER_API_KEY}`;
 import { isMobileDevice } from "../utils/deviceUtils";
 import { getStoreColor } from "../utils/colorGenerator";
 import { userHasRole } from "../utils/userRoles";
@@ -1046,10 +1050,12 @@ export default function DeliveryMap({
         }}
       >
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+          attribution='&copy; <a href="https://www.here.com/">HERE</a>'
           url={document.documentElement.classList.contains("dark-theme") || (document.documentElement.classList.contains("auto-theme") && window.matchMedia("(prefers-color-scheme: dark)").matches)
-            ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-            : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"}
+            ? HERE_DARK_TILE_URL
+            : HERE_LIGHT_TILE_URL}
+          tileSize={512}
+          zoomOffset={-1}
         />
 
         <MapController
