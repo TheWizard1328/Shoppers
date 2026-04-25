@@ -270,9 +270,9 @@ export default function PayrollMobileCard({
           <div className="grid gap-1 text-red-700" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px' }}>
             <div className="text-left">
               {isAdmin && onDeductionsClick ?
-              <button onClick={() => onDeductionsClick(data.driver.id)} className="inline-flex items-center leading-none p-0 m-0 min-h-0 h-auto text-blue-600 hover:text-blue-700 font-medium align-middle">
+              <span onClick={() => onDeductionsClick(data.driver.id)} className="text-blue-600 hover:text-blue-700 font-medium cursor-pointer">
                   Deductions:
-                </button> :
+                </span> :
 
               'Deductions:'
               }
@@ -289,9 +289,9 @@ export default function PayrollMobileCard({
           <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-blue-700)' }}>
               <div className="text-left">
                 {isAdmin && onBonusClick ?
-              <button onClick={() => onBonusClick(data.driver.id)} className="inline-flex items-center leading-none p-0 m-0 min-h-0 h-auto text-blue-600 hover:text-blue-700 font-medium align-middle">
+              <span onClick={() => onBonusClick(data.driver.id)} className="text-blue-600 hover:text-blue-700 font-medium cursor-pointer">
                     Bonus:
-                  </button> :
+                  </span> :
 
               'Bonus:'
               }
