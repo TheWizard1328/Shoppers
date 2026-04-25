@@ -39,14 +39,14 @@ export default function PayrollMobileCard({
   const [isSavingAdmin, setIsSavingAdmin] = useState(false);
   const [isSavingDriver, setIsSavingDriver] = useState(false);
 
-  const toLocalYMD = (d) => {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const da = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${da}`;
-  };
+    const toLocalYMD = (d) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const da = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${da}`;
+    };
 
-  React.useEffect(() => {
+    React.useEffect(() => {
     if (!currentPeriod || !data?.driver?.id) return;
     const startStr = toLocalYMD(currentPeriod.start);
     const endStr = toLocalYMD(currentPeriod.end);
@@ -65,25 +65,25 @@ export default function PayrollMobileCard({
           setAdminNotes('');
           setDriverNotes('');
         }
-      } catch (_) {/* no-op */}
+      } catch (_) { /* no-op */ }
     })();
   }, [currentPeriod?.start, currentPeriod?.end, data?.driver?.id]);
 
-  const canEditDriverNotes = isAdmin || currentUser?.id === data.driver.id;
+  const canEditDriverNotes = isAdmin || (currentUser?.id === data.driver.id);
   const canEditAdminNotes = !!isAdmin;
 
   const saveAdminNotes = async (value) => {
     if (!payrollRecordId || !canEditAdminNotes) return;
     setIsSavingAdmin(true);
-    try {await base44.entities.Payroll.update(payrollRecordId, { admin_notes: value });} finally
-    {setIsSavingAdmin(false);}
+    try { await base44.entities.Payroll.update(payrollRecordId, { admin_notes: value }); }
+    finally { setIsSavingAdmin(false); }
   };
 
   const saveDriverNotes = async (value) => {
     if (!payrollRecordId || !canEditDriverNotes) return;
     setIsSavingDriver(true);
-    try {await base44.entities.Payroll.update(payrollRecordId, { driver_notes: value });} finally
-    {setIsSavingDriver(false);}
+    try { await base44.entities.Payroll.update(payrollRecordId, { driver_notes: value }); }
+    finally { setIsSavingDriver(false); }
   };
 
   const toggleSection = (section) => {
@@ -99,7 +99,7 @@ export default function PayrollMobileCard({
     const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1);
     const ytdDeliveries = deliveries.filter((d) => {
       if (!d || d.driver_id !== data.driver.id) return false;
-      const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
+      const validStatus = (d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup));
       if (!validStatus) return false;
       const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
       return deliveryDate >= yearStart && deliveryDate <= currentPeriod.end;
@@ -144,7 +144,7 @@ export default function PayrollMobileCard({
 
 
   return (
-    <div className="bg-white px-2 py-2 rounded-lg space-y-3 dark:bg-slate-800/50 w-full max-w-full overflow-hidden">
+    <div className="p-4 rounded-lg space-y-3 bg-white dark:bg-slate-800/50 w-full max-w-full overflow-hidden">
       {/* Driver Name Header */}
       <div className="flex items-center justify-between">
         <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
@@ -225,7 +225,7 @@ export default function PayrollMobileCard({
       </div>
 
       {/* Pay Summary - Table Layout with Aligned Columns */}
-      {currentPeriod &&
+      {currentPeriod && (
       <div className="p-3 rounded-lg border w-full overflow-x-hidden" style={{
         background: 'var(--bg-white)',
         borderColor: 'var(--border-slate-200)',
@@ -233,10 +233,10 @@ export default function PayrollMobileCard({
       }}>
         <div className="text-xs font-mono" style={{ color: 'var(--text-slate-900)', minWidth: 0, width: '100%' }}>
           {/* Header Row */}
-          <div className="grid gap-1 mb-2 font-semibold pb-1 border-b" style={{
+          <div className="grid gap-1 mb-2 font-semibold pb-1 border-b" style={{ 
             gridTemplateColumns: '1fr 22px 60px 22px 60px',
-            borderColor: 'var(--border-slate-200)',
-            color: 'var(--text-slate-700)'
+            borderColor: 'var(--border-slate-200)', 
+            color: 'var(--text-slate-700)' 
           }}>
             <div></div>
             <div></div>
@@ -266,35 +266,35 @@ export default function PayrollMobileCard({
           }
 
           {/* Deductions (if any) */}
-          {(isAdmin || (data.deductions || data.total_deductions || data.totalDeductions || 0) > 0 || (ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount || 0) > 0) &&
+          {(isAdmin || ((data.deductions || data.total_deductions || data.totalDeductions || 0) > 0 || (ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount || 0) > 0)) &&
           <div className="grid gap-1 text-red-700" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px' }}>
             <div className="text-left">
-              {isAdmin && onDeductionsClick ?
-              <button onClick={() => onDeductionsClick(data.driver.id)} className="text-blue-600 hover:text-blue-700 font-medium">
+              {isAdmin && onDeductionsClick ? (
+                <button onClick={() => onDeductionsClick(data.driver.id)} className="text-blue-600 hover:text-blue-700 font-medium">
                   Deductions:
-                </button> :
-
-              'Deductions:'
-              }
+                </button>
+              ) : (
+                'Deductions:'
+              )}
             </div>
             <div className="text-right pr-0.5">-$</div>
-            <div className="text-right font-semibold">{periodDeductions.toFixed(2)}</div>
+            <div className="text-right font-semibold">{(periodDeductions).toFixed(2)}</div>
             <div className="text-right pr-0.5">-$</div>
             <div className="text-right font-semibold">{(ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount || 0).toFixed(2)}</div>
           </div>
           }
 
           {/* Bonus (if any) */}
-          {(isAdmin || (bonusAmount || 0) > 0 || (ytdDataByDriver[data.driver.id]?.ytdBonusAmount || 0) > 0) &&
+          {(isAdmin || ((bonusAmount || 0) > 0 || (ytdDataByDriver[data.driver.id]?.ytdBonusAmount || 0) > 0)) &&
           <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-blue-700)' }}>
               <div className="text-left">
-                {isAdmin && onBonusClick ?
-              <button onClick={() => onBonusClick(data.driver.id)} className="text-blue-600 hover:text-blue-700 font-medium">
+                {isAdmin && onBonusClick ? (
+                  <button onClick={() => onBonusClick(data.driver.id)} className="text-blue-600 hover:text-blue-700 font-medium">
                     Bonus:
-                  </button> :
-
-              'Bonus:'
-              }
+                  </button>
+                ) : (
+                  'Bonus:'
+                )}
               </div>
               <div className="text-right pr-0.5">+$</div>
               <div className="text-right font-semibold">{(bonusAmount || 0).toFixed(2)}</div>
@@ -304,16 +304,16 @@ export default function PayrollMobileCard({
           }
 
           {/* App Fee (if any) */}
-          {isAdmin && (isPeriodEndOfMonth || (appFeeAmount || 0) > 0 || (ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount || 0) > 0) &&
+          {isAdmin && (isPeriodEndOfMonth || ((appFeeAmount || 0) > 0 || (ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount || 0) > 0)) &&
           <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-purple-700)' }}>
               <div className="text-left">
-                {onAppFeeClick ?
-              <button onClick={() => onAppFeeClick(data.driver.id)} className="text-blue-600 hover:text-blue-700 font-medium">
+                {onAppFeeClick ? (
+                  <button onClick={() => onAppFeeClick(data.driver.id)} className="text-blue-600 hover:text-blue-700 font-medium">
                     App Fee %:
-                  </button> :
-
-              'App Fee %:'
-              }
+                  </button>
+                ) : (
+                  'App Fee %:'
+                )}
               </div>
               <div className="text-right pr-0.5">+$</div>
               <div className="text-right font-semibold">{(appFeeAmount || 0).toFixed(2)}</div>
@@ -323,10 +323,10 @@ export default function PayrollMobileCard({
           }
 
           {/* Gross (bold, divider) */}
-          <div className="grid gap-1 pt-1 border-t font-bold" style={{
+          <div className="grid gap-1 pt-1 border-t font-bold" style={{ 
             gridTemplateColumns: '1fr 22px 60px 22px 60px',
-            borderColor: 'var(--border-slate-200)',
-            color: '#10b981'
+            borderColor: 'var(--border-slate-200)', 
+            color: '#10b981' 
           }}>
             <div className="text-left">Net:</div>
             <div className="text-right pr-0.5">$</div>
@@ -337,20 +337,20 @@ export default function PayrollMobileCard({
 
           {/* Inline Notes (hidden from exports) */}
           <div data-notes-section="true" className="mt-3 space-y-3">
-            {isAdmin &&
-            <div>
+            {isAdmin && (
+              <div>
                 <div className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Admin Notes</div>
                 <textarea
-                value={adminNotes}
-                onChange={(e) => setAdminNotes(e.target.value)}
-                onBlur={() => saveAdminNotes(adminNotes)}
-                disabled={!canEditAdminNotes || !payrollRecordId}
-                className="w-full min-h-[64px] text-xs p-2 rounded border border-slate-200 bg-white text-slate-900 placeholder-slate-400 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:placeholder-slate-500 disabled:opacity-60"
-                placeholder={payrollRecordId ? "Private notes (admins only)" : "Notes unavailable (no record yet)"} />
-              
+                  value={adminNotes}
+                  onChange={(e) => setAdminNotes(e.target.value)}
+                  onBlur={() => saveAdminNotes(adminNotes)}
+                  disabled={!canEditAdminNotes || !payrollRecordId}
+                  className="w-full min-h-[64px] text-xs p-2 rounded border border-slate-200 bg-white text-slate-900 placeholder-slate-400 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:placeholder-slate-500 disabled:opacity-60"
+                  placeholder={payrollRecordId ? "Private notes (admins only)" : "Notes unavailable (no record yet)"}
+                />
                 {isSavingAdmin && <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Saving...</div>}
               </div>
-            }
+            )}
             <div>
               <div className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Driver Notes</div>
               <textarea
@@ -359,14 +359,14 @@ export default function PayrollMobileCard({
                 onBlur={() => saveDriverNotes(driverNotes)}
                 disabled={!canEditDriverNotes || !payrollRecordId}
                 className="w-full min-h-[64px] text-xs p-2 rounded border border-slate-200 bg-white text-slate-900 placeholder-slate-400 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:placeholder-slate-500 disabled:opacity-60"
-                placeholder={payrollRecordId ? "Visible to driver + admins" : "Notes unavailable (no record yet)"} />
-              
+                placeholder={payrollRecordId ? "Visible to driver + admins" : "Notes unavailable (no record yet)"}
+              />
               {isSavingDriver && <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Saving...</div>}
             </div>
           </div>
         </div>
       </div>
-      }
+      )}
     </div>);
 
 }

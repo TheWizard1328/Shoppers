@@ -990,14 +990,14 @@ export default function DriverPayroll() {
           {/* Row 2 (Mobile centered) / Middle section (Desktop) */}
           <div className="flex flex-row items-center gap-2 justify-center w-full">
             {/* City, Year, Driver Dropdowns */}
-            <div className="grid grid-cols-2 gap-2 w-full max-w-[220px] sm:max-w-none sm:flex sm:flex-nowrap sm:items-center">
+            <div className="flex items-center gap-2">
               {/* City Filter */}
               <Select value={selectedCityId} onValueChange={(v) => {
               React.startTransition(() => {
                 setSelectedCityId(v);
               });
             }} disabled={isDriver || !sortedCities.length}>
-                <SelectTrigger className="w-full sm:w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                   <SelectValue placeholder="City" />
                 </SelectTrigger>
                 <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
@@ -1015,7 +1015,7 @@ export default function DriverPayroll() {
                 setSelectedYear(Number(v));
               });
             }}>
-                <SelectTrigger className="w-full sm:w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
@@ -1050,7 +1050,7 @@ export default function DriverPayroll() {
 
               setTimeout(() => {isManualChangeRef.current = false;}, 200);
             }} disabled={isDriver}>
-                <SelectTrigger className="w-full sm:w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                   <SelectValue placeholder="Driver" />
                 </SelectTrigger>
                 <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
@@ -1065,7 +1065,7 @@ export default function DriverPayroll() {
 
               {/* Pay Cycle Selector - 4th position dropdown */}
               <Select value={payPeriod || 'monthly'} onValueChange={handlePayPeriodChange} disabled={isDriver}>
-                <SelectTrigger className="w-full sm:w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                   <SelectValue placeholder="Cycle" />
                 </SelectTrigger>
                 <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
