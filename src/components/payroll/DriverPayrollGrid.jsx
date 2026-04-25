@@ -14,12 +14,12 @@ import { isAppOwner } from '@/components/utils/userRoles';
  * Driver Payroll Grid
  * Shows deliveries per store per day for selected pay period
  */
-export default function DriverPayrollGrid({ 
-  deliveries, 
-  stores, 
+export default function DriverPayrollGrid({
+  deliveries,
+  stores,
   patients,
   appUsers,
-  selectedYear, 
+  selectedYear,
   selectedDriverId,
   payPeriod,
   onPayPeriodChange,
@@ -35,7 +35,7 @@ export default function DriverPayrollGrid({
   const navigate = useNavigate();
   const { currentUser } = useUser();
   const isOwner = currentUser && isAppOwner(currentUser);
-  
+
   // Refs for measuring section widths
   const containerRef = useRef(null);
 
@@ -66,19 +66,19 @@ export default function DriverPayrollGrid({
     isDesktopLayout.current = false;
     setHeaderLayout('mobile-stacked');
   }, []);
-  
+
   // Measure and recalculate on mount and resize
   useEffect(() => {
     calculateLayout();
-    
+
     const resizeObserver = new ResizeObserver(() => {
       calculateLayout();
     });
-    
+
     if (containerRef.current) {
       resizeObserver.observe(containerRef.current);
     }
-    
+
     return () => resizeObserver.disconnect();
   }, [calculateLayout]);
 
@@ -86,7 +86,7 @@ export default function DriverPayrollGrid({
   const handleNavigateToDashboard = (dateObj) => {
     // Format date as string for both globalFilters and URL
     const dateStr = format(dateObj, 'yyyy-MM-dd');
-    
+
     // Set global filters for the dashboard
     globalFilters.setSelectedDate(dateStr);
     if (selectedDriverId && selectedDriverId !== 'all') {
@@ -94,7 +94,7 @@ export default function DriverPayrollGrid({
     } else {
       globalFilters.setSelectedDriverId('all');
     }
-    
+
     // Navigate with date in URL as backup to ensure it's applied
     const url = createPageUrl('Dashboard') + `?date=${dateStr}`;
     navigate(url);
@@ -122,18 +122,18 @@ export default function DriverPayrollGrid({
 
   // Generate days array from the current period's start to end date
   const periodDays = useMemo(() => {
-     if (!currentPeriod) return [];
-     const days = [];
-     const start = new Date(currentPeriod.start);
-     const end = new Date(currentPeriod.end);
-     let current = new Date(start);
+    if (!currentPeriod) return [];
+    const days = [];
+    const start = new Date(currentPeriod.start);
+    const end = new Date(currentPeriod.end);
+    let current = new Date(start);
 
-     while (current <= end) {
-       days.push(new Date(current));
-       current.setDate(current.getDate() + 1);
-     }
-     return days;
-   }, [currentPeriod]);
+    while (current <= end) {
+      days.push(new Date(current));
+      current.setDate(current.getDate() + 1);
+    }
+    return days;
+  }, [currentPeriod]);
 
   // Sort stores by sort_order
   const allSortedStores = [...stores].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
@@ -150,9 +150,9 @@ export default function DriverPayrollGrid({
     };
 
     const targetCycle = payCycleMap[payPeriod];
-    const matching = appUsers.filter(au => au?.pay_cycle_type === targetCycle);
+    const matching = appUsers.filter((au) => au?.pay_cycle_type === targetCycle);
 
-    return matching.map(au => au.user_id).filter(Boolean);
+    return matching.map((au) => au.user_id).filter(Boolean);
   }, [appUsers, payPeriod]);
 
   // Filter deliveries for current period and driver
@@ -166,12 +166,12 @@ export default function DriverPayrollGrid({
     // Determine which driver IDs to include
     const driverIdsToInclude = selectedDriverId === 'all' ? driversWithMatchingPayCycle : [selectedDriverId];
 
-    const filtered = deliveries.filter(d => {
+    const filtered = deliveries.filter((d) => {
       if (!d || !d.delivery_date) return false;
       const date = new Date(d.delivery_date + 'T00:00:00');
       if (date < currentPeriod.start || date > currentPeriod.end) return false;
       // Count completed, failed, and cancelled (for after_hours_pickup)
-      const validStatus = d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup);
+      const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
       if (!validStatus) return false;
 
       // Filter by driver ID(s)
@@ -187,7 +187,7 @@ export default function DriverPayrollGrid({
 
   // Get extra km limit for a driver
   const getDriverExtraKmLimit = (driverId) => {
-    const driverAppUser = appUsers?.find(au => au.user_id === driverId);
+    const driverAppUser = appUsers?.find((au) => au.user_id === driverId);
     return driverAppUser?.extra_km_limit || 0;
   };
 
@@ -196,14 +196,14 @@ export default function DriverPayrollGrid({
     if (!delivery) return 0;
     // Exclude no-charge deliveries from extra KM calculations
     if (delivery.no_charge) return 0;
-    
+
     // Use paid_km_override if set, otherwise get distance_from_store from patient
     let distance = delivery.paid_km_override;
     if (distance === undefined || distance === null) {
-      const patient = patients?.find(p => p.id === delivery.patient_id);
+      const patient = patients?.find((p) => p.id === delivery.patient_id);
       distance = patient?.distance_from_store || 0;
     }
-    
+
     const extraKmLimit = getDriverExtraKmLimit(delivery.driver_id);
     const extraKm = distance - extraKmLimit;
     return extraKm > 0 ? extraKm : 0;
@@ -215,21 +215,21 @@ export default function DriverPayrollGrid({
     const kmMap = {};
     const oversizedCountMap = {};
     const storeHasData = {};
-    
-    
-    periodDays.forEach(day => {
+
+
+    periodDays.forEach((day) => {
       const dateKey = format(day, 'yyyy-MM-dd');
       deliveryMap[dateKey] = {};
       kmMap[dateKey] = {};
       oversizedCountMap[dateKey] = {};
-      allSortedStores.forEach(store => {
+      allSortedStores.forEach((store) => {
         deliveryMap[dateKey][store.id] = 0;
         kmMap[dateKey][store.id] = 0;
         oversizedCountMap[dateKey][store.id] = 0;
       });
     });
 
-    filteredDeliveries.forEach(d => {
+    filteredDeliveries.forEach((d) => {
       const dateKey = d.delivery_date;
       const storeId = d.store_id;
       if (deliveryMap[dateKey] && deliveryMap[dateKey][storeId] !== undefined) {
@@ -243,8 +243,8 @@ export default function DriverPayrollGrid({
     });
 
     // Filter out inactive stores only
-    const storesWithDataList = allSortedStores.filter(store => 
-      store.status !== 'inactive'
+    const storesWithDataList = allSortedStores.filter((store) =>
+    store.status !== 'inactive'
     );
 
     return { dataMap: deliveryMap, extraKmMap: kmMap, oversizedMap: oversizedCountMap, storesWithData: storesWithDataList };
@@ -257,13 +257,13 @@ export default function DriverPayrollGrid({
   const { storeTotals, storeKmTotals } = useMemo(() => {
     const totals = {};
     const kmTotals = {};
-    sortedStores.forEach(store => {
+    sortedStores.forEach((store) => {
       totals[store.id] = 0;
       kmTotals[store.id] = 0;
     });
-    periodDays.forEach(day => {
+    periodDays.forEach((day) => {
       const dateKey = format(day, 'yyyy-MM-dd');
-      sortedStores.forEach(store => {
+      sortedStores.forEach((store) => {
         totals[store.id] += dataMap[dateKey]?.[store.id] || 0;
         kmTotals[store.id] += extraKmMap[dateKey]?.[store.id] || 0;
       });
@@ -280,9 +280,9 @@ export default function DriverPayrollGrid({
   };
 
   // Grand total
-  const grandTotal = viewMode === 'extraKm' 
-    ? Object.values(storeKmTotals).reduce((sum, val) => sum + val, 0)
-    : Object.values(storeTotals).reduce((sum, val) => sum + val, 0);
+  const grandTotal = viewMode === 'extraKm' ?
+  Object.values(storeKmTotals).reduce((sum, val) => sum + val, 0) :
+  Object.values(storeTotals).reduce((sum, val) => sum + val, 0);
 
   // Get store color
   const getStoreColor = (store) => store.color || '#64748b';
@@ -296,8 +296,8 @@ export default function DriverPayrollGrid({
         <div className="flex flex-col gap-2" ref={containerRef}>
 
           {/* Desktop 3-Column Layout */}
-          {headerLayout === 'desktop-three-column' && (
-            <div className="flex items-center justify-between gap-8">
+          {headerLayout === 'desktop-three-column' &&
+          <div className="flex items-center justify-between gap-8">
               {/* Left Section: Title + Spinner */}
               <div className="flex items-center gap-2 flex-shrink-0">
                 <CardTitle className="flex items-center gap-2 text-base" style={{ color: 'var(--text-slate-900)' }}>
@@ -312,12 +312,12 @@ export default function DriverPayrollGrid({
               {/* Center Section: Period Navigation + Toggles */}
               <div className="flex items-center justify-center gap-3 flex-1">
                 <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={onPrevPeriod}
-                  disabled={selectedPeriodIndex === 0}
-                  className="h-8 w-8 p-0"
-                >
+                size="sm"
+                variant="ghost"
+                onClick={onPrevPeriod}
+                disabled={selectedPeriodIndex === 0}
+                className="h-8 w-8 p-0">
+                
                   <ChevronLeft className="w-5 h-5" />
                 </Button>
                 <div className="flex flex-col items-center gap-2">
@@ -335,23 +335,23 @@ export default function DriverPayrollGrid({
                   </div>
                 </div>
                 <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={onNextPeriod}
-                  disabled={selectedPeriodIndex === allPeriods.length - 1}
-                  className="h-8 w-8 p-0"
-                >
+                size="sm"
+                variant="ghost"
+                onClick={onNextPeriod}
+                disabled={selectedPeriodIndex === allPeriods.length - 1}
+                className="h-8 w-8 p-0">
+                
                   <ChevronRight className="w-5 h-5" />
                 </Button>
               </div>
 
 
             </div>
-          )}
+          }
 
           {/* Single Row Layout - All elements on one row */}
-          {headerLayout === 'single-row' && (
-            <div className="flex items-center justify-between gap-6">
+          {headerLayout === 'single-row' &&
+          <div className="flex items-center justify-between gap-6">
               {/* Left: Title + Spinner */}
               <div className="flex items-center gap-2 flex-shrink-0">
                 <CardTitle className="flex items-center gap-2 text-base" style={{ color: 'var(--text-slate-900)' }}>
@@ -366,12 +366,12 @@ export default function DriverPayrollGrid({
               {/* Center: Period Navigation */}
               <div className="flex items-center justify-center gap-3 flex-1">
                 <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={onPrevPeriod}
-                  disabled={selectedPeriodIndex === 0}
-                  className="h-8 w-8 p-0"
-                >
+                size="sm"
+                variant="ghost"
+                onClick={onPrevPeriod}
+                disabled={selectedPeriodIndex === 0}
+                className="h-8 w-8 p-0">
+                
                   <ChevronLeft className="w-5 h-5" />
                 </Button>
                 <div className="flex flex-col items-center gap-1">
@@ -379,12 +379,12 @@ export default function DriverPayrollGrid({
                   <div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>{periodDateRange}</div>
                 </div>
                 <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={onNextPeriod}
-                  disabled={selectedPeriodIndex === allPeriods.length - 1}
-                  className="h-8 w-8 p-0"
-                >
+                size="sm"
+                variant="ghost"
+                onClick={onNextPeriod}
+                disabled={selectedPeriodIndex === allPeriods.length - 1}
+                className="h-8 w-8 p-0">
+                
                   <ChevronRight className="w-5 h-5" />
                 </Button>
               </div>
@@ -399,11 +399,11 @@ export default function DriverPayrollGrid({
                 </Button>
               </div>
             </div>
-          )}
+          }
 
           {/* Mobile/Tablet Single Column Layout - 3 Row Stacked */}
-          {headerLayout === 'mobile-stacked' && (
-            <div className="flex flex-col items-center justify-center gap-3">
+          {headerLayout === 'mobile-stacked' &&
+          <div className="flex flex-col items-center justify-center">
               <CardTitle className="flex items-center gap-2 text-base" style={{ color: 'var(--text-slate-900)' }}>
                 <Table className="w-5 h-5" />
                 {viewMode === 'deliveries' ? 'Deliveries' : 'Extra KM'} by Store
@@ -413,12 +413,12 @@ export default function DriverPayrollGrid({
               </CardTitle>
               <div className="flex items-center justify-center gap-3">
                 <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={onPrevPeriod}
-                  disabled={selectedPeriodIndex === 0}
-                  className="h-8 w-8 p-0"
-                >
+                size="sm"
+                variant="ghost"
+                onClick={onPrevPeriod}
+                disabled={selectedPeriodIndex === 0}
+                className="h-8 w-8 p-0">
+                
                   <ChevronLeft className="w-5 h-5" />
                 </Button>
                 <div className="flex flex-col items-center gap-2">
@@ -436,17 +436,17 @@ export default function DriverPayrollGrid({
                   </div>
                 </div>
                 <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={onNextPeriod}
-                  disabled={selectedPeriodIndex === allPeriods.length - 1}
-                  className="h-8 w-8 p-0"
-                >
+                size="sm"
+                variant="ghost"
+                onClick={onNextPeriod}
+                disabled={selectedPeriodIndex === allPeriods.length - 1}
+                className="h-8 w-8 p-0">
+                
                   <ChevronRight className="w-5 h-5" />
                 </Button>
               </div>
             </div>
-          )}
+          }
           </div>
       </CardHeader>
       <CardContent className="p-0">
@@ -455,16 +455,16 @@ export default function DriverPayrollGrid({
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
                 <th className="text-center px-1 md:px-2 py-1 font-medium sticky left-0 z-10 border-r-2 border-slate-300 align-top" style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)' }}>Day</th>
-                {sortedStores.map((store) => (
-                  <th
-                   key={store.id}
-                   className="text-center px-1 md:px-2 py-1 font-bold min-w-[28px] md:min-w-[40px] align-top"
-                   style={{ color: getStoreColor(store) }}
-                   title={store.name}
-                  >
+                {sortedStores.map((store) =>
+                <th
+                  key={store.id}
+                  className="text-center px-1 md:px-2 py-1 font-bold min-w-[28px] md:min-w-[40px] align-top"
+                  style={{ color: getStoreColor(store) }}
+                  title={store.name}>
+                  
                     {store.abbreviation || store.name?.substring(0, 2)}
                   </th>
-                ))}
+                )}
                 <th className="text-center px-1 md:px-2 py-1 font-bold border-l-2 border-purple-300 min-w-[36px] md:min-w-[50px] align-top" style={{ color: 'var(--text-slate-900)' }}>Tot</th>
               </tr>
             </thead>
@@ -476,80 +476,80 @@ export default function DriverPayrollGrid({
                 const dayOfWeek = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
                 const monthShort = dateObj.toLocaleDateString('en-US', { month: 'short' });
                 const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
-                
+
                 return (
-                  <tr 
-                    key={dateKey} 
-                    style={{ borderBottom: '1px solid var(--border-slate-200)', background: isWeekend ? 'var(--bg-slate-100)' : 'transparent' }}
-                  >
+                  <tr
+                    key={dateKey}
+                    style={{ borderBottom: '1px solid var(--border-slate-200)', background: isWeekend ? 'var(--bg-slate-100)' : 'transparent' }}>
+                    
                     <td
                       className="text-center px-1 md:px-2 py-0.5 font-medium sticky left-0 z-10 border-r-2 border-slate-300 align-top"
-                      style={{ color: 'var(--text-slate-600)', background: isWeekend ? 'var(--bg-slate-100)' : 'var(--bg-white)' }}
-                    >
+                      style={{ color: 'var(--text-slate-600)', background: isWeekend ? 'var(--bg-slate-100)' : 'var(--bg-white)' }}>
+                      
                       <div className="flex items-center justify-center gap-0.5">
                         <span>{dayNum}</span>
                         <button
                           onClick={() => handleNavigateToDashboard(dateObj)}
                           className="!h-4 !w-4 !min-h-0 !p-0 rounded hover:bg-slate-200 transition-colors opacity-50 hover:opacity-100 inline-flex items-center justify-center align-middle"
-                          title={`View ${format(dateObj, 'MMM d')} on Dashboard`}
-                        >
+                          title={`View ${format(dateObj, 'MMM d')} on Dashboard`}>
+                          
                           <ExternalLink className="w-3 h-3" />
                         </button>
                       </div>
                     </td>
                     {sortedStores.map((store) => {
-                      const value = viewMode === 'extraKm' 
-                        ? (extraKmMap[dateKey]?.[store.id] || 0)
-                        : (dataMap[dateKey]?.[store.id] || 0);
+                      const value = viewMode === 'extraKm' ?
+                      extraKmMap[dateKey]?.[store.id] || 0 :
+                      dataMap[dateKey]?.[store.id] || 0;
                       const oversizedCount = oversizedMap[dateKey]?.[store.id] || 0;
-                      const displayValueMobile = viewMode === 'extraKm' 
-                        ? (value > 0 ? value.toFixed(1) : '')
-                        : (value > 0 ? value : '');
-                      const displayValueDesktop = viewMode === 'extraKm' 
-                        ? (value > 0 ? value.toFixed(2) : '')
-                        : (value > 0 ? value : '');
-                      const plusSigns = viewMode === 'deliveries' && oversizedCount > 0 
-                        ? '+'.repeat(oversizedCount) 
-                        : '';
+                      const displayValueMobile = viewMode === 'extraKm' ?
+                      value > 0 ? value.toFixed(1) : '' :
+                      value > 0 ? value : '';
+                      const displayValueDesktop = viewMode === 'extraKm' ?
+                      value > 0 ? value.toFixed(2) : '' :
+                      value > 0 ? value : '';
+                      const plusSigns = viewMode === 'deliveries' && oversizedCount > 0 ?
+                      '+'.repeat(oversizedCount) :
+                      '';
                       return (
                         <td
-                           key={store.id}
-                           className="text-center px-1 md:px-2 py-0.5 tabular-nums align-top"
-                           style={{ color: value > 0 ? getStoreColor(store) : 'var(--text-slate-400)' }}
-                         >
+                          key={store.id}
+                          className="text-center px-1 md:px-2 py-0.5 tabular-nums align-top"
+                          style={{ color: value > 0 ? getStoreColor(store) : 'var(--text-slate-400)' }}>
+                          
                           <span className="md:hidden">{displayValueMobile}{plusSigns}</span>
                           <span className="hidden md:inline">{displayValueDesktop}{plusSigns}</span>
-                        </td>
-                      );
+                        </td>);
+
                     })}
                     <td className="text-center px-1 md:px-2 py-0.5 font-semibold border-l-2 border-purple-300 tabular-nums align-top" style={{ color: 'var(--text-slate-900)' }}>
-                      <span className="md:hidden">{viewMode === 'extraKm' ? (dayTotal > 0 ? dayTotal.toFixed(1) : '') : (dayTotal > 0 ? dayTotal : '')}</span>
-                      <span className="hidden md:inline">{viewMode === 'extraKm' ? (dayTotal > 0 ? dayTotal.toFixed(2) : '') : (dayTotal > 0 ? dayTotal : '')}</span>
+                      <span className="md:hidden">{viewMode === 'extraKm' ? dayTotal > 0 ? dayTotal.toFixed(1) : '' : dayTotal > 0 ? dayTotal : ''}</span>
+                      <span className="hidden md:inline">{viewMode === 'extraKm' ? dayTotal > 0 ? dayTotal.toFixed(2) : '' : dayTotal > 0 ? dayTotal : ''}</span>
                     </td>
-                  </tr>
-                );
+                  </tr>);
+
               })}
               {/* Totals Row */}
               <tr className="font-semibold" style={{ borderTop: '2px solid var(--border-slate-300)', background: 'var(--bg-slate-100)' }}>
                 <td className="text-center px-1 md:px-2 py-1 sticky left-0 z-10 border-r-2 border-slate-300 align-top" style={{ color: 'var(--text-slate-700)', background: 'var(--bg-slate-100)' }}>Tot</td>
                 {sortedStores.map((store) => {
-                   const value = viewMode === 'extraKm' ? storeKmTotals[store.id] : storeTotals[store.id];
-                   const displayValueMobile = viewMode === 'extraKm' 
-                     ? (value > 0 ? value.toFixed(1) : '')
-                     : (value > 0 ? value : '');
-                   const displayValueDesktop = viewMode === 'extraKm' 
-                     ? (value > 0 ? value.toFixed(2) : '')
-                     : (value > 0 ? value : '');
-                   return (
-                     <td
-                       key={store.id}
-                       className="text-center px-1 md:px-2 py-1 tabular-nums"
-                       style={{ color: getStoreColor(store) }}
-                     >
+                  const value = viewMode === 'extraKm' ? storeKmTotals[store.id] : storeTotals[store.id];
+                  const displayValueMobile = viewMode === 'extraKm' ?
+                  value > 0 ? value.toFixed(1) : '' :
+                  value > 0 ? value : '';
+                  const displayValueDesktop = viewMode === 'extraKm' ?
+                  value > 0 ? value.toFixed(2) : '' :
+                  value > 0 ? value : '';
+                  return (
+                    <td
+                      key={store.id}
+                      className="text-center px-1 md:px-2 py-1 tabular-nums"
+                      style={{ color: getStoreColor(store) }}>
+                      
                       <span className="md:hidden">{displayValueMobile}</span>
                       <span className="hidden md:inline">{displayValueDesktop}</span>
-                    </td>
-                  );
+                    </td>);
+
                 })}
                 <td className="text-center px-1 md:px-2 py-1 font-bold border-l-2 border-purple-300 tabular-nums" style={{ color: 'var(--text-slate-900)' }}>
                   <span className="md:hidden">{viewMode === 'extraKm' ? grandTotal.toFixed(1) : grandTotal}</span>
@@ -561,42 +561,42 @@ export default function DriverPayrollGrid({
                 <td className="text-center px-1 md:px-2 py-1 sticky left-0 z-10 border-r-2 border-slate-300" style={{ color: 'var(--text-slate-700)', background: 'var(--bg-slate-50)' }}>AVG</td>
                 {sortedStores.map((store) => {
                   const storeTotal = viewMode === 'extraKm' ? storeKmTotals[store.id] : storeTotals[store.id];
-                  const activeDays = periodDays.filter(day => {
+                  const activeDays = periodDays.filter((day) => {
                     const dateKey = format(day, 'yyyy-MM-dd');
-                    const dayValue = viewMode === 'extraKm' ? (extraKmMap[dateKey]?.[store.id] || 0) : (dataMap[dateKey]?.[store.id] || 0);
+                    const dayValue = viewMode === 'extraKm' ? extraKmMap[dateKey]?.[store.id] || 0 : dataMap[dateKey]?.[store.id] || 0;
                     return dayValue > 0;
                   }).length;
                   const average = activeDays > 0 ? storeTotal / activeDays : 0;
-                  const displayValueMobile = viewMode === 'extraKm' 
-                    ? (average > 0 ? average.toFixed(1) : '')
-                    : (average > 0 ? average.toFixed(1) : '');
-                  const displayValueDesktop = viewMode === 'extraKm' 
-                    ? (average > 0 ? average.toFixed(2) : '')
-                    : (average > 0 ? average.toFixed(2) : '');
+                  const displayValueMobile = viewMode === 'extraKm' ?
+                  average > 0 ? average.toFixed(1) : '' :
+                  average > 0 ? average.toFixed(1) : '';
+                  const displayValueDesktop = viewMode === 'extraKm' ?
+                  average > 0 ? average.toFixed(2) : '' :
+                  average > 0 ? average.toFixed(2) : '';
                   return (
                     <td
                       key={store.id}
                       className="text-center px-1 md:px-2 py-1 tabular-nums"
-                      style={{ color: getStoreColor(store) }}
-                    >
+                      style={{ color: getStoreColor(store) }}>
+                      
                       <span className="md:hidden">{displayValueMobile}</span>
                       <span className="hidden md:inline">{displayValueDesktop}</span>
-                    </td>
-                  );
+                    </td>);
+
                 })}
                 <td className="text-center px-1 md:px-2 py-1 font-semibold border-l-2 border-purple-300 tabular-nums align-top" style={{ color: 'var(--text-slate-900)' }}>
                   {(() => {
-                    const activeDays = periodDays.filter(day => {
+                    const activeDays = periodDays.filter((day) => {
                       const dateKey = format(day, 'yyyy-MM-dd');
                       return getDayTotal(dateKey) > 0;
                     }).length;
                     const average = activeDays > 0 ? grandTotal / activeDays : 0;
                     return (
                       <>
-                        <span className="md:hidden">{viewMode === 'extraKm' ? (average > 0 ? average.toFixed(1) : '') : (average > 0 ? average.toFixed(1) : '')}</span>
-                        <span className="hidden md:inline">{viewMode === 'extraKm' ? (average > 0 ? average.toFixed(2) : '') : (average > 0 ? average.toFixed(2) : '')}</span>
-                      </>
-                    );
+                        <span className="md:hidden">{viewMode === 'extraKm' ? average > 0 ? average.toFixed(1) : '' : average > 0 ? average.toFixed(1) : ''}</span>
+                        <span className="hidden md:inline">{viewMode === 'extraKm' ? average > 0 ? average.toFixed(2) : '' : average > 0 ? average.toFixed(2) : ''}</span>
+                      </>);
+
                   })()}
                 </td>
               </tr>
@@ -605,60 +605,60 @@ export default function DriverPayrollGrid({
                 <td className="text-center px-1 md:px-2 py-1 sticky left-0 z-10 border-r-2 border-slate-300" style={{ color: 'var(--text-slate-700)', background: 'var(--bg-slate-50)' }}>Proj</td>
                 {sortedStores.map((store) => {
                   const storeTotal = viewMode === 'extraKm' ? storeKmTotals[store.id] : storeTotals[store.id];
-                  const activeDays = periodDays.filter(day => {
+                  const activeDays = periodDays.filter((day) => {
                     const dateKey = format(day, 'yyyy-MM-dd');
-                    const dayValue = viewMode === 'extraKm' ? (extraKmMap[dateKey]?.[store.id] || 0) : (dataMap[dateKey]?.[store.id] || 0);
+                    const dayValue = viewMode === 'extraKm' ? extraKmMap[dateKey]?.[store.id] || 0 : dataMap[dateKey]?.[store.id] || 0;
                     return dayValue > 0;
                   }).length;
                   const average = activeDays > 0 ? storeTotal / activeDays : 0;
-                  
+
                   // Calculate remaining days
                   const today = new Date();
                   today.setHours(0, 0, 0, 0);
-                  const remainingDays = periodDays.filter(day => day > today).length;
-                  
+                  const remainingDays = periodDays.filter((day) => day > today).length;
+
                   // If no remaining days, show actual total; otherwise project based on remaining days
-                  const projected = remainingDays === 0 ? storeTotal : storeTotal + (average * remainingDays);
-                  
-                  const displayValueMobile = viewMode === 'extraKm' 
-                    ? (projected > 0 ? projected.toFixed(1) : '')
-                    : (projected > 0 ? Math.round(projected) : '');
-                  const displayValueDesktop = viewMode === 'extraKm' 
-                    ? (projected > 0 ? projected.toFixed(2) : '')
-                    : (projected > 0 ? Math.round(projected) : '');
+                  const projected = remainingDays === 0 ? storeTotal : storeTotal + average * remainingDays;
+
+                  const displayValueMobile = viewMode === 'extraKm' ?
+                  projected > 0 ? projected.toFixed(1) : '' :
+                  projected > 0 ? Math.round(projected) : '';
+                  const displayValueDesktop = viewMode === 'extraKm' ?
+                  projected > 0 ? projected.toFixed(2) : '' :
+                  projected > 0 ? Math.round(projected) : '';
                   return (
                     <td
                       key={store.id}
                       className="text-center px-1 md:px-2 py-1 tabular-nums"
-                      style={{ color: getStoreColor(store) }}
-                    >
+                      style={{ color: getStoreColor(store) }}>
+                      
                       <span className="md:hidden">{displayValueMobile}</span>
                       <span className="hidden md:inline">{displayValueDesktop}</span>
-                    </td>
-                  );
+                    </td>);
+
                 })}
                 <td className="text-center px-1 md:px-2 py-1 font-semibold border-l-2 border-purple-300 tabular-nums align-top" style={{ color: 'var(--text-slate-900)' }}>
                   {(() => {
-                    const activeDays = periodDays.filter(day => {
+                    const activeDays = periodDays.filter((day) => {
                       const dateKey = format(day, 'yyyy-MM-dd');
                       return getDayTotal(dateKey) > 0;
                     }).length;
                     const average = activeDays > 0 ? grandTotal / activeDays : 0;
-                    
+
                     // Calculate remaining days
                     const today = new Date();
                     today.setHours(0, 0, 0, 0);
-                    const remainingDays = periodDays.filter(day => day > today).length;
-                    
+                    const remainingDays = periodDays.filter((day) => day > today).length;
+
                     // If no remaining days, show actual total; otherwise project based on remaining days
-                    const projected = remainingDays === 0 ? grandTotal : grandTotal + (average * remainingDays);
-                    
+                    const projected = remainingDays === 0 ? grandTotal : grandTotal + average * remainingDays;
+
                     return (
                       <>
-                        <span className="md:hidden">{viewMode === 'extraKm' ? (projected > 0 ? projected.toFixed(1) : '') : (projected > 0 ? Math.round(projected) : '')}</span>
-                        <span className="hidden md:inline">{viewMode === 'extraKm' ? (projected > 0 ? projected.toFixed(2) : '') : (projected > 0 ? Math.round(projected) : '')}</span>
-                      </>
-                    );
+                        <span className="md:hidden">{viewMode === 'extraKm' ? projected > 0 ? projected.toFixed(1) : '' : projected > 0 ? Math.round(projected) : ''}</span>
+                        <span className="hidden md:inline">{viewMode === 'extraKm' ? projected > 0 ? projected.toFixed(2) : '' : projected > 0 ? Math.round(projected) : ''}</span>
+                      </>);
+
                   })()}
                 </td>
               </tr>
@@ -666,6 +666,6 @@ export default function DriverPayrollGrid({
           </table>
         </div>
       </CardContent>
-    </Card>
-  );
+    </Card>);
+
 }
