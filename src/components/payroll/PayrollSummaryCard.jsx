@@ -1162,7 +1162,7 @@ export default function PayrollSummaryCard({
 
 
       <CardContent ref={contentRef} className="px-1">
-        <div className="space-y-4">
+        <div className="space-y-2">
           {payrollData.filter((data) => data.graphDeliveryCount > 0).map((data, idx) => {
               const hasTaxOrDeductions = data.taxAmount > 0 || data.deductions > 0;
               const driverPayrollRecord = getDriverPayrollRecord(data.driver.id);
