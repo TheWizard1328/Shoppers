@@ -1015,7 +1015,7 @@ export default function DriverPayroll() {
                 setSelectedYear(Number(v));
               });
             }}>
-                <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                <SelectTrigger className="w-auto min-w-[88px] md:min-w-[96px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
