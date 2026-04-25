@@ -216,6 +216,7 @@ export default function DeliveryMap({
   const [polylineRenderKey, setPolylineRenderKey] = useState(0);
   const [measuredTopOverlayHeight, setMeasuredTopOverlayHeight] = useState(0);
   const [hereApiKey, setHereApiKey] = useState(null);
+  const [tileLayerInstanceKey, setTileLayerInstanceKey] = useState(0);
   const hasNotifiedMapReady = useRef(false);
   const prevDriverHomeMarkersRef = useRef([]);
   const prevDriverLocationMarkersRef = useRef([]);
@@ -935,16 +936,23 @@ export default function DeliveryMap({
   useEffect(() => {
     if (!map || !tileLayerConfig?.base) return;
 
+    const currentCenter = map.getCenter();
+    const currentZoom = map.getZoom();
+    setTileLayerInstanceKey((value) => value + 1);
+
     requestAnimationFrame(() => {
-      map.invalidateSize(true);
-      map.eachLayer((layer) => {
-        if (layer instanceof L.TileLayer) {
-          layer.redraw();
-        }
+      requestAnimationFrame(() => {
+        window._lastProgrammaticMapMove = Date.now();
+        map.invalidateSize(true);
+        map.setView(currentCenter, currentZoom, { animate: false });
+        map.eachLayer((layer) => {
+          if (layer instanceof L.TileLayer) {
+            layer.redraw();
+          }
+        });
       });
-      map.panBy([0, 0], { animate: false });
     });
-  }, [map, mapStyle, tileLayerConfig]);
+  }, [map, mapStyle, tileLayerConfig?.base, tileLayerConfig?.overlay]);
 
   useEffect(() => {
     if (!map || !Array.isArray(center) || center.length !== 2 || !Number.isFinite(zoom)) return;
@@ -1117,7 +1125,7 @@ export default function DeliveryMap({
                 Object.setPrototypeOf(layer, IntegerZoomTileLayer.prototype);
               }
             }}
-            key={`base-${mapStyle}-${tileLayerConfig.base}`}
+            key={`base-${mapStyle}-${tileLayerInstanceKey}-${tileLayerConfig.base}`}
             attribution='&copy; <a href="https://www.here.com/">HERE</a>'
             url={tileLayerConfig.base}
             tileSize={512}
@@ -1134,7 +1142,7 @@ export default function DeliveryMap({
                 Object.setPrototypeOf(layer, IntegerZoomTileLayer.prototype);
               }
             }}
-            key={`overlay-${mapStyle}-${tileLayerConfig.overlay}`}
+            key={`overlay-${mapStyle}-${tileLayerInstanceKey}-${tileLayerConfig.overlay}`}
             url={tileLayerConfig.overlay}
             tileSize={512}
             zoomOffset={-1}
