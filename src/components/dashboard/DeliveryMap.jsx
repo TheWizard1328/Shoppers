@@ -919,7 +919,7 @@ export default function DeliveryMap({
       {
         paddingTopLeft: [25, isMobile ? (immersiveHidden ? 25 : effectiveTopOverlayHeight + 25) : 60],
         paddingBottomRight: [25, immersiveHidden ? 25 : ((areStopCardsVisible && !immersiveHidden) ? stopCardsHeight + 10 : 60)],
-        maxZoom: 17.5,
+        maxZoom: 17,
         animate: false
       }
     );
@@ -1090,9 +1090,9 @@ export default function DeliveryMap({
       <MapContainer
         center={center || [53.5461, -113.4938]}
         zoom={zoom || (safeDeliveries.length === 0 ? 11 : 12)}
-        maxZoom={17.5}
-        zoomSnap={0}
-        zoomDelta={0.1}
+        maxZoom={17}
+        zoomSnap={1}
+        zoomDelta={1}
         style={{ height: "100%", width: "100%" }}
         zoomControl={false}
         doubleClickZoom={false}
@@ -1110,6 +1110,8 @@ export default function DeliveryMap({
             url={tileLayerConfig.base}
             tileSize={512}
             zoomOffset={-1}
+            updateWhenZooming={false}
+            keepBuffer={2}
           />
         )}
         {tileLayerConfig?.overlay && (
@@ -1119,6 +1121,8 @@ export default function DeliveryMap({
             tileSize={512}
             zoomOffset={-1}
             opacity={1}
+            updateWhenZooming={false}
+            keepBuffer={2}
           />
         )}
 
