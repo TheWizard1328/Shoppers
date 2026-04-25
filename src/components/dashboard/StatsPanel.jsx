@@ -58,6 +58,12 @@ export default function StatsPanel({
   const [showMapStyleOptions, setShowMapStyleOptions] = useState(false);
 
   useEffect(() => {
+    if (!showExpandedContent) {
+      setShowMapStyleOptions(false);
+    }
+  }, [showExpandedContent]);
+
+  useEffect(() => {
     let active = true;
 
     const loadDemoModeState = async () => {
