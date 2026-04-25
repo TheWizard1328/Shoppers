@@ -88,7 +88,8 @@ export default function HereType2Polylines({
 
     const getType2PolylineColor = (driverId) => {
       const driverColor = generateDriverColor(String(driverId || 'driver'));
-      return driverColor === '#2563EB' ? '#7C3AED' : driverColor;
+      const disallowedBlueShades = new Set(['#2563EB', '#1E90FF', '#3B82F6', '#60A5FA']);
+      return disallowedBlueShades.has(driverColor) ? '#7C3AED' : driverColor;
     };
     const getDriverMode = (driverId) => normalizeTravelMode(localDriverTravelModes[driverId] ?? driverTravelModes[driverId]);
     const getDriverRouteStyle = (driverId, opacityOverride) => {

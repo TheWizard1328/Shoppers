@@ -7,7 +7,8 @@ import { getTravelModeLineStyle, normalizeTravelMode } from "./travelModeHelpers
 const FINISHED = ["completed", "failed", "cancelled"];
 const getType3PolylineColor = (driverId) => {
   const driverColor = generateDriverColor(String(driverId || 'driver'));
-  return driverColor === '#2563EB' ? '#7C3AED' : driverColor;
+  const disallowedBlueShades = new Set(['#2563EB', '#1E90FF', '#3B82F6', '#60A5FA']);
+  return disallowedBlueShades.has(driverColor) ? '#7C3AED' : driverColor;
 };
 const getFinishedLegRouteStyle = (driverId, deliveryTravelMode, opacityOverride) => {
   const mode = normalizeTravelMode(deliveryTravelMode || 'driving');
