@@ -3,7 +3,7 @@ import { useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet-polylinedecorator";
 
-export default function RouteDirectionDecorator({ positions = [], color = "#2563EB", pattern = "90px", size = 8, pane = "routeBasePane" }) {
+export default function RouteDirectionDecorator({ positions = [], color = "#2563EB", pattern = "120px", size = 9, pane = "routeBasePane" }) {
   const map = useMap();
 
   useEffect(() => {
