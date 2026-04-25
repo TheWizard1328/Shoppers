@@ -3391,8 +3391,26 @@ function Dashboard() {
         }
       }
 
+      const hasDriverRouteToOptimize = !!driverId && !!deliveryDate;
+      if (hasDriverRouteToOptimize) {
+        const now = new Date();
+        const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        await base44.functions.invoke('optimizeRemainingStops', {
+          driverId,
+          deliveryDate,
+          currentLocalTime,
+          deviceTime: now.toISOString()
+        });
+      }
+
       invalidate('Delivery');
       await refreshData();
+
+      if (hasDriverRouteToOptimize) {
+        window.dispatchEvent(new CustomEvent('routeReordered', {
+          detail: { driverId, deliveryDate, source: 'handleSaveDelivery' }
+        }));
+      }
 
       // CRITICAL: Force stats refresh after save
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
@@ -4510,6 +4528,9 @@ function Dashboard() {
       const deliveryDate = deliveryFromUI.delivery_date;
       const isPickup = !deliveryFromUI.patient_id;
       const newStatus = isPickup ? 'en_route' : 'in_transit';
+      const now = new Date();
+      const etaMinutes = now.getHours() * 60 + now.getMinutes() + 5;
+      const etaString = `${String(Math.floor(etaMinutes / 60) % 24).padStart(2, '0')}:${String(etaMinutes % 60).padStart(2, '0')}`;
 
       // STEP 1: Clear ALL isNextDelivery flags for this driver/date
       const allDriverDeliveries = await base44.entities.Delivery.filter({
@@ -4534,7 +4555,9 @@ function Dashboard() {
       const startUpdatePayload = {
         isNextDelivery: true,
         status: newStatus,
-        stop_order: nextStopOrderStep2
+        stop_order: nextStopOrderStep2,
+        delivery_time_start: etaString,
+        delivery_time_eta: etaString
       };
 
       await base44.entities.Delivery.update(deliveryId, startUpdatePayload);
@@ -4549,44 +4572,19 @@ function Dashboard() {
         }
       }));
 
-      // STEP 3: Re-fetch deliveries to ensure we have the latest data with updated isNextDelivery flag
+      // STEP 3: Re-fetch deliveries only after the full start payload has been saved
       const refreshedDeliveriesAfterFlag = await base44.entities.Delivery.filter({
         driver_id: driverId,
         delivery_date: deliveryDate
       });
 
-      // Verify the flag is still set
       const verifyNext = refreshedDeliveriesAfterFlag.find((d) => d.id === deliveryId);
-      if (!verifyNext?.isNextDelivery) {
-        console.error('❌ [START] isNextDelivery flag was lost! Re-applying...');
-        await base44.entities.Delivery.update(deliveryId, { isNextDelivery: true });
+      if (!verifyNext?.isNextDelivery || verifyNext?.status !== newStatus) {
+        await base44.entities.Delivery.update(deliveryId, startUpdatePayload);
       }
 
-      // Recalculate stop orders for all incomplete stops
-      const incompleteStops = refreshedDeliveriesAfterFlag.filter((d) => !finishedStatusesStep2.includes(d.status));
-
-      // Sort incomplete stops: isNextDelivery first, then by ETA
-      const sortedIncomplete = incompleteStops.sort((a, b) => {
-        if (a.isNextDelivery && !b.isNextDelivery) return -1;
-        if (!a.isNextDelivery && b.isNextDelivery) return 1;
-
-        const etaA = a.delivery_time_eta || a.delivery_time_start || '99:99';
-        const etaB = b.delivery_time_eta || b.delivery_time_start || '99:99';
-        return etaA.localeCompare(etaB);
-      });
-
-      // Update stop orders for all incomplete stops
-      const startOrder = completedStopsStep2.length + 1;
-      for (let i = 0; i < sortedIncomplete.length; i++) {
-        const stop = sortedIncomplete[i];
-        await base44.entities.Delivery.update(stop.id, {
-          stop_order: startOrder + i
-        });
-      }
-
-      // STEP 4: Optimize remaining stops AFTER starting this delivery
+      // STEP 4: Optimize remaining stops AFTER the selected stop is fully persisted
       try {
-        const now = new Date();
         const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
         await base44.functions.invoke('optimizeRemainingStops', {
@@ -4646,18 +4644,7 @@ function Dashboard() {
         console.warn('   ⚠️ Blue polyline update failed:', polylineError.message);
       }
 
-      // STEP 8: Update this delivery's ETA to current time + 5 minutes
-      const now = new Date();
-      const currentMinutes = now.getHours() * 60 + now.getMinutes();
-      const etaMinutes = currentMinutes + 5;
-      const etaString = `${String(Math.floor(etaMinutes / 60) % 24).padStart(2, '0')}:${String(etaMinutes % 60).padStart(2, '0')}`;
-
-      await base44.entities.Delivery.update(deliveryId, {
-        delivery_time_start: etaString,
-        delivery_time_eta: etaString
-      });
-
-      // STEP 10: Wait for UI to update, then scroll to next delivery card
+      // STEP 8: Wait for UI to update, then scroll to next delivery card
       // Wait for optimization to complete and UI to update
       setTimeout(async () => {
         const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
