@@ -1,4 +1,5 @@
 import useImmersiveMode from '@/components/dashboard/useImmersiveMode';
+import { isAppOwner } from '@/components/utils/userRoles';
 
 export function useDashboardViewModel(props) {
   const immersive = useImmersiveMode({
@@ -6,7 +7,7 @@ export function useDashboardViewModel(props) {
     isMobile: props.isMobile,
     driverLocation: props.driverLocation,
     nextStopLocation: props.nextStopCoordinates,
-    enabled: true
+    enabled: isAppOwner(props.currentUser)
   });
 
   return {
