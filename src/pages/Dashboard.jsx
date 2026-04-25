@@ -102,6 +102,7 @@ import { collectPhase3SingleDriverCoordinates } from "@/components/dashboard/pha
 import { centerDeliveryCard, centerNextDeliveryCard, getNextDeliveryCard } from '@/components/utils/deliveryCardUtils';
 import { loadDashboardOfflineDateData, mergeDeliveriesForDate, hasDeliveryDataForSelection } from '@/components/dashboard/dashboardInitialLoadHelpers';
 import useDriverLocationSync from '@/components/dashboard/useDriverLocationSync';
+import { getBoundsSpanKm, getPhaseBoundsMaxZoom } from '@/components/dashboard/mapCycleZoomHelpers';
 
 function Dashboard() {
   const { currentUser, isLoadingUser, refreshUser } = useUser();
@@ -1931,22 +1932,8 @@ function Dashboard() {
         // CASE 3: Normal case with stop markers
         else if (allCoordinates.length > 0) {
 
-          // Calculate span to determine appropriate maxZoom
-          let minLat = Infinity,maxLat = -Infinity,minLon = Infinity,maxLon = -Infinity;
-          allCoordinates.forEach(([lat, lon]) => {
-            minLat = Math.min(minLat, lat);
-            maxLat = Math.max(maxLat, lat);
-            minLon = Math.min(minLon, lon);
-            maxLon = Math.max(maxLon, lon);
-          });
-
-          const latSpan = maxLat - minLat;
-          const lonSpan = maxLon - minLon;
-          const maxSpan = Math.max(latSpan, lonSpan);
-
-          const spanKm = maxSpan * 111.0;
-          const baseZoom = 16 - Math.log2(spanKm + 1) * 1.2;
-          const phase1MaxZoom = Math.max(12.0, Math.min(19, Math.round(baseZoom * 10) / 10));
+          const spanKm = getBoundsSpanKm(allCoordinates);
+          const phase1MaxZoom = getPhaseBoundsMaxZoom(spanKm);
 
           const padding = getMapPadding(false);
 
@@ -2141,20 +2128,8 @@ function Dashboard() {
         if (allCoordinatesPhase3.length > 0) {
           const padding = getMapPadding(false);
 
-          let minLat = Infinity,maxLat = -Infinity,minLon = Infinity,maxLon = -Infinity;
-          allCoordinatesPhase3.forEach(([lat, lon]) => {
-            minLat = Math.min(minLat, lat);
-            maxLat = Math.max(maxLat, lat);
-            minLon = Math.min(minLon, lon);
-            maxLon = Math.max(maxLon, lon);
-          });
-
-          const latSpan = maxLat - minLat;
-          const lonSpan = maxLon - minLon;
-          const maxSpan = Math.max(latSpan, lonSpan);
-          const spanKm = maxSpan * 111.0;
-          const baseZoom = 16 - Math.log2(spanKm + 1) * 1.2;
-          const phase3MaxZoom = Math.max(12.0, Math.min(19, Math.round(baseZoom * 10) / 10));
+          const spanKm = getBoundsSpanKm(allCoordinatesPhase3);
+          const phase3MaxZoom = getPhaseBoundsMaxZoom(spanKm, 12.0);
 
           setShouldFitBounds({
             bounds: allCoordinatesPhase3,
