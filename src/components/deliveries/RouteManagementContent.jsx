@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Pencil, Package } from "lucide-react";
+import { Pencil, Package, Trash2 } from "lucide-react";
 import StopCard from "../common/StopCard";
 import StopDetailsPanel from "./StopDetailsPanel";
 import DeliveryListView from "../dashboard/DeliveryListView";
@@ -110,6 +110,23 @@ export default function RouteManagementContent({
     });
   }, [allDeliveries, bulkEditableDrivers, currentUser, deliveries, loadData, selectedBulkDeliveryIds]);
 
+  const handleBulkDeleteSelected = useCallback(async () => {
+    if (selectedBulkDeliveryIds.length === 0 || isBulkUpdating) return;
+    const confirmed = window.confirm(`Delete ${selectedBulkDeliveryIds.length} selected stop${selectedBulkDeliveryIds.length === 1 ? "" : "s"}?`);
+    if (!confirmed) return;
+
+    setIsBulkUpdating(true);
+    try {
+      for (const deliveryId of selectedBulkDeliveryIds) {
+        await onDelete(deliveryId);
+      }
+      setSelectedBulkDeliveryIds([]);
+      setBulkEditMode(false);
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  }, [isBulkUpdating, onDelete, selectedBulkDeliveryIds]);
+
   const handleCreateReturn = useCallback(async ({ originalDelivery, returnPatient, store }) => {
     const currentDate = format(new Date(), "yyyy-MM-dd");
     await createDeliveryLocal({
@@ -177,6 +194,10 @@ export default function RouteManagementContent({
                   <Button className="gap-2" onClick={() => setIsBulkEditPanelOpen(true)} disabled={selectedBulkDeliveryIds.length === 0 || isBulkUpdating}>
                     <Pencil className="w-4 h-4" />
                     Edit Selected
+                  </Button>
+                  <Button variant="destructive" className="gap-2" onClick={handleBulkDeleteSelected} disabled={selectedBulkDeliveryIds.length === 0 || isBulkUpdating}>
+                    <Trash2 className="w-4 h-4" />
+                    Delete Selected
                   </Button>
                   <Button variant="ghost" onClick={handleCancelBulkEdit} disabled={isBulkUpdating}>
                     Cancel
