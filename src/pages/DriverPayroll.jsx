@@ -947,7 +947,7 @@ export default function DriverPayroll() {
   <div className="px-3 py-2 h-full w-full max-w-full overflow-y-auto overflow-x-hidden flex flex-col md:p-4" style={{ background: 'var(--bg-slate-50)' }}>
       <div className="max-w-7xl w-full mx-auto flex flex-col min-h-full min-w-0" ref={contentRef}>
         {/* Header */}
-        <div className="bg-[var(--bg-slate-50)]/95 pt-1 pb-1 sticky top-0 z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 backdrop-blur supports-[backdrop-filter]:bg-[var(--bg-slate-50)]/75 w-full min-w-0 overflow-x-hidden">
+        <div className="bg-[var(--bg-slate-50)]/95 pt-1 pb-1 sticky top-0 z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 backdrop-blur supports-[backdrop-filter]:bg-[var(--bg-slate-50)]/75 w-full min-w-0 overflow-x-hidden">
           {/* Row 1 (Mobile) / Left section (Desktop) */}
           <div className="flex items-center gap-3 justify-between w-full lg:w-auto">
             <div className="flex items-center gap-3">

@@ -164,7 +164,7 @@ export default function PayrollSummaryCard({
 
       const graphPayableDeliveries = periodDeliveries.filter((delivery) => {
         if (!delivery) return false;
-        const validStatus = delivery.status === 'completed' || delivery.status === 'failed' || (delivery.status === 'cancelled' && delivery.after_hours_pickup);
+        const validStatus = delivery.status === 'completed' || delivery.status === 'failed' || delivery.status === 'cancelled' && delivery.after_hours_pickup;
         if (!validStatus) return false;
         if (!delivery.patient_id && !delivery.after_hours_pickup) return false;
         return true;
@@ -635,9 +635,9 @@ export default function PayrollSummaryCard({
   const grandTotalTax = driversWithDeliveries.reduce((sum, d) => sum + d.taxAmount, 0);
   const grandTotalDeductions = driversWithDeliveries.reduce((sum, d) => sum + sumDeductionAmounts(driverEdits[d.driver.id]?.deductions || d.deductionsArray || []), 0);
   const grandTotalBonus = driversWithDeliveries.reduce((sum, d) => sum + (Number(driverEdits[d.driver.id]?.bonusPay) || 0), 0);
-  const grandTotalAppFee = driversWithDeliveries.reduce((sum, d) => sum + (isPeriodEndOfMonth ? (driverEdits[d.driver.id]?.appFeeAmount || calculateAppFeeAmount(d.driver.id, driverEdits[d.driver.id]?.appFeePercent || 0)) : 0), 0);
+  const grandTotalAppFee = driversWithDeliveries.reduce((sum, d) => sum + (isPeriodEndOfMonth ? driverEdits[d.driver.id]?.appFeeAmount || calculateAppFeeAmount(d.driver.id, driverEdits[d.driver.id]?.appFeePercent || 0) : 0), 0);
   const grandTotalGross = driversWithDeliveries.reduce((sum, d) => sum + d.grossPay, 0);
-  const grandTotalNet = driversWithDeliveries.reduce((sum, d) => sum + ((d.grandTotal || 0) + (d.taxAmount || 0) - sumDeductionAmounts(driverEdits[d.driver.id]?.deductions || d.deductionsArray || []) + (Number(driverEdits[d.driver.id]?.bonusPay) || 0) + (isPeriodEndOfMonth ? (driverEdits[d.driver.id]?.appFeeAmount || calculateAppFeeAmount(d.driver.id, driverEdits[d.driver.id]?.appFeePercent || 0)) : 0)), 0);
+  const grandTotalNet = driversWithDeliveries.reduce((sum, d) => sum + ((d.grandTotal || 0) + (d.taxAmount || 0) - sumDeductionAmounts(driverEdits[d.driver.id]?.deductions || d.deductionsArray || []) + (Number(driverEdits[d.driver.id]?.bonusPay) || 0) + (isPeriodEndOfMonth ? driverEdits[d.driver.id]?.appFeeAmount || calculateAppFeeAmount(d.driver.id, driverEdits[d.driver.id]?.appFeePercent || 0) : 0)), 0);
 
   const sumAllDriversAppFeePercent = useMemo(() => driversWithDeliveries.reduce((sum, d) => d.driver.id === currentUser?.id && isAppOwner(currentUser) ? sum : sum + (driverEdits[d.driver.id]?.appFeePercent || 0), 0), [driversWithDeliveries, driverEdits, currentUser]);
   const appOwnerAppFeePercent = useMemo(() => Math.max(0, 100 - sumAllDriversAppFeePercent - otherAppFeePercent), [sumAllDriversAppFeePercent, otherAppFeePercent]);
@@ -646,12 +646,12 @@ export default function PayrollSummaryCard({
     const visibleDriverIds = new Set(driversWithDeliveries.map((d) => d.driver.id));
     return payrollRecords.reduce((sum, record) => {
       if (
-        !record ||
-        record.pay_period_start !== periodStartStr ||
-        record.pay_period_end !== periodEndStr ||
-        record.pay_period_type !== payPeriod ||
-        !visibleDriverIds.has(record.driver_id)
-      ) {
+      !record ||
+      record.pay_period_start !== periodStartStr ||
+      record.pay_period_end !== periodEndStr ||
+      record.pay_period_type !== payPeriod ||
+      !visibleDriverIds.has(record.driver_id))
+      {
         return sum;
       }
       return sum + (Number(record.paid_amount) || 0);
@@ -693,7 +693,7 @@ export default function PayrollSummaryCard({
         const pr = getDriverPayrollRecord(k);
         const netAmount = (data.grandTotal || 0) + (data.taxAmount || 0) - sumDeductionAmounts(pr?.deductions || data.deductionsArray || []) + (pr?.bonus_pay || 0) + (isPeriodEndOfMonth ? pr?.app_fee_amount ?? 0 : 0);
         const paidAmount = pr?.paid_amount != null ? pr.paid_amount : netAmount;
-        next[k] = paidRefreshPauseRef.current[k] ? (prev[k] ?? String(paidAmount.toFixed(2))) : String(paidAmount.toFixed(2));
+        next[k] = paidRefreshPauseRef.current[k] ? prev[k] ?? String(paidAmount.toFixed(2)) : String(paidAmount.toFixed(2));
       });
       return next;
     });
@@ -1161,7 +1161,7 @@ export default function PayrollSummaryCard({
           filename={`payroll-summary-${currentPeriod?.label || 'report'}.png`} />
 
 
-      <CardContent ref={contentRef} className="px-3 py-6">
+      <CardContent ref={contentRef} className="px-2">
         <div className="space-y-4">
           {payrollData.filter((data) => data.graphDeliveryCount > 0).map((data, idx) => {
               const hasTaxOrDeductions = data.taxAmount > 0 || data.deductions > 0;
@@ -1336,7 +1336,7 @@ export default function PayrollSummaryCard({
                                     <Input
                                       type="text"
                                       inputMode="numeric"
-                                      value={getPaidDraftValue(driverKey, parsePaidAmount(edit.paidAmount, ((data.grandTotal || 0) + (data.taxAmount || 0) - sumDeductionAmounts(edit.deductions || []) + (edit.bonusPay || 0) + (isPeriodEndOfMonth ? edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0) : 0))))}
+                                      value={getPaidDraftValue(driverKey, parsePaidAmount(edit.paidAmount, (data.grandTotal || 0) + (data.taxAmount || 0) - sumDeductionAmounts(edit.deductions || []) + (edit.bonusPay || 0) + (isPeriodEndOfMonth ? edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0) : 0)))}
                                       onFocus={(e) => {
                                         paidRefreshPauseRef.current[driverKey] = true;
                                         e.target.select();
@@ -1347,7 +1347,7 @@ export default function PayrollSummaryCard({
                                         updateEdit({ paidAmount: formattedValue });
                                       }}
                                       onBlur={async (e) => {
-                                        const fallbackAmount = ((data.grandTotal || 0) + (data.taxAmount || 0) - sumDeductionAmounts(edit.deductions || []) + (edit.bonusPay || 0) + (isPeriodEndOfMonth ? edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0) : 0));
+                                        const fallbackAmount = (data.grandTotal || 0) + (data.taxAmount || 0) - sumDeductionAmounts(edit.deductions || []) + (edit.bonusPay || 0) + (isPeriodEndOfMonth ? edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0) : 0);
                                         const nextPaidAmount = parsePaidAmount(e.target.value, fallbackAmount);
                                         const formattedPaidAmount = nextPaidAmount.toFixed(2);
                                         setPaidDrafts((prev) => ({ ...prev, [driverKey]: formattedPaidAmount }));
@@ -1367,7 +1367,7 @@ export default function PayrollSummaryCard({
                                     <div className="h-7 min-h-0 w-[60px] flex items-center justify-end text-right font-semibold">
                                     {parsePaidAmount(
                                         edit.paidAmount,
-                                        ((data.grandTotal || 0) + (data.taxAmount || 0) - sumDeductionAmounts(edit.deductions || []) + (edit.bonusPay || 0) + (isPeriodEndOfMonth ? edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0) : 0))
+                                        (data.grandTotal || 0) + (data.taxAmount || 0) - sumDeductionAmounts(edit.deductions || []) + (edit.bonusPay || 0) + (isPeriodEndOfMonth ? edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0) : 0)
                                       ).toFixed(2)}
                                   </div>
                                     }
