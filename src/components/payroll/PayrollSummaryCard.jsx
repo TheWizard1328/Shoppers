@@ -756,7 +756,7 @@ export default function PayrollSummaryCard({
           -moz-appearance: textfield;
         }
       `}</style>
-     <Card className="mt-4" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+     <Card className="bg-card text-card-foreground mt-2 py-1 rounded-xl border shadow" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
        <CardHeader className="px-4 py-1 space-y-1.5 flex flex-col">
         {/* Mobile View: 2 rows */}
         <div className="md:hidden flex flex-col gap-2">
