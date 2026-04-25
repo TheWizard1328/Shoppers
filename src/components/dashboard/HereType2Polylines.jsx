@@ -257,7 +257,7 @@ export default function HereType2Polylines({
         })();
       }
     });
-  }, [isViewingCurrentDate, driverIncomplete, refreshToken]);
+  }, [driverIncomplete, refreshToken]);
 
 
 

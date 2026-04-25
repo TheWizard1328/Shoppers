@@ -246,7 +246,7 @@ export default function HereType1Polylines({
 
   useDriverRoutePolylineBackgroundSync({
     targets: polylineSyncTargets,
-    enabled: polylineSyncTargets.length > 0 && isViewingCurrentDate,
+    enabled: polylineSyncTargets.length > 0,
     intervalMs: 30000,
     onSync: () => setRefreshToken((token) => token + 1)
   });
