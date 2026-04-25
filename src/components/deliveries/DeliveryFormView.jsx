@@ -64,10 +64,10 @@ const TravelModeButtons = ({ value, onChange, disabled, currentUser, appUsers = 
             }}
             disabled={disabled}
             className={`h-6 w-12 rounded-full border transition-all flex items-center justify-center ${
-              isActive
-                ? 'bg-emerald-600 border-emerald-600 text-white'
-                : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-100'
-            }`}>
+            isActive ?
+            'bg-emerald-600 border-emerald-600 text-white' :
+            'bg-white border-slate-300 text-slate-600 hover:bg-slate-100'}`
+            }>
             <Icon className="w-4 h-4" />
           </button>);
 
@@ -815,7 +815,7 @@ export default function DeliveryFormView({
 
                           </div>
 
-                          <div className="space-y-3 p-3 rounded-lg border min-h-[320px] flex flex-col" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                          <div className="px-3 py-3 rounded-lg space-y-2 border min-h-[320px] flex flex-col" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                             <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Preferences</Label>
                             <div className="flex-1 flex flex-col justify-around">
                               <CheckboxField id="mailbox_ok" label="MailBox OK" checked={formData.mailbox_ok} onChange={(c) => setFormData((p) => ({ ...p, mailbox_ok: c }))} disabled={isSaving} />
@@ -1014,7 +1014,7 @@ export default function DeliveryFormView({
                 </Button>
 
                 {buttonState === 'done' ?
-                <Button type="button" size="sm" onClick={(e) => {e.preventDefault();e.stopPropagation();runLockedAction('batch_save', async () => { await handleBatchSave(); fabControlEvents.resetToPhaseOneAfterDone(500); });}} className="inline-flex items-center justify-center whitespace-nowrap font-medium h-8 rounded-md px-3 text-xs !text-white bg-emerald-600 hover:bg-emerald-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || openMode !== 'add_to_route' && !hasChanges}>
+                <Button type="button" size="sm" onClick={(e) => {e.preventDefault();e.stopPropagation();runLockedAction('batch_save', async () => {await handleBatchSave();fabControlEvents.resetToPhaseOneAfterDone(500);});}} className="inline-flex items-center justify-center whitespace-nowrap font-medium h-8 rounded-md px-3 text-xs !text-white bg-emerald-600 hover:bg-emerald-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || openMode !== 'add_to_route' && !hasChanges}>
                     {isSaving ? <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />Saving...</> : <><CheckCircle className="w-4 h-4" />Done</>}
                   </Button> :
                 buttonState === 'updateStaged' ?
