@@ -926,6 +926,15 @@ export default function DeliveryMap({
   }, [map, mapViewPhase, isMapViewLocked, selectedDriverId, currentUser?.id, currentDriverLocation, routeAwareCurrentDriverMarker, routeAwareDriverLocationMarkers, deliveryMarkers, pickupMarkers, isMobile]);
 
   useEffect(() => {
+    if (!map || !tileLayerConfig?.base) return;
+    map.eachLayer((layer) => {
+      if (layer instanceof L.TileLayer) {
+        layer.redraw();
+      }
+    });
+  }, [map, mapStyle, tileLayerConfig]);
+
+  useEffect(() => {
     if (!map || !Array.isArray(center) || center.length !== 2 || !Number.isFinite(zoom)) return;
     if (mapViewPhase === 2 && isMapViewLocked) return;
     const currentCenter = map.getCenter();
@@ -1091,6 +1100,7 @@ export default function DeliveryMap({
       >
         {tileLayerConfig?.base && (
           <TileLayer
+            key={`base-${mapStyle}-${tileLayerConfig.base}`}
             attribution='&copy; <a href="https://www.here.com/">HERE</a>'
             url={tileLayerConfig.base}
             tileSize={512}
@@ -1099,6 +1109,7 @@ export default function DeliveryMap({
         )}
         {tileLayerConfig?.overlay && (
           <TileLayer
+            key={`overlay-${mapStyle}-${tileLayerConfig.overlay}`}
             url={tileLayerConfig.overlay}
             tileSize={512}
             zoomOffset={-1}
