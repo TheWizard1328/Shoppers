@@ -462,9 +462,10 @@ Deno.serve(async (req) => {
       console.log(`  ✅ [optimizeRemainingStops] ${stop.delivery.patient_name || 'Pickup'} - ETA: ${eta}`);
     }
 
-    const activeStops = routeStops.map((stop) => ({
+    const activeStops = routeStops.map((stop, index) => ({
       ...stop.delivery,
-      delivery_time_eta: stageEtaMap.get(stop.delivery.id) || stop.delivery.delivery_time_eta
+      delivery_time_eta: stageEtaMap.get(stop.delivery.id) || stop.delivery.delivery_time_eta,
+      isNextDelivery: index === 0
     }));
 
     console.log(`\n🔢 [optimizeRemainingStops] HERE returned ${activeStops.length} ordered stops`);
@@ -520,7 +521,8 @@ Deno.serve(async (req) => {
       const updateData = {
         stop_order: newOrder,
         display_stop_order: newOrder,
-        delivery_time_eta: stop.delivery_time_eta
+        delivery_time_eta: stop.delivery_time_eta,
+        isNextDelivery: i === 0
       };
 
       if (pendingStartTime) {
@@ -547,14 +549,36 @@ Deno.serve(async (req) => {
       )
     );
 
+    const nextStopId = activeStops[0]?.id || null;
+    await Promise.all(
+      completedDeliveries
+        .filter((delivery) => delivery?.isNextDelivery === true)
+        .map((delivery) =>
+          base44.asServiceRole.entities.Delivery.update(delivery.id, { isNextDelivery: false }).catch((error) => {
+            if (isNotFoundError(error)) return null;
+            throw error;
+          })
+        )
+    );
+
     finalDeliveryWriteBatch.forEach(({ data, label }) => {
       console.log(`  🔢 [optimizeRemainingStops] Stop #${data.stop_order}: ${label}${data.delivery_time_start ? ` (start: ${data.delivery_time_start})` : ''}`);
     });
 
     // Tracking numbers are intentionally delayed until Assign All / Accept All.
 
-    if (routeOrderChanged) {
-      console.log('🗺️ [optimizeRemainingStops] Route order changed; polyline refresh will be handled by client resync');
+    if (routeOrderChanged || nextStopId) {
+      await base44.asServiceRole.functions.invoke('purgeAndRegeneratePolylines', {
+        driverId,
+        deliveryDate,
+        scope: 'active_only',
+        reason: 'route_reordered',
+        sourcePage: 'Dashboard'
+      }).catch((error) => {
+        console.warn('⚠️ [optimizeRemainingStops] Polyline refresh failed:', error?.message || error);
+        return null;
+      });
+      console.log('🗺️ [optimizeRemainingStops] Active route polyline refresh requested');
     }
 
     // HERE usage is logged inside getHereDirections so dashboard counts stay aligned to real HTTP calls.
@@ -571,7 +595,14 @@ Deno.serve(async (req) => {
       apiCallsMade: attemptedHereCalls,
       locationSource,
       usedTimeWindows,
-      preserveExistingOrder
+      preserveExistingOrder,
+      nextDeliveryId: nextStopId,
+      optimizedRoute: activeStops.map((stop) => ({
+        deliveryId: stop.id,
+        newETA: stop.delivery_time_eta,
+        stop_order: stop.stop_order,
+        isNextDelivery: stop.isNextDelivery === true
+      }))
     });
 
   } catch (error) {
