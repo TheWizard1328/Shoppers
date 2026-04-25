@@ -8,6 +8,8 @@ import { getActiveHereApiKey } from "@/functions/getActiveHereApiKey";
 
 const buildHereLightTileUrl = (apiKey) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=explore.day&size=512&apiKey=${apiKey}`;
 const buildHereDarkTileUrl = (apiKey) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=explore.night&size=512&apiKey=${apiKey}`;
+const buildHereSatelliteTileUrl = (apiKey) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/jpg?style=satellite.day&size=512&apiKey=${apiKey}`;
+const buildHereHybridTileUrl = (apiKey) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/jpg?style=hybrid.day&size=512&apiKey=${apiKey}`;
 import { isMobileDevice } from "../utils/deviceUtils";
 import { getStoreColor } from "../utils/colorGenerator";
 import { userHasRole } from "../utils/userRoles";
@@ -181,7 +183,8 @@ export default function DeliveryMap({
   mapViewPhase = 1,
   isMapViewLocked = false,
   topOverlayHeight = 0,
-  immersiveHidden = false
+  immersiveHidden = false,
+  mapStyle = "explore"
 }) {
   const safeDeliveries = Array.isArray(deliveries) ? deliveries : [];
   const safeAllDeliveriesForDate = Array.isArray(allDeliveriesForDate) ? allDeliveriesForDate : [];
@@ -576,6 +579,15 @@ export default function DeliveryMap({
         : marker;
     });
   }, [driverLocationMarkers, routeLocationSnapshot]);
+
+  const tileLayerUrl = useMemo(() => {
+    if (!hereApiKey) return null;
+    if (mapStyle === "satellite") return buildHereSatelliteTileUrl(hereApiKey);
+    if (mapStyle === "hybrid") return buildHereHybridTileUrl(hereApiKey);
+    return document.documentElement.classList.contains("dark-theme") || (document.documentElement.classList.contains("auto-theme") && window.matchMedia("(prefers-color-scheme: dark)").matches)
+      ? buildHereDarkTileUrl(hereApiKey)
+      : buildHereLightTileUrl(hereApiKey);
+  }, [hereApiKey, mapStyle]);
 
   const driversWithCompleteRoute = useMemo(() => {
     const byDriver = new Map();
@@ -1070,12 +1082,10 @@ export default function DeliveryMap({
           setVisibleBounds(instance.target.getBounds());
         }}
       >
-        {hereApiKey && (
+        {tileLayerUrl && (
           <TileLayer
             attribution='&copy; <a href="https://www.here.com/">HERE</a>'
-            url={document.documentElement.classList.contains("dark-theme") || (document.documentElement.classList.contains("auto-theme") && window.matchMedia("(prefers-color-scheme: dark)").matches)
-              ? buildHereDarkTileUrl(hereApiKey)
-              : buildHereLightTileUrl(hereApiKey)}
+            url={tileLayerUrl}
             tileSize={512}
             zoomOffset={-1}
           />

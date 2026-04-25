@@ -4,7 +4,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Calendar as CalendarIcon, Clock, Truck, Plus, ChevronUp, ChevronDown, Settings, Sparkles, Binoculars } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Truck, Plus, ChevronUp, ChevronDown, Settings, Binoculars, Map } from "lucide-react";
 import TravelModeButton from '@/components/dashboard/TravelModeButton';
 import { useEffect, useState } from "react";
 import { base44 } from "@/api/base44Client";
@@ -43,16 +43,19 @@ export default function StatsPanel({
   statsCardPositioning, pullToSyncKey,
   setIsEntityUpdating, hasRateLimitError, updateDeliveriesLocally,
   setEditingDelivery, setShowDeliveryForm, setShowOptimizationSettings,
-  setShowQuickAdjustments, setShowSmartPrioritization,
+  setShowQuickAdjustments,
   deliveryStats, performanceStats, liveDistance, liveTimeOnDuty, isLoadingPayrollStats,
   dailyPolylineCount, stats, finalizedDutyTime,
   refreshUser, dataSource,
   isMobile,
   preferredTravelMode,
-  onTravelModeChange
+  onTravelModeChange,
+  mapStyle,
+  setMapStyle
 }) {
   const [legendDeliveries, setLegendDeliveries] = useState([]);
   const [isDemoModeActive, setIsDemoModeActive] = useState(false);
+  const [showMapStyleOptions, setShowMapStyleOptions] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -441,8 +444,8 @@ export default function StatsPanel({
                     <Button variant="outline" size="sm" onClick={() => setShowQuickAdjustments(true)} className="h-8 gap-1.5 px-2 flex-shrink-0" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                       <span className="text-xs">Adjust</span>
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => setShowSmartPrioritization(true)} className="h-8 gap-1.5 px-2 flex-shrink-0" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                      <Sparkles className="w-3 h-3" /><span className="text-xs">AI</span>
+                    <Button variant="outline" size="sm" onClick={() => setShowMapStyleOptions((prev) => !prev)} className="h-8 w-8 p-0 flex-shrink-0" title="Map style" style={{ background: showMapStyleOptions ? 'var(--bg-slate-100)' : 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                      <Map className="w-3.5 h-3.5" />
                     </Button>
                     <TravelModeButton
                       currentUser={currentUser}
@@ -451,6 +454,21 @@ export default function StatsPanel({
                       onChange={onTravelModeChange} />
                     
                   </>}
+                </div>
+              </>}
+
+              {showMapStyleOptions && <>
+                <div className="pt-1 border-t border-slate-200"></div>
+                <div className="flex items-center gap-1">
+                  <Button variant="outline" size="sm" onClick={() => setMapStyle('explore')} className="h-8 px-2 flex-shrink-0" style={{ background: mapStyle === 'explore' ? 'var(--bg-slate-100)' : 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                    <span className="text-xs">Explore</span>
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setMapStyle('satellite')} className="h-8 px-2 flex-shrink-0" style={{ background: mapStyle === 'satellite' ? 'var(--bg-slate-100)' : 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                    <span className="text-xs">Satellite</span>
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setMapStyle('hybrid')} className="h-8 px-2 flex-shrink-0" style={{ background: mapStyle === 'hybrid' ? 'var(--bg-slate-100)' : 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                    <span className="text-xs">Hybrid</span>
+                  </Button>
                 </div>
               </>}
 
