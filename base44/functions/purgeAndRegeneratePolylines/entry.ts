@@ -359,6 +359,39 @@ function mergeDeliveryUpdates(deliveries, updatesById) {
   });
 }
 
+function getNormalizedTravelMode(value, fallback = 'driving') {
+  const normalized = String(value || '').toLowerCase();
+  return ['driving', 'cycling', 'pedestrian'].includes(normalized) ? normalized : fallback;
+}
+
+function groupModeOverrideRanges(stops, getMode) {
+  const groups = [];
+  let index = 0;
+
+  while (index < stops.length) {
+    const mode = getNormalizedTravelMode(getMode(stops[index]), 'driving');
+    if (mode === 'driving') {
+      index += 1;
+      continue;
+    }
+
+    const startIndex = index;
+    while (index + 1 < stops.length && getNormalizedTravelMode(getMode(stops[index + 1]), 'driving') === mode) {
+      index += 1;
+    }
+
+    groups.push({
+      mode,
+      startIndex,
+      endIndex: index
+    });
+
+    index += 1;
+  }
+
+  return groups;
+}
+
 
 async function bulkUpdateDeliveries(base44, deliveries, updatesById) {
   if (!(updatesById instanceof Map) || updatesById.size === 0) {
@@ -880,18 +913,33 @@ Deno.serve(async (req) => {
 
       const finishedDirectionsByStopId = new Map();
       if (routeSource === 'polylines' && finishedSegmentSpecs.length > 0) {
-        for (const mode of ['driving', 'cycling']) {
-          const segmentsForMode = finishedSegmentSpecs.filter((segment) => segment.transportMode === mode);
-          if (segmentsForMode.length === 0) continue;
-          const finishedDirections = await Promise.all(
-            segmentsForMode.map((segment) =>
-              getMultiSegmentDirections(base44, [{ from: segment.from, to: segment.to }], mode)
-                .then((results) => results?.[0] || null)
-            )
+        const drivingBaseRoute = await getMultiSegmentDirections(
+          base44,
+          finishedSegmentSpecs.map((segment) => ({ from: segment.from, to: segment.to })),
+          'driving'
+        );
+        apiCallsMade += 1;
+        finishedSegmentSpecs.forEach((segment, index) => {
+          finishedDirectionsByStopId.set(segment.stop.id, drivingBaseRoute[index] || null);
+        });
+
+        const modeOverrideGroups = groupModeOverrideRanges(
+          finishedSegmentSpecs,
+          (segment) => segment.transportMode
+        );
+
+        for (const group of modeOverrideGroups) {
+          const groupStart = Math.max(group.startIndex - 1, 0);
+          const groupEnd = Math.min(group.endIndex + 1, finishedSegmentSpecs.length - 1);
+          const groupSegments = finishedSegmentSpecs.slice(groupStart, groupEnd + 1);
+          const overrideDirections = await getMultiSegmentDirections(
+            base44,
+            groupSegments.map((segment) => ({ from: segment.from, to: segment.to })),
+            group.mode
           );
-          apiCallsMade += segmentsForMode.length;
-          segmentsForMode.forEach((segment, index) => {
-            finishedDirectionsByStopId.set(segment.stop.id, finishedDirections[index] || null);
+          apiCallsMade += 1;
+          groupSegments.forEach((segment, index) => {
+            finishedDirectionsByStopId.set(segment.stop.id, overrideDirections[index] || null);
           });
         }
       }
@@ -936,12 +984,12 @@ Deno.serve(async (req) => {
         const segmentSpecs = [];
         const seen = new Set();
 
-        const pushSegment = (from, to, force = false) => {
+        const pushSegment = (from, to, force = false, transportMode = 'driving') => {
           if (!isValidPoint(from) || !isValidPoint(to)) return;
           const key = makeSegmentKey(driverId, deliveryDate, from, to);
           if (seen.has(key)) return;
           seen.add(key);
-          segmentSpecs.push({ from, to, force });
+          segmentSpecs.push({ from, to, force, transportMode: getNormalizedTravelMode(transportMode, 'driving') });
         };
 
         const currentLat = Number(driverAppUser?.current_latitude);
@@ -969,7 +1017,9 @@ Deno.serve(async (req) => {
             ? getLatLon(previousStop)
             : originFromFinishedStop || (hasHomeCoords ? { lat: homeLat, lon: homeLon } : null);
           const to = getLatLon(stop);
-          pushSegment(from, to, !!explicitStopOrderIds.length);
+          const stopMeta = explicitStopMetaById.get(stop?.id) || null;
+          const transportMode = stopMeta?.finished_leg_transport_mode || stopMeta?.transport_mode || driverAppUser?.preferred_travel_mode || 'driving';
+          pushSegment(from, to, !!explicitStopOrderIds.length, transportMode);
         }
 
         const lastActive = getLatLon(activeStops[activeStops.length - 1]);
@@ -1018,15 +1068,39 @@ Deno.serve(async (req) => {
           }
         });
 
-        const uncachedDirections = await getMultiSegmentDirections(
-          base44,
-          uncachedSegments,
-          explicitStopMetaById.get(activeStops[0]?.id)?.finished_leg_transport_mode || driverAppUser?.preferred_travel_mode || 'driving'
-        );
-        if (uncachedSegments.length > 0) apiCallsMade += 1;
+        const segmentMode = (spec) => getNormalizedTravelMode(spec.transportMode, 'driving');
+        const directionsBySegmentKey = new Map();
 
-        uncachedSegments.forEach((spec, index) => {
-          const directions = uncachedDirections[index];
+        if (uncachedSegments.length > 0) {
+          const drivingBaseDirections = await getMultiSegmentDirections(
+            base44,
+            uncachedSegments.map((spec) => ({ from: spec.from, to: spec.to })),
+            'driving'
+          );
+          apiCallsMade += 1;
+          uncachedSegments.forEach((spec, index) => {
+            directionsBySegmentKey.set(makeSegmentKey(driverId, deliveryDate, spec.from, spec.to), drivingBaseDirections[index] || null);
+          });
+
+          const modeOverrideGroups = groupModeOverrideRanges(uncachedSegments, (spec) => segmentMode(spec));
+          for (const group of modeOverrideGroups) {
+            const groupStart = Math.max(group.startIndex - 1, 0);
+            const groupEnd = Math.min(group.endIndex + 1, uncachedSegments.length - 1);
+            const groupSegments = uncachedSegments.slice(groupStart, groupEnd + 1);
+            const overrideDirections = await getMultiSegmentDirections(
+              base44,
+              groupSegments.map((spec) => ({ from: spec.from, to: spec.to })),
+              group.mode
+            );
+            apiCallsMade += 1;
+            groupSegments.forEach((spec, index) => {
+              directionsBySegmentKey.set(makeSegmentKey(driverId, deliveryDate, spec.from, spec.to), overrideDirections[index] || null);
+            });
+          }
+        }
+
+        uncachedSegments.forEach((spec) => {
+          const directions = directionsBySegmentKey.get(makeSegmentKey(driverId, deliveryDate, spec.from, spec.to));
           const matchingStop = activeStops.find((stop) => {
             const stopCoords = getLatLon(stop);
             return stop?.id && stopCoords && samePoint({ lat: stopCoords.lat, lon: stopCoords.lon }, spec.to);
