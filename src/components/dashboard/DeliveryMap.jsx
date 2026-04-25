@@ -2,6 +2,13 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { MapContainer, Marker, Pane, Polyline, Popup, TileLayer } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
+
+const IntegerZoomTileLayer = L.TileLayer.extend({
+  _getZoomForUrl() {
+    const zoom = L.TileLayer.prototype._getZoomForUrl.call(this);
+    return Math.round(zoom);
+  }
+});
 import { format } from "date-fns";
 import { base44 } from "@/api/base44Client";
 import { getActiveHereApiKey } from "@/functions/getActiveHereApiKey";
@@ -919,7 +926,7 @@ export default function DeliveryMap({
       {
         paddingTopLeft: [25, isMobile ? (immersiveHidden ? 25 : effectiveTopOverlayHeight + 25) : 60],
         paddingBottomRight: [25, immersiveHidden ? 25 : ((areStopCardsVisible && !immersiveHidden) ? stopCardsHeight + 10 : 60)],
-        maxZoom: 17,
+        maxZoom: 17.5,
         animate: false
       }
     );
@@ -1090,9 +1097,9 @@ export default function DeliveryMap({
       <MapContainer
         center={center || [53.5461, -113.4938]}
         zoom={zoom || (safeDeliveries.length === 0 ? 11 : 12)}
-        maxZoom={17}
-        zoomSnap={1}
-        zoomDelta={1}
+        maxZoom={17.5}
+        zoomSnap={0}
+        zoomDelta={0.1}
         style={{ height: "100%", width: "100%" }}
         zoomControl={false}
         doubleClickZoom={false}
@@ -1105,6 +1112,11 @@ export default function DeliveryMap({
       >
         {tileLayerConfig?.base && (
           <TileLayer
+            ref={(layer) => {
+              if (layer && !(layer instanceof IntegerZoomTileLayer)) {
+                Object.setPrototypeOf(layer, IntegerZoomTileLayer.prototype);
+              }
+            }}
             key={`base-${mapStyle}-${tileLayerConfig.base}`}
             attribution='&copy; <a href="https://www.here.com/">HERE</a>'
             url={tileLayerConfig.base}
@@ -1112,10 +1124,16 @@ export default function DeliveryMap({
             zoomOffset={-1}
             updateWhenZooming={false}
             keepBuffer={2}
+            className="integer-zoom-tile-layer"
           />
         )}
         {tileLayerConfig?.overlay && (
           <TileLayer
+            ref={(layer) => {
+              if (layer && !(layer instanceof IntegerZoomTileLayer)) {
+                Object.setPrototypeOf(layer, IntegerZoomTileLayer.prototype);
+              }
+            }}
             key={`overlay-${mapStyle}-${tileLayerConfig.overlay}`}
             url={tileLayerConfig.overlay}
             tileSize={512}
@@ -1123,6 +1141,7 @@ export default function DeliveryMap({
             opacity={1}
             updateWhenZooming={false}
             keepBuffer={2}
+            className="integer-zoom-tile-layer"
           />
         )}
 
