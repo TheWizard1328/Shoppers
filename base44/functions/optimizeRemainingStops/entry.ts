@@ -522,7 +522,10 @@ Deno.serve(async (req) => {
         stop_order: newOrder,
         display_stop_order: newOrder,
         delivery_time_eta: stop.delivery_time_eta,
-        isNextDelivery: i === 0
+        isNextDelivery: i === 0,
+        travel_dist: Number(directionsLegs[i]?.distance)
+          ? Number((Number(directionsLegs[i].distance) / 1000).toFixed(3))
+          : null
       };
 
       if (pendingStartTime) {
@@ -597,11 +600,14 @@ Deno.serve(async (req) => {
       usedTimeWindows,
       preserveExistingOrder,
       nextDeliveryId: nextStopId,
-      optimizedRoute: activeStops.map((stop) => ({
+      optimizedRoute: activeStops.map((stop, index) => ({
         deliveryId: stop.id,
         newETA: stop.delivery_time_eta,
-        stop_order: stop.stop_order,
-        isNextDelivery: stop.isNextDelivery === true
+        stop_order: startingOrder + index + 1,
+        isNextDelivery: index === 0,
+        travel_dist: Number(directionsLegs[index]?.distance)
+          ? Number((Number(directionsLegs[index].distance) / 1000).toFixed(3))
+          : null
       }))
     });
 

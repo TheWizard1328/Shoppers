@@ -29,24 +29,56 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Start was blocked because this stop is still syncing.' }, { status: 400 });
     }
 
-    const oldNextDeliveries = await base44.asServiceRole.entities.Delivery.filter({
+    const routeDeliveries = await base44.asServiceRole.entities.Delivery.filter({
       driver_id: driverId,
-      delivery_date: deliveryDate,
-      isNextDelivery: true
-    }, 'stop_order', 50);
+      delivery_date: deliveryDate
+    }, 'stop_order', 5000);
 
-    const oldNextDeliveriesToReset = (oldNextDeliveries || []).filter((delivery) => delivery.id !== deliveryId);
-    const oldNextDeliveryId = oldNextDeliveriesToReset[0]?.id || null;
+    const finishedStatuses = new Set(['completed', 'failed', 'cancelled', 'returned']);
+    const activeStatuses = new Set(['in_transit', 'en_route']);
+    const selectedDelivery = (routeDeliveries || []).find((delivery) => delivery.id === deliveryId) || null;
 
-    for (const delivery of oldNextDeliveriesToReset) {
+    if (!selectedDelivery) {
+      return Response.json({ error: 'Selected stop was not found' }, { status: 404 });
+    }
+
+    const oldNextDeliveries = (routeDeliveries || []).filter((delivery) => delivery?.isNextDelivery === true);
+    const oldNextDeliveryId = oldNextDeliveries.find((delivery) => delivery.id !== deliveryId)?.id || null;
+
+    const completedDeliveries = (routeDeliveries || [])
+      .filter((delivery) => finishedStatuses.has(delivery?.status))
+      .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
+
+    const activeDeliveries = (routeDeliveries || [])
+      .filter((delivery) => activeStatuses.has(delivery?.status))
+      .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
+
+    const pendingDeliveries = (routeDeliveries || [])
+      .filter((delivery) => delivery?.status === 'pending')
+      .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
+
+    const remainingActiveDeliveries = activeDeliveries.filter((delivery) => delivery.id !== deliveryId);
+    const reorderedActiveDeliveries = [selectedDelivery, ...remainingActiveDeliveries];
+    const reorderedRoute = [...completedDeliveries, ...reorderedActiveDeliveries, ...pendingDeliveries];
+
+    const selectedStopOrder = completedDeliveries.length + 1;
+    const routeUpdates = reorderedRoute.map((delivery, index) => ({
+      id: delivery.id,
+      stop_order: index + 1,
+      isNextDelivery: delivery.id === deliveryId,
+      travel_dist: delivery.id === deliveryId ? 0 : delivery.travel_dist ?? null
+    }));
+
+    for (const update of routeUpdates) {
       try {
-        await base44.asServiceRole.entities.Delivery.update(delivery.id, {
-          isNextDelivery: false,
-          travel_dist: 0
+        await base44.asServiceRole.entities.Delivery.update(update.id, {
+          stop_order: update.stop_order,
+          isNextDelivery: update.isNextDelivery,
+          travel_dist: update.travel_dist
         });
       } catch (error) {
         if (!isNotFoundError(error) && !isRateLimitError(error)) {
-          console.warn(`⚠️ [handleStartDelivery] Failed resetting old next delivery ${delivery.id}:`, error?.message || error);
+          console.warn(`⚠️ [handleStartDelivery] Failed updating route stop ${update.id}:`, error?.message || error);
         }
         if (isRateLimitError(error)) {
           return Response.json({ error: 'Start was delayed by too many requests. Please tap Start again.' }, { status: 429 });
@@ -54,15 +86,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const startResult = await base44.asServiceRole.entities.Delivery.update(deliveryId, {
-      isNextDelivery: true,
-      travel_dist: 0
-    }).catch((error) => {
-      if (isNotFoundError(error)) return null;
-      if (isRateLimitError(error)) throw error;
-      console.error(`❌ [handleStartDelivery] Failed updating selected delivery ${deliveryId}:`, error?.message || error);
-      return null;
-    });
+    const startResult = selectedDelivery;
 
     if (!startResult) {
       return Response.json({ error: 'Failed to mark selected delivery as started' }, { status: 409 });
@@ -80,7 +104,8 @@ Deno.serve(async (req) => {
         driverId,
         deliveryDate,
         currentLocalTime: getCurrentLocalTimeString(),
-        deviceTime: new Date().toISOString()
+        deviceTime: new Date().toISOString(),
+        preserveExistingOrder: false
       });
       const optimizationData = optimizationResponse?.data || optimizationResponse || {};
       optimization = {
@@ -105,6 +130,7 @@ Deno.serve(async (req) => {
       distanceTransferred: 0,
       newNextDeliveryId: deliveryId,
       oldNextDeliveryId,
+      selectedStopOrder,
       routeChanged: optimization?.routeChanged === true,
       optimization
     });
