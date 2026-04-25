@@ -465,11 +465,26 @@ export default function PayrollSummaryCard({
         extra_km_rate: driverData.extraKmRate, extra_km_limit: driverData.extraKmLimit,
         oversized_item_rate: driverData.oversizedRate, gst_hst_enabled: driverData.gstHstEnabled,
         status: 'driver_finalized', driver_finalized_at: new Date().toISOString() };
-      if (existingRecord) await base44.entities.Payroll.update(existingRecord.id, roundPayrollData(payrollRecord));else
-      await base44.entities.Payroll.create(roundPayrollData(payrollRecord));
+
+      const savedRecord = existingRecord
+        ? await base44.entities.Payroll.update(existingRecord.id, roundPayrollData(payrollRecord))
+        : await base44.entities.Payroll.create(roundPayrollData(payrollRecord));
+
+      const mergedRecord = { ...existingRecord, ...roundPayrollData(payrollRecord), ...savedRecord };
+      const nextPayrollRecords = existingRecord
+        ? payrollRecords.map((record) => record.id === existingRecord.id ? mergedRecord : record)
+        : [...payrollRecords, mergedRecord];
+
+      setPayrollRecords(nextPayrollRecords);
+      if (onPayrollRecordsChange) onPayrollRecordsChange(nextPayrollRecords);
+
+      try {
+        const { offlineDB } = await import('../utils/offlineDatabase');
+        await offlineDB.save(offlineDB.STORES.PAYROLL, mergedRecord);
+      } catch (e) {/* ignore */}
+
       try {await notifyDriverConfirmedPayroll({ driver: currentUser, periodLabel: currentPeriod?.label || 'this period', appUsers, excludeUserId: isAdmin ? currentUser?.id : null });} catch (e) {/* ignore */}
-      if (refreshPayrollRecords) await refreshPayrollRecords();else
-      {const records = await base44.entities.Payroll.filter({ pay_period_start: periodStartStr, pay_period_end: periodEndStr });setPayrollRecords(records || []);if (onPayrollRecordsChange) onPayrollRecordsChange(records || []);}
+      if (refreshPayrollRecords) await refreshPayrollRecords();
     } catch (error) {console.error('❌ [Payroll] Failed to finalize:', error);alert('Failed to save payroll confirmation.');} finally
     {setIsFinalizing(false);setShowConfirmDialog(false);}
   };
