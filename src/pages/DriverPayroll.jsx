@@ -462,7 +462,25 @@ export default function DriverPayroll() {
     return filtered;
   }, [payrollData?.deliveries, payrollData?.appUsers, selectedCityId, filteredStores, currentPeriod, payPeriod]);
 
-  const totalNetPay = useMemo(() => (payrollRecords || []).reduce((sum, r) => sum + (Number(r.net_pay) || 0), 0), [payrollRecords]);
+  const filteredPayrollRecords = useMemo(() => {
+    if (!currentPeriod || !Array.isArray(payrollRecords)) return [];
+
+    const periodStart = toLocalYMD(currentPeriod.start);
+    const periodEnd = toLocalYMD(currentPeriod.end);
+    const payCycleDriverIds = new Set(driversInPayCycle.map((driver) => driver.user_id || driver.id));
+
+    return payrollRecords.filter((record) => {
+      const matchesPeriod = record.pay_period_start === periodStart && record.pay_period_end === periodEnd;
+      const matchesDriver = selectedDriverId === 'all'
+        ? payCycleDriverIds.has(record.driver_id)
+        : record.driver_id === selectedDriverId;
+      const matchesCity = !selectedCityId || selectedCityId === 'all' || record.city_id === selectedCityId;
+      const matchesPayPeriod = !payPeriod || record.pay_period_type === payPeriod;
+      return matchesPeriod && matchesDriver && matchesCity && matchesPayPeriod;
+    });
+  }, [payrollRecords, currentPeriod, driversInPayCycle, selectedDriverId, selectedCityId, payPeriod]);
+
+  const totalNetPay = useMemo(() => filteredPayrollRecords.reduce((sum, r) => sum + (Number(r.net_pay) || 0), 0), [filteredPayrollRecords]);
   const totalDeliveries = useMemo(() => cityFilteredDeliveries.length, [cityFilteredDeliveries]);
   const periodLabel = useMemo(() => currentPeriod ? currentPeriod.label : '', [currentPeriod]);
 
