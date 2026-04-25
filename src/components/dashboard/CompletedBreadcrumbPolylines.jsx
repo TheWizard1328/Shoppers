@@ -3,6 +3,7 @@ import { Polyline } from "react-leaflet";
 import { getHerePolyline } from "../utils/hereRouting";
 import { generateDriverColor } from "../utils/colorGenerator";
 import { getTravelModeLineStyle, normalizeTravelMode } from "./travelModeHelpers";
+import RouteDirectionDecorator from "./RouteDirectionDecorator";
 
 const FINISHED = ["completed", "failed", "cancelled"];
 const getType3PolylineColor = (driverId) => {
@@ -356,7 +357,12 @@ export default function CompletedBreadcrumbPolylines({
         positions={coords}
         pathOptions={getTravelModeLineStyle(segment.finishedLegTransportMode, getType3PolylineColor(segment.driverId))}
         pane="completedBreadcrumbPane"
-        />
+        />,
+      <RouteDirectionDecorator
+        key={`stored-finished-arrow-${segment.id}-${polylineRenderKey}-${highlightedDeliveryId || "none"}`}
+        positions={coords}
+        color={getType3PolylineColor(segment.driverId)}
+      />
     );
   });
 
@@ -380,6 +386,11 @@ export default function CompletedBreadcrumbPolylines({
             dashArray: segment.isHomeFinalSegment ? '6 6' : undefined
           }}
           pane="completedBreadcrumbPane"
+        />,
+        <RouteDirectionDecorator
+          key={`completed-stored-arrow-${segment.id}-${polylineRenderKey}-${highlightedDeliveryId || "none"}`}
+          positions={coords}
+          color={getType3PolylineColor(segment.driverId)}
         />
       );
       return;
@@ -403,6 +414,11 @@ export default function CompletedBreadcrumbPolylines({
             positions={positions}
             pathOptions={getFinishedLegRouteStyle(segment.driverId, segment.finishedLegTransportMode, Math.max(segment.opacity, 0.35))}
             pane="completedBreadcrumbPane"
+          />,
+          <RouteDirectionDecorator
+            key={`completed-breadcrumb-arrow-${leg.id}-${polylineRenderKey}`}
+            positions={positions}
+            color={getType3PolylineColor(segment.driverId)}
           />
         );
       });
