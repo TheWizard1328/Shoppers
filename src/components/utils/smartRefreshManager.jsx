@@ -10,20 +10,6 @@ import { touchUserCache } from "./auth";
 import { globalFilters } from "./globalFilters";
 import { syncDriverRoutePolylinesForDate } from "./hereRouting";
 
-const shouldAutoCenterNextDeliveryFromSmartRefresh = (deliveries = [], selectedDriverId = 'all', currentUser = null) => {
-  if (!Array.isArray(deliveries) || deliveries.length === 0 || !currentUser) return false;
-  if (!selectedDriverId || selectedDriverId === 'all') return false;
-
-  const roles = Array.isArray(currentUser.app_roles) ? currentUser.app_roles : [];
-  const isDispatcher = roles.includes('dispatcher');
-  const isViewingOwnRoute = selectedDriverId === currentUser.id || selectedDriverId === currentUser.user_id;
-
-  if (!isDispatcher && isViewingOwnRoute) return false;
-  if (isViewingOwnRoute) return false;
-
-  return deliveries.some((delivery) => delivery?.driver_id === selectedDriverId && delivery?.isNextDelivery === true);
-};
-
 class LightweightRefreshManager {
   constructor() {
     this._enabled = true;
@@ -732,21 +718,6 @@ class LightweightRefreshManager {
             }
           }));
 
-          const selectedDriverId = globalFilters.getSelectedDriverId();
-          const deliveriesForCenterCheck = updates.deliveries || currentData.deliveries || [];
-          if (shouldAutoCenterNextDeliveryFromSmartRefresh(deliveriesForCenterCheck, selectedDriverId, this._currentUser)) {
-            console.log('🎯 [SmartRefresh] Auto-centering next delivery after smart refresh');
-            window.dispatchEvent(new CustomEvent('collapseAllStopCards'));
-            setTimeout(() => {
-              window.dispatchEvent(new CustomEvent('centerNextDeliveryCard', {
-                detail: {
-                  source: 'smartRefreshManager',
-                  selectedDriverId,
-                  remoteOnly: false
-                }
-              }));
-            }, 100);
-          }
         }
       }
       
