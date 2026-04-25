@@ -257,8 +257,7 @@ export default function useStopCardActions(params) {
           }).catch(() => null);
 
           const refreshedRouteDeliveries = await base44.entities.Delivery.filter({ driver_id: delivery.driver_id, delivery_date: delivery.delivery_date });
-          const nextOptimizedStop = getNextActiveDelivery(refreshedRouteDeliveries, null, FINISHED_STATUSES);
-          await setAndCenterNextDelivery({ driverDeliveries: refreshedRouteDeliveries, targetDeliveryId: nextOptimizedStop?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
+          await setAndCenterNextDelivery({ driverDeliveries: refreshedRouteDeliveries, targetDeliveryId: delivery.id, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
         } catch (optErr) {
           console.warn('⚠️ [Accept All] background optimization failed:', optErr?.message || optErr);
         } finally {
