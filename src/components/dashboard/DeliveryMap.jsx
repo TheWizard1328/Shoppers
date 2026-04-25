@@ -245,7 +245,7 @@ export default function DeliveryMap({
     let mounted = true;
 
     const loadHereApiKey = async () => {
-      const response = await getActiveHereApiKey({});
+      const response = await getActiveHereApiKey({}).catch(() => null);
       const nextApiKey = response?.data?.apiKey;
       if (mounted && nextApiKey) {
         setHereApiKey(nextApiKey);
@@ -938,18 +938,19 @@ export default function DeliveryMap({
   }, [map, mapViewPhase, isMapViewLocked, selectedDriverId, currentUser?.id, currentDriverLocation, routeAwareCurrentDriverMarker, routeAwareDriverLocationMarkers, deliveryMarkers, pickupMarkers, isMobile]);
 
   useEffect(() => {
-    if (!map || !tileLayerConfig?.base) return;
+    if (!map || !tileLayerConfig?.base || !map._loaded || !map._container) return;
 
     const currentCenter = map.getCenter();
     const currentZoom = map.getZoom();
     window._lastProgrammaticMapMove = Date.now();
     setMapCenter?.([currentCenter.lat, currentCenter.lng]);
     setMapZoom?.(currentZoom);
+    setMap(null);
     setMapInstanceKey((value) => value + 1);
   }, [mapStyle, tileLayerConfig?.base, tileLayerConfig?.overlay]);
 
   useEffect(() => {
-    if (!map || !Array.isArray(center) || center.length !== 2 || !Number.isFinite(zoom)) return;
+    if (!map || !map._loaded || !map._container || !Array.isArray(center) || center.length !== 2 || !Number.isFinite(zoom)) return;
     if (mapViewPhase === 2 && isMapViewLocked) return;
     const currentCenter = map.getCenter();
     const sameCenter = Math.abs(currentCenter.lat - center[0]) < 0.000001 && Math.abs(currentCenter.lng - center[1]) < 0.000001;
@@ -1108,6 +1109,7 @@ export default function DeliveryMap({
         doubleClickZoom={false}
         onClick={() => setFannedLocationKey(null)}
         whenReady={(instance) => {
+          if (!instance?.target?._loaded || !instance?.target?._container) return;
           setMap(instance.target);
           setCurrentZoom(instance.target.getZoom());
           setVisibleBounds(instance.target.getBounds());
