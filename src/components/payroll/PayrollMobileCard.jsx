@@ -226,7 +226,7 @@ export default function PayrollMobileCard({
 
       {/* Pay Summary - Table Layout with Aligned Columns */}
       {currentPeriod &&
-      <div className="p-3 rounded-lg border w-full overflow-x-hidden" style={{
+      <div className="px-2 py-2 rounded-lg border w-full overflow-x-hidden" style={{
         background: 'var(--bg-white)',
         borderColor: 'var(--border-slate-200)',
         fontVariantNumeric: 'tabular-nums'

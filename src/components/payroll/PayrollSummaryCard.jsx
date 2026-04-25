@@ -1699,7 +1699,7 @@ export default function PayrollSummaryCard({
                   if (/iPad|Android(?!.*Mobile)/i.test(ua)) return window.innerWidth < window.innerHeight ? 'block' : 'none';
                   return window.innerWidth < 768 ? 'block' : 'none';
                 })()
-              }} className="px-4">
+              }} className="px-2">
                 <div className="font-semibold mb-3 text-sm" style={{ color: 'var(--text-slate-700)' }}>Total Payroll (All Drivers)</div>
                 
                 {/* Pay Summary Table */}
