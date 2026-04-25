@@ -4,7 +4,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Calendar as CalendarIcon, Clock, Truck, Plus, ChevronUp, ChevronDown, Settings, Binoculars, Map } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Truck, Plus, ChevronUp, ChevronDown, Settings, Binoculars, Map as MapIcon } from "lucide-react";
 import TravelModeButton from '@/components/dashboard/TravelModeButton';
 import { useEffect, useState } from "react";
 import { base44 } from "@/api/base44Client";
@@ -445,7 +445,7 @@ export default function StatsPanel({
                       <span className="text-xs">Adjust</span>
                     </Button>
                     <Button variant="outline" size="sm" onClick={() => setShowMapStyleOptions((prev) => !prev)} className="h-8 w-8 p-0 flex-shrink-0" title="Map style" style={{ background: showMapStyleOptions ? 'var(--bg-slate-100)' : 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                      <Map className="w-3.5 h-3.5" />
+                      <MapIcon className="w-3.5 h-3.5" />
                     </Button>
                     <TravelModeButton
                       currentUser={currentUser}
