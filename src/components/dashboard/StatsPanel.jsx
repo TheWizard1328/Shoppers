@@ -58,12 +58,6 @@ export default function StatsPanel({
   const [showMapStyleOptions, setShowMapStyleOptions] = useState(false);
 
   useEffect(() => {
-    if (!showExpandedContent) {
-      setShowMapStyleOptions(false);
-    }
-  }, [showExpandedContent]);
-
-  useEffect(() => {
     let active = true;
 
     const loadDemoModeState = async () => {
@@ -169,6 +163,12 @@ export default function StatsPanel({
 
   const isDispatcherLockedExpanded = isDispatcher;
   const showExpandedContent = isDispatcherLockedExpanded || isExpanded;
+
+  useEffect(() => {
+    if (!showExpandedContent) {
+      setShowMapStyleOptions(false);
+    }
+  }, [showExpandedContent]);
 
   return (
     <div className={statsCardPositioning} style={{ zIndex: isMobile && isExpanded ? 40 : isMobile ? 100 : 600, position: 'absolute', pointerEvents: 'none' }}>
