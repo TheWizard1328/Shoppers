@@ -645,11 +645,25 @@ Deno.serve(async (req) => {
       explicitOrderedStopsOnly = false,
       explicitRouteOrigin = null,
       explicitRouteDestination = null,
-      bypassPolylineDelete = false
+      bypassPolylineDelete = false,
+      sourcePage = null
     } = body || {};
 
     if (!driverId || !deliveryDate) {
       return Response.json({ error: 'driverId and deliveryDate are required' }, { status: 400 });
+    }
+
+    if (sourcePage && sourcePage !== 'Dashboard') {
+      return Response.json({
+        success: true,
+        skipped: true,
+        reason: 'non_dashboard_page',
+        scope,
+        deleted: 0,
+        created: 0,
+        apiCallsMade: 0,
+        repairedStopOrders: 0
+      });
     }
 
     let deliveries = await base44.asServiceRole.entities.Delivery.filter({
@@ -687,7 +701,7 @@ Deno.serve(async (req) => {
         deleted: 0,
         created: 0,
         apiCallsMade: 0,
-        repairedStopOrders: repairedStopOrders
+        repairedStopOrders: stopOrderRepairUpdates.length
       });
     }
 
@@ -745,7 +759,7 @@ Deno.serve(async (req) => {
         deleted: 0,
         created: 0,
         apiCallsMade: 0,
-        repairedStopOrders: repairedStopOrders
+        repairedStopOrders: stopOrderRepairUpdates.length
       });
     }
     if (driverAvailability.isUnavailable && !isHistoricalDate && !bypassDriverStatus) {
@@ -758,7 +772,7 @@ Deno.serve(async (req) => {
         deleted: 0,
         created: 0,
         apiCallsMade: 0,
-        repairedStopOrders: repairedStopOrders
+        repairedStopOrders: stopOrderRepairUpdates.length
       });
     }
     console.log(`# [purgeAndRegeneratePolylines] START | driver=${driverDisplayName} | date=${deliveryDate} | scope=${scope} | totalStops=${deliveries?.length || 0} | existingPolylines=${existingPolylines?.length || 0} | driver_status=${driverAvailability.status || 'missing'} | historical=${isHistoricalDate} | home_lat=${driverAppUser?.home_latitude} | home_lon=${driverAppUser?.home_longitude}`);
