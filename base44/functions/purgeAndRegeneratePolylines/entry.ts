@@ -932,15 +932,15 @@ Deno.serve(async (req) => {
           const groupStart = group.startIndex;
           const groupEnd = group.endIndex;
           const groupSegments = finishedSegmentSpecs.slice(groupStart, groupEnd + 1);
-          const overrideDirections = await getMultiSegmentDirections(
-            base44,
-            groupSegments.map((segment) => ({ from: segment.from, to: segment.to })),
-            group.mode
-          );
-          apiCallsMade += 1;
-          groupSegments.forEach((segment, index) => {
-            finishedDirectionsByStopId.set(segment.stop.id, overrideDirections[index] || null);
-          });
+          for (const segment of groupSegments) {
+            const overrideDirections = await getMultiSegmentDirections(
+              base44,
+              [{ from: segment.from, to: segment.to }],
+              group.mode
+            );
+            apiCallsMade += 1;
+            finishedDirectionsByStopId.set(segment.stop.id, overrideDirections[0] || null);
+          }
         }
       }
 
@@ -1087,15 +1087,15 @@ Deno.serve(async (req) => {
             const groupStart = group.startIndex;
             const groupEnd = group.endIndex;
             const groupSegments = uncachedSegments.slice(groupStart, groupEnd + 1);
-            const overrideDirections = await getMultiSegmentDirections(
-              base44,
-              groupSegments.map((spec) => ({ from: spec.from, to: spec.to })),
-              group.mode
-            );
-            apiCallsMade += 1;
-            groupSegments.forEach((spec, index) => {
-              directionsBySegmentKey.set(makeSegmentKey(driverId, deliveryDate, spec.from, spec.to), overrideDirections[index] || null);
-            });
+            for (const spec of groupSegments) {
+              const overrideDirections = await getMultiSegmentDirections(
+                base44,
+                [{ from: spec.from, to: spec.to }],
+                group.mode
+              );
+              apiCallsMade += 1;
+              directionsBySegmentKey.set(makeSegmentKey(driverId, deliveryDate, spec.from, spec.to), overrideDirections[0] || null);
+            }
           }
         }
 
