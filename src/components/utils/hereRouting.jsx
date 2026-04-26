@@ -393,6 +393,9 @@ export const ensurePolylineSubscription = () => {
             try {
               if (rec.encoded_polyline) {
                 decodedCoords = decodeGooglePolyline(rec.encoded_polyline);
+                if ((!Array.isArray(decodedCoords) || decodedCoords.length < 2) && typeof rec.polyline === 'string') {
+                  decodedCoords = decodeHereFlexiblePolyline(rec.polyline);
+                }
                 if (Array.isArray(decodedCoords) && decodedCoords.length > 1) {
                   memoryCache.set(key, decodedCoords);
                   try { localStorage.setItem(key, JSON.stringify(decodedCoords)); } catch (_) {}

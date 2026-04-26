@@ -168,6 +168,39 @@ const encodeGooglePolyline = (points) => {
   return encoded;
 };
 
+const decodeGooglePolyline = (encoded) => {
+  if (!encoded || typeof encoded !== 'string') return [];
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
+  const coordinates = [];
+
+  while (index < encoded.length) {
+    let result = 0;
+    let shift = 0;
+    let byte;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+
+    result = 0;
+    shift = 0;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+
+    coordinates.push([lat / 1e5, lng / 1e5]);
+  }
+
+  return coordinates;
+};
+
 const decodeHereFlexiblePolyline = (encoded) => {
   if (!encoded || typeof encoded !== 'string') return [];
 
@@ -256,6 +289,12 @@ const buildRoutingSections = async ({ hereApiKey, orderedStops, originLat, origi
       decodedCoords = decodeHereFlexiblePolyline(routeSection.polyline);
       if (decodedCoords.length > 1) {
         encodedPolyline = encodeGooglePolyline(decodedCoords);
+        decodedSectionCoordinates.push(decodedCoords);
+      }
+    } else if (typeof routeSection?.encoded_polyline === 'string' && routeSection.encoded_polyline) {
+      decodedCoords = decodeGooglePolyline(routeSection.encoded_polyline);
+      if (decodedCoords.length > 1) {
+        encodedPolyline = routeSection.encoded_polyline;
         decodedSectionCoordinates.push(decodedCoords);
       }
     }
