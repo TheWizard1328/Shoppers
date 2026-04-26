@@ -523,8 +523,39 @@ function mergeDecodedPolylines(polylines, decoder) {
 
 function decodeRouteGeometry(data) {
   if (Array.isArray(data?.coordinates)) {
-    const coords = data.coordinates.map((p) => [p.lat ?? p.latitude, p.lng ?? p.longitude]);
-    return coords.length > 1 ? coords : null;
+    const coords = data.coordinates
+      .map((p) => [p.lat ?? p.latitude, p.lng ?? p.longitude])
+      .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
+    if (coords.length > 1) return coords;
+  }
+
+  if (Array.isArray(data?.sections) && data.sections.length > 0) {
+    const mergedSectionCoords = [];
+    data.sections.forEach((section) => {
+      let sectionCoords = null;
+      if (typeof section?.encoded_polyline === 'string' && section.encoded_polyline) {
+        sectionCoords = decodeGooglePolyline(section.encoded_polyline);
+      } else if (typeof section?.polyline === 'string' && section.polyline) {
+        sectionCoords = decodeHereFlexiblePolyline(section.polyline);
+      } else if (Array.isArray(section?.coordinates)) {
+        sectionCoords = section.coordinates
+          .map((p) => [p.lat ?? p.latitude, p.lng ?? p.longitude])
+          .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
+      }
+
+      if (!Array.isArray(sectionCoords) || sectionCoords.length < 2) return;
+      if (mergedSectionCoords.length > 0) {
+        const [lastLat, lastLng] = mergedSectionCoords[mergedSectionCoords.length - 1] || [];
+        const [firstLat, firstLng] = sectionCoords[0] || [];
+        if (lastLat === firstLat && lastLng === firstLng) {
+          mergedSectionCoords.push(...sectionCoords.slice(1));
+          return;
+        }
+      }
+      mergedSectionCoords.push(...sectionCoords);
+    });
+
+    if (mergedSectionCoords.length > 1) return mergedSectionCoords;
   }
 
   if (data?.polyline_format === 'flexible') {

@@ -219,7 +219,7 @@ const buildRoutingSections = async ({ hereApiKey, orderedStops, originLat, origi
     { lat: destinationLat, lng: destinationLng }
   ].filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng));
 
-  if (orderedPoints.length < 2) return [];
+  if (orderedPoints.length < 2) return { sections: [], combinedEncodedPolyline: null, combinedCoordinates: null };
 
   const transportMode = normalizedTransportMode === 'cycling'
     ? 'bicycle'
@@ -245,15 +245,18 @@ const buildRoutingSections = async ({ hereApiKey, orderedStops, originLat, origi
   const routeData = await routeResp.json().catch(() => null);
   const routeSections = Array.isArray(routeData?.routes?.[0]?.sections) ? routeData.routes[0].sections : [];
 
-  return orderedPoints.slice(0, -1).map((fromPoint, index) => {
+  const decodedSectionCoordinates = [];
+  const sections = orderedPoints.slice(0, -1).map((fromPoint, index) => {
     const toPoint = orderedPoints[index + 1];
     const routeSection = routeSections[index] || null;
 
     let encodedPolyline = null;
+    let decodedCoords = null;
     if (typeof routeSection?.polyline === 'string' && routeSection.polyline) {
-      const coords = decodeHereFlexiblePolyline(routeSection.polyline);
-      if (coords.length > 1) {
-        encodedPolyline = encodeGooglePolyline(coords);
+      decodedCoords = decodeHereFlexiblePolyline(routeSection.polyline);
+      if (decodedCoords.length > 1) {
+        encodedPolyline = encodeGooglePolyline(decodedCoords);
+        decodedSectionCoordinates.push(decodedCoords);
       }
     }
 
@@ -263,9 +266,28 @@ const buildRoutingSections = async ({ hereApiKey, orderedStops, originLat, origi
       encoded_polyline: encodedPolyline,
       estimated_distance_km: Number.isFinite(Number(routeSection?.summary?.length)) ? Math.round((Number(routeSection.summary.length) / 1000) * 10) / 10 : Math.round(fallbackDistanceKm * 10) / 10,
       estimated_duration_minutes: Number.isFinite(Number(routeSection?.summary?.duration)) ? Math.round(Number(routeSection.summary.duration) / 60) : Math.round((fallbackDistanceKm / 40) * 60),
-      coordinates: [fromPoint, toPoint]
+      coordinates: decodedCoords?.length > 1
+        ? decodedCoords.map(([lat, lng]) => ({ lat, lng }))
+        : [fromPoint, toPoint]
     };
   });
+
+  const combinedCoordinates = decodedSectionCoordinates.reduce((acc, coords) => {
+    if (!Array.isArray(coords) || coords.length === 0) return acc;
+    if (acc.length === 0) return [...coords];
+    const [firstLat, firstLng] = coords[0];
+    const [lastLat, lastLng] = acc[acc.length - 1] || [];
+    if (lastLat === firstLat && lastLng === firstLng) {
+      return [...acc, ...coords.slice(1)];
+    }
+    return [...acc, ...coords];
+  }, []);
+
+  return {
+    sections,
+    combinedEncodedPolyline: combinedCoordinates.length > 1 ? encodeGooglePolyline(combinedCoordinates) : null,
+    combinedCoordinates: combinedCoordinates.length > 1 ? combinedCoordinates.map(([lat, lng]) => ({ lat, lng })) : null
+  };
 };
 
 Deno.serve(async (req) => {
@@ -463,7 +485,7 @@ Deno.serve(async (req) => {
 
     const interconnectionByToWaypoint = new Map(interconnections.map((item) => [item.toWaypoint, item]));
 
-    const routedSections = await buildRoutingSections({
+    const routedGeometry = await buildRoutingSections({
       hereApiKey,
       orderedStops,
       originLat,
@@ -472,6 +494,7 @@ Deno.serve(async (req) => {
       destinationLng,
       normalizedTransportMode
     });
+    const routedSections = routedGeometry.sections || [];
 
     const orderedPoints = [{ lat: originLat, lng: originLng }, ...orderedStops.map((stop) => ({ lat: stop.lat, lng: stop.lng }))];
     const normalizedSections = orderedStops.map((stop, index) => {
@@ -526,7 +549,8 @@ Deno.serve(async (req) => {
 
     return Response.json({
       polyline_format: 'google',
-      polyline: normalizedSections[0]?.encoded_polyline || null,
+      coordinates: routedGeometry.combinedCoordinates,
+      polyline: routedGeometry.combinedEncodedPolyline || normalizedSections[0]?.encoded_polyline || null,
       polylines: normalizedSections.map((section) => section?.encoded_polyline).filter(Boolean),
       sections: normalizedSections,
       estimated_distance_km,

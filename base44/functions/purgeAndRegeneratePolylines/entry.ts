@@ -676,12 +676,11 @@ async function getMultiSegmentDirections(base44, segmentSpecs, transportMode = '
         requestedTo: segment.to,
         sectionSequence: section?.sequence ?? null,
         sectionWaypointId: section?.waypoint_id ?? null,
-        sectionCoordinates: Array.isArray(section?.coordinates) ? section.coordinates : null,
+        sectionCoordinatesCount: Array.isArray(section?.coordinates) ? section.coordinates.length : 0,
         usedSectionEncodedPolyline: !!section?.encoded_polyline,
         usedSectionFlexiblePolyline: !section?.encoded_polyline && !!section?.polyline,
         usedRoutePolyline: !section?.encoded_polyline && !section?.polyline && !!routePolyline,
         finalPolylineLength: typeof polyline === 'string' ? polyline.length : 0,
-        finalPolylinePreview: typeof polyline === 'string' ? polyline.slice(0, 80) : null,
         estimated_distance_km: section?.estimated_distance_km ?? null,
         estimated_duration_minutes: section?.estimated_duration_minutes ?? null
       });
