@@ -383,8 +383,44 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null)
   setSyncInProgress(true);
   notifySyncStatus({ status: 'force_syncing', entity: 'Starting...', progress: 0 });
   try {
-    // 1) AppUsers (entire entity)
-    notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 10 });
+    notifySyncStatus({ status: 'syncing', entity: 'Stores', progress: 10 });
+    const stores = await Store.list();
+    await offlineDB.replaceAllRecords(offlineDB.STORES.STORES, stores);
+    invalidateEntityCache('Store');
+    const cityStoreIds = (stores || []).filter((store) => !selectedCityId || store?.city_id === selectedCityId).map((store) => store.id);
+    notifySyncStatus({ status: 'syncing', entity: 'Stores', progress: 20, count: stores.length });
+    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+
+    notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 30 });
+    const deliveryFilter = { delivery_date: selectedDateStr };
+    if (cityStoreIds.length > 0) {
+      deliveryFilter.store_id = { $in: cityStoreIds };
+    }
+    const deliveries = await Delivery.filter(deliveryFilter, '-updated_date', 5000);
+    const offlineDeliveriesForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+    const deliveryIdsToDelete = (offlineDeliveriesForDate || [])
+      .filter((delivery) => !selectedCityId || cityStoreIds.includes(delivery?.store_id))
+      .map((delivery) => delivery?.id)
+      .filter(Boolean);
+    await Promise.all(deliveryIdsToDelete.map((id) => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id)));
+    if (deliveries.length > 0) {
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+    }
+    invalidateEntityCache('Delivery');
+    notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 50, count: deliveries.length });
+    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+
+    notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 60 });
+    const patientIds = Array.from(new Set((deliveries || []).filter(d => d && d.patient_id).map(d => d.patient_id)));
+    const { totalPatients, freshPatients = [] } = await syncPatientsByIds(patientIds);
+    if (freshPatients.length > 0) {
+      await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
+    }
+    invalidateEntityCache('Patient');
+    notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 75, count: totalPatients });
+    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+
+    notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 82 });
     const appUsersRaw = await fetchAppUsersDedup();
     const appUsersByUserId = new Map();
     appUsersRaw.forEach(au => {
@@ -405,49 +441,46 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null)
     const appUsers = Array.from(appUsersByUserId.values());
     await offlineDB.replaceAllRecords(offlineDB.STORES.APP_USERS, appUsers);
     invalidateEntityCache('AppUser');
-    notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 20, count: appUsers.length });
-    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
-    // 2) Cities (entire entity)
-    notifySyncStatus({ status: 'syncing', entity: 'Cities', progress: 30 });
+    notifySyncStatus({ status: 'syncing', entity: 'Cities', progress: 88 });
     const cities = await City.list();
     await offlineDB.replaceAllRecords(offlineDB.STORES.CITIES, cities);
     invalidateEntityCache('City');
-    notifySyncStatus({ status: 'syncing', entity: 'Cities', progress: 35, count: cities.length });
-    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
-    // Prepare store filter for selected city
-    let storeIds = null;
-    if (selectedCityId) {
-      const storesInCity = await Store.filter({ city_id: selectedCityId });
-      if (storesInCity && storesInCity.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.STORES, storesInCity);
-        invalidateEntityCache('Store');
-        storeIds = storesInCity.map(s => s.id);
-      }
-    }
+    notifySyncStatus({ status: 'syncing', entity: 'Companies', progress: 94 });
+    const companies = await Company.list();
+    await offlineDB.replaceAllRecords(offlineDB.STORES.COMPANIES, companies);
+    invalidateEntityCache('Company');
 
-    // 3) Deliveries (selected date, all drivers, filtered by selected city stores)
-    notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 45 });
-    const deliveryFilter = { delivery_date: selectedDateStr };
-    if (storeIds && storeIds.length > 0) {
-      deliveryFilter.store_id = { $in: storeIds };
-    }
-    const deliveries = await Delivery.filter(deliveryFilter, '-updated_date', 5000);
-    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
-    invalidateEntityCache('Delivery');
-    notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 60, count: deliveries.length });
-    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+    const syncTime = new Date().toISOString();
+    await Promise.all([
+      offlineDB.updateSyncStatus('Store', { recordCount: stores.length, status: 'synced', lastSync: syncTime, lastFullSync: syncTime }),
+      offlineDB.updateSyncStatus('Delivery', { recordCount: deliveries.length, status: 'synced', lastSync: syncTime }),
+      offlineDB.updateSyncStatus('Patient', { recordCount: totalPatients, status: 'synced', lastSync: syncTime }),
+      offlineDB.updateSyncStatus('AppUser', { recordCount: appUsers.length, status: 'synced', lastSync: syncTime, lastFullSync: syncTime }),
+      offlineDB.updateSyncStatus('City', { recordCount: cities.length, status: 'synced', lastSync: syncTime, lastFullSync: syncTime }),
+      offlineDB.updateSyncStatus('Company', { recordCount: companies.length, status: 'synced', lastSync: syncTime, lastFullSync: syncTime })
+    ]);
 
-    // 4) Patients for the synced deliveries
-    notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 70 });
-    const patientIds = Array.from(new Set((deliveries || []).filter(d => d && d.patient_id).map(d => d.patient_id)));
-    const { totalPatients } = await syncPatientsByIds(patientIds);
-    notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 85, count: totalPatients });
-
-    // Finalize
     notifySyncStatus({ status: 'complete', progress: 100 });
-    return { success: true, appUsers: appUsers.length, cities: cities.length, deliveries: deliveries.length, patients: totalPatients };
+    return {
+      success: true,
+      deliveries,
+      patients: freshPatients,
+      appUsers,
+      cities,
+      stores,
+      companies,
+      counts: {
+        deliveries: deliveries.length,
+        patients: totalPatients,
+        appUsers: appUsers.length,
+        cities: cities.length,
+        stores: stores.length,
+        companies: companies.length,
+        purgedDeliveries: deliveryIdsToDelete.length
+      }
+    };
   } catch (error) {
     notifySyncStatus({ status: 'error', error: error.message });
     return { error: error.message };

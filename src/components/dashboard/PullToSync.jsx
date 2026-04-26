@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { RefreshCw } from 'lucide-react';
 import { offlineDB } from '@/components/utils/offlineDatabase';
 import { base44 } from '@/api/base44Client';
+import { manualSyncSelected } from '@/components/utils/offlineSync';
 import calculateRealTimeETA from '@/functions/calculateRealTimeETA';
 import { syncDriverRoutePolylinesForDate } from '@/components/utils/hereRouting';
 import { format } from 'date-fns';
@@ -105,79 +106,25 @@ export default function PullToSync({
       } catch (e) {}
 
       await new Promise((resolve) => setTimeout(resolve, silent ? 0 : 400));
-      const allStores = await offlineDB.getAll(offlineDB.STORES.STORES);
-      const cityStoreIds = (allStores || []).filter((store) => !currentCityId || store?.city_id === currentCityId).map((store) => store.id);
-      const cityFilter = cityStoreIds.length > 0 ? { store_id: { $in: cityStoreIds } } : {};
       if (window.__dashboardSyncing && window.__activePullToSyncRunId && !silent && window.__activePullToSyncRunId !== syncRunId) {
         return;
       }
 
-      // ─── STEP 1: Fetch full selected date + city slice for ALL drivers ─────
       window.dispatchEvent(new CustomEvent('pullToSyncStarted', { detail: { suppressIncrementalUi: true } }));
-      const freshDeliveries = await base44.entities.Delivery.filter({ 
-        delivery_date: selectedDateStr,
-        ...cityFilter
-      });
-
-      // FULL REPLACEMENT: replace the full selected date slice so legend/routes stay complete.
-      await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr, freshDeliveries || []).catch(() => {});
-
-      // Save fresh records from server
-      if (freshDeliveries?.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
-      }
-      await offlineDB.updateSyncMetadata(
-        'Delivery',
-        new Date().toISOString(),
-        new Date().toISOString(),
-        { synced_delivery_date: selectedDateStr }
-      );
-
-      // ─── STEP 2: Sync patients for those deliveries plus current city stores ─────
-      const patientIds = Array.from(
-        new Set((freshDeliveries || []).filter(d => d?.patient_id).map(d => d.patient_id))
-      );
-
-      let freshPatients = [];
-      if (patientIds.length > 0) {
-        const batchSize = 50;
-        const batches = [];
-        for (let i = 0; i < patientIds.length; i += batchSize) {
-          batches.push(patientIds.slice(i, i + batchSize));
-        }
-        freshPatients = (await Promise.all(
-          batches.map(ids =>
-            base44.entities.Patient.filter({ id: { $in: ids } }).catch((error) => {
-              if (error?.response?.status === 404 || error?.status === 404 || String(error?.message || '').includes('404')) {
-                return [];
-              }
-              throw error;
-            })
-          )
-        )).flat().filter(Boolean);
+      const syncResult = await manualSyncSelected(selectedDateStr, currentCityId);
+      if (syncResult?.error) {
+        throw new Error(syncResult.error);
       }
 
-      if (cityStoreIds.length > 0) {
-        const cityPatients = await base44.entities.Patient.filter({ store_id: { $in: cityStoreIds } }).catch(() => []);
-        freshPatients = [...freshPatients, ...cityPatients].filter(Boolean);
-      }
+      const freshDeliveries = Array.isArray(syncResult?.deliveries) ? syncResult.deliveries : [];
+      const freshPatients = Array.isArray(syncResult?.patients) ? syncResult.patients : [];
+      const freshAppUsers = Array.isArray(syncResult?.appUsers) ? syncResult.appUsers : [];
+      const freshCities = Array.isArray(syncResult?.cities) ? syncResult.cities : [];
+      const freshStores = Array.isArray(syncResult?.stores) ? syncResult.stores : [];
 
-      if (freshPatients.length > 0) {
-        const patientMap = new Map(freshPatients.map((patient) => [patient.id, patient]));
-        freshPatients = Array.from(patientMap.values());
-        await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
-      }
-
-      // ─── STEP 3: Load from offline DB + update UI ─────────────────────────
-      const [offlineDeliveriesRaw, freshAppUsers, freshCities, freshStores] = await Promise.all([
-        offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr),
-        offlineDB.getAll(offlineDB.STORES.APP_USERS).then(r => (r || []).filter(u => u?.user_id && u.user_id !== 'undefined')),
-        offlineDB.getAll(offlineDB.STORES.CITIES),
-        offlineDB.getAll(offlineDB.STORES.STORES)
-      ]);
-
+      const offlineDeliveriesRaw = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
       const offlineDeliveries = Array.isArray(offlineDeliveriesRaw)
-        ? offlineDeliveriesRaw
+        ? offlineDeliveriesRaw.filter((delivery) => !currentCityId || freshStores.some((store) => store?.id === delivery?.store_id && store?.city_id === currentCityId))
         : [];
 
       const safeAppUsers = Array.isArray(freshAppUsers)
@@ -219,7 +166,7 @@ export default function PullToSync({
 
       if (!silent) {
         toast.success('Data synced', {
-          description: `${freshDeliveries?.length || 0} deliveries updated`
+          description: `${freshDeliveries?.length || 0} deliveries updated after purge + resync`
         });
       }
 
