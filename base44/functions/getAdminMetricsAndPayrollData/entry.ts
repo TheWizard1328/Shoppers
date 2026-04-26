@@ -749,9 +749,9 @@ Deno.serve(async (req) => {
           refreshCurrentMonthOnly: false
         });
         summaryRecords = await fetchYearSummaryRecords(adminMetricsYear, normalizedCityId);
-      } else if (!summaryRecords.length) {
+      } else if (!summaryRecords.length || summaryRecords.length < 12) {
         const backfill = await buildSummaryBackfill(adminMetricsYear, normalizedCityId, { force: false, includePayroll: false });
-        summaryRecords = backfill.summaryRecords;
+        summaryRecords = await fetchYearSummaryRecords(adminMetricsYear, normalizedCityId);
       } else if (forceRefreshCurrentYear) {
         const backfill = await buildSummaryBackfill(adminMetricsYear, normalizedCityId, { force: true, includePayroll: false });
         summaryRecords = backfill.summaryRecords;
