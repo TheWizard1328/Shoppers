@@ -590,11 +590,17 @@ async function getMultiSegmentDirections(base44, segmentSpecs, transportMode = '
   const waypoints = safeSpecs.slice(0, -1).map((segment) => ({ lat: segment.to.lat, lng: segment.to.lon }));
 
   console.log('[purgeAndRegeneratePolylines] getMultiSegmentDirections points', {
+    transportMode,
     segmentCount: safeSpecs.length,
     totalPoints: safeSpecs.length + 1,
     origin,
     destination,
-    waypointCount: waypoints.length
+    waypointCount: waypoints.length,
+    segments: safeSpecs.map((segment, index) => ({
+      index,
+      from: segment.from,
+      to: segment.to
+    }))
   });
 
   try {
@@ -611,6 +617,30 @@ async function getMultiSegmentDirections(base44, segmentSpecs, transportMode = '
     const data = response?.data || response || {};
     const sections = Array.isArray(data?.sections) ? data.sections : [];
     const routePolylines = Array.isArray(data?.polylines) ? data.polylines : [];
+
+    console.log('[purgeAndRegeneratePolylines] getMultiSegmentDirections response summary', {
+      transportMode,
+      requestedSegmentCount: safeSpecs.length,
+      sectionCount: sections.length,
+      routePolylineCount: routePolylines.length,
+      polylineFormat: data?.polyline_format || null,
+      sectionShapes: sections.map((section, index) => ({
+        index,
+        hasEncodedPolyline: !!section?.encoded_polyline,
+        encodedPolylineLength: typeof section?.encoded_polyline === 'string' ? section.encoded_polyline.length : 0,
+        hasFlexiblePolyline: !!section?.polyline,
+        flexiblePolylineLength: typeof section?.polyline === 'string' ? section.polyline.length : 0,
+        estimated_distance_km: section?.estimated_distance_km ?? null,
+        estimated_duration_minutes: section?.estimated_duration_minutes ?? null,
+        waypoint_id: section?.waypoint_id ?? null,
+        sequence: section?.sequence ?? null,
+        coordinates: Array.isArray(section?.coordinates) ? section.coordinates : null
+      })),
+      routePolylineLengths: routePolylines.map((polyline, index) => ({
+        index,
+        length: typeof polyline === 'string' ? polyline.length : 0
+      }))
+    });
 
     return safeSpecs.map((segment, index) => {
       const section = sections[index] || null;
@@ -638,6 +668,23 @@ async function getMultiSegmentDirections(base44, segmentSpecs, transportMode = '
       if (!polyline) {
         polyline = encodeGooglePolyline([[segment.from.lat, segment.from.lon], [segment.to.lat, segment.to.lon]]);
       }
+
+      console.log('[purgeAndRegeneratePolylines] getMultiSegmentDirections segment mapping', {
+        transportMode,
+        index,
+        requestedFrom: segment.from,
+        requestedTo: segment.to,
+        sectionSequence: section?.sequence ?? null,
+        sectionWaypointId: section?.waypoint_id ?? null,
+        sectionCoordinates: Array.isArray(section?.coordinates) ? section.coordinates : null,
+        usedSectionEncodedPolyline: !!section?.encoded_polyline,
+        usedSectionFlexiblePolyline: !section?.encoded_polyline && !!section?.polyline,
+        usedRoutePolyline: !section?.encoded_polyline && !section?.polyline && !!routePolyline,
+        finalPolylineLength: typeof polyline === 'string' ? polyline.length : 0,
+        finalPolylinePreview: typeof polyline === 'string' ? polyline.slice(0, 80) : null,
+        estimated_distance_km: section?.estimated_distance_km ?? null,
+        estimated_duration_minutes: section?.estimated_duration_minutes ?? null
+      });
 
       return {
         encoded_polyline: polyline,
