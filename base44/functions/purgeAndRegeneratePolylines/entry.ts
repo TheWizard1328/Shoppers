@@ -929,8 +929,8 @@ Deno.serve(async (req) => {
         );
 
         for (const group of modeOverrideGroups) {
-          const groupStart = Math.max(group.startIndex - 1, 0);
-          const groupEnd = Math.min(group.endIndex + 1, finishedSegmentSpecs.length - 1);
+          const groupStart = group.startIndex;
+          const groupEnd = group.endIndex;
           const groupSegments = finishedSegmentSpecs.slice(groupStart, groupEnd + 1);
           const overrideDirections = await getMultiSegmentDirections(
             base44,
@@ -1084,8 +1084,8 @@ Deno.serve(async (req) => {
 
           const modeOverrideGroups = groupModeOverrideRanges(uncachedSegments, (spec) => segmentMode(spec));
           for (const group of modeOverrideGroups) {
-            const groupStart = Math.max(group.startIndex - 1, 0);
-            const groupEnd = Math.min(group.endIndex + 1, uncachedSegments.length - 1);
+            const groupStart = group.startIndex;
+            const groupEnd = group.endIndex;
             const groupSegments = uncachedSegments.slice(groupStart, groupEnd + 1);
             const overrideDirections = await getMultiSegmentDirections(
               base44,
