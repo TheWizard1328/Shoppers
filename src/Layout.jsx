@@ -7,45 +7,14 @@ import { smartRefreshManager } from './components/utils/smartRefreshManager';
 import { backgroundSyncManager } from './components/utils/backgroundSyncManager';
 import { offlineDB } from './components/utils/offlineDatabase';
 import {
-  LayoutDashboard,
-  Users,
-  Package,
-  MapPin,
-  Truck,
-  Bell,
-  HeartPulse,
-  Building,
-  Building2,
-  BarChart3,
-  LogOut,
-  UserCheck,
-  Clock,
-  CheckCircle,
-  AlertCircle,
-  ChevronDown,
-  Undo2,
-  Menu,
-  X,
-  RefreshCw,
-  Phone,
-  BellRing,
-  Settings,
-  Home,
-  Wrench,
-  UserCog,
-  Stethoscope,
-  MoreVertical,
-  MessageCircle,
-  DollarSign,
+  LayoutDashboard,  Users,  Package,  MapPin,  Truck,  Bell,  HeartPulse,  Building,  Building2,  BarChart3,
+  LogOut,  UserCheck,  Clock,  CheckCircle,  AlertCircle,  ChevronDown,  Undo2,  Menu,  X,  RefreshCw,  Phone,  
+  BellRing,  Settings,  Home,  Wrench,  UserCog,  Stethoscope,  MoreVertical,  MessageCircle,  DollarSign,
   Smartphone } from
 "lucide-react";
 import {
   DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger } from
+  DropdownMenuContent,  DropdownMenuItem,  DropdownMenuLabel,  DropdownMenuSeparator,  DropdownMenuTrigger } from
 "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -69,7 +38,6 @@ import { getActiveDriversForCity, getAvailableDrivers } from './components/utils
 import DeviceRegistration from './components/devices/DeviceRegistration';
 // Removed: getCitiesWithinRadius - no longer using geographic filtering
 import { getUserAgentInfo, isMobileDeviceForTheme } from './components/utils/deviceUtils';
-
 
 import DriverStatusToggle from './components/layout/DriverStatusToggle';
 import LocationTrackingToggle from './components/layout/LocationTrackingToggle';
@@ -109,8 +77,6 @@ import SidebarSectionLabel from './components/layout/SidebarSectionLabel';
 import getAdminNavigationItems from './components/layout/getAdminNavigationItems';
 import { getLayoutStyles } from './components/layout/layoutStyles';
 
-
-
 // App version will be loaded from AppSettings
 const DEFAULT_APP_VERSION = 'v1.0.0';
 
@@ -119,7 +85,6 @@ const CURRENT_USER_REFRESH_KEYS = ['app_roles', 'store_ids', 'city_id', 'status'
 const hasCurrentUserRefreshImpact = (currentUser, updateData = {}) => !!currentUser && !!updateData && CURRENT_USER_REFRESH_KEYS.some((key) => key in updateData && JSON.stringify(currentUser[key] ?? null) !== JSON.stringify(updateData[key] ?? null));
 
 import QuickStats from './components/layout/DashboardQuickStats';
-
 
 const CollapsibleSidebarLink = ({ title, icon: Icon, children, open, onToggle, count, isActive }) => {
   return (
@@ -220,8 +185,6 @@ export default function Layout({ children, currentPageName }) {
     };
   }, [deviceType]);
 
-
-
   const refreshIntervalRef = useRef(null);
   const wakeLockRef = useRef(null);
   const onSmartRefreshCompleteRef = useRef(null);
@@ -293,11 +256,6 @@ export default function Layout({ children, currentPageName }) {
           }
         }
       } catch (error) {
-
-
-
-
-
 
         // Silent fail
       }}; // Initial check
@@ -1105,8 +1063,6 @@ export default function Layout({ children, currentPageName }) {
     return () => window.removeEventListener('resize', handleResize);
   }, [sidebarOpen, isMobile]);
 
-
-
   const updatePolylineOnRefresh = async (driverId, dateStr, currentLocation = null) => {
     if (!driverId || driverId === 'all') return;
 
@@ -1134,7 +1090,6 @@ export default function Layout({ children, currentPageName }) {
         currentLocation: nextLocation
       });
     } catch (error) {
-
 
       // Silent fail
     }};
@@ -1366,7 +1321,6 @@ export default function Layout({ children, currentPageName }) {
 
     if (userHasRole(currentUser, 'admin')) {
 
-
       // Admins see all
     } else if (userHasRole(currentUser, 'dispatcher')) {const sIds = currentUser.store_ids || [];if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];
       const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;
@@ -1389,7 +1343,6 @@ export default function Layout({ children, currentPageName }) {
     }
 
     if (userHasRole(currentUser, 'admin')) {
-
 
       // Admins see all
     } else if (userHasRole(currentUser, 'dispatcher')) {const sIds = currentUser.store_ids || [];if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];
@@ -1599,13 +1552,7 @@ export default function Layout({ children, currentPageName }) {
   }, [appUsers, stores]);
 
   const adminNavigationItems = useMemo(() => getAdminNavigationItems({
-    currentUser,
-    entityCounts,
-    onlineCounts,
-    stores,
-    drivers,
-    users,
-    adminImportEnabled
+    currentUser, entityCounts, onlineCounts, stores, drivers, users, adminImportEnabled
   }), [currentUser, entityCounts, onlineCounts, stores, drivers, users, adminImportEnabled]);
 
   const constructUrlWithParams = useCallback((baseUrl) => {
@@ -1707,7 +1654,6 @@ export default function Layout({ children, currentPageName }) {
     return userStores;
   }, [currentUser, stores]);
 
-
   const deliveryDates = useMemo(() => {
     if (!deliveries || deliveries.length === 0) {
       return [];
@@ -1738,7 +1684,6 @@ export default function Layout({ children, currentPageName }) {
     return dates;
   }, [deliveries]);
 
-
   const showWatermark = currentUser && isAppOwner(currentUser);
 
   return (
@@ -1757,7 +1702,6 @@ export default function Layout({ children, currentPageName }) {
         cities={cities}
         currentUser={currentUser}
         onCitySelected={handleCitySelected} />
-
       }
 
       {/* Device Registration - Shows existing devices or option to create new - ALL USERS */}
@@ -1772,8 +1716,6 @@ export default function Layout({ children, currentPageName }) {
         }} />
       }
 
-
-
       {showMessaging &&
       <MessagingPanel
         currentUser={currentUser}
@@ -1784,7 +1726,6 @@ export default function Layout({ children, currentPageName }) {
         }}
         initialConversation={initialConversation}
         onUnreadCountChange={setUnreadMessageCount} />
-
       }
 
       {showInviteQRModal &&
@@ -1793,10 +1734,7 @@ export default function Layout({ children, currentPageName }) {
         onClose={() => setShowInviteQRModal(false)}
         currentUser={currentUser}
         stores={stores} />
-
       }
-
-
 
                   {/* Global Conflict Manager */}
                   <ConflictManager />
@@ -1810,17 +1748,11 @@ export default function Layout({ children, currentPageName }) {
           setShowMessaging(true);
           setUnreadMessageCount(0);
         }} />
-
       }
-
                                {/* WebSocket Diagnostics Card - App Owners only, non-primary devices */}
                                {isAppOwner(currentUser) &&
       <WebSocketDiagnosticsCard />
       }
-
-
-
-
 
       {isLoadingLayout ?
       <AppLoadingScreen showRetryHint={showInitRetryHint} onRetry={() => window.location.reload()} /> :
@@ -1956,10 +1888,6 @@ export default function Layout({ children, currentPageName }) {
                     to={constructUrlWithParams("Dashboard")}
                     onClick={() => setSidebarOpen(false)} className="px-4 py-2 rounded-xl flex items-center gap-3 transition-all duration-200 hover:opacity-80"
 
-
-
-
-
                     style={currentPageName === 'Dashboard' ? {
                       background: 'var(--bg-slate-100)',
                       color: 'var(--text-slate-900)'
@@ -2025,7 +1953,6 @@ export default function Layout({ children, currentPageName }) {
                           <Badge variant="secondary" className="ml-auto justify-center w-[45px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{totalRoutesCount}</Badge>
                           </Link>
                   }
-
                     <div className="border-t mb-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
 
                     {/* Square COD - Admins and Drivers only */}
@@ -2170,7 +2097,6 @@ export default function Layout({ children, currentPageName }) {
                   currentPageName={currentPageName}
                   constructUrlWithParams={constructUrlWithParams}
                   setSidebarOpen={setSidebarOpen} />
-
                 }
 
                   {currentPageName === 'Dashboard' &&
@@ -2219,7 +2145,6 @@ export default function Layout({ children, currentPageName }) {
                   saveSetting(currentUser.id, 'sidebar_width', width);
                 }
               }} />
-
             }
 
               {/* Main Content Area */}
@@ -2248,7 +2173,6 @@ export default function Layout({ children, currentPageName }) {
                   }
                 }}
                 isOverlayOpen={sidebarOpen || showMessaging || showInviteQRModal || showCitySelectionPopup || isFormOverlayOpen} />
-
               }
 
                     <main className="flex-1 overflow-hidden relative flex flex-col" style={{ background: 'var(--bg-slate-50)' }}>
@@ -2265,10 +2189,8 @@ export default function Layout({ children, currentPageName }) {
             </div>
           </AppDataProvider>
           </UserProvider>
-
       }
 
       <OptimizationSpinner />
     </AppErrorBoundary>);
-
 }
