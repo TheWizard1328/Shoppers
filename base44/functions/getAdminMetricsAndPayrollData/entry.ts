@@ -893,10 +893,10 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
   });
   metrics.driverData = Array.from(uniqueDriverMap.values());
 
-  const isCompletedAfterHoursPickup = (d) => isAfterHoursPickupDelivery(d) && isCompletedStatus(d);
-  const isCancelledAfterHoursPickup = (d) => isAfterHoursPickupDelivery(d) && isCancelledStatus(d);
-  const isCompletedPatientForStore = (d) => !isAfterHoursPickupDelivery(d) && isCompletedStatus(d) && isPatientOrTransferDelivery(d);
-  const isFailedPatientForStore = (d) => !isAfterHoursPickupDelivery(d) && isFailedStatus(d) && isPatientOrTransferDelivery(d);
+  const isCompletedAfterHoursPickup = (d) => d?.no_charge !== true && isAfterHoursPickupDelivery(d) && isCompletedStatus(d);
+  const isCancelledAfterHoursPickup = (d) => d?.no_charge !== true && isAfterHoursPickupDelivery(d) && isCancelledStatus(d);
+  const isCompletedPatientForStore = (d) => d?.no_charge !== true && !isAfterHoursPickupDelivery(d) && isCompletedStatus(d) && isPatientOrTransferDelivery(d);
+  const isFailedPatientForStore = (d) => d?.no_charge !== true && !isAfterHoursPickupDelivery(d) && isFailedStatus(d) && isPatientOrTransferDelivery(d);
 
   const isBillableDelivery = (d, storePaysFees) => isAdminBillableDelivery(d, storePaysFees);
 
