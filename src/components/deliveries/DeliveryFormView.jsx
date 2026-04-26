@@ -39,7 +39,7 @@ import { buildDeliveryStagedPanelProps } from './deliveryStagedPanelPropsHelper'
 const CheckboxField = ({ id, label, checked, onChange, disabled }) =>
 <div className="flex items-center space-x-2">
     <Checkbox id={id} checked={checked} onCheckedChange={onChange} disabled={disabled} />
-    <Label htmlFor={id} className="py-2 text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{label}</Label>
+    <Label htmlFor={id} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{label}</Label>
   </div>;
 
 const TravelModeButtons = ({ value, onChange, disabled, currentUser, appUsers = [], useMobileLayout = false }) => {
@@ -815,7 +815,7 @@ export default function DeliveryFormView({
 
                           </div>
 
-                          <div className="px-3 py-3 rounded-lg border min-h-[25px] flex flex-col" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                          <div className="my-2 px-3 py-3 rounded-lg border min-h-[25px] flex flex-col" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                             <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Preferences</Label>
                             <div className="flex-1 flex flex-col justify-around">
                               <CheckboxField id="mailbox_ok" label="MailBox OK" checked={formData.mailbox_ok} onChange={(c) => setFormData((p) => ({ ...p, mailbox_ok: c }))} disabled={isSaving} />
