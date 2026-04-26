@@ -416,7 +416,7 @@ export default function DeliveryFormView({
       
       <motion.div
         ref={formRef}
-        initial={{ opacity: 0, scale: useMobileLayout && isMobileDevice ? 1 : 0.95 }}
+        initial={{ opacity: 0, scale: useMobileLayout && isMobileDevice ? 1 : 0.90 }}
         animate={{ opacity: 1, y: 0 }}
         className={`w-full ${useMobileLayout && isMobileDevice ? 'h-full max-h-full overflow-hidden' : shouldUseCompactPickupEditHeight ? 'max-w-[468px] h-auto max-h-[95vh]' : isPickupMode ? 'max-w-[780px] h-[715px] max-h-[715px]' : !delivery ? 'max-w-[65.625rem] h-[95vh] max-h-[95vh]' : 'max-w-[50rem] h-[95vh] max-h-[95vh]'} flex`}
         style={useMobileLayout && isMobileDevice ? { height: '100%', maxHeight: '100%' } : undefined}>
@@ -714,7 +714,7 @@ export default function DeliveryFormView({
                       <div className="space-y-3 min-w-0">
 
                         {/* Notes */}
-                        <div className="px-3 py-1 rounded-lg space-y-2 border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                        <div className="space-y-3 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                           <div className="space-y-1">
                             <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Notes</Label>
                             <Textarea value={formData.delivery_instructions || selectedPatient?.notes || ''} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_instructions: e.target.value }))} placeholder="Patient delivery instructions..." className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none" disabled={isSaving} />
@@ -726,7 +726,7 @@ export default function DeliveryFormView({
                         </div>
 
                         {/* Delivery Options & COD */}
-                        <div className="px-3 py-2 rounded-lg space-y-2 border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                        <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                           <div className="grid grid-cols-[minmax(0,1fr)_minmax(9rem,0.9fr)] gap-3 items-start">
                             <div className="space-y-2 min-w-0">
                               <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Options</Label>
@@ -740,7 +740,7 @@ export default function DeliveryFormView({
                             <div className="space-y-2 min-w-0">
                               <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>COD</Label>
                               <div className="space-y-3">
-                                <div className="flex items-center space-x-2">
+                                <div className="flex items-center gap-4">
                                   <Checkbox id="cod_enabled" checked={formData.cod_total_amount_required > 0} onCheckedChange={(checked) => {setFormData((p) => ({ ...p, cod_total_amount_required: 0 }));if (checked && shouldAutoFocusFields) setTimeout(() => codAmountInputRef.current?.focus(), 100);}} disabled={isSaving} />
                                   <Label htmlFor="cod_enabled" className="text-sm font-medium">COD Required</Label>
                                 </div>
@@ -757,7 +757,7 @@ export default function DeliveryFormView({
 
                         {!useMobileLayout &&
                         <>
-                            <div className="pr-3 pb-2 pl-3 rounded-lg space-y-2 border"
+                            <div className="pr-3 pb-3 pl-3 rounded-lg space-y-2 border"
 
                           style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                           
@@ -771,7 +771,7 @@ export default function DeliveryFormView({
                           
                             </div>
 
-                            <div className="px-3 py-2 rounded-lg space-y-2 border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                            <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                               <div className="flex gap-3">
                                 <div className="flex-1 space-y-1">
                                   <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Name *</Label>
@@ -800,7 +800,7 @@ export default function DeliveryFormView({
 
                       {!useMobileLayout &&
                       <div className="space-y-2 min-w-0 min-h-0 overflow-y-auto pr-1">
-                          <div className="px-3 py-2 rounded-lg space-y-2 border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                          <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                             <SmartBarcodeScanner
                             receiptBarcodeValues={formData.receipt_barcode_values || []}
                             rxBarcodeValues={formData.barcode_values || []}
@@ -815,7 +815,7 @@ export default function DeliveryFormView({
 
                           </div>
 
-                          <div className="px-3 py-2 rounded-lg border min-h-[213px] flex flex-col" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                          <div className="px-3 py-3 rounded-lg border min-h-[25px] flex flex-col" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                             <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Preferences</Label>
                             <div className="flex-1 flex flex-col justify-around">
                               <CheckboxField id="mailbox_ok" label="MailBox OK" checked={formData.mailbox_ok} onChange={(c) => setFormData((p) => ({ ...p, mailbox_ok: c }))} disabled={isSaving} />
@@ -826,7 +826,7 @@ export default function DeliveryFormView({
                             </div>
                           </div>
 
-                          <div className="px-3 py-2 rounded-lg space-y-2 border min-h-[240px]" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                          <div className="px-3 py-2 rounded-lg space-y-2 border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                             <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Recurring</Label>
                             <DeliveryRecurringOptions
                             formData={formData} setFormData={setFormData} isSaving={isSaving}
