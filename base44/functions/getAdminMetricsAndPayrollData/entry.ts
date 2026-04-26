@@ -374,18 +374,32 @@ const buildMonthlyDeliveryCounts = (deliveries = []) => {
     total_deliveries: deliveries.length,
     completed_or_failed_deliveries: 0,
     after_hours_pickups: 0,
+    driver_payable_deliveries: 0,
+    billable_deliveries: 0,
+    non_billable_deliveries: 0,
+    regular_pickups: 0,
     by_store: {},
     by_driver: {}
   };
 
   deliveries.forEach((delivery) => {
     if (!delivery) return;
+    const storePaysFees = false;
+    const isDriverPayable = isDriverPayableDelivery(delivery);
+    const isBillable = isAdminBillableDelivery(delivery, storePaysFees);
+    const isNonBillable = isAdminNonBillableDelivery(delivery, storePaysFees);
+    const isRegularPickup = isRegularPickupDelivery(delivery);
+
     if (delivery.patient_id && (delivery.status === 'completed' || delivery.status === 'failed')) {
       counts.completed_or_failed_deliveries++;
     }
     if (delivery.after_hours_pickup && (delivery.status === 'completed' || delivery.status === 'cancelled')) {
       counts.after_hours_pickups++;
     }
+    if (isDriverPayable) counts.driver_payable_deliveries++;
+    if (isBillable) counts.billable_deliveries++;
+    if (isNonBillable) counts.non_billable_deliveries++;
+    if (isRegularPickup) counts.regular_pickups++;
     if (delivery.store_id) {
       counts.by_store[delivery.store_id] = (counts.by_store[delivery.store_id] || 0) + 1;
     }

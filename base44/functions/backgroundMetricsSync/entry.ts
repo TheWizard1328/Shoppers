@@ -47,12 +47,46 @@ const fetchDateRangeRecords = async (entityApi, dateField, startStr, endStr, sor
   const rightRecords = await fetchDateRangeRecords(entityApi, dateField, getNextDate(midpoint), endStr, sort);
   return dedupeById([...leftRecords, ...rightRecords]);
 };
+const isCompletedStatus = (delivery) => delivery?.status === 'completed';
+const isFailedStatus = (delivery) => delivery?.status === 'failed';
+const isCancelledStatus = (delivery) => delivery?.status === 'cancelled';
+const isAfterHoursPickupDelivery = (delivery) => delivery?.after_hours_pickup === true;
+const isPatientOrTransferDelivery = (delivery) => !!delivery?.patient_id;
+const isInterStoreDelivery = (delivery) => {
+  const haystack = [delivery?.patient_name, delivery?.address, delivery?.delivery_notes]
+    .map((value) => String(value || '').toUpperCase())
+    .join(' ');
+  return haystack.includes('INTERSTORE') || haystack.includes('(ISD)') || haystack.includes('(ISP)');
+};
+const isStandardOrInterStoreDelivery = (delivery) => isPatientOrTransferDelivery(delivery) || isInterStoreDelivery(delivery);
+const isRegularPickupDelivery = (delivery) => !isAfterHoursPickupDelivery(delivery) && !isStandardOrInterStoreDelivery(delivery);
+const isDriverPayableDelivery = (delivery) => {
+  if (!delivery || delivery.no_charge === true) return false;
+  if (isAfterHoursPickupDelivery(delivery)) {
+    return isCompletedStatus(delivery) || isCancelledStatus(delivery);
+  }
+  if (isStandardOrInterStoreDelivery(delivery)) {
+    return isCompletedStatus(delivery) || isFailedStatus(delivery);
+  }
+  return false;
+};
+
 const buildMonthlyDeliveryCounts = (deliveries = []) => {
-  const counts = { total_deliveries: deliveries.length, completed_or_failed_deliveries: 0, after_hours_pickups: 0, by_store: {}, by_driver: {} };
+  const counts = {
+    total_deliveries: deliveries.length,
+    completed_or_failed_deliveries: 0,
+    after_hours_pickups: 0,
+    driver_payable_deliveries: 0,
+    regular_pickups: 0,
+    by_store: {},
+    by_driver: {}
+  };
   deliveries.forEach((delivery) => {
     if (!delivery) return;
-    if (delivery.status === 'completed' || delivery.status === 'failed') counts.completed_or_failed_deliveries++;
+    if (delivery.patient_id && (delivery.status === 'completed' || delivery.status === 'failed')) counts.completed_or_failed_deliveries++;
     if (delivery.after_hours_pickup && (delivery.status === 'completed' || delivery.status === 'cancelled')) counts.after_hours_pickups++;
+    if (isDriverPayableDelivery(delivery)) counts.driver_payable_deliveries++;
+    if (isRegularPickupDelivery(delivery)) counts.regular_pickups++;
     if (delivery.store_id) counts.by_store[delivery.store_id] = (counts.by_store[delivery.store_id] || 0) + 1;
     if (delivery.driver_id) counts.by_driver[delivery.driver_id] = (counts.by_driver[delivery.driver_id] || 0) + 1;
   });
