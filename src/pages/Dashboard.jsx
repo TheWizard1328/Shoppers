@@ -1659,7 +1659,7 @@ function Dashboard() {
     }
 
     const phase2Unavailable = isDriver && (!deliveriesWithStopOrder.some((d) => d && d.driver_id === currentUser?.id && !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(d.status)) || !nextStopCoordinates);
-    let newMapViewPhase = mapViewPhase === 1 ? isMapViewLocked ? phase2Unavailable ? 3 : 2 : 1 : isMapViewLocked ? mapViewPhase % 3 + 1 : mapViewPhase;
+    let newMapViewPhase = mapViewPhase === 1 ? phase2Unavailable ? 3 : 2 : mapViewPhase === 2 ? 3 : 1;
     if (isDriver && newMapViewPhase === 3 && (phase2Unavailable || !isMobile && !(allDriverLocations.length > 0 || driverLocation?.latitude && driverLocation?.longitude))) newMapViewPhase = 1;
     triggerPhase(newMapViewPhase, newMapViewPhase === 1 ? 3000 : null);
   }, [mapViewPhase, isMapViewLocked, isDriver, nextStopCoordinates, isDispatcher, isAdmin, isMobile, currentUser, deliveriesWithStopOrder, allDriverLocations, driverLocation]);
@@ -1933,7 +1933,7 @@ function Dashboard() {
         else if (allCoordinates.length > 0) {
 
           const spanKm = getBoundsSpanKm(allCoordinates);
-          const phase1MaxZoom = getPhaseBoundsMaxZoom(spanKm);
+          const phase1MaxZoom = Math.min(18, getPhaseBoundsMaxZoom(spanKm) + (!isMobile ? 0.7 : 0));
 
           const padding = getMapPadding(false);
 
