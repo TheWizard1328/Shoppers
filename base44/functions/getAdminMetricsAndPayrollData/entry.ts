@@ -987,7 +987,7 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
       if (isBillable) {
         metrics.monthlyData[monthIndex].billable++;
         metrics.yearTotals.billable++;
-      } else {
+      } else if (isNonBillable) {
         metrics.monthlyData[monthIndex].nonBillable++;
         metrics.yearTotals.nonBillable++;
       }

@@ -47,7 +47,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
     const storeData = monthData.find((s) => s.abbreviation === storeAbbr);
     const fallback = (monthlyStoreFees[month] || []).find((s) => s.abbreviation === storeAbbr || s.storeAbbr === storeAbbr);
     const fees = storeData?.fees ?? fallback?.fees ?? fallback?.total_fees ?? 0;
-    return fees > 0;
+    return viewMode === 'deliveries' && fees > 0;
   };
 
   // Calculate totals and averages per store (yearly)
@@ -323,7 +323,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
                       return (
                         <td
                           key={store.abbreviation}
-                          className={`text-center px-1 py-0.5 tabular-nums cursor-pointer hover:bg-blue-100 ${isStoreMonthSelected ? 'bg-blue-200' : ''} ${isFeePayingStoreMonth(store.abbreviation, month) ? 'font-bold' : ''}`}
+                          className={`text-center px-1 py-0.5 tabular-nums cursor-pointer hover:bg-blue-100 ${isStoreMonthSelected ? 'bg-blue-200' : ''} ${isFeePayingStoreMonth(store.abbreviation, month) ? 'font-extrabold' : ''}`}
                           style={{ color: value !== null && value !== undefined && value > 0 ? getStoreColor(store) : '#94a3b8' }}
                           onClick={() => {
                             if (value !== null && value !== undefined && value > 0) {
@@ -351,7 +351,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
                 {stores.map((store) =>
                 <td
                   key={store.abbreviation}
-                  className={`text-center px-1 py-0.5 tabular-nums ${Object.keys(monthlyStoreData).some((month) => isFeePayingStoreMonth(store.abbreviation, Number(month))) ? 'font-bold' : ''}`}
+                  className={`text-center px-1 py-0.5 tabular-nums ${Object.keys(monthlyStoreData).some((month) => isFeePayingStoreMonth(store.abbreviation, Number(month))) ? 'font-extrabold' : ''}`}
                   style={{ color: getStoreColor(store) }}>
 
                     {formatValue(totals[store.abbreviation])}
