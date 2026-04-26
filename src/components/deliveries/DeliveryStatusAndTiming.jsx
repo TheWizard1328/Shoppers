@@ -163,7 +163,7 @@ export default function DeliveryStatusAndTiming({
         }
       `}</style>
 
-      <div className="space-y-2">
+      <div className="space-y-1">
         {/* Row 1: Store + Status + (optional Pickup ID) */}
         <div className="flex gap-3">
           {storeSelect}

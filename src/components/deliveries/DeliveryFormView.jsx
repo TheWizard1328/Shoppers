@@ -800,7 +800,7 @@ export default function DeliveryFormView({
 
                       {!useMobileLayout &&
                       <div className="space-y-2 min-w-0 min-h-0 overflow-y-auto pr-1">
-                          <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                          <div className="px-3 py-2 rounded-lg space-y-2 border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                             <SmartBarcodeScanner
                             receiptBarcodeValues={formData.receipt_barcode_values || []}
                             rxBarcodeValues={formData.barcode_values || []}
