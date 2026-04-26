@@ -67,7 +67,7 @@ export default function DeliveryMarkers({
     const isSelectedRouteComplete = isSelectedDriverMarker && !routeHasIncompleteStops;
     const isRouteInProgress = isSelectedDriverMarker && routeHasIncompleteStops;
     const isUserHoveringFaded = fadedMarkerHighlights.has(delivery.id);
-    const isDeliveryFaded = isFinishedForFade && !isHighlighted && !isSelectedRouteComplete && !isSelectedDriverMarker;
+    const isDeliveryFaded = isFinishedForFade && !isHighlighted && !isSelectedDriverMarker;
     const isDeliveryInProgressFade = isFinishedForFade && isSelectedDriverMarker && !isSelectedRouteComplete && isRouteInProgress;
     const isDeliveryHighlightedFinished = (isDeliveryFaded || isDeliveryInProgressFade) && (isHighlighted || isUserHoveringFaded);
 
