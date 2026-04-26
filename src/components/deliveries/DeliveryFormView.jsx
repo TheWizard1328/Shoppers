@@ -39,7 +39,7 @@ import { buildDeliveryStagedPanelProps } from './deliveryStagedPanelPropsHelper'
 const CheckboxField = ({ id, label, checked, onChange, disabled }) =>
 <div className="flex items-center space-x-2">
     <Checkbox id={id} checked={checked} onCheckedChange={onChange} disabled={disabled} />
-    <Label htmlFor={id} className="py-2 text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{label}</Label>
+    <Label htmlFor={id} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{label}</Label>
   </div>;
 
 const TravelModeButtons = ({ value, onChange, disabled, currentUser, appUsers = [], useMobileLayout = false }) => {
