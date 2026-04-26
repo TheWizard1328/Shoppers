@@ -1646,22 +1646,15 @@ function Dashboard() {
       }
     };
 
-    if (forceReactivate === true) {
-      if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}
-      mapLockExpiresAtRef.current = null;
-      if (isMapViewLocked) {
-        setIsMapViewLocked(false);
-        setTimeout(() => triggerPhase(mapViewPhase, mapViewPhase === 1 ? 500 : null), 100);
-        return;
-      }
-      triggerPhase(mapViewPhase, mapViewPhase === 1 ? 500 : null);
-      return;
-    }
+    if (forceReactivate === true) {triggerPhase(mapViewPhase, mapViewPhase === 1 ? 3000 : null);return;}
 
     const phase2Unavailable = (isDriver || (isAdmin && selectedDriverId !== 'all')) && (!deliveriesWithStopOrder.some((d) => d && d.driver_id === (selectedDriverId !== 'all' ? selectedDriverId : currentUser?.id) && !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(d.status)) || !(selectedDriverId !== 'all' ? getFabTargetDriverMapLocation({ selectedDriverId, currentUser, isDriver, appUsers, driverLocation, allDriverLocations, isPrimaryDevice }) : nextStopCoordinates));
-    let newMapViewPhase = mapViewPhase === 1 ? phase2Unavailable ? 3 : 2 : mapViewPhase === 2 ? 3 : 1;
-    if ((isDriver || (isAdmin && selectedDriverId !== 'all')) && newMapViewPhase === 3 && (phase2Unavailable || !isMobile && !(allDriverLocations.length > 0 || driverLocation?.latitude && driverLocation?.longitude || getFabTargetDriverMapLocation({ selectedDriverId, currentUser, isDriver, appUsers, driverLocation, allDriverLocations, isPrimaryDevice })?.latitude))) newMapViewPhase = 1;
-    triggerPhase(newMapViewPhase, newMapViewPhase === 1 ? 3000 : null);
+    if (mapViewPhase === 1 && !isMapViewLocked) {triggerPhase(1, 3000);return;}
+    if (mapViewPhase === 1 && isMapViewLocked) {triggerPhase(phase2Unavailable ? 3 : 2, null);return;}
+    if (mapViewPhase === 2 && !isMapViewLocked) {triggerPhase(2, null);return;}
+    if (mapViewPhase === 2 && isMapViewLocked) {triggerPhase(3, null);return;}
+    if (mapViewPhase === 3 && !isMapViewLocked) {triggerPhase(3, null);return;}
+    triggerPhase(1, 3000);
   }, [mapViewPhase, isMapViewLocked, isDriver, nextStopCoordinates, isDispatcher, isAdmin, isMobile, currentUser, deliveriesWithStopOrder, allDriverLocations, driverLocation, selectedDriverId, appUsers, isPrimaryDevice, getFabTargetDriverMapLocation]);
 
   // Track if the current map positioning was triggered by FAB (not by data refresh)
