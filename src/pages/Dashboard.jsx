@@ -2004,13 +2004,11 @@ function Dashboard() {
           allDriverLocations, isPrimaryDevice
         });
 
-        if (nextStopCoordinates && fabTargetDriverLocation?.latitude && fabTargetDriverLocation?.longitude) {
-          const bounds = [
-          [fabTargetDriverLocation.latitude, fabTargetDriverLocation.longitude],
-          [nextStopCoordinates.lat, nextStopCoordinates.lon]];
-
+        if (fabTargetDriverLocation?.latitude && fabTargetDriverLocation?.longitude) {
+          const nextStop = selectedDriverId !== 'all' ? deliveries.find((d) => d && d.driver_id === selectedDriverId && d.isNextDelivery === true && d.status !== 'pending') : null;
+          const nextCoords = nextStop?.patient_id ? (() => { const p = patients.find((x) => x && x.id === nextStop.patient_id); return p?.latitude && p?.longitude ? { lat: p.latitude, lon: p.longitude } : null; })() : nextStop?.store_id ? (() => { const s = stores.find((x) => x && x.id === nextStop.store_id); return s?.latitude && s?.longitude ? { lat: s.latitude, lon: s.longitude } : null; })() : nextStopCoordinates;
+          const bounds = nextCoords?.lat && nextCoords?.lon ? [[fabTargetDriverLocation.latitude, fabTargetDriverLocation.longitude], [nextCoords.lat, nextCoords.lon]] : [[fabTargetDriverLocation.latitude, fabTargetDriverLocation.longitude]];
           const padding = getMapPadding(false);
-
           setShouldFitBounds({ bounds, options: { ...padding, maxZoom: 17.5, animate: true, duration: 0.9, easeLinearity: 0.15 } });
           setMapCenter(null);
           setMapZoom(null);
