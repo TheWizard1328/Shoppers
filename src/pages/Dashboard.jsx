@@ -1658,11 +1658,11 @@ function Dashboard() {
       return;
     }
 
-    const phase2Unavailable = isDriver && (!deliveriesWithStopOrder.some((d) => d && d.driver_id === currentUser?.id && !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(d.status)) || !nextStopCoordinates);
+    const phase2Unavailable = (isDriver || (isAdmin && selectedDriverId !== 'all')) && (!deliveriesWithStopOrder.some((d) => d && d.driver_id === (selectedDriverId !== 'all' ? selectedDriverId : currentUser?.id) && !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(d.status)) || !(selectedDriverId !== 'all' ? getFabTargetDriverMapLocation({ selectedDriverId, currentUser, isDriver, appUsers, driverLocation, allDriverLocations, isPrimaryDevice }) : nextStopCoordinates));
     let newMapViewPhase = mapViewPhase === 1 ? phase2Unavailable ? 3 : 2 : mapViewPhase === 2 ? 3 : 1;
-    if (isDriver && newMapViewPhase === 3 && (phase2Unavailable || !isMobile && !(allDriverLocations.length > 0 || driverLocation?.latitude && driverLocation?.longitude))) newMapViewPhase = 1;
+    if ((isDriver || (isAdmin && selectedDriverId !== 'all')) && newMapViewPhase === 3 && (phase2Unavailable || !isMobile && !(allDriverLocations.length > 0 || driverLocation?.latitude && driverLocation?.longitude || getFabTargetDriverMapLocation({ selectedDriverId, currentUser, isDriver, appUsers, driverLocation, allDriverLocations, isPrimaryDevice })?.latitude))) newMapViewPhase = 1;
     triggerPhase(newMapViewPhase, newMapViewPhase === 1 ? 3000 : null);
-  }, [mapViewPhase, isMapViewLocked, isDriver, nextStopCoordinates, isDispatcher, isAdmin, isMobile, currentUser, deliveriesWithStopOrder, allDriverLocations, driverLocation]);
+  }, [mapViewPhase, isMapViewLocked, isDriver, nextStopCoordinates, isDispatcher, isAdmin, isMobile, currentUser, deliveriesWithStopOrder, allDriverLocations, driverLocation, selectedDriverId, appUsers, isPrimaryDevice, getFabTargetDriverMapLocation]);
 
   // Track if the current map positioning was triggered by FAB (not by data refresh)
   const mapPositioningTriggerRef = useRef(null);
