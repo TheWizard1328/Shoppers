@@ -740,7 +740,7 @@ export default function DeliveryFormView({
                             <div className="space-y-2 min-w-0">
                               <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>COD</Label>
                               <div className="space-y-3">
-                                <div className="flex items-center gap-4">
+                                <div className="flex items-center space-x-2">
                                   <Checkbox id="cod_enabled" checked={formData.cod_total_amount_required > 0} onCheckedChange={(checked) => {setFormData((p) => ({ ...p, cod_total_amount_required: 0 }));if (checked && shouldAutoFocusFields) setTimeout(() => codAmountInputRef.current?.focus(), 100);}} disabled={isSaving} />
                                   <Label htmlFor="cod_enabled" className="text-sm font-medium">COD Required</Label>
                                 </div>
