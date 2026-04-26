@@ -3,11 +3,12 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
 
-const CACHE_VERSION = '3';
+const CACHE_VERSION = '4';
 const SUMMARY_VERSION = '3';
 const LIVE_SYNC_WINDOW_DAYS = 7;
 const statsCache = new Map();
-const CACHE_DISABLED = true;
+const CACHE_DISABLED = false;
+const SERVER_CACHE_TTL_MS = 5 * 60 * 1000;
 const BATCH_LIMIT = 1000;
 
 const pickFields = (record, fields) => {
@@ -154,6 +155,19 @@ const getMonthDateRange = (year, month) => {
 };
 
 const getMonthKey = (year, month) => `${year}-${String(month).padStart(2, '0')}`;
+
+const normalizePageMonths = (pageMonths = []) => {
+  const uniqueMonths = [...new Set((pageMonths || []).map((month) => Number(month)).filter((month) => month >= 1 && month <= 12))];
+  return uniqueMonths.sort((a, b) => a - b);
+};
+
+const getPageDateRange = (year, pageMonths = []) => {
+  const normalizedMonths = normalizePageMonths(pageMonths);
+  if (!normalizedMonths.length) return null;
+  const firstRange = getMonthDateRange(year, normalizedMonths[0]);
+  const lastRange = getMonthDateRange(year, normalizedMonths[normalizedMonths.length - 1]);
+  return { start: firstRange.start, end: lastRange.end, months: normalizedMonths };
+};
 
 const toDateOnly = (date) => date.toISOString().split('T')[0];
 
@@ -437,6 +451,8 @@ Deno.serve(async (req) => {
     const {
       adminMetricsYear, adminMetricsCityId,
       payrollYear, payrollCityId,
+      payrollPageMonths = [],
+      payrollPaginationMode = 'full_year',
       forceRefreshCurrentYear = false,
       refreshCurrentMonthSummary = false
     } = body;
@@ -486,7 +502,7 @@ Deno.serve(async (req) => {
     const fetchYearData = async (year, cityId, options = {}) => {
       const cacheKey = `${CACHE_VERSION}_${year}_${cityId || 'all'}_${options.startDate || 'full'}_${options.endDate || 'full'}_${options.includePayroll ? 'payroll' : 'admin'}`;
       const cached = statsCache.get(cacheKey);
-      if (!CACHE_DISABLED && cached && (Date.now() - cached.timestamp < 300000)) {
+      if (!CACHE_DISABLED && cached && (Date.now() - cached.timestamp < SERVER_CACHE_TTL_MS)) {
         return cached.data;
       }
 
@@ -825,12 +841,27 @@ Deno.serve(async (req) => {
     }
 
     let payrollData = null;
+    let payrollPagination = null;
     if (payrollYear) {
-      const backfill = await buildSummaryBackfill(payrollYear, payrollCityId || 'all', { force: false, includePayroll: true });
-      payrollData = buildPayrollData(backfill.yearData);
+      const normalizedPayrollCityId = payrollCityId || 'all';
+      const shouldPaginatePayroll = payrollPaginationMode === 'paged';
+      const pageRange = shouldPaginatePayroll ? getPageDateRange(payrollYear, payrollPageMonths) : null;
+      const yearData = await fetchYearData(payrollYear, normalizedPayrollCityId, {
+        includePayroll: true,
+        startDate: pageRange?.start,
+        endDate: pageRange?.end
+      });
+      payrollData = buildPayrollData(yearData);
+      payrollPagination = {
+        mode: shouldPaginatePayroll ? 'paged' : 'full_year',
+        requestedMonths: pageRange?.months || [],
+        rangeStart: pageRange?.start || `${payrollYear}-01-01`,
+        rangeEnd: pageRange?.end || `${payrollYear}-12-31`,
+        hasMore: shouldPaginatePayroll ? (pageRange?.months?.[pageRange.months.length - 1] || 12) < 12 : false
+      };
     }
 
-    return Response.json({ adminMetrics, adminMetricsMeta, payrollData });
+    return Response.json({ adminMetrics, adminMetricsMeta, payrollData, payrollPagination });
   } catch (error) {
     console.error('❌ CRITICAL ERROR in getAdminMetricsAndPayrollData:', error);
     const isRateLimit = error?.status === 429 || error?.response?.status === 429 || String(error?.message || '').toLowerCase().includes('rate limit');

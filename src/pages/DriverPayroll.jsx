@@ -653,19 +653,56 @@ export default function DriverPayroll() {
     }
   }, []);
 
+  const payrollPageCacheRef = useRef(new Map());
   const fullYearPayrollDataRef = useRef(null);
+
+  const mergePagedPayrollData = useCallback((existingData, incomingData) => {
+    if (!incomingData) return existingData;
+    if (!existingData) return incomingData;
+
+    const mergeById = (first = [], second = []) => {
+      const map = new Map();
+      [...first, ...second].forEach((item) => {
+        if (!item?.id) return;
+        map.set(item.id, { ...(map.get(item.id) || {}), ...item });
+      });
+      return Array.from(map.values());
+    };
+
+    return {
+      ...existingData,
+      ...incomingData,
+      deliveries: mergeById(existingData.deliveries, incomingData.deliveries),
+      patients: mergeById(existingData.patients, incomingData.patients),
+      stores: mergeById(existingData.stores, incomingData.stores),
+      appUsers: mergeById(existingData.appUsers, incomingData.appUsers),
+      drivers: mergeById(existingData.drivers, incomingData.drivers),
+      payrollRecords: mergeById(existingData.payrollRecords, incomingData.payrollRecords)
+    };
+  }, []);
 
   const fetchPayroll = useCallback(async (isAutoRefresh = false, forceFresh = false) => {
     if (!currentUser || !isPayrollPageActive || !selectedCityId) return;
 
     const cacheKey = `${selectedYear}-${selectedCityId}`;
-    const fetchSignature = `${cacheKey}-${isAutoRefresh}-${forceFresh}`;
+    const currentMonthNumber = new Date().getMonth() + 1;
+    const requestedMonths = Array.from(new Set([Math.max(1, currentMonthNumber - 1), currentMonthNumber])).sort((a, b) => a - b);
+    const pageKey = `${cacheKey}-${requestedMonths.join(',')}`;
+    const fetchSignature = `${pageKey}-${isAutoRefresh}-${forceFresh}`;
     const now = Date.now();
     if (lastFetchSignatureRef.current === fetchSignature && now - lastFetchTimestampRef.current < 5000) {
       return fullYearPayrollDataRef.current;
     }
 
     if (!forceFresh && fullYearPayrollDataRef.current?.__cacheKey === cacheKey) {
+      return fullYearPayrollDataRef.current;
+    }
+
+    if (!forceFresh && payrollPageCacheRef.current.has(pageKey)) {
+      const cachedPageData = payrollPageCacheRef.current.get(pageKey);
+      fullYearPayrollDataRef.current = mergePagedPayrollData(fullYearPayrollDataRef.current, cachedPageData);
+      setPayrollData(fullYearPayrollDataRef.current);
+      setPayrollRecords(fullYearPayrollDataRef.current?.payrollRecords || []);
       return fullYearPayrollDataRef.current;
     }
 
@@ -676,13 +713,19 @@ export default function DriverPayroll() {
     const runFetch = async () => {
       if (!isAutoRefresh) setIsLoadingPayroll(true);
       try {
-        console.log(`📥 [DriverPayroll] Fetching FULL YEAR payroll data - Year: ${selectedYear}`);
+        console.log(`📥 [DriverPayroll] Fetching PAGED payroll data - Year: ${selectedYear}, Months: ${requestedMonths.join(',')}`);
         const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
           payrollYear: selectedYear,
-          payrollCityId: selectedCityId
+          payrollCityId: selectedCityId,
+          payrollPaginationMode: 'paged',
+          payrollPageMonths: requestedMonths
         });
         const rawData = response?.data?.payrollData || response?.payrollData;
-        const data = rawData ? { ...rawData, __cacheKey: cacheKey } : rawData;
+        const pageData = rawData ? { ...rawData, __cacheKey: cacheKey, __pageKey: pageKey, __months: requestedMonths } : rawData;
+
+        payrollPageCacheRef.current.set(pageKey, pageData);
+        const mergedData = mergePagedPayrollData(fullYearPayrollDataRef.current, pageData);
+        const data = mergedData ? { ...mergedData, __cacheKey: cacheKey } : mergedData;
 
         fullYearPayrollDataRef.current = data;
         lastFetchSignatureRef.current = fetchSignature;
@@ -709,7 +752,7 @@ export default function DriverPayroll() {
 
     fetchPayrollInFlightRef.current = runFetch();
     return fetchPayrollInFlightRef.current;
-  }, [selectedYear, selectedCityId, currentUser, isPayrollPageActive]);
+  }, [selectedYear, selectedCityId, currentUser, isPayrollPageActive, mergePagedPayrollData]);
 
   const handleManualRefresh = useCallback(async () => {
     setIsRefreshing(true);
