@@ -756,98 +756,23 @@ Deno.serve(async (req) => {
       const currentYear = new Date().getFullYear();
       let summaryRecords = await fetchYearSummaryRecords(adminMetricsYear, normalizedCityId);
 
-      if (forceRefreshCurrentYear && adminMetricsYear === currentYear) {
-        await buildSummaryBackfill(adminMetricsYear, normalizedCityId, {
-          force: true,
+      if (!summaryRecords.length || summaryRecords.length < 12 || (forceRefreshCurrentYear && adminMetricsYear === currentYear)) {
+        const backfill = await buildSummaryBackfill(adminMetricsYear, normalizedCityId, {
+          force: forceRefreshCurrentYear === true,
           includePayroll: false,
           refreshCurrentMonthOnly: false
         });
-        summaryRecords = await fetchYearSummaryRecords(adminMetricsYear, normalizedCityId);
-      } else if (!summaryRecords.length || summaryRecords.length < 12) {
-        const backfill = await buildSummaryBackfill(adminMetricsYear, normalizedCityId, { force: false, includePayroll: false });
-        summaryRecords = await fetchYearSummaryRecords(adminMetricsYear, normalizedCityId);
-      } else if (forceRefreshCurrentYear) {
-        const backfill = await buildSummaryBackfill(adminMetricsYear, normalizedCityId, { force: true, includePayroll: false });
         summaryRecords = backfill.summaryRecords;
       }
 
-      const now = new Date();
-      const liveWindowStart = getLiveWindowStart();
-      const liveWindowEnd = getTodayDateString();
-      const currentMonth = now.getMonth() + 1;
-      const shouldApplyLiveWindow = adminMetricsYear === currentYear;
-      let summaryRecordsForUi = summaryRecords;
-
-      if (shouldApplyLiveWindow) {
-        const currentMonthSummary = summaryRecords.find((record) => record.month === currentMonth);
-        const liveWindowData = await fetchYearData(adminMetricsYear, normalizedCityId, {
-          startDate: liveWindowStart,
-          endDate: liveWindowEnd,
-          includePayroll: false
-        });
-
-        const shouldRebuildCurrentMonth = refreshCurrentMonthSummary === true || currentMonthSummary == null || countSummaryNeedsRefresh(currentMonthSummary, liveWindowData.deliveries);
-
-        if (shouldRebuildCurrentMonth) {
-          const monthRange = getMonthDateRange(adminMetricsYear, currentMonth);
-          const fullCurrentMonthData = await fetchYearData(adminMetricsYear, normalizedCityId, {
-            startDate: monthRange.start,
-            endDate: monthRange.end,
-            includePayroll: false
-          });
-          const currentMonthMetrics = processAdminMetrics(
-            fullCurrentMonthData.deliveries,
-            fullCurrentMonthData.stores,
-            fullCurrentMonthData.appUsers,
-            fullCurrentMonthData.patients,
-            adminMetricsYear,
-            fullCurrentMonthData.appFeeRate
-          );
-          currentMonthMetrics.envelopeMetrics = calculateEnvelopeMetrics(fullCurrentMonthData.deliveries, fullCurrentMonthData.stores);
-          await upsertMonthlySummaryRecord({
-            year: adminMetricsYear,
-            month: currentMonth,
-            cityId: normalizedCityId,
-            cityName: fullCurrentMonthData.cityName,
-            adminMetrics: currentMonthMetrics,
-            payrollMetrics: null,
-            deliveries: fullCurrentMonthData.deliveries
-          });
-          summaryRecordsForUi = await fetchYearSummaryRecords(adminMetricsYear, normalizedCityId);
-        } else {
-          const liveWindowMetrics = processAdminMetrics(
-            liveWindowData.deliveries,
-            liveWindowData.stores,
-            liveWindowData.appUsers,
-            liveWindowData.patients,
-            adminMetricsYear,
-            liveWindowData.appFeeRate
-          );
-          liveWindowMetrics.envelopeMetrics = calculateEnvelopeMetrics(liveWindowData.deliveries, liveWindowData.stores);
-
-          summaryRecordsForUi = summaryRecords.filter((record) => record.month !== currentMonth);
-          summaryRecordsForUi.push({
-            month: currentMonth,
-            admin_metrics: liveWindowMetrics,
-            payroll_metrics: currentMonthSummary?.payroll_metrics || null
-          });
-        }
-
-        adminMetricsMeta = {
-          liveWindowApplied: !shouldRebuildCurrentMonth,
-          liveWindowDays: LIVE_SYNC_WINDOW_DAYS,
-          currentMonthSynced: true
-        };
-      } else {
-        adminMetricsMeta = {
-          liveWindowApplied: false,
-          liveWindowDays: LIVE_SYNC_WINDOW_DAYS,
-          currentMonthSynced: false
-        };
-      }
-
-      const composed = composeMetricsFromSummaries(summaryRecordsForUi);
+      const composed = composeMetricsFromSummaries(summaryRecords);
       adminMetrics = composed.adminMetrics;
+      adminMetricsMeta = {
+        liveWindowApplied: false,
+        liveWindowDays: LIVE_SYNC_WINDOW_DAYS,
+        currentMonthSynced: summaryRecords.length > 0,
+        source: 'summary'
+      };
     }
 
     let payrollData = null;

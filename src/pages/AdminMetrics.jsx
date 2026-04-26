@@ -49,6 +49,7 @@ export default function AdminMetrics() {
   const [selectedDriverId, setSelectedDriverId] = useState('all'); // Filter by driver
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [liveSyncStatus, setLiveSyncStatus] = useState(null);
+  const [isBackgroundSyncing, setIsBackgroundSyncing] = useState(false);
   const backgroundSyncStartedRef = useRef(false);
 
   const availableYears = useMemo(() => {
@@ -174,16 +175,16 @@ export default function AdminMetrics() {
     backgroundSyncStartedRef.current = true;
     const runBackgroundSync = async () => {
       try {
-        const response = await backgroundMetricsSync({
+        setIsBackgroundSyncing(true);
+        await backgroundMetricsSync({
           year: parseInt(selectedYear),
           cityId: selectedCityId === 'all' ? null : selectedCityId
         });
-        const syncData = response?.data || response;
-        if (syncData?.needsRefresh && parseInt(selectedYear) === new Date().getFullYear()) {
-          await fetchMetrics(selectedYear, selectedCityId, false);
-        }
+        await fetchMetrics(selectedYear, selectedCityId, false);
       } catch (error) {
         console.warn('Background metrics sync skipped:', error?.message || error);
+      } finally {
+        setIsBackgroundSyncing(false);
       }
     };
 
@@ -364,12 +365,15 @@ export default function AdminMetrics() {
           </div>
         </div>
 
-        {liveSyncStatus && (
+        {(liveSyncStatus || isBackgroundSyncing) && (
           <div className="flex items-center gap-2 text-xs md:text-sm" style={{ color: 'var(--text-slate-600)' }}>
-            <Badge variant="secondary">
-              {liveSyncStatus.liveWindowApplied ? `Live sync: last ${liveSyncStatus.liveWindowDays} days` : 'Summary only'}
-            </Badge>
-            {liveSyncStatus.currentMonthSynced && <span>Current month refreshed on load.</span>}
+            {liveSyncStatus && (
+              <Badge variant="secondary">
+                {liveSyncStatus.source === 'summary' ? 'Loaded from summary' : liveSyncStatus.liveWindowApplied ? `Live sync: last ${liveSyncStatus.liveWindowDays} days` : 'Summary only'}
+              </Badge>
+            )}
+            {isBackgroundSyncing && <span>Refreshing summary in background…</span>}
+            {!isBackgroundSyncing && liveSyncStatus?.currentMonthSynced && <span>Summary is up to date.</span>}
           </div>
         )}
 
