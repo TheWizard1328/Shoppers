@@ -163,7 +163,7 @@ export default function AdminMetrics() {
   const handleManualRefresh = async () => {
     setIsManualRefreshing(true);
     backgroundSyncStartedRef.current = true;
-    await fetchMetrics(selectedYear, selectedCityId, 'force-refresh');
+    await fetchMetrics(selectedYear, selectedCityId, true);
     setIsManualRefreshing(false);
   };
 

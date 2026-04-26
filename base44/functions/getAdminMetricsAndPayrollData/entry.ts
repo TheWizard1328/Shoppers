@@ -746,7 +746,7 @@ Deno.serve(async (req) => {
         await buildSummaryBackfill(adminMetricsYear, normalizedCityId, {
           force: true,
           includePayroll: false,
-          refreshCurrentMonthOnly: refreshCurrentMonthSummary === true
+          refreshCurrentMonthOnly: false
         });
         summaryRecords = await fetchYearSummaryRecords(adminMetricsYear, normalizedCityId);
       } else if (!summaryRecords.length) {
