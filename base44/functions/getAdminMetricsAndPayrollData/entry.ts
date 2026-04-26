@@ -811,14 +811,10 @@ Deno.serve(async (req) => {
           );
           liveWindowMetrics.envelopeMetrics = calculateEnvelopeMetrics(liveWindowData.deliveries, liveWindowData.stores);
 
-          const summaryWithoutCurrentMonth = composeMetricsFromSummaries(summaryRecords.filter((record) => record.month !== currentMonth));
-          const mergedCurrentYearMetrics = mergeMetrics(summaryWithoutCurrentMonth.adminMetrics, liveWindowMetrics);
-          mergedCurrentYearMetrics.envelopeMetrics = mergeEnvelopeMetrics(summaryWithoutCurrentMonth.adminMetrics?.envelopeMetrics || null, liveWindowMetrics.envelopeMetrics);
-
           summaryRecordsForUi = summaryRecords.filter((record) => record.month !== currentMonth);
           summaryRecordsForUi.push({
             month: currentMonth,
-            admin_metrics: mergedCurrentYearMetrics,
+            admin_metrics: liveWindowMetrics,
             payroll_metrics: currentMonthSummary?.payroll_metrics || null
           });
         }
@@ -996,9 +992,9 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
       let dailyEntry = metrics.dailyDeliveryData[monthIndex + 1].find(d => d.day === dayOfMonth);
       if (dailyEntry) {
         if (isBillable) dailyEntry.billable++;
-        else dailyEntry.nonBillable++;
+        else if (isNonBillable) dailyEntry.nonBillable++;
       } else {
-        metrics.dailyDeliveryData[monthIndex + 1].push({ day: dayOfMonth, billable: isBillable ? 1 : 0, nonBillable: isBillable ? 0 : 1 });
+        metrics.dailyDeliveryData[monthIndex + 1].push({ day: dayOfMonth, billable: isBillable ? 1 : 0, nonBillable: isNonBillable ? 1 : 0 });
       }
 
       if (delivery.driver_id) {
