@@ -1,15 +1,15 @@
 export const getPhaseBoundsMaxZoom = (spanKm, fallbackMinZoom = 12.5) => {
   if (!Number.isFinite(spanKm) || spanKm <= 0) {
-    return 17.5;
+    return 18;
   }
 
   if (spanKm <= 15) {
-    return 17.5;
+    return 18;
   }
 
   return Math.max(
     fallbackMinZoom,
-    Math.min(17.5, Math.round((16.8 - Math.log2(spanKm + 1) * 1.05) * 10) / 10)
+    Math.min(18, Math.round((17.2 - Math.log2(spanKm + 1) * 1.05) * 10) / 10)
   );
 };
 

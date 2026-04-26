@@ -85,12 +85,6 @@ export default function FABControls({
   return (
     <>
       <MapViewCycleFAB currentUser={currentUser} filteredDeliveries={filteredDeliveries} onClick={() => {
-        if (isDispatcher && mapViewPhase === 1 && selectedStore) {
-          const pad = getMapPadding();
-          setShouldFitBounds({ bounds: buildRadiusBoundsFromStore(selectedStore, 2.5), options: { ...pad, maxZoom: 14, animate: true } });
-          setMapCenter(null);
-          setMapZoom(null);
-        }
         handleMapViewCycle();
       }} currentPhase={mapViewPhase} hasVisibleCards={!immersiveHidden && deliveriesWithStopOrder.length > 0} isAIVisible={showAIAssistant && isAIEnabled} isLocked={isMapViewLocked} isEnabled={isMapCycleEnabled} stopCardsHeight={!immersiveHidden && cardsReadyForFAB ? stopCardsBaseHeight : 0} isMotionDimmed={isPrimaryDriverDeviceInMotion} />
 
@@ -116,7 +110,7 @@ export default function FABControls({
                   if (stop.patient_id) { const p = patients.find(p => p && p.id === stop.patient_id); if (p?.latitude && p?.longitude) allCoords.push([p.latitude, p.longitude]); }
                   else if (stop.store_id) { const s = stores.find(s => s && s.id === stop.store_id); if (s?.latitude && s?.longitude) allCoords.push([s.latitude, s.longitude]); }
                 });
-                if (allCoords.length > 0) { const pad = getMapPadding(); setShouldFitBounds({ bounds: allCoords, options: { ...pad, maxZoom: 14, animate: true } }); setMapCenter(null); setMapZoom(null); }
+                if (allCoords.length > 0) { const pad = getMapPadding(); setShouldFitBounds({ bounds: allCoords, options: { ...pad, maxZoom: 16.5, animate: true } }); setMapCenter(null); setMapZoom(null); }
               }
               try {
                 const deliveryDate = format(selectedDate, 'yyyy-MM-dd');
