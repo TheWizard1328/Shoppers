@@ -91,7 +91,7 @@ const isStandardOrInterStoreDelivery = (delivery) => isPatientOrTransferDelivery
 const isRegularPickupDelivery = (delivery) => !isAfterHoursPickupDelivery(delivery) && !isStandardOrInterStoreDelivery(delivery);
 
 const isDriverPayableDelivery = (delivery) => {
-  if (!delivery || delivery.no_charge === true) return false;
+  if (!delivery) return false;
   if (isAfterHoursPickupDelivery(delivery)) {
     return isCompletedStatus(delivery) || isCancelledStatus(delivery);
   }
@@ -990,7 +990,7 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
     const isDriverPayable = isDriverPayableDelivery(delivery);
     const isBillable = isBillableDelivery(delivery, wasPayingOnDeliveryDate);
     const isNonBillable = isNonBillableDelivery(delivery, wasPayingOnDeliveryDate);
-    const countsTowardMonthlySplit = isDriverPayable;
+    const countsTowardMonthlySplit = isDriverPayable && delivery.no_charge !== true;
 
     if (countsTowardMonthlySplit) {
       metrics.monthlyData[monthIndex].total++;
