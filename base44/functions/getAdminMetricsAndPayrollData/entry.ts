@@ -963,9 +963,9 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
   const isCompletedPatientForStore = (d) => !isAfterHoursPickupDelivery(d) && isCompletedStatus(d) && isPatientOrTransferDelivery(d);
   const isFailedPatientForStore = (d) => !isAfterHoursPickupDelivery(d) && isFailedStatus(d) && isPatientOrTransferDelivery(d);
 
-  const isBillableDelivery = (d) => isAdminBillableDelivery(d);
+  const isBillableDelivery = (d, storePaysFees) => isAdminBillableDelivery(d, storePaysFees);
 
-  const isNonBillableDelivery = (d) => isAdminNonBillableDelivery(d);
+  const isNonBillableDelivery = (d, storePaysFees) => isAdminNonBillableDelivery(d, storePaysFees);
 
   const storeMonthlyFees = new Map();
   const storesPayingFeesSet = new Set();
