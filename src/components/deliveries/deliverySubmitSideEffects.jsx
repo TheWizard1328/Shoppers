@@ -18,7 +18,6 @@ function getEdmontonDateString(value = new Date()) {
 }
 import { getDriverDisplayName } from '../utils/driverUtils';
 import { sendDeliveryMessage } from '../utils/deliveryMessaging';
-import { reorderStops } from '../utils/stopReorderer';
 
 export async function runDeliverySubmitSideEffects({
   delivery,
@@ -88,42 +87,8 @@ export async function runDeliverySubmitSideEffects({
         }
       }
 
-      const isHistoricalRoute = formData.delivery_date < getEdmontonDateString();
-      const statusOnlyCompletionChange = !driverChanged && !dateChanged && !timeWindowChanged;
-      if (!isPickupMode && !isHistoricalRoute && statusOnlyCompletionChange && actualDeliveryTimeChanged && incompleteDeliveries.length > 0) {
-        setTimeout(() => {
-          reorderStops(formData.driver_id, formData.delivery_date, allDeliveries, null, {
-            optimizeRemainingStops: true,
-            etaOnly: true
-          })
-            .then((result) => {
-              console.log('✅ [DeliveryForm] ETA-only refresh complete (bg)', result);
-            })
-            .catch((error) => console.error('❌ [DeliveryForm] ETA-only refresh failed (bg):', error));
-        }, 0);
-      }
     } catch (error) {
       console.error('❌ [DeliveryForm] Completion side effects failed:', error);
-    }
-  }
-
-  if (delivery && formData.driver_id && formData.delivery_date && !isPickupMode && (driverChanged || dateChanged || timeWindowChanged)) {
-    try {
-      const isHistoricalRoute = formData.delivery_date < getEdmontonDateString();
-      if (!isHistoricalRoute) {
-        setTimeout(() => {
-          reorderStops(formData.driver_id, formData.delivery_date, allDeliveries, null, {
-            optimizeRemainingStops: true,
-            etaOnly: false
-          })
-            .then((result) => {
-              console.log('✅ [DeliveryForm] Stop reordering complete (bg)', result);
-            })
-            .catch((error) => console.error('❌ [DeliveryForm] Stop reordering failed (bg):', error));
-        }, 0);
-      }
-    } catch (error) {
-      console.error('❌ [DeliveryForm] Stop reordering failed:', error);
     }
   }
 
