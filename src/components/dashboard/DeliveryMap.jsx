@@ -917,28 +917,7 @@ export default function DeliveryMap({
     const currentMapBounds = map.getBounds();
     const driverAlreadyInView = currentMapBounds?.contains?.([currentDriverFitLocation.latitude, currentDriverFitLocation.longitude]);
     const stopAlreadyInView = currentMapBounds?.contains?.([currentStopFitLocation.latitude, currentStopFitLocation.longitude]);
-    const currentCenter = map.getCenter();
-    const currentZoomLevel = map.getZoom();
-    const fitOptions = {
-      paddingTopLeft: [25, isMobile ? (immersiveHidden ? 25 : effectiveTopOverlayHeight + 25) : 60],
-      paddingBottomRight: [25, immersiveHidden ? 25 : ((areStopCardsVisible && !immersiveHidden) ? stopCardsHeight + 10 : 60)],
-      maxZoom: 17.5,
-      animate: false
-    };
-    const targetBounds = L.latLngBounds([
-      [targetDriverMarker.latitude, targetDriverMarker.longitude],
-      [nextStop.latitude, nextStop.longitude]
-    ]);
-    const targetCenter = targetBounds.getCenter();
-    const targetZoom = map.getBoundsZoom(targetBounds, false, [fitOptions.paddingTopLeft[0] + fitOptions.paddingBottomRight[0], fitOptions.paddingTopLeft[1] + fitOptions.paddingBottomRight[1]]);
-    const centerShiftMeters = getDistanceMeters(
-      { latitude: currentCenter.lat, longitude: currentCenter.lng },
-      { latitude: targetCenter.lat, longitude: targetCenter.lng }
-    );
-    const zoomShift = Math.abs(currentZoomLevel - targetZoom);
-    const driverMoveMeters = getDistanceMeters(phase2LastFitDriverLocationRef.current, currentDriverFitLocation);
-    const shouldSkipFit = !destinationChanged && driverAlreadyInView && stopAlreadyInView && centerShiftMeters < 35 && zoomShift < 0.2 && driverMoveMeters < 50;
-    if ((!destinationChanged && !hasMovedEnoughForMapFit) || shouldSkipFit) {
+    if ((!destinationChanged && !hasMovedEnoughForMapFit) || (!destinationChanged && driverAlreadyInView && stopAlreadyInView)) {
       if (isMobile && phase2PaddingRef.current !== paddingKey && now < phase2OverlayStabilizeUntilRef.current) {
         phase2PaddingRef.current = paddingKey;
       }
@@ -957,7 +936,12 @@ export default function DeliveryMap({
         [targetDriverMarker.latitude, targetDriverMarker.longitude],
         [nextStop.latitude, nextStop.longitude]
       ],
-      fitOptions
+      {
+        paddingTopLeft: [25, isMobile ? (immersiveHidden ? 25 : effectiveTopOverlayHeight + 25) : 60],
+        paddingBottomRight: [25, immersiveHidden ? 25 : ((areStopCardsVisible && !immersiveHidden) ? stopCardsHeight + 10 : 60)],
+        maxZoom: 17.5,
+        animate: false
+      }
     );
   }, [map, mapViewPhase, isMapViewLocked, selectedDriverId, currentUser?.id, currentDriverLocation, routeAwareCurrentDriverMarker, routeAwareDriverLocationMarkers, deliveryMarkers, pickupMarkers, isMobile]);
 
