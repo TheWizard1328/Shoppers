@@ -1014,20 +1014,10 @@ export default function DeliveryForm({
         time_window_end: pickupTimes?.delivery_time_end || pickupToCreate.time_window_end || ''
       });
 
-      setHasChanges(true);
-      resetDraftEditorState({
-        setSelectedPatient,
-        setSelectedPatientIds,
-        setPatientSearch,
-        setError,
-        setEditingStagedId,
-        setHighlightedPatientIndex,
-        setFormData,
-        setSelectedPickupOption,
-        shouldAutoFocusFields,
-        focusRef: patientSearchInputRef,
-        setNewPatientMode
-      });
+      setHasChanges(false);
+      setError(null);
+      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+      closeDeliveryFormAfterSave({ handleClearForm, onCancel });
       return;
     } else {
       const puid = await resolvePickupPuid({
