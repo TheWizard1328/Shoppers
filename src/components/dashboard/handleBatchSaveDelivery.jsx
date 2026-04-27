@@ -543,42 +543,7 @@ export const handleBatchSaveDelivery = async ({
   hasAutoSelectedRef.current = false;
 
   setTimeout(async () => {
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      await refreshData();
-
-      if (batchDriverId) {
-        const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-        const allDriverDeliveries = allProcessedDeliveries.filter((d) =>
-          d && d.driver_id === batchDriverId && d.delivery_date === batchDeliveryDate
-        );
-
-        const allActive = allDriverDeliveries.length > 0 && allDriverDeliveries.every((d) =>
-          d && (d.status === 'in_transit' || d.status === 'en_route' || finishedStatuses.includes(d.status))
-        );
-        const hasIncompleteStops = allDriverDeliveries.some((d) =>
-          d && d.status !== 'pending' && !finishedStatuses.includes(d.status)
-        );
-
-        if (allActive && hasIncompleteStops) {
-          const now = new Date();
-          const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-          await base44.functions.invoke('optimizeRemainingStops', {
-            driverId: batchDriverId,
-            deliveryDate: batchDeliveryDate,
-            currentLocalTime: localTimeString,
-            deviceTime: now.toISOString()
-          });
-          await base44.functions.invoke('recalculateTrackingNumbers', {
-            driverId: batchDriverId,
-            deliveryDate: batchDeliveryDate
-          }).catch(() => null);
-          if (invalidateDeliveriesForDate) invalidateDeliveriesForDate(batchDeliveryDate);
-          await refreshData();
-        }
-      }
-    } catch (optimizeError) {
-      console.warn('⚠️ [AddToRoute] Route optimization failed:', optimizeError.message);
-    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    await refreshData();
   }, 0);
 };
