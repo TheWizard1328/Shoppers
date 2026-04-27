@@ -1041,6 +1041,31 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
     });
   }
 
+  const storesPayingFeesIds = new Set(
+    stores
+      .filter((store) => wasPayingFeesOnDate(store, `${year}-12-31`))
+      .map((store) => store.id)
+  );
+
+  metrics.monthlyData = Array(12).fill(null).map((_, index) => {
+    const monthStores = metrics.storeDataByMonth[index + 1] || [];
+    const billable = monthStores
+      .filter((storeEntry) => storesPayingFeesIds.has(storeEntry.storeId))
+      .reduce((sum, storeEntry) => sum + (storeEntry.completed || 0) + (storeEntry.failed || 0) + (storeEntry.afterHours || 0), 0);
+    const nonBillable = monthStores
+      .filter((storeEntry) => !storesPayingFeesIds.has(storeEntry.storeId))
+      .reduce((sum, storeEntry) => sum + (storeEntry.completed || 0) + (storeEntry.failed || 0) + (storeEntry.afterHours || 0), 0);
+
+    return {
+      month: MONTH_NAMES[index],
+      billable,
+      nonBillable,
+      total: billable + nonBillable
+    };
+  });
+
+  metrics.yearTotals.billable = metrics.monthlyData.reduce((sum, month) => sum + (month.billable || 0), 0);
+  metrics.yearTotals.nonBillable = metrics.monthlyData.reduce((sum, month) => sum + (month.nonBillable || 0), 0);
   metrics.storeFeeTotals.stores_paying_fees = storesPayingFeesSet.size;
   metrics.yearTotals.activeDrivers = new Set(appUsers.filter(au => au.app_roles && au.app_roles.includes('driver') && au.status === 'active').map(au => au.user_id)).size;
   return metrics;
