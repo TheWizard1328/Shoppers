@@ -235,11 +235,15 @@ Deno.serve(async (req) => {
     const incompleteDeliveries = allDeliveries.filter(d => !FINISHED_STATUSES.includes(d.status));
     const activeRouteDeliveries = incompleteDeliveries.filter((delivery) => ACTIVE_STATUSES.includes(delivery.status));
     const pendingRouteDeliveries = incompleteDeliveries.filter((delivery) => delivery.status === 'pending');
+    const optimizableDeliveries = [...activeRouteDeliveries, ...pendingRouteDeliveries];
 
-    if (incompleteDeliveries.length === 0) {
+    if (optimizableDeliveries.length === 0) {
       return Response.json({ 
-        message: 'No incomplete deliveries to optimize',
-        routeChanged: false
+        success: true,
+        message: 'No optimizable stops found',
+        routeChanged: false,
+        optimizedCount: 0,
+        apiCallsMade: 0
       });
     }
 
@@ -249,20 +253,20 @@ Deno.serve(async (req) => {
     });
 
     // Get patient and store data for coordinates
-    const patientIds = [...new Set(incompleteDeliveries.filter(d => d.patient_id).map(d => d.patient_id))];
+    const patientIds = [...new Set(optimizableDeliveries.filter(d => d.patient_id).map(d => d.patient_id))];
     const patients = patientIds.length > 0 
       ? await base44.asServiceRole.entities.Patient.filter({ id: { $in: patientIds } })
       : [];
     const patientMap = new Map(patients.map(p => [p.id, p]));
 
-    const storeIds = [...new Set(incompleteDeliveries.map(d => d.store_id).filter(Boolean))];
+    const storeIds = [...new Set(optimizableDeliveries.map(d => d.store_id).filter(Boolean))];
     const stores = storeIds.length > 0
       ? await base44.asServiceRole.entities.Store.filter({ id: { $in: storeIds } })
       : [];
     const storeMap = new Map(stores.map(s => [s.id, s]));
 
     // Build stops with coordinates
-    const stops = incompleteDeliveries.map(delivery => {
+    const stops = optimizableDeliveries.map(delivery => {
       const coords = getDeliveryCoords(delivery, patientMap, storeMap);
       const patient = delivery.patient_id ? patientMap.get(delivery.patient_id) : null;
       const windowStart = getEffectiveWindowStart(delivery, patient);
@@ -593,7 +597,7 @@ Deno.serve(async (req) => {
       driverId,
       deliveryDate,
       routeChanged: routeOrderChanged,
-      optimizedCount: activeStops.length,
+      optimizedCount: routeStops.length,
       stagesCount: 1,
       apiCallsMade: attemptedHereCalls,
       locationSource,
