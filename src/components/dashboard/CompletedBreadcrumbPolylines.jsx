@@ -6,15 +6,11 @@ import { getTravelModeLineStyle, normalizeTravelMode } from "./travelModeHelpers
 import RouteDirectionDecorator from "./RouteDirectionDecorator";
 
 const FINISHED = ["completed", "failed", "cancelled"];
+const NON_BLUE_DRIVER_COLORS = ['#7C3AED', '#9333EA', '#DC2626', '#EA580C', '#16A34A', '#65A30D', '#CA8A04', '#C2410C', '#BE123C', '#7E22CE'];
+
 const getType3PolylineColor = (driverId) => {
-  const driverColor = generateDriverColor(String(driverId || 'driver')).toLowerCase();
-  const nonBlueFallbacks = ['#7c3aed', '#9333ea', '#a16207', '#dc2626', '#16a34a'];
-  const isBlueShade = driverColor.includes('2563eb') || driverColor.includes('1e90ff') || driverColor.includes('3b82f6') || driverColor.includes('60a5fa') || driverColor.includes('0ea5e9') || driverColor.includes('06b6d4');
-  if (isBlueShade) {
-    const hashSeed = String(driverId || 'driver').split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
-    return nonBlueFallbacks[hashSeed % nonBlueFallbacks.length];
-  }
-  return driverColor;
+  const hashSeed = String(driverId || 'driver').split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return NON_BLUE_DRIVER_COLORS[hashSeed % NON_BLUE_DRIVER_COLORS.length];
 };
 const getFinishedLegRouteStyle = (driverId, deliveryTravelMode, opacityOverride) => {
   const mode = normalizeTravelMode(deliveryTravelMode || 'driving');
@@ -355,7 +351,7 @@ export default function CompletedBreadcrumbPolylines({
       <Polyline
         key={`stored-finished-${segment.id}-${polylineRenderKey}-${highlightedDeliveryId || "none"}`}
         positions={coords}
-        pathOptions={getTravelModeLineStyle(segment.finishedLegTransportMode, getType3PolylineColor(segment.driverId))}
+        pathOptions={getFinishedLegRouteStyle(segment.driverId, segment.finishedLegTransportMode, Math.max(segment.opacity, 0.35))}
         pane="completedBreadcrumbPane"
         />,
       <RouteDirectionDecorator
