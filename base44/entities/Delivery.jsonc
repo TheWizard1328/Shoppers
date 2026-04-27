@@ -239,6 +239,43 @@
       ],
       "description": "Transport mode used for the finished route leg's polyline"
     },
+    "encoded_polyline": {
+      "type": "string",
+      "description": "Encoded polyline for this stop's planned route segment. For the final stop, this polyline starts at the previous stop, passes through the final stop, and ends at the driver's home."
+    },
+    "transport_mode": {
+      "type": "string",
+      "enum": [
+        "driving",
+        "cycling",
+        "pedestrian"
+      ],
+      "description": "Transport mode used for this stop's planned route segment"
+    },
+    "segment_origin_lat": {
+      "type": "number",
+      "description": "Latitude of the start of this stop's stored planned polyline"
+    },
+    "segment_origin_lon": {
+      "type": "number",
+      "description": "Longitude of the start of this stop's stored planned polyline"
+    },
+    "segment_dest_lat": {
+      "type": "number",
+      "description": "Latitude of the end of this stop's stored planned polyline"
+    },
+    "segment_dest_lon": {
+      "type": "number",
+      "description": "Longitude of the end of this stop's stored planned polyline"
+    },
+    "estimated_distance_km": {
+      "type": "number",
+      "description": "Estimated distance for the delivery leg that ends at this stop. For the final stop, this excludes the return-home leg."
+    },
+    "estimated_duration_minutes": {
+      "type": "number",
+      "description": "Estimated duration for the delivery leg that ends at this stop. For the final stop, this excludes the return-home leg."
+    },
     "PolylineUpdated": {
       "type": "boolean",
       "default": false,
@@ -249,9 +286,10 @@
     "delivery_date"
   ],
   "rls": {
-    "read": {},
-    "create": {},
-    "update": {},
-    "delete": {}
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
   }
 }

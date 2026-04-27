@@ -1,5 +1,5 @@
 // Redeployed on 2026-04-09
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 function isNotFoundError(error) {
   return error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
@@ -249,41 +249,52 @@ function findMatchingPolylineRecord(existingPolylines = [], driverId, deliveryDa
   ) || null;
 }
 
-async function persistRouteSections(base44, driverId, deliveryDate, segmentSpecs = [], routeSections = [], existingPolylines = [], transportMode = 'driving') {
-  if (!driverId || !deliveryDate || segmentSpecs.length === 0) return 0;
+function mergeEncodedPolylines(polylines = []) {
+  const merged = [];
+  polylines.filter(Boolean).forEach((encoded) => {
+    const decoded = decodeGooglePolyline(encoded);
+    decoded.forEach((point, index) => {
+      const last = merged[merged.length - 1];
+      if (index === 0 && last && last[0] === point[0] && last[1] === point[1]) return;
+      merged.push(point);
+    });
+  });
+  return merged.length > 1 ? encodeGooglePolyline(merged) : null;
+}
+
+async function persistRouteSections(base44, deliveries = [], pointSpecs = [], routeSections = [], transportMode = 'driving', homePoint = null) {
+  if (!Array.isArray(deliveries) || deliveries.length === 0) return 0;
 
   let writes = 0;
-  for (let index = 0; index < segmentSpecs.length; index += 1) {
-    const spec = segmentSpecs[index];
+  for (let index = 0; index < deliveries.length; index += 1) {
+    const delivery = deliveries[index];
+    const from = pointSpecs[index];
+    const stopPoint = pointSpecs[index + 1];
     const section = routeSections[index];
-    if (!spec?.from || !spec?.to || !section?.encoded_polyline) continue;
+    if (!delivery?.id || !from || !stopPoint || !section?.encoded_polyline) continue;
 
-    const payload = {
-      driver_id: driverId,
-      delivery_date: deliveryDate,
-      encoded_polyline: section.encoded_polyline,
-      segment_origin_lat: round5(spec.from.lat),
-      segment_origin_lon: round5(spec.from.lon),
-      segment_dest_lat: round5(spec.to.lat),
-      segment_dest_lon: round5(spec.to.lon),
+    let encodedPolyline = section.encoded_polyline;
+    let segmentDest = stopPoint;
+
+    if (index === deliveries.length - 1 && homePoint?.lat != null && homePoint?.lon != null) {
+      const returnSection = routeSections[index + 1];
+      if (returnSection?.encoded_polyline) {
+        encodedPolyline = mergeEncodedPolylines([section.encoded_polyline, returnSection.encoded_polyline]);
+        segmentDest = homePoint;
+      }
+    }
+
+    await base44.asServiceRole.entities.Delivery.update(delivery.id, {
+      encoded_polyline: encodedPolyline,
+      transport_mode: section.transport_mode || transportMode,
+      segment_origin_lat: round5(from.lat),
+      segment_origin_lon: round5(from.lon),
+      segment_dest_lat: round5(segmentDest.lat),
+      segment_dest_lon: round5(segmentDest.lon),
       estimated_distance_km: section.estimated_distance_km ?? null,
       estimated_duration_minutes: section.estimated_duration_minutes ?? null,
-      transport_mode: section.transport_mode || transportMode,
-      last_generated_at: new Date().toISOString()
-    };
-
-    const existing = findMatchingPolylineRecord(existingPolylines, driverId, deliveryDate, spec.from, spec.to);
-    if (existing?.id) {
-      await base44.asServiceRole.entities.DriverRoutePolyline.update(existing.id, payload).catch(async (error) => {
-        if (isNotFoundError(error)) {
-          await base44.asServiceRole.entities.DriverRoutePolyline.create(payload);
-          return null;
-        }
-        throw error;
-      });
-    } else {
-      await base44.asServiceRole.entities.DriverRoutePolyline.create(payload);
-    }
+      PolylineUpdated: true
+    });
     writes += 1;
   }
 
@@ -426,10 +437,9 @@ Deno.serve(async (req) => {
     const patientIds = [...new Set(activeStops.filter((d) => d?.patient_id).map((d) => d.patient_id))];
     const storeIds = [...new Set(activeStops.filter((d) => d?.store_id).map((d) => d.store_id))];
 
-    const [patients, stores, existingPolylines] = await Promise.all([
+    const [patients, stores] = await Promise.all([
       patientIds.length ? base44.asServiceRole.entities.Patient.filter({ id: { $in: patientIds } }, undefined, 50000) : [],
-      storeIds.length ? base44.asServiceRole.entities.Store.filter({ id: { $in: storeIds } }, undefined, 50000) : [],
-      base44.asServiceRole.entities.DriverRoutePolyline.filter({ driver_id: driverId, delivery_date: deliveryDate }, '-updated_date', 50000)
+      storeIds.length ? base44.asServiceRole.entities.Store.filter({ id: { $in: storeIds } }, undefined, 50000) : []
     ]);
 
     const patientMap = new Map((patients || []).map((patient) => [patient.id, patient]));
@@ -495,27 +505,19 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, skipped: true, reason: 'unauthorized_actor' });
     }
 
-    const exactExistingType1 = (existingPolylines || []).find((row) => {
-      const hasEncoded = typeof row?.encoded_polyline === 'string' && row.encoded_polyline.trim().length > 0;
-      const hasNonZeroTotals = Number(row?.estimated_distance_km || 0) > 0 || Number(row?.estimated_duration_minutes || 0) > 0;
-      return round5(row?.segment_origin_lat) === round5(effectiveOriginCoords.lat) &&
-        round5(row?.segment_origin_lon) === round5(effectiveOriginCoords.lon) &&
-        round5(row?.segment_dest_lat) === round5(nextStopCoords.lat) &&
-        round5(row?.segment_dest_lon) === round5(nextStopCoords.lon) &&
-        hasEncoded &&
-        hasNonZeroTotals;
-    }) || null;
+    const exactExistingType1 = (nextRouteStop?.encoded_polyline &&
+      round5(nextRouteStop?.segment_origin_lat || 0) === round5(effectiveOriginCoords.lat) &&
+      round5(nextRouteStop?.segment_origin_lon || 0) === round5(effectiveOriginCoords.lon) &&
+      round5(nextRouteStop?.segment_dest_lat || 0) === round5(nextStopCoords.lat) &&
+      round5(nextRouteStop?.segment_dest_lon || 0) === round5(nextStopCoords.lon) &&
+      (Number(nextRouteStop?.estimated_distance_km || 0) > 0 || Number(nextRouteStop?.estimated_duration_minutes || 0) > 0)
+    ) ? nextRouteStop : null;
 
     if (exactExistingType1) {
       return Response.json({ success: true, skipped: true, reason: 'cached_exact_segment', driverId, deliveryDate, nextStopId: nextRouteStop?.id || null, repairedStopOrders: stopOrderRepairUpdates.length });
     }
 
-    const existingType1 = (existingPolylines || []).find((row) =>
-      round5(row?.segment_dest_lat) === round5(nextStopCoords.lat) &&
-      round5(row?.segment_dest_lon) === round5(nextStopCoords.lon) &&
-      typeof row?.encoded_polyline === 'string' && row.encoded_polyline.trim().length > 0 &&
-      (Number(row?.estimated_distance_km || 0) > 0 || Number(row?.estimated_duration_minutes || 0) > 0)
-    ) || null;
+    const existingType1 = nextRouteStop?.encoded_polyline ? nextRouteStop : null;
 
     if (!body?.force && !allowDeviationCheck) {
       return Response.json({ success: true, skipped: true, reason: 'deviation_only_guard', repairedStopOrders: stopOrderRepairUpdates.length });
@@ -574,38 +576,29 @@ Deno.serve(async (req) => {
     const segmentSpecs = buildSegmentSpecsFromPoints(remainingRoutePoints);
     const multiStopRoute = await getMultiStopRoute(base44, remainingRoutePoints, preferredTravelMode);
     const routeSections = Array.isArray(multiStopRoute?.sections) ? multiStopRoute.sections : [];
-    const directions = routeSections[0] || await getSegmentDirections(base44, effectiveOriginCoords, nextStopCoords, preferredTravelMode, existingPolylines, driverId, deliveryDate);
+    const directions = routeSections[0] || await getSegmentDirections(base44, effectiveOriginCoords, nextStopCoords, preferredTravelMode, [], driverId, deliveryDate);
 
     if (routeSections.length > 0) {
-      await persistRouteSections(base44, driverId, deliveryDate, segmentSpecs, routeSections, existingPolylines, preferredTravelMode);
-    } else if (!directions.from_cache) {
-      const payload = {
-        driver_id: driverId,
-        delivery_date: deliveryDate,
+      await persistRouteSections(
+        base44,
+        incompleteStops,
+        remainingRoutePoints,
+        routeSections,
+        preferredTravelMode,
+        Number.isFinite(homeLat) && Number.isFinite(homeLon) ? { lat: homeLat, lon: homeLon } : null
+      );
+    } else {
+      await base44.asServiceRole.entities.Delivery.update(nextRouteStop.id, {
         encoded_polyline: directions.encoded_polyline,
+        transport_mode: directions.transport_mode || preferredTravelMode,
         segment_origin_lat: round5(effectiveOriginCoords.lat),
         segment_origin_lon: round5(effectiveOriginCoords.lon),
         segment_dest_lat: round5(nextStopCoords.lat),
         segment_dest_lon: round5(nextStopCoords.lon),
-        estimated_distance_km: directions.estimated_distance_km,
-        estimated_duration_minutes: directions.estimated_duration_minutes,
-        transport_mode: directions.transport_mode || preferredTravelMode,
-        daily_generation_count: Number(existingType1?.daily_generation_count || 0) + 1,
-        last_generated_at: new Date().toISOString()
-      };
-
-      const polylineRecordToUpdate = findMatchingPolylineRecord(existingPolylines, driverId, deliveryDate, effectiveOriginCoords, nextStopCoords);
-      if (polylineRecordToUpdate?.id) {
-        await base44.asServiceRole.entities.DriverRoutePolyline.update(polylineRecordToUpdate.id, payload).catch(async (error) => {
-          if (isNotFoundError(error)) {
-            await base44.asServiceRole.entities.DriverRoutePolyline.create(payload);
-            return null;
-          }
-          throw error;
-        });
-      } else {
-        await base44.asServiceRole.entities.DriverRoutePolyline.create(payload);
-      }
+        estimated_distance_km: directions.estimated_distance_km ?? null,
+        estimated_duration_minutes: directions.estimated_duration_minutes ?? null,
+        PolylineUpdated: true
+      });
     }
 
     return Response.json({
