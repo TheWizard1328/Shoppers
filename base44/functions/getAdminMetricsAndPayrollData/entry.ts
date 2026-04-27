@@ -893,10 +893,9 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
   });
   metrics.driverData = Array.from(uniqueDriverMap.values());
 
-  const isCompletedAfterHoursPickup = (d) => d?.no_charge !== true && isAfterHoursPickupDelivery(d) && isCompletedStatus(d);
-  const isCancelledAfterHoursPickup = (d) => d?.no_charge !== true && isAfterHoursPickupDelivery(d) && isCancelledStatus(d);
-  const isCompletedPatientForStore = (d) => d?.no_charge !== true && !isAfterHoursPickupDelivery(d) && isCompletedStatus(d) && isPatientOrTransferDelivery(d);
-  const isFailedPatientForStore = (d) => d?.no_charge !== true && !isAfterHoursPickupDelivery(d) && isFailedStatus(d) && isPatientOrTransferDelivery(d);
+  const isCountableCompletedDelivery = (d) => d?.no_charge !== true && !isAfterHoursPickupDelivery(d) && isCompletedStatus(d);
+  const isCountableFailedDelivery = (d) => d?.no_charge !== true && !isAfterHoursPickupDelivery(d) && isFailedStatus(d);
+  const isCountableAfterHoursPickup = (d) => d?.no_charge !== true && isAfterHoursPickupDelivery(d) && (isCompletedStatus(d) || isFailedStatus(d));
 
   const isBillableDelivery = (d, storePaysFees) => isAdminBillableDelivery(d, storePaysFees);
 
@@ -982,9 +981,9 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
     if (delivery.store_id && store?.abbreviation) {
       const annualStoreEntry = metrics.storeData.find(s => s.storeId === delivery.store_id);
       if (annualStoreEntry) {
-        if (isCompletedPatientForStore(delivery)) annualStoreEntry.completed++;
-        if (isFailedPatientForStore(delivery)) annualStoreEntry.failed++;
-        if (isCompletedAfterHoursPickup(delivery) || isCancelledAfterHoursPickup(delivery)) annualStoreEntry.afterHours++;
+        if (isCountableCompletedDelivery(delivery)) annualStoreEntry.completed++;
+        if (isCountableFailedDelivery(delivery)) annualStoreEntry.failed++;
+        if (isCountableAfterHoursPickup(delivery)) annualStoreEntry.afterHours++;
       }
 
       if (!metrics.storeDataByMonth[monthIndex + 1]) metrics.storeDataByMonth[monthIndex + 1] = [];
@@ -993,9 +992,9 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
         monthlyStoreEntry = { abbreviation: store.abbreviation, name: store.name, storeId: delivery.store_id, completed: 0, failed: 0, afterHours: 0, color: store.color, sortOrder: store.sort_order };
         metrics.storeDataByMonth[monthIndex + 1].push(monthlyStoreEntry);
       }
-      if (isCompletedPatientForStore(delivery)) monthlyStoreEntry.completed++;
-      if (isFailedPatientForStore(delivery)) monthlyStoreEntry.failed++;
-      if (isCompletedAfterHoursPickup(delivery) || isCancelledAfterHoursPickup(delivery)) monthlyStoreEntry.afterHours++;
+      if (isCountableCompletedDelivery(delivery)) monthlyStoreEntry.completed++;
+      if (isCountableFailedDelivery(delivery)) monthlyStoreEntry.failed++;
+      if (isCountableAfterHoursPickup(delivery)) monthlyStoreEntry.afterHours++;
 
       if (!metrics.dailyStoreData[monthIndex + 1]) metrics.dailyStoreData[monthIndex + 1] = {};
       if (!metrics.dailyStoreData[monthIndex + 1][delivery.store_id]) metrics.dailyStoreData[monthIndex + 1][delivery.store_id] = [];
@@ -1004,10 +1003,10 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
         dailyStoreEntry = { day: dayOfMonth, completed: 0, failed: 0, afterHours: 0, extra_km: 0 };
         metrics.dailyStoreData[monthIndex + 1][delivery.store_id].push(dailyStoreEntry);
       }
-      if (isCompletedPatientForStore(delivery)) dailyStoreEntry.completed++;
-      if (isFailedPatientForStore(delivery)) dailyStoreEntry.failed++;
-      if (isCompletedAfterHoursPickup(delivery) || isCancelledAfterHoursPickup(delivery)) dailyStoreEntry.afterHours++;
-      if (delivery.patient_id && (isCompletedPatientForStore(delivery) || isFailedPatientForStore(delivery))) dailyStoreEntry.extra_km += calculateExtraKm(delivery);
+      if (isCountableCompletedDelivery(delivery)) dailyStoreEntry.completed++;
+      if (isCountableFailedDelivery(delivery)) dailyStoreEntry.failed++;
+      if (isCountableAfterHoursPickup(delivery)) dailyStoreEntry.afterHours++;
+      if (delivery.patient_id && (isCountableCompletedDelivery(delivery) || isCountableFailedDelivery(delivery))) dailyStoreEntry.extra_km += calculateExtraKm(delivery);
 
       if (appFeeRate > 0 && wasPayingOnDeliveryDate && isAppFeePayableDelivery(delivery)) {
         storesPayingFeesSet.add(store.id);
