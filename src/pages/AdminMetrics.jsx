@@ -387,11 +387,15 @@ export default function AdminMetrics() {
                   <Package className="w-5 h-5" style={{ color: '#059669' }} />
                 </div>
                 <p className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
-                  {(
-                  selectedMonth ?
-                  metricsData.monthlyData?.[selectedMonth - 1]?.billable :
-                  metricsData.yearTotals?.billable)?.
-                  toLocaleString() || 0}
+                  {(() => {
+                    const sourceRows = selectedMonth
+                      ? (metricsData.monthlyStoreData?.[selectedMonth] || [])
+                      : Object.values(metricsData.monthlyStoreData || {}).flat();
+                    const total = sourceRows
+                      .filter((row) => (row.fees || 0) > 0)
+                      .reduce((sum, row) => sum + (row.completed || 0) + (row.failed || 0) + (row.afterHours || 0), 0);
+                    return total.toLocaleString();
+                  })()}
                 </p>
               </div>
             </CardContent>
@@ -405,10 +409,15 @@ export default function AdminMetrics() {
                   <TrendingUp className="w-5 h-5" style={{ color: '#b45309' }} />
                 </div>
                 <p className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
-                  {(selectedMonth ?
-                  metricsData.monthlyData?.[selectedMonth - 1]?.nonBillable :
-                  metricsData.yearTotals?.nonBillable)?.
-                  toLocaleString() || 0}
+                  {(() => {
+                    const sourceRows = selectedMonth
+                      ? (metricsData.monthlyStoreData?.[selectedMonth] || [])
+                      : Object.values(metricsData.monthlyStoreData || {}).flat();
+                    const total = sourceRows
+                      .filter((row) => (row.fees || 0) <= 0)
+                      .reduce((sum, row) => sum + (row.completed || 0) + (row.failed || 0) + (row.afterHours || 0), 0);
+                    return total.toLocaleString();
+                  })()}
                 </p>
               </div>
             </CardContent>
