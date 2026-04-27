@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { getDriverDisplayName, getDriverNameForStorage } from '../utils/driverUtils';
 import { PhoneInput } from "@/components/ui/phone-input";
 import { determineDeliveryAMPM, getStoreAssignedTimeSlot, getStoreAssignedTimeSlotForDriver, getPickupStopIdForDelivery } from '../utils/ampmUtils';
+import { generateStopId } from '../utils/idGenerator';
 import { base44 } from "@/api/base44Client";
 import { useAppData } from '../utils/AppDataContext';
 import { getUserAgentInfo } from '../utils/deviceUtils';
@@ -43,6 +44,7 @@ import { closeDeliveryFormAfterSave } from '../utils/deliveryFormActionHelpers';
 import { resolveDefaultDriverForNewDelivery, expandStoresForTimeSlots } from './deliveryStoreResolutionHelpers';
 import { shouldUseImmediateAddToRouteStage, buildImmediateAddToRouteStage } from './Add2RouteStatusHelper';
 import { createPatientFromDraft, resolvePickupPuid, resolvePickupTimeWindow } from './deliveryAddHelpers';
+import { getRoutePickupsForStore, choosePickupForNewDelivery, buildPickupSelectValue, buildPendingNewPickup } from './pickupSelectionHelpers';
 import { useConfirmDelete } from './useConfirmDelete';
 import useFreshStores from './useFreshStores';
 import { buildRecurringLabel } from './recurringLabels';
@@ -130,6 +132,8 @@ export default function DeliveryForm({
   const [selectedPatientIds, setSelectedPatientIds] = useState(new Set());
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
   const [selectedPickupOption, setSelectedPickupOption] = useState('');
+  const [selectedRoutePickup, setSelectedRoutePickup] = useState(null);
+  const [pendingRoutePickup, setPendingRoutePickup] = useState(null);
   const [isPickupMode, setIsPickupMode] = useState(defaultToPickupMode); const [isInterStoreMode, setIsInterStoreMode] = useState(false);
   const [selectedStoreForPickup, setSelectedStoreForPickup] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -607,7 +611,30 @@ export default function DeliveryForm({
       autoSelectedDriverName
     });
 
-    setFormData(updatedFormData);
+    const routePickups = getRoutePickupsForStore({
+      allDeliveries,
+      stagedDeliveries,
+      storeId: patient.store_id,
+      driverId: autoSelectedDriverId,
+      deliveryDate: formData.delivery_date
+    });
+    const fallbackPickup = buildPendingNewPickup({
+      store: patientStore,
+      formData: { ...updatedFormData, store_id: patient.store_id },
+      driverName: autoSelectedDriverName,
+      stopId: generateStopId()
+    });
+    const chosenPickup = choosePickupForNewDelivery({ pickups: routePickups, fallbackPickup });
+
+    setSelectedRoutePickup(chosenPickup);
+    setPendingRoutePickup(chosenPickup?._pendingCreate ? chosenPickup : null);
+    setSelectedPickupOption(buildPickupSelectValue(chosenPickup));
+
+    setFormData({
+      ...updatedFormData,
+      store_id: patient.store_id,
+      puid: chosenPickup?.stop_id || chosenPickup?.puid || ''
+    });
     if (!updatedFormData.driver_id) {
       setForceOpenDriverSelectOnLoad(true);
     }
@@ -1050,6 +1077,8 @@ export default function DeliveryForm({
     const filteredPredictions = fullPredictionListRef.current.filter(pred => !stagedPatientIds.has(pred.patient_id) && !(allDeliveries||[]).some(d => d && d.delivery_date === formData.delivery_date && d.patient_id === pred.patient_id));
     setProjectedDeliveries(filteredPredictions);
 
+    setSelectedRoutePickup(null);
+    setPendingRoutePickup(null);
     resetDraftEditorState({
       setSelectedPatient,
       setSelectedPatientIds,
@@ -1064,6 +1093,33 @@ export default function DeliveryForm({
       setNewPatientMode
     });
   }, [formData, isFormValid, patients, freshStores, stores, isPickupMode, newPatientMode, selectedPatient, stagedDeliveries, isMobileDevice, isNewRouteWithZeroStops, allDeliveries, availableStores, selectedPickupOption]);
+
+  useEffect(() => {
+    if (delivery || isPickupMode || !selectedPatient || !formData.driver_id || !formData.delivery_date) return;
+    const patientStore = (freshStores || stores).find((s) => s && s.id === selectedPatient.store_id);
+    if (!patientStore) return;
+
+    const routePickups = getRoutePickupsForStore({
+      allDeliveries,
+      stagedDeliveries,
+      storeId: selectedPatient.store_id,
+      driverId: formData.driver_id,
+      deliveryDate: formData.delivery_date
+    });
+    const fallbackPickup = buildPendingNewPickup({
+      store: patientStore,
+      formData: { ...formData, store_id: selectedPatient.store_id },
+      driverName: formData.driver_name,
+      stopId: generateStopId()
+    });
+    const chosenPickup = choosePickupForNewDelivery({ pickups: routePickups, fallbackPickup });
+    const nextPuid = chosenPickup?.stop_id || chosenPickup?.puid || '';
+
+    setSelectedRoutePickup(chosenPickup);
+    setPendingRoutePickup(chosenPickup?._pendingCreate ? chosenPickup : null);
+    setSelectedPickupOption(buildPickupSelectValue(chosenPickup));
+    setFormData((prev) => prev.puid === nextPuid && prev.store_id === selectedPatient.store_id ? prev : { ...prev, store_id: selectedPatient.store_id, puid: nextPuid });
+  }, [delivery, isPickupMode, selectedPatient?.id, formData.driver_id, formData.delivery_date, allDeliveries, stagedDeliveries, freshStores, stores]);
 
   const handleUpdateStaged = useCallback(async () => {
     if (!editingStagedId) return;
@@ -1115,6 +1171,8 @@ export default function DeliveryForm({
     // CRITICAL: Clear form completely after updating staged
     setError(null);
     setEditingStagedId(null);
+    setSelectedRoutePickup(null);
+    setPendingRoutePickup(null);
     setSelectedPatient(null);
     setSelectedPatientIds(new Set());
     setPatientSearch('');
@@ -1393,7 +1451,30 @@ export default function DeliveryForm({
           setIsSaving(false);
           return false;
         }
-        await onSave({ ...dataToSave, receipt_barcode_values: Array.isArray(formData.receipt_barcode_values) ? formData.receipt_barcode_values : [] });
+
+        let resolvedPuid = dataToSave.puid || '';
+        if (!delivery?.id && pendingRoutePickup?._pendingCreate && !isPickupMode) {
+          const pickupStore = stores?.find((s) => s && s.id === pendingRoutePickup.store_id);
+          const pickupTimes = resolvePickupTimeWindow({
+            store: pickupStore,
+            driverId: pendingRoutePickup.driver_id,
+            deliveryDate: pendingRoutePickup.delivery_date
+          });
+          const createdPickup = await createDeliveryLocal({
+            ...pendingRoutePickup,
+            status: 'en_route',
+            delivery_time_start: pickupTimes?.delivery_time_start || '',
+            delivery_time_end: pickupTimes?.delivery_time_end || '',
+            time_window_start: pickupTimes?.delivery_time_start || '',
+            time_window_end: pickupTimes?.delivery_time_end || ''
+          });
+          resolvedPuid = createdPickup?.stop_id || createdPickup?.puid || pendingRoutePickup.stop_id || '';
+          setPendingRoutePickup(null);
+          setSelectedRoutePickup(createdPickup || null);
+          setSelectedPickupOption(buildPickupSelectValue(createdPickup || pendingRoutePickup));
+        }
+
+        await onSave({ ...dataToSave, puid: resolvedPuid, receipt_barcode_values: Array.isArray(formData.receipt_barcode_values) ? formData.receipt_barcode_values : [] });
       }
 
       await runDeliverySubmitSideEffects({
