@@ -164,24 +164,41 @@ export default function HereType1Polylines({
   const hydrateFromOffline = async (key, driverId, from, to, date) => {
     try {
       const { offlineDB } = await import('../utils/offlineDatabase');
-      const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' });
-      const parts = formatter.formatToParts(new Date());
-      const todayStr = `${parts.find(p => p.type === 'year').value}-${parts.find(p => p.type === 'month').value}-${parts.find(p => p.type === 'day').value}`;
-      const rows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', date || todayStr);
-      console.log(`[Type1] Hydrating from offline DB for ${driverId} on ${date || todayStr}: found ${rows?.length || 0} polylines`);
+      const targetDate = date || new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+      const rows = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, targetDate).catch(() => []);
+      console.log(`[Type1] Hydrating delivery polyline from offline DB for ${driverId} on ${targetDate}: found ${rows?.length || 0} deliveries`);
       const fLat = round5(from.latitude), fLon = round5(from.longitude);
       const tLat = round5(to.latitude), tLon = round5(to.longitude);
-      const match = rows.find(r => r.driver_id === driverId && round5(r.segment_origin_lat) === fLat && round5(r.segment_origin_lon) === fLon && round5(r.segment_dest_lat) === tLat && round5(r.segment_dest_lon) === tLon && normalizeTravelMode(r.transport_mode) === normalizeTravelMode(getDriverMode(driverId)) && r.encoded_polyline);
-      if (match) {
-        console.log(`[Type1] Found matching polyline in offline DB for segment ${from.latitude},${from.longitude} -> ${to.latitude},${to.longitude}`);
-        const coords = decodePolyline(match.encoded_polyline);
+      const preferredMode = normalizeTravelMode(getDriverMode(driverId));
+      const exactMatch = rows.find((row) =>
+        row?.driver_id === driverId &&
+        round5(Number(row?.segment_origin_lat)) === fLat &&
+        round5(Number(row?.segment_origin_lon)) === fLon &&
+        round5(Number(row?.segment_dest_lat)) === tLat &&
+        round5(Number(row?.segment_dest_lon)) === tLon &&
+        normalizeTravelMode(row?.transport_mode) === preferredMode &&
+        typeof row?.encoded_polyline === 'string' &&
+        row.encoded_polyline.trim().length > 0
+      );
+      const fallbackMatch = exactMatch || rows.find((row) =>
+        row?.driver_id === driverId &&
+        round5(Number(row?.segment_origin_lat)) === fLat &&
+        round5(Number(row?.segment_origin_lon)) === fLon &&
+        round5(Number(row?.segment_dest_lat)) === tLat &&
+        round5(Number(row?.segment_dest_lon)) === tLon &&
+        typeof row?.encoded_polyline === 'string' &&
+        row.encoded_polyline.trim().length > 0
+      );
+      if (fallbackMatch) {
+        console.log(`[Type1] Found matching delivery polyline in offline DB for segment ${from.latitude},${from.longitude} -> ${to.latitude},${to.longitude}`);
+        const coords = decodePolyline(fallbackMatch.encoded_polyline);
         if (Array.isArray(coords) && coords.length > 1) {
           setCache((p) => ({ ...p, [key]: coords }));
           try { localStorage.setItem(key, JSON.stringify(coords)); } catch (_) {}
           return true;
         }
       } else {
-        console.log(`[Type1] No matching polyline found in offline DB for segment ${from.latitude},${from.longitude} -> ${to.latitude},${to.longitude}`);
+        console.log(`[Type1] No matching delivery polyline found in offline DB for segment ${from.latitude},${from.longitude} -> ${to.latitude},${to.longitude}`);
       }
     } catch (err) {
       console.error(`[Type1] Error hydrating from offline DB:`, err);
@@ -527,6 +544,7 @@ export default function HereType1Polylines({
   const lines = [];
   const getType1PolylineColor = () => '#2563EB';
   const getDriverMode = (driverId) => normalizeTravelMode(localDriverTravelModes[driverId] ?? driverTravelModes[driverId]);
+  const isCurrentLeg = (stop) => stop?.isNextDelivery === true;
   const getDriverRouteStyle = (driverId, opacityOverride) => {
     const mode = getDriverMode(driverId);
     const base = getTravelModeLineStyle(mode, getType1PolylineColor(driverId));
@@ -549,7 +567,7 @@ export default function HereType1Polylines({
     
     if (!homeVisible) return;
     if (!hasCompleted && hasIncomplete) {
-      const next = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
+      const next = stops.incomplete.find((s) => isCurrentLeg(s));
       
       const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
       const originLat = home && !Number.isNaN(Number(home.latitude)) ? Number(home.latitude) : undefined;
@@ -592,7 +610,7 @@ export default function HereType1Polylines({
   driverStops.forEach((stops, driverId) => {
     if (!showAll && selectedDriverId && selectedDriverId !== 'all' && driverId !== selectedDriverId) return;
 
-    const nextStop = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
+    const nextStop = stops.incomplete.find((s) => isCurrentLeg(s));
     if (!nextStop) return;
 
     let origin = null;
