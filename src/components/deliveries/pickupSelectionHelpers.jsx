@@ -6,8 +6,27 @@ const isSameDate = (pickup, deliveryDate) => pickup && pickup.delivery_date === 
 const isPickup = (delivery) => delivery && !delivery.patient_id;
 const normalizeTimeSlot = (pickup) => pickup?.ampm_deliveries || 'AM';
 const buildPickupOptionId = (pickup) => pickup?.id || pickup?.stop_id || pickup?.puid || pickup?._tempId || '';
+const FINISHED_PICKUP_STATUSES = ['completed', 'failed', 'cancelled', 'returned', 'picked_up'];
+
+const formatPickupTime = (value) => {
+  if (!value) return '';
+  if (/^\d{2}:\d{2}$/.test(value)) return value;
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+  }
+  const match = String(value).match(/(\d{2}:\d{2})/);
+  return match ? match[1] : '';
+};
+
 const buildPickupOptionLabel = (storeName, timeSlot, pickup) => {
-  const timeLabel = pickup?.actual_delivery_time || pickup?.delivery_time_eta || '';
+  const status = String(pickup?.status || '').toLowerCase();
+  const timeValue = FINISHED_PICKUP_STATUSES.includes(status)
+    ? pickup?.actual_delivery_time
+    : status === 'en_route'
+      ? pickup?.delivery_time_eta
+      : '';
+  const timeLabel = formatPickupTime(timeValue);
   return timeLabel
     ? `${storeName} [${timeSlot}] (${timeLabel})`
     : `${storeName} [${timeSlot}]`;
