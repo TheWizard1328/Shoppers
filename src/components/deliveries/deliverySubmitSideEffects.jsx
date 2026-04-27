@@ -1,5 +1,21 @@
 import { format } from 'date-fns';
 import { base44 } from '@/api/base44Client';
+
+const APP_TIMEZONE = 'America/Edmonton';
+
+function getEdmontonDateString(value = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: APP_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(new Date(value));
+
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  const day = parts.find((part) => part.type === 'day')?.value;
+  return `${year}-${month}-${day}`;
+}
 import { getDriverDisplayName } from '../utils/driverUtils';
 import { sendDeliveryMessage } from '../utils/deliveryMessaging';
 import { reorderStops } from '../utils/stopReorderer';
@@ -54,21 +70,8 @@ export async function runDeliverySubmitSideEffects({
 
   if (delivery && formData.driver_id && formData.delivery_date && statusChangedToCompletion) {
     try {
-      const driverDeliveries = allDeliveries.filter((d) => d && d.driver_id === formData.driver_id && d.delivery_date === formData.delivery_date);
-      const completedDeliveries = driverDeliveries.filter((d) => ['completed', 'failed', 'cancelled'].includes(d.id === delivery.id ? formData.status : d.status));
-      completedDeliveries.sort((a, b) => {
-        const timeA = a.id === delivery.id && t ? new Date(t).getTime() : a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : 0;
-        const timeB = b.id === delivery.id && t ? new Date(t).getTime() : b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : 0;
-        return timeA - timeB;
-      });
-
-      let stopOrder = 1;
-      await Promise.all(completedDeliveries.map((d) => {
-        const newStopOrder = stopOrder++;
-        return d.stop_order !== newStopOrder ? base44.entities.Delivery.update(d.id, { stop_order: newStopOrder }) : Promise.resolve();
-      }));
-
       const completionStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+      const driverDeliveries = allDeliveries.filter((d) => d && d.driver_id === formData.driver_id && d.delivery_date === formData.delivery_date);
       const incompleteDeliveries = driverDeliveries
         .filter((d) => d.id !== delivery.id && !completionStatuses.includes(d.status) && d.status !== 'pending')
         .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
@@ -109,30 +112,25 @@ export async function runDeliverySubmitSideEffects({
         }
       }
     } catch (error) {
-      console.error('❌ [DeliveryForm] Resort failed:', error);
+      console.error('❌ [DeliveryForm] Completion side effects failed:', error);
     }
   }
 
-  if (delivery && formData.driver_id && formData.delivery_date && !isPickupMode && (driverChanged || dateChanged || timeWindowChanged || statusChangedToCompletion || actualDeliveryTimeChanged)) {
+  if (delivery && formData.driver_id && formData.delivery_date && !isPickupMode && (driverChanged || dateChanged || timeWindowChanged || actualDeliveryTimeChanged)) {
     try {
-      setTimeout(() => {
-        const isCompletionStatus = ['completed', 'failed', 'cancelled'].includes(formData.status);
-        const shouldRunEtaOnly = statusChangedToCompletion && isCompletionStatus && delivery.isNextDelivery === true;
-        const shouldRunFullOptimization = !shouldRunEtaOnly;
-
-        reorderStops(formData.driver_id, formData.delivery_date, allDeliveries, null, {
-          optimizeRemainingStops: shouldRunEtaOnly || shouldRunFullOptimization,
-          etaOnly: shouldRunEtaOnly
-        })
-          .then((result) => {
-            if (shouldRunEtaOnly) {
-              console.log('✅ [DeliveryForm] Next-stop completion processed with ETA-only refresh');
-              return;
-            }
-            console.log('✅ [DeliveryForm] Stop reordering complete (bg)', result);
+      const isHistoricalRoute = formData.delivery_date < getEdmontonDateString();
+      if (!isHistoricalRoute) {
+        setTimeout(() => {
+          reorderStops(formData.driver_id, formData.delivery_date, allDeliveries, null, {
+            optimizeRemainingStops: true,
+            etaOnly: false
           })
-          .catch((error) => console.error('❌ [DeliveryForm] Stop reordering failed (bg):', error));
-      }, 0);
+            .then((result) => {
+              console.log('✅ [DeliveryForm] Stop reordering complete (bg)', result);
+            })
+            .catch((error) => console.error('❌ [DeliveryForm] Stop reordering failed (bg):', error));
+        }, 0);
+      }
     } catch (error) {
       console.error('❌ [DeliveryForm] Stop reordering failed:', error);
     }
