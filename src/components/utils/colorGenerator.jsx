@@ -99,7 +99,6 @@ export const getContrastColor = (backgroundColor) => {
 // Driver color palette - higher-contrast colors for nearby markers/polylines
 const DRIVER_COLOR_PALETTE = [
     '#DC2626', // Red
-    '#2563EB', // Blue
     '#7C3AED', // Violet
     '#059669', // Emerald
     '#EA580C', // Orange
@@ -109,13 +108,14 @@ const DRIVER_COLOR_PALETTE = [
     '#16A34A', // Green
     '#C2410C', // Burnt Orange
     '#BE123C', // Rose
-    '#1D4ED8', // Strong Blue
     '#047857', // Dark Emerald
     '#7E22CE', // Deep Purple
     '#B91C1C', // Dark Red
-    '#0EA5E9', // Sky
     '#65A30D', // Lime Green
     '#D97706', // Amber
+    '#A16207', // Brown Gold
+    '#9A3412', // Rust
+    '#881337', // Burgundy
 ];
 
 const usedDriverColors = new Map();
