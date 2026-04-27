@@ -1041,19 +1041,15 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
     });
   }
 
-  const storesPayingFeesIds = new Set(
-    stores
-      .filter((store) => wasPayingFeesOnDate(store, `${year}-12-31`))
-      .map((store) => store.id)
-  );
-
   metrics.monthlyData = Array(12).fill(null).map((_, index) => {
-    const monthStores = metrics.storeDataByMonth[index + 1] || [];
+    const month = index + 1;
+    const monthDate = `${year}-${String(month).padStart(2, '0')}-01`;
+    const monthStores = metrics.storeDataByMonth[month] || [];
     const billable = monthStores
-      .filter((storeEntry) => storesPayingFeesIds.has(storeEntry.storeId))
+      .filter((storeEntry) => wasPayingFeesOnDate(storeMap.get(storeEntry.storeId), monthDate))
       .reduce((sum, storeEntry) => sum + (storeEntry.completed || 0) + (storeEntry.failed || 0) + (storeEntry.afterHours || 0), 0);
     const nonBillable = monthStores
-      .filter((storeEntry) => !storesPayingFeesIds.has(storeEntry.storeId))
+      .filter((storeEntry) => !wasPayingFeesOnDate(storeMap.get(storeEntry.storeId), monthDate))
       .reduce((sum, storeEntry) => sum + (storeEntry.completed || 0) + (storeEntry.failed || 0) + (storeEntry.afterHours || 0), 0);
 
     return {
