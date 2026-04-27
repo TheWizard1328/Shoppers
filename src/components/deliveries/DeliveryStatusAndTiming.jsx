@@ -92,19 +92,23 @@ export default function DeliveryStatusAndTiming({
   };
 
   const storeSelectValue = (() => {
-    if (formData.store_id) {
-      if (formData.ampm_deliveries) {
-        const variantId = `${formData.store_id}_${formData.ampm_deliveries}`;
-        if (availableStores.some((s) => s && s.id === variantId)) return variantId;
-      }
-      // Fallback: if variants exist but AM/PM not set yet, prefer AM, else PM, else base
-      const amVariant = `${formData.store_id}_AM`;
-      const pmVariant = `${formData.store_id}_PM`;
-      if (availableStores.some((s) => s && s.id === amVariant)) return amVariant;
-      if (availableStores.some((s) => s && s.id === pmVariant)) return pmVariant;
-      return formData.store_id;
+    if (!formData.store_id) return "";
+
+    const matchingPickupOption = availableStores.find((store) => {
+      if (!store) return false;
+      const baseStoreId = store._originalStoreId || store.id;
+      if (baseStoreId !== formData.store_id) return false;
+      if (!formData.ampm_deliveries) return !store._timeSlot || !!store._pickupId;
+      return store._timeSlot === formData.ampm_deliveries;
+    });
+    if (matchingPickupOption?.id) return matchingPickupOption.id;
+
+    if (formData.ampm_deliveries) {
+      const variantId = `${formData.store_id}_${formData.ampm_deliveries}`;
+      if (availableStores.some((s) => s && s.id === variantId)) return variantId;
     }
-    return "";
+
+    return formData.store_id;
   })();
 
   const storeOptions = availableStores.map((store) => {
