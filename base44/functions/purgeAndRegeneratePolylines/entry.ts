@@ -1118,37 +1118,21 @@ Deno.serve(async (req) => {
           }
         });
 
-        const segmentMode = (spec) => getNormalizedTravelMode(spec.transportMode, 'driving');
         const directionsBySegmentKey = new Map();
 
         if (uncachedSegments.length > 0) {
-          const segmentGroups = [];
-          let currentGroup = null;
-
-          uncachedSegments.forEach((spec) => {
-            const mode = segmentMode(spec);
-            if (!currentGroup || currentGroup.mode !== mode) {
-              currentGroup = { mode, segments: [spec] };
-              segmentGroups.push(currentGroup);
-              return;
-            }
-            currentGroup.segments.push(spec);
-          });
-
-          for (const group of segmentGroups) {
-            const groupedDirections = await getMultiSegmentDirections(
-              base44,
-              group.segments.map((spec) => ({ from: spec.from, to: spec.to })),
-              group.mode
+          const groupedDirections = await getMultiSegmentDirections(
+            base44,
+            uncachedSegments.map((spec) => ({ from: spec.from, to: spec.to })),
+            'driving'
+          );
+          apiCallsMade += 1;
+          uncachedSegments.forEach((spec, index) => {
+            directionsBySegmentKey.set(
+              makeSegmentKey(driverId, deliveryDate, spec.from, spec.to),
+              groupedDirections[index] || null
             );
-            apiCallsMade += 1;
-            group.segments.forEach((spec, index) => {
-              directionsBySegmentKey.set(
-                makeSegmentKey(driverId, deliveryDate, spec.from, spec.to),
-                groupedDirections[index] || null
-              );
-            });
-          }
+          });
         }
 
         uncachedSegments.forEach((spec) => {
@@ -1166,7 +1150,7 @@ Deno.serve(async (req) => {
           if (matchingStop?.id) {
             createdSegments.push({
               id: matchingStop.id,
-              transport_mode: spec.transportMode,
+              transport_mode: 'driving',
               encoded_polyline: directions?.encoded_polyline || encodeGooglePolyline([[spec.from.lat, spec.from.lon], [spec.to.lat, spec.to.lon]]),
               segment_origin_lat: round5(spec.from.lat),
               segment_origin_lon: round5(spec.from.lon),
