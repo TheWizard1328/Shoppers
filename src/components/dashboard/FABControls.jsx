@@ -117,7 +117,7 @@ export default function FABControls({
                 const now = new Date(); const localTime = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
                 const targetDriverId = selectedDriverId !== 'all' ? selectedDriverId : currentUser.id;
                 window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'optimize_route_fab', driverId: targetDriverId, deliveryDate } }));
-                const response = await base44.functions.invoke('optimizeRemainingStops', { driverId: targetDriverId, deliveryDate, currentLocalTime: localTime, deviceTime: now.toISOString() });
+                const response = await base44.functions.invoke('optimizeRemainingStops', { driverId: targetDriverId, deliveryDate, currentLocalTime: localTime, deviceTime: now.toISOString(), bypassDriverStatus: true });
                 const data = response?.data || response;
                 if (data?.success) {
                   setOptimizationMessage(`Route optimized! ${data.optimizedCount} stops updated.`);
@@ -132,7 +132,7 @@ export default function FABControls({
               } catch (e) { setOptimizationMessage(`Error: ${e.message}`); setTimeout(() => setOptimizationMessage(null), 5000); }
               finally { window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'optimize_route_fab', driverId: currentUser.id, deliveryDate: format(selectedDate, 'yyyy-MM-dd') } })); resumeOfflineMutations(); resumeOfflineSync(); setIsEntityUpdating(false); setIsReoptimizing(false); }
             }}
-            disabled={isReoptimizing || isDateFinished || !filteredDeliveries.some(d => d && d.status === 'in_transit')}
+            disabled={isReoptimizing || !deliveriesWithStopOrder.some(d => d && !finishedStatuses.includes(d.status))}
             title="Re-optimize entire route using Google Maps"
             className={`inline-flex items-center justify-center h-10 w-10 rounded-lg shadow-2xl p-0 transition-all duration-200 ${isReoptimizing ? 'bg-amber-500 hover:bg-amber-600' : 'bg-emerald-600 hover:bg-emerald-700'}`}
             style={{ pointerEvents: 'auto', touchAction: 'manipulation', opacity: isPrimaryDriverDeviceInMotion ? 0.45 : 1 }}>

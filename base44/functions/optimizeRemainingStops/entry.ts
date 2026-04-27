@@ -187,7 +187,18 @@ Deno.serve(async (req) => {
     // Get driver info
     const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
     const driverAppUser = appUsers?.[0];
-    if (!driverAppUser || driverAppUser.driver_status === 'off_duty' || driverAppUser.driver_status === 'on_break') {
+    const bypassDriverStatus = body?.bypassDriverStatus === true;
+    if (!driverAppUser) {
+      return Response.json({
+        success: true,
+        skipped: true,
+        reason: 'driver_unavailable',
+        routeChanged: false,
+        optimizedCount: 0,
+        apiCallsMade: 0
+      });
+    }
+    if (!bypassDriverStatus && (driverAppUser.driver_status === 'off_duty' || driverAppUser.driver_status === 'on_break')) {
       return Response.json({
         success: true,
         skipped: true,
