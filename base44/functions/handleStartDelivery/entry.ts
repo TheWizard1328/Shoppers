@@ -10,6 +10,17 @@ const getCurrentLocalTimeString = () => {
   return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 };
 
+const normalizeLocalTimeString = (value) => {
+  if (typeof value !== 'string') return null;
+  const match = value.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+};
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -19,7 +30,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { deliveryId, driverId, deliveryDate } = await req.json();
+    const { deliveryId, driverId, deliveryDate, currentLocalTime } = await req.json();
 
     if (!deliveryId || !driverId || !deliveryDate) {
       return Response.json({ error: 'Missing required fields: deliveryId, driverId, deliveryDate' }, { status: 400 });
@@ -103,8 +114,7 @@ Deno.serve(async (req) => {
       const optimizationResponse = await base44.asServiceRole.functions.invoke('optimizeRemainingStops', {
         driverId,
         deliveryDate,
-        currentLocalTime: getCurrentLocalTimeString(),
-        deviceTime: new Date().toISOString(),
+        currentLocalTime: normalizeLocalTimeString(currentLocalTime) || getCurrentLocalTimeString(),
         preserveExistingOrder: false
       });
       const optimizationData = optimizationResponse?.data || optimizationResponse || {};
