@@ -1141,7 +1141,13 @@ export default function PayrollSummaryCard({
             <DialogDescription style={{ color: 'var(--text-slate-600)' }}>
               You are about to finalize payroll for <strong>{currentPeriod?.label}</strong>.
               <br /><br />
-              <strong>Total Gross Pay:</strong> {formatCurrency(grandTotalGross)}
+              <strong>Total Net Pay:</strong> {formatCurrency(grandTotalNet)}
+              {Math.abs((totalPeriodPaidAmount || 0) - (grandTotalNet || 0)) > 0.009 && (
+                <>
+                  <br />
+                  <strong>Actual Paid:</strong> {formatCurrency(totalPeriodPaidAmount)}
+                </>
+              )}
               <br />
               <strong>Drivers Confirmed:</strong> {finalizedDriversCount}/{driversWithDeliveriesIds.length}
               <br /><br />
