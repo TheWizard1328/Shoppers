@@ -15,6 +15,7 @@ export default function MapViewCycleFAB({ currentUser = null, filteredDeliveries
 
   const flashUpdate = useCallback((reason = 'generic', details = {}) => {
     if (currentPhase !== 1) return;
+    if (reason === 'data_ready') return;
 
     const now = Date.now();
     const throttleWindow = reason === 'route_change' || reason === 'completed_stop' ? 350 : 2500;

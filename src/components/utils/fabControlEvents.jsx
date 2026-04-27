@@ -123,7 +123,7 @@ export const fabControlEvents = {
     console.log('📢 [FAB Events] Broadcasting data ready - reactivating current FAB phase');
     fabControlListeners.forEach(callback => {
       try {
-        callback({ type: 'DATA_READY' });
+        callback({ type: 'DATA_READY', reason: 'data_ready' });
       } catch (error) {
         console.error('Error in FAB event listener:', error);
       }
