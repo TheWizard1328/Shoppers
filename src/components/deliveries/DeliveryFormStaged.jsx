@@ -74,7 +74,7 @@ export default function DeliveryFormStaged({
   };
 
   return (
-    <div className="space-y-1 flex-1 overflow-y-auto min-h-0 custom-scrollbar">
+    <div className="space-y-1 flex-1 min-h-0 h-full overflow-y-auto overscroll-contain custom-scrollbar">
       {/* Staged Deliveries Section (new, not yet saved) */}
       {sortedStagedDeliveries.filter((s) => !s.id).length > 0 &&
       <>
