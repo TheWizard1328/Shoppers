@@ -262,10 +262,26 @@ function mergeEncodedPolylines(polylines = []) {
   return merged.length > 1 ? encodeGooglePolyline(merged) : null;
 }
 
+async function syncDeliveriesPolylinesToOffline(base44, deliveryUpdates = []) {
+  const validUpdates = (deliveryUpdates || []).filter((item) => item?.id);
+  if (validUpdates.length === 0) return [];
+
+  const existingDeliveries = await base44.asServiceRole.entities.Delivery.filter({
+    id: { $in: validUpdates.map((item) => item.id) }
+  }, undefined, 50000);
+
+  const mergedDeliveries = validUpdates.map((update) => ({
+    ...((existingDeliveries || []).find((delivery) => delivery?.id === update.id) || {}),
+    ...update
+  }));
+
+  return mergedDeliveries;
+}
+
 async function persistRouteSections(base44, deliveries = [], pointSpecs = [], routeSections = [], transportMode = 'driving', homePoint = null) {
   if (!Array.isArray(deliveries) || deliveries.length === 0) return 0;
 
-  let writes = 0;
+  const deliveryUpdates = [];
   for (let index = 0; index < deliveries.length; index += 1) {
     const delivery = deliveries[index];
     const from = pointSpecs[index];
@@ -284,7 +300,8 @@ async function persistRouteSections(base44, deliveries = [], pointSpecs = [], ro
       }
     }
 
-    await base44.asServiceRole.entities.Delivery.update(delivery.id, {
+    deliveryUpdates.push({
+      id: delivery.id,
       encoded_polyline: encodedPolyline,
       transport_mode: section.transport_mode || transportMode,
       segment_origin_lat: round5(from.lat),
@@ -295,10 +312,11 @@ async function persistRouteSections(base44, deliveries = [], pointSpecs = [], ro
       estimated_duration_minutes: section.estimated_duration_minutes ?? null,
       PolylineUpdated: true
     });
-    writes += 1;
   }
 
-  return writes;
+  await syncDeliveriesPolylinesToOffline(base44, deliveryUpdates);
+  await Promise.all(deliveryUpdates.map((update) => base44.asServiceRole.entities.Delivery.update(update.id, update)));
+  return deliveryUpdates.length;
 }
 
 async function getMultiStopRoute(base44, points, transportMode = 'driving') {
@@ -588,7 +606,8 @@ Deno.serve(async (req) => {
         Number.isFinite(homeLat) && Number.isFinite(homeLon) ? { lat: homeLat, lon: homeLon } : null
       );
     } else {
-      await base44.asServiceRole.entities.Delivery.update(nextRouteStop.id, {
+      const singleDeliveryUpdate = {
+        id: nextRouteStop.id,
         encoded_polyline: directions.encoded_polyline,
         transport_mode: directions.transport_mode || preferredTravelMode,
         segment_origin_lat: round5(effectiveOriginCoords.lat),
@@ -598,7 +617,9 @@ Deno.serve(async (req) => {
         estimated_distance_km: directions.estimated_distance_km ?? null,
         estimated_duration_minutes: directions.estimated_duration_minutes ?? null,
         PolylineUpdated: true
-      });
+      };
+      await syncDeliveriesPolylinesToOffline(base44, [singleDeliveryUpdate]);
+      await base44.asServiceRole.entities.Delivery.update(nextRouteStop.id, singleDeliveryUpdate);
     }
 
     return Response.json({
