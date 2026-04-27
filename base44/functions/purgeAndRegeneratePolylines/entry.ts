@@ -28,27 +28,8 @@ async function processInChunks(items, chunkSize, processor) {
   return results;
 }
 
-async function deletePolylinesIfPresent(base44, rows) {
-  const safeRows = Array.isArray(rows) ? rows.filter((row) => row?.id) : [];
-  if (safeRows.length === 0) return 0;
-
-  const currentRows = await base44.asServiceRole.entities.DriverRoutePolyline.filter({
-    id: { $in: safeRows.map((row) => row.id) }
-  }, '-updated_date', safeRows.length);
-
-  const currentIds = new Set((currentRows || []).map((row) => row?.id).filter(Boolean));
-  const rowsThatExist = safeRows.filter((row) => currentIds.has(row.id));
-
-  if (rowsThatExist.length === 0) return 0;
-
-  await processInChunks(rowsThatExist, 20, (row) =>
-    base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id).catch((error) => {
-      if (isNotFoundError(error)) return null;
-      throw error;
-    })
-  );
-
-  return rowsThatExist.length;
+async function deletePolylinesIfPresent() {
+  return 0;
 }
 
 function isRateLimitError(error) {
@@ -765,10 +746,7 @@ Deno.serve(async (req) => {
       }, 'stop_order', 50000);
     }
 
-    let existingPolylines = await base44.asServiceRole.entities.DriverRoutePolyline.filter({
-      driver_id: driverId,
-      delivery_date: deliveryDate
-    }, '-updated_date', 50000);
+    let existingPolylines = [];
 
     const structuralReason = ['stops_added', 'stops_deleted', 'route_reordered', 'manual', 'manual_breadcrumbs'];
     if (!structuralReason.includes(reason)) {
@@ -792,9 +770,18 @@ Deno.serve(async (req) => {
       : 0;
 
     if (!Array.isArray(deliveries) || deliveries.length === 0) {
-      if (Array.isArray(existingPolylines) && existingPolylines.length > 0 && scope !== 'completed_only') {
-        await processInChunks(existingPolylines, 5, (row) =>
-          base44.asServiceRole.entities.DriverRoutePolyline.delete(row.id).catch((error) => {
+      if (scope !== 'completed_only') {
+        await processInChunks(deliveries, 20, (delivery) =>
+          base44.asServiceRole.entities.Delivery.update(delivery.id, {
+            encoded_polyline: null,
+            transport_mode: null,
+            segment_origin_lat: null,
+            segment_origin_lon: null,
+            segment_dest_lat: null,
+            segment_dest_lon: null,
+            estimated_distance_km: null,
+            estimated_duration_minutes: null
+          }).catch((error) => {
             if (isNotFoundError(error)) return null;
             throw error;
           })
@@ -1160,19 +1147,19 @@ Deno.serve(async (req) => {
               travel_dist: directions?.estimated_distance_km ?? null
             });
           }
-          createdSegments.push({
-            driver_id: driverId,
-            delivery_date: deliveryDate,
-            encoded_polyline: directions?.encoded_polyline || encodeGooglePolyline([[spec.from.lat, spec.from.lon], [spec.to.lat, spec.to.lon]]),
-            segment_origin_lat: round5(spec.from.lat),
-            segment_origin_lon: round5(spec.from.lon),
-            segment_dest_lat: round5(spec.to.lat),
-            segment_dest_lon: round5(spec.to.lon),
-            estimated_distance_km: directions?.estimated_distance_km ?? null,
-            estimated_duration_minutes: directions?.estimated_duration_minutes ?? null,
-            daily_generation_count: previousGenerationCount + apiCallsMade,
-            last_generated_at: new Date().toISOString()
-          });
+          if (matchingStop?.id) {
+            createdSegments.push({
+              id: matchingStop.id,
+              transport_mode: spec.transportMode,
+              encoded_polyline: directions?.encoded_polyline || encodeGooglePolyline([[spec.from.lat, spec.from.lon], [spec.to.lat, spec.to.lon]]),
+              segment_origin_lat: round5(spec.from.lat),
+              segment_origin_lon: round5(spec.from.lon),
+              segment_dest_lat: round5(spec.to.lat),
+              segment_dest_lon: round5(spec.to.lon),
+              estimated_distance_km: directions?.estimated_distance_km ?? null,
+              estimated_duration_minutes: directions?.estimated_duration_minutes ?? null
+            });
+          }
         });
 
         const allowedActiveSegmentKeys = new Set(segmentSpecs.map((spec) => makeSegmentKey(driverId, deliveryDate, spec.from, spec.to)));
@@ -1193,13 +1180,27 @@ Deno.serve(async (req) => {
         }
 
         if (createdSegments.length > 0) {
-          console.log(`# [purgeAndRegeneratePolylines] BEFORE DriverRoutePolyline.bulkCreate | driver=${driverDisplayName} | date=${deliveryDate} | createdSegments=${createdSegments.length} | totalStops=${deliveries?.length || 0}`);
-          await base44.asServiceRole.entities.DriverRoutePolyline.bulkCreate(createdSegments);
+          console.log(`# [purgeAndRegeneratePolylines] BEFORE Delivery polyline updates | driver=${driverDisplayName} | date=${deliveryDate} | createdSegments=${createdSegments.length} | totalStops=${deliveries?.length || 0}`);
+          await processInChunks(createdSegments, 20, (segment) =>
+            base44.asServiceRole.entities.Delivery.update(segment.id, {
+              encoded_polyline: segment.encoded_polyline,
+              transport_mode: segment.transport_mode || 'driving',
+              segment_origin_lat: segment.segment_origin_lat,
+              segment_origin_lon: segment.segment_origin_lon,
+              segment_dest_lat: segment.segment_dest_lat,
+              segment_dest_lon: segment.segment_dest_lon,
+              estimated_distance_km: segment.estimated_distance_km,
+              estimated_duration_minutes: segment.estimated_duration_minutes
+            }).catch((error) => {
+              if (isNotFoundError(error)) return null;
+              throw error;
+            })
+          );
           const afterPolylineCreateDeliveries = await base44.asServiceRole.entities.Delivery.filter({
             driver_id: driverId,
             delivery_date: deliveryDate
           }, 'stop_order', 50000);
-          console.log(`# [purgeAndRegeneratePolylines] AFTER DriverRoutePolyline.bulkCreate | driver=${driverDisplayName} | date=${deliveryDate} | createdSegments=${createdSegments.length} | totalStops=${afterPolylineCreateDeliveries?.length || 0}`);
+          console.log(`# [purgeAndRegeneratePolylines] AFTER Delivery polyline updates | driver=${driverDisplayName} | date=${deliveryDate} | createdSegments=${createdSegments.length} | totalStops=${afterPolylineCreateDeliveries?.length || 0}`);
           deliveries = afterPolylineCreateDeliveries;
         }
       } else {
@@ -1257,19 +1258,23 @@ Deno.serve(async (req) => {
 
         uncachedSegments.forEach((spec, index) => {
           const directions = uncachedDirections[index];
-          createdSegments.push({
-            driver_id: driverId,
-            delivery_date: deliveryDate,
-            encoded_polyline: directions?.encoded_polyline || encodeGooglePolyline([[spec.from.lat, spec.from.lon], [spec.to.lat, spec.to.lon]]),
-            segment_origin_lat: round5(spec.from.lat),
-            segment_origin_lon: round5(spec.from.lon),
-            segment_dest_lat: round5(spec.to.lat),
-            segment_dest_lon: round5(spec.to.lon),
-            estimated_distance_km: directions?.estimated_distance_km ?? null,
-            estimated_duration_minutes: directions?.estimated_duration_minutes ?? null,
-            daily_generation_count: previousGenerationCount + apiCallsMade,
-            last_generated_at: new Date().toISOString()
+          const matchingStop = deliveries.find((stop) => {
+            const stopCoords = getLatLon(stop);
+            return stop?.id && stopCoords && samePoint({ lat: stopCoords.lat, lon: stopCoords.lon }, spec.to);
           });
+          if (matchingStop?.id) {
+            createdSegments.push({
+              id: matchingStop.id,
+              transport_mode: 'driving',
+              encoded_polyline: directions?.encoded_polyline || encodeGooglePolyline([[spec.from.lat, spec.from.lon], [spec.to.lat, spec.to.lon]]),
+              segment_origin_lat: round5(spec.from.lat),
+              segment_origin_lon: round5(spec.from.lon),
+              segment_dest_lat: round5(spec.to.lat),
+              segment_dest_lon: round5(spec.to.lon),
+              estimated_distance_km: directions?.estimated_distance_km ?? null,
+              estimated_duration_minutes: directions?.estimated_duration_minutes ?? null
+            });
+          }
         });
 
         const allowedCompletedSegmentKeys = new Set(completedRouteHomeSegment.map((spec) => makeSegmentKey(driverId, deliveryDate, spec.from, spec.to)));
@@ -1288,7 +1293,21 @@ Deno.serve(async (req) => {
         }
 
         if (createdSegments.length > 0) {
-          await base44.asServiceRole.entities.DriverRoutePolyline.bulkCreate(createdSegments);
+          await processInChunks(createdSegments, 20, (segment) =>
+            base44.asServiceRole.entities.Delivery.update(segment.id, {
+              encoded_polyline: segment.encoded_polyline,
+              transport_mode: segment.transport_mode || 'driving',
+              segment_origin_lat: segment.segment_origin_lat,
+              segment_origin_lon: segment.segment_origin_lon,
+              segment_dest_lat: segment.segment_dest_lat,
+              segment_dest_lon: segment.segment_dest_lon,
+              estimated_distance_km: segment.estimated_distance_km,
+              estimated_duration_minutes: segment.estimated_duration_minutes
+            }).catch((error) => {
+              if (isNotFoundError(error)) return null;
+              throw error;
+            })
+          );
         }
       }
     }
