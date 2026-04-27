@@ -6,7 +6,6 @@ const isSameDate = (pickup, deliveryDate) => pickup && pickup.delivery_date === 
 const isPickup = (delivery) => delivery && !delivery.patient_id;
 const normalizeTimeSlot = (pickup) => pickup?.ampm_deliveries || 'AM';
 const buildPickupOptionId = (pickup) => pickup?.id || pickup?.stop_id || pickup?.puid || pickup?._tempId || '';
-const FINISHED_PICKUP_STATUSES = ['completed', 'failed', 'cancelled', 'returned', 'picked_up'];
 
 const formatPickupTime = (value) => {
   if (!value) return '';
