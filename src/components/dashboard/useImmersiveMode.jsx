@@ -135,11 +135,16 @@ export default function useImmersiveMode({ isDriver, isMobile, driverLocation, n
         clearTimeout(stoppedTimeoutRef.current);
         stoppedTimeoutRef.current = null;
       }
+      if (overrideTimeoutRef.current) {
+        clearTimeout(overrideTimeoutRef.current);
+        overrideTimeoutRef.current = null;
+      }
+      setIsOverrideActive(false);
     };
 
     const handleDeliveriesUpdated = (event) => {
       const trigger = event?.detail?.triggeredBy;
-      if (trigger === 'statusUpdate') {
+      if (['statusUpdate', 'complete', 'completed', 'failed', 'cancelled', 'return', 'retry', 'restart', 'start', 'acceptAll', 'acceptAllOptimized', 'deliveryStatusChanged'].includes(trigger)) {
         handlePostStopAction();
       }
     };
