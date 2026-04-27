@@ -262,20 +262,37 @@ function mergeEncodedPolylines(polylines = []) {
   return merged.length > 1 ? encodeGooglePolyline(merged) : null;
 }
 
+function buildChangedDeliveryUpdates(existingDeliveries = [], deliveryUpdates = []) {
+  const existingMap = new Map((existingDeliveries || []).filter((item) => item?.id).map((item) => [item.id, item]));
+
+  return (deliveryUpdates || [])
+    .filter((item) => item?.id)
+    .map((update) => {
+      const existing = existingMap.get(update.id) || {};
+      const changedFields = Object.fromEntries(
+        Object.entries(update).filter(([key, value]) => JSON.stringify(existing?.[key] ?? null) !== JSON.stringify(value ?? null))
+      );
+      return Object.keys(changedFields).length > 1 ? { id: update.id, ...changedFields } : null;
+    })
+    .filter(Boolean);
+}
+
 async function syncDeliveriesPolylinesToOffline(base44, deliveryUpdates = []) {
   const validUpdates = (deliveryUpdates || []).filter((item) => item?.id);
-  if (validUpdates.length === 0) return [];
+  if (validUpdates.length === 0) return { existingDeliveries: [], changedUpdates: [], mergedDeliveries: [] };
 
   const existingDeliveries = await base44.asServiceRole.entities.Delivery.filter({
     id: { $in: validUpdates.map((item) => item.id) }
   }, undefined, 50000);
 
-  const mergedDeliveries = validUpdates.map((update) => ({
-    ...((existingDeliveries || []).find((delivery) => delivery?.id === update.id) || {}),
+  const changedUpdates = buildChangedDeliveryUpdates(existingDeliveries, validUpdates);
+  const existingMap = new Map((existingDeliveries || []).filter((item) => item?.id).map((item) => [item.id, item]));
+  const mergedDeliveries = changedUpdates.map((update) => ({
+    ...(existingMap.get(update.id) || {}),
     ...update
   }));
 
-  return mergedDeliveries;
+  return { existingDeliveries, changedUpdates, mergedDeliveries };
 }
 
 async function persistRouteSections(base44, deliveries = [], pointSpecs = [], routeSections = [], transportMode = 'driving', homePoint = null) {
@@ -314,9 +331,10 @@ async function persistRouteSections(base44, deliveries = [], pointSpecs = [], ro
     });
   }
 
-  await syncDeliveriesPolylinesToOffline(base44, deliveryUpdates);
-  await Promise.all(deliveryUpdates.map((update) => base44.asServiceRole.entities.Delivery.update(update.id, update)));
-  return deliveryUpdates.length;
+  const { changedUpdates } = await syncDeliveriesPolylinesToOffline(base44, deliveryUpdates);
+  if (changedUpdates.length === 0) return 0;
+  await Promise.all(changedUpdates.map((update) => base44.asServiceRole.entities.Delivery.update(update.id, update)));
+  return changedUpdates.length;
 }
 
 async function getMultiStopRoute(base44, points, transportMode = 'driving') {
@@ -618,8 +636,10 @@ Deno.serve(async (req) => {
         estimated_duration_minutes: directions.estimated_duration_minutes ?? null,
         PolylineUpdated: true
       };
-      await syncDeliveriesPolylinesToOffline(base44, [singleDeliveryUpdate]);
-      await base44.asServiceRole.entities.Delivery.update(nextRouteStop.id, singleDeliveryUpdate);
+      const { changedUpdates } = await syncDeliveriesPolylinesToOffline(base44, [singleDeliveryUpdate]);
+      if (changedUpdates.length > 0) {
+        await base44.asServiceRole.entities.Delivery.update(nextRouteStop.id, changedUpdates[0]);
+      }
     }
 
     return Response.json({

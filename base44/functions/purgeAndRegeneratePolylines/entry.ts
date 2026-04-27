@@ -380,15 +380,26 @@ async function bulkUpdateDeliveries(base44, deliveries, updatesById) {
   }
 
   const safeDeliveries = Array.isArray(deliveries) ? deliveries : [];
+  const changedEntries = Array.from(updatesById.entries()).map(([id, update]) => {
+    const existing = safeDeliveries.find((delivery) => delivery?.id === id) || {};
+    const changed = Object.fromEntries(
+      Object.entries(update || {}).filter(([key, value]) => JSON.stringify(existing?.[key] ?? null) !== JSON.stringify(value ?? null))
+    );
+    return Object.keys(changed).length > 0 ? [id, changed] : null;
+  }).filter(Boolean);
+
+  if (changedEntries.length === 0) {
+    return safeDeliveries;
+  }
 
   try {
-    await processInChunks(Array.from(updatesById.entries()), 20, async ([id, update]) => {
+    await processInChunks(changedEntries, 20, async ([id, update]) => {
       return await base44.asServiceRole.entities.Delivery.update(id, update).catch((error) => {
         if (isNotFoundError(error)) return null;
         throw error;
       });
     });
-    return mergeDeliveryUpdates(safeDeliveries, updatesById);
+    return mergeDeliveryUpdates(safeDeliveries, new Map(changedEntries));
   } catch (error) {
     if (isRateLimitError(error)) {
       console.warn('[bulkUpdateDeliveries] Rate limit during bulk update');
@@ -540,12 +551,18 @@ async function reintegratePendingBreadcrumbLive(base44, driverId, deliveryDate, 
       .sort((a, b) => a[2] - b[2])
       .filter((point, index, arr) => index === 0 || !(arr[index - 1][0] === point[0] && arr[index - 1][1] === point[1] && arr[index - 1][2] === point[2]));
 
-    await base44.asServiceRole.entities.Delivery.update(targetDelivery.id, {
+    const breadcrumbUpdate = {
       delivery_route_breadcrumbs: JSON.stringify(uniquePoints),
       finished_leg_encoded_polyline: null,
       finished_leg_transport_mode: null,
       PolylineUpdated: true
-    });
+    };
+    const changedBreadcrumbUpdate = Object.fromEntries(
+      Object.entries(breadcrumbUpdate).filter(([key, value]) => JSON.stringify(targetDelivery?.[key] ?? null) !== JSON.stringify(value ?? null))
+    );
+    if (Object.keys(changedBreadcrumbUpdate).length > 0) {
+      await base44.asServiceRole.entities.Delivery.update(targetDelivery.id, changedBreadcrumbUpdate);
+    }
 
     await processInChunks(rows, 20, async (row) => {
       return await base44.asServiceRole.entities.PendingBreadcrumbLive.delete(row.id).catch((error) => {
@@ -1338,18 +1355,7 @@ Deno.serve(async (req) => {
       console.log(`# [purgeAndRegeneratePolylines] AFTER markDeliveriesPolylineUpdated | driver=${driverDisplayName} | date=${deliveryDate} | totalStops=${finalDeliveries?.length || 0}`);
     }
 
-    const trackingRecalcResponse = await base44.asServiceRole.functions.invoke('recalculateTrackingNumbers', {
-      driverId,
-      deliveryDate
-    }).catch((error) => {
-      console.warn(`[purgeAndRegeneratePolylines] Tracking number recalculation failed | driver=${driverDisplayName} | date=${deliveryDate} | error=${error?.message || error}`);
-      return null;
-    });
-    const trackingRecalcData = trackingRecalcResponse?.data || trackingRecalcResponse || null;
-    finalDeliveries = await base44.asServiceRole.entities.Delivery.filter({
-      driver_id: driverId,
-      delivery_date: deliveryDate
-    }, 'stop_order', 50000);
+    const trackingRecalcData = null;
 
     const consolidatedLegs = [];
     const completedLikeStops = (finalDeliveries || [])
