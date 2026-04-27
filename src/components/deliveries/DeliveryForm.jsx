@@ -44,7 +44,7 @@ import { closeDeliveryFormAfterSave } from '../utils/deliveryFormActionHelpers';
 import { resolveDefaultDriverForNewDelivery, expandStoresForTimeSlots } from './deliveryStoreResolutionHelpers';
 import { shouldUseImmediateAddToRouteStage, buildImmediateAddToRouteStage } from './Add2RouteStatusHelper';
 import { createPatientFromDraft, resolvePickupPuid, resolvePickupTimeWindow } from './deliveryAddHelpers';
-import { getRoutePickupsForStore, choosePickupForNewDelivery, buildPickupSelectValue, buildPendingNewPickup } from './pickupSelectionHelpers';
+import { getRoutePickupsForStore, choosePickupForNewDelivery, buildPickupSelectValue, buildPendingNewPickup, getStorePickupOptions } from './pickupSelectionHelpers';
 import { useConfirmDelete } from './useConfirmDelete';
 import useFreshStores from './useFreshStores';
 import { buildRecurringLabel } from './recurringLabels';
@@ -460,23 +460,33 @@ export default function DeliveryForm({
 
     let relevantStores = storesToUse;
 
-    // CRITICAL: In patient delivery mode (non-pickup), filter to ONLY the selected patient's store
-    // This ensures the dropdown shows only "Bonnie Doon" for Bonnie Doon patients, etc.
     if (!isPickupMode && !delivery) {
-      // Check selectedPatient first (when patient is selected but formData not updated yet)
-      // Then check formData.patient_id (after formData is updated)
       const patientToCheck = selectedPatient || (formData.patient_id && patients ? patients.find((p) => p && p.id === formData.patient_id) : null);
-      
+
       if (patientToCheck && patientToCheck.store_id) {
         const patientStore = storesToUse.find((s) => s && s.id === patientToCheck.store_id);
-        relevantStores = patientStore ? [patientStore] : storesToUse;
-      } else if (userHasRole(currentUser, 'dispatcher')) {
-        // If no patient selected yet, show dispatcher's stores
+        if (!patientStore) return [];
+
+        const officialOptions = sortStores(expandStoresForTimeSlots({
+          stores: [patientStore],
+          deliveryDate: formData.delivery_date
+        }));
+
+        return getStorePickupOptions({
+          store: patientStore,
+          allDeliveries,
+          stagedDeliveries,
+          driverId: formData.driver_id,
+          deliveryDate: formData.delivery_date,
+          officialStoreOptions: officialOptions
+        });
+      }
+
+      if (userHasRole(currentUser, 'dispatcher')) {
         const dispatcherStoreIds = currentUser.store_ids || [];
         relevantStores = stores.filter((s) => s && dispatcherStoreIds.includes(s.id));
       }
     } else if (isPickupMode) {
-      // Pickup mode - show all stores for admin, dispatcher's stores for dispatcher
       if (userHasRole(currentUser, 'admin')) {
         relevantStores = storesToUse;
       } else if (userHasRole(currentUser, 'dispatcher')) {
@@ -484,7 +494,6 @@ export default function DeliveryForm({
         relevantStores = storesToUse.filter((s) => s && dispatcherStoreIds.includes(s.id));
       }
     } else if (delivery) {
-      // Editing existing delivery - admins see all, others see their stores
       if (userHasRole(currentUser, 'admin')) {
         relevantStores = storesToUse;
       } else if (formData.patient_id && patients) {
@@ -504,7 +513,7 @@ export default function DeliveryForm({
       stores: relevantStores,
       deliveryDate: formData.delivery_date
     }));
-  }, [freshStores, stores, isPickupMode, formData.patient_id, formData.delivery_date, patients, currentUser, selectedPatient, delivery]);
+  }, [freshStores, stores, isPickupMode, formData.patient_id, formData.driver_id, formData.delivery_date, patients, currentUser, selectedPatient, delivery, allDeliveries, stagedDeliveries]);
 
   const filteredPatients = useMemo(() => {
     if (!patientSearch || !patients || formData.patient_id) return [];

@@ -4,6 +4,71 @@ const isSameStore = (pickup, storeId) => pickup && pickup.store_id === storeId;
 const isSameDriver = (pickup, driverId) => pickup && pickup.driver_id === driverId;
 const isSameDate = (pickup, deliveryDate) => pickup && pickup.delivery_date === deliveryDate;
 const isPickup = (delivery) => delivery && !delivery.patient_id;
+const normalizeTimeSlot = (pickup) => pickup?.ampm_deliveries || 'AM';
+const buildPickupOptionId = (pickup) => pickup?.id || pickup?.stop_id || pickup?.puid || pickup?._tempId || '';
+const buildPickupOptionLabel = (storeName, timeSlot, status) => {
+  const normalizedStatus = String(status || '').trim();
+  return normalizedStatus
+    ? `${storeName} [${timeSlot}] (${normalizedStatus})`
+    : `${storeName} [${timeSlot}]`;
+};
+
+export const getStorePickupOptions = ({
+  store,
+  allDeliveries = [],
+  stagedDeliveries = [],
+  driverId,
+  deliveryDate,
+  officialStoreOptions = []
+}) => {
+  if (!store?.id || !deliveryDate) return officialStoreOptions;
+
+  const existingPickups = [...allDeliveries, ...stagedDeliveries]
+    .filter((delivery) =>
+      isPickup(delivery) &&
+      isSameStore(delivery, store.id) &&
+      isSameDate(delivery, deliveryDate) &&
+      (!driverId || isSameDriver(delivery, driverId))
+    )
+    .sort((a, b) => {
+      const aFinished = FINISHED_PICKUP_STATUSES.includes(String(a?.status || '').toLowerCase());
+      const bFinished = FINISHED_PICKUP_STATUSES.includes(String(b?.status || '').toLowerCase());
+      if (aFinished !== bFinished) return aFinished ? 1 : -1;
+      const slotOrder = { AM: 0, PM: 1 };
+      const slotDiff = (slotOrder[normalizeTimeSlot(a)] ?? 99) - (slotOrder[normalizeTimeSlot(b)] ?? 99);
+      if (slotDiff !== 0) return slotDiff;
+      const aUpdated = new Date(a?.updated_date || a?.created_date || 0).getTime();
+      const bUpdated = new Date(b?.updated_date || b?.created_date || 0).getTime();
+      return bUpdated - aUpdated;
+    });
+
+  const optionMap = new Map();
+
+  existingPickups.forEach((pickup) => {
+    const optionId = buildPickupOptionId(pickup);
+    if (!optionId) return;
+    optionMap.set(optionId, {
+      ...store,
+      id: optionId,
+      name: buildPickupOptionLabel(store.name, normalizeTimeSlot(pickup), pickup.status),
+      _originalStoreId: store.id,
+      _timeSlot: normalizeTimeSlot(pickup),
+      _pickupStatus: pickup.status,
+      _pickupId: pickup.id,
+      _pickupStopId: pickup.stop_id,
+      _pickupPuid: pickup.puid
+    });
+  });
+
+  officialStoreOptions.forEach((option) => {
+    if (!option?.id) return;
+    if (!optionMap.has(option.id)) {
+      optionMap.set(option.id, option);
+    }
+  });
+
+  return Array.from(optionMap.values());
+};
 
 export const getRoutePickupsForStore = ({ allDeliveries = [], stagedDeliveries = [], storeId, driverId, deliveryDate }) => {
   return [...allDeliveries, ...stagedDeliveries]
