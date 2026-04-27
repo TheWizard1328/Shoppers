@@ -166,9 +166,9 @@ Deno.serve(async (req) => {
       const [hours, minutes] = currentLocalTime.split(':').map(Number);
       currentMinutes = hours * 60 + minutes;
     } else if (deviceTime) {
-      const timeMatch = deviceTime.match(/T(\d{2}):(\d{2})/);
-      if (timeMatch) {
-        currentMinutes = parseInt(timeMatch[1], 10) * 60 + parseInt(timeMatch[2], 10);
+      const deviceDate = new Date(deviceTime);
+      if (!Number.isNaN(deviceDate.getTime())) {
+        currentMinutes = deviceDate.getHours() * 60 + deviceDate.getMinutes();
       } else {
         const now = new Date();
         let mountainHours = now.getUTCHours() - 7;
