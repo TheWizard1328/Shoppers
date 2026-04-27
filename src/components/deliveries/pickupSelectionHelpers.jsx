@@ -6,10 +6,10 @@ const isSameDate = (pickup, deliveryDate) => pickup && pickup.delivery_date === 
 const isPickup = (delivery) => delivery && !delivery.patient_id;
 const normalizeTimeSlot = (pickup) => pickup?.ampm_deliveries || 'AM';
 const buildPickupOptionId = (pickup) => pickup?.id || pickup?.stop_id || pickup?.puid || pickup?._tempId || '';
-const buildPickupOptionLabel = (storeName, timeSlot, status) => {
-  const normalizedStatus = String(status || '').trim();
-  return normalizedStatus
-    ? `${storeName} [${timeSlot}] (${normalizedStatus})`
+const buildPickupOptionLabel = (storeName, timeSlot, pickup) => {
+  const timeLabel = pickup?.actual_delivery_time || pickup?.delivery_time_eta || '';
+  return timeLabel
+    ? `${storeName} [${timeSlot}] (${timeLabel})`
     : `${storeName} [${timeSlot}]`;
 };
 
@@ -50,7 +50,7 @@ export const getStorePickupOptions = ({
     optionMap.set(optionId, {
       ...store,
       id: optionId,
-      name: buildPickupOptionLabel(store.name, normalizeTimeSlot(pickup), pickup.status),
+      name: buildPickupOptionLabel(store.name, normalizeTimeSlot(pickup), pickup),
       _originalStoreId: store.id,
       _timeSlot: normalizeTimeSlot(pickup),
       _pickupStatus: pickup.status,

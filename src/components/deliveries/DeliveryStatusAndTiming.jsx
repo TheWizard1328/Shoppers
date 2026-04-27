@@ -3,7 +3,6 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
 import { X } from "lucide-react";
-import { isAppOwner } from '../utils/userRoles';
 import { getPickupStopIdForDelivery } from '../utils/ampmUtils';
 import { clearDeliveryActionLock } from '../utils/deliveryActionLock';
 
@@ -114,9 +113,8 @@ export default function DeliveryStatusAndTiming({
   const storeOptions = availableStores.map((store) => {
     const baseStoreId = store._originalStoreId || store.id;
     const timeSlot = store._timeSlot || null;
-    const puid = getPickupStopIdForDelivery(baseStoreId, formData.delivery_date, timeSlot || 'AM', allDeliveries);
     const baseStoreName = store._originalStoreId ? store.name.replace(/ \[AM\]| \[PM\]/, '') : store.name;
-    const displayName = `${baseStoreName}${store._timeSlot ? ` [${store._timeSlot}]` : ''}${isAppOwner(currentUser) && puid ? ` {${puid}}` : ''}`;
+    const displayName = `${baseStoreName}${store._timeSlot ? ` [${store._timeSlot}]` : ''}`;
     return <SelectItem key={store.id} value={store.id}>{displayName}</SelectItem>;
   });
 
