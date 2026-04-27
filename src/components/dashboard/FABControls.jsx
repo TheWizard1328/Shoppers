@@ -89,8 +89,8 @@ export default function FABControls({
       }} currentPhase={mapViewPhase} hasVisibleCards={!immersiveHidden && deliveriesWithStopOrder.length > 0} isAIVisible={showAIAssistant && isAIEnabled} isLocked={isMapViewLocked} isEnabled={isMapCycleEnabled} stopCardsHeight={!immersiveHidden && cardsReadyForFAB ? stopCardsBaseHeight : 0} isMotionDimmed={isPrimaryDriverDeviceInMotion} />
 
       {isAppOwner(currentUser) && selectedDriverId !== 'all' &&
-        <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: immersiveHidden ? 0 : 1 }} exit={{ scale: 0, opacity: 0 }} transition={{ type: "spring", stiffness: 260, damping: 20 }} className="z-[100]"
-          style={{ position: fabPosition, bottom: `${(!immersiveHidden && deliveriesWithStopOrder.length > 0 && cardsReadyForFAB ? stopCardsBaseHeight : bottomNavHeight) + 10}px`, right: '64px', pointerEvents: immersiveHidden ? 'none' : 'auto' }}>
+        <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }} transition={{ type: "spring", stiffness: 260, damping: 20 }} className="z-[100]"
+          style={{ position: fabPosition, bottom: `${(!immersiveHidden && deliveriesWithStopOrder.length > 0 && cardsReadyForFAB ? stopCardsBaseHeight : bottomNavHeight) + 10}px`, right: '64px', pointerEvents: 'auto' }}>
           <Button
             onClick={async () => {
               if (isReoptimizing) return;
