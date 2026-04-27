@@ -94,6 +94,9 @@ export const getRoutePickupsForStore = ({ allDeliveries = [], stagedDeliveries =
 };
 
 export const choosePickupForNewDelivery = ({ pickups = [], fallbackPickup }) => {
+  const firstEnRoutePickup = pickups.find((pickup) => String(pickup?.status || '').toLowerCase() === 'en_route');
+  if (firstEnRoutePickup) return firstEnRoutePickup;
+
   const activePickup = pickups.find((pickup) => !FINISHED_PICKUP_STATUSES.includes(String(pickup?.status || '').toLowerCase()));
   return activePickup || fallbackPickup || null;
 };
