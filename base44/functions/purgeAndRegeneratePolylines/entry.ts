@@ -1105,31 +1105,30 @@ Deno.serve(async (req) => {
         const directionsBySegmentKey = new Map();
 
         if (uncachedSegments.length > 0) {
-          const drivingBaseDirections = await getMultiSegmentDirections(
-            base44,
-            uncachedSegments.map((spec) => ({ from: spec.from, to: spec.to })),
-            'driving'
-          );
-          apiCallsMade += 1;
-          uncachedSegments.forEach((spec, index) => {
-            directionsBySegmentKey.set(makeSegmentKey(driverId, deliveryDate, spec.from, spec.to), drivingBaseDirections[index] || null);
+          const segmentGroups = [];
+          let currentGroup = null;
+
+          uncachedSegments.forEach((spec) => {
+            const mode = segmentMode(spec);
+            if (!currentGroup || currentGroup.mode !== mode) {
+              currentGroup = { mode, segments: [spec] };
+              segmentGroups.push(currentGroup);
+              return;
+            }
+            currentGroup.segments.push(spec);
           });
 
-          const modeOverrideGroups = groupModeOverrideRanges(uncachedSegments, (spec) => segmentMode(spec));
-          for (const group of modeOverrideGroups) {
-            const groupStart = group.startIndex;
-            const groupEnd = group.endIndex;
-            const groupSegments = uncachedSegments.slice(groupStart, groupEnd + 1);
-            const overrideDirections = await getMultiSegmentDirections(
+          for (const group of segmentGroups) {
+            const groupedDirections = await getMultiSegmentDirections(
               base44,
-              groupSegments.map((spec) => ({ from: spec.from, to: spec.to })),
+              group.segments.map((spec) => ({ from: spec.from, to: spec.to })),
               group.mode
             );
             apiCallsMade += 1;
-            groupSegments.forEach((spec, index) => {
+            group.segments.forEach((spec, index) => {
               directionsBySegmentKey.set(
                 makeSegmentKey(driverId, deliveryDate, spec.from, spec.to),
-                overrideDirections[index] || null
+                groupedDirections[index] || null
               );
             });
           }
