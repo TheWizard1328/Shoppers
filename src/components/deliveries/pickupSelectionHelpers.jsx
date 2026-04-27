@@ -60,8 +60,13 @@ export const getStorePickupOptions = ({
     });
   });
 
+  const existingPickupBaseStoreIds = new Set(existingPickups.map((pickup) => pickup?.store_id).filter(Boolean));
+
   officialStoreOptions.forEach((option) => {
     if (!option?.id) return;
+    const optionBaseStoreId = option._originalStoreId || option.id;
+    const isBaseStoreOption = !option._timeSlot && option.id === optionBaseStoreId;
+    if (isBaseStoreOption && existingPickupBaseStoreIds.has(optionBaseStoreId)) return;
     if (!optionMap.has(option.id)) {
       optionMap.set(option.id, option);
     }
