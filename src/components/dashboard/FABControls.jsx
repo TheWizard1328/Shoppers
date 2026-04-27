@@ -115,8 +115,9 @@ export default function FABControls({
               try {
                 const deliveryDate = format(selectedDate, 'yyyy-MM-dd');
                 const now = new Date(); const localTime = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-                window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'optimize_route_fab', driverId: currentUser.id, deliveryDate } }));
-                const response = await base44.functions.invoke('optimizeRemainingStops', { driverId: currentUser.id, deliveryDate, currentLocalTime: localTime, deviceTime: now.toISOString() });
+                const targetDriverId = selectedDriverId !== 'all' ? selectedDriverId : currentUser.id;
+                window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'optimize_route_fab', driverId: targetDriverId, deliveryDate } }));
+                const response = await base44.functions.invoke('optimizeRemainingStops', { driverId: targetDriverId, deliveryDate, currentLocalTime: localTime, deviceTime: now.toISOString() });
                 const data = response?.data || response;
                 if (data?.success) {
                   setOptimizationMessage(`Route optimized! ${data.optimizedCount} stops updated.`);
@@ -124,7 +125,7 @@ export default function FABControls({
                   // CRITICAL: Use Promise.race to prevent UI freeze if refreshData hangs
                   const refreshTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error('Refresh timeout')), 8000));
                   await Promise.race([refreshData(), refreshTimeout]).catch(() => {});
-                  window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { driverId: currentUser.id, deliveryDate, triggeredBy: 'reoptimizeRoute', alreadyOptimized: true } }));
+                  window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { driverId: targetDriverId, deliveryDate, triggeredBy: 'reoptimizeRoute', alreadyOptimized: true } }));
                   setIsMapViewLocked(true); setMapViewTrigger(p => p + 1);
                   setTimeout(() => { setOptimizationMessage(null); setIsMapViewLocked(false); }, 3000);
                 } else { setOptimizationMessage(data?.error || 'Optimization failed'); setTimeout(() => setOptimizationMessage(null), 5000); }
