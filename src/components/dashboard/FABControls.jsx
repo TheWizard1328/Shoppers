@@ -12,6 +12,34 @@ import { invalidateDeliveriesForDate } from "@/components/utils/dataManager";
 import { fabControlEvents } from "@/components/utils/fabControlEvents";
 import { useEffect, useMemo } from "react";
 
+const getMinutesFromTimeString = (value) => {
+  if (typeof value !== 'string') return null;
+  const match = value.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+  return hours * 60 + minutes;
+};
+
+const getTimeStringFromMinutes = (minutes) => {
+  if (!Number.isFinite(minutes)) return null;
+  const normalized = ((minutes % 1440) + 1440) % 1440;
+  const hours = Math.floor(normalized / 60);
+  const mins = normalized % 60;
+  return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+};
+
+const getRetroEtaSeedTime = (stops = []) => {
+  const candidates = (stops || [])
+    .map((stop) => getMinutesFromTimeString(stop?.delivery_time_eta || stop?.delivery_time_start || null))
+    .filter((value) => Number.isFinite(value));
+
+  if (candidates.length === 0) return null;
+  return getTimeStringFromMinutes(Math.min(...candidates));
+};
+
 const buildRadiusBoundsFromStore = (store, radiusKm = 2.5) => {
   if (!store?.latitude || !store?.longitude) return [];
   const lat = Number(store.latitude);
@@ -114,7 +142,9 @@ export default function FABControls({
               }
               try {
                 const deliveryDate = format(selectedDate, 'yyyy-MM-dd');
-                const now = new Date(); const localTime = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+                const now = new Date();
+                const currentTime = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+                const localTime = isDateFinished ? (getRetroEtaSeedTime(incompleteStops) || currentTime) : currentTime;
                 const targetDriverId = selectedDriverId !== 'all' ? selectedDriverId : currentUser.id;
                 window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'optimize_route_fab', driverId: targetDriverId, deliveryDate } }));
                 const response = await base44.functions.invoke('optimizeRemainingStops', { driverId: targetDriverId, deliveryDate, currentLocalTime: localTime, deviceTime: now.toISOString(), bypassDriverStatus: true });
