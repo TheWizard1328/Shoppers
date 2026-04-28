@@ -712,6 +712,7 @@ export default function useStopCardActions(params) {
         if (onStatusUpdate) await onStatusUpdate(delivery.id, status, criticalUpdate, false);
         if (pendingBreadcrumbsString) await clearPendingBreadcrumbsForDelivery({ driverUserId: delivery.driver_id, deliveryId: delivery.id, stopOrder: delivery.stop_order, appUsers, force: true });
         runTerminalDeliverySideEffects({ delivery, previousStatus: delivery.status, nextStatus: status, overrides: criticalUpdate });
+        const actedOnNextDelivery = delivery?.isNextDelivery === true;
         if (!actedOnNextDelivery) {
           Promise.resolve().then(async () => {
             try {
@@ -722,7 +723,6 @@ export default function useStopCardActions(params) {
         }
         const allDriverDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
         const incompleteAfterThis = allDriverDeliveries.filter((d) => d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending');
-        const actedOnNextDelivery = delivery?.isNextDelivery === true;
         const shouldRecalculateFailureEtas = delivery?.delivery_date === localDeviceTodayStr && shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, criticalUpdate.actual_delivery_time);
         if (incompleteAfterThis.length === 0) {
           fabControlEvents.notifyDoneButtonClicked();
