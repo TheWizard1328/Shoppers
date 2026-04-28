@@ -95,6 +95,14 @@ const flushCompletionJob = async (entry) => {
 
   if (driverId && deliveryDate) {
     tasks.push(
+      base44.functions.invoke('setNextDeliveryFlag', {
+        driverId,
+        deliveryDate,
+        targetDeliveryId: nextDeliveryId || null
+      }).catch(() => null)
+    );
+
+    tasks.push(
       base44.functions.invoke('purgeAndRegeneratePolylines', {
         driverId,
         deliveryDate,
