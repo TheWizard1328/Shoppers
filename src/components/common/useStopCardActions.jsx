@@ -197,12 +197,17 @@ export default function useStopCardActions(params) {
       smartRefreshManager.pause();
       setIsEntityUpdating(true);
       const allPendingDeliveries = allDeliveries.filter((item) => item && item.driver_id === delivery.driver_id && item.delivery_date === delivery.delivery_date && item.status === 'pending');
+      const scopedPendingDeliveries = allPendingDeliveries.filter((item) => item?.store_id === delivery.store_id);
+      if (scopedPendingDeliveries.length === 0) {
+        toast.error('No pending stops for this store.');
+        return;
+      }
       const now = new Date();
       const currentMinutes = now.getHours() * 60 + now.getMinutes();
       const startMinutes = currentMinutes + 5;
       const deliveryTimeStart = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
       const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      const sortedPending = [...allPendingDeliveries].sort((a, b) => (a.patient_name || '').localeCompare(b.patient_name || ''));
+      const sortedPending = [...scopedPendingDeliveries].sort((a, b) => (a.patient_name || '').localeCompare(b.patient_name || ''));
 
       const routeDeliveries = allDeliveries.filter((item) => item && item.driver_id === delivery.driver_id && item.delivery_date === delivery.delivery_date);
       const shouldUpdateNextDeliveryFlags = delivery.isNextDelivery !== true;
@@ -228,7 +233,7 @@ export default function useStopCardActions(params) {
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAll', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true } }));
       window.dispatchEvent(new CustomEvent('pendingToInTransit', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
 
-      const codBatch = allPendingDeliveries.filter((pd) => pd.cod_total_amount_required > 0 && pd.patient_id).map((pendingDelivery) => {
+      const codBatch = scopedPendingDeliveries.filter((pd) => pd.cod_total_amount_required > 0 && pd.patient_id).map((pendingDelivery) => {
         const storeForCod = stores.find((s) => s && s.id === pendingDelivery.store_id);
         return {
           deliveryId: pendingDelivery.id,
@@ -250,14 +255,15 @@ export default function useStopCardActions(params) {
           const optimizeResponse = await base44.functions.invoke('optimizeRemainingStops', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime, deviceTime: now.toISOString(), forceFullRemainingRouteOptimization: true });
           const optimizeData = optimizeResponse?.data || optimizeResponse;
 
-          sortedPending.forEach((pendingDelivery) => {
-            const optimizedMatch = Array.isArray(optimizeData?.optimizedRoute)
-              ? optimizeData.optimizedRoute.find((stop) => (stop.deliveryId || stop.delivery_id) === pendingDelivery.id)
-              : null;
-            queueDeliveryUpdate(pendingDelivery.id, {
-              delivery_time_start: optimizedMatch?.newETA || optimizedMatch?.eta || deliveryTimeStart
+          if (Array.isArray(optimizeData?.optimizedRoute)) {
+            optimizeData.optimizedRoute.forEach((stop) => {
+              const deliveryId = stop.deliveryId || stop.delivery_id;
+              if (!deliveryId) return;
+              queueDeliveryUpdate(deliveryId, {
+                delivery_time_start: stop?.newETA || stop?.eta || deliveryTimeStart
+              });
             });
-          });
+          }
 
           await flushQueuedDeliveryUpdates();
           invalidate('Delivery');
@@ -273,6 +279,12 @@ export default function useStopCardActions(params) {
           await base44.functions.invoke('recalculateTrackingNumbers', {
             driverId: delivery.driver_id,
             deliveryDate: delivery.delivery_date
+          }).catch(() => null);
+
+          await base44.functions.invoke('purgeAndRegeneratePolylines', {
+            driverId: delivery.driver_id,
+            deliveryDate: delivery.delivery_date,
+            scope: 'all'
           }).catch(() => null);
 
           const refreshedRouteDeliveries = await base44.entities.Delivery.filter({ driver_id: delivery.driver_id, delivery_date: delivery.delivery_date });
@@ -295,7 +307,7 @@ export default function useStopCardActions(params) {
         notifyDriverAcceptedAll({ driver: currentUser, store, appUsers }).catch(() => {});
       } else {
         const assignedDriver = drivers.find((d) => d?.id === delivery.driver_id);
-        if (assignedDriver) notifyDispatcherAssignedAll({ dispatcher: currentUser, driver: assignedDriver, store, deliveries: allPendingDeliveries, patients }).catch(() => {});
+        if (assignedDriver) notifyDispatcherAssignedAll({ dispatcher: currentUser, driver: assignedDriver, store, deliveries: scopedPendingDeliveries, patients }).catch(() => {});
       }
     } catch (error) {
       console.error('❌ [Accept All] Error:', error);
