@@ -278,16 +278,6 @@ export async function getFinishedLegEncodedPolyline({
   if (breadcrumbPoints.length > 0) {
     const finishedLegPoints = buildFinishedLegPoints(origin, breadcrumbPoints, destination);
     if (finishedLegPoints.length > 1) {
-      const hereFinishedLegPolyline = await getHereFinishedLegPolyline({
-        delivery,
-        origin,
-        destination,
-        finishedLegPoints,
-        transportMode
-      });
-      if (hereFinishedLegPolyline) {
-        return hereFinishedLegPolyline;
-      }
       return encodeGooglePolyline(finishedLegPoints);
     }
   }
@@ -302,7 +292,7 @@ export async function getFinishedLegEncodedPolyline({
     return cachedPolyline.encodedPolyline;
   }
 
-  return await getHereEncodedPolyline(delivery.driver_id, origin, destination, delivery.delivery_date, transportMode);
+  return delivery?.encoded_polyline || null;
 }
 
 function parseTrackingNumberParts(trackingNumber) {

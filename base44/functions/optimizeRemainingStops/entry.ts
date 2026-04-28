@@ -152,7 +152,7 @@ Deno.serve(async (req) => {
     console.log('✅ [optimizeRemainingStops] User authenticated:', user.email);
 
     const body = await req.json();
-    const { driverId, deliveryDate, currentLocalTime, deviceTime, preserveExistingOrder = false } = body;
+    const { driverId, deliveryDate, currentLocalTime, deviceTime, preserveExistingOrder = false, forceFullRemainingRouteOptimization = false } = body;
     
     if (!driverId || !deliveryDate) {
       return Response.json({ 
@@ -304,7 +304,7 @@ Deno.serve(async (req) => {
 
     const explicitNextDelivery = incompleteDeliveries.find((delivery) => delivery?.isNextDelivery === true) || null;
     const explicitNextCoords = explicitNextDelivery ? getDeliveryCoords(explicitNextDelivery, patientMap, storeMap) : null;
-    const shouldLockExplicitNextStop = !!explicitNextDelivery;
+    const shouldLockExplicitNextStop = !!explicitNextDelivery && !forceFullRemainingRouteOptimization;
 
     if (explicitNextCoords) {
       currentPosition = explicitNextCoords;
@@ -614,6 +614,7 @@ Deno.serve(async (req) => {
       locationSource,
       usedTimeWindows,
       preserveExistingOrder,
+      forceFullRemainingRouteOptimization,
       nextDeliveryId: nextStopId,
       optimizedRoute: activeStops.map((stop, index) => ({
         deliveryId: stop.id,

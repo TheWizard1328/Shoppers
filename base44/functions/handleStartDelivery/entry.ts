@@ -124,7 +124,8 @@ Deno.serve(async (req) => {
         driverId,
         deliveryDate,
         currentLocalTime: optimizationSeedTime,
-        preserveExistingOrder: false
+        preserveExistingOrder: false,
+        forceFullRemainingRouteOptimization: true
       });
       const optimizationData = optimizationResponse?.data || optimizationResponse || {};
       optimization = {
