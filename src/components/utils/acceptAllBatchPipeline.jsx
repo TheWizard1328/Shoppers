@@ -47,6 +47,7 @@ export async function runAcceptAllBatchPipeline({
   const optimizeData = optimizeResponse?.data || optimizeResponse || {};
 
   const offlineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+  const stagedStatusMap = new Map(stagedRoute.filter(Boolean).map((item) => [item.id, item]));
   const optimizedMap = new Map();
   const optimizedRoute = Array.isArray(optimizeData?.optimizedRoute) ? optimizeData.optimizedRoute : [];
 
@@ -54,9 +55,11 @@ export async function runAcceptAllBatchPipeline({
     const id = stop.deliveryId || stop.delivery_id;
     if (!id) return;
     const existing = offlineDeliveries.find((item) => item?.id === id);
-    if (!existing) return;
+    const staged = stagedStatusMap.get(id);
+    if (!existing && !staged) return;
     optimizedMap.set(id, {
-      ...existing,
+      ...(existing || {}),
+      ...(staged || {}),
       ...(Number.isFinite(Number(stop.stop_order)) ? { stop_order: Number(stop.stop_order), display_stop_order: Number(stop.stop_order) } : {}),
       ...(stop.newETA || stop.eta ? { delivery_time_eta: stop.newETA || stop.eta } : {}),
       ...(typeof stop.travel_dist === 'number' ? { travel_dist: stop.travel_dist } : {})
@@ -64,9 +67,11 @@ export async function runAcceptAllBatchPipeline({
   });
 
   const finalOfflineUpdates = Array.from(optimizedMap.values());
-  if (finalOfflineUpdates.length > 0) {
-    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, finalOfflineUpdates);
-    updateDeliveriesLocally?.(finalOfflineUpdates, false);
+  const fallbackStatusLockedUpdates = stagedChangedDeliveries.filter((item) => !optimizedMap.has(item.id));
+  const mergedFinalOfflineUpdates = [...finalOfflineUpdates, ...fallbackStatusLockedUpdates];
+  if (mergedFinalOfflineUpdates.length > 0) {
+    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, mergedFinalOfflineUpdates);
+    updateDeliveriesLocally?.(mergedFinalOfflineUpdates, false);
   }
 
   const finalActiveStops = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter((item) =>
@@ -98,5 +103,5 @@ export async function runAcceptAllBatchPipeline({
     };
   });
 
-  return { stagedChangedDeliveries, finalOfflineUpdates, finalActiveStops, codBatch, optimizeData, scopedPendingDeliveries };
+  return { stagedChangedDeliveries, finalOfflineUpdates: mergedFinalOfflineUpdates, finalActiveStops, codBatch, optimizeData, scopedPendingDeliveries };
 }
