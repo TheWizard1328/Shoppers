@@ -512,7 +512,6 @@ export default function useStopCardActions(params) {
         }
 
         await setAndCenterNextDelivery({ driverDeliveries: startedRouteDeliveries, targetDeliveryId: delivery.id, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
-        window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { updates: [{ deliveryId: delivery.id, newEta: currentLocalTime }] } }));
         window.dispatchEvent(new CustomEvent('centerStopCard', { detail: { deliveryId: delivery.id } }));
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true } }));
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
@@ -538,6 +537,9 @@ export default function useStopCardActions(params) {
             }
             if (backendOptimizedRoute.length > 0) {
               window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { updates: backendOptimizedRoute.map((u) => ({ deliveryId: u.deliveryId || u.delivery_id, newEta: u.eta || u.newETA })) } }));
+              if (startData?.routeChanged || startData?.optimization?.routeChanged || startData?.optimization?.activeStopCountChanged) {
+                window.dispatchEvent(new CustomEvent('routeReordered', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, source: 'startOptimized' } }));
+              }
             }
             await base44.functions.invoke('recalculateTrackingNumbers', {
               driverId: delivery.driver_id,
@@ -657,7 +659,7 @@ export default function useStopCardActions(params) {
             if (finishedLegEncodedPolyline) await updateDeliveryLocal(delivery.id, { finished_leg_encoded_polyline: finishedLegEncodedPolyline, finished_leg_transport_mode: 'driving', PolylineUpdated: true }, { skipSmartRefresh: true });
           } catch {}
         }));
-        if (shouldRecalculateCompletionEtas && nextStop) backgroundTasks.push(base44.functions.invoke('calculateRealTimeETA', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime: getCurrentLocalTimeString() }).catch(() => {}));
+        if (shouldRecalculateCompletionEtas && nextStop) backgroundTasks.push(base44.functions.invoke('calculateRealTimeETA', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime: String(completionUpdate.actual_delivery_time || '').match(/T(\d{2}:\d{2})/)?.[1] || getCurrentLocalTimeString() }).catch(() => {}));
         backgroundTasks.push(cleanupSquareCodCatalogForDate(delivery.delivery_date));
         const currentDriverAppUserId = currentDriverAppUser?.id || null;
         backgroundTasks.push(params.scheduleCompletionSideEffects({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, nextDeliveryId: nextStop?.id || null, lastCompletedDeliveryId: delivery.id, setOffDuty: !nextStop, appUserId: currentDriverAppUserId }));
@@ -741,7 +743,7 @@ export default function useStopCardActions(params) {
         const driverDeliveries = allDriverDeliveries.map((item) => item.id === delivery.id ? { ...item, ...criticalUpdate, isNextDelivery: false } : item);
         const incompleteDeliveries = driverDeliveries.filter((d) => d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending').sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
         await setAndCenterNextDelivery({ driverDeliveries, targetDeliveryId: incompleteDeliveries[0]?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
-        if (shouldRecalculateFailureEtas && incompleteDeliveries.length > 0) Promise.resolve().then(() => base44.functions.invoke('calculateRealTimeETA', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime: getCurrentLocalTimeString() }).catch(() => {}));
+        if (shouldRecalculateFailureEtas && incompleteDeliveries.length > 0) Promise.resolve().then(() => base44.functions.invoke('calculateRealTimeETA', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime: String(criticalUpdate.actual_delivery_time || '').match(/T(\d{2}:\d{2})/)?.[1] || getCurrentLocalTimeString() }).catch(() => {}));
         onClick?.(null);
         fabControlEvents.notifyPhaseTwoCompleteRecenter();
         if (userHasRole(currentUser, 'driver')) await notifyDriverFailed({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : displayName, delivery: { ...delivery, delivery_notes: updatedNotes }, store, appUsers, failureReason: reason });

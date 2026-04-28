@@ -21,6 +21,12 @@ const normalizeLocalTimeString = (value) => {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 };
 
+const getTimeStringFromTimestamp = (value) => {
+  if (typeof value !== 'string') return null;
+  const match = value.match(/T(\d{2}:\d{2})/);
+  return match ? match[1] : null;
+};
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -105,6 +111,9 @@ Deno.serve(async (req) => {
 
     console.log('🔄 [handleStartDelivery] Selected delivery marked as next stop');
 
+    const latestFinishedTime = getTimeStringFromTimestamp(completedDeliveries[completedDeliveries.length - 1]?.actual_delivery_time);
+    const optimizationSeedTime = normalizeLocalTimeString(currentLocalTime) || latestFinishedTime || getCurrentLocalTimeString();
+
     let optimization = {
       skipped: true,
       reason: 'start_delivery_no_full_reoptimization'
@@ -114,7 +123,7 @@ Deno.serve(async (req) => {
       const optimizationResponse = await base44.asServiceRole.functions.invoke('optimizeRemainingStops', {
         driverId,
         deliveryDate,
-        currentLocalTime: normalizeLocalTimeString(currentLocalTime) || getCurrentLocalTimeString(),
+        currentLocalTime: optimizationSeedTime,
         preserveExistingOrder: false
       });
       const optimizationData = optimizationResponse?.data || optimizationResponse || {};
