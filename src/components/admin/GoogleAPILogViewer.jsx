@@ -62,6 +62,14 @@ const renderStopOrderValue = (log) => {
   return '—';
 };
 
+const renderUserName = (log) => {
+  const rawUserName = String(log?.user_name || '').trim();
+  if (/^Service\s*\(.+\)$/i.test(rawUserName)) {
+    return 'Service';
+  }
+  return rawUserName || 'Unknown';
+};
+
 export default function GoogleAPILogViewer() {
   const [logs, setLogs] = useState([]);
   const [users, setUsers] = useState([]);
@@ -882,7 +890,7 @@ export default function GoogleAPILogViewer() {
                           {log.function_name}
                         </td>
                         <td className="p-3 text-sm text-slate-700">
-                          {log.user_name || 'Unknown'}
+                          {renderUserName(log)}
                         </td>
                         <td className="p-3 text-sm text-slate-700">
                           <div className="flex items-center gap-2">
