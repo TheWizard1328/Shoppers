@@ -963,35 +963,21 @@ Deno.serve(async (req) => {
 
       const finishedDirectionsByStopId = new Map();
       if (routeSource === 'polylines' && finishedSegmentSpecs.length > 0) {
-        const drivingBaseRoute = await getMultiSegmentDirections(
+        const normalizedFinishedSpecs = finishedSegmentSpecs.map((segment) => ({
+          from: segment.from,
+          to: segment.to,
+          transportMode: getNormalizedTravelMode(segment.transportMode, 'driving')
+        }));
+        const primaryTransportMode = normalizedFinishedSpecs[0]?.transportMode || 'driving';
+        const groupedFinishedRoute = await getMultiSegmentDirections(
           base44,
-          finishedSegmentSpecs.map((segment) => ({ from: segment.from, to: segment.to })),
-          'driving'
+          normalizedFinishedSpecs.map((segment) => ({ from: segment.from, to: segment.to })),
+          primaryTransportMode
         );
         apiCallsMade += 1;
         finishedSegmentSpecs.forEach((segment, index) => {
-          finishedDirectionsByStopId.set(segment.stop.id, drivingBaseRoute[index] || null);
+          finishedDirectionsByStopId.set(segment.stop.id, groupedFinishedRoute[index] || null);
         });
-
-        const modeOverrideGroups = groupModeOverrideRanges(
-          finishedSegmentSpecs,
-          (segment) => segment.transportMode
-        );
-
-        for (const group of modeOverrideGroups) {
-          const groupStart = group.startIndex;
-          const groupEnd = group.endIndex;
-          const groupSegments = finishedSegmentSpecs.slice(groupStart, groupEnd + 1);
-          const overrideDirections = await getMultiSegmentDirections(
-            base44,
-            groupSegments.map((segment) => ({ from: segment.from, to: segment.to })),
-            group.mode
-          );
-          apiCallsMade += 1;
-          groupSegments.forEach((segment, index) => {
-            finishedDirectionsByStopId.set(segment.stop.id, overrideDirections[index] || null);
-          });
-        }
       }
 
       finishedSegmentSpecs.forEach((segment) => {
@@ -1121,10 +1107,11 @@ Deno.serve(async (req) => {
         const directionsBySegmentKey = new Map();
 
         if (uncachedSegments.length > 0) {
+          const primaryTransportMode = getNormalizedTravelMode(uncachedSegments[0]?.transportMode, 'driving');
           const groupedDirections = await getMultiSegmentDirections(
             base44,
             uncachedSegments.map((spec) => ({ from: spec.from, to: spec.to })),
-            'driving'
+            primaryTransportMode
           );
           apiCallsMade += 1;
           uncachedSegments.forEach((spec, index) => {
