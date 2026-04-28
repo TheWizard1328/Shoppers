@@ -21,6 +21,20 @@ import { pauseOfflineSync, resumeOfflineSync } from '../utils/offlineSync';
 import { notifyDriverAcceptedAll, notifyDispatcherAssignedAll, notifyDriverStarted, notifyDriverCompleted, notifyDriverFailed, notifyDriverRetry, notifyDriverReturn } from "../utils/deliveryMessaging";
 
 const START_ACTION_NAME = 'start_delivery';
+
+const queueConsolidateBreadcrumbs = ({ driverId, deliveryDate, stopOrder, status }) => {
+  if (!driverId || !deliveryDate || !Number.isFinite(Number(stopOrder))) return;
+  Promise.resolve().then(() =>
+    base44.functions.invoke('consolidateBreadcrumbs', {
+      driver_id: driverId,
+      delivery_date: deliveryDate,
+      stop_order: Number(stopOrder),
+      delivery_status: status
+    }).catch((error) => {
+      console.warn('⚠️ [Breadcrumbs] Consolidation failed:', error?.message || error);
+    })
+  );
+};
 const ETA_REFRESH_THRESHOLD_MINUTES = 5;
 
 const parseTimeToMinutes = (timeString) => {
@@ -657,6 +671,7 @@ export default function useStopCardActions(params) {
         fabControlEvents.notifyPhaseTwoCompleteRecenter();
         fabControlEvents.reactivateFAB(true, { suppressIfPhase1: true, reason: 'stop_status_change' });
         const backgroundTasks = [];
+        queueConsolidateBreadcrumbs({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, stopOrder: delivery.stop_order, status: 'completed' });
         if (autoCODPayment && onCODUpdate) backgroundTasks.push(onCODUpdate(delivery.id, autoCODPayment, true));
         if (!actedOnNextDelivery) {
           backgroundTasks.push(Promise.resolve().then(async () => {
@@ -757,6 +772,7 @@ export default function useStopCardActions(params) {
         await setAndCenterNextDelivery({ driverDeliveries, targetDeliveryId: incompleteDeliveries[0]?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true });
         if (actedOnNextDelivery && shouldRecalculateFailureEtas && incompleteDeliveries.length > 0) Promise.resolve().then(() => base44.functions.invoke('calculateRealTimeETA', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime: String(criticalUpdate.actual_delivery_time || '').match(/T(\d{2}:\d{2})/)?.[1] || getCurrentLocalTimeString() }).catch(() => {}));
         onClick?.(null);
+        queueConsolidateBreadcrumbs({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, stopOrder: delivery.stop_order, status });
         fabControlEvents.notifyPhaseTwoCompleteRecenter();
         if (userHasRole(currentUser, 'driver')) await notifyDriverFailed({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : displayName, delivery: { ...delivery, delivery_notes: updatedNotes }, store, appUsers, failureReason: reason });
         toast.success(`${isPickup ? 'Pickup' : 'Delivery'} marked as ${status}`, { description: `Dispatch has been notified. Reason: ${reason}` });
