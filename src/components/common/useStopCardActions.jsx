@@ -7,7 +7,7 @@ import { smartRefreshManager } from "../utils/smartRefreshManager";
 import { deleteCODWithTimeout } from '../utils/squareCODHandler';
 import { cleanupSquareCodCatalogForDate } from '../utils/squareCodCatalogCleanup';
 import { createDeliveryLocal, updateDeliveryLocal } from '../utils/offlineMutations';
-import { queueDeliveryUpdate, flushQueuedDeliveryUpdates } from '../utils/updateBatcher';
+import { flushQueuedDeliveryUpdates } from '../utils/updateBatcher';
 import { fabControlEvents } from '../utils/fabControlEvents';
 import { invalidate } from '../utils/dataManager';
 import { generateCompletionTimestamp, calculateRetroactiveStopTiming, parseLocalTimestamp, shouldUseRegularTiming } from '../utils/timeRoundingHelper';
@@ -283,17 +283,30 @@ export default function useStopCardActions(params) {
           const optimizeResponse = await base44.functions.invoke('optimizeRemainingStops', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime, deviceTime: now.toISOString(), forceFullRemainingRouteOptimization: true });
           const optimizeData = optimizeResponse?.data || optimizeResponse;
 
-          if (Array.isArray(optimizeData?.optimizedRoute)) {
-            optimizeData.optimizedRoute.forEach((stop) => {
-              const deliveryId = stop.deliveryId || stop.delivery_id;
-              if (!deliveryId) return;
-              queueDeliveryUpdate(deliveryId, {
-                delivery_time_start: stop?.newETA || stop?.eta || deliveryTimeStart
-              });
-            });
+          if (Array.isArray(optimizeData?.optimizedRoute) && optimizeData.optimizedRoute.length > 0) {
+            const etaUpdates = optimizeData.optimizedRoute
+              .map((stop) => ({
+                id: stop.deliveryId || stop.delivery_id,
+                delivery_time_start: stop?.newETA || stop?.eta || deliveryTimeStart,
+                delivery_time_eta: stop?.newETA || stop?.eta || deliveryTimeStart
+              }))
+              .filter((stop) => stop.id);
+
+            if (etaUpdates.length > 0) {
+              const { offlineDB } = await import('../utils/offlineDatabase');
+              const offlineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+              const updatedEtaDeliveries = etaUpdates.map((etaUpdate) => {
+                const existing = offlineDeliveries.find((item) => item?.id === etaUpdate.id);
+                return existing ? { ...existing, ...etaUpdate } : null;
+              }).filter(Boolean);
+
+              if (updatedEtaDeliveries.length > 0) {
+                await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, updatedEtaDeliveries);
+                updateDeliveriesLocally?.(updatedEtaDeliveries, false);
+              }
+            }
           }
 
-          await flushQueuedDeliveryUpdates();
           invalidate('Delivery');
 
           if (optimizeData?.success && Array.isArray(optimizeData.optimizedRoute) && optimizeData.optimizedRoute.length > 0) {
