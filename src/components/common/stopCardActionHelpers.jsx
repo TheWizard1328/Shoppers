@@ -457,7 +457,8 @@ export async function setAndCenterNextDelivery({
   driverId,
   deliveryDate,
   collapseCards = true,
-  skipBackgroundSync = false
+  skipBackgroundSync = false,
+  persistToBackend = false
 }) {
   const scopedDeliveries = (driverDeliveries || []).filter(Boolean);
 
@@ -468,7 +469,8 @@ export async function setAndCenterNextDelivery({
   const changedDeliveries = await syncNextDeliveryFlagsLocally({
     driverDeliveries: scopedDeliveries,
     nextDeliveryId: targetDeliveryId,
-    updateDeliveriesLocally
+    updateDeliveriesLocally,
+    persistToBackend
   });
 
   if (targetDeliveryId) {
@@ -478,7 +480,7 @@ export async function setAndCenterNextDelivery({
   return { targetDeliveryId, changedDeliveries };
 }
 
-export async function syncNextDeliveryFlagsLocally({ driverDeliveries = [], nextDeliveryId = null, updateDeliveriesLocally }) {
+export async function syncNextDeliveryFlagsLocally({ driverDeliveries = [], nextDeliveryId = null, updateDeliveriesLocally, persistToBackend = false }) {
   const scopedDeliveries = (driverDeliveries || []).filter(Boolean);
   if (scopedDeliveries.length === 0) return [];
 
@@ -510,6 +512,15 @@ export async function syncNextDeliveryFlagsLocally({ driverDeliveries = [], next
 
   if (updateDeliveriesLocally) {
     updateDeliveriesLocally(changedDeliveries, false);
+  }
+
+  if (persistToBackend) {
+    await Promise.all(changedDeliveries.map((item) =>
+      base44.entities.Delivery.update(item.id, {
+        isNextDelivery: !!item.isNextDelivery,
+        travel_dist: item.travel_dist
+      }).catch(() => null)
+    ));
   }
 
   return changedDeliveries;
