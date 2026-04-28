@@ -233,12 +233,15 @@ export default function useStopCardActions(params) {
       Promise.resolve().then(async () => {
         window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
         try {
-          const optimizeResponse = await base44.functions.invoke('optimizeRemainingStops', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime, deviceTime: now.toISOString() });
+          const optimizeResponse = await base44.functions.invoke('optimizeRemainingStops', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime, deviceTime: now.toISOString(), forceFullRemainingRouteOptimization: true });
           const optimizeData = optimizeResponse?.data || optimizeResponse;
 
           sortedPending.forEach((pendingDelivery) => {
+            const optimizedMatch = Array.isArray(optimizeData?.optimizedRoute)
+              ? optimizeData.optimizedRoute.find((stop) => (stop.deliveryId || stop.delivery_id) === pendingDelivery.id)
+              : null;
             queueDeliveryUpdate(pendingDelivery.id, {
-              delivery_time_start: deliveryTimeStart
+              delivery_time_start: optimizedMatch?.newETA || optimizedMatch?.eta || deliveryTimeStart
             });
           });
 
@@ -249,7 +252,7 @@ export default function useStopCardActions(params) {
           if (optimizeData?.success && Array.isArray(optimizeData.optimizedRoute) && optimizeData.optimizedRoute.length > 0) {
             window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: delivery.driver_id, updates: optimizeData.optimizedRoute.map((stop) => ({ deliveryId: stop.deliveryId || stop.delivery_id, newEta: stop.newETA || stop.eta })).filter((stop) => stop.deliveryId && stop.newEta) } }));
             if (optimizeData.routeChanged || optimizeData.activeStopCountChanged) {
-              window.dispatchEvent(new CustomEvent('routeReordered', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, source: 'acceptAllAutoOptimize' } }));
+              window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllRouteReordered', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true } }));
             }
           }
 
@@ -259,7 +262,8 @@ export default function useStopCardActions(params) {
           }).catch(() => null);
 
           const refreshedRouteDeliveries = await base44.entities.Delivery.filter({ driver_id: delivery.driver_id, delivery_date: delivery.delivery_date });
-          await setAndCenterNextDelivery({ driverDeliveries: refreshedRouteDeliveries, targetDeliveryId: delivery.id, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
+          const optimizedNextId = optimizeData?.nextDeliveryId || optimizeData?.optimization?.nextDeliveryId || refreshedRouteDeliveries.find((item) => item?.isNextDelivery === true)?.id || null;
+          await setAndCenterNextDelivery({ driverDeliveries: refreshedRouteDeliveries, targetDeliveryId: optimizedNextId, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true });
         } catch (optErr) {
           console.warn('⚠️ [Accept All] background optimization failed:', optErr?.message || optErr);
         } finally {
