@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
     
     // When coming back on_duty, preserve existing route state.
     // Do not reassign isNextDelivery here because start/complete/optimizer own that flow.
-    if (newStatus === 'on_duty') {
+    if (newStatus === 'on_duty' && previousStatus !== 'on_duty') {
       const targetDate = selectedDate || getEdmDate();
       const allTodayDeliveries = await base44.asServiceRole.entities.Delivery.filter({
         driver_id: user.id,
