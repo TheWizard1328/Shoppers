@@ -564,17 +564,29 @@ export default function useStopCardActions(params) {
           return existing && JSON.stringify(existing) !== JSON.stringify(item);
         });
 
-        if (startedChangedDeliveries.length > 0) await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, startedChangedDeliveries.filter(Boolean));
-
-        if (updateDeliveriesLocally) {
-          const optimisticMap = new Map(startedRouteDeliveries.filter(Boolean).map((d) => [d.id, d]));
-          const updatedDeliveries = allDeliveries.map((d) => d && optimisticMap.has(d.id) ? optimisticMap.get(d.id) : d);
-          updateDeliveriesLocally(updatedDeliveries, true);
+        if (startedChangedDeliveries.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, startedChangedDeliveries.filter(Boolean));
+          updateDeliveriesLocally?.(startedChangedDeliveries.filter(Boolean), false);
         }
 
-        await setAndCenterNextDelivery({ driverDeliveries: startedRouteDeliveries, targetDeliveryId: delivery.id, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
+        await Promise.all(
+          startedChangedDeliveries.map((item) => {
+            const existing = routeDeliveries.find((routeItem) => routeItem?.id === item?.id);
+            if (!existing) return Promise.resolve(null);
+            const updates = {};
+            if (existing.status !== item.status) updates.status = item.status;
+            if ((existing.isNextDelivery || false) !== (item.isNextDelivery || false)) updates.isNextDelivery = item.isNextDelivery || false;
+            if ((existing.delivery_time_start || null) !== (item.delivery_time_start || null)) updates.delivery_time_start = item.delivery_time_start || null;
+            if ((existing.delivery_time_end || null) !== (item.delivery_time_end || null)) updates.delivery_time_end = item.delivery_time_end || null;
+            if ((existing.delivery_time_eta || null) !== (item.delivery_time_eta || null)) updates.delivery_time_eta = item.delivery_time_eta || null;
+            if (Object.keys(updates).length === 0) return Promise.resolve(null);
+            return updateDeliveryLocal(item.id, updates, { skipSmartRefresh: true, isBatchOperation: true });
+          })
+        );
+
+        await setAndCenterNextDelivery({ driverDeliveries: startedRouteDeliveries, targetDeliveryId: delivery.id, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true });
         window.dispatchEvent(new CustomEvent('centerStopCard', { detail: { deliveryId: delivery.id } }));
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true } }));
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true, freshDeliveries: startedChangedDeliveries } }));
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
 
         Promise.resolve().then(async () => {
