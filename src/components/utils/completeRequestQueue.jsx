@@ -89,19 +89,11 @@ export const scheduleAppUserUpdate = (appUserId, payload, delay = COMPLETION_DEB
 
 const flushCompletionJob = async (entry) => {
   entry.timer = null;
-  const { driverId, deliveryDate, nextDeliveryId, lastCompletedDeliveryId, setOffDuty } = entry.payload;
+  const { driverId, deliveryDate, setOffDuty, skipRouteOptimization } = entry.payload;
 
   const tasks = [];
 
-  if (driverId && deliveryDate) {
-    tasks.push(
-      base44.functions.invoke('setNextDeliveryFlag', {
-        driverId,
-        deliveryDate,
-        targetDeliveryId: nextDeliveryId || null
-      }).catch(() => null)
-    );
-
+  if (driverId && deliveryDate && !skipRouteOptimization) {
     tasks.push(
       base44.functions.invoke('purgeAndRegeneratePolylines', {
         driverId,

@@ -478,10 +478,9 @@ Deno.serve(async (req) => {
       console.log(`  ✅ [optimizeRemainingStops] ${stop.delivery.patient_name || 'Pickup'} - ETA: ${eta}`);
     }
 
-    const activeStops = routeStops.map((stop, index) => ({
+    const activeStops = routeStops.map((stop) => ({
       ...stop.delivery,
-      delivery_time_eta: stageEtaMap.get(stop.delivery.id) || stop.delivery.delivery_time_eta,
-      isNextDelivery: index === 0
+      delivery_time_eta: stageEtaMap.get(stop.delivery.id) || stop.delivery.delivery_time_eta
     }));
 
     console.log(`\n🔢 [optimizeRemainingStops] HERE returned ${activeStops.length} ordered stops`);
@@ -538,7 +537,6 @@ Deno.serve(async (req) => {
         stop_order: newOrder,
         display_stop_order: newOrder,
         delivery_time_eta: stop.delivery_time_eta,
-        isNextDelivery: i === 0,
         travel_dist: Number(directionsLegs[i]?.distance)
           ? Number((Number(directionsLegs[i].distance) / 1000).toFixed(3))
           : null
@@ -568,17 +566,7 @@ Deno.serve(async (req) => {
       )
     );
 
-    const nextStopId = activeStops[0]?.id || null;
-    await Promise.all(
-      completedDeliveries
-        .filter((delivery) => delivery?.isNextDelivery === true)
-        .map((delivery) =>
-          base44.asServiceRole.entities.Delivery.update(delivery.id, { isNextDelivery: false }).catch((error) => {
-            if (isNotFoundError(error)) return null;
-            throw error;
-          })
-        )
-    );
+    const nextStopId = explicitNextDelivery?.id || activeStops[0]?.id || null;
 
     finalDeliveryWriteBatch.forEach(({ data, label }) => {
       console.log(`  🔢 [optimizeRemainingStops] Stop #${data.stop_order}: ${label}${data.delivery_time_start ? ` (start: ${data.delivery_time_start})` : ''}`);
@@ -628,7 +616,6 @@ Deno.serve(async (req) => {
         deliveryId: stop.id,
         newETA: stop.delivery_time_eta,
         stop_order: startingOrder + index + 1,
-        isNextDelivery: index === 0,
         travel_dist: Number(directionsLegs[index]?.distance)
           ? Number((Number(directionsLegs[index].distance) / 1000).toFixed(3))
           : null

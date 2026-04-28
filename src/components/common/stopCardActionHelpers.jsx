@@ -592,7 +592,8 @@ export async function optimizeRouteAndApplyNextDelivery({
   updateDeliveriesLocally,
   forceRefreshDriverDeliveries,
   fallbackNextDeliveryId = null,
-  shouldRegeneratePolylines = false
+  shouldRegeneratePolylines = false,
+  runOptimization = false
 }) {
   const optimizationKey = `${driverId || 'unknown'}:${deliveryDate || 'unknown'}`;
   if (routeOptimizationInflight.has(optimizationKey)) {
@@ -602,10 +603,26 @@ export async function optimizeRouteAndApplyNextDelivery({
   const optimizationPromise = (async () => {
     await refreshDriverRoute({ driverId, deliveryDate, forceRefreshDriverDeliveries, triggeredBy: 'nextDeliverySyncOnly' });
 
+    let optimizeData = {
+      skipped: true,
+      reason: 'next_delivery_sync_only',
+      routeChanged: false,
+      activeStopCountChanged: false
+    };
+
+    if (runOptimization) {
+      const optimizeResponse = await base44.functions.invoke('optimizeRemainingStops', {
+        driverId,
+        deliveryDate
+      }).catch(() => null);
+      optimizeData = optimizeResponse?.data || optimizeResponse || optimizeData;
+    }
+
     const refreshedDriverDeliveries = await base44.entities.Delivery.filter({ driver_id: driverId, delivery_date: deliveryDate });
+    const resolvedNextDeliveryId = fallbackNextDeliveryId || refreshedDriverDeliveries.find((item) => item?.isNextDelivery === true)?.id || null;
     await setAndCenterNextDelivery({
       driverDeliveries: refreshedDriverDeliveries,
-      targetDeliveryId: fallbackNextDeliveryId,
+      targetDeliveryId: resolvedNextDeliveryId,
       updateDeliveryLocal,
       updateDeliveriesLocally,
       driverId,
@@ -621,28 +638,20 @@ export async function optimizeRouteAndApplyNextDelivery({
         .filter(Boolean);
       return {
         optimizeData: {
-          skipped: true,
-          reason: 'polyline_regen_allowed',
-          routeChanged: true,
-          activeStopCountChanged: true,
+          ...optimizeData,
           optimizedRoute: orderedIds,
           activeCount
         },
         optimizedRoute: orderedIds,
-        nextOptimizedStopId: fallbackNextDeliveryId,
+        nextOptimizedStopId: resolvedNextDeliveryId,
         refreshedDriverDeliveries
       };
     }
 
     return {
-      optimizeData: {
-        skipped: true,
-        reason: 'next_delivery_sync_only',
-        routeChanged: false,
-        activeStopCountChanged: false
-      },
-      optimizedRoute: [],
-      nextOptimizedStopId: fallbackNextDeliveryId,
+      optimizeData,
+      optimizedRoute: Array.isArray(optimizeData?.optimizedRoute) ? optimizeData.optimizedRoute : [],
+      nextOptimizedStopId: resolvedNextDeliveryId,
       refreshedDriverDeliveries
     };
   })();
