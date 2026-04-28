@@ -551,10 +551,14 @@ export default function useStopCardActions(params) {
             ...d,
             ...(isCurrent ? {
               status: isPickup ? 'en_route' : 'in_transit',
+              stop_order: 1,
               ...(shouldPreserveWindowTimesOnStart ? {} : { delivery_time_start: currentLocalTime, delivery_time_end: currentLocalTime }),
               delivery_time_eta: currentLocalTime,
-              isNextDelivery: true
-            } : {})
+              isNextDelivery: true,
+              travel_dist: 0
+            } : {
+              ...(d.isNextDelivery ? { isNextDelivery: false } : {})
+            })
           };
         });
 
@@ -579,6 +583,8 @@ export default function useStopCardActions(params) {
             if ((existing.delivery_time_start || null) !== (item.delivery_time_start || null)) updates.delivery_time_start = item.delivery_time_start || null;
             if ((existing.delivery_time_end || null) !== (item.delivery_time_end || null)) updates.delivery_time_end = item.delivery_time_end || null;
             if ((existing.delivery_time_eta || null) !== (item.delivery_time_eta || null)) updates.delivery_time_eta = item.delivery_time_eta || null;
+            if ((existing.stop_order || null) !== (item.stop_order || null)) updates.stop_order = item.stop_order || null;
+            if ((existing.travel_dist || 0) !== (item.travel_dist || 0)) updates.travel_dist = item.travel_dist || 0;
             if (Object.keys(updates).length === 0) return Promise.resolve(null);
             return updateDeliveryLocal(item.id, updates, { skipSmartRefresh: true, isBatchOperation: true });
           })
