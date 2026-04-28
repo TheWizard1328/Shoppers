@@ -1837,7 +1837,7 @@ export default function Layout({ children, currentPageName }) {
                           isAppOwner={isAppOwner(currentUser)}
                           adminImportEnabled={adminImportEnabled}
                           onAdminImportToggle={async (checked) => {
-                            if (currentUser?._isImpersonating) return;
+                            // if (currentUser?._isImpersonating) return;
                             setAdminImportEnabled(checked);
                             try {
                               const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
