@@ -611,7 +611,8 @@ export async function optimizeRouteAndApplyNextDelivery({
   updateDeliveryLocal,
   updateDeliveriesLocally,
   forceRefreshDriverDeliveries,
-  fallbackNextDeliveryId = null
+  fallbackNextDeliveryId = null,
+  shouldRegeneratePolylines = false
 }) {
   const optimizationKey = `${driverId || 'unknown'}:${deliveryDate || 'unknown'}`;
   if (routeOptimizationInflight.has(optimizationKey)) {
@@ -631,10 +632,34 @@ export async function optimizeRouteAndApplyNextDelivery({
       deliveryDate
     });
 
+    if (shouldRegeneratePolylines) {
+      const activeCount = (refreshedDriverDeliveries || []).filter((item) => item && !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(item.status)).length;
+      const orderedIds = (refreshedDriverDeliveries || [])
+        .filter(Boolean)
+        .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0))
+        .map((item) => item.id)
+        .filter(Boolean);
+      return {
+        optimizeData: {
+          skipped: true,
+          reason: 'polyline_regen_allowed',
+          routeChanged: true,
+          activeStopCountChanged: true,
+          optimizedRoute: orderedIds,
+          activeCount
+        },
+        optimizedRoute: orderedIds,
+        nextOptimizedStopId: fallbackNextDeliveryId,
+        refreshedDriverDeliveries
+      };
+    }
+
     return {
       optimizeData: {
         skipped: true,
-        reason: 'next_delivery_sync_only'
+        reason: 'next_delivery_sync_only',
+        routeChanged: false,
+        activeStopCountChanged: false
       },
       optimizedRoute: [],
       nextOptimizedStopId: fallbackNextDeliveryId,
