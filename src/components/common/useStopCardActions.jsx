@@ -16,6 +16,7 @@ import { buildRetryDelivery, collapseExpandedStopCardsForDriver, getCurrentLocal
 import { clearPendingBreadcrumbsForDelivery, getPendingBreadcrumbsForDelivery } from '../utils/pendingBreadcrumbsManager';
 import { appendBoundaryBreadcrumbPoints } from '../utils/breadcrumbBoundaryPoints';
 import { runTerminalDeliverySideEffects, triggerSquareCodUpsert } from '../utils/directDeliverySideEffects';
+import { runAcceptAllBatchPipeline } from '../utils/acceptAllBatchPipeline';
 import { runWithDeliveryActionLock } from '../utils/deliveryActionLock';
 import { pauseOfflineSync, resumeOfflineSync } from '../utils/offlineSync';
 import { notifyDriverAcceptedAll, notifyDispatcherAssignedAll, notifyDriverStarted, notifyDriverCompleted, notifyDriverFailed, notifyDriverRetry, notifyDriverReturn } from "../utils/deliveryMessaging";
@@ -196,132 +197,41 @@ export default function useStopCardActions(params) {
       driverLocationPoller.pause();
       smartRefreshManager.pause();
       setIsEntityUpdating(true);
-      const allPendingDeliveries = allDeliveries.filter((item) => item && item.driver_id === delivery.driver_id && item.delivery_date === delivery.delivery_date && item.status === 'pending');
-      const scopedPendingDeliveries = allPendingDeliveries.filter((item) => item?.store_id === delivery.store_id);
+
+      const scopedPendingDeliveries = allDeliveries.filter((item) => item && item.driver_id === delivery.driver_id && item.delivery_date === delivery.delivery_date && item.status === 'pending' && item?.store_id === delivery.store_id);
       if (scopedPendingDeliveries.length === 0) {
         toast.error('No pending stops for this store.');
         return;
       }
+
       const now = new Date();
       const currentMinutes = now.getHours() * 60 + now.getMinutes();
       const startMinutes = currentMinutes + 5;
       const deliveryTimeStart = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
       const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      const routeDeliveries = allDeliveries.filter((item) => item && item.driver_id === delivery.driver_id && item.delivery_date === delivery.delivery_date);
-      const transitionedRouteDeliveries = routeDeliveries.map((item) => {
-        if (!item) return item;
-        if (item.id === delivery.id) {
-          return {
-            ...item,
-            status: item.status === 'pending' ? 'in_transit' : item.status,
-            isNextDelivery: true,
-            ...(item.active === false ? { active: true } : {})
-          };
-        }
-        if (item.store_id === delivery.store_id && item.status === 'pending') {
-          return {
-            ...item,
-            status: 'in_transit',
-            isNextDelivery: false,
-            ...(item.active === false ? { active: true } : {})
-          };
-        }
-        if (item.isNextDelivery === true) {
-          return {
-            ...item,
-            isNextDelivery: false
-          };
-        }
-        return item;
-      });
-
-      const transitionedDeliveries = transitionedRouteDeliveries.filter((item, index) => {
-        const original = routeDeliveries[index];
-        return original && JSON.stringify(original) !== JSON.stringify(item);
-      });
-
-      if (transitionedDeliveries.length > 0) {
-        const { offlineDB } = await import('../utils/offlineDatabase');
-        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, transitionedDeliveries);
-        updateDeliveriesLocally?.(transitionedDeliveries, false);
-      }
 
       fabControlEvents.notifyAcceptAllClicked();
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAll', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true, freshDeliveries: transitionedDeliveries } }));
-      window.dispatchEvent(new CustomEvent('pendingToInTransit', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
+      window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
 
-      const codBatch = scopedPendingDeliveries.filter((pd) => pd.cod_total_amount_required > 0 && pd.patient_id).map((pendingDelivery) => {
-        const storeForCod = stores.find((s) => s && s.id === pendingDelivery.store_id);
-        return {
-          deliveryId: pendingDelivery.id,
-          patientName: pendingDelivery.patient_name,
-          storeAbbreviation: storeForCod?.abbreviation || '',
-          codAmount: pendingDelivery.cod_total_amount_required,
-          deliveryDate: pendingDelivery.delivery_date,
-          storeId: pendingDelivery.store_id
-        };
+      const { stagedChangedDeliveries, finalOfflineUpdates, codBatch, optimizeData } = await runAcceptAllBatchPipeline({
+        triggerDelivery: delivery,
+        allDeliveries,
+        stores,
+        currentLocalTime,
+        deliveryTimeStart,
+        updateDeliveriesLocally
       });
 
-      await Promise.all(
-        transitionedDeliveries.map((item) => {
-          const original = routeDeliveries.find((routeItem) => routeItem?.id === item.id);
-          if (!original) return Promise.resolve(null);
-          const updates = {};
-          if (original.status !== item.status) updates.status = item.status;
-          if ((original.isNextDelivery || false) !== (item.isNextDelivery || false)) updates.isNextDelivery = item.isNextDelivery || false;
-          if ((original.active || true) !== (item.active || true)) updates.active = item.active;
-          if (Object.keys(updates).length === 0) return Promise.resolve(null);
-          return updateDeliveryLocal(item.id, updates, { skipSmartRefresh: true, isBatchOperation: true });
-        })
-      );
-      await flushQueuedDeliveryUpdates();
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAll', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true, freshDeliveries: [...stagedChangedDeliveries, ...finalOfflineUpdates] } }));
+      window.dispatchEvent(new CustomEvent('pendingToInTransit', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
       invalidate('Delivery');
 
-      Promise.resolve().then(async () => {
-        window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
-        try {
-          const optimizeResponse = await base44.functions.invoke('optimizeRemainingStops', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime, deviceTime: now.toISOString(), forceFullRemainingRouteOptimization: true });
-          const optimizeData = optimizeResponse?.data || optimizeResponse;
-
-          if (Array.isArray(optimizeData?.optimizedRoute) && optimizeData.optimizedRoute.length > 0) {
-            const etaUpdates = optimizeData.optimizedRoute
-              .map((stop) => ({
-                id: stop.deliveryId || stop.delivery_id,
-                delivery_time_start: stop?.newETA || stop?.eta || deliveryTimeStart,
-                delivery_time_eta: stop?.newETA || stop?.eta || deliveryTimeStart
-              }))
-              .filter((stop) => stop.id);
-
-            if (etaUpdates.length > 0) {
-              const { offlineDB } = await import('../utils/offlineDatabase');
-              const offlineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-              const updatedEtaDeliveries = etaUpdates.map((etaUpdate) => {
-                const existing = offlineDeliveries.find((item) => item?.id === etaUpdate.id);
-                return existing ? { ...existing, ...etaUpdate } : null;
-              }).filter(Boolean);
-
-              if (updatedEtaDeliveries.length > 0) {
-                await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, updatedEtaDeliveries);
-                updateDeliveriesLocally?.(updatedEtaDeliveries, false);
-              }
-            }
-          }
-
-          invalidate('Delivery');
-
-          if (optimizeData?.success && Array.isArray(optimizeData.optimizedRoute) && optimizeData.optimizedRoute.length > 0) {
-            window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: delivery.driver_id, updates: optimizeData.optimizedRoute.map((stop) => ({ deliveryId: stop.deliveryId || stop.delivery_id, newEta: stop.newETA || stop.eta })).filter((stop) => stop.deliveryId && stop.newEta) } }));
-            if (optimizeData.routeChanged || optimizeData.activeStopCountChanged) {
-              window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllRouteReordered', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true } }));
-            }
-          }
-        } catch (optErr) {
-          console.warn('⚠️ [Accept All] background optimization failed:', optErr?.message || optErr);
-        } finally {
-          window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
-          window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true } }));
+      if (optimizeData?.success && Array.isArray(optimizeData.optimizedRoute) && optimizeData.optimizedRoute.length > 0) {
+        window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: delivery.driver_id, updates: optimizeData.optimizedRoute.map((stop) => ({ deliveryId: stop.deliveryId || stop.delivery_id, newEta: stop.newETA || stop.eta })).filter((stop) => stop.deliveryId && stop.newEta) } }));
+        if (optimizeData.routeChanged || optimizeData.activeStopCountChanged) {
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllRouteReordered', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true } }));
         }
-      });
+      }
 
       if (codBatch.length > 0) {
         base44.functions.invoke('syncSquareCods', { items: codBatch }).catch((e) => console.warn('⚠️ [Square] Batch COD sync failed to start:', e));
@@ -339,6 +249,8 @@ export default function useStopCardActions(params) {
       toast.error(`Failed to accept all: ${error.message}`);
       throw error;
     } finally {
+      window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true } }));
       resumeOfflineSync('delivery_actions');
       driverLocationPoller.resume();
       smartRefreshManager.resume();
@@ -346,7 +258,7 @@ export default function useStopCardActions(params) {
       setIsAcceptingAll(false);
       onClick?.(null);
     }
-  }, [FINISHED_STATUSES, allDeliveries, appUsers, currentUser, delivery, drivers, onClick, patients, pendingPickups, setIsAcceptingAll, setIsEntityUpdating, store, stores, updateDeliveriesLocally, userHasRole]);
+  }, [allDeliveries, appUsers, currentUser, delivery, drivers, onClick, patients, setIsAcceptingAll, setIsEntityUpdating, store, stores, updateDeliveriesLocally, userHasRole]);
 
   const handleAcceptAllStops = useCallback(async () => {
     const lockResult = await runWithDeliveryActionLock('accept_all_delivery', async () => {
