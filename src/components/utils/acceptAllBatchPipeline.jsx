@@ -1,7 +1,5 @@
 import { offlineDB } from './offlineDatabase';
 import { base44 } from '@/api/base44Client';
-import { updateDeliveryLocal } from './entityMutations';
-import { flushQueuedDeliveryUpdates } from './updateBatcher';
 
 const ACTIVE_STATUSES = ['in_transit', 'en_route'];
 
@@ -75,17 +73,18 @@ export async function runAcceptAllBatchPipeline({
     item && item.driver_id === triggerDelivery.driver_id && item.delivery_date === triggerDelivery.delivery_date && ACTIVE_STATUSES.includes(item.status)
   );
 
-  await Promise.all(finalActiveStops.map((item) => updateDeliveryLocal(item.id, {
-    status: item.status,
-    isNextDelivery: !!item.isNextDelivery,
-    active: item.active,
-    stop_order: item.stop_order,
-    display_stop_order: item.display_stop_order,
-    delivery_time_eta: item.delivery_time_eta,
-    delivery_time_start: item.delivery_time_start,
-    travel_dist: item.travel_dist
-  }, { skipSmartRefresh: true, isBatchOperation: true })));
-  await flushQueuedDeliveryUpdates();
+  await Promise.all(finalActiveStops.map((item) =>
+    base44.entities.Delivery.update(item.id, {
+      status: item.status,
+      isNextDelivery: !!item.isNextDelivery,
+      active: item.active,
+      stop_order: item.stop_order,
+      display_stop_order: item.display_stop_order,
+      delivery_time_eta: item.delivery_time_eta,
+      delivery_time_start: item.delivery_time_start,
+      travel_dist: item.travel_dist
+    })
+  ));
 
   const codBatch = scopedPendingDeliveries.filter((pd) => pd.cod_total_amount_required > 0 && pd.patient_id).map((pendingDelivery) => {
     const storeForCod = stores.find((s) => s && s.id === pendingDelivery.store_id);
