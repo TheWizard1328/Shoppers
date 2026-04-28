@@ -66,51 +66,41 @@ Deno.serve(async (req) => {
       .filter((delivery) => finishedStatuses.has(delivery?.status))
       .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
 
-    const activeDeliveries = (routeDeliveries || [])
-      .filter((delivery) => activeStatuses.has(delivery?.status))
-      .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
+    const selectedStatus = selectedDelivery?.patient_id ? 'in_transit' : 'en_route';
+    const startPayload = {
+      status: activeStatuses.has(selectedDelivery?.status) ? selectedDelivery.status : selectedStatus,
+      isNextDelivery: true,
+      travel_dist: 0,
+      ...(selectedDelivery?.delivery_time_start ? {} : { delivery_time_start: normalizeLocalTimeString(currentLocalTime) || getCurrentLocalTimeString() }),
+      ...(selectedDelivery?.delivery_time_end ? {} : { delivery_time_end: normalizeLocalTimeString(currentLocalTime) || getCurrentLocalTimeString() }),
+      delivery_time_eta: normalizeLocalTimeString(currentLocalTime) || getCurrentLocalTimeString()
+    };
 
-    const pendingDeliveries = (routeDeliveries || [])
-      .filter((delivery) => delivery?.status === 'pending')
-      .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
+    const nextFlagResetUpdates = (routeDeliveries || [])
+      .filter((delivery) => delivery?.id !== deliveryId && delivery?.isNextDelivery === true)
+      .map((delivery) =>
+        base44.asServiceRole.entities.Delivery.update(delivery.id, { isNextDelivery: false }).catch((error) => {
+          if (!isNotFoundError(error) && !isRateLimitError(error)) {
+            console.warn(`⚠️ [handleStartDelivery] Failed clearing next-stop flag ${delivery.id}:`, error?.message || error);
+          }
+          if (isRateLimitError(error)) throw error;
+          return null;
+        })
+      );
 
-    const remainingActiveDeliveries = activeDeliveries.filter((delivery) => delivery.id !== deliveryId);
-    const reorderedActiveDeliveries = [selectedDelivery, ...remainingActiveDeliveries];
-    const reorderedRoute = [...completedDeliveries, ...reorderedActiveDeliveries, ...pendingDeliveries];
+    await Promise.all([
+      ...nextFlagResetUpdates,
+      base44.asServiceRole.entities.Delivery.update(deliveryId, startPayload)
+    ]).catch((error) => {
+      if (isRateLimitError(error)) {
+        throw error;
+      }
+      throw error;
+    });
 
     const selectedStopOrder = completedDeliveries.length + 1;
-    const routeUpdates = reorderedRoute.map((delivery, index) => ({
-      id: delivery.id,
-      stop_order: index + 1,
-      isNextDelivery: delivery.id === deliveryId,
-      travel_dist: delivery.id === deliveryId ? 0 : delivery.travel_dist ?? null
-    }));
-
-    for (const update of routeUpdates) {
-      try {
-        await base44.asServiceRole.entities.Delivery.update(update.id, {
-          stop_order: update.stop_order,
-          isNextDelivery: update.isNextDelivery,
-          travel_dist: update.travel_dist
-        });
-      } catch (error) {
-        if (!isNotFoundError(error) && !isRateLimitError(error)) {
-          console.warn(`⚠️ [handleStartDelivery] Failed updating route stop ${update.id}:`, error?.message || error);
-        }
-        if (isRateLimitError(error)) {
-          return Response.json({ error: 'Start was delayed by too many requests. Please tap Start again.' }, { status: 429 });
-        }
-      }
-    }
-
-    const startResult = selectedDelivery;
-
-    if (!startResult) {
-      return Response.json({ error: 'Failed to mark selected delivery as started' }, { status: 409 });
-    }
 
     console.log('🔄 [handleStartDelivery] Selected delivery marked as next stop');
-
     const latestFinishedTime = getTimeStringFromTimestamp(completedDeliveries[completedDeliveries.length - 1]?.actual_delivery_time);
     const optimizationSeedTime = normalizeLocalTimeString(currentLocalTime) || latestFinishedTime || getCurrentLocalTimeString();
 
@@ -125,7 +115,7 @@ Deno.serve(async (req) => {
         deliveryDate,
         currentLocalTime: optimizationSeedTime,
         preserveExistingOrder: false,
-        forceFullRemainingRouteOptimization: true
+        forceFullRemainingRouteOptimization: false
       });
       const optimizationData = optimizationResponse?.data || optimizationResponse || {};
       optimization = {
