@@ -956,25 +956,8 @@ export default function DeliveryMap({
 
   useEffect(() => {
     if (!map || !tileLayerConfig?.base || !map._loaded || !map._container || !map._mapPane) return;
-
-    const currentCenter = map.getCenter();
-    const currentZoom = map.getZoom();
     setTileLayerInstanceKey((value) => value + 1);
-
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (!map._loaded || !map._container || !map._mapPane) return;
-        window._lastProgrammaticMapMove = Date.now();
-        map.invalidateSize(true);
-        map.setView(currentCenter, currentZoom, { animate: false });
-        map.eachLayer((layer) => {
-          if (layer instanceof L.TileLayer) {
-            layer.redraw();
-          }
-        });
-      });
-    });
-  }, [map, mapStyle, tileLayerConfig?.base, tileLayerConfig?.overlay]);
+  }, [mapStyle, tileLayerConfig?.base, tileLayerConfig?.overlay]);
 
   useEffect(() => {
     if (!map || !map._loaded || !map._container || !Array.isArray(center) || center.length !== 2 || !Number.isFinite(zoom)) return;
