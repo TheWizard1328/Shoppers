@@ -353,6 +353,7 @@ Deno.serve(async (req) => {
     const waypoints = Array.isArray(body?.waypoints) ? body.waypoints : [];
     const routeContext = Array.isArray(body?.routeContext) ? body.routeContext : [];
     const preserveWaypointOrder = body?.preserveWaypointOrder === true;
+    const skipSequenceApi = body?.skipSequenceApi === true;
     const requestedTransportMode = String(body?.transportMode || body?.transport_mode || 'driving').toLowerCase();
     const hereTransportMode = requestedTransportMode === 'cycling'
       ? 'bicycle'
@@ -403,7 +404,7 @@ Deno.serve(async (req) => {
     let returnedWaypoints = [];
     let interconnections = [];
 
-    if (preserveWaypointOrder) {
+    if (preserveWaypointOrder || skipSequenceApi) {
       returnedWaypoints = sequenceStops.map((stop, index) => ({
         id: stop.id,
         sequence: index + 1
@@ -419,7 +420,6 @@ Deno.serve(async (req) => {
       });
 
       result = { waypoints: returnedWaypoints, interconnections };
-      routeCallCount += 1;
     } else {
       const params = new URLSearchParams();
       params.set('apiKey', hereApiKey);
@@ -539,6 +539,7 @@ Deno.serve(async (req) => {
       destinationLng,
       normalizedTransportMode
     });
+    routeCallCount += 1;
     const routedSections = routedGeometry.sections || [];
 
     const orderedPoints = [{ lat: originLat, lng: originLng }, ...orderedStops.map((stop) => ({ lat: stop.lat, lng: stop.lng }))];

@@ -609,7 +609,10 @@ async function getMultiSegmentDirections(base44, segmentSpecs, transportMode = '
       waypoints,
       routeContext: routeContext.map((point) => ({ lat: point.lat, lng: point.lon })),
       preserveWaypointOrder: true,
-      transportMode
+      skipSequenceApi: true,
+      transportMode,
+      caller: 'purgeAndRegeneratePolylines',
+      caller_context: { segmentCount: safeSpecs.length }
     });
 
     const data = response?.data || response || {};
