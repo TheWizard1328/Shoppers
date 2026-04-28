@@ -247,6 +247,7 @@ Deno.serve(async (req) => {
     const activeRouteDeliveries = incompleteDeliveries.filter((delivery) => ACTIVE_STATUSES.includes(delivery.status));
     const pendingRouteDeliveries = incompleteDeliveries.filter((delivery) => delivery.status === 'pending');
     const optimizableDeliveries = [...activeRouteDeliveries, ...pendingRouteDeliveries];
+    const polylineEligibleDeliveries = [...activeRouteDeliveries];
 
     if (optimizableDeliveries.length === 0) {
       return Response.json({ 
@@ -337,7 +338,7 @@ Deno.serve(async (req) => {
     console.log(`🏁 [optimizeRemainingStops] Home remains locked as final destination${driverAppUser.home_latitude != null && driverAppUser.home_longitude != null ? '' : ' (not set)'}`);
 
     // STEP 3: Let HERE sequence the full incomplete route in one call
-    const optimizationStops = [...activeRouteDeliveries, ...pendingRouteDeliveries]
+    const optimizationStops = optimizableDeliveries
       .map((delivery) => stops.find((item) => item.delivery.id === delivery.id) || null)
       .filter(Boolean);
 
@@ -591,7 +592,11 @@ Deno.serve(async (req) => {
         deliveryDate,
         scope: 'active_only',
         reason: 'route_reordered',
-        sourcePage: 'Dashboard'
+        sourcePage: 'Dashboard',
+        routeStopOrder: polylineEligibleDeliveries
+          .map((delivery) => activeStops.find((stop) => stop.id === delivery.id)?.id || null)
+          .filter(Boolean),
+        explicitOrderedStopsOnly: true
       }).catch((error) => {
         console.warn('⚠️ [optimizeRemainingStops] Polyline refresh failed:', error?.message || error);
         return null;
