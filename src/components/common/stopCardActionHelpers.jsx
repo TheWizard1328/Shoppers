@@ -475,16 +475,6 @@ export async function setAndCenterNextDelivery({
     centerDeliveryCard(targetDeliveryId);
   }
 
-  if (!skipBackgroundSync && driverId && deliveryDate) {
-    Promise.resolve().then(() =>
-      base44.functions.invoke('setNextDeliveryFlag', {
-        driverId,
-        deliveryDate,
-        targetDeliveryId
-      }).catch(() => null)
-    );
-  }
-
   return { targetDeliveryId, changedDeliveries };
 }
 
