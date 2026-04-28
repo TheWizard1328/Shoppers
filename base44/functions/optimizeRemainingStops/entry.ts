@@ -587,6 +587,7 @@ Deno.serve(async (req) => {
     // Tracking numbers are intentionally delayed until Assign All / Accept All.
 
     if (routeOrderChanged || nextStopId) {
+      const routeHasStarted = completedDeliveries.length > 0;
       await base44.asServiceRole.functions.invoke('purgeAndRegeneratePolylines', {
         driverId,
         deliveryDate,
@@ -596,7 +597,9 @@ Deno.serve(async (req) => {
         routeStopOrder: polylineEligibleDeliveries
           .map((delivery) => activeStops.find((stop) => stop.id === delivery.id)?.id || null)
           .filter(Boolean),
-        explicitOrderedStopsOnly: true
+        explicitOrderedStopsOnly: true,
+        explicitRouteOrigin: routeHasStarted ? null : 'home',
+        explicitRouteDestination: 'home'
       }).catch((error) => {
         console.warn('⚠️ [optimizeRemainingStops] Polyline refresh failed:', error?.message || error);
         return null;
