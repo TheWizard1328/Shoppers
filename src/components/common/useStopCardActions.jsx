@@ -642,6 +642,7 @@ export default function useStopCardActions(params) {
         const routeDeliveries = optimisticDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
         const incompleteDeliveries = routeDeliveries.filter((d) => d && d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending').sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
         const nextStop = incompleteDeliveries[0] || null;
+        const actedOnNextDelivery = delivery?.isNextDelivery === true;
         await setAndCenterNextDelivery({ driverDeliveries: routeDeliveries, targetDeliveryId: nextStop?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
         if (!nextStop) {
           fabControlEvents.notifyDoneButtonClicked();
@@ -653,13 +654,15 @@ export default function useStopCardActions(params) {
         fabControlEvents.reactivateFAB(true, { suppressIfPhase1: true, reason: 'stop_status_change' });
         const backgroundTasks = [];
         if (autoCODPayment && onCODUpdate) backgroundTasks.push(onCODUpdate(delivery.id, autoCODPayment, true));
-        backgroundTasks.push(Promise.resolve().then(async () => {
-          try {
-            const finishedLegEncodedPolyline = await getFinishedLegEncodedPolyline({ delivery, allDeliveries, driver: safeDriver, patient, store, patients, stores, finishedStatuses: FINISHED_STATUSES, breadcrumbPayload: pendingBreadcrumbsString, transportMode: 'driving' });
-            if (finishedLegEncodedPolyline) await updateDeliveryLocal(delivery.id, { finished_leg_encoded_polyline: finishedLegEncodedPolyline, finished_leg_transport_mode: 'driving', PolylineUpdated: true }, { skipSmartRefresh: true });
-          } catch {}
-        }));
-        if (shouldRecalculateCompletionEtas && nextStop) backgroundTasks.push(base44.functions.invoke('calculateRealTimeETA', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime: String(completionUpdate.actual_delivery_time || '').match(/T(\d{2}:\d{2})/)?.[1] || getCurrentLocalTimeString() }).catch(() => {}));
+        if (!actedOnNextDelivery) {
+          backgroundTasks.push(Promise.resolve().then(async () => {
+            try {
+              const finishedLegEncodedPolyline = await getFinishedLegEncodedPolyline({ delivery, allDeliveries, driver: safeDriver, patient, store, patients, stores, finishedStatuses: FINISHED_STATUSES, breadcrumbPayload: pendingBreadcrumbsString, transportMode: 'driving' });
+              if (finishedLegEncodedPolyline) await updateDeliveryLocal(delivery.id, { finished_leg_encoded_polyline: finishedLegEncodedPolyline, finished_leg_transport_mode: 'driving', PolylineUpdated: true }, { skipSmartRefresh: true });
+            } catch {}
+          }));
+        }
+        if (!actedOnNextDelivery && shouldRecalculateCompletionEtas && nextStop) backgroundTasks.push(base44.functions.invoke('calculateRealTimeETA', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime: String(completionUpdate.actual_delivery_time || '').match(/T(\d{2}:\d{2})/)?.[1] || getCurrentLocalTimeString() }).catch(() => {}));
         backgroundTasks.push(cleanupSquareCodCatalogForDate(delivery.delivery_date));
         const currentDriverAppUserId = currentDriverAppUser?.id || null;
         backgroundTasks.push(params.scheduleCompletionSideEffects({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, nextDeliveryId: nextStop?.id || null, lastCompletedDeliveryId: delivery.id, setOffDuty: !nextStop, appUserId: currentDriverAppUserId }));
@@ -721,14 +724,17 @@ export default function useStopCardActions(params) {
         if (onStatusUpdate) await onStatusUpdate(delivery.id, status, criticalUpdate, false);
         if (pendingBreadcrumbsString) await clearPendingBreadcrumbsForDelivery({ driverUserId: delivery.driver_id, deliveryId: delivery.id, stopOrder: delivery.stop_order, appUsers, force: true });
         runTerminalDeliverySideEffects({ delivery, previousStatus: delivery.status, nextStatus: status, overrides: criticalUpdate });
-        Promise.resolve().then(async () => {
-          try {
-            const finishedLegEncodedPolyline = await getFinishedLegEncodedPolyline({ delivery, allDeliveries, driver: safeDriver, patient, store, patients, stores, finishedStatuses: FINISHED_STATUSES, breadcrumbPayload: pendingBreadcrumbsString, transportMode: 'driving' });
-            if (finishedLegEncodedPolyline) await updateDeliveryLocal(delivery.id, { finished_leg_encoded_polyline: finishedLegEncodedPolyline, finished_leg_transport_mode: 'driving', PolylineUpdated: true }, { skipSmartRefresh: true });
-          } catch {}
-        });
+        if (!actedOnNextDelivery) {
+          Promise.resolve().then(async () => {
+            try {
+              const finishedLegEncodedPolyline = await getFinishedLegEncodedPolyline({ delivery, allDeliveries, driver: safeDriver, patient, store, patients, stores, finishedStatuses: FINISHED_STATUSES, breadcrumbPayload: pendingBreadcrumbsString, transportMode: 'driving' });
+              if (finishedLegEncodedPolyline) await updateDeliveryLocal(delivery.id, { finished_leg_encoded_polyline: finishedLegEncodedPolyline, finished_leg_transport_mode: 'driving', PolylineUpdated: true }, { skipSmartRefresh: true });
+            } catch {}
+          });
+        }
         const allDriverDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
         const incompleteAfterThis = allDriverDeliveries.filter((d) => d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending');
+        const actedOnNextDelivery = delivery?.isNextDelivery === true;
         const shouldRecalculateFailureEtas = shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, criticalUpdate.actual_delivery_time);
         if (incompleteAfterThis.length === 0) {
           fabControlEvents.notifyDoneButtonClicked();
@@ -743,7 +749,7 @@ export default function useStopCardActions(params) {
         const driverDeliveries = allDriverDeliveries.map((item) => item.id === delivery.id ? { ...item, ...criticalUpdate, isNextDelivery: false } : item);
         const incompleteDeliveries = driverDeliveries.filter((d) => d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending').sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
         await setAndCenterNextDelivery({ driverDeliveries, targetDeliveryId: incompleteDeliveries[0]?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date });
-        if (shouldRecalculateFailureEtas && incompleteDeliveries.length > 0) Promise.resolve().then(() => base44.functions.invoke('calculateRealTimeETA', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime: String(criticalUpdate.actual_delivery_time || '').match(/T(\d{2}:\d{2})/)?.[1] || getCurrentLocalTimeString() }).catch(() => {}));
+        if (!actedOnNextDelivery && shouldRecalculateFailureEtas && incompleteDeliveries.length > 0) Promise.resolve().then(() => base44.functions.invoke('calculateRealTimeETA', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime: String(criticalUpdate.actual_delivery_time || '').match(/T(\d{2}:\d{2})/)?.[1] || getCurrentLocalTimeString() }).catch(() => {}));
         onClick?.(null);
         fabControlEvents.notifyPhaseTwoCompleteRecenter();
         if (userHasRole(currentUser, 'driver')) await notifyDriverFailed({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : displayName, delivery: { ...delivery, delivery_notes: updatedNotes }, store, appUsers, failureReason: reason });
