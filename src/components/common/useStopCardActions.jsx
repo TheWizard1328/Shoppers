@@ -182,7 +182,7 @@ export default function useStopCardActions(params) {
       driverLocationPoller.pause();
       smartRefreshManager.pause();
       setIsEntityUpdating(true);
-      const allPendingDeliveries = pendingPickups.filter((p) => p.status === 'pending');
+      const allPendingDeliveries = allDeliveries.filter((item) => item && item.driver_id === delivery.driver_id && item.delivery_date === delivery.delivery_date && item.status === 'pending');
       const now = new Date();
       const currentMinutes = now.getHours() * 60 + now.getMinutes();
       const startMinutes = currentMinutes + 5;
@@ -295,7 +295,7 @@ export default function useStopCardActions(params) {
       setIsAcceptingAll(false);
       onClick?.(null);
     }
-  }, [FINISHED_STATUSES, appUsers, currentUser, delivery, drivers, forceRefreshDriverDeliveries, onClick, patients, pendingPickups, setIsAcceptingAll, setIsEntityUpdating, store, stores, updateDeliveriesLocally, userHasRole]);
+  }, [FINISHED_STATUSES, allDeliveries, appUsers, currentUser, delivery, drivers, forceRefreshDriverDeliveries, onClick, patients, pendingPickups, setIsAcceptingAll, setIsEntityUpdating, store, stores, updateDeliveriesLocally, userHasRole]);
 
   const handleAcceptAllStops = useCallback(async () => {
     const lockResult = await runWithDeliveryActionLock('accept_all_delivery', async () => {
