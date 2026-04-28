@@ -34,7 +34,6 @@ Deno.serve(async (req) => {
     }, 'stop_order', 5000);
 
     const activeDeliveries = getSortedActiveDeliveries(routeDeliveries);
-    const currentNextDelivery = activeDeliveries.find((delivery) => delivery.isNextDelivery === true) || null;
 
     let nextDelivery = null;
     if (targetDeliveryId) {
@@ -44,21 +43,12 @@ Deno.serve(async (req) => {
       nextDelivery = activeDeliveries[0] || null;
     }
 
-    const deliveriesToUpdate = [];
-
-    if (currentNextDelivery && currentNextDelivery.id !== nextDelivery?.id) {
-      deliveriesToUpdate.push({
-        id: currentNextDelivery.id,
-        isNextDelivery: false
-      });
-    }
-
-    if (nextDelivery && nextDelivery.isNextDelivery !== true) {
-      deliveriesToUpdate.push({
-        id: nextDelivery.id,
-        isNextDelivery: true
-      });
-    }
+    const deliveriesToUpdate = activeDeliveries
+      .filter((delivery) => Boolean(delivery?.isNextDelivery) !== Boolean(nextDelivery && delivery.id === nextDelivery.id))
+      .map((delivery) => ({
+        id: delivery.id,
+        isNextDelivery: !!nextDelivery && delivery.id === nextDelivery.id
+      }));
 
     const updates = deliveriesToUpdate.map((delivery) =>
       base44.asServiceRole.entities.Delivery.update(delivery.id, {
