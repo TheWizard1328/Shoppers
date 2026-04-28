@@ -42,7 +42,7 @@ export async function runAcceptAllBatchPipeline({
     driverId: triggerDelivery.driver_id,
     deliveryDate: triggerDelivery.delivery_date,
     currentLocalTime,
-    forceFullRemainingRouteOptimization: true
+    forceFullRemainingRouteOptimization: false
   });
   const optimizeData = optimizeResponse?.data || optimizeResponse || {};
 
@@ -74,22 +74,23 @@ export async function runAcceptAllBatchPipeline({
     updateDeliveriesLocally?.(mergedFinalOfflineUpdates, false);
   }
 
-  const finalActiveStops = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter((item) =>
-    item && item.driver_id === triggerDelivery.driver_id && item.delivery_date === triggerDelivery.delivery_date && ACTIVE_STATUSES.includes(item.status)
+  const finalRouteStops = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter((item) =>
+    item && item.driver_id === triggerDelivery.driver_id && item.delivery_date === triggerDelivery.delivery_date
   );
 
-  await Promise.all(finalActiveStops.map((item) =>
-    base44.entities.Delivery.update(item.id, {
-      status: item.status,
-      isNextDelivery: !!item.isNextDelivery,
-      active: item.active,
+  await Promise.all(finalRouteStops.map((item) => {
+    const staged = stagedStatusMap.get(item.id);
+    return base44.entities.Delivery.update(item.id, {
+      status: staged?.status ?? item.status,
+      isNextDelivery: staged?.isNextDelivery ?? !!item.isNextDelivery,
+      active: staged?.active ?? item.active,
       stop_order: item.stop_order,
       display_stop_order: item.display_stop_order,
       delivery_time_eta: item.delivery_time_eta,
       delivery_time_start: item.delivery_time_start,
       travel_dist: item.travel_dist
-    })
-  ));
+    });
+  }));
 
   const codBatch = scopedPendingDeliveries.filter((pd) => pd.cod_total_amount_required > 0 && pd.patient_id).map((pendingDelivery) => {
     const storeForCod = stores.find((s) => s && s.id === pendingDelivery.store_id);
@@ -103,5 +104,5 @@ export async function runAcceptAllBatchPipeline({
     };
   });
 
-  return { stagedChangedDeliveries, finalOfflineUpdates: mergedFinalOfflineUpdates, finalActiveStops, codBatch, optimizeData, scopedPendingDeliveries };
+  return { stagedChangedDeliveries, finalOfflineUpdates: mergedFinalOfflineUpdates, finalActiveStops: finalRouteStops.filter((item) => ACTIVE_STATUSES.includes(item.status)), codBatch, optimizeData, scopedPendingDeliveries };
 }
