@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2, RefreshCw, MapPin, Navigation, Search, Info, AlertTriangle, TrendingUp, Clock, Filter, X } from 'lucide-react';
+import { Trash2, RefreshCw, MapPin, Navigation, Search, Info, AlertTriangle, TrendingUp, Clock, Filter, X, Home } from 'lucide-react';
 import { format, isWithinInterval, startOfDay, endOfDay, subDays, subHours } from 'date-fns';
 
 const getDateRangeSummaryLabel = (dateFilter) => {
@@ -40,6 +40,26 @@ const apiTypeColors = {
   'Google Place Details': 'bg-yellow-100 text-yellow-800',
   'Google Geocoding': 'bg-orange-100 text-orange-800',
   'HERE Geocoding': 'bg-cyan-100 text-cyan-800'
+};
+
+const renderStopOrderValue = (log) => {
+  const stopOrders = log?.metadata?.stop_orders;
+  const stopType = String(log?.metadata?.stop_type || '').toLowerCase();
+  const includesHome = stopType === 'home' || stopOrders === 'home' || (Array.isArray(stopOrders) && stopOrders.some((value) => String(value).toLowerCase() === 'home'));
+
+  if (includesHome) {
+    return <Home className="w-4 h-4 text-slate-600" />;
+  }
+
+  if (Array.isArray(stopOrders) && stopOrders.length > 0) {
+    return stopOrders.join(', ');
+  }
+
+  if (typeof stopOrders === 'number' || typeof stopOrders === 'string') {
+    return String(stopOrders);
+  }
+
+  return '—';
 };
 
 export default function GoogleAPILogViewer() {
@@ -835,6 +855,7 @@ export default function GoogleAPILogViewer() {
                     <th className="text-left p-3 text-sm font-semibold text-slate-700">Purpose</th>
                     <th className="text-left p-3 text-sm font-semibold text-slate-700">Function</th>
                     <th className="text-left p-3 text-sm font-semibold text-slate-700">User</th>
+                    <th className="text-left p-3 text-sm font-semibold text-slate-700">Stop Order</th>
                     <th className="text-left p-3 text-sm font-semibold text-slate-700">Details</th>
                   </tr>
                 </thead>
@@ -862,6 +883,11 @@ export default function GoogleAPILogViewer() {
                         </td>
                         <td className="p-3 text-sm text-slate-700">
                           {log.user_name || 'Unknown'}
+                        </td>
+                        <td className="p-3 text-sm text-slate-700">
+                          <div className="flex items-center gap-2">
+                            {renderStopOrderValue(log)}
+                          </div>
                         </td>
                         <td className="p-3 text-xs text-slate-600">
                           <div>Provider: {provider === 'here' ? 'HERE' : 'Google'}</div>
