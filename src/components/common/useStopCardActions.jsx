@@ -210,27 +210,46 @@ export default function useStopCardActions(params) {
       const sortedPending = [...scopedPendingDeliveries].sort((a, b) => (a.patient_name || '').localeCompare(b.patient_name || ''));
 
       const routeDeliveries = allDeliveries.filter((item) => item && item.driver_id === delivery.driver_id && item.delivery_date === delivery.delivery_date);
-      const shouldUpdateNextDeliveryFlags = delivery.isNextDelivery !== true;
-      const clearExistingNextStops = shouldUpdateNextDeliveryFlags
-        ? routeDeliveries
-            .filter((item) => item?.isNextDelivery === true && item.id !== delivery.id)
-            .map((item) => updateDeliveryLocal(item.id, { isNextDelivery: false }, { skipSmartRefresh: true }))
-        : [];
+      const transitionedRouteDeliveries = routeDeliveries.map((item) => {
+        if (!item) return item;
+        if (item.id === delivery.id) {
+          return {
+            ...item,
+            status: item.status === 'pending' ? 'in_transit' : item.status,
+            isNextDelivery: true,
+            ...(item.active === false ? { active: true } : {})
+          };
+        }
+        if (item.store_id === delivery.store_id && item.status === 'pending') {
+          return {
+            ...item,
+            status: 'in_transit',
+            isNextDelivery: false,
+            ...(item.active === false ? { active: true } : {})
+          };
+        }
+        if (item.isNextDelivery === true) {
+          return {
+            ...item,
+            isNextDelivery: false
+          };
+        }
+        return item;
+      });
 
-      const localUpdates = sortedPending.map((pendingDelivery) => ({
-        id: pendingDelivery.id,
-        status: 'in_transit',
-        isNextDelivery: false,
-        ...(pendingDelivery.active === false ? { active: true } : {})
-      }));
+      const transitionedDeliveries = transitionedRouteDeliveries.filter((item, index) => {
+        const original = routeDeliveries[index];
+        return original && JSON.stringify(original) !== JSON.stringify(item);
+      });
 
-      await Promise.all([
-        ...clearExistingNextStops,
-        ...(shouldUpdateNextDeliveryFlags ? [updateDeliveryLocal(delivery.id, { isNextDelivery: true }, { skipSmartRefresh: true })] : []),
-        ...localUpdates.map((update) => updateDeliveryLocal(update.id, update, { skipSmartRefresh: true }))
-      ]);
+      if (transitionedDeliveries.length > 0) {
+        const { offlineDB } = await import('../utils/offlineDatabase');
+        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, transitionedDeliveries);
+        updateDeliveriesLocally?.(transitionedDeliveries, false);
+      }
+
       fabControlEvents.notifyAcceptAllClicked();
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAll', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true } }));
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAll', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true, freshDeliveries: transitionedDeliveries } }));
       window.dispatchEvent(new CustomEvent('pendingToInTransit', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
 
       const codBatch = scopedPendingDeliveries.filter((pd) => pd.cod_total_amount_required > 0 && pd.patient_id).map((pendingDelivery) => {
@@ -245,6 +264,18 @@ export default function useStopCardActions(params) {
         };
       });
 
+      await Promise.all(
+        transitionedDeliveries.map((item) => {
+          const original = routeDeliveries.find((routeItem) => routeItem?.id === item.id);
+          if (!original) return Promise.resolve(null);
+          const updates = {};
+          if (original.status !== item.status) updates.status = item.status;
+          if ((original.isNextDelivery || false) !== (item.isNextDelivery || false)) updates.isNextDelivery = item.isNextDelivery || false;
+          if ((original.active || true) !== (item.active || true)) updates.active = item.active;
+          if (Object.keys(updates).length === 0) return Promise.resolve(null);
+          return updateDeliveryLocal(item.id, updates, { skipSmartRefresh: true, isBatchOperation: true });
+        })
+      );
       await flushQueuedDeliveryUpdates();
       invalidate('Delivery');
       await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
