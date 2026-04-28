@@ -744,7 +744,9 @@ export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate, 
       console.info('[HERE][client] Invoking getHereDirections', { cacheKey, origin: { lat: fromStop.latitude, lng: fromStop.longitude }, destination: { lat: toStop.latitude, lng: toStop.longitude } });
       const res = await base44.functions.invoke('getHereDirections', {
         origin: { lat: fromStop.latitude, lng: fromStop.longitude },
-        destination: { lat: toStop.latitude, lng: toStop.longitude }
+        destination: { lat: toStop.latitude, lng: toStop.longitude },
+        caller: body?.caller || 'client_polyline_generation',
+        caller_context: body?.caller_context || null
       });
 
       const coords = decodeRouteGeometry(res?.data);

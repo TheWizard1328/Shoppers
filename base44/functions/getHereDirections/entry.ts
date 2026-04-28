@@ -362,6 +362,8 @@ Deno.serve(async (req) => {
     const normalizedTransportMode = requestedTransportMode === 'cycling' || requestedTransportMode === 'pedestrian'
       ? requestedTransportMode
       : 'driving';
+    const caller = String(body?.caller || 'unknown_here_caller');
+    const callerContext = body?.caller_context || null;
 
     const originLat = Number(origin?.lat);
     const originLng = Number(origin?.lng);
@@ -486,6 +488,8 @@ Deno.serve(async (req) => {
           transport_mode: normalizedTransportMode,
           waypoint_count: waypoints.length,
           stops_count: sequenceStops.length + 1,
+          caller,
+          caller_context: callerContext,
         },
       });
       return buildFallback(origin, destination, { provider_status: resp.status }, waypoints);
@@ -508,6 +512,8 @@ Deno.serve(async (req) => {
           transport_mode: normalizedTransportMode,
           waypoint_count: waypoints.length,
           stops_count: sequenceStops.length + 1,
+          caller,
+          caller_context: callerContext,
         },
       });
       return buildFallback(origin, destination, {}, waypoints);
@@ -570,8 +576,8 @@ Deno.serve(async (req) => {
       appUserName: appUser?.user_name || user.full_name,
       provider: 'here',
       apiType: 'Directions',
-      purpose: 'Calculate route directions',
-      functionName: 'getHereDirections 1',
+      purpose: `Calculate route directions${caller !== 'unknown_here_caller' ? ` (${caller})` : ''}`,
+      functionName: `getHereDirections:${caller}`,
       success: true,
       durationMs: Date.now() - startedAt,
       callCount: routeCallCount,
@@ -582,7 +588,9 @@ Deno.serve(async (req) => {
         estimated_distance_km,
         estimated_duration_minutes,
         optimized_sequence: orderedWaypoints.map((waypoint) => waypoint.id),
-        real_road_polylines: normalizedSections.filter((section) => !!section?.encoded_polyline).length
+        real_road_polylines: normalizedSections.filter((section) => !!section?.encoded_polyline).length,
+        caller,
+        caller_context: callerContext
       },
     });
 
@@ -607,12 +615,16 @@ Deno.serve(async (req) => {
       appUserName: appUser?.user_name || null,
       provider: 'here',
       apiType: 'Directions',
-      purpose: 'Calculate route directions',
-      functionName: 'getHereDirections 2',
+      purpose: `Calculate route directions${caller !== 'unknown_here_caller' ? ` (${caller})` : ''}`,
+      functionName: `getHereDirections:${caller}`,
       success: false,
       durationMs: Date.now() - startedAt,
       errorMessage: err?.message || 'Unknown error',
       callCount: routeCallCount || 1,
+      metadata: {
+        caller,
+        caller_context: callerContext
+      }
     });
     return buildFallback(origin, destination, { error: err?.message || 'Unknown error' }, []);
   }
