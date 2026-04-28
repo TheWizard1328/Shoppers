@@ -828,6 +828,7 @@ export default function DeliveryMap({
   const phase2FollowKeyRef = useRef("");
   const phase2OwnDriverAnchorRef = useRef(null);
   const phase2LastFitDriverLocationRef = useRef(null);
+  const phase2LastStopLocationRef = useRef(null);
   const phase2PaddingRef = useRef("");
   const phase2OverlayStabilizeUntilRef = useRef(0);
   useEffect(() => {
@@ -835,6 +836,7 @@ export default function DeliveryMap({
       phase2FollowKeyRef.current = "";
       phase2OwnDriverAnchorRef.current = null;
       phase2LastFitDriverLocationRef.current = null;
+      phase2LastStopLocationRef.current = null;
       return;
     }
 
@@ -905,6 +907,11 @@ export default function DeliveryMap({
       currentDriverFitLocation,
       50
     );
+    const stopChangedEnoughForMapFit = hasDriverMovedEnoughForPhase2(
+      phase2LastStopLocationRef.current,
+      currentStopFitLocation,
+      50
+    );
     const nextKey = [
       Number(nextStop.latitude).toFixed(6),
       Number(nextStop.longitude).toFixed(6)
@@ -917,7 +924,8 @@ export default function DeliveryMap({
     const currentMapBounds = map.getBounds();
     const driverAlreadyInView = currentMapBounds?.contains?.([currentDriverFitLocation.latitude, currentDriverFitLocation.longitude]);
     const stopAlreadyInView = currentMapBounds?.contains?.([currentStopFitLocation.latitude, currentStopFitLocation.longitude]);
-    if ((!destinationChanged && !hasMovedEnoughForMapFit) || (!destinationChanged && driverAlreadyInView && stopAlreadyInView)) {
+    const shouldRefit = destinationChanged || hasMovedEnoughForMapFit || stopChangedEnoughForMapFit;
+    if (!shouldRefit || (driverAlreadyInView && stopAlreadyInView)) {
       if (isMobile && phase2PaddingRef.current !== paddingKey && now < phase2OverlayStabilizeUntilRef.current) {
         phase2PaddingRef.current = paddingKey;
       }
@@ -925,6 +933,7 @@ export default function DeliveryMap({
     }
     phase2FollowKeyRef.current = nextKey;
     phase2LastFitDriverLocationRef.current = currentDriverFitLocation;
+    phase2LastStopLocationRef.current = currentStopFitLocation;
     phase2PaddingRef.current = paddingKey;
     if (isMobile) {
       phase2OverlayStabilizeUntilRef.current = now + 350;
