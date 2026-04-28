@@ -55,21 +55,11 @@ export default function useDriverLocationSync({
         if (!isMobile || !newLocation.latitude || !newLocation.longitude) return;
         const now = Date.now();
         if (mapViewPhaseRef.current === 2 && isMapViewLockedRef.current) {
-          if (now - lastProgrammaticMapMoveRef.current > 1200) {
-            lastProgrammaticMapMoveRef.current = now;
-            window._lastProgrammaticMapMove = now;
-            setMapViewTrigger((prev) => prev + 1);
-          }
           const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
           if (nextCard) document.getElementById(`stop-card-${nextCard.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
           return;
         }
         if (mapViewPhaseRef.current === 3 && isMapViewLockedRef.current) {
-          if (now - lastProgrammaticMapMoveRef.current > 1800) {
-            lastProgrammaticMapMoveRef.current = now;
-            window._lastProgrammaticMapMove = now;
-            setMapViewTrigger((prev) => prev + 1);
-          }
           return;
         }
         if (isMapViewLocked || now - lastUserInteractionRef.current < 300000 || now - lastProximitySnapTimeRef.current < 60000) return;
