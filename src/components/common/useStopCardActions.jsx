@@ -35,7 +35,7 @@ const shouldRefreshRemainingEtas = (etaString, actualTimestamp) => {
   const actualDate = parseLocalTimestamp(actualTimestamp);
   if (etaMinutes === null || !actualDate) return false;
   const actualMinutes = actualDate.getHours() * 60 + actualDate.getMinutes();
-  return Math.abs(actualMinutes - etaMinutes) > ETA_REFRESH_THRESHOLD_MINUTES;
+  return Math.abs(actualMinutes - etaMinutes) >= ETA_REFRESH_THRESHOLD_MINUTES;
 };
 
 const hasDebitOrCreditCod = (deliveryRecord, paymentList = null) => {
