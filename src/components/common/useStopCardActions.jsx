@@ -207,8 +207,6 @@ export default function useStopCardActions(params) {
       const startMinutes = currentMinutes + 5;
       const deliveryTimeStart = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
       const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      const sortedPending = [...scopedPendingDeliveries].sort((a, b) => (a.patient_name || '').localeCompare(b.patient_name || ''));
-
       const routeDeliveries = allDeliveries.filter((item) => item && item.driver_id === delivery.driver_id && item.delivery_date === delivery.delivery_date);
       const transitionedRouteDeliveries = routeDeliveries.map((item) => {
         if (!item) return item;
@@ -278,7 +276,6 @@ export default function useStopCardActions(params) {
       );
       await flushQueuedDeliveryUpdates();
       invalidate('Delivery');
-      await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
 
       Promise.resolve().then(async () => {
         window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
@@ -298,7 +295,6 @@ export default function useStopCardActions(params) {
 
           await flushQueuedDeliveryUpdates();
           invalidate('Delivery');
-          await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
 
           if (optimizeData?.success && Array.isArray(optimizeData.optimizedRoute) && optimizeData.optimizedRoute.length > 0) {
             window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: delivery.driver_id, updates: optimizeData.optimizedRoute.map((stop) => ({ deliveryId: stop.deliveryId || stop.delivery_id, newEta: stop.newETA || stop.eta })).filter((stop) => stop.deliveryId && stop.newEta) } }));
@@ -306,21 +302,6 @@ export default function useStopCardActions(params) {
               window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllRouteReordered', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true } }));
             }
           }
-
-          await base44.functions.invoke('recalculateTrackingNumbers', {
-            driverId: delivery.driver_id,
-            deliveryDate: delivery.delivery_date
-          }).catch(() => null);
-
-          await base44.functions.invoke('purgeAndRegeneratePolylines', {
-            driverId: delivery.driver_id,
-            deliveryDate: delivery.delivery_date,
-            scope: 'all'
-          }).catch(() => null);
-
-          const refreshedRouteDeliveries = await base44.entities.Delivery.filter({ driver_id: delivery.driver_id, delivery_date: delivery.delivery_date });
-          const optimizedNextId = optimizeData?.nextDeliveryId || optimizeData?.optimization?.nextDeliveryId || refreshedRouteDeliveries.find((item) => item?.isNextDelivery === true)?.id || null;
-          await setAndCenterNextDelivery({ driverDeliveries: refreshedRouteDeliveries, targetDeliveryId: optimizedNextId, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true });
         } catch (optErr) {
           console.warn('⚠️ [Accept All] background optimization failed:', optErr?.message || optErr);
         } finally {
@@ -352,7 +333,7 @@ export default function useStopCardActions(params) {
       setIsAcceptingAll(false);
       onClick?.(null);
     }
-  }, [FINISHED_STATUSES, allDeliveries, appUsers, currentUser, delivery, drivers, forceRefreshDriverDeliveries, onClick, patients, pendingPickups, setIsAcceptingAll, setIsEntityUpdating, store, stores, updateDeliveriesLocally, userHasRole]);
+  }, [FINISHED_STATUSES, allDeliveries, appUsers, currentUser, delivery, drivers, onClick, patients, pendingPickups, setIsAcceptingAll, setIsEntityUpdating, store, stores, updateDeliveriesLocally, userHasRole]);
 
   const handleAcceptAllStops = useCallback(async () => {
     const lockResult = await runWithDeliveryActionLock('accept_all_delivery', async () => {
