@@ -129,25 +129,21 @@ export default function useDriverLocationSync({
   }, [isDriver, currentUser, isMobile, deliveriesWithStopOrder, patients, stores, mapViewPhaseRef, isMapViewLockedRef, isMapViewLocked, appUsers, calculateDistance, locationTracker, lastProgrammaticMapMoveRef, lastUserInteractionRef, lastProximitySnapTimeRef, stopCardsContainerRef, setMapViewTrigger, setDriverLocation]);
 
   useEffect(() => {
-    if (!isDriver || !currentUser?.id) return;
+    if (!isDriver || !currentUser?.id || !isMobile) return;
 
     const handleDriverLocationUpdated = (event) => {
-      const singleUpdate = event?.detail?.singleUpdate;
-      const appUsersFromEvent = event?.detail?.appUsers;
-      const selfUpdate = singleUpdate?.user_id === currentUser.id
-        ? singleUpdate
-        : Array.isArray(appUsersFromEvent)
-          ? appUsersFromEvent.find((user) => user?.user_id === currentUser.id)
-          : null;
+      if (event?.detail?.fromPoller || event?.detail?.fromRealtime) return;
 
-      if (!selfUpdate?.current_latitude || !selfUpdate?.current_longitude) return;
+      const singleUpdate = event?.detail?.singleUpdate;
+      if (singleUpdate?.user_id !== currentUser.id) return;
+      if (!singleUpdate?.current_latitude || !singleUpdate?.current_longitude) return;
 
       const nextLocation = {
-        latitude: Number(selfUpdate.current_latitude),
-        longitude: Number(selfUpdate.current_longitude),
-        timestamp: selfUpdate.location_updated_at || new Date().toISOString(),
+        latitude: Number(singleUpdate.current_latitude),
+        longitude: Number(singleUpdate.current_longitude),
+        timestamp: singleUpdate.location_updated_at || new Date().toISOString(),
         accuracy: lastLiveDriverLocationRef.current?.accuracy ?? null,
-        source: 'live_marker'
+        source: 'tracker_sync'
       };
 
       syncLiveDriverLocation(nextLocation);
@@ -161,5 +157,5 @@ export default function useDriverLocationSync({
 
     window.addEventListener('driverLocationsUpdated', handleDriverLocationUpdated);
     return () => window.removeEventListener('driverLocationsUpdated', handleDriverLocationUpdated);
-  }, [isDriver, currentUser?.id, setDriverLocation]);
+  }, [isDriver, currentUser?.id, isMobile, setDriverLocation]);
 }
