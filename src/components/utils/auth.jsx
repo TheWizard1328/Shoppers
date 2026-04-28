@@ -114,6 +114,18 @@ const cacheResolvedUser = (user) => {
   return user;
 };
 
+const hasIdentityChanged = (nextAuthUser, cachedUser) => {
+  if (!nextAuthUser || !cachedUser) return false;
+  return String(nextAuthUser.id || '') !== String(cachedUser.id || cachedUser.user_id || '');
+};
+
+const clearPersistedUserCaches = () => {
+  removeStorageKey(sessionStorage, EFFECTIVE_USER_CACHE_KEY);
+  removeStorageKey(localStorage, EFFECTIVE_USER_CACHE_KEY);
+  removeStorageKey(sessionStorage, AUTH_BOOT_CACHE_KEY);
+  removeStorageKey(localStorage, AUTH_BOOT_CACHE_KEY);
+};
+
 /**
  * Creates a promise that rejects after a specified timeout
  */
@@ -173,15 +185,21 @@ export const getEffectiveUser = async () => {
         }
 
         while (retryCount < maxRetries) {
-            if (persistedEffectiveUser) return cacheResolvedUser(persistedEffectiveUser);
-            try {
-                if (!navigator.onLine) {
-                    console.warn('⚠️ [auth.js] Device is offline, returning cached user data if available');
-                    return userCache.data || persistedEffectiveUser;
-                }
+          try {
+            if (!navigator.onLine) {
+              console.warn('⚠️ [auth.js] Device is offline, returning cached user data if available');
+              return userCache.data || persistedEffectiveUser;
+            }
 
-                const authUser = await withTimeout(base44.auth.me(), 10000);
-                persistAuthUser(authUser);
+            const authUser = await withTimeout(base44.auth.me(), 10000);
+            const cachedResolvedUser = userCache.data || persistedEffectiveUser;
+            if (hasIdentityChanged(authUser, cachedResolvedUser)) {
+              console.warn('🔄 [auth.js] Auth identity changed, clearing cached user state');
+              userCache.data = null;
+              userCache.timestamp = 0;
+              clearPersistedUserCaches();
+            }
+            persistAuthUser(authUser);
 
                 if (!authUser) {
                     console.warn('⚠️ [auth.js] No user data received (not logged in - Base44 will handle redirect)');
@@ -334,10 +352,7 @@ export const clearUserCache = () => {
     };
     inflightUserRequest = null;
     sessionStorage.removeItem('impersonationId');
-    removeStorageKey(sessionStorage, EFFECTIVE_USER_CACHE_KEY);
-    removeStorageKey(localStorage, EFFECTIVE_USER_CACHE_KEY);
-    removeStorageKey(sessionStorage, AUTH_BOOT_CACHE_KEY);
-    removeStorageKey(localStorage, AUTH_BOOT_CACHE_KEY);
+    clearPersistedUserCaches();
 };
 
 // Function to extend cache TTL when user is active (prevents session timeout during idle)
