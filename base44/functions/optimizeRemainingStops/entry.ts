@@ -378,6 +378,7 @@ Deno.serve(async (req) => {
     let routeStops = lockedNextStop ? [lockedNextStop] : [];
     let directionsLegs = [];
     let segmentPolylines = [];
+    let optimizedStopTransportModes = [];
 
     const resolvedHomePosition = driverAppUser.home_latitude != null && driverAppUser.home_longitude != null
       ? { lat: Number(driverAppUser.home_latitude), lng: Number(driverAppUser.home_longitude) }
@@ -521,6 +522,18 @@ Deno.serve(async (req) => {
             estimatedDurationMinutes: matchedSegment?.estimated_duration_minutes ?? null
           };
         });
+        optimizedStopTransportModes = routeStops.map((stop, index) => ({
+          deliveryId: stop.delivery.id,
+          transport_mode: preferredTravelMode,
+          finished_leg_transport_mode: preferredTravelMode,
+          segment_origin_lat: Number.isFinite(Number(segmentPolylines[index]?.origin?.lat)) ? Number(segmentPolylines[index].origin.lat) : null,
+          segment_origin_lon: Number.isFinite(Number(segmentPolylines[index]?.origin?.lng)) ? Number(segmentPolylines[index].origin.lng) : null,
+          segment_dest_lat: Number.isFinite(Number(segmentPolylines[index]?.destination?.lat)) ? Number(segmentPolylines[index].destination.lat) : null,
+          segment_dest_lon: Number.isFinite(Number(segmentPolylines[index]?.destination?.lng)) ? Number(segmentPolylines[index].destination.lng) : null,
+          encoded_polyline: segmentPolylines[index]?.encodedPolyline || null,
+          estimated_distance_km: typeof segmentPolylines[index]?.estimatedDistanceKm === 'number' ? segmentPolylines[index].estimatedDistanceKm : null,
+          estimated_duration_minutes: typeof segmentPolylines[index]?.estimatedDurationMinutes === 'number' ? segmentPolylines[index].estimatedDurationMinutes : null
+        }));
         console.log(`✅ [optimizeRemainingStops] HERE sequencing success${usedTimeWindows ? ' with time windows' : ' without time windows'}`);
       }
     }
@@ -665,11 +678,13 @@ Deno.serve(async (req) => {
         routeStopOrder: polylineEligibleDeliveries
           .map((delivery) => activeStops.find((stop) => stop.id === delivery.id)?.id || null)
           .filter(Boolean),
+        orderedStopsWithTransportMode: optimizedStopTransportModes,
         explicitOrderedStopsOnly: true,
         explicitRouteOrigin: routeHasStarted ? null : 'home',
         explicitRouteDestination: 'home',
         bypassPolylineUpdated: true,
-        bypassPolylineDelete: true
+        bypassPolylineDelete: true,
+        reuseProvidedPolylines: true
       }).catch((error) => {
         console.warn('⚠️ [optimizeRemainingStops] Polyline refresh failed:', error?.message || error);
         return null;

@@ -741,6 +741,7 @@ Deno.serve(async (req) => {
       explicitRouteOrigin = null,
       explicitRouteDestination = null,
       bypassPolylineDelete = false,
+      reuseProvidedPolylines = false,
       sourcePage = null
     } = body || {};
 
@@ -911,6 +912,7 @@ Deno.serve(async (req) => {
         .filter((item) => item?.deliveryId)
         .map((item) => [item.deliveryId, item])
     );
+    const reusablePolylineMetaById = reuseProvidedPolylines ? explicitStopMetaById : new Map();
     const deliveryById = new Map((deliveries || []).filter((delivery) => delivery?.id).map((delivery) => [delivery.id, delivery]));
     const orderedDeliveries = (explicitStopOrderIds.length > 0
       ? explicitStopOrderIds.map((id) => deliveryById.get(id) || null).filter(Boolean)
@@ -1130,15 +1132,37 @@ Deno.serve(async (req) => {
 
         const directionsBySegmentKey = new Map();
 
-        if (uncachedSegments.length > 0) {
-          const primaryTransportMode = getNormalizedTravelMode(uncachedSegments[0]?.transportMode, 'driving');
+        if (reuseProvidedPolylines) {
+          uncachedSegments.forEach((spec) => {
+            const matchingStop = activeStops.find((stop) => {
+              const stopCoords = getLatLon(stop);
+              return stop?.id && stopCoords && samePoint({ lat: stopCoords.lat, lon: stopCoords.lon }, spec.to);
+            });
+            const provided = matchingStop?.id ? reusablePolylineMetaById.get(matchingStop.id) : null;
+            if (provided?.encoded_polyline) {
+              directionsBySegmentKey.set(
+                makeSegmentKey(driverId, deliveryDate, spec.from, spec.to),
+                {
+                  encoded_polyline: provided.encoded_polyline,
+                  estimated_distance_km: provided.estimated_distance_km ?? null,
+                  estimated_duration_minutes: provided.estimated_duration_minutes ?? null
+                }
+              );
+            }
+          });
+        }
+
+        const remainingUncachedSegments = uncachedSegments.filter((spec) => !directionsBySegmentKey.has(makeSegmentKey(driverId, deliveryDate, spec.from, spec.to)));
+
+        if (remainingUncachedSegments.length > 0) {
+          const primaryTransportMode = getNormalizedTravelMode(remainingUncachedSegments[0]?.transportMode, 'driving');
           const groupedDirections = await getMultiSegmentDirections(
             base44,
-            uncachedSegments.map((spec) => ({ from: spec.from, to: spec.to })),
+            remainingUncachedSegments.map((spec) => ({ from: spec.from, to: spec.to })),
             primaryTransportMode
           );
           apiCallsMade += 1;
-          uncachedSegments.forEach((spec, index) => {
+          remainingUncachedSegments.forEach((spec, index) => {
             directionsBySegmentKey.set(
               makeSegmentKey(driverId, deliveryDate, spec.from, spec.to),
               groupedDirections[index] || null
