@@ -4,6 +4,7 @@ import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap } from 'react-
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { queueEntityRequest } from '../utils/requestQueue';
 import { Loader2, MapPin, Trash2, RefreshCw, Filter, ChevronDown } from 'lucide-react';
+import { createDeliveryIcon } from '../dashboard/MapIcons';
 import { format } from 'date-fns';
 import { getDriverDisplayName } from '../utils/driverUtils';
 import { clearHereCacheForSegment } from '../utils/hereRouting';
@@ -24,17 +25,8 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
-const createColoredMarkerIcon = (color) =>
-  L.divIcon({
-    className: 'custom-colored-marker',
-    html: `<div style="width:18px;height:18px;border-radius:9999px;background:${color};border:3px solid white;box-shadow:0 2px 8px rgba(15,23,42,0.35);"></div>`,
-    iconSize: [18, 18],
-    iconAnchor: [9, 9],
-    popupAnchor: [0, -10]
-  });
-
-const originMarkerIcon = createColoredMarkerIcon('#16a34a');
-const destinationMarkerIcon = createColoredMarkerIcon('#dc2626');
+const originMarkerIcon = createDeliveryIcon('completed', '#16a34a');
+const destinationMarkerIcon = createDeliveryIcon('failed', '#dc2626');
 
 // Decode Google polyline string
 const decodePolyline = (encoded) => {
@@ -841,7 +833,7 @@ export default function PolylineViewer({ users = [] }) {
                         
                         {/* Origin marker - only for polylines */}
                         {viewMode === 'polylines' && selectedPolyline.segment_origin_lat && selectedPolyline.segment_origin_lon && (
-                          <Marker position={[selectedPolyline.segment_origin_lat, selectedPolyline.segment_origin_lon]} icon={originMarkerIcon}>
+                          <Marker position={[selectedPolyline.segment_origin_lat, selectedPolyline.segment_origin_lon]} icon={originMarkerIcon} zIndexOffset={1000}>
                             <Popup>
                               <strong>Origin</strong>
                               <br />
@@ -852,7 +844,7 @@ export default function PolylineViewer({ users = [] }) {
                         
                         {/* Destination marker - only for polylines */}
                         {viewMode === 'polylines' && selectedPolyline.segment_dest_lat && selectedPolyline.segment_dest_lon && (
-                          <Marker position={[selectedPolyline.segment_dest_lat, selectedPolyline.segment_dest_lon]} icon={destinationMarkerIcon}>
+                          <Marker position={[selectedPolyline.segment_dest_lat, selectedPolyline.segment_dest_lon]} icon={destinationMarkerIcon} zIndexOffset={1000}>
                             <Popup>
                               <strong>Destination</strong>
                               <br />
