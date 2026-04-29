@@ -590,11 +590,17 @@ export default function HereType1Polylines({
 
     if (!currentStop) return;
 
-    const key = getHereCacheKey(
-      { latitude: Number(currentStop?.segment_origin_lat), longitude: Number(currentStop?.segment_origin_lon) },
-      { latitude: Number(currentStop?.segment_dest_lat), longitude: Number(currentStop?.segment_dest_lon) },
-      currentStop?.transport_mode || getDriverMode(driverId)
-    );
+    const currentStopOrder = Number(currentStop?.stop_order || 0);
+    const lastFinishedStop = [...stops.complete]
+      .filter((stop) => Number(stop?.stop_order || 0) < currentStopOrder)
+      .sort((a, b) => Number(b?.stop_order || 0) - Number(a?.stop_order || 0))[0];
+
+    const origin = lastFinishedStop
+      ? { latitude: Number(lastFinishedStop.latitude), longitude: Number(lastFinishedStop.longitude) }
+      : { latitude: Number(currentStop?.segment_origin_lat), longitude: Number(currentStop?.segment_origin_lon) };
+
+    const destination = { latitude: Number(currentStop?.segment_dest_lat), longitude: Number(currentStop?.segment_dest_lon) };
+    const key = getHereCacheKey(origin, destination, currentStop?.transport_mode || getDriverMode(driverId));
 
     let coords = getCachedPolyline(key, cache);
     if (!coords && typeof currentStop?.encoded_polyline === 'string' && currentStop.encoded_polyline.trim()) {
@@ -604,6 +610,12 @@ export default function HereType1Polylines({
           setCache((prev) => ({ ...prev, [key]: coords }));
           try { localStorage.setItem(key, JSON.stringify(coords)); } catch (_) {}
         }
+      } catch (_) {}
+    }
+
+    if ((!coords || coords.length < 2) && origin.latitude === Number(currentStop?.segment_origin_lat) && origin.longitude === Number(currentStop?.segment_origin_lon) && typeof currentStop?.encoded_polyline === 'string' && currentStop.encoded_polyline.trim()) {
+      try {
+        coords = decodePolyline(currentStop.encoded_polyline);
       } catch (_) {}
     }
 
