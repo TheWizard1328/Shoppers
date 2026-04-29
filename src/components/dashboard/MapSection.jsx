@@ -34,6 +34,7 @@ export default function MapSection({
   immersiveOverlayIsPickup = false,
   immersiveOverlayStoreColor = null,
   immersiveOverlayDisplayName = '',
+  immersiveOverlayRemainingDistanceKm = null,
 }) {
   const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
   const routeCompleteForSelectedDriver = selectedDriverId && selectedDriverId !== 'all'
@@ -79,6 +80,7 @@ export default function MapSection({
             isPickup={immersiveOverlayIsPickup}
             storeColor={immersiveOverlayStoreColor}
             finalDisplayName={immersiveOverlayDisplayName}
+            remainingDistanceKm={immersiveOverlayRemainingDistanceKm}
             topOffset={topOverlayHeight}
           />
         )}

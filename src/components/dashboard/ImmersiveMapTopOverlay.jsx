@@ -17,6 +17,7 @@ function formatStopOrder(value) {
 function formatDistance(value) {
   const km = Number(value);
   if (!Number.isFinite(km)) return "--";
+  if (km >= 1) return `${km.toFixed(1)} km`;
   return `${Math.max(1, Math.round(km * 1000))} m`;
 }
 
@@ -26,7 +27,7 @@ function formatEta(value) {
   return match ? match[1] : value;
 }
 
-export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPickup, storeColor, finalDisplayName, topOffset = 0 }) {
+export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPickup, storeColor, finalDisplayName, topOffset = 0, remainingDistanceKm = null }) {
   if (!delivery) return null;
   const batchTracking = formatBatchTracking(delivery, store);
 
@@ -74,7 +75,7 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
             className="mt-1 h-7 rounded-full px-2 py-0.5 text-sm font-bold"
             style={{ backgroundColor: `${storeColor}`, color: "White" }}
           >
-            {formatDistance(delivery?.travel_dist)}
+            {formatDistance(remainingDistanceKm)}
           </Badge>
         </div>
       </div>

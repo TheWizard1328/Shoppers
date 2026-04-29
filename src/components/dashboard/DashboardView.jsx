@@ -182,6 +182,7 @@ export default function DashboardView({
   const immersiveOverlayDisplayName = immersiveOverlayIsPickup
     ? `${immersiveOverlayStore?.name || 'Store'} Pickup`
     : immersiveOverlayPatient?.full_name || immersiveOverlayDelivery?.patient_name || 'Next stop';
+  const immersiveOverlayRemainingDistanceKm = immersiveOverlayDelivery?.estimated_distance_km ?? null;
 
   return (
     <div className="h-full w-full flex flex-col overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
@@ -266,6 +267,7 @@ export default function DashboardView({
           immersiveOverlayIsPickup={immersiveOverlayIsPickup}
           immersiveOverlayStoreColor={immersiveOverlayStoreColor}
           immersiveOverlayDisplayName={immersiveOverlayDisplayName}
+          immersiveOverlayRemainingDistanceKm={immersiveOverlayRemainingDistanceKm}
           mapViewPhase={mapViewPhase}
           isMapViewLocked={isMapViewLocked}
           mapStyle={mapStyle}
