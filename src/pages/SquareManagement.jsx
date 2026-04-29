@@ -459,7 +459,7 @@ export default function SquareManagement() {
     return Array.from(names);
   }, []);
 
-  const getTransactionEffectiveDate = useCallback((transaction) => {
+  const getTransactionCreatedDate = useCallback((transaction) => {
     const rawDate = transaction?.raw_square_data?.payment_date || transaction?.raw_square_data?.created_at || transaction?.created_date || transaction?.updated_date;
     if (!rawDate) return null;
     const parsed = new Date(rawDate);
@@ -467,10 +467,19 @@ export default function SquareManagement() {
     return parsed;
   }, []);
 
+  const getTransactionFilterDate = useCallback((transaction) => {
+    const parsedItem = parseSquareItemName(transaction?.item_name);
+    if (parsedItem?.deliveryDate) {
+      const parsedFromName = new Date(`${parsedItem.deliveryDate}T00:00:00`);
+      if (!Number.isNaN(parsedFromName.getTime())) return parsedFromName;
+    }
+    return getTransactionCreatedDate(transaction);
+  }, [getTransactionCreatedDate]);
+
   const getTransactionEffectiveDateString = useCallback((transaction) => {
-    const parsed = getTransactionEffectiveDate(transaction);
+    const parsed = getTransactionFilterDate(transaction);
     return parsed ? format(parsed, 'yyyy-MM-dd') : null;
-  }, [getTransactionEffectiveDate]);
+  }, [getTransactionFilterDate]);
 
   const findMatchingDeliveryForTransaction = useCallback((transaction, resolvedStoreId = null) => {
     const transactionAmountSet = getTransactionAmountSet(transaction);
@@ -701,7 +710,7 @@ export default function SquareManagement() {
     (allTransactions || [])
       .filter((transaction) => {
         if (!transaction || isTransferTransaction(transaction)) return false;
-        const transactionDate = getTransactionEffectiveDate(transaction);
+        const transactionDate = getTransactionFilterDate(transaction);
         if (!transactionDate || transactionDate < lookbackStart) return false;
 
         const config = locationConfigs.find((c) => c?.square_location_id === transaction.location_id);
@@ -762,7 +771,7 @@ export default function SquareManagement() {
         ) : null
       };
     }).sort((a, b) => String(b.itemName || '').localeCompare(String(a.itemName || ''), undefined, { sensitivity: 'base' }));
-  }, [allTransactions, lookbackStart, visibleStoreIds, visibleLocationIds, selectedDriverFilter, selectedDriverUserIds, locationConfigs, stores, drivers, getTransactionSearchNames, getTransactionEffectiveDate, getTransactionEffectiveDateString, findMatchingDeliveryForTransaction]);
+  }, [allTransactions, lookbackStart, visibleStoreIds, visibleLocationIds, selectedDriverFilter, selectedDriverUserIds, locationConfigs, stores, drivers, getTransactionSearchNames, getTransactionFilterDate, getTransactionEffectiveDateString, findMatchingDeliveryForTransaction]);
 
   const filteredCatalogRows = useMemo(() => {
     return (catalogItems || [])
