@@ -210,8 +210,28 @@ export default function SquareManagement() {
     setIsSyncing(true);
     setError(null);
     try {
+      const codResponse = await base44.functions.invoke('squareCodCore', {
+        action: 'getCodData',
+        forceDeliveryRefresh: true,
+      });
+      const codData = codResponse?.data || codResponse || {};
+
+      await base44.functions.invoke('squareCodCore', {
+        action: 'syncOnlineSquareEntities',
+        catalogRecords: codData.catalogRecords || [],
+        transactionRecords: codData.transactionRecords || [],
+      });
+
+      const { offlineDB } = await import('@/components/utils/offlineDatabase');
+      if (Array.isArray(codData.deliveries)) {
+        await offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, codData.deliveries);
+      }
+
+      await refreshOfflineSquareFromOnlineEntities();
       await refreshUiFromOfflineOnly();
-      toast.success('Square data refreshed');
+      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+      window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
+      toast.success('Square data synced');
     } catch (err) {
       setError(err.message);
       toast.error('Failed to sync: ' + err.message);
@@ -287,6 +307,7 @@ export default function SquareManagement() {
       realtimeRefreshTimeoutRef.current = setTimeout(async () => {
         if (!isActive || isSyncing || isUpdatingReconciliationCatalog) return;
         lastRealtimeRefreshAtRef.current = Date.now();
+        await refreshOfflineSquareFromOnlineEntities();
         await refreshUiFromOfflineOnly();
       }, 800);
     };
@@ -300,7 +321,7 @@ export default function SquareManagement() {
       unsubscribeCatalogItems?.();
       unsubscribeTransactions?.();
     };
-  }, [hasInitialLoadCompleted, isSyncing, isUpdatingReconciliationCatalog, refreshUiFromOfflineOnly]);
+  }, [hasInitialLoadCompleted, isSyncing, isUpdatingReconciliationCatalog, refreshOfflineSquareFromOnlineEntities, refreshUiFromOfflineOnly]);
 
   const getStoreColor = (storeId) => {
     const colors = [
@@ -382,8 +403,6 @@ export default function SquareManagement() {
       }
     });
     if (splitTotal > 0) amounts.add(splitTotal);
-    const legacyAmount = Math.round(Number(delivery?.cod_amount || 0) * 100);
-    if (legacyAmount > 0) amounts.add(legacyAmount);
     return amounts;
   }
 
@@ -514,8 +533,6 @@ export default function SquareManagement() {
           ? {
               ...delivery,
               cod_payments: [{ type: 'Debit', amount: Number(delivery.cod_total_amount_required || 0) }],
-              cod_payment_type: 'Debit',
-              cod_amount: String(Number(delivery.cod_total_amount_required || 0)),
             }
           : delivery
       )));
@@ -658,7 +675,7 @@ export default function SquareManagement() {
         const hasMatch = config?.square_location_id ? hasMatchingSquareTransaction(delivery, config.square_location_id) : false;
         const collectionType = Array.isArray(delivery?.cod_payments) && delivery.cod_payments.length > 0
           ? Array.from(new Set(delivery.cod_payments.map((payment) => payment?.type).filter(Boolean))).join(', ')
-          : (delivery?.cod_payment_type && delivery.cod_payment_type !== 'No Payment' ? delivery.cod_payment_type : null);
+          : null;
 
         return {
           id: delivery.id,
@@ -724,7 +741,7 @@ export default function SquareManagement() {
       const collectedByName = matchedDelivery?.driver_name || drivers.find((driver) => driver?.user_id === matchedDelivery?.driver_id)?.user_name || null;
       const collectionType = Array.isArray(matchedDelivery?.cod_payments) && matchedDelivery.cod_payments.length > 0
         ? Array.from(new Set(matchedDelivery.cod_payments.map((payment) => payment?.type).filter(Boolean))).join(', ')
-        : (matchedDelivery?.cod_payment_type && matchedDelivery.cod_payment_type !== 'No Payment' ? matchedDelivery.cod_payment_type : null);
+        : null;
 
       return {
         id: transaction.id,
@@ -808,18 +825,16 @@ export default function SquareManagement() {
   }).length, [deliveries, selectedDriverFilter, selectedDriverUserIds, visibleStoreIdsWithSquareLocationIds]);
 
   const collectedCodTypeBreakdown = useMemo(() => {
-    const counts = { Cash: 0, Debit: 0, Credit: 0, Check: 0 };
+    const counts = { Cash: 0, Debit: 0, Credit: 0, Check: 0, Other: 0 };
     deliveries.forEach((delivery) => {
       if (!delivery || Number(delivery.cod_total_amount_required || 0) <= 0) return;
       if (delivery.delivery_date && new Date(`${delivery.delivery_date}T00:00:00`) < lookbackStart) return;
       if (selectedDriverFilter !== 'all' && (selectedDriverUserIds.size === 0 || !selectedDriverUserIds.has(delivery.driver_id))) return;
       const codPayments = Array.isArray(delivery.cod_payments) ? delivery.cod_payments : [];
       if (codPayments.length > 0) {
-        const deliveryTypes = new Set(codPayments.filter((payment) => Number(payment?.amount || 0) > 0).map((payment) => payment?.type).filter((type) => ['Cash', 'Debit', 'Credit', 'Check'].includes(type)));
+        const deliveryTypes = new Set(codPayments.filter((payment) => Number(payment?.amount || 0) > 0).map((payment) => payment?.type).filter((type) => ['Cash', 'Debit', 'Credit', 'Check', 'Other'].includes(type)));
         deliveryTypes.forEach((type) => { counts[type] += 1; });
-        return;
       }
-      if (['Cash', 'Debit', 'Credit', 'Check'].includes(delivery.cod_payment_type)) counts[delivery.cod_payment_type] += 1;
     });
     return counts;
   }, [deliveries, lookbackStart, selectedDriverFilter, selectedDriverUserIds]);
