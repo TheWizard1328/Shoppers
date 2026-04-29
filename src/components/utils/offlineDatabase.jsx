@@ -31,14 +31,12 @@ let dbOpenPromise = null; // CRITICAL: Prevent multiple simultaneous opens
 let legacyCleanupPromise = null;
 
 const LEGACY_OFFLINE_DB_NAMES = [
-  'rxdeliver_persistent_offline_v1',
   'driver_route_polylines',
   'driver_route_polylines_db',
   'rxdeliver_driver_route_polylines'
 ];
 
 const LEGACY_DB_PREFIXES = [
-  'rxdeliver_persistent_offline_',
   'driver_route_polylines'
 ];
 
