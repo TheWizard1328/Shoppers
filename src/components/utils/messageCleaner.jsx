@@ -132,26 +132,22 @@ export async function performDailyMessageCleanup() {
       const batch = oldMessages.slice(i, i + BATCH_SIZE);
       
       for (const message of batch) {
-        const existsBeforeDelete = await base44.entities.Message.filter({ id: message.id });
-        if (!existsBeforeDelete || existsBeforeDelete.length === 0) {
-          console.log(`ℹ️ [messageCleaner] Message already deleted: ${message.id}`);
-          deleted++;
-          continue;
-        }
-
         try {
           await base44.entities.Message.delete(message.id);
           deleted++;
           await new Promise(resolve => setTimeout(resolve, 500)); // 500ms between individual deletes
         } catch (error) {
-          if (error.response?.status === 404 || error.message?.includes('not found')) {
-            console.log(`ℹ️ [messageCleaner] Message already deleted: ${message.id}`);
+          const errorMessage = String(error?.message || '').toLowerCase();
+          const errorStatus = error?.response?.status;
+
+          if (errorStatus === 404 || errorMessage.includes('not found')) {
             deleted++;
           } else {
             console.warn(`Failed to delete message ${message.id}:`, error.message);
             failed++;
           }
-          if (error.message?.includes('Rate limit') || error.response?.status === 429) {
+
+          if (errorMessage.includes('rate limit') || errorStatus === 429) {
             console.log('⏸️ [messageCleaner] Rate limited - pausing cleanup for 30 seconds...');
             await new Promise(resolve => setTimeout(resolve, 30000));
           }
