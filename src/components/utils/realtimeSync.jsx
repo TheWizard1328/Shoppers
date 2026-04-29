@@ -404,13 +404,12 @@ const subscribeToEntity = (entityName) => {
 
           if (storeName) {
             await offlineDB.save(storeName, data);
-              const savedLabel = entityName === 'Patient'
-                ? (data?.full_name || data?.id || 'Patient')
-                : entityName === 'AppUser'
-                  ? (data?.user_name || data?.full_name || data?.email || data?.id || 'AppUser')
-                  : entityName;
-              console.log(`💾 [RealtimeSync] Saved ${savedLabel} to offline DB - changed: ${changedFields.join(', ')}`);
-            }
+            const savedLabel = entityName === 'Patient'
+              ? (data?.full_name || data?.id || 'Patient')
+              : entityName === 'AppUser'
+                ? (data?.user_name || data?.full_name || data?.email || data?.id || 'AppUser')
+                : entityName;
+            console.log(`💾 [RealtimeSync] Saved ${savedLabel} to offline DB - changed: ${changedFields.join(', ')}`);
           }
         } else if (type === 'delete') {
           const storeName = entityName === 'AppUser' ? offlineDB.STORES.APP_USERS :
