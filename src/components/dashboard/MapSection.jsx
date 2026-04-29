@@ -7,6 +7,7 @@ import ETATracker from '@/components/dashboard/ETATracker';
 import ETANotification from '@/components/dashboard/ETANotification';
 import RealTimeRouteOptimizer from '@/components/dashboard/RealTimeRouteOptimizer';
 import CompletedRouteControls from '@/components/dashboard/CompletedRouteControls';
+import ImmersiveMapTopOverlay from '@/components/dashboard/ImmersiveMapTopOverlay';
 
 export default function MapSection({
   currentUser, isDriver, isDispatcher, isMobile,
@@ -27,6 +28,12 @@ export default function MapSection({
   immersiveHidden, isDriverMoving, immersiveOverrideActive, onImmersiveMapTap,
   mapViewPhase = 1, isMapViewLocked = false,
   topOverlayHeight = 0,
+  immersiveOverlayDelivery = null,
+  immersiveOverlayStore = null,
+  immersiveOverlayPatient = null,
+  immersiveOverlayIsPickup = false,
+  immersiveOverlayStoreColor = null,
+  immersiveOverlayDisplayName = '',
 }) {
   const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
   const routeCompleteForSelectedDriver = selectedDriverId && selectedDriverId !== 'all'
@@ -64,6 +71,16 @@ export default function MapSection({
       />
 
       <div className="absolute inset-0">
+        {immersiveHidden && immersiveOverlayDelivery && (
+          <ImmersiveMapTopOverlay
+            delivery={immersiveOverlayDelivery}
+            store={immersiveOverlayStore}
+            patient={immersiveOverlayPatient}
+            isPickup={immersiveOverlayIsPickup}
+            storeColor={immersiveOverlayStoreColor}
+            finalDisplayName={immersiveOverlayDisplayName}
+          />
+        )}
         <DeliveryMap
           deliveries={deliveriesWithStopOrder}
           allDeliveriesForDate={deliveries}
