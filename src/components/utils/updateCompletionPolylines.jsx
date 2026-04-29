@@ -38,10 +38,17 @@ export async function updateCompletionPolylines({
         });
 
         if (finishedPolyline && completedDelivery?.id) {
+          const completedPatient = patients?.find((p) => p?.id === completedDelivery.patient_id);
+          const completedStore = stores?.find((s) => s?.id === completedDelivery.store_id);
+          const completedCoords = completedDelivery?.patient_id
+            ? { lat: Number(completedPatient?.latitude), lon: Number(completedPatient?.longitude) }
+            : { lat: Number(completedStore?.latitude), lon: Number(completedStore?.longitude) };
           updates.push(
             base44.entities.Delivery.update(completedDelivery.id, {
               finished_leg_encoded_polyline: finishedPolyline,
               finished_leg_transport_mode: completedDelivery?.finished_leg_transport_mode || 'driving',
+              segment_dest_lat: Number.isFinite(completedCoords.lat) ? Number(completedCoords.lat.toFixed(5)) : completedDelivery?.segment_dest_lat,
+              segment_dest_lon: Number.isFinite(completedCoords.lon) ? Number(completedCoords.lon.toFixed(5)) : completedDelivery?.segment_dest_lon,
               PolylineUpdated: true
             })
           );

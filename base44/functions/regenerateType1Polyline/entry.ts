@@ -624,14 +624,15 @@ Deno.serve(async (req) => {
         Number.isFinite(homeLat) && Number.isFinite(homeLon) ? { lat: homeLat, lon: homeLon } : null
       );
     } else {
+      const exactNextStopCoords = getLatLon(nextRouteStop) || nextStopCoords;
       const singleDeliveryUpdate = {
         id: nextRouteStop.id,
         encoded_polyline: directions.encoded_polyline,
         transport_mode: directions.transport_mode || preferredTravelMode,
         segment_origin_lat: round5(effectiveOriginCoords.lat),
         segment_origin_lon: round5(effectiveOriginCoords.lon),
-        segment_dest_lat: round5(nextStopCoords.lat),
-        segment_dest_lon: round5(nextStopCoords.lon),
+        segment_dest_lat: round5(exactNextStopCoords.lat),
+        segment_dest_lon: round5(exactNextStopCoords.lon),
         estimated_distance_km: directions.estimated_distance_km ?? null,
         estimated_duration_minutes: directions.estimated_duration_minutes ?? null,
         PolylineUpdated: true

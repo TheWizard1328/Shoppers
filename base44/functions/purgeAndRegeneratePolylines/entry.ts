@@ -278,13 +278,15 @@ function findExactCachedSegment(rows, from, to) {
 }
 
 function buildSegmentDeliveryUpdate(spec, directions, transportMode = 'driving') {
+  const from = spec?.actualFrom || spec?.from;
+  const to = spec?.actualTo || spec?.to;
   return {
-    encoded_polyline: directions?.encoded_polyline || encodeGooglePolyline([[spec.from.lat, spec.from.lon], [spec.to.lat, spec.to.lon]]),
+    encoded_polyline: directions?.encoded_polyline || encodeGooglePolyline([[from.lat, from.lon], [to.lat, to.lon]]),
     transport_mode: getNormalizedTravelMode(transportMode, 'driving'),
-    segment_origin_lat: round5(spec.from.lat),
-    segment_origin_lon: round5(spec.from.lon),
-    segment_dest_lat: round5(spec.to.lat),
-    segment_dest_lon: round5(spec.to.lon),
+    segment_origin_lat: round5(from.lat),
+    segment_origin_lon: round5(from.lon),
+    segment_dest_lat: round5(to.lat),
+    segment_dest_lon: round5(to.lon),
     estimated_distance_km: directions?.estimated_distance_km ?? null,
     estimated_duration_minutes: directions?.estimated_duration_minutes ?? null
   };
@@ -951,9 +953,10 @@ Deno.serve(async (req) => {
 
         for (let index = 0; index < orderedStops.length; index += 1) {
           const stop = orderedStops[index].stop;
+          const actualStopCoords = orderedStops[index].coords;
           const from = routePoints[index];
           const to = routePoints[index + 1];
-          if (!from || !to) continue;
+          if (!from || !to || !actualStopCoords) continue;
           const existingBreadcrumbs = stop?.delivery_route_breadcrumbs || null;
           const fallbackBreadcrumbs = existingBreadcrumbs || buildFallbackBreadcrumbs(
             from,
@@ -969,6 +972,8 @@ Deno.serve(async (req) => {
             stop,
             from,
             to,
+            actualFrom: from,
+            actualTo: actualStopCoords,
             transportMode: normalizedTransportMode,
             breadcrumbDirections: parseBreadcrumbPolyline(existingBreadcrumbs),
             fallbackBreadcrumbs,
@@ -1114,9 +1119,10 @@ Deno.serve(async (req) => {
             return stop?.id && stopCoords && samePoint({ lat: stopCoords.lat, lon: stopCoords.lon }, spec.to);
           });
           if (matchingStop) {
+            const matchingStopCoords = getLatLon(matchingStop);
             deliveryUpdatesById.set(matchingStop.id, {
               ...(deliveryUpdatesById.get(matchingStop.id) || {}),
-              ...buildSegmentDeliveryUpdate(spec, cachedSegment, spec.transportMode),
+              ...buildSegmentDeliveryUpdate({ ...spec, actualTo: matchingStopCoords || spec.to }, cachedSegment, spec.transportMode),
               travel_dist: cachedSegment.estimated_distance_km ?? null
             });
           }
@@ -1147,16 +1153,18 @@ Deno.serve(async (req) => {
             return stop?.id && stopCoords && samePoint({ lat: stopCoords.lat, lon: stopCoords.lon }, spec.to);
           });
           if (matchingStop) {
+            const matchingStopCoords = getLatLon(matchingStop);
             deliveryUpdatesById.set(matchingStop.id, {
               ...(deliveryUpdatesById.get(matchingStop.id) || {}),
-              ...buildSegmentDeliveryUpdate(spec, directions, spec.transportMode),
+              ...buildSegmentDeliveryUpdate({ ...spec, actualTo: matchingStopCoords || spec.to }, directions, spec.transportMode),
               travel_dist: directions?.estimated_distance_km ?? null
             });
           }
           if (matchingStop?.id) {
+            const matchingStopCoords = getLatLon(matchingStop);
             createdSegments.push({
               id: matchingStop.id,
-              ...buildSegmentDeliveryUpdate(spec, directions, spec.transportMode)
+              ...buildSegmentDeliveryUpdate({ ...spec, actualTo: matchingStopCoords || spec.to }, directions, spec.transportMode)
             });
           }
         });
