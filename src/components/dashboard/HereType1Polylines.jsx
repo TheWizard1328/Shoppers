@@ -1,7 +1,5 @@
-import React, { useEffect, useMemo, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Polyline } from "react-leaflet";
-import { ensurePolylineSubscription } from "../utils/hereRouting";
-import { getRouteOptimizationSettings } from "./RouteOptimizationSettings";
 import { getTravelModeLineStyle, normalizeTravelMode } from "./travelModeHelpers";
 import RouteDirectionDecorator from "./RouteDirectionDecorator";
 
@@ -23,95 +21,6 @@ const makeFallback = (a, b) => {
   return [A, B];
 };
 
-const getSegmentKey = (driverId, from, to) => {
-  if (!driverId || !from || !to) return null;
-  return `${driverId}_${Number(from.latitude).toFixed(5)}_${Number(from.longitude).toFixed(5)}_${Number(to.latitude).toFixed(5)}_${Number(to.longitude).toFixed(5)}`;
-};
-
-const getHereCacheKey = (from, to, mode = 'driving') => {
-  if (!from || !to) return null;
-  return `here_${normalizeTravelMode(mode)}_${Number(from.latitude).toFixed(5)}_${Number(from.longitude).toFixed(5)}_${Number(to.latitude).toFixed(5)}_${Number(to.longitude).toFixed(5)}`;
-};
-
-const getCachedPolyline = (key, memoryCache) => {
-  if (!key) return null;
-  const inMemory = memoryCache[key];
-  if (Array.isArray(inMemory) && inMemory.length > 1) return inMemory;
-  try {
-    const cached = localStorage.getItem(key);
-    if (!cached) return null;
-    const parsed = JSON.parse(cached);
-    return Array.isArray(parsed) && parsed.length > 1 ? parsed : null;
-  } catch (_) {
-    return null;
-  }
-};
-
-const getLiveDriverMarker = (driverId, currentDriverMarker, driverLocations) => {
-  const currentId = currentDriverMarker?.driverId || currentDriverMarker?.driver_id;
-  if (currentId === driverId) return currentDriverMarker;
-  return (driverLocations || []).find((marker) => (marker?.driverId || marker?.driver_id) === driverId) || null;
-};
-
-const toMetersPoint = ({ lat, lng }, originLat) => {
-  const latFactor = 111320;
-  const lonFactor = 111320 * Math.cos((originLat * Math.PI) / 180);
-  return { x: lng * lonFactor, y: lat * latFactor };
-};
-
-const pointToSegmentDistanceMeters = (point, start, end) => {
-  const originLat = (point.lat + start.lat + end.lat) / 3;
-  const p = toMetersPoint(point, originLat);
-  const a = toMetersPoint(start, originLat);
-  const b = toMetersPoint(end, originLat);
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  if (dx === 0 && dy === 0) {
-    return Math.hypot(p.x - a.x, p.y - a.y);
-  }
-  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy)));
-  const projX = a.x + t * dx;
-  const projY = a.y + t * dy;
-  return Math.hypot(p.x - projX, p.y - projY);
-};
-
-const pointToPolylineDistanceMeters = (point, polyline) => {
-  if (!point || !Array.isArray(polyline) || polyline.length < 2) return Infinity;
-  let minDistance = Infinity;
-  for (let i = 0; i < polyline.length - 1; i += 1) {
-    const start = { lat: Number(polyline[i][0]), lng: Number(polyline[i][1]) };
-    const end = { lat: Number(polyline[i + 1][0]), lng: Number(polyline[i + 1][1]) };
-    if (![start.lat, start.lng, end.lat, end.lng].every(Number.isFinite)) continue;
-    minDistance = Math.min(minDistance, pointToSegmentDistanceMeters(point, start, end));
-  }
-  return minDistance;
-};
-
-const buildBreadcrumbLine = (breadcrumbsValue, origin, current, sampleEvery = 5) => {
-  const originPoint = [Number(origin?.latitude), Number(origin?.longitude)];
-  const currentPoint = [Number(current?.latitude), Number(current?.longitude)];
-  if (!originPoint.every(Number.isFinite) || !currentPoint.every(Number.isFinite)) return [];
-
-  let breadcrumbs = [];
-  try {
-    const parsed = typeof breadcrumbsValue === 'string' ? JSON.parse(breadcrumbsValue) : breadcrumbsValue;
-    breadcrumbs = Array.isArray(parsed) ? parsed : [];
-  } catch (_) {
-    breadcrumbs = [];
-  }
-
-  const sampled = breadcrumbs
-    .filter((_, index) => index % sampleEvery === 0)
-    .map((point) => [Number(point?.[0]), Number(point?.[1])])
-    .filter((point) => point.every(Number.isFinite));
-
-  const combined = [originPoint, ...sampled, currentPoint];
-  return combined.filter((point, index) => {
-    if (index === 0) return true;
-    const previous = combined[index - 1];
-    return Math.abs(previous[0] - point[0]) > 0.00001 || Math.abs(previous[1] - point[1]) > 0.00001;
-  });
-};
 
 export default function HereType1Polylines({
   isViewingCurrentDate,
@@ -124,18 +33,9 @@ export default function HereType1Polylines({
   driverLocations = [],
   driverTravelModes = {},
 }) {
-  const [cache, setCache] = useState({});
   const [refreshToken, setRefreshToken] = useState(0);
   const [localDriverTravelModes, setLocalDriverTravelModes] = useState({});
-  const [deviationSegments, setDeviationSegments] = useState({});
-  const deviationMetaRef = useRef({});
 
-  useEffect(() => {
-    ensurePolylineSubscription();
-  }, []);
-
-  // Offline polyline hydration helper
-  const round5 = (n) => Number(n.toFixed(5));
   const decodePolyline = (str) => {
     let index = 0, lat = 0, lng = 0, coordinates = [];
     while (index < str.length) {
@@ -151,44 +51,7 @@ export default function HereType1Polylines({
     }
     return coordinates;
   };
-  const hydrateFromOffline = async (key, driverId, from, to, date) => {
-    try {
-      const { offlineDB } = await import('../utils/offlineDatabase');
-      const targetDate = date || new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-      const rows = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, targetDate).catch(() => []);
-      console.log(`[Type1] Hydrating delivery polyline from offline DB for ${driverId} on ${targetDate}: found ${rows?.length || 0} deliveries`);
-      const fLat = round5(from.latitude), fLon = round5(from.longitude);
-      const tLat = round5(to.latitude), tLon = round5(to.longitude);
-      const preferredMode = normalizeTravelMode(getDriverMode(driverId));
-      const exactMatch = null;
-      const fallbackMatch = null;
-      if (fallbackMatch) {
-        console.log(`[Type1] Found matching delivery polyline in offline DB for segment ${from.latitude},${from.longitude} -> ${to.latitude},${to.longitude}`);
-        const coords = decodePolyline(fallbackMatch.encoded_polyline);
-        if (Array.isArray(coords) && coords.length > 1) {
-          setCache((p) => ({ ...p, [key]: coords }));
-          try { localStorage.setItem(key, JSON.stringify(coords)); } catch (_) {}
-          return true;
-        }
-      } else {
-        console.log(`[Type1] No matching delivery polyline found in offline DB for segment ${from.latitude},${from.longitude} -> ${to.latitude},${to.longitude}`);
-      }
-    } catch (err) {
-      console.error(`[Type1] Error hydrating from offline DB:`, err);
-    }
-    return false;
-  };
-  const [optimizing, setOptimizing] = useState(false);
-  const [lastNonEmptyLines, setLastNonEmptyLines] = useState([]);
-  const lastHydratedSegmentKeysRef = useRef({});
-  useEffect(() => {
-    setLastNonEmptyLines([]);
-    setDeviationSegments({});
-    deviationMetaRef.current = {};
-    lastHydratedSegmentKeysRef.current = {};
-  }, [selectedDriverId, showAll]);
-  const requestTimesRef = useRef({});
-  const mountTimeRef = useRef(Date.now());
+
 
   const driverStops = useMemo(() => {
     const map = new Map();
@@ -222,282 +85,37 @@ export default function HereType1Polylines({
     return out;
   }, [driverStops]);
 
-  // Listen only to route-shape-changing events so location pings don't redraw type-1 lines
   useEffect(() => {
-    const invalidate = () => { setRefreshToken((t) => t + 1); };
-    const onReorder = invalidate;
+    const invalidate = () => setRefreshToken((t) => t + 1);
     const onDriverTravelModeChanged = (event) => {
       const driverId = event?.detail?.driverId;
       const travelMode = event?.detail?.travelMode;
       if (!driverId || !travelMode) return;
       setLocalDriverTravelModes((prev) => ({ ...prev, [driverId]: travelMode }));
-      setCache({});
-      setLastNonEmptyLines([]);
       invalidate();
     };
-    const onOptimizationStarted = () => { setOptimizing(true); };
-    const onOptimizationComplete = () => { setOptimizing(false); invalidate(); };
-    const onPolyline = (e) => {
-      const key = e?.detail?.key;
-      const coordsFromEvent = e?.detail?.coords;
-      if (!key) return;
 
-      if (Array.isArray(coordsFromEvent) && coordsFromEvent.length > 1) {
-        try { localStorage.setItem(key, JSON.stringify(coordsFromEvent)); } catch (_) {}
-        setCache((p) => ({ ...p, [key]: coordsFromEvent }));
-        return;
-      }
-
-      try {
-        const cached = localStorage.getItem(key);
-        if (cached) {
-          const coords = JSON.parse(cached);
-          if (Array.isArray(coords) && coords.length > 1) {
-            setCache((p) => ({ ...p, [key]: coords }));
-            return;
-          }
-        }
-      } catch (_) {}
-      // Fallback: light refresh without nuking everything
-      setRefreshToken((t) => t + 1);
-    };
-    const onDeliveryCompleted = invalidate;
-    const onDeliveryFailed = invalidate;
-    const onPolylineCacheCleared = () => {
-      setCache({});
-      setLastNonEmptyLines([]);
-      invalidate();
-    };
-    window.addEventListener('routeReordered', onReorder);
+    window.addEventListener('routeReordered', invalidate);
+    window.addEventListener('routeOptimizationComplete', invalidate);
     window.addEventListener('driverTravelModeChanged', onDriverTravelModeChanged);
-    window.addEventListener('polylineUpdated', onPolyline);
-    window.addEventListener('routeOptimizationComplete', onOptimizationComplete);
-    window.addEventListener('routeOptimizationStarted', onOptimizationStarted);
-    window.addEventListener('polylineCacheCleared', onPolylineCacheCleared);
-    window.addEventListener('deliveryCompleted', onDeliveryCompleted);
-    window.addEventListener('deliveryFailed', onDeliveryFailed);
+    window.addEventListener('polylineUpdated', invalidate);
+    window.addEventListener('polylineCacheCleared', invalidate);
+    window.addEventListener('deliveryCompleted', invalidate);
+    window.addEventListener('deliveryFailed', invalidate);
+
     return () => {
-      window.removeEventListener('routeReordered', onReorder);
+      window.removeEventListener('routeReordered', invalidate);
+      window.removeEventListener('routeOptimizationComplete', invalidate);
       window.removeEventListener('driverTravelModeChanged', onDriverTravelModeChanged);
-      window.removeEventListener('polylineUpdated', onPolyline);
-      window.removeEventListener('routeOptimizationComplete', onOptimizationComplete);
-      window.removeEventListener('routeOptimizationStarted', onOptimizationStarted);
-      window.removeEventListener('polylineCacheCleared', onPolylineCacheCleared);
-      window.removeEventListener('deliveryCompleted', onDeliveryCompleted);
-      window.removeEventListener('deliveryFailed', onDeliveryFailed);
+      window.removeEventListener('polylineUpdated', invalidate);
+      window.removeEventListener('polylineCacheCleared', invalidate);
+      window.removeEventListener('deliveryCompleted', invalidate);
+      window.removeEventListener('deliveryFailed', invalidate);
     };
   }, []);
 
-  // Hydrate last-completed -> next-stop from offline DB ONLY (no backend calls)
-  useEffect(() => {
-    if (optimizing || (Date.now() - mountTimeRef.current < 1200)) return;
-    driverStops.forEach((stops, driverId) => {
-      if (stops.incomplete.length === 0 || stops.complete.length === 0) return;
-      const completedSorted = [...stops.complete].sort((a, b) => {
-        const at = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : (a.updated_date ? new Date(a.updated_date).getTime() : 0);
-        const bt = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : (b.updated_date ? new Date(b.updated_date).getTime() : 0);
-        return bt - at;
-      });
-      const lastCompleted = completedSorted[0];
-      const orderedIncompleteStops = [...stops.incomplete].sort((a, b) => {
-        const stopOrderA = Number(a?.stop_order);
-        const stopOrderB = Number(b?.stop_order);
-        const hasAOrder = Number.isFinite(stopOrderA) && stopOrderA > 0;
-        const hasBOrder = Number.isFinite(stopOrderB) && stopOrderB > 0;
-        if (hasAOrder && hasBOrder && stopOrderA !== stopOrderB) return stopOrderA - stopOrderB;
-        if (hasAOrder && !hasBOrder) return -1;
-        if (!hasAOrder && hasBOrder) return 1;
-        const etaA = a?.delivery_time_eta || a?.delivery_time_start || '';
-        const etaB = b?.delivery_time_eta || b?.delivery_time_start || '';
-        return etaA.localeCompare(etaB);
-      });
-      const nextStop = orderedIncompleteStops.find((s) => s.isNextDelivery === true) || orderedIncompleteStops[0];
-      if (!lastCompleted || !nextStop) return;
-
-      const originLat = Number(lastCompleted.latitude);
-      const originLon = Number(lastCompleted.longitude);
-
-      const originPoint = { latitude: Number(originLat), longitude: Number(originLon) };
-      const destinationPoint = { latitude: Number(nextStop.latitude), longitude: Number(nextStop.longitude) };
-      const driverMode = getDriverMode(driverId);
-      const key = getHereCacheKey(originPoint, destinationPoint, driverMode);
-      if (cache[key]) {
-        lastHydratedSegmentKeysRef.current[driverId] = key;
-        return;
-      }
-      if (lastHydratedSegmentKeysRef.current[driverId] === key) return;
-      lastHydratedSegmentKeysRef.current[driverId] = key;
-      hydrateFromOffline(key, driverId, originPoint, destinationPoint, lastCompleted.delivery_date);
-    });
-  }, [isViewingCurrentDate, driverStops, refreshToken]);
-
-  // Hydrate last-completed -> home from offline DB ONLY (no backend calls)
-  useEffect(() => {
-     if ((Date.now() - mountTimeRef.current < 1200)) return;
-     driversWithCompleteRoute.forEach((driverId) => {
-      const all = driverStops.get(driverId) || { complete: [] };
-      const completedSorted = [...(all.complete || [])].sort((a, b) => {
-        const at = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : (a.updated_date ? new Date(a.updated_date).getTime() : 0);
-        const bt = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : (b.updated_date ? new Date(b.updated_date).getTime() : 0);
-        return bt - at;
-      });
-      const lastCompleted = completedSorted[0];
-      const home = driverHomeMarkers.find((h) => h.driverId === driverId);
-      if (!lastCompleted || !home) return;
-      const key = getHereCacheKey(lastCompleted, home, getDriverMode(driverId));
-      if (cache[key]) {
-        lastHydratedSegmentKeysRef.current[driverId] = key;
-        return;
-      }
-      if (lastHydratedSegmentKeysRef.current[driverId] === key) return;
-      lastHydratedSegmentKeysRef.current[driverId] = key;
-      hydrateFromOffline(key, driverId, { latitude: Number(lastCompleted.latitude), longitude: Number(lastCompleted.longitude) }, { latitude: Number(home.latitude), longitude: Number(home.longitude) }, lastCompleted.delivery_date);
-    });
-  }, [isViewingCurrentDate, driversWithCompleteRoute, driverStops, driverHomeMarkers, refreshToken]);
-
-  // Hydrate home -> first stop from offline DB ONLY (no backend calls)
-  useEffect(() => {
-    if (optimizing || (Date.now() - mountTimeRef.current < 1200)) return;
-    driverStops.forEach((stops, driverId) => {
-      const hasCompleted = (stops?.complete?.length || 0) > 0;
-      const hasIncomplete = ((stops?.incomplete?.length || 0) > 0);
-      if (hasCompleted || !hasIncomplete) return;
-      const next = stops.incomplete.find((s) => s.isNextDelivery === true) || stops.incomplete[0];
-
-      const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
-      const originLat = home && !Number.isNaN(Number(home.latitude)) ? Number(home.latitude) : undefined;
-      const originLon = home && !Number.isNaN(Number(home.longitude)) ? Number(home.longitude) : undefined;
-
-      if (!next || originLat === undefined || originLon === undefined) return;
-
-      const key = getHereCacheKey({ latitude: originLat, longitude: originLon }, next, getDriverMode(driverId));
-      if (cache[key]) {
-        lastHydratedSegmentKeysRef.current[driverId] = key;
-        return;
-      }
-      if (lastHydratedSegmentKeysRef.current[driverId] === key) return;
-      lastHydratedSegmentKeysRef.current[driverId] = key;
-      hydrateFromOffline(key, driverId, { latitude: originLat, longitude: originLon }, next, next.delivery_date);
-    });
-  }, [isViewingCurrentDate, driverStops, driverHomeMarkers, optimizing, refreshToken]);
-
-  useEffect(() => {
-    const settings = getRouteOptimizationSettings();
-    if (!isViewingCurrentDate || optimizing) {
-      setDeviationSegments({});
-      deviationMetaRef.current = {};
-      return;
-    }
-
-    const thresholdMeters = settings.enableRouteDeviationDetection
-      ? Math.max(50, Number(settings.routeDeviationThresholdMeters) || 200)
-      : 250;
-    const cooldownMs = (settings.enableRouteDeviationDetection
-      ? Math.max(1, Number(settings.routeDeviationCooldownMinutes) || 5)
-      : 2) * 60 * 1000;
-    let cancelled = false;
-
-    const run = async () => {
-      const nextDeviationSegments = {};
-      const activeSegmentIds = new Set();
-      const jobs = [];
-
-      driverStops.forEach((stops, driverId) => {
-        if (!showAll && selectedDriverId && selectedDriverId !== 'all' && driverId !== selectedDriverId) return;
-        if (stops.incomplete.length === 0 || stops.complete.length === 0) return;
-
-        const completedSorted = [...stops.complete].sort((a, b) => {
-            const at = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : (a.updated_date ? new Date(a.updated_date).getTime() : 0);
-            const bt = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : (b.updated_date ? new Date(b.updated_date).getTime() : 0);
-            return at - bt;
-          });
-          const lastCompleted = completedSorted[completedSorted.length - 1];
-        const nextStop = stops.incomplete.find((stop) => stop.isNextDelivery === true) || stops.incomplete[0];
-        const liveMarker = getLiveDriverMarker(driverId, currentDriverMarker, driverLocations);
-        if (!lastCompleted || !nextStop || !liveMarker) return;
-
-        const origin = { latitude: Number(lastCompleted.latitude), longitude: Number(lastCompleted.longitude) };
-        const destination = { latitude: Number(nextStop.latitude), longitude: Number(nextStop.longitude) };
-        const current = { latitude: Number(liveMarker.latitude), longitude: Number(liveMarker.longitude) };
-        if (![origin.latitude, origin.longitude, destination.latitude, destination.longitude, current.latitude, current.longitude].every(Number.isFinite)) return;
-
-        const segmentId = getSegmentKey(driverId, origin, destination);
-        const plannedKey = getHereCacheKey(origin, destination);
-        const plannedCoords = getCachedPolyline(plannedKey, cache);
-        if (!segmentId || !plannedCoords) return;
-
-        activeSegmentIds.add(segmentId);
-        const deviationDistance = pointToPolylineDistanceMeters({ lat: current.latitude, lng: current.longitude }, plannedCoords);
-        const existing = deviationMetaRef.current[segmentId];
-
-        if (Number.isFinite(deviationDistance) && deviationDistance <= thresholdMeters * 0.6) {
-          delete deviationMetaRef.current[segmentId];
-          return;
-        }
-
-        if (!Number.isFinite(deviationDistance) || deviationDistance < thresholdMeters) {
-          if (existing) nextDeviationSegments[segmentId] = existing;
-          return;
-        }
-
-        if (existing?.remainingCoords && existing?.remainingPoint && (Date.now() - (existing.lastFetchedAt || 0) < cooldownMs)) {
-          nextDeviationSegments[segmentId] = {
-            ...existing,
-            breadcrumbCoords: buildBreadcrumbLine(nextStop.delivery_route_breadcrumbs, origin, current),
-            currentPoint: current,
-            deviationDistance
-          };
-          return;
-        }
-
-        jobs.push(
-          (async () => {
-            try {
-              const remainingKey = getHereCacheKey(current, destination, getDriverMode(driverId));
-              let remainingCoords = getCachedPolyline(remainingKey, cache);
-              if (!remainingCoords) {
-                remainingCoords = await hydrateFromOffline(remainingKey, driverId, current, destination, nextStop.delivery_date)
-                  .then((hydrated) => hydrated ? getCachedPolyline(remainingKey, cache) : null);
-              }
-              if (cancelled) return;
-              if (!remainingCoords || remainingCoords.length <= 1) {
-                return;
-              }
-              nextDeviationSegments[segmentId] = {
-                segmentId,
-                driverId,
-                origin,
-                destination,
-                currentPoint: current,
-                breadcrumbCoords: buildBreadcrumbLine(nextStop.delivery_route_breadcrumbs, origin, current),
-                remainingCoords: Array.isArray(remainingCoords) && remainingCoords.length > 1 ? remainingCoords : makeFallback(current, destination),
-                remainingPoint: current,
-                deviationDistance,
-                lastFetchedAt: Date.now()
-              };
-            } catch (_) {
-              if (cancelled) return;
-            }
-          })()
-        );
-      });
-
-      await Promise.all(jobs);
-      if (cancelled) return;
-
-      deviationMetaRef.current = Object.fromEntries(
-        Object.entries({ ...deviationMetaRef.current, ...nextDeviationSegments }).filter(([segmentId]) => activeSegmentIds.has(segmentId))
-      );
-      setDeviationSegments(nextDeviationSegments);
-    };
-
-    run();
-    return () => { cancelled = true; };
-  }, [isViewingCurrentDate, optimizing, driverStops, currentDriverMarker, driverLocations, selectedDriverId, showAll, cache, refreshToken]);
-
   /* always render polylines on any date; previously gated by current date */
 
-  const isGrace = Date.now() - mountTimeRef.current < 600;
   const lines = [];
   const getType1PolylineColor = () => '#2563EB';
   const getDriverMode = (driverId) => normalizeTravelMode(localDriverTravelModes[driverId] ?? driverTravelModes[driverId]);
@@ -531,21 +149,14 @@ export default function HereType1Polylines({
       const originLon = home && !Number.isNaN(Number(home.longitude)) ? Number(home.longitude) : undefined;
 
       if (next && originLat !== undefined && originLon !== undefined) {
-        const key = getHereCacheKey({ latitude: originLat, longitude: originLon }, next, getDriverMode(driverId));
-        let coords = getCachedPolyline(key, cache);
-        if (!coords) {
-          try {
-            const cached = localStorage.getItem(key);
-            if (cached) {
-              const c = JSON.parse(cached);
-              if (Array.isArray(c) && c.length > 1) coords = c;
-            }
-          } catch (_) {}
-        }
-        
+        const coords = typeof next?.encoded_polyline === 'string' && next.encoded_polyline.trim()
+          ? decodePolyline(next.encoded_polyline)
+          : null;
+        const key = `prehome-${driverId}-${next.id}`;
+
         if (!seenKeys.has(key)) {
           seenKeys.add(key);
-          const segmentPositions = coords || makeFallback({ latitude: originLat, longitude: originLon }, next);
+          const segmentPositions = Array.isArray(coords) && coords.length > 1 ? coords : makeFallback({ latitude: originLat, longitude: originLon }, next);
           lines.push(
             <Polyline
               key={`type1-pre-home-line-${driverId}-${getDriverMode(driverId)}`}
@@ -590,23 +201,17 @@ export default function HereType1Polylines({
         ? { latitude: Number(home.latitude), longitude: Number(home.longitude) }
         : null;
     const destination = { latitude: Number(currentStop.latitude), longitude: Number(currentStop.longitude) };
-    const key = origin ? getHereCacheKey(origin, destination, currentStop?.transport_mode || getDriverMode(driverId)) : null;
+    const key = `active-${driverId}-${currentStop.id}`;
 
     let coords = null;
     if (typeof currentStop?.encoded_polyline === 'string' && currentStop.encoded_polyline.trim()) {
       try {
         coords = decodePolyline(currentStop.encoded_polyline);
-        if (Array.isArray(coords) && coords.length > 1 && key) {
-          try {
-            const cachedValue = localStorage.getItem(key);
-            if (!cachedValue) localStorage.setItem(key, JSON.stringify(coords));
-          } catch (_) {}
-        }
       } catch (_) {}
     }
 
     if ((!coords || coords.length < 2) && origin && Number.isFinite(origin.latitude) && Number.isFinite(origin.longitude) && Number.isFinite(destination.latitude) && Number.isFinite(destination.longitude)) {
-      coords = (key && getCachedPolyline(key, cache)) || makeFallback(origin, destination);
+      coords = makeFallback(origin, destination);
     }
 
     if (!coords || coords.length < 2 || seenKeys.has(key)) return;
@@ -629,13 +234,6 @@ export default function HereType1Polylines({
 
   // Completed-route return-home leg stays hidden from current type 1 view
 
-  // Preserve last non-empty set only in multi-driver showAll mode to prevent ghost lines on driver switch
-  useEffect(() => {
-    if (lines.length && showAll) setLastNonEmptyLines(lines);
-    if (!showAll) setLastNonEmptyLines([]);
-  }, [lines.length, showAll, refreshToken, deliveryMarkers.length, pickupMarkers.length]);
-
-  // Safety: dedupe by key at the very end to ensure no accidental duplicates sneak in
   const uniqueLines = React.useMemo(() => {
     const used = new Set();
     return lines.filter((child) => {
@@ -648,5 +246,5 @@ export default function HereType1Polylines({
   }, [lines]);
 
 
-  return isGrace ? null : (uniqueLines.length ? <>{uniqueLines}</> : null);
+  return uniqueLines.length ? <>{uniqueLines}</> : null;
 }

@@ -1,7 +1,5 @@
-import React, { useEffect, useMemo, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Polyline } from "react-leaflet";
-import { offlineDB } from "../utils/offlineDatabase";
-import { getHerePolyline } from "../utils/hereRouting";
 import { generateDriverColor } from "../utils/colorGenerator";
 import { getTravelModeLineStyle, normalizeTravelMode } from "./travelModeHelpers";
 import RouteDirectionDecorator from "./RouteDirectionDecorator";
@@ -34,17 +32,9 @@ export default function HereType2Polylines({
   selectedDriverId = null,
   driverTravelModes = {},
 }) {
-  const [cache, setCache] = useState({});
   const [refreshToken, setRefreshToken] = useState(0);
-  const [optimizing, setOptimizing] = useState(false);
   const [localDriverTravelModes, setLocalDriverTravelModes] = useState({});
-  const [lastNonEmptyLines, setLastNonEmptyLines] = useState([]);
-  const [offlineSegmentMap, setOfflineSegmentMap] = useState({});
-  const requestTimesRef = useRef({});
 
-
-  // Offline polyline hydration helper
-  const round5 = (n) => Number(n.toFixed(5));
   const decodePolyline = (str) => {
     let index = 0, lat = 0, lng = 0, coordinates = [];
     while (index < str.length) {
@@ -60,28 +50,6 @@ export default function HereType2Polylines({
     }
     return coordinates;
   };
-  const hydrateFromOffline = async (key, driverId, from, to, date) => {
-    try {
-      const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' });
-      const parts = formatter.formatToParts(new Date());
-      const todayStr = `${parts.find(p => p.type === 'year').value}-${parts.find(p => p.type === 'month').value}-${parts.find(p => p.type === 'day').value}`;
-      const rows = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, date || todayStr);
-      const fLat = round5(from.latitude), fLon = round5(from.longitude);
-      const tLat = round5(to.latitude), tLon = round5(to.longitude);
-      const preferredMode = normalizeTravelMode(getDriverMode(driverId));
-      const exactMatch = null;
-      const fallbackMatch = null;
-      if (fallbackMatch) {
-        const coords = decodePolyline(fallbackMatch.encoded_polyline);
-        if (Array.isArray(coords) && coords.length > 1) {
-          setCache((p) => ({ ...p, [key]: coords }));
-          try { localStorage.setItem(key, JSON.stringify(coords)); } catch (_) {}
-          return true;
-        }
-      }
-    } catch (_) {}
-    return false;
-    };
 
     const getType2PolylineColor = (driverId) => {
       const driverColor = generateDriverColor(String(driverId || 'driver')).toLowerCase();
@@ -147,141 +115,43 @@ export default function HereType2Polylines({
     return map;
   }, [deliveryMarkers, pickupMarkers, multiDriverMode, selectedDriverId]);
 
-  // Listen for route reorder events to refresh polylines
   useEffect(() => {
-    const refreshAll = () => {
-      // Keep existing caches to avoid flicker; just trigger re-evaluation
-      setRefreshToken((t) => t + 1);
-    };
-
-    const onReorder = refreshAll;
-    const onOptimizationComplete = () => { setOptimizing(false); refreshAll(); };
-    const onDeliveriesUpdated = () => setRefreshToken((t)=>t+1);
-    const onDeliveriesImported = refreshAll;
-
-    const onOptimizationStarted = () => { setOptimizing(true); };
+    const refreshAll = () => setRefreshToken((t) => t + 1);
 
     const onDriverTravelModeChanged = (event) => {
       const driverId = event?.detail?.driverId;
       const travelMode = event?.detail?.travelMode;
       if (!driverId || !travelMode) return;
       setLocalDriverTravelModes((prev) => ({ ...prev, [driverId]: travelMode }));
-      setCache({});
-      setLastNonEmptyLines([]);
-      setRefreshToken((t) => t + 1);
+      refreshAll();
     };
 
-    const onPolyline = (e) => {
-      const key = e?.detail?.key;
-      if (!key) return;
-      try {
-        const cached = localStorage.getItem(key);
-        if (cached) {
-          const coords = JSON.parse(cached);
-          if (Array.isArray(coords) && coords.length > 1) {
-            setCache((p) => ({ ...p, [key]: coords }));
-          }
-        }
-      } catch (_) {}
-    };
-    const onDriverStatusChanged = (e) => {
-      try { if (e?.detail?.newStatus === 'on_duty') setRefreshToken((t)=>t+1); } catch (_) { setRefreshToken((t)=>t+1); }
-    };
-    const onDeliveryStarted = () => setRefreshToken((t)=>t+1);
-    const onDeliveryCompleted = () => setRefreshToken((t)=>t+1);
-    const onDeliveryFailed = () => setRefreshToken((t)=>t+1);
-    const onDeliveryAction = () => setRefreshToken((t)=>t+1);
-    const onPolylineCacheCleared = () => {
-      setCache({});
-      setLastNonEmptyLines([]);
-      setRefreshToken((t) => t + 1);
-    };
-
-    window.addEventListener('routeReordered', onReorder);
+    window.addEventListener('routeReordered', refreshAll);
+    window.addEventListener('routeOptimizationComplete', refreshAll);
+    window.addEventListener('deliveriesUpdated', refreshAll);
+    window.addEventListener('deliveriesImported', refreshAll);
     window.addEventListener('driverTravelModeChanged', onDriverTravelModeChanged);
-    window.addEventListener('polylineUpdated', onPolyline);
-    window.addEventListener('routeOptimizationComplete', onOptimizationComplete);
-    window.addEventListener('routeOptimizationStarted', onOptimizationStarted);
-    window.addEventListener('deliveriesUpdated', onDeliveriesUpdated);
-    window.addEventListener('polylineCacheCleared', onPolylineCacheCleared);
-    window.addEventListener('deliveriesImported', onDeliveriesImported);
-    // New triggers for HERE refresh
-    window.addEventListener('driverStatusChanged', onDriverStatusChanged);
-    window.addEventListener('deliveryStarted', onDeliveryStarted);
-    window.addEventListener('deliveryCompleted', onDeliveryCompleted);
-    window.addEventListener('deliveryFailed', onDeliveryFailed);
-    window.addEventListener('deliveryAction', onDeliveryAction);
+    window.addEventListener('polylineUpdated', refreshAll);
+    window.addEventListener('polylineCacheCleared', refreshAll);
+    window.addEventListener('deliveryStarted', refreshAll);
+    window.addEventListener('deliveryCompleted', refreshAll);
+    window.addEventListener('deliveryFailed', refreshAll);
+    window.addEventListener('deliveryAction', refreshAll);
 
     return () => {
-      window.removeEventListener('routeReordered', onReorder);
+      window.removeEventListener('routeReordered', refreshAll);
+      window.removeEventListener('routeOptimizationComplete', refreshAll);
+      window.removeEventListener('deliveriesUpdated', refreshAll);
+      window.removeEventListener('deliveriesImported', refreshAll);
       window.removeEventListener('driverTravelModeChanged', onDriverTravelModeChanged);
-      window.removeEventListener('polylineUpdated', onPolyline);
-      window.removeEventListener('routeOptimizationComplete', onOptimizationComplete);
-      window.removeEventListener('routeOptimizationStarted', onOptimizationStarted);
-      window.removeEventListener('deliveriesUpdated', onDeliveriesUpdated);
-      window.removeEventListener('deliveriesImported', onDeliveriesImported);
-      window.removeEventListener('polylineCacheCleared', onPolylineCacheCleared);
-      window.removeEventListener('driverStatusChanged', onDriverStatusChanged);
-      window.removeEventListener('deliveryStarted', onDeliveryStarted);
-      window.removeEventListener('deliveryCompleted', onDeliveryCompleted);
-      window.removeEventListener('deliveryFailed', onDeliveryFailed);
-      window.removeEventListener('deliveryAction', onDeliveryAction);
+      window.removeEventListener('polylineUpdated', refreshAll);
+      window.removeEventListener('polylineCacheCleared', refreshAll);
+      window.removeEventListener('deliveryStarted', refreshAll);
+      window.removeEventListener('deliveryCompleted', refreshAll);
+      window.removeEventListener('deliveryFailed', refreshAll);
+      window.removeEventListener('deliveryAction', refreshAll);
     };
   }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadOfflineSegments = async () => {
-      const segmentMap = {};
-      const dates = [...new Set(
-        Array.from(driverIncomplete.values())
-          .flat()
-          .map((stop) => stop?.delivery_date)
-          .filter(Boolean)
-      )];
-
-      const deliveriesByDate = await Promise.all(
-        dates.map(async (date) => [date, await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, date).catch(() => [])])
-      );
-
-      deliveriesByDate.forEach(([date, rows]) => {
-        (rows || []).forEach(() => {});
-      });
-
-      if (!cancelled) {
-        setOfflineSegmentMap(segmentMap);
-        setCache((prev) => ({ ...segmentMap, ...prev }));
-      }
-    };
-
-    loadOfflineSegments();
-    return () => { cancelled = true; };
-  }, [driverIncomplete, refreshToken]);
-
-  // Prefetch HERE polylines for all segments
-  useEffect(() => {
-    if (optimizing) return;
-    driverIncomplete.forEach((stops, driverId) => {
-      if (!multiDriverMode && selectedDriverId && selectedDriverId !== 'all' && driverId !== selectedDriverId) return;
-      for (let i = 0; i < stops.length - 1; i++) {
-        const a = stops[i];
-        const b = stops[i + 1];
-        const key = `here_${getDriverMode(driverId)}_${Number(a.latitude).toFixed(5)}_${Number(a.longitude).toFixed(5)}_${Number(b.latitude).toFixed(5)}_${Number(b.longitude).toFixed(5)}`;
-        if (cache[key] || offlineSegmentMap[key]) continue;
-        const jitter = Math.min(800, i * 75 + Math.floor(Math.random() * 120));
-        (async () => {
-          const ok = await hydrateFromOffline(key, driverId, { latitude: Number(a.latitude), longitude: Number(a.longitude) }, { latitude: Number(b.latitude), longitude: Number(b.longitude) }, a.delivery_date);
-          if (ok) return;
-          setTimeout(() => {
-            getHerePolyline(driverId, { latitude: Number(a.latitude), longitude: Number(a.longitude) }, { latitude: Number(b.latitude), longitude: Number(b.longitude) }, a.delivery_date, getDriverMode(driverId)).then((coords) => {
-              if (Array.isArray(coords) && coords.length > 1) setCache((p) => ({ ...p, [key]: coords }));
-            });
-          }, jitter);
-        })();
-      }
-    });
-  }, [driverIncomplete, refreshToken, offlineSegmentMap, cache, optimizing, multiDriverMode, selectedDriverId]);
 
 
 
@@ -295,19 +165,10 @@ export default function HereType2Polylines({
     for (let i = 0; i < stops.length - 1; i++) {
       const a = stops[i];
       const b = stops[i + 1];
-      const key = `here_${getDriverMode(driverId)}_${Number(a.latitude).toFixed(5)}_${Number(a.longitude).toFixed(5)}_${Number(b.latitude).toFixed(5)}_${Number(b.longitude).toFixed(5)}`;
-      let coords = cache[key];
-      if (!coords) {
-        try {
-          const cached = localStorage.getItem(key);
-          if (cached) {
-            const c = JSON.parse(cached);
-            if (Array.isArray(c) && c.length > 1) coords = c;
-          }
-        } catch (_) {}
-      }
-      // Show dashed fallback immediately; HERE polyline will hydrate when ready
-      const segmentPositions = coords || makeFallback(a, b);
+      const coords = typeof b?.encoded_polyline === 'string' && b.encoded_polyline.trim()
+        ? decodePolyline(b.encoded_polyline)
+        : null;
+      const segmentPositions = Array.isArray(coords) && coords.length > 1 ? coords : makeFallback(a, b);
       lines.push(
         <Polyline
           key={`type2-line-${driverId}-${i}-${getDriverMode(driverId)}`}
@@ -329,10 +190,5 @@ export default function HereType2Polylines({
   });
 
 
-  // Preserve last non-empty set only in multi-driver mode to avoid ghost lines when switching drivers
-  useEffect(() => {
-    if (lines.length && multiDriverMode) setLastNonEmptyLines(lines);
-    if (!multiDriverMode) setLastNonEmptyLines([]);
-  }, [lines.length, multiDriverMode, refreshToken, deliveryMarkers.length, pickupMarkers.length]);
   return lines.length ? <>{lines}</> : null;
 }
