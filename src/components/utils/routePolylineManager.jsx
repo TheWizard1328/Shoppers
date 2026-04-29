@@ -2,9 +2,7 @@
 
 import { base44 } from "@/api/base44Client";
 import { format } from "date-fns";
-import { queueEntityRequest } from "./requestQueue";
 import { offlineDB } from "./offlineDatabase";
-import { normalizeTravelMode } from "@/components/dashboard/travelModeHelpers";
 
 /**
  * Configuration for route polyline management
@@ -162,24 +160,15 @@ const fetchGoogleDirections = async (startLat, startLon, endLat, endLon, googleA
  */
 const getStoredPolyline = async (driverId, deliveryDate, routeType, startLat = null, startLon = null, endLat = null, endLon = null) => {
   try {
-    const offlineRows = await offlineDB.getAll(offlineDB.STORES.DRIVER_ROUTE_POLYLINES);
-    const offlineMatch = findLatestExactStoredSegment(offlineRows, startLat, startLon, endLat, endLon);
-    if (offlineMatch) return offlineMatch;
-
-    const rounded = (n) => Number(n.toFixed(5));
-    const recs = await base44.entities.DriverRoutePolyline.filter({
+    const deliveryRows = await base44.entities.Delivery.filter({
       driver_id: driverId,
       delivery_date: deliveryDate,
-      segment_origin_lat: rounded(startLat),
-      segment_origin_lon: rounded(startLon),
-      segment_dest_lat: rounded(endLat),
-      segment_dest_lon: rounded(endLon)
+      segment_origin_lat: Number(startLat.toFixed(5)),
+      segment_origin_lon: Number(startLon.toFixed(5)),
+      segment_dest_lat: Number(endLat.toFixed(5)),
+      segment_dest_lon: Number(endLon.toFixed(5))
     }, '-updated_date', 1);
-    const rec = Array.isArray(recs) ? recs[0] : null;
-    if (rec) {
-      await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [rec]);
-    }
-    return rec || null;
+    return Array.isArray(deliveryRows) ? deliveryRows[0] || null : null;
   } catch (e) {
     console.log('⏭️ [RoutePolyline] getStoredPolyline lookup failed', e?.message || e);
     return null;
@@ -189,67 +178,7 @@ const getStoredPolyline = async (driverId, deliveryDate, routeType, startLat = n
 /**
  * Saves or updates a route polyline in the database
  */
-const savePolyline = async ({
-  driverId,
-  deliveryDate,
-  routeType,
-  startLat,
-  startLon,
-  endLat,
-  endLon,
-  encodedPolyline,
-  estimatedDistanceKm,
-  estimatedDurationSeconds
-}) => {
-  try {
-    const rounded = (n) => Number(n.toFixed(5));
-    const exists = await base44.entities.DriverRoutePolyline.filter({
-      driver_id: driverId,
-      delivery_date: deliveryDate,
-      segment_origin_lat: rounded(startLat),
-      segment_origin_lon: rounded(startLon),
-      segment_dest_lat: rounded(endLat),
-      segment_dest_lon: rounded(endLon)
-    }, '-updated_date', 1);
-
-    const payload = {
-      driver_id: driverId,
-      delivery_date: deliveryDate,
-      encoded_polyline: encodedPolyline,
-      segment_origin_lat: rounded(startLat),
-      segment_origin_lon: rounded(startLon),
-      segment_dest_lat: rounded(endLat),
-      segment_dest_lon: rounded(endLon),
-      estimated_distance_km: estimatedDistanceKm,
-      estimated_duration_minutes: Math.round((estimatedDurationSeconds || 0) / 60),
-      last_generated_at: new Date().toISOString(),
-      expires_at: new Date(Date.now() + POLYLINE_CONFIG.EXPIRY_MINUTES * 60000).toISOString()
-    };
-
-    let savedRecord = null;
-
-    if (Array.isArray(exists) && exists.length) {
-      savedRecord = await base44.entities.DriverRoutePolyline.update(exists[0].id, payload);
-    } else {
-      savedRecord = await base44.entities.DriverRoutePolyline.create(payload);
-    }
-
-    if (savedRecord) {
-      await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, [savedRecord]);
-      if (typeof window !== 'undefined') {
-        const key = `here_${normalizeTravelMode(savedRecord.transport_mode || 'driving')}_${Number(savedRecord.segment_origin_lat).toFixed(5)}_${Number(savedRecord.segment_origin_lon).toFixed(5)}_${Number(savedRecord.segment_dest_lat).toFixed(5)}_${Number(savedRecord.segment_dest_lon).toFixed(5)}`;
-        window.dispatchEvent(new CustomEvent('driverRoutePolylinesUpdated', {
-          detail: { polylines: [savedRecord], source: 'local_save' }
-        }));
-        window.dispatchEvent(new CustomEvent('polylineUpdated', {
-          detail: { key, source: 'local_save' }
-        }));
-      }
-    }
-  } catch (e) {
-    console.log('⏭️ [RoutePolyline] savePolyline failed', e?.message || e);
-  }
-};
+const savePolyline = async () => null;
 
 /**
  * Get or generate the active route polyline from current position to next stop
@@ -488,21 +417,10 @@ const POLYLINE_CACHE_DURATION = 5000; // 5 seconds
  */
 export const getStoredRouteCoordinates = async (driverId, deliveryDate, routeType) => {
   try {
-    const offlineRows = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', deliveryDate);
-    const offlineMatch = (offlineRows || [])
-      .filter((row) => row?.driver_id === driverId && row?.encoded_polyline)
-      .sort((a, b) => new Date(b.last_generated_at || b.updated_date || 0).getTime() - new Date(a.last_generated_at || a.updated_date || 0).getTime())[0] || null;
-
-    if (offlineMatch?.encoded_polyline) {
-      return decodePolyline(offlineMatch.encoded_polyline).map((p) => ({ lat: p.lat, lng: p.lng }));
-    }
-
-    const recs = await base44.entities.DriverRoutePolyline.filter({ driver_id: driverId, delivery_date: deliveryDate }, '-updated_date', 20);
+    const recs = await base44.entities.Delivery.filter({ driver_id: driverId, delivery_date: deliveryDate }, '-updated_date', 20);
     if (!Array.isArray(recs) || !recs.length) return null;
 
-    await offlineDB.bulkSave(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, recs);
-
-    const rec = recs[0];
+    const rec = recs.find((row) => row?.encoded_polyline) || recs[0];
     if (!rec?.encoded_polyline) return null;
     return decodePolyline(rec.encoded_polyline).map((p) => ({ lat: p.lat, lng: p.lng }));
   } catch (e) {

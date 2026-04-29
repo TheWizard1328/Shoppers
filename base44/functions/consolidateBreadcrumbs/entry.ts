@@ -102,6 +102,20 @@ function dedupeSequential(points) {
   return result;
 }
 
+function parseStoredBreadcrumbs(value) {
+  if (!value) return [];
+  let parsed = value;
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed.map(normalizeBreadcrumbPoint).filter(Boolean);
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -171,10 +185,21 @@ Deno.serve(async (req) => {
       }
     }
 
-    const sortedPoints = dedupeSequential(validPoints.sort((a, b) => a[2] - b[2]));
+    const existingPoints = parseStoredBreadcrumbs(currentDelivery.delivery_route_breadcrumbs)
+      .filter((point) => {
+        const timestampMs = point[2];
+        const pointDate = getEdmontonDateString(timestampMs);
+        if (pointDate !== delivery_date) return false;
+        if (timestampMs > legEndMs) return false;
+        if (legStartMs && timestampMs < legStartMs) return false;
+        return true;
+      });
+
+    const sortedPoints = dedupeSequential([...existingPoints, ...validPoints].sort((a, b) => a[2] - b[2]));
 
     await base44.asServiceRole.entities.Delivery.update(currentDelivery.id, {
-      delivery_route_breadcrumbs: JSON.stringify(sortedPoints)
+      delivery_route_breadcrumbs: JSON.stringify(sortedPoints),
+      PolylineUpdated: true
     });
 
     for (const row of matchingRows) {

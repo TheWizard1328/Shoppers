@@ -53,70 +53,13 @@ export async function updateCompletionPolylines({
 
     if (nextDelivery) {
       try {
-        const originPatient = completedDelivery?.patient_id
-          ? patients?.find((p) => p?.id === completedDelivery.patient_id)
-          : null;
-        const originStore = !originPatient
-          ? stores?.find((s) => s?.id === completedDelivery.store_id)
-          : null;
-
-        const originLat = originPatient?.latitude || originStore?.latitude;
-        const originLon = originPatient?.longitude || originStore?.longitude;
-
-        const destLat = nextDelivery?.patient_id
-          ? patients?.find((p) => p?.id === nextDelivery.patient_id)?.latitude
-          : stores?.find((s) => s?.id === nextDelivery.store_id)?.latitude;
-
-        const destLon = nextDelivery?.patient_id
-          ? patients?.find((p) => p?.id === nextDelivery.patient_id)?.longitude
-          : stores?.find((s) => s?.id === nextDelivery.store_id)?.longitude;
-
-        const hasValidOrigin = Number.isFinite(Number(originLat)) && Number.isFinite(Number(originLon));
-        const hasValidDest = Number.isFinite(Number(destLat)) && Number.isFinite(Number(destLon));
-
-        if (hasValidOrigin && hasValidDest) {
-          const response = await base44.functions.invoke('getHereDirections', {
-            origin: { lat: Number(originLat), lon: Number(originLon) },
-            destination: { lat: Number(destLat), lon: Number(destLon) }
-          });
-
-          if (response?.data?.polyline) {
-            updates.push(
-              base44.entities.DriverRoutePolyline.filter({
-                driver_id: driverId,
-                delivery_date: deliveryDate
-              }).then((existing) => {
-                if (existing && existing.length > 0) {
-                  return base44.entities.DriverRoutePolyline.update(existing[0].id, {
-                    encoded_polyline: response.data.polyline,
-                    segment_origin_lat: originLat,
-                    segment_origin_lon: originLon,
-                    segment_dest_lat: destLat,
-                    segment_dest_lon: destLon,
-                    estimated_distance_km: response.data.distance_km,
-                    estimated_duration_minutes: response.data.duration_minutes,
-                    last_generated_at: new Date().toISOString()
-                  });
-                }
-
-                return base44.entities.DriverRoutePolyline.create({
-                  driver_id: driverId,
-                  delivery_date: deliveryDate,
-                  encoded_polyline: response.data.polyline,
-                  segment_origin_lat: originLat,
-                  segment_origin_lon: originLon,
-                  segment_dest_lat: destLat,
-                  segment_dest_lon: destLon,
-                  estimated_distance_km: response.data.distance_km,
-                  estimated_duration_minutes: response.data.duration_minutes,
-                  last_generated_at: new Date().toISOString()
-                });
-              })
-            );
-          }
-        }
+        await base44.functions.invoke('regenerateType1Polyline', {
+          driverId,
+          deliveryDate,
+          routeChangeSource: 'stop_completion'
+        });
       } catch (err) {
-        console.warn('⚠️ [updateCompletionPolylines] Failed to generate Type 1 polyline:', err.message);
+        console.warn('⚠️ [updateCompletionPolylines] Failed to regenerate next stop polyline:', err.message);
       }
     }
 
