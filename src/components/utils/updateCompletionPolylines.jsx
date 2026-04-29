@@ -2,7 +2,7 @@
  * Handles targeted polyline updates when a delivery is completed
  * Only updates:
  * 1. The finished leg polyline for the completed delivery
- * 2. The Type 1 polyline for the new next delivery (if exists)
+ * 2. Keeps the next leg on existing stored/offline polyline data
  *
  * This avoids unnecessary regeneration of all polylines when stop orders haven't changed
  */
@@ -59,15 +59,8 @@ export async function updateCompletionPolylines({
     }
 
     if (nextDelivery) {
-      try {
-        await base44.functions.invoke('regenerateType1Polyline', {
-          driverId,
-          deliveryDate,
-          routeChangeSource: 'stop_completion'
-        });
-      } catch (err) {
-        console.warn('⚠️ [updateCompletionPolylines] Failed to regenerate next stop polyline:', err.message);
-      }
+      // No type 1 regeneration needed here.
+      // The next leg polyline already exists in the stored next-delivery/offline route data.
     }
 
     if (updates.length > 0) {
