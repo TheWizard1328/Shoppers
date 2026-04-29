@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { Polyline } from "react-leaflet";
+import { offlineDB } from "../utils/offlineDatabase";
 import { getHerePolyline } from "../utils/hereRouting";
 import { generateDriverColor } from "../utils/colorGenerator";
 import { getTravelModeLineStyle, normalizeTravelMode } from "./travelModeHelpers";
@@ -38,6 +39,7 @@ export default function HereType2Polylines({
   const [optimizing, setOptimizing] = useState(false);
   const [localDriverTravelModes, setLocalDriverTravelModes] = useState({});
   const [lastNonEmptyLines, setLastNonEmptyLines] = useState([]);
+  const [offlineSegmentMap, setOfflineSegmentMap] = useState({});
   const requestTimesRef = useRef({});
 
 
@@ -60,16 +62,17 @@ export default function HereType2Polylines({
   };
   const hydrateFromOffline = async (key, driverId, from, to, date) => {
     try {
-      const { offlineDB } = await import('../utils/offlineDatabase');
       const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Edmonton', year: 'numeric', month: '2-digit', day: '2-digit' });
       const parts = formatter.formatToParts(new Date());
       const todayStr = `${parts.find(p => p.type === 'year').value}-${parts.find(p => p.type === 'month').value}-${parts.find(p => p.type === 'day').value}`;
       const rows = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, date || todayStr);
       const fLat = round5(from.latitude), fLon = round5(from.longitude);
       const tLat = round5(to.latitude), tLon = round5(to.longitude);
-      const match = rows.find(r => r.driver_id === driverId && round5(r.segment_origin_lat) === fLat && round5(r.segment_origin_lon) === fLon && round5(r.segment_dest_lat) === tLat && round5(r.segment_dest_lon) === tLon && normalizeTravelMode(r.transport_mode) === normalizeTravelMode(getDriverMode(driverId)) && r.encoded_polyline);
-      if (match) {
-        const coords = decodePolyline(match.encoded_polyline);
+      const preferredMode = normalizeTravelMode(getDriverMode(driverId));
+      const exactMatch = rows.find((r) => r.driver_id === driverId && round5(Number(r.segment_origin_lat)) === fLat && round5(Number(r.segment_origin_lon)) === fLon && round5(Number(r.segment_dest_lat)) === tLat && round5(Number(r.segment_dest_lon)) === tLon && normalizeTravelMode(r.transport_mode) === preferredMode && r.encoded_polyline);
+      const fallbackMatch = exactMatch || rows.find((r) => r.driver_id === driverId && round5(Number(r.segment_origin_lat)) === fLat && round5(Number(r.segment_origin_lon)) === fLon && round5(Number(r.segment_dest_lat)) === tLat && round5(Number(r.segment_dest_lon)) === tLon && r.encoded_polyline);
+      if (fallbackMatch) {
+        const coords = decodePolyline(fallbackMatch.encoded_polyline);
         if (Array.isArray(coords) && coords.length > 1) {
           setCache((p) => ({ ...p, [key]: coords }));
           try { localStorage.setItem(key, JSON.stringify(coords)); } catch (_) {}
@@ -226,18 +229,54 @@ export default function HereType2Polylines({
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadOfflineSegments = async () => {
+      const segmentMap = {};
+      const dates = [...new Set(
+        Array.from(driverIncomplete.values())
+          .flat()
+          .map((stop) => stop?.delivery_date)
+          .filter(Boolean)
+      )];
+
+      const deliveriesByDate = await Promise.all(
+        dates.map(async (date) => [date, await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, date).catch(() => [])])
+      );
+
+      deliveriesByDate.forEach(([date, rows]) => {
+        (rows || []).forEach((row) => {
+          if (!row?.encoded_polyline || row.segment_origin_lat == null || row.segment_origin_lon == null || row.segment_dest_lat == null || row.segment_dest_lon == null) return;
+          const mode = normalizeTravelMode(row.transport_mode || 'driving');
+          const key = `here_${mode}_${Number(row.segment_origin_lat).toFixed(5)}_${Number(row.segment_origin_lon).toFixed(5)}_${Number(row.segment_dest_lat).toFixed(5)}_${Number(row.segment_dest_lon).toFixed(5)}`;
+          const coords = decodePolyline(row.encoded_polyline);
+          if (Array.isArray(coords) && coords.length > 1) {
+            segmentMap[key] = coords;
+          }
+        });
+      });
+
+      if (!cancelled) {
+        setOfflineSegmentMap(segmentMap);
+        setCache((prev) => ({ ...segmentMap, ...prev }));
+      }
+    };
+
+    loadOfflineSegments();
+    return () => { cancelled = true; };
+  }, [driverIncomplete, refreshToken]);
+
   // Prefetch HERE polylines for all segments
   useEffect(() => {
     if (optimizing) return;
     driverIncomplete.forEach((stops, driverId) => {
       if (!multiDriverMode && selectedDriverId && selectedDriverId !== 'all' && driverId !== selectedDriverId) return;
-      if (!multiDriverMode && selectedDriverId && selectedDriverId !== 'all' && driverId !== selectedDriverId) return;
-      const totalLegs = Math.max(0, stops.length - 1);
       for (let i = 0; i < stops.length - 1; i++) {
         const a = stops[i];
         const b = stops[i + 1];
         const key = `here_${getDriverMode(driverId)}_${Number(a.latitude).toFixed(5)}_${Number(a.longitude).toFixed(5)}_${Number(b.latitude).toFixed(5)}_${Number(b.longitude).toFixed(5)}`;
-        if (cache[key]) continue;
+        if (cache[key] || offlineSegmentMap[key]) continue;
         const jitter = Math.min(800, i * 75 + Math.floor(Math.random() * 120));
         (async () => {
           const ok = await hydrateFromOffline(key, driverId, { latitude: Number(a.latitude), longitude: Number(a.longitude) }, { latitude: Number(b.latitude), longitude: Number(b.longitude) }, a.delivery_date);
@@ -250,7 +289,7 @@ export default function HereType2Polylines({
         })();
       }
     });
-  }, [driverIncomplete, refreshToken]);
+  }, [driverIncomplete, refreshToken, offlineSegmentMap, cache, optimizing, multiDriverMode, selectedDriverId]);
 
 
 
