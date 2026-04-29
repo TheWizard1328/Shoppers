@@ -13,7 +13,7 @@ export function normalizeTravelMode(mode) {
 export function getTravelModeLineStyle(mode, color) {
   const normalized = normalizeTravelMode(mode);
   if (normalized === 'cycling') {
-    return { color: '#16A34A', weight: 3, opacity: 0.9, dashArray: '2 4' };
+    return { color: '#16A34A', weight: 4, opacity: 0.9, dashArray: '2 4' };
   }
   if (normalized === 'pedestrian') {
     return { color, weight: 3, opacity: 0.9, dashArray: '3 8' };
