@@ -4,6 +4,15 @@ import { processPendingMutations } from './offlineSync';
 
 const ACTIVE_STATUSES = ['in_transit', 'en_route'];
 
+const addMinutesToTimeString = (timeString, minutesToAdd = 0) => {
+  const [hours, minutes] = String(timeString || '00:00').split(':').map(Number);
+  const totalMinutes = ((hours || 0) * 60) + (minutes || 0) + minutesToAdd;
+  const normalizedMinutes = ((totalMinutes % 1440) + 1440) % 1440;
+  const nextHours = Math.floor(normalizedMinutes / 60);
+  const nextMinutes = normalizedMinutes % 60;
+  return `${String(nextHours).padStart(2, '0')}:${String(nextMinutes).padStart(2, '0')}`;
+};
+
 export async function runAcceptAllBatchPipeline({
   triggerDelivery,
   allDeliveries,
@@ -15,13 +24,28 @@ export async function runAcceptAllBatchPipeline({
   const routeDeliveries = allDeliveries.filter((item) => item && item.driver_id === triggerDelivery.driver_id && item.delivery_date === triggerDelivery.delivery_date);
   const scopedPendingDeliveries = routeDeliveries.filter((item) => item?.store_id === triggerDelivery.store_id && item.status === 'pending');
 
+  const pickupStartTime = currentLocalTime;
+  const transitionedStopStartTime = addMinutesToTimeString(currentLocalTime, 5);
+
   const stagedRoute = routeDeliveries.map((item) => {
     if (!item) return item;
     if (item.id === triggerDelivery.id) {
-      return { ...item, status: item.status === 'pending' ? 'in_transit' : item.status, isNextDelivery: true, ...(item.active === false ? { active: true } : {}) };
+      return {
+        ...item,
+        status: item.status === 'pending' ? 'in_transit' : item.status,
+        isNextDelivery: true,
+        delivery_time_start: pickupStartTime,
+        ...(item.active === false ? { active: true } : {})
+      };
     }
     if (item.store_id === triggerDelivery.store_id && item.status === 'pending') {
-      return { ...item, status: 'in_transit', isNextDelivery: false, ...(item.active === false ? { active: true } : {}) };
+      return {
+        ...item,
+        status: 'in_transit',
+        isNextDelivery: false,
+        delivery_time_start: transitionedStopStartTime,
+        ...(item.active === false ? { active: true } : {})
+      };
     }
     if (item.isNextDelivery === true) {
       return { ...item, isNextDelivery: false };
@@ -42,7 +66,8 @@ export async function runAcceptAllBatchPipeline({
       base44.entities.Delivery.update(item.id, {
         status: item.status,
         isNextDelivery: !!item.isNextDelivery,
-        active: item.active
+        active: item.active,
+        delivery_time_start: item.delivery_time_start
       })
     ));
 
@@ -53,6 +78,7 @@ export async function runAcceptAllBatchPipeline({
     driverId: triggerDelivery.driver_id,
     deliveryDate: triggerDelivery.delivery_date,
     currentLocalTime,
+    deviceTime: new Date().toISOString(),
     forceFullRemainingRouteOptimization: false
   });
   const optimizeData = optimizeResponse?.data || optimizeResponse || {};
