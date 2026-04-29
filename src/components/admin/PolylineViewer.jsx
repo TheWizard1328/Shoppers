@@ -7,6 +7,7 @@ import { Loader2, MapPin, Trash2, RefreshCw, Filter, ChevronDown } from 'lucide-
 import { format } from 'date-fns';
 import { getDriverDisplayName } from '../utils/driverUtils';
 import { clearHereCacheForSegment } from '../utils/hereRouting';
+import { getActiveHereApiKey } from '@/functions/getActiveHereApiKey';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -57,6 +58,16 @@ const decodePolyline = (encoded) => {
   return poly;
 };
 
+const IntegerZoomTileLayer = L.TileLayer.extend({
+  _getZoomForUrl() {
+    const zoom = L.TileLayer.prototype._getZoomForUrl.call(this);
+    return Math.round(zoom);
+  }
+});
+
+const buildHereLightTileUrl = (apiKey) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=explore.day&size=512&apiKey=${apiKey}`;
+const buildHereDarkTileUrl = (apiKey) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=explore.night&size=512&apiKey=${apiKey}`;
+
 const MapUpdater = ({ coordinates }) => {
   const map = useMap();
   
@@ -93,6 +104,8 @@ export default function PolylineViewer({ users = [] }) {
   const [showList, setShowList] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(30);
+  const [hereApiKey, setHereApiKey] = useState(null);
+  const [tileLayerInstanceKey, setTileLayerInstanceKey] = useState(0);
   const listContainerRef = React.useRef(null);
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)');
@@ -100,6 +113,26 @@ export default function PolylineViewer({ users = [] }) {
     setIsMobile(mq.matches);
     if (mq.addEventListener) mq.addEventListener('change', handler); else mq.addListener(handler);
     return () => { if (mq.removeEventListener) mq.removeEventListener('change', handler); else mq.removeListener(handler); };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadHereApiKey = async () => {
+      const response = await getActiveHereApiKey({}).catch(() => null);
+      const nextApiKey = response?.data?.apiKey;
+      if (mounted && nextApiKey) {
+        setHereApiKey(nextApiKey);
+      }
+    };
+
+    loadHereApiKey();
+    window.addEventListener('appSettingsUpdated', loadHereApiKey);
+
+    return () => {
+      mounted = false;
+      window.removeEventListener('appSettingsUpdated', loadHereApiKey);
+    };
   }, []);
   const handleListScroll = (e) => {
     const el = e?.currentTarget;
@@ -259,6 +292,13 @@ export default function PolylineViewer({ users = [] }) {
 
   const activeItems = viewMode === 'polylines' ? filteredPolylines : filteredBreadcrumbs;
 
+  const tileLayerUrl = useMemo(() => {
+    if (!hereApiKey) return null;
+    const prefersDark = document.documentElement.classList.contains('dark-theme') ||
+      (document.documentElement.classList.contains('auto-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    return prefersDark ? buildHereDarkTileUrl(hereApiKey) : buildHereLightTileUrl(hereApiKey);
+  }, [hereApiKey]);
+
   // Remove any cached polyline keys (memory resets on reload; we clear localStorage keys here)
   const clearLocalCachesForPolyline = (rec) => {
     try {
@@ -396,6 +436,12 @@ export default function PolylineViewer({ users = [] }) {
 
   const isAllSelected = activeItems.length > 0 && selectedPolylines.size === activeItems.length;
   const isSomeSelected = selectedPolylines.size > 0 && selectedPolylines.size < activeItems.length;
+
+  useEffect(() => {
+    if (tileLayerUrl) {
+      setTileLayerInstanceKey((value) => value + 1);
+    }
+  }, [tileLayerUrl]);
 
   return (
     <Card className="h-full flex flex-col">
@@ -752,12 +798,25 @@ export default function PolylineViewer({ users = [] }) {
                     center={decodedCoordinates[0]}
                     zoom={13}
                     style={{ height: '100%', width: '100%' }}
-                    key={`${viewMode}-${selectedPolyline.id}`}
+                    key={`${viewMode}-${selectedPolyline.id}-${tileLayerInstanceKey}`}
                   >
-                    <TileLayer
-                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                    />
+                    {tileLayerUrl && (
+                      <TileLayer
+                        ref={(layer) => {
+                          if (layer && !(layer instanceof IntegerZoomTileLayer)) {
+                            Object.setPrototypeOf(layer, IntegerZoomTileLayer.prototype);
+                          }
+                        }}
+                        key={`here-admin-${tileLayerInstanceKey}-${tileLayerUrl}`}
+                        url={tileLayerUrl}
+                        attribution='&copy; <a href="https://www.here.com/">HERE</a>'
+                        tileSize={512}
+                        zoomOffset={-1}
+                        updateWhenZooming={false}
+                        keepBuffer={2}
+                        className="integer-zoom-tile-layer"
+                      />
+                    )}
                     
                     {decodedCoordinates.length > 0 && (
                       <>
