@@ -28,71 +28,6 @@ const STORES = {
 
 let dbInstance = null;
 let dbOpenPromise = null; // CRITICAL: Prevent multiple simultaneous opens
-let legacyCleanupPromise = null;
-
-const LEGACY_OFFLINE_DB_NAMES = [
-  'driver_route_polylines',
-  'driver_route_polylines_db',
-  'rxdeliver_driver_route_polylines'
-];
-
-const LEGACY_DB_PREFIXES = [
-  'driver_route_polylines'
-];
-
-const listLegacyOfflineDbNames = async () => {
-  if (typeof indexedDB === 'undefined') {
-    return [];
-  }
-
-  const fallbackNames = LEGACY_OFFLINE_DB_NAMES.filter((name) => name && name !== DB_NAME);
-
-  if (typeof indexedDB.databases !== 'function') {
-    return fallbackNames;
-  }
-
-  try {
-    const databases = await indexedDB.databases();
-    const discoveredNames = (databases || [])
-      .map((db) => db?.name)
-      .filter((name) => name && name !== DB_NAME)
-      .filter((name) => LEGACY_DB_PREFIXES.some((prefix) => name.startsWith(prefix)));
-
-    return Array.from(new Set([...fallbackNames, ...discoveredNames]));
-  } catch (error) {
-    return fallbackNames;
-  }
-};
-
-const deleteIndexedDbIfExists = (dbName) => new Promise((resolve) => {
-  if (typeof indexedDB === 'undefined' || !dbName || dbName === DB_NAME) {
-    resolve(false);
-    return;
-  }
-
-  const request = indexedDB.deleteDatabase(dbName);
-  request.onsuccess = () => resolve(true);
-  request.onerror = () => resolve(false);
-  request.onblocked = () => resolve(false);
-});
-
-const cleanupLegacyOfflineDatabases = async () => {
-  if (legacyCleanupPromise) return legacyCleanupPromise;
-
-  legacyCleanupPromise = listLegacyOfflineDbNames()
-    .then(async (dbNames) => {
-      const uniqueNames = Array.from(new Set((dbNames || []).filter((name) => name && name !== DB_NAME)));
-      if (uniqueNames.length === 0) return [];
-      console.log('🧹 [OfflineDB] Removing legacy IndexedDB databases:', uniqueNames);
-      return Promise.all(uniqueNames.map(deleteIndexedDbIfExists));
-    })
-    .catch(() => [])
-    .finally(() => {
-      legacyCleanupPromise = null;
-    });
-
-  return legacyCleanupPromise;
-};
 
 const buildMetadataKey = (entityName, scopeKey = DEFAULT_CACHE_SCOPE) => {
   if (!scopeKey || scopeKey === DEFAULT_CACHE_SCOPE) return entityName;
@@ -128,8 +63,6 @@ const buildDataVersion = (records = []) => {
  * CRITICAL: Uses promise pooling to prevent race conditions
  */
 const openDatabase = async () => {
-  await cleanupLegacyOfflineDatabases();
-
   // If already open, return immediately
   if (dbInstance && !dbInstance.isClosing) {
     return Promise.resolve(dbInstance);
