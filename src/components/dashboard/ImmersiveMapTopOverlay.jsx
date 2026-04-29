@@ -10,10 +10,21 @@ function formatBatchTracking(delivery, store) {
   return `${storeAbbr}${formattedNum}`;
 }
 
+function formatStopOrder(value) {
+  return `#${value || 0}`;
+}
+
 function formatDistance(value) {
   const km = Number(value);
   if (!Number.isFinite(km)) return "--";
-  return km < 10 ? `${km.toFixed(1)} km` : `${Math.round(km)} km`;
+  if (km < 1) return "< 1 km";
+  return `${km < 10 ? km.toFixed(1) : Math.round(km)} km`;
+}
+
+function formatEta(value) {
+  if (!value || typeof value !== "string") return "--";
+  const match = value.match(/(\d{2}:\d{2})/);
+  return match ? match[1] : value;
 }
 
 export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPickup, storeColor, finalDisplayName, topOffset = 0 }) {
@@ -26,17 +37,17 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
         <div className="flex min-w-0 items-center gap-2">
           <Badge
             variant="secondary"
-            className="h-7 min-w-[2.25rem] justify-center rounded-full px-2 text-xs font-bold text-white"
-            style={{ backgroundColor: storeColor || "#10B981" }}
+            className="mt-1 h-7 min-w-[2.5rem] justify-center rounded-full border px-2 py-0.5 text-sm font-bold text-white transition-colors"
+            style={{ backgroundColor: storeColor || "#10B981", color: "white" }}
           >
-            #{delivery?.display_stop_order || delivery?.stop_order || 0}
+            {formatStopOrder(delivery?.display_stop_order || delivery?.stop_order)}
           </Badge>
 
           {batchTracking && (
             <Badge
               variant="secondary"
-              className="h-7 rounded-full px-2 text-xs font-bold text-white"
-              style={{ backgroundColor: storeColor || "#10B981" }}
+              className="mt-1 h-7 rounded-full px-2 py-0.5 text-sm font-bold"
+              style={{ backgroundColor: `${storeColor}`, color: "White" }}
             >
               {batchTracking}
             </Badge>
@@ -52,12 +63,12 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          <Badge variant="secondary" className="h-7 rounded-full px-2 text-xs font-bold bg-slate-100 text-slate-700">
-            PA
-          </Badge>
-          <Badge variant="secondary" className="h-7 rounded-full px-2 text-xs font-bold bg-slate-100 text-slate-700">
+          <div className="text-sm font-bold text-slate-700">
+            {formatEta(delivery?.delivery_time_eta || delivery?.delivery_time_start)}
+          </div>
+          <div className="text-sm font-bold text-slate-700">
             {formatDistance(delivery?.travel_dist)}
-          </Badge>
+          </div>
         </div>
       </div>
     </div>
