@@ -21,6 +21,7 @@ import { deleteCODWithTimeout } from '../utils/squareCODHandler';
 import { cleanupSquareCodCatalogForDate } from '../utils/squareCodCatalogCleanup';
 import StopCardHeader from "./StopCardHeader";
 import StopCardBody from "./StopCardBody";
+import ImmersiveTopOverlay from "./ImmersiveTopOverlay";
 import { notifyDriverAcceptedAll, notifyDriverAcceptedOne, notifyDispatcherAssignedAll, notifyDriverStarted, notifyDriverCompleted, notifyDriverFailed, notifyDriverRetry, notifyDriverReturn } from "../utils/deliveryMessaging";
 import { toast } from "sonner";
 import { smartRefreshManager } from "../utils/smartRefreshManager";
@@ -82,7 +83,7 @@ const buildGoogleMapsCoordinateUrl = (latitude, longitude) => {
   return `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
 };
 
-export default function StopCard({ delivery, store, driver, patients = [], currentUser, showDriverName = false, onStatusUpdate, onNotesUpdate, onEdit, onDelete, onRestart, allDeliveries = [], selectedDate, onEditPatient, drivers = [], onDriverChange, canEdit = false, getDriverColor, onClick, isSelected, pendingPickups = [], onSelectionChange, onCODUpdate, stores = [], onCreateReturn, onStartDelivery, onDriverStatusChange, appUsers = [], showDragHandle = false, dragHandleProps, compact = false, isRailCentered = true }) {
+export default function StopCard({ delivery, store, driver, patients = [], currentUser, showDriverName = false, onStatusUpdate, onNotesUpdate, onEdit, onDelete, onRestart, allDeliveries = [], selectedDate, onEditPatient, drivers = [], onDriverChange, canEdit = false, getDriverColor, onClick, isSelected, pendingPickups = [], onSelectionChange, onCODUpdate, stores = [], onCreateReturn, onStartDelivery, onDriverStatusChange, appUsers = [], showDragHandle = false, dragHandleProps, compact = false, isRailCentered = true, showImmersiveTopOverlay = false }) {
   const isNextDelivery = delivery?.isNextDelivery || false;
   const [, setRangeRefreshTick] = useState(0);
   const [notesInput, setNotesInput] = useState(delivery?.delivery_notes || "No driver notes");
@@ -514,6 +515,16 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
         style={{ background: 'var(--bg-white)', borderColor: isNextDelivery ? '#10B981' : '#3B82F6', opacity: shouldFade ? 0.4 : 1, transition: 'opacity 0.2s ease-in-out', maxHeight: shouldAnchorExpandedCard ? 'calc(100dvh - var(--bottom-nav-height, 64px) - 1rem)' : undefined }}>
         
         <CardContent className={`p-6 px-1 flex flex-col py-0 ${shouldAnchorExpandedCard ? 'max-h-full overflow-y-auto overscroll-contain' : ''}`}>
+          {showImmersiveTopOverlay && (
+            <ImmersiveTopOverlay
+              delivery={delivery}
+              store={store}
+              patient={patient}
+              isPickup={isPickup}
+              storeColor={storeColor}
+              finalDisplayName={finalDisplayName}
+            />
+          )}
           <div className="flex items-start">
             {showDragHandle && dragHandleProps && !FINISHED_STATUSES.includes(delivery.status) &&
             <div {...dragHandleProps} className="flex items-center justify-center cursor-grab active:cursor-grabbing pt-1 mr-1">

@@ -34,7 +34,8 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     selectedDate, // NEW: Add selectedDate prop
     onDriverStatusChange, // NEW: Add onDriverStatusChange prop
     appUsers = [], // NEW: Add appUsers prop for messaging
-    onCenteredCardChange
+    onCenteredCardChange,
+    showImmersiveTopOverlay = false
   } = props;
   // CRITICAL: ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
   const containerRef = React.useRef(null);
@@ -726,7 +727,8 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
               stores={stores}
               onDriverStatusChange={onDriverStatusChange}
               appUsers={appUsers}
-              isRailCentered={isRailCentered} />
+              isRailCentered={isRailCentered}
+              showImmersiveTopOverlay={showImmersiveTopOverlay && isSelected} />
 
           </div>);
 
