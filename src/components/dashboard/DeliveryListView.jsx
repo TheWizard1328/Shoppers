@@ -358,32 +358,32 @@ const DeliveryListView = ({
   }, []);
 
   const getCODDisplay = useCallback((delivery) => {
-    if (!delivery.cod_total_amount_required || delivery.cod_total_amount_required === 0) {
+    const requiredAmount = Number(delivery?.cod_total_amount_required || 0);
+    if (requiredAmount <= 0) {
       return <span className="text-slate-400">—</span>;
     }
 
-    const hasPayments = delivery.cod_payments && delivery.cod_payments.length > 0;
-    const totalCollected = hasPayments ?
-    delivery.cod_payments.reduce((sum, p) => sum + (p.amount || 0), 0) :
-    0;
+    const payments = Array.isArray(delivery?.cod_payments) ? delivery.cod_payments : [];
+    const hasPayments = payments.length > 0;
+    const totalCollected = payments.reduce((sum, p) => sum + Number(p?.amount || 0), 0);
     const codSymbolColorClass = getCodSymbolColorClass(delivery);
 
-    if (hasPayments && totalCollected > 0) {
-      const types = Array.from(new Set((delivery.cod_payments || []).map((p) => p.type).filter(Boolean)));
+    if (hasPayments) {
+      const types = Array.from(new Set(payments.map((p) => p?.type).filter(Boolean)));
       return (
         <div className="flex flex-col items-center">
-          <span className="font-semibold text-slate-900 dark:text-slate-100"><span className={codSymbolColorClass}>$</span>{totalCollected.toFixed(2)}</span>
-          <span className="text-xs text-slate-600 dark:text-slate-300">{types.join(' + ')}</span>
-        </div>);
-
+          <span className="font-semibold text-slate-900 dark:text-slate-100"><span className={codSymbolColorClass}>$</span>{requiredAmount.toFixed(2)}</span>
+          <span className="text-xs text-emerald-600 dark:text-emerald-300">Collected{types.length ? ` • ${types.join(' + ')}` : ''}</span>
+        </div>
+      );
     }
 
     return (
       <div className="flex flex-col items-center">
-        <span className="font-semibold text-slate-900 dark:text-slate-100"><span className={codSymbolColorClass}>$</span>{delivery.cod_total_amount_required.toFixed(2)}</span>
-        <span className="text-xs text-slate-600 dark:text-slate-300">Required</span>
-      </div>);
-
+        <span className="font-semibold text-slate-900 dark:text-slate-100"><span className={codSymbolColorClass}>$</span>{requiredAmount.toFixed(2)}</span>
+        <span className="text-xs text-amber-600 dark:text-amber-300">Pending collection</span>
+      </div>
+    );
   }, []);
 
   const getTimeDisplay = useCallback((delivery) => {

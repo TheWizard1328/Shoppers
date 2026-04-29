@@ -64,10 +64,7 @@ const shouldRefreshRemainingEtas = (etaString, actualTimestamp) => {
 
 const hasDebitOrCreditCod = (deliveryRecord, paymentList = null) => {
   const payments = Array.isArray(paymentList) ? paymentList : deliveryRecord?.cod_payments;
-  if (Array.isArray(payments) && payments.some((payment) => ['Debit', 'Credit'].includes(payment?.type) && Number(payment?.amount || 0) > 0)) {
-    return true;
-  }
-  return ['Debit', 'Credit'].includes(deliveryRecord?.cod_payment_type);
+  return Array.isArray(payments) && payments.some((payment) => ['Debit', 'Credit'].includes(payment?.type) && Number(payment?.amount || 0) > 0);
 };
 
 const formatCoordinateValue = (value) => {

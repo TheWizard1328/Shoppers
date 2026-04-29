@@ -124,7 +124,8 @@
               "Cash",
               "Debit",
               "Credit",
-              "Check"
+              "Check",
+              "Other"
             ]
           },
           "amount": {
@@ -137,22 +138,6 @@
         ]
       },
       "description": "Array of collected COD payments with type and amount (filled by driver)"
-    },
-    "cod_payment_type": {
-      "type": "string",
-      "enum": [
-        "No Payment",
-        "Cash",
-        "Debit",
-        "Credit",
-        "Check"
-      ],
-      "default": "No Payment",
-      "description": "DEPRECATED: Use cod_payments array instead. Legacy single payment type field"
-    },
-    "cod_amount": {
-      "type": "string",
-      "description": "DEPRECATED: Use cod_total_amount_required instead. Legacy single amount field"
     },
     "signature_needed": {
       "type": "boolean",

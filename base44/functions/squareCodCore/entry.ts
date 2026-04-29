@@ -156,18 +156,16 @@ function shouldRefreshDeliveries(lastRefreshedAt, forceRefresh = false) {
 
 function hasCollectedCardPayment(delivery) {
   const codPayments = Array.isArray(delivery?.cod_payments) ? delivery.cod_payments : [];
-  return codPayments.some((payment) => ['Debit', 'Credit'].includes(payment?.type) && Number(payment?.amount || 0) > 0)
-    || ['Debit', 'Credit'].includes(delivery?.cod_payment_type);
+  return codPayments.some((payment) => ['Debit', 'Credit'].includes(payment?.type) && Number(payment?.amount || 0) > 0);
 }
 
 function isOfflineCollectedPaymentMethod(paymentMethod) {
-  return ['cash', 'check'].includes(String(paymentMethod || '').toLowerCase());
+  return ['cash', 'check', 'other'].includes(String(paymentMethod || '').toLowerCase());
 }
 
 function hasCollectedOfflinePayment(delivery) {
   const codPayments = Array.isArray(delivery?.cod_payments) ? delivery.cod_payments : [];
-  return codPayments.some((payment) => isOfflineCollectedPaymentMethod(payment?.type) && Number(payment?.amount || 0) > 0)
-    || isOfflineCollectedPaymentMethod(delivery?.cod_payment_type);
+  return codPayments.some((payment) => isOfflineCollectedPaymentMethod(payment?.type) && Number(payment?.amount || 0) > 0);
 }
 
 function buildPlaceholderItemNames(deliveryDate, storeAbbreviation) {
@@ -770,8 +768,6 @@ async function handleMarkCollectedDebit(base44, payload) {
   const debitAmount = Number(delivery.cod_total_amount_required || 0);
   await base44.asServiceRole.entities.Delivery.update(deliveryId, {
     cod_payments: [{ type: 'Debit', amount: debitAmount }],
-    cod_payment_type: 'Debit',
-    cod_amount: String(debitAmount || 0),
   });
 
   const deleteResult = await handleDeleteCodItem(base44, {
