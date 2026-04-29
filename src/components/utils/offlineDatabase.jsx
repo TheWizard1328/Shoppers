@@ -34,13 +34,11 @@ const LEGACY_OFFLINE_DB_NAMES = [
   'rxdeliver_persistent_offline_v1',
   'driver_route_polylines',
   'driver_route_polylines_db',
-  'rxdeliver_driver_route_polylines',
-  'rxdeliver_persistent_cache_v1'
+  'rxdeliver_driver_route_polylines'
 ];
 
 const LEGACY_DB_PREFIXES = [
   'rxdeliver_persistent_offline_',
-  'rxdeliver_persistent_cache_',
   'driver_route_polylines'
 ];
 
