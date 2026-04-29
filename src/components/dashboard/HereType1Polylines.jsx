@@ -580,30 +580,23 @@ export default function HereType1Polylines({
     }
   });
 
-  // Render only the current leg in blue for in-progress routes
+  // Render the first active leg in blue using the stored polyline on the next stop
   driverStops.forEach((stops, driverId) => {
     if (!showAll && selectedDriverId && selectedDriverId !== 'all' && driverId !== selectedDriverId) return;
 
     const currentStop = [...stops.incomplete]
       .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0))
-      .find((stop) => stop?.isNextDelivery === true);
+      .find((stop) => stop?.isNextDelivery === true) || [...stops.incomplete]
+      .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0))[0];
 
     if (!currentStop) return;
 
-    const currentStopOrder = Number(currentStop?.stop_order || 0);
-    const lastFinishedStop = [...stops.complete]
-      .filter((stop) => Number(stop?.stop_order || 0) < currentStopOrder)
-      .sort((a, b) => Number(b?.stop_order || 0) - Number(a?.stop_order || 0))[0];
-
-    const origin = lastFinishedStop
-      ? { latitude: Number(lastFinishedStop.latitude), longitude: Number(lastFinishedStop.longitude) }
-      : { latitude: Number(currentStop?.segment_origin_lat), longitude: Number(currentStop?.segment_origin_lon) };
-
+    const origin = { latitude: Number(currentStop?.segment_origin_lat), longitude: Number(currentStop?.segment_origin_lon) };
     const destination = { latitude: Number(currentStop?.segment_dest_lat), longitude: Number(currentStop?.segment_dest_lon) };
     const key = getHereCacheKey(origin, destination, currentStop?.transport_mode || getDriverMode(driverId));
 
-    let coords = getCachedPolyline(key, cache);
-    if (!coords && typeof currentStop?.encoded_polyline === 'string' && currentStop.encoded_polyline.trim()) {
+    let coords = null;
+    if (typeof currentStop?.encoded_polyline === 'string' && currentStop.encoded_polyline.trim()) {
       try {
         coords = decodePolyline(currentStop.encoded_polyline);
         if (Array.isArray(coords) && coords.length > 1) {
@@ -613,10 +606,8 @@ export default function HereType1Polylines({
       } catch (_) {}
     }
 
-    if ((!coords || coords.length < 2) && origin.latitude === Number(currentStop?.segment_origin_lat) && origin.longitude === Number(currentStop?.segment_origin_lon) && typeof currentStop?.encoded_polyline === 'string' && currentStop.encoded_polyline.trim()) {
-      try {
-        coords = decodePolyline(currentStop.encoded_polyline);
-      } catch (_) {}
+    if ((!coords || coords.length < 2) && Number.isFinite(origin.latitude) && Number.isFinite(origin.longitude) && Number.isFinite(destination.latitude) && Number.isFinite(destination.longitude)) {
+      coords = getCachedPolyline(key, cache) || makeFallback(origin, destination);
     }
 
     if (!coords || coords.length < 2 || seenKeys.has(key)) return;
