@@ -334,14 +334,17 @@ export default function HereType1Polylines({
       const originLat = Number(lastCompleted.latitude);
       const originLon = Number(lastCompleted.longitude);
 
-      const key = getHereCacheKey({ latitude: originLat, longitude: originLon }, nextStop, getDriverMode(driverId));
+      const originPoint = { latitude: Number(originLat), longitude: Number(originLon) };
+      const destinationPoint = { latitude: Number(nextStop.latitude), longitude: Number(nextStop.longitude) };
+      const driverMode = getDriverMode(driverId);
+      const key = getHereCacheKey(originPoint, destinationPoint, driverMode);
       if (cache[key]) {
         lastHydratedSegmentKeysRef.current[driverId] = key;
         return;
       }
       if (lastHydratedSegmentKeysRef.current[driverId] === key) return;
       lastHydratedSegmentKeysRef.current[driverId] = key;
-      hydrateFromOffline(key, driverId, { latitude: Number(originLat), longitude: Number(originLon) }, { latitude: Number(nextStop.latitude), longitude: Number(nextStop.longitude) }, lastCompleted.delivery_date);
+      hydrateFromOffline(key, driverId, originPoint, destinationPoint, lastCompleted.delivery_date);
     });
   }, [isViewingCurrentDate, driverStops, refreshToken]);
 
@@ -546,7 +549,7 @@ export default function HereType1Polylines({
 
       if (next && originLat !== undefined && originLon !== undefined) {
         const key = getHereCacheKey({ latitude: originLat, longitude: originLon }, next, getDriverMode(driverId));
-        let coords = cache[key];
+        let coords = getCachedPolyline(key, cache);
         if (!coords) {
           try {
             const cached = localStorage.getItem(key);
@@ -603,7 +606,26 @@ export default function HereType1Polylines({
     const destination = { latitude: Number(nextStop.latitude), longitude: Number(nextStop.longitude) };
     const key = getHereCacheKey(origin, destination, getDriverMode(driverId));
     const coords = getCachedPolyline(key, cache);
-    if (!coords) return;
+    if (!coords) {
+      const fallbackSegment = makeFallback(origin, destination);
+      if (fallbackSegment.length < 2) return;
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        lines.push(
+          <Polyline
+            key={`type1-next-line-${driverId}-${getDriverMode(driverId)}`}
+            positions={fallbackSegment}
+            pathOptions={{
+              ...getDriverRouteStyle(driverId, 0.75),
+              dashArray: '8,8'
+            }}
+            pane="routeBasePane"
+          />,
+          <RouteDirectionDecorator key={`type1-next-arrow-${driverId}-${getDriverMode(driverId)}`} positions={fallbackSegment} color={getType1PolylineColor()} />
+        );
+      }
+      return;
+    }
 
     if (!seenKeys.has(key)) {
       seenKeys.add(key);
