@@ -345,11 +345,6 @@ export default function PolylineViewer({ users = [] }) {
   };
 
   useEffect(() => {
-    if (viewMode !== 'polylines') {
-      setMultiSegmentCoordinates([]);
-      return;
-    }
-
     const sourceItems = viewMode === 'polylines' ? filteredPolylines : filteredBreadcrumbs;
     const selectedSegments = sourceItems
       .filter((item) => selectedPolylines.has(item.id))
@@ -361,7 +356,7 @@ export default function PolylineViewer({ users = [] }) {
       .filter((segment) => segment.coordinates.length > 0);
 
     setMultiSegmentCoordinates(selectedSegments);
-    }, [selectedPolylines, filteredPolylines, filteredBreadcrumbs, viewMode]);
+  }, [selectedPolylines, filteredPolylines, filteredBreadcrumbs, viewMode]);
 
   const handleDeleteSelected = async () => {
     if (selectedPolylines.size === 0) return;
