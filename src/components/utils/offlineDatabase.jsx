@@ -23,8 +23,7 @@ const STORES = {
   SYNC_STATUS: 'sync_status',
   PENDING_MUTATIONS: 'pending_mutations',
   SYNC_METADATA: 'sync_metadata', // Timestamp tracking per entity
-  PENDING_BREADCRUMBS: 'pending_breadcrumbs', // Temporary GPS breadcrumbs [lat, lng, timestamp_ms] being collected for current route
-  DRIVER_ROUTE_POLYLINES: 'driver_route_polylines'
+  PENDING_BREADCRUMBS: 'pending_breadcrumbs' // Temporary GPS breadcrumbs [lat, lng, timestamp_ms] being collected for current route
 };
 
 let dbInstance = null;
@@ -247,16 +246,6 @@ const openDatabase = async () => {
         breadcrumbStore.createIndex('timestamp', 'timestamp', { unique: false });
       }
 
-      if (!db.objectStoreNames.contains(STORES.DRIVER_ROUTE_POLYLINES)) {
-        const polyStore = db.createObjectStore(STORES.DRIVER_ROUTE_POLYLINES, { keyPath: 'id' });
-        polyStore.createIndex('driver_id', 'driver_id', { unique: false });
-        polyStore.createIndex('delivery_date', 'delivery_date', { unique: false });
-        polyStore.createIndex('updated_date', 'updated_date', { unique: false });
-        polyStore.createIndex('segment_origin_lat', 'segment_origin_lat', { unique: false });
-        polyStore.createIndex('segment_origin_lon', 'segment_origin_lon', { unique: false });
-        polyStore.createIndex('segment_dest_lat', 'segment_dest_lat', { unique: false });
-        polyStore.createIndex('segment_dest_lon', 'segment_dest_lon', { unique: false });
-      }
 
       };
   });
@@ -1164,70 +1153,6 @@ const pruneDeliveriesOlderThan60Days = async () => {
   }
 };
 
-/**
- * Deduplicate DriverRoutePolyline records in offline DB (IndexedDB)
- * Keeps the most recent by last_generated_at/updated_date per leg signature
- */
-const deduplicateDriverRoutePolylines = async (dateStr = null) => {
-  try {
-    const records = dateStr
-      ? await getByIndex(STORES.DRIVER_ROUTE_POLYLINES, 'delivery_date', dateStr)
-      : await getAll(STORES.DRIVER_ROUTE_POLYLINES);
-    if (!records?.length) return { success: true, removed: 0 };
-
-    const groups = new Map();
-    records.forEach((r) => {
-      if (!r) return;
-      const key = [
-        String(r.driver_id || ''),
-        String(r.delivery_date || ''),
-        Number(r.segment_origin_lat)?.toFixed?.(5),
-        Number(r.segment_origin_lon)?.toFixed?.(5),
-        Number(r.segment_dest_lat)?.toFixed?.(5),
-        Number(r.segment_dest_lon)?.toFixed?.(5)
-      ].join('|');
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(r);
-    });
-
-    let removed = 0;
-    for (const [, arr] of groups) {
-      if (!arr || arr.length === 0) continue;
-      arr.sort((a, b) => {
-        const score = (row) => {
-          const hasRealId = row?.id && !String(row.id).startsWith('temp_') ? 1 : 0;
-          const hasTotals = Number(row?.estimated_distance_km || 0) > 0 || Number(row?.estimated_duration_minutes || 0) > 0 ? 1 : 0;
-          const hasPolyline = typeof row?.encoded_polyline === 'string' && row.encoded_polyline.trim().length > 0 ? 1 : 0;
-          const ts = new Date(row.last_generated_at || row.updated_date || row.created_date || 0).getTime();
-          return [hasRealId, hasTotals, hasPolyline, ts];
-        };
-        const [aid, atotals, apoly, ats] = score(a);
-        const [bid, btotals, bpoly, bts] = score(b);
-        if (bid !== aid) return bid - aid;
-        if (btotals !== atotals) return btotals - atotals;
-        if (bpoly !== apoly) return bpoly - apoly;
-        return bts - ats;
-      });
-      const keeper = arr[0];
-      const toDelete = arr.slice(1);
-      await Promise.all(
-        toDelete.map((rec) =>
-          deleteRecord(STORES.DRIVER_ROUTE_POLYLINES, rec.id)
-            .then(() => { removed++; })
-            .catch(() => null)
-        )
-      );
-
-      if (!(Number(keeper?.estimated_distance_km || 0) > 0 || Number(keeper?.estimated_duration_minutes || 0) > 0)) {
-        await deleteRecord(STORES.DRIVER_ROUTE_POLYLINES, keeper.id).then(() => { removed++; }).catch(() => null);
-      }
-    }
-
-    return { success: true, removed };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-};
 
 export const offlineDB = {
   STORES,
@@ -1261,6 +1186,5 @@ export const offlineDB = {
   updateSyncMetadata,
   getCacheValidation,
   updateCacheSnapshot,
-  deduplicateDriverRoutePolylines,
   CACHE_SCHEMA_VERSION
 };
