@@ -1187,9 +1187,9 @@ Deno.serve(async (req) => {
         }
 
         if (createdSegments.length > 0) {
-          console.log(`# [purgeAndRegeneratePolylines] BEFORE Delivery polyline updates | driver=${driverDisplayName} | date=${deliveryDate} | createdSegments=${createdSegments.length} | totalStops=${deliveries?.length || 0}`);
-          await processInChunks(createdSegments, 20, (segment) =>
-            base44.asServiceRole.entities.Delivery.update(segment.id, {
+          createdSegments.forEach((segment) => {
+            deliveryUpdatesById.set(segment.id, {
+              ...(deliveryUpdatesById.get(segment.id) || {}),
               encoded_polyline: segment.encoded_polyline,
               transport_mode: segment.transport_mode || 'driving',
               segment_origin_lat: segment.segment_origin_lat,
@@ -1198,17 +1198,8 @@ Deno.serve(async (req) => {
               segment_dest_lon: segment.segment_dest_lon,
               estimated_distance_km: segment.estimated_distance_km,
               estimated_duration_minutes: segment.estimated_duration_minutes
-            }).catch((error) => {
-              if (isNotFoundError(error)) return null;
-              throw error;
-            })
-          );
-          const afterPolylineCreateDeliveries = await base44.asServiceRole.entities.Delivery.filter({
-            driver_id: driverId,
-            delivery_date: deliveryDate
-          }, 'stop_order', 50000);
-          console.log(`# [purgeAndRegeneratePolylines] AFTER Delivery polyline updates | driver=${driverDisplayName} | date=${deliveryDate} | createdSegments=${createdSegments.length} | totalStops=${afterPolylineCreateDeliveries?.length || 0}`);
-          deliveries = afterPolylineCreateDeliveries;
+            });
+          });
         }
       } else {
         const homeLat = Number(driverAppUser?.home_latitude);

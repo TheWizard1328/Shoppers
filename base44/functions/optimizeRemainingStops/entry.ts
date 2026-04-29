@@ -587,7 +587,9 @@ Deno.serve(async (req) => {
           .filter(Boolean),
         explicitOrderedStopsOnly: true,
         explicitRouteOrigin: routeHasStarted ? null : 'home',
-        explicitRouteDestination: 'home'
+        explicitRouteDestination: 'home',
+        bypassPolylineUpdated: true,
+        bypassPolylineDelete: true
       }).catch((error) => {
         console.warn('⚠️ [optimizeRemainingStops] Polyline refresh failed:', error?.message || error);
         return null;
