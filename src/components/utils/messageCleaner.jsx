@@ -132,6 +132,13 @@ export async function performDailyMessageCleanup() {
       const batch = oldMessages.slice(i, i + BATCH_SIZE);
       
       for (const message of batch) {
+        const existsBeforeDelete = await base44.entities.Message.filter({ id: message.id });
+        if (!existsBeforeDelete || existsBeforeDelete.length === 0) {
+          console.log(`ℹ️ [messageCleaner] Message already deleted: ${message.id}`);
+          deleted++;
+          continue;
+        }
+
         try {
           await base44.entities.Message.delete(message.id);
           deleted++;
@@ -139,6 +146,7 @@ export async function performDailyMessageCleanup() {
         } catch (error) {
           if (error.response?.status === 404 || error.message?.includes('not found')) {
             console.log(`ℹ️ [messageCleaner] Message already deleted: ${message.id}`);
+            deleted++;
           } else {
             console.warn(`Failed to delete message ${message.id}:`, error.message);
             failed++;
