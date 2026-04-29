@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { Polyline } from "react-leaflet";
 import { ensurePolylineSubscription } from "../utils/hereRouting";
-import useDriverRoutePolylineBackgroundSync from "../utils/useDriverRoutePolylineBackgroundSync";
 import { getRouteOptimizationSettings } from "./RouteOptimizationSettings";
 import { getTravelModeLineStyle, normalizeTravelMode } from "./travelModeHelpers";
 import RouteDirectionDecorator from "./RouteDirectionDecorator";
@@ -239,13 +238,6 @@ export default function HereType1Polylines({
     });
     return out;
   }, [driverStops]);
-
-  useDriverRoutePolylineBackgroundSync({
-    targets: [],
-    enabled: false,
-    intervalMs: 30000,
-    onSync: () => setRefreshToken((token) => token + 1)
-  });
 
   // Listen only to route-shape-changing events so location pings don't redraw type-1 lines
   useEffect(() => {
