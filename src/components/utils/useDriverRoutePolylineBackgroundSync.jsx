@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import { isMobileDevice } from "./deviceUtils";
-import { syncDriverRoutePolylinesForDate } from "./hereRouting";
+
 
 export default function useDriverRoutePolylineBackgroundSync({ targets = [], enabled = true, intervalMs = 30000, onSync }) {
   const isMobile = useMemo(() => isMobileDevice(), []);
@@ -20,30 +20,25 @@ export default function useDriverRoutePolylineBackgroundSync({ targets = [], ena
 
     let cancelled = false;
 
-    const runSync = async (force = false) => {
+    const runSync = async () => {
       if (cancelled || isSyncingRef.current || document.visibilityState !== "visible") return;
       isSyncingRef.current = true;
 
       try {
-        const results = await Promise.all(
-          uniqueTargets.map((target) => syncDriverRoutePolylinesForDate(target.driverId, target.deliveryDate, force))
-        );
-
         if (cancelled) return;
-        const hasRows = results.some((rows) => Array.isArray(rows) && rows.length > 0);
-        if (hasRows) onSync?.();
+        onSync?.();
       } finally {
         isSyncingRef.current = false;
       }
     };
 
-    const intervalId = window.setInterval(() => runSync(false), intervalMs);
-    const onFocus = () => runSync(false);
+    const intervalId = window.setInterval(() => runSync(), intervalMs);
+    const onFocus = () => runSync();
     const onVisibilityChange = () => {
-      if (document.visibilityState === "visible") runSync(false);
+      if (document.visibilityState === "visible") runSync();
     };
 
-    runSync(false);
+    runSync();
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisibilityChange);
 
