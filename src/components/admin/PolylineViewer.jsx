@@ -113,57 +113,62 @@ export default function PolylineViewer({ users = [] }) {
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        if (viewMode === 'polylines') {
+        const loadDeliveries = async () => {
           if (dataSource === 'online') {
-            const deliveriesData = await queueEntityRequest(
-              () => base44.entities.Delivery.list('-delivery_date', 250),
+            return await queueEntityRequest(
+              () => base44.entities.Delivery.list('-delivery_date', 500),
               'Routes: Delivery.list'
             );
-            setPolylines((deliveriesData || []).filter((row) => typeof row?.encoded_polyline === 'string' && row.encoded_polyline.length > 0));
-          } else {
-            const { offlineDB } = await import('../utils/offlineDatabase');
-            const rows = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-            const sorted = (rows || [])
-              .filter((row) => typeof row?.encoded_polyline === 'string' && row.encoded_polyline.length > 0)
-              .sort((a, b) => {
-                const aTs = new Date(a.last_generated_at || a.updated_date || a.created_date || 0).getTime();
-                const bTs = new Date(b.last_generated_at || b.updated_date || b.created_date || 0).getTime();
-                return bTs - aTs;
-              })
-              .slice(0, 500);
-            setPolylines(sorted);
           }
+          const { offlineDB } = await import('../utils/offlineDatabase');
+          return await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+        };
+
+        const deliveriesData = await loadDeliveries();
+
+        if (viewMode === 'polylines') {
+          const sorted = (deliveriesData || [])
+            .filter((row) => typeof row?.encoded_polyline === 'string' && row.encoded_polyline.length > 0)
+            .sort((a, b) => {
+              const aTs = new Date(a.last_generated_at || a.updated_date || a.created_date || 0).getTime();
+              const bTs = new Date(b.last_generated_at || b.updated_date || b.created_date || 0).getTime();
+              return bTs - aTs;
+            })
+            .slice(0, 500);
+          setPolylines(sorted);
         } else {
-          try {
-            if (dataSource === 'online') {
-              const breadcrumbsData = await queueEntityRequest(
-                () => base44.entities.DeliveryBreadcrumbs.list('-delivery_date', 250),
-                'Routes: DeliveryBreadcrumbs.list'
-              );
-              setBreadcrumbs(breadcrumbsData || []);
-            } else {
-              const { offlineDB } = await import('../utils/offlineDatabase');
-              const pending = await offlineDB.getAll(offlineDB.STORES.PENDING_BREADCRUMBS);
-              // CRITICAL: Filter out records that exist in online DB - only show truly offline-only records
-              const onlineIds = new Set((breadcrumbs || []).map(b => b.id));
-              const offlineOnly = (pending || []).filter(r => !onlineIds.has(`pending-${r.driver_id}`));
-              const normalized = offlineOnly.map((record) => ({
-                id: `pending-${record.driver_id}`,
-                storage_key: record.driver_id,
-                driver_id: record.driver_id,
-                coordinates: Array.isArray(record.breadcrumbs) ? record.breadcrumbs.map((point) => [point[0], point[1]]) : [],
-                point_count: Array.isArray(record.breadcrumbs) ? record.breadcrumbs.length : 0,
-                created_date: record.timestamp ? new Date(record.timestamp).toISOString() : null,
-                delivery_date: getEdmontonDateFromTimestamp(record.timestamp),
-                is_temp_offline: true,
-                is_offline_only: true,
-              }));
-              setBreadcrumbs(normalized);
-            }
-          } catch (breadcrumbError) {
-            console.warn('⚠️ [PolylineViewer] Breadcrumb data not available:', breadcrumbError.message);
-            setBreadcrumbs([]);
-          }
+          const normalizedBreadcrumbs = (deliveriesData || [])
+            .filter((row) => typeof row?.delivery_route_breadcrumbs === 'string' && row.delivery_route_breadcrumbs.trim().length > 0)
+            .map((row) => {
+              let parsed = [];
+              try {
+                parsed = JSON.parse(row.delivery_route_breadcrumbs);
+              } catch (_) {
+                parsed = [];
+              }
+              const coordinates = Array.isArray(parsed)
+                ? parsed
+                    .map((point) => [Number(point?.[0]), Number(point?.[1])])
+                    .filter((point) => Number.isFinite(point[0]) && Number.isFinite(point[1]))
+                : [];
+              return {
+                id: row.id,
+                driver_id: row.driver_id,
+                delivery_id: row.id,
+                delivery_date: row.delivery_date,
+                created_date: row.updated_date || row.created_date || null,
+                coordinates,
+                point_count: coordinates.length,
+              };
+            })
+            .filter((row) => row.point_count > 0)
+            .sort((a, b) => {
+              const aTs = new Date(a.created_date || 0).getTime();
+              const bTs = new Date(b.created_date || 0).getTime();
+              return bTs - aTs;
+            })
+            .slice(0, 500);
+          setBreadcrumbs(normalizedBreadcrumbs);
         }
       } catch (error) {
         console.error('❌ [PolylineViewer] Error fetching data:', error);
