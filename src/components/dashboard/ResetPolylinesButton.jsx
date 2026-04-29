@@ -183,6 +183,11 @@ export default function ResetPolylinesButton({
                 base44.entities.Delivery.update(id, { PolylineUpdated: true })
               )
             );
+            deliveriesAfterPurge.forEach((delivery) => {
+              if (polylineUpdatedFalseIds.includes(delivery?.id)) {
+                delivery.PolylineUpdated = true;
+              }
+            });
           }
           const orderedDeliveriesAfterPurge = (deliveriesAfterPurge || [])
             .filter(Boolean)

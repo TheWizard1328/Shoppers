@@ -277,6 +277,19 @@ function findExactCachedSegment(rows, from, to) {
   ) || null;
 }
 
+function buildSegmentDeliveryUpdate(spec, directions, transportMode = 'driving') {
+  return {
+    encoded_polyline: directions?.encoded_polyline || encodeGooglePolyline([[spec.from.lat, spec.from.lon], [spec.to.lat, spec.to.lon]]),
+    transport_mode: getNormalizedTravelMode(transportMode, 'driving'),
+    segment_origin_lat: round5(spec.from.lat),
+    segment_origin_lon: round5(spec.from.lon),
+    segment_dest_lat: round5(spec.to.lat),
+    segment_dest_lon: round5(spec.to.lon),
+    estimated_distance_km: directions?.estimated_distance_km ?? null,
+    estimated_duration_minutes: directions?.estimated_duration_minutes ?? null
+  };
+}
+
 function buildStopOrderRepairUpdates(deliveries) {
   const finishedStatuses = new Set(['completed', 'failed', 'cancelled', 'returned']);
   const getCompletionTime = (delivery) => {
@@ -991,6 +1004,7 @@ Deno.serve(async (req) => {
         regeneratedFinishedLegStopIds.push(segment.stop.id);
         deliveryUpdatesById.set(segment.stop.id, {
           ...(deliveryUpdatesById.get(segment.stop.id) || {}),
+          ...buildSegmentDeliveryUpdate({ from: segment.from, to: segment.to }, directions, segment.transportMode),
           delivery_route_breadcrumbs: segment.usedFallbackBreadcrumbs ? segment.fallbackBreadcrumbs : (deliveryUpdatesById.get(segment.stop.id)?.delivery_route_breadcrumbs || segment.stop?.delivery_route_breadcrumbs),
           finished_leg_encoded_polyline: mergedFinishedPolyline,
           finished_leg_transport_mode: mergedFinishedPolyline ? segment.transportMode : null,
@@ -1102,6 +1116,7 @@ Deno.serve(async (req) => {
           if (matchingStop) {
             deliveryUpdatesById.set(matchingStop.id, {
               ...(deliveryUpdatesById.get(matchingStop.id) || {}),
+              ...buildSegmentDeliveryUpdate(spec, cachedSegment, spec.transportMode),
               travel_dist: cachedSegment.estimated_distance_km ?? null
             });
           }
@@ -1134,20 +1149,14 @@ Deno.serve(async (req) => {
           if (matchingStop) {
             deliveryUpdatesById.set(matchingStop.id, {
               ...(deliveryUpdatesById.get(matchingStop.id) || {}),
+              ...buildSegmentDeliveryUpdate(spec, directions, spec.transportMode),
               travel_dist: directions?.estimated_distance_km ?? null
             });
           }
           if (matchingStop?.id) {
             createdSegments.push({
               id: matchingStop.id,
-              transport_mode: 'driving',
-              encoded_polyline: directions?.encoded_polyline || encodeGooglePolyline([[spec.from.lat, spec.from.lon], [spec.to.lat, spec.to.lon]]),
-              segment_origin_lat: round5(spec.from.lat),
-              segment_origin_lon: round5(spec.from.lon),
-              segment_dest_lat: round5(spec.to.lat),
-              segment_dest_lon: round5(spec.to.lon),
-              estimated_distance_km: directions?.estimated_distance_km ?? null,
-              estimated_duration_minutes: directions?.estimated_duration_minutes ?? null
+              ...buildSegmentDeliveryUpdate(spec, directions, spec.transportMode)
             });
           }
         });
@@ -1313,15 +1322,14 @@ Deno.serve(async (req) => {
       }
     }
 
-    let finalDeliveries;
-    if (bypassPolylineUpdated) {
-      finalDeliveries = await base44.asServiceRole.entities.Delivery.filter({
-        driver_id: driverId,
-        delivery_date: deliveryDate
-      }, 'stop_order', 50000);
-    } else {
+    let finalDeliveries = await base44.asServiceRole.entities.Delivery.filter({
+      driver_id: driverId,
+      delivery_date: deliveryDate
+    }, 'stop_order', 50000);
+
+    if (!bypassPolylineUpdated) {
       console.log(`# [purgeAndRegeneratePolylines] BEFORE markDeliveriesPolylineUpdated | driver=${driverDisplayName} | date=${deliveryDate} | totalStops=${deliveries?.length || 0}`);
-      await markDeliveriesPolylineUpdated(base44, deliveries, true);
+      await markDeliveriesPolylineUpdated(base44, finalDeliveries, true);
       finalDeliveries = await base44.asServiceRole.entities.Delivery.filter({
         driver_id: driverId,
         delivery_date: deliveryDate
