@@ -83,9 +83,6 @@ if (typeof window !== 'undefined') {
   });
 }
 
-export async function syncDriverRoutePolylinesForDate() {
-  return [];
-}
 
 const pendingPolylinePayloads = [];
 let polylinePersistTimer = null;

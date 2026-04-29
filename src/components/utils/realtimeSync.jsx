@@ -25,7 +25,7 @@ const eventBuffers = {
   Patient: new Map(),
   AppUser: new Map(),
   Message: new Map(),
-  DriverRoutePolyline: new Map(),
+
   GoogleAPILog: new Map(),
   AppSettings: new Map(),
 };
@@ -64,8 +64,6 @@ async function flushBuffered(entityName) {
       fullReplacementData = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
     } else if (entityName === 'Patient') {
       fullReplacementData = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
-    } else if (entityName === 'DriverRoutePolyline') {
-      fullReplacementData = await offlineDB.getAll(offlineDB.STORES.DRIVER_ROUTE_POLYLINES);
     } else if (entityName === 'AppSettings') {
       fullReplacementData = null;
     }
@@ -200,22 +198,6 @@ async function flushBuffered(entityName) {
     }));
   }
 
-  if (typeof window !== 'undefined' && entityName === 'DriverRoutePolyline' && Array.isArray(fullReplacementData)) {
-    window.dispatchEvent(new CustomEvent('driverRoutePolylinesUpdated', {
-      detail: {
-        polylines: fullReplacementData,
-        fromRealtime: true,
-        fullReplacement: true
-      }
-    }));
-    window.dispatchEvent(new CustomEvent('polylineUpdated', {
-      detail: {
-        source: 'realtime_sync',
-        fromRealtime: true,
-        fullReplacement: true
-      }
-    }));
-  }
 
   // Center next delivery card when the next-stop flag becomes active on any relevant device
   if (entityName === 'Delivery' && items.some(it => shouldCenterForDeliveryUpdate(it.data, it.changedFields))) {
@@ -412,7 +394,6 @@ const subscribeToEntity = (entityName) => {
                             entityName === 'Patient' ? offlineDB.STORES.PATIENTS :
                             entityName === 'City' ? offlineDB.STORES.CITIES :
                             entityName === 'Store' ? offlineDB.STORES.STORES :
-                            entityName === 'DriverRoutePolyline' ? offlineDB.STORES.DRIVER_ROUTE_POLYLINES :
                             entityName === 'Message' ? null : null;
 
           if (entityName === 'Message' && typeof window !== 'undefined') {
@@ -423,9 +404,6 @@ const subscribeToEntity = (entityName) => {
 
           if (storeName) {
             await offlineDB.save(storeName, data);
-            if (entityName === 'DriverRoutePolyline') {
-              console.log(`💾 [RealtimeSync] Saved DriverRoutePolyline to offline DB: ${data.driver_id} segment ${data.segment_origin_lat},${data.segment_origin_lon} -> ${data.segment_dest_lat},${data.segment_dest_lon}`);
-            } else {
               const savedLabel = entityName === 'Patient'
                 ? (data?.full_name || data?.id || 'Patient')
                 : entityName === 'AppUser'
@@ -438,7 +416,6 @@ const subscribeToEntity = (entityName) => {
           const storeName = entityName === 'AppUser' ? offlineDB.STORES.APP_USERS :
                             entityName === 'Delivery' ? offlineDB.STORES.DELIVERIES :
                             entityName === 'Patient' ? offlineDB.STORES.PATIENTS :
-                            entityName === 'DriverRoutePolyline' ? offlineDB.STORES.DRIVER_ROUTE_POLYLINES :
                             null;
 
           if (storeName) {
@@ -477,7 +454,6 @@ export const connect = () => {
     subscribeToEntity('Patient');
     subscribeToEntity('AppUser');
     subscribeToEntity('Message');
-    subscribeToEntity('DriverRoutePolyline');
     subscribeToEntity('GoogleAPILog');
     subscribeToEntity('AppSettings');
 
@@ -626,7 +602,6 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
     const storeName = entity === 'AppUser' ? offlineDB.STORES.APP_USERS :
       entity === 'Delivery' ? offlineDB.STORES.DELIVERIES :
       entity === 'Patient' ? offlineDB.STORES.PATIENTS :
-      entity === 'DriverRoutePolyline' ? offlineDB.STORES.DRIVER_ROUTE_POLYLINES :
       null;
 
     if (storeName) {
@@ -750,22 +725,6 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
       }));
     }
 
-    if (entity === 'DriverRoutePolyline') {
-      window.dispatchEvent(new CustomEvent('driverRoutePolylinesUpdated', {
-        detail: {
-          polylines: data ? [data] : undefined,
-          deletedId: action === 'delete' ? id : undefined,
-          fromRealtime: true
-        }
-      }));
-      window.dispatchEvent(new CustomEvent('polylineUpdated', {
-        detail: {
-          key: data ? `here_${normalizeTravelMode(data.transport_mode || 'driving')}_${Number(data.segment_origin_lat).toFixed(5)}_${Number(data.segment_origin_lon).toFixed(5)}_${Number(data.segment_dest_lat).toFixed(5)}_${Number(data.segment_dest_lon).toFixed(5)}` : null,
-          source: 'broadcast_mutation',
-          fromRealtime: true
-        }
-      }));
-    }
   }
 
   return true;

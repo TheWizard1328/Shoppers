@@ -5,7 +5,7 @@ import { offlineDB } from '@/components/utils/offlineDatabase';
 import { base44 } from '@/api/base44Client';
 import { manualSyncSelected } from '@/components/utils/offlineSync';
 import calculateRealTimeETA from '@/functions/calculateRealTimeETA';
-import { syncDriverRoutePolylinesForDate } from '@/components/utils/hereRouting';
+
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { globalFilters } from '@/components/utils/globalFilters';
@@ -191,16 +191,9 @@ export default function PullToSync({
           const now = new Date();
           const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-          // Polyline resync: one online-to-offline hit, then reload selected driver polylines in UI
-          Promise.resolve(syncDriverRoutePolylinesForDate(targetDriverId, selectedDateStr, true))
-            .then((rows) => {
-              if (Array.isArray(rows) && rows.length > 0) {
-                window.dispatchEvent(new CustomEvent('polylineUpdated', {
-                  detail: { driverId: targetDriverId, deliveryDate: selectedDateStr, source: 'pullToSync' }
-                }));
-              }
-            })
-            .catch(e => console.warn('⚠️ [Pull to Sync] Background polyline resync failed:', e?.message || e));
+          window.dispatchEvent(new CustomEvent('polylineUpdated', {
+            detail: { driverId: targetDriverId, deliveryDate: selectedDateStr, source: 'pullToSync' }
+          }));
 
           // ETA recalculation for active stops only
           calculateRealTimeETA({

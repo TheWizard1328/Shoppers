@@ -154,9 +154,9 @@ async function getCachedFinishedLegPolyline({ delivery, origin, destination, pre
   if (!delivery?.driver_id || !delivery?.delivery_date || !origin || !destination) return null;
 
   try {
-    const localMatches = await offlineDB.getByIndex(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, 'driver_id', delivery.driver_id).catch(() => []);
+    const localMatches = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, delivery.delivery_date).catch(() => []);
     const localMatch = (localMatches || []).find((item) =>
-      item?.delivery_date === delivery.delivery_date &&
+      item?.driver_id === delivery.driver_id &&
       Number(item?.segment_origin_lat) === Number(origin.latitude) &&
       Number(item?.segment_origin_lon) === Number(origin.longitude) &&
       Number(item?.segment_dest_lat) === Number(destination.latitude) &&
@@ -172,7 +172,7 @@ async function getCachedFinishedLegPolyline({ delivery, origin, destination, pre
   } catch {}
 
   try {
-    const serverMatches = await base44.entities.DriverRoutePolyline.filter({
+    const serverMatches = await base44.entities.Delivery.filter({
       driver_id: delivery.driver_id,
       delivery_date: delivery.delivery_date
     });

@@ -115,14 +115,14 @@ export default function PolylineViewer({ users = [] }) {
         setIsLoading(true);
         if (viewMode === 'polylines') {
           if (dataSource === 'online') {
-            const polylinesData = await queueEntityRequest(
-              () => base44.entities.DriverRoutePolyline.list('-delivery_date', 250),
-              'Routes: DriverRoutePolyline.list'
+            const deliveriesData = await queueEntityRequest(
+              () => base44.entities.Delivery.list('-delivery_date', 250),
+              'Routes: Delivery.list'
             );
-            setPolylines(polylinesData || []);
+            setPolylines((deliveriesData || []).filter((row) => typeof row?.encoded_polyline === 'string' && row.encoded_polyline.length > 0));
           } else {
             const { offlineDB } = await import('../utils/offlineDatabase');
-            const rows = await offlineDB.getAll(offlineDB.STORES.DRIVER_ROUTE_POLYLINES);
+            const rows = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
             const sorted = (rows || [])
               .filter((row) => typeof row?.encoded_polyline === 'string' && row.encoded_polyline.length > 0)
               .sort((a, b) => {
@@ -197,7 +197,7 @@ export default function PolylineViewer({ users = [] }) {
       filtered = filtered.filter(p => p.delivery_date === dateFilter);
     }
 
-    filtered = filtered.filter(p => typeof p.encoded_polyline === 'string' && p.encoded_polyline.length > 0);
+    filtered = filtered.filter(p => typeof p.encoded_polyline === 'string' && p.encoded_polyline.length > 0 && p.segment_origin_lat != null && p.segment_origin_lon != null && p.segment_dest_lat != null && p.segment_dest_lon != null);
 
     const deduped = new Map();
     filtered.forEach((row) => {
@@ -306,8 +306,8 @@ export default function PolylineViewer({ users = [] }) {
           if (viewMode === 'polylines') {
             const rec = polylines.find(p => p.id === id);
             if (rec) clearLocalCachesForPolyline(rec);
-            try { await base44.entities.DriverRoutePolyline.delete(id); } catch (_) {}
-            try { await offlineDB.deleteRecord(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, id); } catch (_) {}
+            try { await base44.entities.Delivery.update(id, { encoded_polyline: null, estimated_distance_km: null, estimated_duration_minutes: null, segment_origin_lat: null, segment_origin_lon: null, segment_dest_lat: null, segment_dest_lon: null, transport_mode: null, PolylineUpdated: false }); } catch (_) {}
+            try { await offlineDB.save(offlineDB.STORES.DELIVERIES, { ...rec, encoded_polyline: null, estimated_distance_km: null, estimated_duration_minutes: null, segment_origin_lat: null, segment_origin_lon: null, segment_dest_lat: null, segment_dest_lon: null, transport_mode: null, PolylineUpdated: false }); } catch (_) {}
             return;
           }
 
@@ -356,8 +356,8 @@ export default function PolylineViewer({ users = [] }) {
           if (viewMode === 'polylines') {
             const rec = filteredPolylines.find(p => p.id === id) || polylines.find(p => p.id === id);
             if (rec) clearLocalCachesForPolyline(rec);
-            try { await base44.entities.DriverRoutePolyline.delete(id); } catch (_) {}
-            try { await offlineDB.deleteRecord(offlineDB.STORES.DRIVER_ROUTE_POLYLINES, id); } catch (_) {}
+            try { await base44.entities.Delivery.update(id, { encoded_polyline: null, estimated_distance_km: null, estimated_duration_minutes: null, segment_origin_lat: null, segment_origin_lon: null, segment_dest_lat: null, segment_dest_lon: null, transport_mode: null, PolylineUpdated: false }); } catch (_) {}
+            try { await offlineDB.save(offlineDB.STORES.DELIVERIES, { ...rec, encoded_polyline: null, estimated_distance_km: null, estimated_duration_minutes: null, segment_origin_lat: null, segment_origin_lon: null, segment_dest_lat: null, segment_dest_lon: null, transport_mode: null, PolylineUpdated: false }); } catch (_) {}
             return;
           }
 
@@ -425,12 +425,11 @@ export default function PolylineViewer({ users = [] }) {
                             const estKm = res?.data?.estimated_distance_km ?? null;
                             const estMin = res?.data?.estimated_duration_minutes ?? null;
                             if (estKm !== null && estMin !== null) {
-                              await base44.entities.DriverRoutePolyline.update(pl.id, {
+                              await base44.entities.Delivery.update(pl.id, {
                                 estimated_distance_km: estKm,
-                                estimated_duration_minutes: estMin,
-                                last_generated_at: new Date().toISOString(),
+                                estimated_duration_minutes: estMin
                               });
-                              setPolylines(prev => prev.map(p => p.id === pl.id ? { ...p, estimated_distance_km: estKm, estimated_duration_minutes: estMin, last_generated_at: new Date().toISOString() } : p));
+                              setPolylines(prev => prev.map(p => p.id === pl.id ? { ...p, estimated_distance_km: estKm, estimated_duration_minutes: estMin } : p));
                             }
                           } catch (_) {}
                           setOpProgress((p) => ({ ...p, processed: i + 1 }));
