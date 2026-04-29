@@ -72,15 +72,20 @@ const IntegerZoomTileLayer = L.TileLayer.extend({
 const buildHereLightTileUrl = (apiKey) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=explore.day&size=512&apiKey=${apiKey}`;
 const buildHereDarkTileUrl = (apiKey) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=explore.night&size=512&apiKey=${apiKey}`;
 
-const MapUpdater = ({ coordinates }) => {
+const MapUpdater = ({ coordinates = [], multiCoordinates = [] }) => {
   const map = useMap();
   
   useEffect(() => {
-    if (coordinates && coordinates.length > 0) {
-      const bounds = L.latLngBounds(coordinates);
+    const allPoints = [
+      ...coordinates,
+      ...multiCoordinates.flatMap((segment) => segment.coordinates || [])
+    ].filter((point) => Array.isArray(point) && point.length === 2);
+
+    if (allPoints.length > 0) {
+      const bounds = L.latLngBounds(allPoints);
       map.fitBounds(bounds, { padding: [50, 50] });
     }
-  }, [coordinates, map]);
+  }, [coordinates, multiCoordinates, map]);
   
   return null;
 };
@@ -98,6 +103,7 @@ export default function PolylineViewer({ users = [] }) {
   const [selectedPolyline, setSelectedPolyline] = useState(null);
   const [decodedCoordinates, setDecodedCoordinates] = useState([]);
   const [selectedPolylines, setSelectedPolylines] = useState(new Set());
+  const [multiSegmentCoordinates, setMultiSegmentCoordinates] = useState([]);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRecomputing, setIsRecomputing] = useState(false);
   const [opProgress, setOpProgress] = useState({ total: 0, processed: 0, label: '' });
@@ -337,6 +343,24 @@ export default function PolylineViewer({ users = [] }) {
       return newSet;
     });
   };
+
+  useEffect(() => {
+    if (viewMode !== 'polylines') {
+      setMultiSegmentCoordinates([]);
+      return;
+    }
+
+    const selectedSegments = filteredPolylines
+      .filter((polyline) => selectedPolylines.has(polyline.id))
+      .map((polyline, index) => ({
+        id: polyline.id,
+        color: index === 0 ? '#2563eb' : index === 1 ? '#7c3aed' : index === 2 ? '#ea580c' : '#0f766e',
+        coordinates: decodePolyline(polyline.encoded_polyline)
+      }))
+      .filter((segment) => segment.coordinates.length > 0);
+
+    setMultiSegmentCoordinates(selectedSegments);
+  }, [selectedPolylines, filteredPolylines, viewMode]);
 
   const handleDeleteSelected = async () => {
     if (selectedPolylines.size === 0) return;
@@ -797,12 +821,12 @@ export default function PolylineViewer({ users = [] }) {
 
               {/* Right: Map */}
               <div className="flex-1 border rounded-lg overflow-hidden h-[420px] md:h-auto md:min-h-0">
-                {selectedPolyline && decodedCoordinates.length > 0 ? (
+                {((selectedPolyline && decodedCoordinates.length > 0) || multiSegmentCoordinates.length > 0) ? (
                   <MapContainer
-                    center={decodedCoordinates[0]}
+                    center={multiSegmentCoordinates[0]?.coordinates?.[0] || decodedCoordinates[0]}
                     zoom={13}
                     style={{ height: '100%', width: '100%' }}
-                    key={`${viewMode}-${selectedPolyline.id}-${tileLayerInstanceKey}`}
+                    key={`${viewMode}-${selectedPolyline?.id || 'multi'}-${tileLayerInstanceKey}`}
                   >
                     {tileLayerUrl && (
                       <TileLayer
@@ -822,7 +846,44 @@ export default function PolylineViewer({ users = [] }) {
                       />
                     )}
                     
-                    {decodedCoordinates.length > 0 && (
+                    {multiSegmentCoordinates.length > 0 ? (
+                      <>
+                        {multiSegmentCoordinates.map((segment) => {
+                          const polyline = filteredPolylines.find((item) => item.id === segment.id);
+                          if (!polyline) return null;
+
+                          return (
+                            <React.Fragment key={segment.id}>
+                              <Polyline
+                                positions={segment.coordinates}
+                                color={segment.color}
+                                weight={4}
+                                opacity={0.8}
+                              />
+                              {polyline.segment_origin_lat && polyline.segment_origin_lon && (
+                                <Marker position={[polyline.segment_origin_lat, polyline.segment_origin_lon]} icon={originMarkerIcon} zIndexOffset={1000}>
+                                  <Popup>
+                                    <strong>Origin</strong>
+                                    <br />
+                                    {polyline.segment_origin_lat.toFixed(6)}, {polyline.segment_origin_lon.toFixed(6)}
+                                  </Popup>
+                                </Marker>
+                              )}
+                              {polyline.segment_dest_lat && polyline.segment_dest_lon && (
+                                <Marker position={[polyline.segment_dest_lat, polyline.segment_dest_lon]} icon={destinationMarkerIcon} zIndexOffset={1000}>
+                                  <Popup>
+                                    <strong>Destination</strong>
+                                    <br />
+                                    {polyline.segment_dest_lat.toFixed(6)}, {polyline.segment_dest_lon.toFixed(6)}
+                                  </Popup>
+                                </Marker>
+                              )}
+                            </React.Fragment>
+                          );
+                        })}
+                        <MapUpdater coordinates={decodedCoordinates} multiCoordinates={multiSegmentCoordinates} />
+                      </>
+                    ) : decodedCoordinates.length > 0 && (
                       <>
                         <Polyline
                           positions={decodedCoordinates}
@@ -853,7 +914,7 @@ export default function PolylineViewer({ users = [] }) {
                           </Marker>
                         )}
                         
-                        <MapUpdater coordinates={decodedCoordinates} />
+                        <MapUpdater coordinates={decodedCoordinates} multiCoordinates={multiSegmentCoordinates} />
                       </>
                     )}
                   </MapContainer>
