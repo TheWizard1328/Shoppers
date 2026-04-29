@@ -32,21 +32,39 @@ let legacyCleanupPromise = null;
 
 const LEGACY_OFFLINE_DB_NAMES = [
   'rxdeliver_persistent_offline_v1',
-  'rxdeliver_persistent_offline_v2'
+  'driver_route_polylines',
+  'driver_route_polylines_db',
+  'rxdeliver_driver_route_polylines',
+  'rxdeliver_persistent_cache_v1'
+];
+
+const LEGACY_DB_PREFIXES = [
+  'rxdeliver_persistent_offline_',
+  'rxdeliver_persistent_cache_',
+  'driver_route_polylines'
 ];
 
 const listLegacyOfflineDbNames = async () => {
-  if (typeof indexedDB === 'undefined' || typeof indexedDB.databases !== 'function') {
-    return LEGACY_OFFLINE_DB_NAMES;
+  if (typeof indexedDB === 'undefined') {
+    return [];
+  }
+
+  const fallbackNames = LEGACY_OFFLINE_DB_NAMES.filter((name) => name && name !== DB_NAME);
+
+  if (typeof indexedDB.databases !== 'function') {
+    return fallbackNames;
   }
 
   try {
     const databases = await indexedDB.databases();
-    return (databases || [])
+    const discoveredNames = (databases || [])
       .map((db) => db?.name)
-      .filter((name) => name && name.startsWith('rxdeliver_persistent_offline_') && name !== DB_NAME);
+      .filter((name) => name && name !== DB_NAME)
+      .filter((name) => LEGACY_DB_PREFIXES.some((prefix) => name.startsWith(prefix)));
+
+    return Array.from(new Set([...fallbackNames, ...discoveredNames]));
   } catch (error) {
-    return LEGACY_OFFLINE_DB_NAMES;
+    return fallbackNames;
   }
 };
 
@@ -66,7 +84,12 @@ const cleanupLegacyOfflineDatabases = async () => {
   if (legacyCleanupPromise) return legacyCleanupPromise;
 
   legacyCleanupPromise = listLegacyOfflineDbNames()
-    .then((dbNames) => Promise.all((dbNames || []).map(deleteIndexedDbIfExists)))
+    .then(async (dbNames) => {
+      const uniqueNames = Array.from(new Set((dbNames || []).filter((name) => name && name !== DB_NAME)));
+      if (uniqueNames.length === 0) return [];
+      console.log('🧹 [OfflineDB] Removing legacy IndexedDB databases:', uniqueNames);
+      return Promise.all(uniqueNames.map(deleteIndexedDbIfExists));
+    })
     .catch(() => [])
     .finally(() => {
       legacyCleanupPromise = null;
