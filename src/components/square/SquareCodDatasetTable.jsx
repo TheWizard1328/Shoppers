@@ -25,11 +25,11 @@ export default function SquareCodDatasetTable({
   onRowClick
 }) {
   return (
-    <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 flex-1 flex flex-col min-h-0">
-      <CardHeader className="sticky top-0 z-10 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
+    <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 flex flex-col min-h-0 md:flex-1">
+      <CardHeader className="sticky top-0 z-10 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
         <CardTitle className="text-base md:text-lg text-slate-900 dark:text-slate-50">{title}</CardTitle>
       </CardHeader>
-      <CardContent className="flex-1 overflow-y-auto" style={{ paddingBottom: navHeight ? navHeight + 8 : undefined }}>
+      <CardContent className="flex-1 min-h-0 overflow-visible md:overflow-y-auto" style={{ paddingBottom: navHeight ? navHeight + 8 : undefined }}>
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin w-8 h-8 border-4 rounded-full" style={{ borderColor: 'var(--border-emerald-500)', borderTopColor: 'transparent' }} />
@@ -44,7 +44,7 @@ export default function SquareCodDatasetTable({
           <>
             <div className="hidden md:block overflow-x-auto pb-2">
               <table className="w-full">
-                <thead>
+                <thead className="sticky top-0 z-10 bg-white dark:bg-slate-900">
                   <tr className="border-b text-left text-sm text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700">
                     <th className="p-3">Item Name</th>
                     <th className="p-3">Amount</th>
