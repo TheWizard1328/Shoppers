@@ -17,8 +17,7 @@ function formatStopOrder(value) {
 function formatDistance(value) {
   const km = Number(value);
   if (!Number.isFinite(km)) return "--";
-  if (km < 1) return `${Math.max(1, Math.round(km * 1000))} m`;
-  return `${km < 10 ? km.toFixed(1) : Math.round(km)} km`;
+  return `${Math.max(1, Math.round(km * 1000))} m`;
 }
 
 function formatEta(value) {
