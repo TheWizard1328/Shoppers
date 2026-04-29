@@ -598,13 +598,12 @@ Deno.serve(async (req) => {
       if (!pickup) return undefined;
 
       const pickupState = finalizedById.get(pickup.id) || pickup;
-      const pickupStartTime = pickupState.delivery_time_start;
       const pickupETA = pickupState.delivery_time_eta;
+      const pickupStartTime = pickupState.delivery_time_start;
 
-      let baseMinutes = parseTimeToMinutes(pickupStartTime);
-      const etaMinutes = parseTimeToMinutes(pickupETA);
-      if (etaMinutes > baseMinutes) {
-        baseMinutes = etaMinutes;
+      let baseMinutes = parseTimeToMinutes(pickupETA);
+      if (!Number.isFinite(baseMinutes)) {
+        baseMinutes = parseTimeToMinutes(pickupStartTime);
       }
 
       if (!Number.isFinite(baseMinutes)) return undefined;
