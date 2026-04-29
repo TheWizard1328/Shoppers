@@ -278,11 +278,30 @@ Deno.serve(async (req) => {
     const storeMap = new Map(stores.map(s => [s.id, s]));
 
     // Build stops with coordinates
+    const pickupWindowByStopId = new Map(
+      optimizableDeliveries
+        .filter((delivery) => delivery && !delivery.patient_id && delivery.stop_id)
+        .map((delivery) => [delivery.stop_id, {
+          start: delivery.delivery_time_start || null,
+          end: delivery.delivery_time_end || null
+        }])
+    );
+
     const stops = optimizableDeliveries.map(delivery => {
       const coords = getDeliveryCoords(delivery, patientMap, storeMap);
       const patient = delivery.patient_id ? patientMap.get(delivery.patient_id) : null;
-      const windowStart = getEffectiveWindowStart(delivery, patient);
-      const windowEnd = getEffectiveWindowEnd(delivery, patient);
+      let windowStart = getEffectiveWindowStart(delivery, patient);
+      let windowEnd = getEffectiveWindowEnd(delivery, patient);
+
+      if (delivery.patient_id && delivery.puid && pickupWindowByStopId.has(delivery.puid)) {
+        const pickupWindow = pickupWindowByStopId.get(delivery.puid);
+        const pickupEndMinutes = parseTimeToMinutes(pickupWindow?.end || pickupWindow?.start);
+        const deliveryStartMinutes = parseTimeToMinutes(windowStart);
+        if (Number.isFinite(pickupEndMinutes) && (!Number.isFinite(deliveryStartMinutes) || deliveryStartMinutes < pickupEndMinutes)) {
+          windowStart = formatMinutesToTime(pickupEndMinutes + 5);
+        }
+      }
+
       return {
         delivery,
         lat: coords?.lat,
@@ -402,12 +421,12 @@ Deno.serve(async (req) => {
           .filter(Boolean);
 
         if (orderedStopsForPolyline.length > 0) {
+          const polylineWaypoints = orderedStopsForPolyline.slice(0, -1);
+          const polylineDestination = orderedStopsForPolyline[orderedStopsForPolyline.length - 1];
           const polylineResponse = await base44.asServiceRole.functions.invoke('getHereDirections', {
             origin: { lat: currentPosition.lat, lng: currentPosition.lng },
-            destination: resolvedHomePosition
-              ? { lat: resolvedHomePosition.lat, lng: resolvedHomePosition.lng }
-              : { lat: orderedStopsForPolyline[orderedStopsForPolyline.length - 1].lat, lng: orderedStopsForPolyline[orderedStopsForPolyline.length - 1].lng },
-            waypoints: orderedStopsForPolyline.map((stop) => ({ lat: stop.lat, lng: stop.lng })),
+            destination: { lat: polylineDestination.lat, lng: polylineDestination.lng },
+            waypoints: polylineWaypoints.map((stop) => ({ lat: stop.lat, lng: stop.lng })),
             transportMode: preferredTravelMode
           }).catch(() => null);
           polylineData = polylineResponse?.data || polylineResponse || null;
