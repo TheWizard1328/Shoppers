@@ -664,6 +664,7 @@ export default function SquareManagement() {
     return (deliveries || [])
       .filter((delivery) => {
         if (!delivery) return false;
+        if (delivery.status === 'failed') return false;
         if (Number(delivery.cod_total_amount_required || 0) <= 0) return false;
         if (!visibleStoreIds.has(delivery.store_id)) return false;
         const deliveryDate = delivery.delivery_date ? new Date(`${String(delivery.delivery_date).slice(0, 10)}T00:00:00`) : null;
