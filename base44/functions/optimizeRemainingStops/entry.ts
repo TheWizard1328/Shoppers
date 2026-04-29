@@ -358,6 +358,7 @@ Deno.serve(async (req) => {
     let usedTimeWindows = true;
     let routeStops = lockedNextStop ? [lockedNextStop] : [];
     let directionsLegs = [];
+    let segmentPolylines = [];
 
     const resolvedHomePosition = driverAppUser.home_latitude != null && driverAppUser.home_longitude != null
       ? { lat: Number(driverAppUser.home_latitude), lng: Number(driverAppUser.home_longitude) }
@@ -389,7 +390,31 @@ Deno.serve(async (req) => {
         signal: AbortSignal.timeout(20000)
       });
       const data = await response.json().catch(() => null);
-      return { response, data, includeTimeWindows };
+
+      let polylineData = null;
+      if (response.ok && Array.isArray(data?.results) && data.results[0]) {
+        const result = data.results[0];
+        const orderedWaypoints = (Array.isArray(result?.waypoints) ? result.waypoints : [])
+          .filter((waypoint) => waypoint.id !== 'driverStart' && waypoint.id !== 'driverEnd')
+          .sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
+        const orderedStopsForPolyline = orderedWaypoints
+          .map((waypoint) => stopsToSequence.find((item) => (item.delivery.stop_id || item.delivery.delivery_id || item.delivery.id) === waypoint.id) || null)
+          .filter(Boolean);
+
+        if (orderedStopsForPolyline.length > 0) {
+          const polylineResponse = await base44.asServiceRole.functions.invoke('getHereDirections', {
+            origin: { lat: currentPosition.lat, lng: currentPosition.lng },
+            destination: resolvedHomePosition
+              ? { lat: resolvedHomePosition.lat, lng: resolvedHomePosition.lng }
+              : { lat: orderedStopsForPolyline[orderedStopsForPolyline.length - 1].lat, lng: orderedStopsForPolyline[orderedStopsForPolyline.length - 1].lng },
+            waypoints: orderedStopsForPolyline.map((stop) => ({ lat: stop.lat, lng: stop.lng })),
+            transportMode: preferredTravelMode
+          }).catch(() => null);
+          polylineData = polylineResponse?.data || polylineResponse || null;
+        }
+      }
+
+      return { response, data, includeTimeWindows, polylineData };
     };
 
     if (preserveExistingOrder) {
@@ -450,6 +475,31 @@ Deno.serve(async (req) => {
           return {
             duration: Number(leg?.time || 0),
             distance: Number(leg?.distance || 0)
+          };
+        });
+
+        const sequencedStops = orderedStops.map((item) => item.stop);
+        const polylineSegments = Array.isArray(hereAttempt?.polylineData?.polylines)
+          ? hereAttempt.polylineData.polylines
+          : [];
+        segmentPolylines = routeStops.map((stop, index) => {
+          const previousStop = index === 0 ? null : routeStops[index - 1];
+          const origin = index === 0
+            ? currentPosition
+            : previousStop
+              ? { lat: previousStop.lat, lng: previousStop.lng }
+              : null;
+          const destination = { lat: stop.lat, lng: stop.lng };
+          const routeIndex = lockedNextStop ? index - 1 : index;
+          const matchedSequencedStop = routeIndex >= 0 ? sequencedStops[routeIndex] : null;
+          const matchedSegment = routeIndex >= 0 ? polylineSegments[routeIndex] : null;
+          return {
+            deliveryId: stop.delivery.id,
+            origin,
+            destination,
+            encodedPolyline: matchedSequencedStop && matchedSegment?.encodedPolyline ? matchedSegment.encodedPolyline : null,
+            estimatedDistanceKm: matchedSegment?.estimated_distance_km ?? null,
+            estimatedDurationMinutes: matchedSegment?.estimated_duration_minutes ?? null
           };
         });
         console.log(`✅ [optimizeRemainingStops] HERE sequencing success${usedTimeWindows ? ' with time windows' : ' without time windows'}`);
@@ -533,13 +583,24 @@ Deno.serve(async (req) => {
       const stop = activeStops[i];
       const newOrder = preserveExistingOrder ? Number(stop.stop_order || i + 1) : startingOrder + i + 1;
       const pendingStartTime = resolvePendingStartTime(stop);
+      const segmentPolyline = segmentPolylines.find((segment) => segment.deliveryId === stop.id) || null;
       const updateData = {
         stop_order: newOrder,
         display_stop_order: newOrder,
         delivery_time_eta: stop.delivery_time_eta,
         travel_dist: Number(directionsLegs[i]?.distance)
           ? Number((Number(directionsLegs[i].distance) / 1000).toFixed(3))
-          : null
+          : null,
+        ...(segmentPolyline?.encodedPolyline ? {
+          encoded_polyline: segmentPolyline.encodedPolyline,
+          transport_mode: preferredTravelMode,
+          segment_origin_lat: Number.isFinite(Number(segmentPolyline.origin?.lat)) ? Number(segmentPolyline.origin.lat) : null,
+          segment_origin_lon: Number.isFinite(Number(segmentPolyline.origin?.lng)) ? Number(segmentPolyline.origin.lng) : null,
+          segment_dest_lat: Number.isFinite(Number(segmentPolyline.destination?.lat)) ? Number(segmentPolyline.destination.lat) : null,
+          segment_dest_lon: Number.isFinite(Number(segmentPolyline.destination?.lng)) ? Number(segmentPolyline.destination.lng) : null,
+          estimated_distance_km: typeof segmentPolyline.estimatedDistanceKm === 'number' ? segmentPolyline.estimatedDistanceKm : null,
+          estimated_duration_minutes: typeof segmentPolyline.estimatedDurationMinutes === 'number' ? segmentPolyline.estimatedDurationMinutes : null
+        } : {})
       };
 
       if (pendingStartTime) {
