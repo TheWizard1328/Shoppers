@@ -350,17 +350,18 @@ export default function PolylineViewer({ users = [] }) {
       return;
     }
 
-    const selectedSegments = filteredPolylines
-      .filter((polyline) => selectedPolylines.has(polyline.id))
-      .map((polyline, index) => ({
-        id: polyline.id,
+    const sourceItems = viewMode === 'polylines' ? filteredPolylines : filteredBreadcrumbs;
+    const selectedSegments = sourceItems
+      .filter((item) => selectedPolylines.has(item.id))
+      .map((item, index) => ({
+        id: item.id,
         color: index === 0 ? '#2563eb' : index === 1 ? '#7c3aed' : index === 2 ? '#ea580c' : '#0f766e',
-        coordinates: decodePolyline(polyline.encoded_polyline)
+        coordinates: viewMode === 'polylines' ? decodePolyline(item.encoded_polyline) : (item.coordinates || [])
       }))
       .filter((segment) => segment.coordinates.length > 0);
 
     setMultiSegmentCoordinates(selectedSegments);
-  }, [selectedPolylines, filteredPolylines, viewMode]);
+    }, [selectedPolylines, filteredPolylines, filteredBreadcrumbs, viewMode]);
 
   const handleDeleteSelected = async () => {
     if (selectedPolylines.size === 0) return;
@@ -850,7 +851,10 @@ export default function PolylineViewer({ users = [] }) {
                       <>
                         {multiSegmentCoordinates.map((segment) => {
                           const polyline = filteredPolylines.find((item) => item.id === segment.id);
-                          if (!polyline) return null;
+                          const breadcrumb = filteredBreadcrumbs.find((item) => item.id === segment.id);
+                          const firstPoint = segment.coordinates?.[0];
+                          const lastPoint = segment.coordinates?.[segment.coordinates.length - 1];
+                          if (!polyline && !breadcrumb) return null;
 
                           return (
                             <React.Fragment key={segment.id}>
@@ -860,23 +864,48 @@ export default function PolylineViewer({ users = [] }) {
                                 weight={4}
                                 opacity={0.8}
                               />
-                              {polyline.segment_origin_lat && polyline.segment_origin_lon && (
-                                <Marker position={[polyline.segment_origin_lat, polyline.segment_origin_lon]} icon={originMarkerIcon} zIndexOffset={1000}>
-                                  <Popup>
-                                    <strong>Origin</strong>
-                                    <br />
-                                    {polyline.segment_origin_lat.toFixed(6)}, {polyline.segment_origin_lon.toFixed(6)}
-                                  </Popup>
-                                </Marker>
-                              )}
-                              {polyline.segment_dest_lat && polyline.segment_dest_lon && (
-                                <Marker position={[polyline.segment_dest_lat, polyline.segment_dest_lon]} icon={destinationMarkerIcon} zIndexOffset={1000}>
-                                  <Popup>
-                                    <strong>Destination</strong>
-                                    <br />
-                                    {polyline.segment_dest_lat.toFixed(6)}, {polyline.segment_dest_lon.toFixed(6)}
-                                  </Popup>
-                                </Marker>
+                              {viewMode === 'polylines' ? (
+                                <>
+                                  {polyline?.segment_origin_lat && polyline?.segment_origin_lon && (
+                                    <Marker position={[polyline.segment_origin_lat, polyline.segment_origin_lon]} icon={originMarkerIcon} zIndexOffset={1000}>
+                                      <Popup>
+                                        <strong>Origin</strong>
+                                        <br />
+                                        {polyline.segment_origin_lat.toFixed(6)}, {polyline.segment_origin_lon.toFixed(6)}
+                                      </Popup>
+                                    </Marker>
+                                  )}
+                                  {polyline?.segment_dest_lat && polyline?.segment_dest_lon && (
+                                    <Marker position={[polyline.segment_dest_lat, polyline.segment_dest_lon]} icon={destinationMarkerIcon} zIndexOffset={1000}>
+                                      <Popup>
+                                        <strong>Destination</strong>
+                                        <br />
+                                        {polyline.segment_dest_lat.toFixed(6)}, {polyline.segment_dest_lon.toFixed(6)}
+                                      </Popup>
+                                    </Marker>
+                                  )}
+                                </>
+                              ) : (
+                                <>
+                                  {firstPoint && (
+                                    <Marker position={firstPoint} icon={originMarkerIcon} zIndexOffset={1000}>
+                                      <Popup>
+                                        <strong>First breadcrumb point</strong>
+                                        <br />
+                                        {firstPoint[0].toFixed(6)}, {firstPoint[1].toFixed(6)}
+                                      </Popup>
+                                    </Marker>
+                                  )}
+                                  {lastPoint && (
+                                    <Marker position={lastPoint} icon={destinationMarkerIcon} zIndexOffset={1000}>
+                                      <Popup>
+                                        <strong>Last breadcrumb point</strong>
+                                        <br />
+                                        {lastPoint[0].toFixed(6)}, {lastPoint[1].toFixed(6)}
+                                      </Popup>
+                                    </Marker>
+                                  )}
+                                </>
                               )}
                             </React.Fragment>
                           );
@@ -892,26 +921,48 @@ export default function PolylineViewer({ users = [] }) {
                           opacity={0.7}
                         />
                         
-                        {/* Origin marker - only for polylines */}
-                        {viewMode === 'polylines' && selectedPolyline.segment_origin_lat && selectedPolyline.segment_origin_lon && (
-                          <Marker position={[selectedPolyline.segment_origin_lat, selectedPolyline.segment_origin_lon]} icon={originMarkerIcon} zIndexOffset={1000}>
-                            <Popup>
-                              <strong>Origin</strong>
-                              <br />
-                              {selectedPolyline.segment_origin_lat.toFixed(6)}, {selectedPolyline.segment_origin_lon.toFixed(6)}
-                            </Popup>
-                          </Marker>
-                        )}
-                        
-                        {/* Destination marker - only for polylines */}
-                        {viewMode === 'polylines' && selectedPolyline.segment_dest_lat && selectedPolyline.segment_dest_lon && (
-                          <Marker position={[selectedPolyline.segment_dest_lat, selectedPolyline.segment_dest_lon]} icon={destinationMarkerIcon} zIndexOffset={1000}>
-                            <Popup>
-                              <strong>Destination</strong>
-                              <br />
-                              {selectedPolyline.segment_dest_lat.toFixed(6)}, {selectedPolyline.segment_dest_lon.toFixed(6)}
-                            </Popup>
-                          </Marker>
+                        {viewMode === 'polylines' ? (
+                          <>
+                            {selectedPolyline.segment_origin_lat && selectedPolyline.segment_origin_lon && (
+                              <Marker position={[selectedPolyline.segment_origin_lat, selectedPolyline.segment_origin_lon]} icon={originMarkerIcon} zIndexOffset={1000}>
+                                <Popup>
+                                  <strong>Origin</strong>
+                                  <br />
+                                  {selectedPolyline.segment_origin_lat.toFixed(6)}, {selectedPolyline.segment_origin_lon.toFixed(6)}
+                                </Popup>
+                              </Marker>
+                            )}
+                            {selectedPolyline.segment_dest_lat && selectedPolyline.segment_dest_lon && (
+                              <Marker position={[selectedPolyline.segment_dest_lat, selectedPolyline.segment_dest_lon]} icon={destinationMarkerIcon} zIndexOffset={1000}>
+                                <Popup>
+                                  <strong>Destination</strong>
+                                  <br />
+                                  {selectedPolyline.segment_dest_lat.toFixed(6)}, {selectedPolyline.segment_dest_lon.toFixed(6)}
+                                </Popup>
+                              </Marker>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            {decodedCoordinates[0] && (
+                              <Marker position={decodedCoordinates[0]} icon={originMarkerIcon} zIndexOffset={1000}>
+                                <Popup>
+                                  <strong>First breadcrumb point</strong>
+                                  <br />
+                                  {decodedCoordinates[0][0].toFixed(6)}, {decodedCoordinates[0][1].toFixed(6)}
+                                </Popup>
+                              </Marker>
+                            )}
+                            {decodedCoordinates[decodedCoordinates.length - 1] && (
+                              <Marker position={decodedCoordinates[decodedCoordinates.length - 1]} icon={destinationMarkerIcon} zIndexOffset={1000}>
+                                <Popup>
+                                  <strong>Last breadcrumb point</strong>
+                                  <br />
+                                  {decodedCoordinates[decodedCoordinates.length - 1][0].toFixed(6)}, {decodedCoordinates[decodedCoordinates.length - 1][1].toFixed(6)}
+                                </Popup>
+                              </Marker>
+                            )}
+                          </>
                         )}
                         
                         <MapUpdater coordinates={decodedCoordinates} multiCoordinates={multiSegmentCoordinates} />
