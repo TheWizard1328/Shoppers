@@ -63,12 +63,20 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          <div className="text-sm font-bold text-slate-700">
+          <Badge
+            variant="secondary"
+            className="mt-1 h-7 rounded-full px-2 py-0.5 text-sm font-bold"
+            style={{ backgroundColor: `${storeColor}`, color: "White" }}
+          >
             {formatEta(delivery?.delivery_time_eta || delivery?.delivery_time_start)}
-          </div>
-          <div className="text-sm font-bold text-slate-700">
+          </Badge>
+          <Badge
+            variant="secondary"
+            className="mt-1 h-7 rounded-full px-2 py-0.5 text-sm font-bold"
+            style={{ backgroundColor: `${storeColor}`, color: "White" }}
+          >
             {formatDistance(delivery?.travel_dist)}
-          </div>
+          </Badge>
         </div>
       </div>
     </div>
