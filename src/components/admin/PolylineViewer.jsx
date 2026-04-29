@@ -851,59 +851,56 @@ export default function PolylineViewer({ users = [] }) {
                           const lastPoint = segment.coordinates?.[segment.coordinates.length - 1];
                           if (!polyline && !breadcrumb) return null;
 
-                          return (
-                            <React.Fragment key={segment.id}>
-                              <Polyline
-                                positions={segment.coordinates}
-                                color={segment.color}
-                                weight={4}
-                                opacity={0.8}
-                              />
-                              {viewMode === 'polylines' ? (
-                                <>
-                                  {polyline?.segment_origin_lat && polyline?.segment_origin_lon && (
-                                    <Marker position={[polyline.segment_origin_lat, polyline.segment_origin_lon]} icon={originMarkerIcon} zIndexOffset={1000}>
+                          return [
+                            <Polyline
+                              key={`${segment.id}-line`}
+                              positions={segment.coordinates}
+                              color={segment.color}
+                              weight={4}
+                              opacity={0.8}
+                            />,
+                            ...(viewMode === 'polylines'
+                              ? [
+                                  polyline?.segment_origin_lat && polyline?.segment_origin_lon ? (
+                                    <Marker key={`${segment.id}-origin`} position={[polyline.segment_origin_lat, polyline.segment_origin_lon]} icon={originMarkerIcon} zIndexOffset={1000}>
                                       <Popup>
                                         <strong>Origin</strong>
                                         <br />
                                         {polyline.segment_origin_lat.toFixed(6)}, {polyline.segment_origin_lon.toFixed(6)}
                                       </Popup>
                                     </Marker>
-                                  )}
-                                  {polyline?.segment_dest_lat && polyline?.segment_dest_lon && (
-                                    <Marker position={[polyline.segment_dest_lat, polyline.segment_dest_lon]} icon={destinationMarkerIcon} zIndexOffset={1000}>
+                                  ) : null,
+                                  polyline?.segment_dest_lat && polyline?.segment_dest_lon ? (
+                                    <Marker key={`${segment.id}-destination`} position={[polyline.segment_dest_lat, polyline.segment_dest_lon]} icon={destinationMarkerIcon} zIndexOffset={1000}>
                                       <Popup>
                                         <strong>Destination</strong>
                                         <br />
                                         {polyline.segment_dest_lat.toFixed(6)}, {polyline.segment_dest_lon.toFixed(6)}
                                       </Popup>
                                     </Marker>
-                                  )}
-                                </>
-                              ) : (
-                                <>
-                                  {firstPoint && (
-                                    <Marker position={firstPoint} icon={originMarkerIcon} zIndexOffset={1000}>
+                                  ) : null
+                                ]
+                              : [
+                                  firstPoint ? (
+                                    <Marker key={`${segment.id}-first`} position={firstPoint} icon={originMarkerIcon} zIndexOffset={1000}>
                                       <Popup>
                                         <strong>First breadcrumb point</strong>
                                         <br />
                                         {firstPoint[0].toFixed(6)}, {firstPoint[1].toFixed(6)}
                                       </Popup>
                                     </Marker>
-                                  )}
-                                  {lastPoint && (
-                                    <Marker position={lastPoint} icon={destinationMarkerIcon} zIndexOffset={1000}>
+                                  ) : null,
+                                  lastPoint ? (
+                                    <Marker key={`${segment.id}-last`} position={lastPoint} icon={destinationMarkerIcon} zIndexOffset={1000}>
                                       <Popup>
                                         <strong>Last breadcrumb point</strong>
                                         <br />
                                         {lastPoint[0].toFixed(6)}, {lastPoint[1].toFixed(6)}
                                       </Popup>
                                     </Marker>
-                                  )}
-                                </>
-                              )}
-                            </React.Fragment>
-                          );
+                                  ) : null
+                                ])
+                          ].filter(Boolean);
                         })}
                         <MapUpdater coordinates={decodedCoordinates} multiCoordinates={multiSegmentCoordinates} />
                       </>
