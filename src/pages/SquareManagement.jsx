@@ -628,9 +628,6 @@ export default function SquareManagement() {
     return Boolean(config?.square_location_id);
   }), [stores, locationConfigs]);
 
-  const visibleStoreIdsWithSquareLocationIds = useMemo(() => new Set(
-    storesWithSquareLocationIds.filter((store) => visibleStoreIds.has(store?.id)).map((store) => store.id)
-  ), [storesWithSquareLocationIds, visibleStoreIds]);
 
   const visibleLocationIds = useMemo(() => new Set(
     storesWithSquareLocationIds
@@ -659,7 +656,7 @@ export default function SquareManagement() {
       .filter((delivery) => {
         if (!delivery) return false;
         if (Number(delivery.cod_total_amount_required || 0) <= 0) return false;
-        if (!visibleStoreIdsWithSquareLocationIds.has(delivery.store_id)) return false;
+        if (!visibleStoreIds.has(delivery.store_id)) return false;
         const deliveryDate = delivery.delivery_date ? new Date(`${String(delivery.delivery_date).slice(0, 10)}T00:00:00`) : null;
         if (!(deliveryDate instanceof Date) || Number.isNaN(deliveryDate.getTime()) || deliveryDate < lookbackStart) return false;
         if (selectedDriverFilter === 'all') return true;
@@ -695,7 +692,7 @@ export default function SquareManagement() {
             : <Button variant="secondary" size="sm" className="border border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-100">No Match</Button>
         };
       });
-  }, [deliveries, visibleStoreIdsWithSquareLocationIds, lookbackStart, selectedDriverFilter, selectedDriverUserIds, patients, stores, locationConfigs, catalogItems, allTransactions]);
+  }, [deliveries, visibleStoreIds, lookbackStart, selectedDriverFilter, selectedDriverUserIds, patients, stores, locationConfigs, catalogItems, allTransactions]);
 
   const filteredTransactionRows = useMemo(() => {
     const dedupedTransactions = [];
@@ -818,11 +815,11 @@ export default function SquareManagement() {
 
   const codDeliveriesCount = useMemo(() => deliveries.filter(delivery => {
     if (!delivery || Number(delivery.cod_total_amount_required || 0) <= 0) return false;
-    if (!visibleStoreIdsWithSquareLocationIds.has(delivery.store_id)) return false;
+    if (!visibleStoreIds.has(delivery.store_id)) return false;
     if (selectedDriverFilter === 'all') return true;
     if (selectedDriverUserIds.size === 0) return false;
     return selectedDriverUserIds.has(delivery.driver_id);
-  }).length, [deliveries, selectedDriverFilter, selectedDriverUserIds, visibleStoreIdsWithSquareLocationIds]);
+  }).length, [deliveries, selectedDriverFilter, selectedDriverUserIds, visibleStoreIds]);
 
   const collectedCodTypeBreakdown = useMemo(() => {
     const counts = { Cash: 0, Debit: 0, Credit: 0, Check: 0, Other: 0 };
