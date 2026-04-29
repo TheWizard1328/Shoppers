@@ -28,6 +28,37 @@ L.Icon.Default.mergeOptions({
 const originMarkerIcon = createDeliveryIcon('completed', '#16a34a');
 const destinationMarkerIcon = createDeliveryIcon('failed', '#dc2626');
 
+const createNumberedMarkerIcon = (color, label) => L.divIcon({
+  className: 'custom-numbered-marker',
+  html: `
+    <div style="
+      width: 28px;
+      height: 28px;
+      border-radius: 9999px;
+      background: ${color};
+      border: 2px solid white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.28);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1;
+    ">${label}</div>
+  `,
+  iconSize: [28, 28],
+  iconAnchor: [14, 14],
+  popupAnchor: [0, -14]
+});
+
+const getMarkerIcon = (color, stopOrder) => {
+  if (stopOrder === null || stopOrder === undefined || stopOrder === '') {
+    return color === '#16a34a' ? originMarkerIcon : destinationMarkerIcon;
+  }
+  return createNumberedMarkerIcon(color, String(stopOrder));
+};
+
 // Decode Google polyline string
 const decodePolyline = (encoded) => {
   if (!encoded) return [];
@@ -351,6 +382,7 @@ export default function PolylineViewer({ users = [] }) {
       .map((item, index) => ({
         id: item.id,
         color: index === 0 ? '#2563eb' : index === 1 ? '#7c3aed' : index === 2 ? '#ea580c' : '#0f766e',
+        stop_order: item?.stop_order,
         coordinates: viewMode === 'polylines' ? decodePolyline(item.encoded_polyline) : (item.coordinates || [])
       }))
       .filter((segment) => segment.coordinates.length > 0);
@@ -862,7 +894,7 @@ export default function PolylineViewer({ users = [] }) {
                             ...(viewMode === 'polylines'
                               ? [
                                   polyline?.segment_origin_lat && polyline?.segment_origin_lon ? (
-                                    <Marker key={`${segment.id}-origin`} position={[polyline.segment_origin_lat, polyline.segment_origin_lon]} icon={originMarkerIcon} zIndexOffset={1000}>
+                                    <Marker key={`${segment.id}-origin`} position={[polyline.segment_origin_lat, polyline.segment_origin_lon]} icon={getMarkerIcon('#16a34a', polyline?.stop_order ?? segment?.stop_order)} zIndexOffset={1400}>
                                       <Popup>
                                         <strong>Origin</strong>
                                         <br />
@@ -871,7 +903,7 @@ export default function PolylineViewer({ users = [] }) {
                                     </Marker>
                                   ) : null,
                                   polyline?.segment_dest_lat && polyline?.segment_dest_lon ? (
-                                    <Marker key={`${segment.id}-destination`} position={[polyline.segment_dest_lat, polyline.segment_dest_lon]} icon={destinationMarkerIcon} zIndexOffset={1000}>
+                                    <Marker key={`${segment.id}-destination`} position={[polyline.segment_dest_lat, polyline.segment_dest_lon]} icon={getMarkerIcon('#dc2626', polyline?.stop_order ?? segment?.stop_order)} zIndexOffset={1100}>
                                       <Popup>
                                         <strong>Destination</strong>
                                         <br />
@@ -882,7 +914,7 @@ export default function PolylineViewer({ users = [] }) {
                                 ]
                               : [
                                   firstPoint ? (
-                                    <Marker key={`${segment.id}-first`} position={firstPoint} icon={originMarkerIcon} zIndexOffset={1000}>
+                                    <Marker key={`${segment.id}-first`} position={firstPoint} icon={getMarkerIcon('#16a34a', breadcrumb?.stop_order ?? segment?.stop_order)} zIndexOffset={1400}>
                                       <Popup>
                                         <strong>First breadcrumb point</strong>
                                         <br />
@@ -891,7 +923,7 @@ export default function PolylineViewer({ users = [] }) {
                                     </Marker>
                                   ) : null,
                                   lastPoint ? (
-                                    <Marker key={`${segment.id}-last`} position={lastPoint} icon={destinationMarkerIcon} zIndexOffset={1000}>
+                                    <Marker key={`${segment.id}-last`} position={lastPoint} icon={getMarkerIcon('#dc2626', breadcrumb?.stop_order ?? segment?.stop_order)} zIndexOffset={1100}>
                                       <Popup>
                                         <strong>Last breadcrumb point</strong>
                                         <br />
@@ -916,7 +948,7 @@ export default function PolylineViewer({ users = [] }) {
                         {viewMode === 'polylines' ? (
                           <>
                             {selectedPolyline.segment_origin_lat && selectedPolyline.segment_origin_lon && (
-                              <Marker position={[selectedPolyline.segment_origin_lat, selectedPolyline.segment_origin_lon]} icon={originMarkerIcon} zIndexOffset={1000}>
+                              <Marker position={[selectedPolyline.segment_origin_lat, selectedPolyline.segment_origin_lon]} icon={getMarkerIcon('#16a34a', selectedPolyline?.stop_order)} zIndexOffset={1400}>
                                 <Popup>
                                   <strong>Origin</strong>
                                   <br />
@@ -925,7 +957,7 @@ export default function PolylineViewer({ users = [] }) {
                               </Marker>
                             )}
                             {selectedPolyline.segment_dest_lat && selectedPolyline.segment_dest_lon && (
-                              <Marker position={[selectedPolyline.segment_dest_lat, selectedPolyline.segment_dest_lon]} icon={destinationMarkerIcon} zIndexOffset={1000}>
+                              <Marker position={[selectedPolyline.segment_dest_lat, selectedPolyline.segment_dest_lon]} icon={getMarkerIcon('#dc2626', selectedPolyline?.stop_order)} zIndexOffset={1100}>
                                 <Popup>
                                   <strong>Destination</strong>
                                   <br />
@@ -937,7 +969,7 @@ export default function PolylineViewer({ users = [] }) {
                         ) : (
                           <>
                             {decodedCoordinates[0] && (
-                              <Marker position={decodedCoordinates[0]} icon={originMarkerIcon} zIndexOffset={1000}>
+                              <Marker position={decodedCoordinates[0]} icon={getMarkerIcon('#16a34a', selectedPolyline?.stop_order)} zIndexOffset={1400}>
                                 <Popup>
                                   <strong>First breadcrumb point</strong>
                                   <br />
@@ -946,7 +978,7 @@ export default function PolylineViewer({ users = [] }) {
                               </Marker>
                             )}
                             {decodedCoordinates[decodedCoordinates.length - 1] && (
-                              <Marker position={decodedCoordinates[decodedCoordinates.length - 1]} icon={destinationMarkerIcon} zIndexOffset={1000}>
+                              <Marker position={decodedCoordinates[decodedCoordinates.length - 1]} icon={getMarkerIcon('#dc2626', selectedPolyline?.stop_order)} zIndexOffset={1100}>
                                 <Popup>
                                   <strong>Last breadcrumb point</strong>
                                   <br />
