@@ -29,7 +29,6 @@ export default function ResetPolylinesButton({
           localStorage.removeItem(key);
         }
       });
-      await offlineDB.clearStore(offlineDB.STORES.DRIVER_ROUTE_POLYLINES);
     } catch (_) {}
   };
 
