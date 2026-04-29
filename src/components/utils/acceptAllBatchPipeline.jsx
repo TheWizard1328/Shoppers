@@ -1,5 +1,6 @@
 import { offlineDB } from './offlineDatabase';
 import { base44 } from '@/api/base44Client';
+import { processPendingMutations } from './offlineSync';
 
 const ACTIVE_STATUSES = ['in_transit', 'en_route'];
 
@@ -36,6 +37,16 @@ export async function runAcceptAllBatchPipeline({
   if (stagedChangedDeliveries.length > 0) {
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, stagedChangedDeliveries);
     updateDeliveriesLocally?.(stagedChangedDeliveries, false);
+
+    await Promise.all(stagedChangedDeliveries.map((item) =>
+      base44.entities.Delivery.update(item.id, {
+        status: item.status,
+        isNextDelivery: !!item.isNextDelivery,
+        active: item.active
+      })
+    ));
+
+    await processPendingMutations();
   }
 
   const optimizeResponse = await base44.functions.invoke('optimizeRemainingStops', {
@@ -91,6 +102,8 @@ export async function runAcceptAllBatchPipeline({
       travel_dist: item.travel_dist
     });
   }));
+
+  await processPendingMutations();
 
   const codBatch = scopedPendingDeliveries.filter((pd) => pd.cod_total_amount_required > 0 && pd.patient_id).map((pendingDelivery) => {
     const storeForCod = stores.find((s) => s && s.id === pendingDelivery.store_id);
