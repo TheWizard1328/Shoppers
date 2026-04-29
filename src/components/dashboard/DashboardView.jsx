@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { format } from 'date-fns';
 import { base44 } from "@/api/base44Client";
 import { isAppOwner } from '@/components/utils/userRoles';
@@ -162,6 +162,27 @@ export default function DashboardView({
     })();
   }, [isDateFinished, currentUser?.driver_status, deliveriesWithStopOrder, selectedDate, currentUser?.id, isDriver]);
 
+  const immersiveOverlayDelivery = useMemo(() => {
+    if (!immersiveHidden) return null;
+    return deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true) || null;
+  }, [deliveriesWithStopOrder, immersiveHidden]);
+
+  const immersiveOverlayPatient = useMemo(() => {
+    if (!immersiveOverlayDelivery?.patient_id) return null;
+    return patients.find((p) => p && (p.id === immersiveOverlayDelivery.patient_id || p.patient_id === immersiveOverlayDelivery.patient_id)) || null;
+  }, [immersiveOverlayDelivery, patients]);
+
+  const immersiveOverlayStore = useMemo(() => {
+    if (!immersiveOverlayDelivery?.store_id) return null;
+    return stores.find((s) => s && s.id === immersiveOverlayDelivery.store_id) || null;
+  }, [immersiveOverlayDelivery, stores]);
+
+  const immersiveOverlayIsPickup = !!immersiveOverlayDelivery && !immersiveOverlayDelivery.patient_id && !!immersiveOverlayDelivery.store_id;
+  const immersiveOverlayStoreColor = immersiveOverlayStore?.color || '#10B981';
+  const immersiveOverlayDisplayName = immersiveOverlayIsPickup
+    ? `${immersiveOverlayStore?.name || 'Store'} Pickup`
+    : immersiveOverlayPatient?.full_name || immersiveOverlayDelivery?.patient_name || 'Next stop';
+
   return (
     <div className="h-full w-full flex flex-col overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
 
@@ -239,6 +260,12 @@ export default function DashboardView({
           isDriverMoving={isDriverMoving}
           immersiveOverrideActive={immersiveOverrideActive}
           onImmersiveMapTap={onImmersiveMapTap}
+          immersiveOverlayDelivery={immersiveOverlayDelivery}
+          immersiveOverlayStore={immersiveOverlayStore}
+          immersiveOverlayPatient={immersiveOverlayPatient}
+          immersiveOverlayIsPickup={immersiveOverlayIsPickup}
+          immersiveOverlayStoreColor={immersiveOverlayStoreColor}
+          immersiveOverlayDisplayName={immersiveOverlayDisplayName}
           mapViewPhase={mapViewPhase}
           isMapViewLocked={isMapViewLocked}
           mapStyle={mapStyle}

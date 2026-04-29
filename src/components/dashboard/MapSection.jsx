@@ -79,6 +79,7 @@ export default function MapSection({
             isPickup={immersiveOverlayIsPickup}
             storeColor={immersiveOverlayStoreColor}
             finalDisplayName={immersiveOverlayDisplayName}
+            topOffset={topOverlayHeight}
           />
         )}
         <DeliveryMap
