@@ -580,65 +580,47 @@ export default function HereType1Polylines({
     }
   });
 
-  // Render only the current active planned leg in blue using stored Delivery polyline data
+  // Render all active stored delivery polylines (in_transit / en_route)
   driverStops.forEach((stops, driverId) => {
     if (!showAll && selectedDriverId && selectedDriverId !== 'all' && driverId !== selectedDriverId) return;
 
-    const nextStop = stops.incomplete.find((s) => isCurrentLeg(s));
-    if (!nextStop) return;
+    const activeStops = [...stops.incomplete].sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
 
-    let origin = null;
-    if (stops.complete.length > 0) {
-      const nextStopOrder = Number(nextStop.stop_order || 0);
-      const completedBeforeNext = stops.complete.filter((s) => Number(s?.stop_order || 0) < nextStopOrder);
-      const lastCompleted = completedBeforeNext.sort((a, b) => Number(b?.stop_order || 0) - Number(a?.stop_order || 0))[0];
-      if (lastCompleted) {
-        origin = { latitude: Number(lastCompleted.latitude), longitude: Number(lastCompleted.longitude) };
+    activeStops.forEach((stop) => {
+      const key = getHereCacheKey(
+        { latitude: Number(stop?.segment_origin_lat), longitude: Number(stop?.segment_origin_lon) },
+        { latitude: Number(stop?.segment_dest_lat), longitude: Number(stop?.segment_dest_lon) },
+        stop?.transport_mode || getDriverMode(driverId)
+      );
+
+      let coords = getCachedPolyline(key, cache);
+      if (!coords && typeof stop?.encoded_polyline === 'string' && stop.encoded_polyline.trim()) {
+        try {
+          coords = decodePolyline(stop.encoded_polyline);
+          if (Array.isArray(coords) && coords.length > 1) {
+            setCache((prev) => ({ ...prev, [key]: coords }));
+            try { localStorage.setItem(key, JSON.stringify(coords)); } catch (_) {}
+          }
+        } catch (_) {}
       }
-    }
 
-    if (!origin) {
-      const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
-      if (!home) return;
-      origin = { latitude: Number(home.latitude), longitude: Number(home.longitude) };
-    }
-
-    const destination = { latitude: Number(nextStop.latitude), longitude: Number(nextStop.longitude) };
-    const key = getHereCacheKey(origin, destination, getDriverMode(driverId));
-    const coords = getCachedPolyline(key, cache);
-    if (!coords) {
-      const fallbackSegment = makeFallback(origin, destination);
-      if (fallbackSegment.length < 2) return;
-      if (!seenKeys.has(key)) {
-        seenKeys.add(key);
-        lines.push(
-          <Polyline
-            key={`type1-next-line-${driverId}-${getDriverMode(driverId)}`}
-            positions={fallbackSegment}
-            pathOptions={{
-              ...getDriverRouteStyle(driverId, 0.75),
-              dashArray: '8,8'
-            }}
-            pane="routeBasePane"
-          />,
-          <RouteDirectionDecorator key={`type1-next-arrow-${driverId}-${getDriverMode(driverId)}`} positions={fallbackSegment} color={getType1PolylineColor()} />
-        );
-      }
-      return;
-    }
-
-    if (!seenKeys.has(key)) {
+      if (!coords || coords.length < 2 || seenKeys.has(key)) return;
       seenKeys.add(key);
+
       lines.push(
         <Polyline
-          key={`type1-next-line-${driverId}-${getDriverMode(driverId)}`}
+          key={`type1-active-line-${driverId}-${stop.id}`}
           positions={coords}
           pathOptions={getDriverRouteStyle(driverId, 0.95)}
           pane="routeBasePane"
         />,
-        <RouteDirectionDecorator key={`type1-next-arrow-${driverId}-${getDriverMode(driverId)}`} positions={coords} color={getType1PolylineColor()} />
+        <RouteDirectionDecorator
+          key={`type1-active-arrow-${driverId}-${stop.id}`}
+          positions={coords}
+          color={getType1PolylineColor()}
+        />
       );
-    }
+    });
   });
 
   // Completed-route return-home leg stays hidden from current type 1 view
