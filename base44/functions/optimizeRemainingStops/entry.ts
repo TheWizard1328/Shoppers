@@ -526,10 +526,6 @@ Deno.serve(async (req) => {
           deliveryId: stop.delivery.id,
           transport_mode: preferredTravelMode,
           finished_leg_transport_mode: preferredTravelMode,
-          segment_origin_lat: Number.isFinite(Number(segmentPolylines[index]?.origin?.lat)) ? Number(segmentPolylines[index].origin.lat) : null,
-          segment_origin_lon: Number.isFinite(Number(segmentPolylines[index]?.origin?.lng)) ? Number(segmentPolylines[index].origin.lng) : null,
-          segment_dest_lat: Number.isFinite(Number(segmentPolylines[index]?.destination?.lat)) ? Number(segmentPolylines[index].destination.lat) : null,
-          segment_dest_lon: Number.isFinite(Number(segmentPolylines[index]?.destination?.lng)) ? Number(segmentPolylines[index].destination.lng) : null,
           encoded_polyline: segmentPolylines[index]?.encodedPolyline || null,
           estimated_distance_km: typeof segmentPolylines[index]?.estimatedDistanceKm === 'number' ? segmentPolylines[index].estimatedDistanceKm : null,
           estimated_duration_minutes: typeof segmentPolylines[index]?.estimatedDurationMinutes === 'number' ? segmentPolylines[index].estimatedDurationMinutes : null
@@ -625,10 +621,6 @@ Deno.serve(async (req) => {
         ...(segmentPolyline?.encodedPolyline ? {
           encoded_polyline: segmentPolyline.encodedPolyline,
           transport_mode: preferredTravelMode,
-          segment_origin_lat: Number.isFinite(Number(segmentPolyline.origin?.lat)) ? Number(segmentPolyline.origin.lat) : null,
-          segment_origin_lon: Number.isFinite(Number(segmentPolyline.origin?.lng)) ? Number(segmentPolyline.origin.lng) : null,
-          segment_dest_lat: Number.isFinite(Number(segmentPolyline.destination?.lat)) ? Number(segmentPolyline.destination.lat) : null,
-          segment_dest_lon: Number.isFinite(Number(segmentPolyline.destination?.lng)) ? Number(segmentPolyline.destination.lng) : null,
           estimated_distance_km: typeof segmentPolyline.estimatedDistanceKm === 'number' ? segmentPolyline.estimatedDistanceKm : null,
           estimated_duration_minutes: typeof segmentPolyline.estimatedDurationMinutes === 'number' ? segmentPolyline.estimatedDurationMinutes : null
         } : {})

@@ -224,22 +224,6 @@
       ],
       "description": "Transport mode used for this stop's route segment"
     },
-    "segment_origin_lat": {
-      "type": "number",
-      "description": "Latitude of the start of this stop's stored polyline"
-    },
-    "segment_origin_lon": {
-      "type": "number",
-      "description": "Longitude of the start of this stop's stored polyline"
-    },
-    "segment_dest_lat": {
-      "type": "number",
-      "description": "Latitude of the end of this stop's stored polyline"
-    },
-    "segment_dest_lon": {
-      "type": "number",
-      "description": "Longitude of the end of this stop's stored polyline"
-    },
     "estimated_distance_km": {
       "type": "number",
       "description": "Estimated distance for the delivery leg that ends at this stop"

@@ -160,25 +160,8 @@ export default function HereType1Polylines({
       const fLat = round5(from.latitude), fLon = round5(from.longitude);
       const tLat = round5(to.latitude), tLon = round5(to.longitude);
       const preferredMode = normalizeTravelMode(getDriverMode(driverId));
-      const exactMatch = rows.find((row) =>
-        row?.driver_id === driverId &&
-        round5(Number(row?.segment_origin_lat)) === fLat &&
-        round5(Number(row?.segment_origin_lon)) === fLon &&
-        round5(Number(row?.segment_dest_lat)) === tLat &&
-        round5(Number(row?.segment_dest_lon)) === tLon &&
-        normalizeTravelMode(row?.transport_mode) === preferredMode &&
-        typeof row?.encoded_polyline === 'string' &&
-        row.encoded_polyline.trim().length > 0
-      );
-      const fallbackMatch = exactMatch || rows.find((row) =>
-        row?.driver_id === driverId &&
-        round5(Number(row?.segment_origin_lat)) === fLat &&
-        round5(Number(row?.segment_origin_lon)) === fLon &&
-        round5(Number(row?.segment_dest_lat)) === tLat &&
-        round5(Number(row?.segment_dest_lon)) === tLon &&
-        typeof row?.encoded_polyline === 'string' &&
-        row.encoded_polyline.trim().length > 0
-      );
+      const exactMatch = null;
+      const fallbackMatch = null;
       if (fallbackMatch) {
         console.log(`[Type1] Found matching delivery polyline in offline DB for segment ${from.latitude},${from.longitude} -> ${to.latitude},${to.longitude}`);
         const coords = decodePolyline(fallbackMatch.encoded_polyline);
@@ -591,15 +574,29 @@ export default function HereType1Polylines({
 
     if (!currentStop) return;
 
-    const origin = { latitude: Number(currentStop?.segment_origin_lat), longitude: Number(currentStop?.segment_origin_lon) };
-    const destination = { latitude: Number(currentStop?.segment_dest_lat), longitude: Number(currentStop?.segment_dest_lon) };
-    const key = getHereCacheKey(origin, destination, currentStop?.transport_mode || getDriverMode(driverId));
+    const orderedStops = [...stops.incomplete]
+      .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
+    const currentIndex = orderedStops.findIndex((stop) => stop?.id === currentStop?.id);
+    const previousCompleted = [...stops.complete].sort((a, b) => {
+      const at = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : (a.updated_date ? new Date(a.updated_date).getTime() : 0);
+      const bt = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : (b.updated_date ? new Date(b.updated_date).getTime() : 0);
+      return bt - at;
+    })[0];
+    const previousStop = currentIndex > 0 ? orderedStops[currentIndex - 1] : previousCompleted;
+    const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
+    const origin = previousStop
+      ? { latitude: Number(previousStop.latitude), longitude: Number(previousStop.longitude) }
+      : home
+        ? { latitude: Number(home.latitude), longitude: Number(home.longitude) }
+        : null;
+    const destination = { latitude: Number(currentStop.latitude), longitude: Number(currentStop.longitude) };
+    const key = origin ? getHereCacheKey(origin, destination, currentStop?.transport_mode || getDriverMode(driverId)) : null;
 
     let coords = null;
     if (typeof currentStop?.encoded_polyline === 'string' && currentStop.encoded_polyline.trim()) {
       try {
         coords = decodePolyline(currentStop.encoded_polyline);
-        if (Array.isArray(coords) && coords.length > 1) {
+        if (Array.isArray(coords) && coords.length > 1 && key) {
           try {
             const cachedValue = localStorage.getItem(key);
             if (!cachedValue) localStorage.setItem(key, JSON.stringify(coords));
@@ -608,8 +605,8 @@ export default function HereType1Polylines({
       } catch (_) {}
     }
 
-    if ((!coords || coords.length < 2) && Number.isFinite(origin.latitude) && Number.isFinite(origin.longitude) && Number.isFinite(destination.latitude) && Number.isFinite(destination.longitude)) {
-      coords = getCachedPolyline(key, cache) || makeFallback(origin, destination);
+    if ((!coords || coords.length < 2) && origin && Number.isFinite(origin.latitude) && Number.isFinite(origin.longitude) && Number.isFinite(destination.latitude) && Number.isFinite(destination.longitude)) {
+      coords = (key && getCachedPolyline(key, cache)) || makeFallback(origin, destination);
     }
 
     if (!coords || coords.length < 2 || seenKeys.has(key)) return;

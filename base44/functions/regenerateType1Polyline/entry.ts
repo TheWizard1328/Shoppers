@@ -189,18 +189,7 @@ function buildStopOrderRepairUpdates(deliveries) {
 }
 
 function findExactStoredPolyline(rows, driverId, deliveryDate, from, to) {
-  return (rows || []).find((row) => {
-    const hasEncoded = typeof row?.encoded_polyline === 'string' && row.encoded_polyline.trim().length > 0;
-    const hasNonZeroTotals = Number(row?.estimated_distance_km || 0) > 0 || Number(row?.estimated_duration_minutes || 0) > 0;
-    return row?.driver_id === driverId &&
-      row?.delivery_date === deliveryDate &&
-      round5(row?.segment_origin_lat) === round5(from.lat) &&
-      round5(row?.segment_origin_lon) === round5(from.lon) &&
-      round5(row?.segment_dest_lat) === round5(to.lat) &&
-      round5(row?.segment_dest_lon) === round5(to.lon) &&
-      hasEncoded &&
-      hasNonZeroTotals;
-  }) || null;
+  return null;
 }
 
 async function getSegmentDirections(base44, from, to, transportMode = 'driving', existingPolylines = [], driverId = null, deliveryDate = null) {
@@ -321,10 +310,6 @@ async function persistRouteSections(base44, deliveries = [], pointSpecs = [], ro
       id: delivery.id,
       encoded_polyline: encodedPolyline,
       transport_mode: section.transport_mode || transportMode,
-      segment_origin_lat: round5(from.lat),
-      segment_origin_lon: round5(from.lon),
-      segment_dest_lat: round5(segmentDest.lat),
-      segment_dest_lon: round5(segmentDest.lon),
       estimated_distance_km: section.estimated_distance_km ?? null,
       estimated_duration_minutes: section.estimated_duration_minutes ?? null,
       PolylineUpdated: true
@@ -542,10 +527,6 @@ Deno.serve(async (req) => {
     }
 
     const exactExistingType1 = (nextRouteStop?.encoded_polyline &&
-      round5(nextRouteStop?.segment_origin_lat || 0) === round5(effectiveOriginCoords.lat) &&
-      round5(nextRouteStop?.segment_origin_lon || 0) === round5(effectiveOriginCoords.lon) &&
-      round5(nextRouteStop?.segment_dest_lat || 0) === round5(nextStopCoords.lat) &&
-      round5(nextRouteStop?.segment_dest_lon || 0) === round5(nextStopCoords.lon) &&
       (Number(nextRouteStop?.estimated_distance_km || 0) > 0 || Number(nextRouteStop?.estimated_duration_minutes || 0) > 0)
     ) ? nextRouteStop : null;
 
@@ -600,7 +581,7 @@ Deno.serve(async (req) => {
     }
 
     const driverDeviationMeters = existingType1
-      ? distanceMeters(currentLat, currentLon, Number(existingType1.segment_origin_lat), Number(existingType1.segment_origin_lon))
+      ? distanceMeters(currentLat, currentLon, Number(effectiveOriginCoords.lat), Number(effectiveOriginCoords.lon))
       : 0;
     const remainingRoutePoints = [
       effectiveOriginCoords,
@@ -629,10 +610,6 @@ Deno.serve(async (req) => {
         id: nextRouteStop.id,
         encoded_polyline: directions.encoded_polyline,
         transport_mode: directions.transport_mode || preferredTravelMode,
-        segment_origin_lat: round5(effectiveOriginCoords.lat),
-        segment_origin_lon: round5(effectiveOriginCoords.lon),
-        segment_dest_lat: round5(exactNextStopCoords.lat),
-        segment_dest_lon: round5(exactNextStopCoords.lon),
         estimated_distance_km: directions.estimated_distance_km ?? null,
         estimated_duration_minutes: directions.estimated_duration_minutes ?? null,
         PolylineUpdated: true

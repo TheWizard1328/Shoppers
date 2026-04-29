@@ -261,20 +261,17 @@ function makeSegmentKey(driverId, date, from, to) {
   ].join('|');
 }
 
+function makeDeliveryIdSegmentKey(deliveryId) {
+  return String(deliveryId || '');
+}
+
 function samePoint(a, b) {
   if (!a || !b) return false;
   return round5(a.lat) === round5(b.lat) && round5(a.lon) === round5(b.lon);
 }
 
 function findExactCachedSegment(rows, from, to) {
-  const safeRows = Array.isArray(rows) ? rows : [];
-  return safeRows.find((row) =>
-    round5(row?.segment_origin_lat) === round5(from.lat) &&
-    round5(row?.segment_origin_lon) === round5(from.lon) &&
-    round5(row?.segment_dest_lat) === round5(to.lat) &&
-    round5(row?.segment_dest_lon) === round5(to.lon) &&
-    typeof row?.encoded_polyline === 'string' && row.encoded_polyline.trim().length > 0
-  ) || null;
+  return null;
 }
 
 function buildSegmentDeliveryUpdate(spec, directions, transportMode = 'driving') {
@@ -283,10 +280,6 @@ function buildSegmentDeliveryUpdate(spec, directions, transportMode = 'driving')
   return {
     encoded_polyline: directions?.encoded_polyline || encodeGooglePolyline([[from.lat, from.lon], [to.lat, to.lon]]),
     transport_mode: getNormalizedTravelMode(transportMode, 'driving'),
-    segment_origin_lat: round5(from.lat),
-    segment_origin_lon: round5(from.lon),
-    segment_dest_lat: round5(to.lat),
-    segment_dest_lon: round5(to.lon),
     estimated_distance_km: directions?.estimated_distance_km ?? null,
     estimated_duration_minutes: directions?.estimated_duration_minutes ?? null
   };

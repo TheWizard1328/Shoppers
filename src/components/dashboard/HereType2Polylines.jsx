@@ -69,8 +69,8 @@ export default function HereType2Polylines({
       const fLat = round5(from.latitude), fLon = round5(from.longitude);
       const tLat = round5(to.latitude), tLon = round5(to.longitude);
       const preferredMode = normalizeTravelMode(getDriverMode(driverId));
-      const exactMatch = rows.find((r) => r.driver_id === driverId && round5(Number(r.segment_origin_lat)) === fLat && round5(Number(r.segment_origin_lon)) === fLon && round5(Number(r.segment_dest_lat)) === tLat && round5(Number(r.segment_dest_lon)) === tLon && normalizeTravelMode(r.transport_mode) === preferredMode && r.encoded_polyline);
-      const fallbackMatch = exactMatch || rows.find((r) => r.driver_id === driverId && round5(Number(r.segment_origin_lat)) === fLat && round5(Number(r.segment_origin_lon)) === fLon && round5(Number(r.segment_dest_lat)) === tLat && round5(Number(r.segment_dest_lon)) === tLon && r.encoded_polyline);
+      const exactMatch = null;
+      const fallbackMatch = null;
       if (fallbackMatch) {
         const coords = decodePolyline(fallbackMatch.encoded_polyline);
         if (Array.isArray(coords) && coords.length > 1) {
@@ -246,15 +246,7 @@ export default function HereType2Polylines({
       );
 
       deliveriesByDate.forEach(([date, rows]) => {
-        (rows || []).forEach((row) => {
-          if (!row?.encoded_polyline || row.segment_origin_lat == null || row.segment_origin_lon == null || row.segment_dest_lat == null || row.segment_dest_lon == null) return;
-          const mode = normalizeTravelMode(row.transport_mode || 'driving');
-          const key = `here_${mode}_${Number(row.segment_origin_lat).toFixed(5)}_${Number(row.segment_origin_lon).toFixed(5)}_${Number(row.segment_dest_lat).toFixed(5)}_${Number(row.segment_dest_lon).toFixed(5)}`;
-          const coords = decodePolyline(row.encoded_polyline);
-          if (Array.isArray(coords) && coords.length > 1) {
-            segmentMap[key] = coords;
-          }
-        });
+        (rows || []).forEach(() => {});
       });
 
       if (!cancelled) {

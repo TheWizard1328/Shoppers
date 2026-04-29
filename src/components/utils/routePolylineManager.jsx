@@ -38,21 +38,7 @@ const roundCoordinate = (coord, precision = POLYLINE_CONFIG.COORDINATE_PRECISION
   return parseFloat(coord.toFixed(precision));
 };
 
-const findLatestExactStoredSegment = (rows, startLat, startLon, endLat, endLon) => {
-  const originLat = Number(startLat.toFixed(5));
-  const originLon = Number(startLon.toFixed(5));
-  const destLat = Number(endLat.toFixed(5));
-  const destLon = Number(endLon.toFixed(5));
-
-  return (rows || [])
-    .filter((row) => row?.encoded_polyline &&
-      Number(row.segment_origin_lat)?.toFixed(5) === originLat.toFixed(5) &&
-      Number(row.segment_origin_lon)?.toFixed(5) === originLon.toFixed(5) &&
-      Number(row.segment_dest_lat)?.toFixed(5) === destLat.toFixed(5) &&
-      Number(row.segment_dest_lon)?.toFixed(5) === destLon.toFixed(5)
-    )
-    .sort((a, b) => new Date(b.last_generated_at || b.updated_date || 0).getTime() - new Date(a.last_generated_at || a.updated_date || 0).getTime())[0] || null;
-};
+const findLatestExactStoredSegment = () => null;
 
 /**
  * Checks if a stored polyline is still fresh (not expired)
@@ -160,15 +146,7 @@ const fetchGoogleDirections = async (startLat, startLon, endLat, endLon, googleA
  */
 const getStoredPolyline = async (driverId, deliveryDate, routeType, startLat = null, startLon = null, endLat = null, endLon = null) => {
   try {
-    const deliveryRows = await base44.entities.Delivery.filter({
-      driver_id: driverId,
-      delivery_date: deliveryDate,
-      segment_origin_lat: Number(startLat.toFixed(5)),
-      segment_origin_lon: Number(startLon.toFixed(5)),
-      segment_dest_lat: Number(endLat.toFixed(5)),
-      segment_dest_lon: Number(endLon.toFixed(5))
-    }, '-updated_date', 1);
-    return Array.isArray(deliveryRows) ? deliveryRows[0] || null : null;
+    return null;
   } catch (e) {
     console.log('⏭️ [RoutePolyline] getStoredPolyline lookup failed', e?.message || e);
     return null;
@@ -295,12 +273,12 @@ export const getCurrentToNextStopPolyline = async ({
 
     // Check if driver location has changed significantly
     if (existingPolyline && useDriverLocation && currentDriverLocation) {
-      const distanceChanged = calculateDistanceBetweenCoords(
-        existingPolyline.segment_origin_lat,
-        existingPolyline.segment_origin_lon,
-        currentDriverLocation.latitude,
-        currentDriverLocation.longitude
-      );
+    const distanceChanged = calculateDistanceBetweenCoords(
+      startPoint.lat,
+      startPoint.lon,
+      currentDriverLocation.latitude,
+      currentDriverLocation.longitude
+    );
 
       if (distanceChanged > (POLYLINE_CONFIG.MIN_DISTANCE_CHANGE_METERS / 1000)) {
         regenerationReason = `Significant driver distance change (${distanceChanged.toFixed(2)}km)`;

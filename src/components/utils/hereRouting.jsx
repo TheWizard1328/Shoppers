@@ -89,47 +89,7 @@ let polylinePersistTimer = null;
 
 async function flushPolylinePersists() {
   if (pendingPolylinePayloads.length === 0) return;
-  const payloads = [...pendingPolylinePayloads];
   pendingPolylinePayloads.length = 0;
-  
-  try {
-    const uniquePayloadsMap = new Map();
-    for (const p of payloads) {
-      const key = `${p.driver_id}_${p.delivery_date}_${p.segment_origin_lat}_${p.segment_origin_lon}_${p.segment_dest_lat}_${p.segment_dest_lon}`;
-      uniquePayloadsMap.set(key, p);
-    }
-    const uniquePayloads = Array.from(uniquePayloadsMap.values());
-
-    for (const payload of uniquePayloads) {
-      const matchingDeliveries = await base44.entities.Delivery.filter({
-        driver_id: payload.driver_id,
-        delivery_date: payload.delivery_date
-      }, '-updated_date', 50000).catch(() => []);
-
-      const delivery = (matchingDeliveries || []).find((row) =>
-        Number(row?.segment_origin_lat).toFixed(5) === Number(payload.segment_origin_lat).toFixed(5) &&
-        Number(row?.segment_origin_lon).toFixed(5) === Number(payload.segment_origin_lon).toFixed(5) &&
-        Number(row?.segment_dest_lat).toFixed(5) === Number(payload.segment_dest_lat).toFixed(5) &&
-        Number(row?.segment_dest_lon).toFixed(5) === Number(payload.segment_dest_lon).toFixed(5)
-      );
-
-      if (delivery?.id) {
-        await base44.entities.Delivery.update(delivery.id, {
-          encoded_polyline: payload.encoded_polyline,
-          transport_mode: payload.transport_mode,
-          estimated_distance_km: payload.estimated_distance_km,
-          estimated_duration_minutes: payload.estimated_duration_minutes,
-          segment_origin_lat: payload.segment_origin_lat,
-          segment_origin_lon: payload.segment_origin_lon,
-          segment_dest_lat: payload.segment_dest_lat,
-          segment_dest_lon: payload.segment_dest_lon,
-          PolylineUpdated: true
-        });
-      }
-    }
-  } catch (err) {
-    console.warn('[HERE][client] Bulk persist failed', err);
-  }
 }
 
 async function persistGeneratedPolyline(driverId, deliveryDate, fromStop, toStop, coords, metadata = {}) {
@@ -140,10 +100,6 @@ async function persistGeneratedPolyline(driverId, deliveryDate, fromStop, toStop
     driver_id: driverId,
     delivery_date: deliveryDate,
     encoded_polyline: encodeGooglePolyline(coords),
-    segment_origin_lat: round5(fromStop.latitude),
-    segment_origin_lon: round5(fromStop.longitude),
-    segment_dest_lat: round5(toStop.latitude),
-    segment_dest_lon: round5(toStop.longitude),
     estimated_distance_km: metadata.estimated_distance_km ?? null,
     estimated_duration_minutes: metadata.estimated_duration_minutes ?? null,
     last_generated_at: new Date().toISOString(),
@@ -159,12 +115,8 @@ async function persistGeneratedPolyline(driverId, deliveryDate, fromStop, toStop
       detail: {
         driverId,
         deliveryDate,
-        key: `here_${transportMode}_${payload.segment_origin_lat.toFixed(5)}_${payload.segment_origin_lon.toFixed(5)}_${payload.segment_dest_lat.toFixed(5)}_${payload.segment_dest_lon.toFixed(5)}`,
+        key: `here_${transportMode}_${round5(fromStop.latitude).toFixed(5)}_${round5(fromStop.longitude).toFixed(5)}_${round5(toStop.latitude).toFixed(5)}_${round5(toStop.longitude).toFixed(5)}`,
         coords,
-        segment_origin_lat: payload.segment_origin_lat,
-        segment_origin_lon: payload.segment_origin_lon,
-        segment_dest_lat: payload.segment_dest_lat,
-        segment_dest_lon: payload.segment_dest_lon,
         transport_mode: transportMode
       }
     }));
@@ -174,23 +126,7 @@ async function persistGeneratedPolyline(driverId, deliveryDate, fromStop, toStop
 }
 
 async function getDeliverySegmentPolyline(fromStop, toStop, deliveryDate = null, driverId = null, transportMode = 'driving') {
-  if (!driverId || !deliveryDate) return null;
-  const rows = await base44.entities.Delivery.filter({ driver_id: driverId, delivery_date: deliveryDate }, '-updated_date', 50000).catch(() => []);
-  const targetKey = buildSegmentKey(fromStop, toStop, transportMode);
-  const record = (rows || [])
-    .filter((row) => row?.encoded_polyline)
-    .find((row) => buildSegmentKey(
-      { latitude: row.segment_origin_lat, longitude: row.segment_origin_lon },
-      { latitude: row.segment_dest_lat, longitude: row.segment_dest_lon },
-      row.transport_mode || 'driving'
-    ) === targetKey);
-  if (!record?.encoded_polyline) return null;
-
-  const coords = decodeGooglePolyline(record.encoded_polyline);
-  if (Array.isArray(coords) && coords.length > 1) return coords;
-
-  const flexibleCoords = decodeHereFlexiblePolyline(record.encoded_polyline);
-  return Array.isArray(flexibleCoords) && flexibleCoords.length > 1 ? flexibleCoords : null;
+  return null;
 }
 
 // Clear route cache for a specific segment
