@@ -226,22 +226,9 @@
       "type": "string",
       "description": "JSON string array of GPS points [latitude, longitude, timestamp_ms] captured during this delivery leg"
     },
-    "finished_leg_encoded_polyline": {
-      "type": "string",
-      "description": "Encoded polyline for the finished route leg that ended at this stop"
-    },
-    "finished_leg_transport_mode": {
-      "type": "string",
-      "enum": [
-        "driving",
-        "cycling",
-        "pedestrian"
-      ],
-      "description": "Transport mode used for the finished route leg's polyline"
-    },
     "encoded_polyline": {
       "type": "string",
-      "description": "Encoded polyline for this stop's planned route segment. For the final stop, this polyline starts at the previous stop, passes through the final stop, and ends at the driver's home."
+      "description": "Encoded polyline for this stop's route segment"
     },
     "transport_mode": {
       "type": "string",
@@ -250,31 +237,31 @@
         "cycling",
         "pedestrian"
       ],
-      "description": "Transport mode used for this stop's planned route segment"
+      "description": "Transport mode used for this stop's route segment"
     },
     "segment_origin_lat": {
       "type": "number",
-      "description": "Latitude of the start of this stop's stored planned polyline"
+      "description": "Latitude of the start of this stop's stored polyline"
     },
     "segment_origin_lon": {
       "type": "number",
-      "description": "Longitude of the start of this stop's stored planned polyline"
+      "description": "Longitude of the start of this stop's stored polyline"
     },
     "segment_dest_lat": {
       "type": "number",
-      "description": "Latitude of the end of this stop's stored planned polyline"
+      "description": "Latitude of the end of this stop's stored polyline"
     },
     "segment_dest_lon": {
       "type": "number",
-      "description": "Longitude of the end of this stop's stored planned polyline"
+      "description": "Longitude of the end of this stop's stored polyline"
     },
     "estimated_distance_km": {
       "type": "number",
-      "description": "Estimated distance for the delivery leg that ends at this stop. For the final stop, this excludes the return-home leg."
+      "description": "Estimated distance for the delivery leg that ends at this stop"
     },
     "estimated_duration_minutes": {
       "type": "number",
-      "description": "Estimated duration for the delivery leg that ends at this stop. For the final stop, this excludes the return-home leg."
+      "description": "Estimated duration for the delivery leg that ends at this stop"
     },
     "PolylineUpdated": {
       "type": "boolean",

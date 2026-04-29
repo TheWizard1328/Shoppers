@@ -207,21 +207,43 @@ const decodeHereFlexiblePolyline = (encoded) => {
   const values = [];
   let current = 0;
   let shift = 0;
+  let charIndex = 0;
 
   for (const char of encoded) {
     const value = HERE_POLYLINE_DECODER[char];
-    if (value == null) return [];
+    if (value == null) {
+      console.warn('[getHereDirections] Invalid HERE polyline character', {
+        char,
+        charCode: char?.charCodeAt?.(0),
+        charIndex,
+        encodedLength: encoded.length,
+        encodedPreview: encoded.slice(Math.max(0, charIndex - 12), Math.min(encoded.length, charIndex + 12))
+      });
+      return [];
+    }
     current |= (value & 0x1f) << shift;
     if (value & 0x20) {
       shift += 5;
+      charIndex += 1;
       continue;
     }
     values.push(current);
     current = 0;
     shift = 0;
+    charIndex += 1;
   }
 
-  if (shift > 0 || values.length < 2 || values[0] !== 1) return [];
+  if (shift > 0 || values.length < 2 || values[0] !== 1) {
+    console.warn('[getHereDirections] Invalid HERE polyline header/termination', {
+      shift,
+      valuesLength: values.length,
+      version: values[0],
+      encodedLength: encoded.length,
+      encodedStart: encoded.slice(0, 24),
+      encodedEnd: encoded.slice(-24)
+    });
+    return [];
+  }
 
   const header = values[1];
   const precision = header & 15;
@@ -236,10 +258,30 @@ const decodeHereFlexiblePolyline = (encoded) => {
   const coordinates = [];
 
   for (let i = 2; i < values.length; i += dimension) {
+    if (values[i] == null || values[i + 1] == null || (thirdDimension && values[i + 2] == null)) {
+      console.warn('[getHereDirections] Incomplete HERE polyline payload', {
+        valueIndex: i,
+        valuesLength: values.length,
+        dimension,
+        encodedLength: encoded.length,
+        decodedCoordinateCount: coordinates.length
+      });
+      return coordinates;
+    }
     latitude += toSigned(values[i]);
     longitude += toSigned(values[i + 1]);
     if (thirdDimension) third += toSigned(values[i + 2]);
     coordinates.push([latitude / factor, longitude / factor]);
+  }
+
+  if (coordinates.length <= 1) {
+    console.warn('[getHereDirections] HERE polyline decoded too short', {
+      coordinatesLength: coordinates.length,
+      valuesLength: values.length,
+      encodedLength: encoded.length,
+      encodedStart: encoded.slice(0, 24),
+      encodedEnd: encoded.slice(-24)
+    });
   }
 
   return coordinates;
@@ -290,6 +332,14 @@ const buildRoutingSections = async ({ hereApiKey, orderedStops, originLat, origi
       if (decodedCoords.length > 1) {
         encodedPolyline = encodeGooglePolyline(decodedCoords);
         decodedSectionCoordinates.push(decodedCoords);
+      } else {
+        console.warn('[getHereDirections] HERE section polyline decoded incompletely', {
+          sectionIndex: index,
+          rawLength: routeSection.polyline.length,
+          decodedLength: decodedCoords.length,
+          rawStart: routeSection.polyline.slice(0, 32),
+          rawEnd: routeSection.polyline.slice(-32)
+        });
       }
     } else if (typeof routeSection?.encoded_polyline === 'string' && routeSection.encoded_polyline) {
       decodedCoords = decodeGooglePolyline(routeSection.encoded_polyline);
