@@ -600,8 +600,10 @@ export default function HereType1Polylines({
       try {
         coords = decodePolyline(currentStop.encoded_polyline);
         if (Array.isArray(coords) && coords.length > 1) {
-          setCache((prev) => ({ ...prev, [key]: coords }));
-          try { localStorage.setItem(key, JSON.stringify(coords)); } catch (_) {}
+          try {
+            const cachedValue = localStorage.getItem(key);
+            if (!cachedValue) localStorage.setItem(key, JSON.stringify(coords));
+          } catch (_) {}
         }
       } catch (_) {}
     }
