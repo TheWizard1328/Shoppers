@@ -131,17 +131,8 @@ export default function HereType1Polylines({
   const [deviationSegments, setDeviationSegments] = useState({});
   const deviationMetaRef = useRef({});
 
-  // Ensure DriverRoutePolyline subscription is active to hydrate offline DB immediately
   useEffect(() => {
     ensurePolylineSubscription();
-  }, []);
-
-  useEffect(() => {
-    const handleDriverRoutePolylinesUpdated = () => {
-      setRefreshToken((token) => token + 1);
-    };
-    window.addEventListener('driverRoutePolylinesUpdated', handleDriverRoutePolylinesUpdated);
-    return () => window.removeEventListener('driverRoutePolylinesUpdated', handleDriverRoutePolylinesUpdated);
   }, []);
 
   // Offline polyline hydration helper
@@ -249,21 +240,9 @@ export default function HereType1Polylines({
     return out;
   }, [driverStops]);
 
-  const polylineSyncTargets = useMemo(() => {
-    const targets = [];
-    driverStops.forEach((stops, driverId) => {
-      const dateSet = new Set();
-      [...(stops.complete || []), ...(stops.incomplete || []), ...(stops.pending || [])].forEach((stop) => {
-        if (stop?.delivery_date) dateSet.add(stop.delivery_date);
-      });
-      dateSet.forEach((deliveryDate) => targets.push({ driverId, deliveryDate }));
-    });
-    return targets;
-  }, [driverStops]);
-
   useDriverRoutePolylineBackgroundSync({
-    targets: polylineSyncTargets,
-    enabled: polylineSyncTargets.length > 0,
+    targets: [],
+    enabled: false,
     intervalMs: 30000,
     onSync: () => setRefreshToken((token) => token + 1)
   });
@@ -606,7 +585,7 @@ export default function HereType1Polylines({
     }
   });
 
-  // Render only the current active planned leg in blue using stored DriverRoutePolyline data
+  // Render only the current active planned leg in blue using stored Delivery polyline data
   driverStops.forEach((stops, driverId) => {
     if (!showAll && selectedDriverId && selectedDriverId !== 'all' && driverId !== selectedDriverId) return;
 

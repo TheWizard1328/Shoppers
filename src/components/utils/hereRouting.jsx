@@ -40,9 +40,6 @@ function buildSegmentKey(fromStop, toStop, mode = 'driving') {
   return `${String(mode)}_${round5(fromStop.latitude)}_${round5(fromStop.longitude)}_${round5(toStop.latitude)}_${round5(toStop.longitude)}`;
 }
 
-function buildDriverDateKey(driverId, deliveryDate) {
-  return `${String(driverId || '')}|${String(deliveryDate || '')}`;
-}
 
 export async function ensureSelectedApiKeyLoaded() {
   const now = Date.now();
@@ -388,59 +385,6 @@ export function encodeGooglePolyline(points) {
     lastLat = latE5; lastLng = lngE5;
   }
   return out;
-}
-
-// Primary device gate for HERE polyline generation
-// DEPRECATED: primary-device restriction removed
-let __meCache = { id: null, ts: 0 };
-let __myRolesCache = { roles: null, ts: 0 };
-async function canGenerateForDriver(driverId) {
-  try {
-    const now = Date.now();
-    // Cache current user
-    if (!__meCache.id || (now - __meCache.ts) > 30000) {
-      const me = await base44.auth.me();
-      __meCache.id = me?.id || null;
-      __meCache.ts = now;
-    }
-    if (!__meCache.id) return false;
-
-    if (!__myRolesCache.roles || (now - __myRolesCache.ts) > 30000) {
-      try {
-        const mine = await base44.entities.AppUser.filter({ user_id: __meCache.id }, '-updated_date', 1);
-        __myRolesCache.roles = (Array.isArray(mine) && mine[0]?.app_roles) || [];
-      } catch (_) {
-        __myRolesCache.roles = [];
-      }
-      __myRolesCache.ts = now;
-    }
-
-    // Driver self-generation: driverId may be AppUser.id → map to user_id
-    let allowedByDriver = false;
-    if (driverId && driverId === __meCache.id) {
-      allowedByDriver = true;
-    } else if (driverId) {
-      try {
-        const recs = await base44.entities.AppUser.filter({ id: driverId }, '-updated_date', 1);
-        const appUser = Array.isArray(recs) ? recs[0] : null;
-        if (appUser?.user_id && appUser.user_id === __meCache.id) allowedByDriver = true;
-      } catch (_) {}
-    }
-    if (!allowedByDriver) return false;
-
-    const currentDeviceId = localStorage.getItem('rxdeliver_device_identifier');
-    if (!currentDeviceId) return false;
-
-    try {
-      const devices = await base44.entities.UserDevice.filter({ user_id: __meCache.id, device_identifier: currentDeviceId });
-      const currentDevice = Array.isArray(devices) ? devices[0] : null;
-      return currentDevice?.is_primary_tracker === true;
-    } catch (_) {
-      return false;
-    }
-  } catch (_) {
-    return false;
-  }
 }
 
 export const getHerePolyline = async (driverId, fromStop, toStop, deliveryDate, transportMode = 'driving') => {
