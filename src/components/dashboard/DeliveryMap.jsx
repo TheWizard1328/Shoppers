@@ -25,7 +25,6 @@ import { sortUsers } from "../utils/sorting";
 import MapCrosshair from "./MapCrosshair";
 import MapController from "./MapController";
 import DriverLocationMarkers from "./DriverLocationMarkers";
-import HereTileUsageTracker from "./HereTileUsageTracker";
 import HereType1Polylines from "./HereType1Polylines";
 import HereType2Polylines from "./HereType2Polylines";
 import CompletedBreadcrumbPolylines from "./CompletedBreadcrumbPolylines";
@@ -1108,7 +1107,6 @@ export default function DeliveryMap({
 
   return (
     <div className="absolute inset-0">
-      <HereTileUsageTracker mapStyle={mapStyle} apiKeyReady={!!tileLayerConfig?.base} />
       <MapContainer
         center={center || [53.5461, -113.4938]}
         zoom={zoom || (safeDeliveries.length === 0 ? 11 : 12)}

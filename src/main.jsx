@@ -10,8 +10,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 )
 
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/map-tile-sw.js').catch(() => {});
+  window.addEventListener('load', async () => {
+    navigator.serviceWorker.register('/map-tile-sw.js').then((registration) => {
+      registration.update().catch(() => {});
+    }).catch(() => {});
   });
 }
 
