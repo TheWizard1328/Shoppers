@@ -67,9 +67,12 @@ Deno.serve(async (req) => {
       .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
 
     const selectedStatus = selectedDelivery?.patient_id ? 'in_transit' : 'en_route';
+    const selectedStopOrder = completedDeliveries.length + 1;
     const startPayload = {
       status: activeStatuses.has(selectedDelivery?.status) ? selectedDelivery.status : selectedStatus,
       isNextDelivery: true,
+      stop_order: selectedStopOrder,
+      display_stop_order: selectedStopOrder,
       travel_dist: 0,
       ...(selectedDelivery?.delivery_time_start ? {} : { delivery_time_start: normalizeLocalTimeString(currentLocalTime) || getCurrentLocalTimeString() }),
       ...(selectedDelivery?.delivery_time_end ? {} : { delivery_time_end: normalizeLocalTimeString(currentLocalTime) || getCurrentLocalTimeString() }),
@@ -97,8 +100,6 @@ Deno.serve(async (req) => {
       }
       throw error;
     });
-
-    const selectedStopOrder = completedDeliveries.length + 1;
 
     console.log('🔄 [handleStartDelivery] Selected delivery marked as next stop');
     const latestFinishedTime = getTimeStringFromTimestamp(completedDeliveries[completedDeliveries.length - 1]?.actual_delivery_time);
