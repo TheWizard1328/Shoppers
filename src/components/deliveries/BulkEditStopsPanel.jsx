@@ -368,11 +368,11 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
         <DrawerContent
-          className="z-[300] h-[calc(100dvh-var(--bottom-nav-height)-var(--mobile-header-offset,72px)-0.75rem)] max-h-[calc(100dvh-var(--bottom-nav-height)-var(--mobile-header-offset,72px)-0.75rem)]"
+          className="z-[300] flex h-[calc(100dvh-var(--bottom-nav-height)-var(--mobile-header-offset,72px)-1.25rem)] max-h-[calc(100dvh-var(--bottom-nav-height)-var(--mobile-header-offset,72px)-1.25rem)] flex-col overflow-hidden"
           style={{
             background: "var(--bg-white)",
-            bottom: "var(--bottom-nav-height)",
-            top: "calc(var(--mobile-header-offset, 72px) + 0.75rem)",
+            bottom: "calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px))",
+            top: "calc(var(--mobile-header-offset, 72px) + 0.5rem)",
           }}
         >
           <DrawerHeader className="shrink-0">
@@ -381,7 +381,7 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
               Update the basic route info for the selected stops.
             </DrawerDescription>
           </DrawerHeader>
-          <div className="min-h-0 flex-1">{content}</div>
+          <div className="min-h-0 flex-1 overflow-hidden">{content}</div>
         </DrawerContent>
       </Drawer>
     );
