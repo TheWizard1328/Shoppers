@@ -714,6 +714,7 @@ Deno.serve(async (req) => {
         scope: 'active_only',
         reason: 'route_reordered',
         sourcePage: 'Dashboard',
+        bypassDriverStatus: true,
         routeStopOrder: activeStops.map((stop) => stop.id),
         orderedStopsWithTransportMode: optimizedStopTransportModes,
         explicitOrderedStopsOnly: true,
