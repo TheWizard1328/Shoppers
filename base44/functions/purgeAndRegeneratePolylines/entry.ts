@@ -1091,38 +1091,7 @@ Deno.serve(async (req) => {
         }
 
         const segmentsToKeep = new Set();
-        if (preservedType1Row) {
-          segmentsToKeep.add(preservedType1Row.id);
-        }
-
-        const cachedSegments = [];
-        const uncachedSegments = [];
-
-        for (const spec of segmentSpecs) {
-          const cachedSegment = !spec.force ? findExactCachedSegment(existingPolylines, spec.from, spec.to) : null;
-          if (cachedSegment) {
-            cachedSegments.push({ spec, cachedSegment });
-          } else {
-            uncachedSegments.push(spec);
-          }
-        }
-
-        cachedSegments.forEach(({ spec, cachedSegment }) => {
-          segmentsToKeep.add(cachedSegment.id);
-          const matchingStop = activeStops.find((stop) => {
-            const stopCoords = getLatLon(stop);
-            return stop?.id && stopCoords && samePoint({ lat: stopCoords.lat, lon: stopCoords.lon }, spec.to);
-          });
-          if (matchingStop) {
-            const matchingStopCoords = getLatLon(matchingStop);
-            deliveryUpdatesById.set(matchingStop.id, {
-              ...(deliveryUpdatesById.get(matchingStop.id) || {}),
-              ...buildSegmentDeliveryUpdate({ ...spec, actualTo: matchingStopCoords || spec.to }, cachedSegment, spec.transportMode),
-              travel_dist: cachedSegment.estimated_distance_km ?? null
-            });
-          }
-        });
-
+        const uncachedSegments = [...segmentSpecs];
         const directionsBySegmentKey = new Map();
 
         if (reuseProvidedPolylines) {
@@ -1147,15 +1116,35 @@ Deno.serve(async (req) => {
 
         const remainingUncachedSegments = uncachedSegments.filter((spec) => !directionsBySegmentKey.has(makeSegmentKey(driverId, deliveryDate, spec.from, spec.to)));
 
+        const segmentGroups = [];
         if (remainingUncachedSegments.length > 0) {
-          const primaryTransportMode = getNormalizedTravelMode(remainingUncachedSegments[0]?.transportMode, 'driving');
+          let currentGroup = [remainingUncachedSegments[0]];
+          for (let index = 1; index < remainingUncachedSegments.length; index += 1) {
+            const previous = remainingUncachedSegments[index - 1];
+            const current = remainingUncachedSegments[index];
+            const sameMode = getNormalizedTravelMode(previous?.transportMode, 'driving') === getNormalizedTravelMode(current?.transportMode, 'driving');
+            const isContinuous = samePoint(previous?.to, current?.from);
+            if (sameMode && isContinuous) {
+              currentGroup.push(current);
+            } else {
+              segmentGroups.push(currentGroup);
+              currentGroup = [current];
+            }
+          }
+          if (currentGroup.length > 0) {
+            segmentGroups.push(currentGroup);
+          }
+        }
+
+        for (const group of segmentGroups) {
+          const primaryTransportMode = getNormalizedTravelMode(group[0]?.transportMode, 'driving');
           const groupedDirections = await getMultiSegmentDirections(
             base44,
-            remainingUncachedSegments.map((spec) => ({ from: spec.from, to: spec.to })),
+            group.map((spec) => ({ from: spec.from, to: spec.to })),
             primaryTransportMode
           );
           apiCallsMade += 1;
-          remainingUncachedSegments.forEach((spec, index) => {
+          group.forEach((spec, index) => {
             directionsBySegmentKey.set(
               makeSegmentKey(driverId, deliveryDate, spec.from, spec.to),
               groupedDirections[index] || null
@@ -1186,22 +1175,7 @@ Deno.serve(async (req) => {
           }
         });
 
-        const allowedActiveSegmentKeys = new Set(segmentSpecs.map((spec) => makeSegmentKey(driverId, deliveryDate, spec.from, spec.to)));
-        const existingPolylineIds = new Set((existingPolylines || []).map((row) => row?.id).filter(Boolean));
-        const rowsToDelete = (existingPolylines || []).filter((row) => {
-          if (!existingPolylineIds.has(row?.id)) return false;
-          if (segmentsToKeep.has(row.id)) return false;
-          const rowKey = makeSegmentKey(driverId, deliveryDate, { lat: row?.segment_origin_lat, lon: row?.segment_origin_lon }, { lat: row?.segment_dest_lat, lon: row?.segment_dest_lon });
-          return !allowedActiveSegmentKeys.has(rowKey);
-        });
-        if (!bypassPolylineDelete && rowsToDelete.length > 0) {
-          console.log(`#[purgeAndRegeneratePolylines] BEFORE delete old polylines | driver=${driverDisplayName} | date=${deliveryDate} | rowsToDelete=${rowsToDelete.length} | totalStops=${deliveries?.length || 0}`);
-          deletedPolylineCount = await deletePolylinesIfPresent(base44, rowsToDelete);
-          existingPolylines = (existingPolylines || []).filter((row) => !rowsToDelete.some((candidate) => candidate.id === row?.id));
-          console.log(`# [purgeAndRegeneratePolylines] AFTER delete old polylines | driver=${driverDisplayName} | date=${deliveryDate} | deleted=${deletedPolylineCount} | totalStops=${deliveries?.length || 0}`);
-        } else {
-          deletedPolylineCount = 0;
-        }
+        deletedPolylineCount = 0;
 
         if (createdSegments.length > 0) {
           createdSegments.forEach((segment) => {
@@ -1217,6 +1191,31 @@ Deno.serve(async (req) => {
               estimated_duration_minutes: segment.estimated_duration_minutes
             });
           });
+        }
+
+        const activeStopIds = new Set(activeStops.map((stop) => stop?.id).filter(Boolean));
+        deliveries.filter((delivery) => delivery?.id && activeStopIds.has(delivery.id)).forEach((delivery) => {
+          if (deliveryUpdatesById.has(delivery.id)) return;
+          deliveryUpdatesById.set(delivery.id, {
+            encoded_polyline: null,
+            transport_mode: null,
+            segment_origin_lat: null,
+            segment_origin_lon: null,
+            segment_dest_lat: null,
+            segment_dest_lon: null,
+            estimated_distance_km: null,
+            estimated_duration_minutes: null
+          });
+        });
+
+        if (deliveryUpdatesById.size > 0) {
+          console.log(`# [purgeAndRegeneratePolylines] BEFORE active bulkUpdateDeliveries | driver=${driverDisplayName} | date=${deliveryDate} | totalStops=${deliveries?.length || 0} | updateCount=${deliveryUpdatesById.size}`);
+          deliveries = await bulkUpdateDeliveries(base44, deliveries, deliveryUpdatesById);
+          deliveries = await base44.asServiceRole.entities.Delivery.filter({
+            driver_id: driverId,
+            delivery_date: deliveryDate
+          }, 'stop_order', 50000);
+          console.log(`# [purgeAndRegeneratePolylines] AFTER active bulkUpdateDeliveries | driver=${driverDisplayName} | date=${deliveryDate} | totalStops=${deliveries?.length || 0} | updateCount=${deliveryUpdatesById.size}`);
         }
       } else {
         const homeLat = Number(driverAppUser?.home_latitude);

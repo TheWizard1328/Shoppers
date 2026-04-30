@@ -675,7 +675,7 @@ Deno.serve(async (req) => {
         explicitRouteDestination: 'home',
         bypassPolylineUpdated: true,
         bypassPolylineDelete: true,
-        reuseProvidedPolylines: true
+        reuseProvidedPolylines: false
       }).catch((error) => {
         console.warn('⚠️ [optimizeRemainingStops] Polyline refresh failed:', error?.message || error);
         return null;
