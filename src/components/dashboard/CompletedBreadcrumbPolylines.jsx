@@ -12,13 +12,44 @@ const getType3PolylineColor = (driverId) => {
   const hashSeed = String(driverId || 'driver').split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
   return NON_BLUE_DRIVER_COLORS[hashSeed % NON_BLUE_DRIVER_COLORS.length];
 };
-const getFinishedLegRouteStyle = (driverId, deliveryTravelMode, opacityOverride) => {
+const hexToRgb = (hex) => {
+  const normalized = String(hex || '').replace('#', '');
+  if (normalized.length !== 6) return null;
+  const value = parseInt(normalized, 16);
+  if (Number.isNaN(value)) return null;
+  return {
+    r: (value >> 16) & 255,
+    g: (value >> 8) & 255,
+    b: value & 255
+  };
+};
+
+const rgbToHex = ({ r, g, b }) => `#${[r, g, b].map((value) => Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, '0')).join('')}`;
+
+const mixWithWhite = (hex, ratio) => {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return hex;
+  const clampedRatio = Math.max(0, Math.min(1, ratio));
+  return rgbToHex({
+    r: rgb.r + (255 - rgb.r) * clampedRatio,
+    g: rgb.g + (255 - rgb.g) * clampedRatio,
+    b: rgb.b + (255 - rgb.b) * clampedRatio
+  });
+};
+
+const getRouteShadeColor = (driverId, shadeRatio = 0) => {
+  const baseColor = getType3PolylineColor(driverId);
+  return mixWithWhite(baseColor, shadeRatio);
+};
+
+const getFinishedLegRouteStyle = (driverId, deliveryTravelMode, opacityOverride, shadeRatio = 0) => {
   const mode = normalizeTravelMode(deliveryTravelMode || 'driving');
   const isCycling = mode === 'cycling';
-  const base = getTravelModeLineStyle(mode, getType3PolylineColor(driverId));
+  const shadedColor = isCycling ? mixWithWhite('#16A34A', shadeRatio) : getRouteShadeColor(driverId, shadeRatio);
+  const base = getTravelModeLineStyle(mode, shadedColor);
   return {
     ...base,
-    color: isCycling ? '#16A34A' : base.color,
+    color: shadedColor,
     opacity: opacityOverride ?? base.opacity,
     lineJoin: 'round',
     lineCap: 'round'
@@ -211,10 +242,14 @@ export default function CompletedBreadcrumbPolylines({
         const routePoints = buildBreadcrumbRoutePoints(start, breadcrumbPoints, end);
         const hasRealBreadcrumbPoints = breadcrumbPoints.length > 0;
 
+        const totalSegmentCount = Math.max(stops.length, 1);
+        const shadeRatio = Math.min(0.55, (index / Math.max(totalSegmentCount - 1, 1)) * 0.45);
+
         return {
           id: `${route.driverId}-${index}`,
           driverId: route.driverId,
           color: color || "#607D8B",
+          shadeRatio,
           opacity,
           fallbackDashArray: toStop.ampm_deliveries === "AM" ? "10, 5" : "2, 8",
           deliveryDate: toStop.delivery_date || fromStop.delivery_date,
@@ -240,6 +275,7 @@ export default function CompletedBreadcrumbPolylines({
             id: `${route.driverId}-home-final`,
             driverId: route.driverId,
             color: color || "#607D8B",
+            shadeRatio: 0.55,
             opacity: selectedDriverId && selectedDriverId !== "all" && route.driverId === selectedDriverId ? 0.7 : 0.35,
             fallbackDashArray: "6, 6",
             deliveryDate: lastStop.delivery_date,
@@ -288,6 +324,7 @@ export default function CompletedBreadcrumbPolylines({
         id: `${segment.id}-direct`,
         driverId: segment.driverId,
         color: segment.color,
+        shadeRatio: segment.shadeRatio ?? 0,
         opacity: segment.opacity,
         deliveryDate: segment.deliveryDate,
         from: segment.start,
@@ -308,6 +345,7 @@ export default function CompletedBreadcrumbPolylines({
           id: `${segment.id}-breadcrumb-${index}`,
           driverId: segment.driverId,
           deliveryDate: segment.deliveryDate,
+          shadeRatio: segment.shadeRatio ?? 0,
           opacity: segment.opacity,
           from,
           to,
@@ -358,17 +396,19 @@ export default function CompletedBreadcrumbPolylines({
     if (!coords) return;
 
     renderedLines.push(
-      <Polyline
-        key={`stored-finished-${segment.id}-${polylineRenderKey}-${highlightedDeliveryId || "none"}`}
-        positions={coords}
-        pathOptions={getFinishedLegRouteStyle(segment.driverId, segment.finishedLegTransportMode, Math.max(segment.opacity, 0.35))}
-        pane="completedBreadcrumbPane"
-        />,
-      <RouteDirectionDecorator
-        key={`stored-finished-arrow-${segment.id}-${polylineRenderKey}-${highlightedDeliveryId || "none"}`}
-        positions={coords}
-        color={getType3PolylineColor(segment.driverId)}
-      />
+      <React.Fragment key={`stored-finished-group-${segment.id}-${polylineRenderKey}-${highlightedDeliveryId || "none"}`}>
+        <Polyline
+          key={`stored-finished-${segment.id}-${polylineRenderKey}-${highlightedDeliveryId || "none"}`}
+          positions={coords}
+          pathOptions={getFinishedLegRouteStyle(segment.driverId, segment.finishedLegTransportMode, Math.max(segment.opacity, 0.35), 0)}
+          pane="completedBreadcrumbPane"
+        />
+        <RouteDirectionDecorator
+          key={`stored-finished-arrow-${segment.id}-${polylineRenderKey}-${highlightedDeliveryId || "none"}`}
+          positions={coords}
+          color={getRouteShadeColor(segment.driverId, 0)}
+        />
+      </React.Fragment>
     );
   });
 
@@ -388,7 +428,7 @@ export default function CompletedBreadcrumbPolylines({
           key={`completed-stored-${segment.id}-${polylineRenderKey}-${highlightedDeliveryId || "none"}`}
           positions={coords}
           pathOptions={{
-            ...getFinishedLegRouteStyle(segment.driverId, segment.finishedLegTransportMode, Math.max(segment.opacity, 0.35)),
+            ...getFinishedLegRouteStyle(segment.driverId, segment.finishedLegTransportMode, Math.max(segment.opacity, 0.35), segment.shadeRatio ?? 0),
             dashArray: segment.isHomeFinalSegment ? '6 6' : undefined
           }}
           pane="completedBreadcrumbPane"
@@ -396,7 +436,7 @@ export default function CompletedBreadcrumbPolylines({
         <RouteDirectionDecorator
           key={`completed-stored-arrow-${segment.id}-${polylineRenderKey}-${highlightedDeliveryId || "none"}`}
           positions={coords}
-          color={getType3PolylineColor(segment.driverId)}
+          color={getRouteShadeColor(segment.driverId, 0)}
         />
       );
       return;
@@ -418,13 +458,13 @@ export default function CompletedBreadcrumbPolylines({
           <Polyline
             key={`completed-breadcrumb-line-${leg.id}-${polylineRenderKey}`}
             positions={positions}
-            pathOptions={getFinishedLegRouteStyle(segment.driverId, segment.finishedLegTransportMode, Math.max(segment.opacity, 0.35))}
+            pathOptions={getFinishedLegRouteStyle(segment.driverId, segment.finishedLegTransportMode, Math.max(segment.opacity, 0.35), leg.shadeRatio ?? 0)}
             pane="completedBreadcrumbPane"
           />,
           <RouteDirectionDecorator
             key={`completed-breadcrumb-arrow-${leg.id}-${polylineRenderKey}`}
             positions={positions}
-            color={getType3PolylineColor(segment.driverId)}
+            color={getRouteShadeColor(segment.driverId, leg.shadeRatio ?? 0)}
           />
         );
       });
