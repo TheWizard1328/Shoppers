@@ -1435,6 +1435,7 @@ export default function DeliveryForm({
         });
 
         await updateDeliveryLocal(delivery.id, buildUpdatedDeliveryPayload({ dataToSave, formData }));
+        const skipImmediateDeliveriesUpdatedEvent = Boolean(timeWindowChanged);
         if (['completed', 'failed', 'cancelled'].includes(formData.status)) {
           const expectedTravelDist = Number(dataToSave.travel_dist ?? formData.travel_dist ?? 0);
           const currentTravelDist = Number(delivery?.travel_dist ?? 0);
@@ -1454,7 +1455,9 @@ export default function DeliveryForm({
           cleanupSquareCodCatalogForDate(formData.delivery_date);
         }
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryId: delivery.id, deliveryDate: formData.delivery_date, driverId: formData.driver_id, triggeredBy: 'deliveryFormUpdate' } }));
+        if (!skipImmediateDeliveriesUpdatedEvent) {
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryId: delivery.id, deliveryDate: formData.delivery_date, driverId: formData.driver_id, triggeredBy: 'deliveryFormUpdate' } }));
+        }
       } else {
         if (buttonState === 'add' || buttonState === 'updateStaged' || buttonState === 'done') {
           setIsSaving(false);
