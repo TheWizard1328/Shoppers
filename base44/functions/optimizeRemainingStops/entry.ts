@@ -341,7 +341,7 @@ Deno.serve(async (req) => {
     const explicitNextDelivery = incompleteDeliveries.find((delivery) => delivery?.isNextDelivery === true) || null;
     const explicitNextCoords = explicitNextDelivery ? getDeliveryCoords(explicitNextDelivery, patientMap, storeMap) : null;
     const routeHasStarted = completedDeliveries.length > 0;
-    const shouldLockExplicitNextStop = !!explicitNextDelivery && !routeHasStarted && !forceFullRemainingRouteOptimization;
+    const shouldLockExplicitNextStop = !!explicitNextDelivery && !forceFullRemainingRouteOptimization;
 
     if (routeHasStarted && latestFinishedDelivery) {
       currentPosition = getDeliveryCoords(latestFinishedDelivery, patientMap, storeMap);
@@ -719,9 +719,7 @@ Deno.serve(async (req) => {
         scope: 'active_only',
         reason: 'route_reordered',
         sourcePage: 'Dashboard',
-        routeStopOrder: polylineEligibleDeliveries
-          .map((delivery) => activeStops.find((stop) => stop.id === delivery.id)?.id || null)
-          .filter(Boolean),
+        routeStopOrder: activeStops.map((stop) => stop.id),
         orderedStopsWithTransportMode: optimizedStopTransportModes,
         explicitOrderedStopsOnly: true,
         explicitRouteOrigin: routeHasStarted ? 'last_finished_stop' : 'home',
