@@ -13,7 +13,14 @@ export const getApiLogProvider = (log) => {
   const explicitProvider = String(log?.metadata?.api_provider || '').toLowerCase();
   if (explicitProvider === 'google' || explicitProvider === 'here') return explicitProvider;
 
-  if (log?.api_type === 'Directions (HERE)') return 'here';
+  if (String(log?.api_type || '').includes('(HERE)')) return 'here';
+  return 'google';
+};
+
+export const getApiLogCategory = (log) => {
+  const apiType = String(log?.api_type || '');
+  if (apiType === 'Map Tiles (HERE)') return 'here_tiles';
+  if (getApiLogProvider(log) === 'here') return 'here_routing';
   return 'google';
 };
 

@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import ResetPolylinesButton from "@/components/dashboard/ResetPolylinesButton";
-import { getApiLogProvider, sumApiLogCalls } from "@/components/utils/apiUsageLog";
+import { getApiLogCategory, sumApiLogCalls } from "@/components/utils/apiUsageLog";
 import { isAppOwner } from "@/components/utils/userRoles";
 import {
   Tooltip,
@@ -17,7 +17,8 @@ import {
 // - stopCardsHeight: number (px) to position the badge just above stop cards
 export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRoutes = true, showBreadcrumbs = false, showCompletedRouteControls = false, selectedDate = null, selectedDriverIds = [], selectedPolylineOption = 'polylines', onPolylineOptionChange }) {
   const [googleCount, setGoogleCount] = useState(null);
-  const [hereCount, setHereCount] = useState(null);
+  const [hereRoutingCount, setHereRoutingCount] = useState(null);
+  const [hereTileCount, setHereTileCount] = useState(null);
   const [selectedApiKey, setSelectedApiKey] = useState('HERE_API_KEY');
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
   const tooltipTimerRef = useRef(null);
@@ -62,8 +63,9 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
 
       const activeKey = appSettings?.[0]?.setting_value?.selected_api_key || 'HERE_API_KEY';
       setSelectedApiKey(activeKey);
-      setGoogleCount(sumApiLogCalls(apiLogs, (log) => getApiLogProvider(log) === 'google'));
-      setHereCount(sumApiLogCalls(apiLogs, (log) => getApiLogProvider(log) === 'here'));
+      setGoogleCount(sumApiLogCalls(apiLogs, (log) => getApiLogCategory(log) === 'google'));
+      setHereRoutingCount(sumApiLogCalls(apiLogs, (log) => getApiLogCategory(log) === 'here_routing'));
+      setHereTileCount(sumApiLogCalls(apiLogs, (log) => getApiLogCategory(log) === 'here_tiles'));
     } catch (err) {
       // Non-critical; keep previous values
       console.warn("[ApiUsageBadge] Failed to fetch counts:", err?.message || err);
@@ -128,7 +130,7 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
                 onClick={showApiTooltipForTouch}
                 style={{ background: "color-mix(in srgb, var(--bg-white) 55%, transparent)", borderColor: "var(--border-slate-200)", color: "var(--text-slate-600)" }}>
                 
-                🛣️ {googleCount ?? "..."} / {hereCount ?? "..."}
+                🛣️ {googleCount ?? "..."} / {hereRoutingCount ?? "..."} / {hereTileCount ?? "..."}
               </button>
             </TooltipTrigger>
             <TooltipContent
@@ -139,9 +141,14 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
               <p className="font-semibold text-sm mb-1" style={{ color: 'var(--text-slate-900)' }}>
                 Active Maps API Key
               </p>
-              <p className="text-xs leading-relaxed" style={{ color: 'var(--text-slate-600)' }}>
+              <p className="text-xs leading-relaxed mb-2" style={{ color: 'var(--text-slate-600)' }}>
                 {selectedApiKey}
               </p>
+              <div className="space-y-1 text-xs" style={{ color: 'var(--text-slate-700)' }}>
+                <div>Google API: {googleCount ?? '...'}</div>
+                <div>HERE Routing API: {hereRoutingCount ?? '...'}</div>
+                <div>HERE Map Tile API: {hereTileCount ?? '...'}</div>
+              </div>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
