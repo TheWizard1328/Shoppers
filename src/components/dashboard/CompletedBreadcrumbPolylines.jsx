@@ -151,15 +151,22 @@ export default function CompletedBreadcrumbPolylines({
     if (!showStoredPolylines || showBreadcrumbPolylines) return [];
     const allFinishedStops = [...pickupMarkers, ...deliveryMarkers]
       .filter((stop) => stop && FINISHED.includes(stop.status))
-      .filter((stop) => typeof stop.finished_leg_encoded_polyline === "string" && stop.finished_leg_encoded_polyline.trim().length > 0)
+      .filter((stop) => {
+        const encoded = typeof stop.finished_leg_encoded_polyline === "string" && stop.finished_leg_encoded_polyline.trim().length > 0
+          ? stop.finished_leg_encoded_polyline.trim()
+          : (typeof stop.encoded_polyline === "string" && stop.encoded_polyline.trim().length > 0 ? stop.encoded_polyline.trim() : "");
+        return encoded.length > 0;
+      })
       .filter((stop) => isAllDriversMode || selectedDriverId === "all" || stop.driver_id === selectedDriverId);
 
     return allFinishedStops.map((stop) => ({
-      finishedLegTransportMode: normalizeTravelMode(stop.finished_leg_transport_mode),
+      finishedLegTransportMode: normalizeTravelMode(stop.finished_leg_transport_mode || stop.transport_mode),
       id: `stored-${stop.id}`,
       stopId: stop.id,
       driverId: stop.driver_id,
-      encodedPolyline: stop.finished_leg_encoded_polyline.trim(),
+      encodedPolyline: (typeof stop.finished_leg_encoded_polyline === "string" && stop.finished_leg_encoded_polyline.trim().length > 0
+        ? stop.finished_leg_encoded_polyline.trim()
+        : stop.encoded_polyline.trim()),
       opacity: highlightedDeliveryId && stop.id === highlightedDeliveryId ? 0.85 : (selectedDriverId && selectedDriverId !== "all" ? 0.7 : 0.35)
     }));
   }, [pickupMarkers, deliveryMarkers, isAllDriversMode, selectedDriverId, highlightedDeliveryId]);
@@ -215,8 +222,10 @@ export default function CompletedBreadcrumbPolylines({
           end,
           destinationStopId: toStop.id,
           destinationPointKey: getPointKey(end),
-          finishedLegTransportMode: normalizeTravelMode(toStop.finished_leg_transport_mode || 'driving'),
-          storedEncodedPolyline: typeof toStop.finished_leg_encoded_polyline === "string" ? toStop.finished_leg_encoded_polyline.trim() : "",
+          finishedLegTransportMode: normalizeTravelMode(toStop.finished_leg_transport_mode || toStop.transport_mode || 'driving'),
+          storedEncodedPolyline: typeof toStop.finished_leg_encoded_polyline === "string" && toStop.finished_leg_encoded_polyline.trim().length > 0
+            ? toStop.finished_leg_encoded_polyline.trim()
+            : (typeof toStop.encoded_polyline === "string" ? toStop.encoded_polyline.trim() : ""),
           breadcrumbPoints,
           routePoints,
           hasAnyBreadcrumbs: hasRealBreadcrumbPoints,
@@ -238,7 +247,7 @@ export default function CompletedBreadcrumbPolylines({
             end: { latitude: Number(homeMarker.latitude), longitude: Number(homeMarker.longitude) },
             destinationStopId: `home-${route.driverId}`,
             destinationPointKey: getPointKey({ latitude: Number(homeMarker.latitude), longitude: Number(homeMarker.longitude) }),
-            finishedLegTransportMode: normalizeTravelMode(lastStop.finished_leg_transport_mode || 'driving'),
+            finishedLegTransportMode: normalizeTravelMode(lastStop.finished_leg_transport_mode || lastStop.transport_mode || 'driving'),
             storedEncodedPolyline: "",
             breadcrumbPoints: [],
             routePoints: [
