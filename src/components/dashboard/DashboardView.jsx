@@ -200,27 +200,25 @@ export default function DashboardView({
     : immersiveOverlayPatient?.full_name || immersiveOverlayDelivery?.patient_name || 'Next stop';
 
   const immersiveOverlayRemainingDistanceKm = useMemo(() => {
-    if (!immersiveOverlayDelivery) return null;
+    if (!immersiveOverlayDelivery || !selectedDriverId || selectedDriverId === 'all') return null;
 
-    const liveDriverLocation = immersiveLiveDriverLocation || (currentUser?.id
-      ? allDriverLocations.find((location) => location?.user_id === currentUser.id || location?.id === currentUser.id)
-      : null);
+    const selectedDriverLocation = selectedDriverId === currentUser?.id && immersiveLiveDriverLocation
+      ? immersiveLiveDriverLocation
+      : allDriverLocations.find((location) =>
+          location?.user_id === selectedDriverId ||
+          location?.id === selectedDriverId ||
+          location?.driver_id === selectedDriverId
+        ) || (selectedDriverId === currentUser?.id ? driverLocation : null);
 
     const driverLat = Number(
-      liveDriverLocation?.current_latitude ??
-      liveDriverLocation?.latitude ??
-      driverLocation?.current_latitude ??
-      driverLocation?.latitude ??
-      driverLocation?.lat ??
-      currentUser?.current_latitude
+      selectedDriverLocation?.current_latitude ??
+      selectedDriverLocation?.latitude ??
+      selectedDriverLocation?.lat
     );
     const driverLon = Number(
-      liveDriverLocation?.current_longitude ??
-      liveDriverLocation?.longitude ??
-      driverLocation?.current_longitude ??
-      driverLocation?.longitude ??
-      driverLocation?.lon ??
-      currentUser?.current_longitude
+      selectedDriverLocation?.current_longitude ??
+      selectedDriverLocation?.longitude ??
+      selectedDriverLocation?.lon
     );
     if (!Number.isFinite(driverLat) || !Number.isFinite(driverLon)) return null;
 
@@ -237,7 +235,7 @@ export default function DashboardView({
       Math.cos(toRad(driverLat)) * Math.cos(toRad(stopLat)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return earthRadiusKm * c;
-  }, [immersiveOverlayDelivery, immersiveOverlayIsPickup, immersiveOverlayPatient, immersiveOverlayStore, immersiveLiveDriverLocation, allDriverLocations, driverLocation, currentUser?.id, currentUser?.current_latitude, currentUser?.current_longitude]);
+  }, [immersiveOverlayDelivery, immersiveOverlayIsPickup, immersiveOverlayPatient, immersiveOverlayStore, immersiveLiveDriverLocation, allDriverLocations, driverLocation, selectedDriverId, currentUser?.id]);
 
   return (
     <div className="h-full w-full flex flex-col overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
