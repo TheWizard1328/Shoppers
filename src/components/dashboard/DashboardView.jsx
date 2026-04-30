@@ -84,6 +84,7 @@ export default function DashboardView({
   // ALSO: re-trigger FAB map positioning if initial FAB fired with 0 deliveries but now we have data
   const initialDataReadyRef = useRef(null);
   const [finalizedDutyTime, setFinalizedDutyTime] = useState(null);
+  const [immersiveLiveDriverLocation, setImmersiveLiveDriverLocation] = useState(null);
   const initialFabRetriggeredRef = useRef(false);
   useEffect(() => {
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
@@ -162,6 +163,21 @@ export default function DashboardView({
     })();
   }, [isDateFinished, currentUser?.driver_status, deliveriesWithStopOrder, selectedDate, currentUser?.id, isDriver]);
 
+  useEffect(() => {
+    const handleImmersiveLiveLocation = (event) => {
+      const detail = event?.detail;
+      if (!detail?.latitude || !detail?.longitude) return;
+      setImmersiveLiveDriverLocation({
+        latitude: Number(detail.latitude),
+        longitude: Number(detail.longitude),
+        location_updated_at: detail.location_updated_at || null
+      });
+    };
+
+    window.addEventListener('driverSharedSelfLocationUpdated', handleImmersiveLiveLocation);
+    return () => window.removeEventListener('driverSharedSelfLocationUpdated', handleImmersiveLiveLocation);
+  }, []);
+
   const immersiveOverlayDelivery = useMemo(() => {
     if (!immersiveHidden) return null;
     return deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true) || null;
@@ -186,9 +202,9 @@ export default function DashboardView({
   const immersiveOverlayRemainingDistanceKm = useMemo(() => {
     if (!immersiveOverlayDelivery) return null;
 
-    const liveDriverLocation = currentUser?.id
+    const liveDriverLocation = immersiveLiveDriverLocation || (currentUser?.id
       ? allDriverLocations.find((location) => location?.user_id === currentUser.id || location?.id === currentUser.id)
-      : null;
+      : null);
 
     const driverLat = Number(
       liveDriverLocation?.current_latitude ??
@@ -221,7 +237,7 @@ export default function DashboardView({
       Math.cos(toRad(driverLat)) * Math.cos(toRad(stopLat)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return earthRadiusKm * c;
-  }, [immersiveOverlayDelivery, immersiveOverlayIsPickup, immersiveOverlayPatient, immersiveOverlayStore, allDriverLocations, driverLocation, currentUser?.id, currentUser?.current_latitude, currentUser?.current_longitude]);
+  }, [immersiveOverlayDelivery, immersiveOverlayIsPickup, immersiveOverlayPatient, immersiveOverlayStore, immersiveLiveDriverLocation, allDriverLocations, driverLocation, currentUser?.id, currentUser?.current_latitude, currentUser?.current_longitude]);
 
   return (
     <div className="h-full w-full flex flex-col overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
