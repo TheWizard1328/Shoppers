@@ -655,11 +655,9 @@ export default function DeliveryMap({
       const driver = safeUsers.find((user) => (user?.id || user?.user_id) === driverId);
       const isOnDuty = ['on_duty', 'online'].includes(String(driver?.driver_status || '').toLowerCase());
       const isCurrentDriver = driverId === currentUser?.id;
-      const isSelectedDriver = selectedDriverId && selectedDriverId !== "all" && driverId === selectedDriverId;
-      const isAdminViewer = currentUser && userHasRole(currentUser, "admin");
       visibilityMap.set(driverId, {
         ...state,
-        shouldShowHomeMarker: (isAdminViewer && isSelectedDriver) || isCurrentDriver || isOnDuty || state.completed === 0 || (state.remainingPickups === 0)
+        shouldShowHomeMarker: isCurrentDriver || isOnDuty || state.completed === 0 || (state.remainingPickups === 0)
       });
     });
     return visibilityMap;
@@ -683,13 +681,10 @@ export default function DeliveryMap({
       const homeVisibility = driverHomeVisibilityById.get(driverKey);
       const hasVisibleStops = visibleDriverIds.has(driverKey) || routeDriverIds.has(driverKey);
       const isCurrentDriverUser = driverKey === currentUser.id && userHasRole(currentUser, "driver");
-      const isSelectedDriver = !!(selectedDriverId && selectedDriverId !== "all" && driverKey === selectedDriverId);
-      const isAdminViewer = currentUser && userHasRole(currentUser, "admin");
-      const allowSelectedDriverHomeForAdmin = isAdminViewer && isSelectedDriver;
       if (isCurrentDriverUser) {
         return true;
       }
-      if (!allowSelectedDriverHomeForAdmin && !homeVisibility?.shouldShowHomeMarker) return false;
+      if (!homeVisibility?.shouldShowHomeMarker) return false;
       if (isPureDriver && driverKey !== currentUser.id && !(showOtherDriverDeliveries || isAllDriversMode)) return false;
       if (isDispatcher) {
         if (!(showOtherDriverDeliveries || isAllDriversMode)) return false;
