@@ -670,7 +670,7 @@ export default function useStopCardActions(params) {
         }
         backgroundTasks.push(cleanupSquareCodCatalogForDate(delivery.delivery_date));
         const currentDriverAppUserId = currentDriverAppUser?.id || null;
-        backgroundTasks.push(params.scheduleCompletionSideEffects({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, nextDeliveryId: nextStop?.id || null, lastCompletedDeliveryId: delivery.id, setOffDuty: !nextStop, appUserId: currentDriverAppUserId, skipRouteOptimization: true }));
+        backgroundTasks.push(params.scheduleCompletionSideEffects({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, nextDeliveryId: nextStop?.id || null, lastCompletedDeliveryId: delivery.id, setOffDuty: !nextStop, appUserId: currentDriverAppUserId, skipRouteOptimization: true, skipNextLegPolylineRefresh: true }));
         backgroundTasks.push(userHasRole(currentUser, 'driver') ? notifyDriverCompleted({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : displayName, delivery, store, appUsers }) : Promise.resolve());
         await Promise.allSettled(backgroundTasks);
       } catch (error) {
@@ -760,6 +760,7 @@ export default function useStopCardActions(params) {
         const incompleteDeliveries = driverDeliveries.filter((d) => d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending').sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
         await setAndCenterNextDelivery({ driverDeliveries, targetDeliveryId: incompleteDeliveries[0]?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true, persistToBackend: true });
         if (actedOnNextDelivery && shouldRecalculateFailureEtas && incompleteDeliveries.length > 0) Promise.resolve().then(() => base44.functions.invoke('calculateRealTimeETA', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime: String(criticalUpdate.actual_delivery_time || '').match(/T(\d{2}:\d{2})/)?.[1] || getCurrentLocalTimeString() }).catch(() => {}));
+        Promise.resolve().then(() => params.scheduleCompletionSideEffects({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, nextDeliveryId: incompleteDeliveries[0]?.id || null, lastCompletedDeliveryId: delivery.id, setOffDuty: incompleteDeliveries.length === 0, appUserId: currentDriverAppUser?.id || null, skipRouteOptimization: true, skipNextLegPolylineRefresh: true }).catch(() => {}));
         onClick?.(null);
         queueConsolidateBreadcrumbs({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, stopOrder: delivery.stop_order, status });
         fabControlEvents.notifyPhaseTwoCompleteRecenter();
