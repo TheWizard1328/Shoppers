@@ -539,14 +539,18 @@ Deno.serve(async (req) => {
             estimatedDurationMinutes: matchedSegment?.estimated_duration_minutes ?? null
           };
         });
-        optimizedStopTransportModes = routeStops.map((stop, index) => ({
-          deliveryId: stop.delivery.id,
-          transport_mode: preferredTravelMode,
-          finished_leg_transport_mode: preferredTravelMode,
-          encoded_polyline: segmentPolylines[index]?.encodedPolyline || null,
-          estimated_distance_km: typeof segmentPolylines[index]?.estimatedDistanceKm === 'number' ? segmentPolylines[index].estimatedDistanceKm : null,
-          estimated_duration_minutes: typeof segmentPolylines[index]?.estimatedDurationMinutes === 'number' ? segmentPolylines[index].estimatedDurationMinutes : null
-        }));
+        optimizedStopTransportModes = routeStops.map((stop, index) => {
+          const resolvedTransportMode = String(stop?.delivery?.transport_mode || preferredTravelMode || 'driving').toLowerCase();
+          const safeTransportMode = ['driving', 'cycling', 'pedestrian'].includes(resolvedTransportMode) ? resolvedTransportMode : 'driving';
+          return {
+            deliveryId: stop.delivery.id,
+            transport_mode: safeTransportMode,
+            finished_leg_transport_mode: safeTransportMode,
+            encoded_polyline: segmentPolylines[index]?.encodedPolyline || null,
+            estimated_distance_km: typeof segmentPolylines[index]?.estimatedDistanceKm === 'number' ? segmentPolylines[index].estimatedDistanceKm : null,
+            estimated_duration_minutes: typeof segmentPolylines[index]?.estimatedDurationMinutes === 'number' ? segmentPolylines[index].estimatedDurationMinutes : null
+          };
+        });
         console.log(`✅ [optimizeRemainingStops] HERE sequencing success${usedTimeWindows ? ' with time windows' : ' without time windows'}`);
       }
     }
@@ -660,16 +664,19 @@ Deno.serve(async (req) => {
       const newOrder = preserveExistingOrder ? Number(stop.stop_order || i + 1) : startingOrder + i + 1;
       const pendingStartTime = resolvePendingStartTime(stop);
       const segmentPolyline = segmentPolylines.find((segment) => segment.deliveryId === stop.id) || null;
+      const resolvedTransportMode = String(stop?.transport_mode || preferredTravelMode || 'driving').toLowerCase();
+      const safeTransportMode = ['driving', 'cycling', 'pedestrian'].includes(resolvedTransportMode) ? resolvedTransportMode : 'driving';
       const updateData = {
         stop_order: newOrder,
         display_stop_order: newOrder,
         delivery_time_eta: stop.delivery_time_eta,
+        transport_mode: safeTransportMode,
         travel_dist: Number(directionsLegs[i]?.distance)
           ? Number((Number(directionsLegs[i].distance) / 1000).toFixed(3))
           : null,
         ...(segmentPolyline?.encodedPolyline ? {
           encoded_polyline: segmentPolyline.encodedPolyline,
-          transport_mode: preferredTravelMode,
+          transport_mode: safeTransportMode,
           estimated_distance_km: typeof segmentPolyline.estimatedDistanceKm === 'number' ? segmentPolyline.estimatedDistanceKm : null,
           estimated_duration_minutes: typeof segmentPolyline.estimatedDurationMinutes === 'number' ? segmentPolyline.estimatedDurationMinutes : null
         } : {})

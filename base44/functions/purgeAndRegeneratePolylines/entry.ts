@@ -1072,7 +1072,10 @@ Deno.serve(async (req) => {
             : originFromFinishedStop || (hasHomeCoords ? { lat: homeLat, lon: homeLon } : null);
           const to = getLatLon(stop);
           const stopMeta = explicitStopMetaById.get(stop?.id) || null;
-          const transportMode = stopMeta?.finished_leg_transport_mode || stopMeta?.transport_mode || driverAppUser?.preferred_travel_mode || 'driving';
+          const transportMode = getNormalizedTravelMode(
+            stopMeta?.finished_leg_transport_mode || stopMeta?.transport_mode || stop?.transport_mode || driverAppUser?.preferred_travel_mode || 'driving',
+            'driving'
+          );
           pushSegment(from, to, !!explicitStopOrderIds.length, transportMode);
         }
 
