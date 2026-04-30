@@ -671,7 +671,7 @@ Deno.serve(async (req) => {
           .filter(Boolean),
         orderedStopsWithTransportMode: optimizedStopTransportModes,
         explicitOrderedStopsOnly: true,
-        explicitRouteOrigin: routeHasStarted ? null : 'home',
+        explicitRouteOrigin: routeHasStarted ? 'last_finished_stop' : 'home',
         explicitRouteDestination: 'home',
         bypassPolylineUpdated: true,
         bypassPolylineDelete: true,

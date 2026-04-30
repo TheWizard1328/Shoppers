@@ -1054,10 +1054,11 @@ Deno.serve(async (req) => {
         const lockHomeOrigin = explicitRouteOrigin === 'home' && hasHomeCoords;
         const lockHomeDestination = explicitRouteDestination === 'home' && hasHomeCoords;
 
+        const useLastFinishedOrigin = explicitRouteOrigin === 'last_finished_stop';
         const originFromFinishedStop = lockHomeOrigin
           ? { lat: homeLat, lon: homeLon }
-          : (latestFinishedStop ? getLatLon(latestFinishedStop) : null);
-        const useDriverLocationAsOrigin = !explicitStopOrderIds.length && scope === 'active_only' && firstActive && isToday && isValidCoordinatePair(currentLat, currentLon);
+          : (useLastFinishedOrigin || latestFinishedStop ? getLatLon(latestFinishedStop) : null);
+        const useDriverLocationAsOrigin = !explicitStopOrderIds.length && !useLastFinishedOrigin && scope === 'active_only' && firstActive && isToday && isValidCoordinatePair(currentLat, currentLon);
 
         if (useDriverLocationAsOrigin && !originFromFinishedStop) {
           pushSegment({ lat: currentLat, lon: currentLon }, firstActive);
