@@ -498,6 +498,10 @@ export default function useStopCardActions(params) {
           })
         );
 
+        if (!isPickup && patient?.id && patient?.status === 'inactive') {
+          await base44.entities.Patient.update(patient.id, { status: 'active' });
+        }
+
         await setAndCenterNextDelivery({ driverDeliveries: startedRouteDeliveries, targetDeliveryId: delivery.id, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true });
         window.dispatchEvent(new CustomEvent('centerStopCard', { detail: { deliveryId: delivery.id } }));
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true, freshDeliveries: startedChangedDeliveries } }));
@@ -615,11 +619,18 @@ export default function useStopCardActions(params) {
         const clearNextFlags = sameRouteDeliveries.filter((d) => d && d.id !== delivery.id && d.isNextDelivery === true).map((d) => _offlineDB.bulkSave(_offlineDB.STORES.DELIVERIES, [{ ...d, isNextDelivery: false }]));
         if (isExpanded) await collapseDriverStopCards();
         await Promise.all([updateDeliveryLocal(delivery.id, completionUpdate, { skipSmartRefresh: true }), ...clearNextFlags]);
-        if (fallbackSignatureUrl && patient?.id) {
+        if (patient?.id) {
           try {
             const { updatePatientLocal } = await import('../utils/offlineMutations');
-            await updatePatientLocal(patient.id, { signature_image_url: fallbackSignatureUrl });
+            await updatePatientLocal(patient.id, {
+              ...(fallbackSignatureUrl ? { signature_image_url: fallbackSignatureUrl } : {}),
+              ...(patient?.status === 'inactive' ? { status: 'active' } : {})
+            });
           } catch {}
+
+          if (patient?.status === 'inactive') {
+            await base44.entities.Patient.update(patient.id, { status: 'active' });
+          }
         }
         if (pendingBreadcrumbsString) {
           try { await clearPendingBreadcrumbsForDelivery({ driverUserId: delivery.driver_id, deliveryId: delivery.id, stopOrder: delivery.stop_order, appUsers, force: true }); } catch {}
