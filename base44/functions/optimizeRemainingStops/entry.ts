@@ -135,6 +135,21 @@ const buildAccessConstraint = (dateStr, startTime, endTime) => {
   return `acc:${weekday}${start}${offset}|${weekday}${end}${offset}`;
 };
 
+const getEdmontonTodayDateString = () => {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  return formatter.format(new Date());
+};
+
+const isHistoricalRouteDate = (dateStr) => {
+  if (!dateStr) return false;
+  return String(dateStr) < getEdmontonTodayDateString();
+};
+
 /**
  * Optimize Remaining Stops - staged optimization for driver's route
  */
@@ -316,6 +331,7 @@ Deno.serve(async (req) => {
 
     console.log(`📋 [optimizeRemainingStops] Prepared ${stops.length} stops for HERE sequencing`);
 
+    const historicalRoute = isHistoricalRouteDate(deliveryDate);
     const latestFinishedDelivery = getLatestFinishedDelivery(completedDeliveries);
 
     // STEP 2: Determine origin for the incomplete section only
@@ -541,25 +557,57 @@ Deno.serve(async (req) => {
     }
 
     // STEP 4: Calculate ETAs from the sequenced route
-    let cumulativeTime = currentMinutes;
     const stageEtaMap = new Map();
 
-    for (let i = 0; i < routeStops.length; i++) {
-      const stop = routeStops[i];
-      const travelSeconds = directionsLegs[i] ? directionsLegs[i].duration : 300;
-      const travelMinutes = Math.ceil(travelSeconds / 60);
-      cumulativeTime += travelMinutes;
-
-      const windowStart = parseTimeToMinutes(stop.windowStart || stop.delivery.time_window_start);
-      if (Number.isFinite(windowStart) && cumulativeTime < windowStart) {
-        cumulativeTime = windowStart;
+    if (historicalRoute && routeStops.length > 0) {
+      const firstStop = routeStops[0];
+      let cumulativeTime = parseTimeToMinutes(firstStop.windowStart || firstStop.delivery.time_window_start || firstStop.delivery.delivery_time_start);
+      if (!Number.isFinite(cumulativeTime)) {
+        cumulativeTime = currentMinutes;
       }
 
-      const eta = formatMinutesToTime(cumulativeTime);
-      stageEtaMap.set(stop.delivery.id, eta);
-      cumulativeTime += stop.delivery.extra_time || (stop.isPickup ? 15 : 5);
+      const firstStopEta = formatMinutesToTime(cumulativeTime);
+      stageEtaMap.set(firstStop.delivery.id, firstStopEta);
+      cumulativeTime += firstStop.delivery.extra_time || (firstStop.isPickup ? 15 : 5);
+      console.log(`  ✅ [optimizeRemainingStops] ${firstStop.delivery.patient_name || 'Pickup'} - ETA: ${firstStopEta}`);
 
-      console.log(`  ✅ [optimizeRemainingStops] ${stop.delivery.patient_name || 'Pickup'} - ETA: ${eta}`);
+      for (let i = 1; i < routeStops.length; i++) {
+        const stop = routeStops[i];
+        const travelSeconds = directionsLegs[i] ? directionsLegs[i].duration : 300;
+        const travelMinutes = Math.ceil(travelSeconds / 60);
+        cumulativeTime += travelMinutes;
+
+        const windowStart = parseTimeToMinutes(stop.windowStart || stop.delivery.time_window_start || stop.delivery.delivery_time_start);
+        if (Number.isFinite(windowStart) && cumulativeTime < windowStart) {
+          cumulativeTime = windowStart;
+        }
+
+        const eta = formatMinutesToTime(cumulativeTime);
+        stageEtaMap.set(stop.delivery.id, eta);
+        cumulativeTime += stop.delivery.extra_time || (stop.isPickup ? 15 : 5);
+
+        console.log(`  ✅ [optimizeRemainingStops] ${stop.delivery.patient_name || 'Pickup'} - ETA: ${eta}`);
+      }
+    } else {
+      let cumulativeTime = currentMinutes;
+
+      for (let i = 0; i < routeStops.length; i++) {
+        const stop = routeStops[i];
+        const travelSeconds = directionsLegs[i] ? directionsLegs[i].duration : 300;
+        const travelMinutes = Math.ceil(travelSeconds / 60);
+        cumulativeTime += travelMinutes;
+
+        const windowStart = parseTimeToMinutes(stop.windowStart || stop.delivery.time_window_start);
+        if (Number.isFinite(windowStart) && cumulativeTime < windowStart) {
+          cumulativeTime = windowStart;
+        }
+
+        const eta = formatMinutesToTime(cumulativeTime);
+        stageEtaMap.set(stop.delivery.id, eta);
+        cumulativeTime += stop.delivery.extra_time || (stop.isPickup ? 15 : 5);
+
+        console.log(`  ✅ [optimizeRemainingStops] ${stop.delivery.patient_name || 'Pickup'} - ETA: ${eta}`);
+      }
     }
 
     const activeStops = routeStops.map((stop) => ({
