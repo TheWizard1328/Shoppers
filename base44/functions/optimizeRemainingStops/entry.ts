@@ -707,12 +707,14 @@ Deno.serve(async (req) => {
 
     // Tracking numbers are intentionally delayed until Assign All / Accept All.
 
-    if (routeOrderChanged) {
+    const shouldRefreshPolylines = activeStops.length > 0;
+
+    if (shouldRefreshPolylines) {
       await base44.asServiceRole.functions.invoke('purgeAndRegeneratePolylines', {
         driverId,
         deliveryDate,
         scope: 'active_only',
-        reason: 'route_reordered',
+        reason: routeOrderChanged ? 'route_reordered' : 'manual',
         sourcePage: 'Dashboard',
         bypassDriverStatus: true,
         routeStopOrder: activeStops.map((stop) => stop.id),
@@ -727,7 +729,7 @@ Deno.serve(async (req) => {
         console.warn('⚠️ [optimizeRemainingStops] Polyline refresh failed:', error?.message || error);
         return null;
       });
-      console.log('🗺️ [optimizeRemainingStops] Active route polyline refresh requested');
+      console.log(`🗺️ [optimizeRemainingStops] Active route polyline refresh requested (${routeOrderChanged ? 'reordered' : 'same-order'})`);
     }
 
     // HERE usage is logged inside getHereDirections so dashboard counts stay aligned to real HTTP calls.

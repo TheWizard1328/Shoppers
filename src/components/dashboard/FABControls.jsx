@@ -150,7 +150,7 @@ export default function FABControls({
                 const response = await base44.functions.invoke('optimizeRemainingStops', { driverId: targetDriverId, deliveryDate, currentLocalTime: localTime, deviceTime: now.toISOString(), bypassDriverStatus: true });
                 const data = response?.data || response;
                 if (data?.success) {
-                  setOptimizationMessage(`Route optimized! ${data.optimizedCount} stops updated.${data?.routeChanged === false ? ' Polylines refreshed.' : ''}`);
+                  setOptimizationMessage(`Route optimized! ${data.optimizedCount} stops updated and polylines refreshed.`);
                   invalidateDeliveriesForDate(deliveryDate);
                   // CRITICAL: Use Promise.race to prevent UI freeze if refreshData hangs
                   const refreshTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error('Refresh timeout')), 8000));
