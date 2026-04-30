@@ -348,17 +348,12 @@ Deno.serve(async (req) => {
       locationSource = currentPosition ? 'last_finished_stop' : null;
     }
 
-    if (!currentPosition && explicitNextCoords) {
+    if (!routeHasStarted && !currentPosition && explicitNextCoords) {
       currentPosition = explicitNextCoords;
       locationSource = 'next_delivery_stop';
     }
 
-    if (!currentPosition && latestFinishedDelivery) {
-      currentPosition = getDeliveryCoords(latestFinishedDelivery, patientMap, storeMap);
-      locationSource = currentPosition ? 'last_finished_stop' : null;
-    }
-
-    if (!currentPosition && driverAppUser.current_latitude != null && driverAppUser.current_longitude != null) {
+    if (!currentPosition && !routeHasStarted && driverAppUser.current_latitude != null && driverAppUser.current_longitude != null) {
       currentPosition = { lat: Number(driverAppUser.current_latitude), lng: Number(driverAppUser.current_longitude) };
       locationSource = 'driver_gps';
     }
