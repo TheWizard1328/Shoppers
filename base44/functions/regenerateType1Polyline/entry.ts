@@ -295,20 +295,9 @@ async function persistRouteSections(base44, deliveries = [], pointSpecs = [], ro
     const section = routeSections[index];
     if (!delivery?.id || !from || !stopPoint || !section?.encoded_polyline) continue;
 
-    let encodedPolyline = section.encoded_polyline;
-    let segmentDest = stopPoint;
-
-    if (index === deliveries.length - 1 && homePoint?.lat != null && homePoint?.lon != null) {
-      const returnSection = routeSections[index + 1];
-      if (returnSection?.encoded_polyline) {
-        encodedPolyline = mergeEncodedPolylines([section.encoded_polyline, returnSection.encoded_polyline]);
-        segmentDest = homePoint;
-      }
-    }
-
     deliveryUpdates.push({
       id: delivery.id,
-      encoded_polyline: encodedPolyline,
+      encoded_polyline: section.encoded_polyline,
       transport_mode: section.transport_mode || transportMode,
       estimated_distance_km: section.estimated_distance_km ?? null,
       estimated_duration_minutes: section.estimated_duration_minutes ?? null,
