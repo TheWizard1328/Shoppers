@@ -180,7 +180,8 @@ export default function CompletedBreadcrumbPolylines({
         ...deliveryMarkers.filter((delivery) => delivery && delivery.driver_id === route.driverId),
       ].sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
-      if (!stops.length || !stops.every((stop) => FINISHED.includes(stop.status))) return [];
+      const routeCompleted = route?.isCompleted || (stops.length > 0 && stops.every((stop) => FINISHED.includes(stop.status)));
+      if (!stops.length || !routeCompleted) return [];
 
       const stopToStopSegments = stops.slice(0, -1).map((fromStop, index) => {
         const toStop = stops[index + 1];
@@ -225,7 +226,7 @@ export default function CompletedBreadcrumbPolylines({
 
       const lastStop = stops[stops.length - 1];
       const homeMarker = driverHomeMap.get(route.driverId);
-      const homeSegment = lastStop && homeMarker && Number.isFinite(Number(homeMarker.latitude)) && Number.isFinite(Number(homeMarker.longitude))
+      const homeSegment = routeCompleted && lastStop && homeMarker && Number.isFinite(Number(homeMarker.latitude)) && Number.isFinite(Number(homeMarker.longitude))
         ? {
             id: `${route.driverId}-home-final`,
             driverId: route.driverId,
