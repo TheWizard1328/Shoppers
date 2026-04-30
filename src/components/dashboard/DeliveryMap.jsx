@@ -681,10 +681,13 @@ export default function DeliveryMap({
       const homeVisibility = driverHomeVisibilityById.get(driverKey);
       const hasVisibleStops = visibleDriverIds.has(driverKey) || routeDriverIds.has(driverKey);
       const isCurrentDriverUser = driverKey === currentUser.id && userHasRole(currentUser, "driver");
+      const isSelectedDriver = !!(selectedDriverId && selectedDriverId !== "all" && driverKey === selectedDriverId);
+      const isAdminViewer = currentUser && userHasRole(currentUser, "admin");
       if (isCurrentDriverUser) {
         return true;
       }
       if (!homeVisibility?.shouldShowHomeMarker) return false;
+      if (isAdminViewer && isSelectedDriver) return true;
       if (isPureDriver && driverKey !== currentUser.id && !(showOtherDriverDeliveries || isAllDriversMode)) return false;
       if (isDispatcher) {
         if (!(showOtherDriverDeliveries || isAllDriversMode)) return false;
