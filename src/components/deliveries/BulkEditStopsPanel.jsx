@@ -368,19 +368,20 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
         <DrawerContent
-          className="z-[300] max-h-[calc(100vh-var(--bottom-nav-height)-0.75rem)]"
+          className="z-[300] h-[calc(100dvh-var(--bottom-nav-height)-var(--mobile-header-offset,72px)-0.75rem)] max-h-[calc(100dvh-var(--bottom-nav-height)-var(--mobile-header-offset,72px)-0.75rem)]"
           style={{
             background: "var(--bg-white)",
             bottom: "var(--bottom-nav-height)",
+            top: "calc(var(--mobile-header-offset, 72px) + 0.75rem)",
           }}
         >
-          <DrawerHeader>
+          <DrawerHeader className="shrink-0">
             <DrawerTitle style={{ color: "var(--text-slate-900)" }}>Bulk Edit Stops</DrawerTitle>
             <DrawerDescription style={{ color: "var(--text-slate-500)" }}>
               Update the basic route info for the selected stops.
             </DrawerDescription>
           </DrawerHeader>
-          {content}
+          <div className="min-h-0 flex-1">{content}</div>
         </DrawerContent>
       </Drawer>
     );
