@@ -707,7 +707,7 @@ Deno.serve(async (req) => {
 
     // Tracking numbers are intentionally delayed until Assign All / Accept All.
 
-    if (routeOrderChanged || nextStopId) {
+    if (routeOrderChanged) {
       await base44.asServiceRole.functions.invoke('purgeAndRegeneratePolylines', {
         driverId,
         deliveryDate,
