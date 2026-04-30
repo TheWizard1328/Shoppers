@@ -324,9 +324,15 @@ Deno.serve(async (req) => {
 
     const explicitNextDelivery = incompleteDeliveries.find((delivery) => delivery?.isNextDelivery === true) || null;
     const explicitNextCoords = explicitNextDelivery ? getDeliveryCoords(explicitNextDelivery, patientMap, storeMap) : null;
-    const shouldLockExplicitNextStop = !!explicitNextDelivery && !forceFullRemainingRouteOptimization;
+    const routeHasStarted = completedDeliveries.length > 0;
+    const shouldLockExplicitNextStop = !!explicitNextDelivery && !routeHasStarted && !forceFullRemainingRouteOptimization;
 
-    if (explicitNextCoords) {
+    if (routeHasStarted && latestFinishedDelivery) {
+      currentPosition = getDeliveryCoords(latestFinishedDelivery, patientMap, storeMap);
+      locationSource = currentPosition ? 'last_finished_stop' : null;
+    }
+
+    if (!currentPosition && explicitNextCoords) {
       currentPosition = explicitNextCoords;
       locationSource = 'next_delivery_stop';
     }
@@ -659,7 +665,6 @@ Deno.serve(async (req) => {
     // Tracking numbers are intentionally delayed until Assign All / Accept All.
 
     if (routeOrderChanged || nextStopId) {
-      const routeHasStarted = completedDeliveries.length > 0;
       await base44.asServiceRole.functions.invoke('purgeAndRegeneratePolylines', {
         driverId,
         deliveryDate,
