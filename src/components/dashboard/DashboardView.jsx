@@ -183,19 +183,33 @@ export default function DashboardView({
     ? `${immersiveOverlayStore?.name || 'Store'} Pickup`
     : immersiveOverlayPatient?.full_name || immersiveOverlayDelivery?.patient_name || 'Next stop';
 
-    const immersiveOverlayRemainingDistanceKm = useMemo(() => {
+  const immersiveOverlayRemainingDistanceKm = useMemo(() => {
     if (!immersiveOverlayDelivery) return null;
 
-    const driverLat = Number(driverLocation?.latitude ?? driverLocation?.lat ?? currentUser?.current_latitude);
-    const driverLon = Number(driverLocation?.longitude ?? driverLocation?.lon ?? currentUser?.current_longitude);
+    const liveDriverLocation = currentUser?.id
+      ? allDriverLocations.find((location) => location?.user_id === currentUser.id || location?.id === currentUser.id)
+      : null;
+
+    const driverLat = Number(
+      liveDriverLocation?.current_latitude ??
+      liveDriverLocation?.latitude ??
+      driverLocation?.current_latitude ??
+      driverLocation?.latitude ??
+      driverLocation?.lat ??
+      currentUser?.current_latitude
+    );
+    const driverLon = Number(
+      liveDriverLocation?.current_longitude ??
+      liveDriverLocation?.longitude ??
+      driverLocation?.current_longitude ??
+      driverLocation?.longitude ??
+      driverLocation?.lon ??
+      currentUser?.current_longitude
+    );
     if (!Number.isFinite(driverLat) || !Number.isFinite(driverLon)) return null;
 
-    const stopLat = immersiveOverlayIsPickup
-      ? Number(immersiveOverlayStore?.latitude)
-      : Number(immersiveOverlayPatient?.latitude);
-    const stopLon = immersiveOverlayIsPickup
-      ? Number(immersiveOverlayStore?.longitude)
-      : Number(immersiveOverlayPatient?.longitude);
+    const stopLat = Number(immersiveOverlayIsPickup ? immersiveOverlayStore?.latitude : immersiveOverlayPatient?.latitude);
+    const stopLon = Number(immersiveOverlayIsPickup ? immersiveOverlayStore?.longitude : immersiveOverlayPatient?.longitude);
     if (!Number.isFinite(stopLat) || !Number.isFinite(stopLon)) return null;
 
     const toRad = (value) => (value * Math.PI) / 180;
@@ -204,11 +218,10 @@ export default function DashboardView({
     const dLon = toRad(stopLon - driverLon);
     const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(toRad(driverLat)) * Math.cos(toRad(stopLat)) *
-      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      Math.cos(toRad(driverLat)) * Math.cos(toRad(stopLat)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return earthRadiusKm * c;
-  }, [immersiveOverlayDelivery, immersiveOverlayIsPickup, immersiveOverlayPatient, immersiveOverlayStore, driverLocation, currentUser?.current_latitude, currentUser?.current_longitude]);
+  }, [immersiveOverlayDelivery, immersiveOverlayIsPickup, immersiveOverlayPatient, immersiveOverlayStore, allDriverLocations, driverLocation, currentUser?.id, currentUser?.current_latitude, currentUser?.current_longitude]);
 
   return (
     <div className="h-full w-full flex flex-col overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
