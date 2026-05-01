@@ -389,18 +389,20 @@ export default function DeliveryFormView({
 
             await handleSubmit(e);
 
-            const affectedRoutes = [
-            [driverId, deliveryDate],
-            [previousDriverId, previousDeliveryDate]].
-            filter(([routeDriverId, routeDeliveryDate]) => routeDriverId && routeDeliveryDate);
+            if (!travelModeOnly) {
+              const affectedRoutes = [
+              [driverId, deliveryDate],
+              [previousDriverId, previousDeliveryDate]].
+              filter(([routeDriverId, routeDeliveryDate]) => routeDriverId && routeDeliveryDate);
 
-            await Promise.all(
-              Array.from(new Set(affectedRoutes.map(([routeDriverId, routeDeliveryDate]) => `${routeDriverId}__${routeDeliveryDate}`))).
-              map((key) => {
-                const [routeDriverId, routeDeliveryDate] = key.split('__');
-                return recalculateAndUpdateStopOrders(routeDriverId, routeDeliveryDate);
-              })
-            );
+              await Promise.all(
+                Array.from(new Set(affectedRoutes.map(([routeDriverId, routeDeliveryDate]) => `${routeDriverId}__${routeDeliveryDate}`))).
+                map((key) => {
+                  const [routeDriverId, routeDeliveryDate] = key.split('__');
+                  return recalculateAndUpdateStopOrders(routeDriverId, routeDeliveryDate);
+                })
+              );
+            }
 
             setFormData((prev) => ({ ...prev, barcode_values: [], receipt_barcode_values: [], _preview_barcode: null }));
 
@@ -1077,6 +1079,23 @@ export default function DeliveryFormView({
                   catch(() => handleCancelClick());
                   window.dispatchEvent(new CustomEvent('collapseSelectedStopCard'));
 
+                  const travelModeOnly = !!delivery &&
+                    !shouldOptimizeInBackground &&
+                    (formData?.transport_mode || formData?.finished_leg_transport_mode || '') !== (delivery?.transport_mode || delivery?.finished_leg_transport_mode || '') &&
+                    (formData?.driver_id || '') === (delivery?.driver_id || '') &&
+                    (formData?.delivery_date || '') === (delivery?.delivery_date || '');
+
+                  if (travelModeOnly) {
+                    runPostDeliveryUpdateSync({
+                      driverId,
+                      deliveryDate,
+                      hasTimeWindowChanges: shouldOptimizeInBackground,
+                      travelModeOnly,
+                      currentUser
+                    });
+                    return;
+                  }
+
                   const affectedRoutes = [
                   [driverId, deliveryDate],
                   [previousDriverId, previousDeliveryDate]].
@@ -1089,12 +1108,6 @@ export default function DeliveryFormView({
                       return recalculateAndUpdateStopOrders(routeDriverId, routeDeliveryDate);
                     })
                   ).then(() => {
-                    const travelModeOnly = !!delivery &&
-                      !hasTimeWindowChanges &&
-                      (formData?.transport_mode || formData?.finished_leg_transport_mode || '') !== (delivery?.transport_mode || delivery?.finished_leg_transport_mode || '') &&
-                      (formData?.driver_id || '') === (delivery?.driver_id || '') &&
-                      (formData?.delivery_date || '') === (delivery?.delivery_date || '');
-
                     runPostDeliveryUpdateSync({
                       driverId,
                       deliveryDate,

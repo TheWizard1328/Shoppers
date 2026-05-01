@@ -1468,7 +1468,14 @@ export default function DeliveryForm({
         }
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
         if (!skipImmediateDeliveriesUpdatedEvent) {
-          window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryId: delivery.id, deliveryDate: formData.delivery_date, driverId: formData.driver_id, triggeredBy: 'deliveryFormUpdate' } }));
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+            detail: {
+              deliveryId: delivery.id,
+              deliveryDate: formData.delivery_date,
+              driverId: formData.driver_id,
+              triggeredBy: travelModeOnly ? 'deliveryFormTravelModeOnly' : 'deliveryFormUpdate'
+            }
+          }));
         }
       } else {
         if (buttonState === 'add' || buttonState === 'updateStaged' || buttonState === 'done') {
