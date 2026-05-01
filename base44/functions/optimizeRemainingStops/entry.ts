@@ -653,6 +653,7 @@ Deno.serve(async (req) => {
     console.log('🏠 [optimizeRemainingStops] Final-route distance to home penalty applied:', addRouteToHomePenalty(routeStops, resolvedHomePosition).toFixed(2), 'km');
     const finalDeliveryWriteBatch = [];
     const finalizedById = new Map(activeStops.map((stop) => [stop.id, stop]));
+    const nextStopId = explicitNextDelivery?.id || activeStops[0]?.id || null;
 
     const resolvePendingStartTime = (stop) => {
       if (stop.status !== 'pending') return undefined;
@@ -692,6 +693,7 @@ Deno.serve(async (req) => {
         stop_order: newOrder,
         display_stop_order: newOrder,
         delivery_time_eta: stop.delivery_time_eta,
+        isNextDelivery: stop.id === nextStopId,
         transport_mode: safeTransportMode,
         travel_dist: Number(directionsLegs[i]?.distance)
           ? Number((Number(directionsLegs[i].distance) / 1000).toFixed(3))
@@ -711,6 +713,7 @@ Deno.serve(async (req) => {
 
       stop.stop_order = newOrder;
       stop.display_stop_order = newOrder;
+      stop.isNextDelivery = stop.id === nextStopId;
 
       finalDeliveryWriteBatch.push({
         id: stop.id,
@@ -728,22 +731,6 @@ Deno.serve(async (req) => {
       )
     );
 
-    const nextStopId = explicitNextDelivery?.id || activeStops[0]?.id || null;
-    if (nextStopId) {
-      await Promise.all(
-        incompleteDeliveries.map((delivery) =>
-          base44.asServiceRole.entities.Delivery.update(delivery.id, {
-            isNextDelivery: delivery.id === nextStopId
-          }).catch((error) => {
-            if (isNotFoundError(error)) return null;
-            throw error;
-          })
-        )
-      );
-      activeStops.forEach((stop) => {
-        stop.isNextDelivery = stop.id === nextStopId;
-      });
-    }
 
     finalDeliveryWriteBatch.forEach(({ data, label }) => {
       console.log(`  🔢 [optimizeRemainingStops] Stop #${data.stop_order}: ${label}${data.delivery_time_start ? ` (start: ${data.delivery_time_start})` : ''}`);
