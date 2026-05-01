@@ -294,7 +294,7 @@ async function squareFetch(path, method, accessToken, body) {
       const json = responseText ? JSON.parse(responseText) : {};
       if (!response.ok) {
         const message = json?.errors?.map((error) => error.detail).join(', ') || `Square API error ${response.status}`;
-        lastError = new Error(message);
+        lastError = new HttpError(response.status, message);
         if (attempt < SQUARE_API_MAX_RETRIES && isRetryableSquareStatus(response.status)) {
           await sleep(SQUARE_RETRY_BASE_DELAY_MS * attempt);
           continue;
@@ -719,7 +719,10 @@ async function handleDeleteCodItem(base44, payload) {
 
   const catalogIdToDelete = catalogObjectId || primaryTransaction?.square_catalog_object_id || relatedTransactions[0]?.square_catalog_object_id || null;
   const squareDeleteResult = await safeDeleteSquareCatalogObject(catalogIdToDelete, accessToken);
-  if (catalogIdToDelete && !squareDeleteResult?.ok) throw new Error(`Failed to delete Square catalog item ${catalogIdToDelete}`);
+  const isTemporarySquareFailure = [408, 429, 500, 502, 503, 504].includes(Number(squareDeleteResult?.status));
+  if (catalogIdToDelete && !squareDeleteResult?.ok && !isTemporarySquareFailure) {
+    throw new Error(`Failed to delete Square catalog item ${catalogIdToDelete}`);
+  }
 
   const newStatus = reason === 'failed' ? 'failed' : 'cancelled';
   await Promise.all(
@@ -746,7 +749,9 @@ async function handleDeleteCodItem(base44, payload) {
   }
 
   const uniqueCatalogMatches = Array.from(new Map(catalogMatches.filter(Boolean).map((item) => [item.id, item])).values());
-  await Promise.all(uniqueCatalogMatches.map((item) => base44.asServiceRole.entities.SquareCatalogItems.delete(item.id).catch(() => null)));
+  if (squareDeleteResult?.ok || !catalogIdToDelete || isTemporarySquareFailure) {
+    await Promise.all(uniqueCatalogMatches.map((item) => base44.asServiceRole.entities.SquareCatalogItems.delete(item.id).catch(() => null)));
+  }
 
   return {
     success: true,
@@ -754,6 +759,7 @@ async function handleDeleteCodItem(base44, payload) {
     transactionCount: relatedTransactions.length,
     deletedCatalogRecordCount: uniqueCatalogMatches.length,
     squareDeleteResult,
+    squareDeleteDeferred: !!(catalogIdToDelete && isTemporarySquareFailure),
     transactionStatus: relatedTransactions.length > 0 ? newStatus : 'deleted_from_square',
   };
 }
