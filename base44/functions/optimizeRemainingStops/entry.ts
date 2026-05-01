@@ -576,36 +576,8 @@ Deno.serve(async (req) => {
           // Direct routing call using polylineOrigin (last finished stop or home).
           // This avoids invoking getHereDirections as a separate function (saves 1 HERE call
           // because purgeAndRegeneratePolylines will reuse these precomputed polylines).
-          // Prepend lockedNextStop (pickup/isNextDelivery) so it gets a polyline too.
-          // polylineOrigin→lockedNextStop→d1→d2→...→dN, then home.
-          // Without this, the pickup stop has no polyline (routeIndex = -1 in the mapping below).
-          const allRoutingStops = lockedNextStop
-            ? [lockedNextStop, ...orderedStopsForPolyline]
-            : orderedStopsForPolyline;
-          const perStopPolylines = await fetchRoutingPolylines(
-            hereApiKey,
-            hereTransportMode,
-            polylineOrigin,
-            allRoutingStops.map((s) => ({ lat: s.lat, lng: s.lng })),
-            resolvedHomePosition
-          );
-          polylineData = {
-            // Key by deliveryId for reliable lookup (not index arithmetic)
-            byDeliveryId: new Map(allRoutingStops.map((stop, i) => [
-              stop.delivery.id,
-              {
-                encodedPolyline:           perStopPolylines[i]?.encodedPolyline          ?? null,
-                estimatedDistanceKm:       perStopPolylines[i]?.estimatedDistanceKm      ?? null,
-                estimatedDurationMinutes:  perStopPolylines[i]?.estimatedDurationMinutes ?? null,
-              }
-            ])),
-            polylines: allRoutingStops.map((stop, i) => ({
-              deliveryId:                stop.delivery.id,
-              encodedPolyline:           perStopPolylines[i]?.encodedPolyline          ?? null,
-              estimated_distance_km:     perStopPolylines[i]?.estimatedDistanceKm      ?? null,
-              estimated_duration_minutes: perStopPolylines[i]?.estimatedDurationMinutes ?? null,
-            })),
-          };
+          // Polyline generation happens after routeStops is fully ordered (see below).
+          polylineData = null;
         }
       }
 
@@ -674,28 +646,7 @@ Deno.serve(async (req) => {
         });
 
         const sequencedStops = orderedStops.map((item) => item.stop);
-        // Use deliveryId-keyed map for reliable lookup regardless of lockedNextStop offset
-        const polylineByDeliveryId = hereAttempt?.polylineData?.byDeliveryId instanceof Map
-          ? hereAttempt.polylineData.byDeliveryId
-          : new Map();
-        segmentPolylines = routeStops.map((stop, index) => {
-          const previousStop = index === 0 ? null : routeStops[index - 1];
-          const origin = index === 0
-            ? currentPosition
-            : previousStop
-              ? { lat: previousStop.lat, lng: previousStop.lng }
-              : null;
-          const destination = { lat: stop.lat, lng: stop.lng };
-          const matched = polylineByDeliveryId.get(stop.delivery.id) || null;
-          return {
-            deliveryId: stop.delivery.id,
-            origin,
-            destination,
-            encodedPolyline: matched?.encodedPolyline ?? null,
-            estimatedDistanceKm: matched?.estimatedDistanceKm ?? null,
-            estimatedDurationMinutes: matched?.estimatedDurationMinutes ?? null
-          };
-        });
+        // segmentPolylines will be populated after routeStops is fully ordered (see below).
         optimizedStopTransportModes = routeStops.map((stop, index) => {
           const resolvedTransportMode = String(stop?.delivery?.transport_mode || preferredTravelMode || 'driving').toLowerCase();
           const safeTransportMode = ['driving', 'cycling', 'pedestrian'].includes(resolvedTransportMode) ? resolvedTransportMode : 'driving';
@@ -772,6 +723,27 @@ Deno.serve(async (req) => {
     }));
 
     console.log(`\n🔢 [optimizeRemainingStops] HERE returned ${activeStops.length} ordered stops`);
+
+    // ── Fetch all segment polylines in one call now that routeStops order is final ──────────
+    // Route: polylineOrigin → stop[0] → stop[1] → ... → stop[N-1] → home
+    // One HERE router call, N+1 sections, section[i] = leg INTO routeStops[i].
+    if (routeStops.length > 0) {
+      const perStopPolylines = await fetchRoutingPolylines(
+        hereApiKey,
+        hereTransportMode,
+        polylineOrigin,
+        routeStops.map((s) => ({ lat: s.lat, lng: s.lng })),
+        resolvedHomePosition
+      );
+      segmentPolylines = routeStops.map((stop, i) => ({
+        deliveryId:              stop.delivery.id,
+        encodedPolyline:         perStopPolylines[i]?.encodedPolyline         ?? null,
+        estimatedDistanceKm:     perStopPolylines[i]?.estimatedDistanceKm     ?? null,
+        estimatedDurationMinutes: perStopPolylines[i]?.estimatedDurationMinutes ?? null,
+      }));
+      console.log(`🗺️ [optimizeRemainingStops] Polylines fetched: ${segmentPolylines.filter((s) => !!s.encodedPolyline).length}/${routeStops.length} stops have polylines`);
+    }
+    // ──────────────────────────────────────────────────────────────────────────────────────────
 
     // STEP 8: Build one final delivery write batch and update once
     const startingOrder = completedDeliveries.length;
