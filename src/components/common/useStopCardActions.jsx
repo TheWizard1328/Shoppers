@@ -536,7 +536,14 @@ export default function useStopCardActions(params) {
               driverId: delivery.driver_id,
               deliveryDate: delivery.delivery_date
             }).catch(() => null);
-            fabControlEvents.reactivatePhaseTwoIfAvailable();
+            if (window.__fabFlashUpdate) {
+              window.__fabFlashUpdate('route_change', {
+                driverId: delivery.driver_id,
+                deliveryDate: delivery.delivery_date,
+                deliveryId: delivery.id
+              });
+            }
+            fabControlEvents.resetToPhaseOneAfterDone(3000);
             window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true } }));
           } catch (optErr) {
             const isNotFound = optErr?.status === 404 || optErr?.response?.status === 404 || String(optErr?.message || '').includes('404');
