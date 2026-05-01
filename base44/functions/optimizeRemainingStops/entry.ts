@@ -150,6 +150,114 @@ const isHistoricalRouteDate = (dateStr) => {
   return String(dateStr) < getEdmontonTodayDateString();
 };
 
+// ─── HERE Routing helpers (added to eliminate duplicate API call) ─────────────
+
+const decodeHereFlexiblePolylineForRouting = (encoded) => {
+  const ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  const DEC = {};
+  ALPHA.split('').forEach((c, i) => { DEC[c] = i; });
+  const values = [];
+  let cur = 0, shift = 0;
+  for (const ch of encoded) {
+    const v = DEC[ch];
+    if (v == null) return [];
+    cur |= (v & 0x1f) << shift;
+    if (v & 0x20) { shift += 5; continue; }
+    values.push(cur); cur = 0; shift = 0;
+  }
+  if (shift > 0 || values.length < 2 || values[0] !== 1) return [];
+  const header = values[1];
+  const precision = header & 15;
+  const thirdDim = (header >> 4) & 7;
+  const factor = 10 ** precision;
+  const dim = thirdDim ? 3 : 2;
+  const toSigned = (n) => (n & 1) ? ~(n >> 1) : (n >> 1);
+  let lat = 0, lng = 0;
+  const coords = [];
+  for (let i = 2; i < values.length; i += dim) {
+    lat += toSigned(values[i]);
+    lng += toSigned(values[i + 1]);
+    coords.push([lat / factor, lng / factor]);
+  }
+  return coords;
+};
+
+const encodeGooglePolylineLocal = (points) => {
+  const encodeSigned = (value) => {
+    let signed = value << 1;
+    if (value < 0) signed = ~signed;
+    let encoded = '';
+    while (signed >= 0x20) {
+      encoded += String.fromCharCode((0x20 | (signed & 0x1f)) + 63);
+      signed >>= 5;
+    }
+    encoded += String.fromCharCode(signed + 63);
+    return encoded;
+  };
+  let lastLat = 0, lastLng = 0, result = '';
+  for (const [lat, lng] of points) {
+    const latE5 = Math.round(lat * 1e5);
+    const lngE5 = Math.round(lng * 1e5);
+    result += encodeSigned(latE5 - lastLat);
+    result += encodeSigned(lngE5 - lastLng);
+    lastLat = latE5; lastLng = lngE5;
+  }
+  return result;
+};
+
+/**
+ * Fetch per-segment polylines from HERE router API directly.
+ * Uses polylineOrigin (last finished stop or home) as the visual start point,
+ * NOT currentPosition (which is the optimization start point).
+ * This means purgeAndRegeneratePolylines can reuse these and skip its own HERE call.
+ */
+const fetchRoutingPolylines = async (hereApiKey, transportMode, polylineOrigin, orderedStops, homeDestination) => {
+  const allPoints = [polylineOrigin, ...orderedStops, ...(homeDestination ? [homeDestination] : [])];
+  if (allPoints.length < 2) return [];
+
+  const params = new URLSearchParams();
+  params.set('apiKey', hereApiKey);
+  params.set('transportMode', transportMode);
+  params.set('return', 'polyline,summary');
+  params.set('origin', `${allPoints[0].lat},${allPoints[0].lng}`);
+  params.set('destination', `${allPoints[allPoints.length - 1].lat},${allPoints[allPoints.length - 1].lng}`);
+  allPoints.slice(1, -1).forEach((pt, i) => {
+    params.set(`via[${i}]`, `${pt.lat},${pt.lng}!passThrough=false`);
+  });
+
+  try {
+    console.log(`🗺️ [optimizeRemainingStops] fetchRoutingPolylines: origin=${polylineOrigin.lat},${polylineOrigin.lng} stops=${orderedStops.length} home=${!!homeDestination}`);
+    const res = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, {
+      signal: AbortSignal.timeout(15000)
+    });
+    const routeData = await res.json().catch(() => null);
+    const sections = routeData?.routes?.[0]?.sections ?? [];
+    console.log(`✅ [optimizeRemainingStops] fetchRoutingPolylines: got ${sections.length} sections for ${orderedStops.length} stops`);
+
+    return orderedStops.map((_stop, i) => {
+      const section = sections[i] ?? null;
+      if (!section) return { encodedPolyline: null, estimatedDistanceKm: null, estimatedDurationMinutes: null };
+      const hereEncoded = section.polyline ?? '';
+      let googleEncoded = null;
+      if (hereEncoded) {
+        const coords = decodeHereFlexiblePolylineForRouting(hereEncoded);
+        if (coords.length >= 2) googleEncoded = encodeGooglePolylineLocal(coords);
+      }
+      const distanceM = section.summary?.length ?? 0;
+      const durationS = section.summary?.duration ?? 0;
+      return {
+        encodedPolyline: googleEncoded,
+        estimatedDistanceKm: distanceM > 0 ? Number((distanceM / 1000).toFixed(3)) : null,
+        estimatedDurationMinutes: durationS > 0 ? Number((durationS / 60).toFixed(1)) : null,
+      };
+    });
+  } catch (err) {
+    console.warn('[optimizeRemainingStops] fetchRoutingPolylines failed:', err?.message);
+    return orderedStops.map(() => ({ encodedPolyline: null, estimatedDistanceKm: null, estimatedDurationMinutes: null }));
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 /**
  * Optimize Remaining Stops - staged optimization for driver's route
  */
@@ -413,6 +521,17 @@ Deno.serve(async (req) => {
       ? { lat: Number(driverAppUser.home_latitude), lng: Number(driverAppUser.home_longitude) }
       : null;
 
+    // polylineOrigin: where the VISUAL polyline starts from.
+    // This is the stop BEFORE isNextDelivery (last finished stop), or home if no stops finished.
+    // Different from currentPosition which is the optimization start point.
+    const polylineOrigin =
+      previousStopCoords
+      ?? (routeHasStarted && latestFinishedDelivery
+          ? getDeliveryCoords(latestFinishedDelivery, patientMap, storeMap)
+          : null)
+      ?? resolvedHomePosition
+      ?? currentPosition;
+
     const executeHereSequence = async (includeTimeWindows) => {
       const params = new URLSearchParams();
       params.set('apiKey', hereApiKey);
@@ -451,15 +570,24 @@ Deno.serve(async (req) => {
           .filter(Boolean);
 
         if (orderedStopsForPolyline.length > 0) {
-          const polylineWaypoints = orderedStopsForPolyline.slice(0, -1);
-          const polylineDestination = orderedStopsForPolyline[orderedStopsForPolyline.length - 1];
-          const polylineResponse = await base44.asServiceRole.functions.invoke('getHereDirections', {
-            origin: { lat: currentPosition.lat, lng: currentPosition.lng },
-            destination: { lat: polylineDestination.lat, lng: polylineDestination.lng },
-            waypoints: polylineWaypoints.map((stop) => ({ lat: stop.lat, lng: stop.lng })),
-            transportMode: preferredTravelMode
-          }).catch(() => null);
-          polylineData = polylineResponse?.data || polylineResponse || null;
+          // Direct routing call using polylineOrigin (last finished stop or home).
+          // This avoids invoking getHereDirections as a separate function (saves 1 HERE call
+          // because purgeAndRegeneratePolylines will reuse these precomputed polylines).
+          const perStopPolylines = await fetchRoutingPolylines(
+            hereApiKey,
+            hereTransportMode,
+            polylineOrigin,
+            orderedStopsForPolyline.map((s) => ({ lat: s.lat, lng: s.lng })),
+            resolvedHomePosition
+          );
+          polylineData = {
+            polylines: orderedStopsForPolyline.map((stop, i) => ({
+              deliveryId:                stop.delivery.id,
+              encodedPolyline:           perStopPolylines[i]?.encodedPolyline          ?? null,
+              estimated_distance_km:     perStopPolylines[i]?.estimatedDistanceKm      ?? null,
+              estimated_duration_minutes: perStopPolylines[i]?.estimatedDurationMinutes ?? null,
+            })),
+          };
         }
       }
 
@@ -744,7 +872,15 @@ Deno.serve(async (req) => {
         resolvedOriginCoords: currentPosition ? { lat: currentPosition.lat, lon: currentPosition.lng } : null,
         bypassPolylineUpdated: true,
         bypassPolylineDelete: true,
-        reuseProvidedPolylines: false
+        reuseProvidedPolylines: segmentPolylines.some((s) => !!s.encodedPolyline),
+        precomputedSegmentPolylines: segmentPolylines
+          .filter((s) => !!s.encodedPolyline)
+          .map((s) => ({
+            deliveryId:                s.deliveryId,
+            encoded_polyline:          s.encodedPolyline,
+            estimated_distance_km:     s.estimatedDistanceKm      ?? null,
+            estimated_duration_minutes: s.estimatedDurationMinutes ?? null,
+          })),
       }).catch((error) => {
         console.warn('⚠️ [optimizeRemainingStops] Polyline refresh failed:', error?.message || error);
         return null;
