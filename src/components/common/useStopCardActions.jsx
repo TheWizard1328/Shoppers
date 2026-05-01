@@ -15,7 +15,7 @@ import { generateUniqueSID } from '../dashboard/DashboardHelpers';
 import { buildRetryDelivery, collapseExpandedStopCardsForDriver, getCurrentLocalTimeString, getDriverRouteDeliveries, getNextActiveDelivery, getNextTrackingNumberInGroup, incrementTrackingNumber, optimizeRouteAndApplyNextDelivery, reorderActiveRouteLocally, setAndCenterNextDelivery, syncDriverLocationToStop, waitForRouteTransitionSettle, withPausedDriverLocationPoller } from "./stopCardActionHelpers";
 import { clearPendingBreadcrumbsForDelivery, getPendingBreadcrumbsForDelivery } from '../utils/pendingBreadcrumbsManager';
 import { appendBoundaryBreadcrumbPoints } from '../utils/breadcrumbBoundaryPoints';
-import { runTerminalDeliverySideEffects, triggerSquareCodUpsert } from '../utils/directDeliverySideEffects';
+import { triggerSquareCodUpsert } from '../utils/directDeliverySideEffects';
 import { runAcceptAllBatchPipeline } from '../utils/acceptAllBatchPipeline';
 import { runWithDeliveryActionLock } from '../utils/deliveryActionLock';
 import { pauseOfflineSync, resumeOfflineSync } from '../utils/offlineSync';
@@ -716,7 +716,7 @@ export default function useStopCardActions(params) {
         if (pendingBreadcrumbsString) {
           try { await clearPendingBreadcrumbsForDelivery({ driverUserId: delivery.driver_id, deliveryId: delivery.id, stopOrder: delivery.stop_order, appUsers, force: true }); } catch {}
         }
-        runTerminalDeliverySideEffects({ delivery, previousStatus: delivery.status, nextStatus: 'completed', overrides: completionUpdate });
+
         const optimisticDeliveries = allDeliveries.map((d) => {
           if (!d || d.driver_id !== delivery.driver_id || d.delivery_date !== delivery.delivery_date) return d;
           if (d.id === delivery.id) return { ...d, ...completionUpdate, isNextDelivery: false };
@@ -735,14 +735,16 @@ export default function useStopCardActions(params) {
         }
         fabControlEvents.notifyPhaseTwoCompleteRecenter();
         fabControlEvents.reactivateFAB(true, { suppressIfPhase1: true, reason: 'stop_status_change' });
-        const backgroundTasks = [];
-        queueConsolidateBreadcrumbs({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, stopOrder: delivery.stop_order, status: 'completed' });
-        if (autoCODPayment && onCODUpdate) backgroundTasks.push(onCODUpdate(delivery.id, autoCODPayment, true));
-        backgroundTasks.push(cleanupSquareCodCatalogForDate(delivery.delivery_date));
-        const currentDriverAppUserId = currentDriverAppUser?.id || null;
-        backgroundTasks.push(params.scheduleCompletionSideEffects({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, nextDeliveryId: nextStop?.id || null, lastCompletedDeliveryId: delivery.id, setOffDuty: !nextStop, appUserId: currentDriverAppUserId, skipRouteOptimization: true, skipNextLegPolylineRefresh: true }));
-        backgroundTasks.push(userHasRole(currentUser, 'driver') ? notifyDriverCompleted({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : displayName, delivery, store, appUsers }) : Promise.resolve());
-        await Promise.allSettled(backgroundTasks);
+        if (!isPickup && patient?.id) {
+          await base44.functions.invoke('syncPatientLastDeliveryDate', {
+            data: { ...delivery, ...completionUpdate, patient_id: patient.id },
+            old_data: { status: delivery.status },
+            event: { type: 'update', entity_name: 'Delivery' }
+          }).catch(() => null);
+        }
+        if (userHasRole(currentUser, 'driver')) {
+          await notifyDriverCompleted({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : displayName, delivery, store, appUsers }).catch(() => {});
+        }
       } catch (error) {
         toast.error(`Failed to complete: ${error.message}`);
         throw error;
@@ -803,7 +805,6 @@ export default function useStopCardActions(params) {
         await Promise.allSettled([updateDeliveryLocal(delivery.id, criticalUpdate, { skipSmartRefresh: true }), ...clearFailNextFlags]);
         if (onStatusUpdate) await onStatusUpdate(delivery.id, status, criticalUpdate, false);
         if (pendingBreadcrumbsString) await clearPendingBreadcrumbsForDelivery({ driverUserId: delivery.driver_id, deliveryId: delivery.id, stopOrder: delivery.stop_order, appUsers, force: true });
-        runTerminalDeliverySideEffects({ delivery, previousStatus: delivery.status, nextStatus: status, overrides: criticalUpdate });
         const actedOnNextDelivery = delivery?.isNextDelivery === true;
         const allDriverDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
         const incompleteAfterThis = allDriverDeliveries.filter((d) => d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending');
