@@ -67,6 +67,18 @@ const getDeliveryCoords = (delivery, patientMap, storeMap) => {
   return null;
 };
 
+const compareStopsDeterministically = (a, b) => {
+  const aTime = Number.isFinite(a?.timeMinutes) ? a.timeMinutes : Number.MAX_SAFE_INTEGER;
+  const bTime = Number.isFinite(b?.timeMinutes) ? b.timeMinutes : Number.MAX_SAFE_INTEGER;
+  if (aTime !== bTime) return aTime - bTime;
+
+  const aOrder = Number(a?.delivery?.stop_order || Number.MAX_SAFE_INTEGER);
+  const bOrder = Number(b?.delivery?.stop_order || Number.MAX_SAFE_INTEGER);
+  if (aOrder !== bOrder) return aOrder - bOrder;
+
+  return String(a?.delivery?.id || '').localeCompare(String(b?.delivery?.id || ''));
+};
+
 /**
  * Calculate crow-flies distance between two coordinates (Haversine formula)
  */
@@ -705,7 +717,12 @@ Deno.serve(async (req) => {
           .filter((waypoint) => waypoint.id !== 'driverStart' && waypoint.id !== 'driverEnd')
           .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
           .map((waypoint, index) => ({ stop: stopsToSequence[index] && stopsToSequence.find((item) => (item.delivery.stop_id || item.delivery.delivery_id || item.delivery.id) === waypoint.id) || null, waypoint }))
-          .filter((item) => item.stop);
+          .filter((item) => item.stop)
+          .sort((a, b) => {
+            const sameSequence = Number(a?.waypoint?.sequence || 0) === Number(b?.waypoint?.sequence || 0);
+            const sameWindow = Number(a?.stop?.timeMinutes ?? Number.MAX_SAFE_INTEGER) === Number(b?.stop?.timeMinutes ?? Number.MAX_SAFE_INTEGER);
+            return sameSequence && sameWindow ? compareStopsDeterministically(a.stop, b.stop) : 0;
+          });
 
         routeStops = [...routeStops, ...orderedStops.map((item) => item.stop)];
         const interconnectionByToWaypoint = new Map(interconnections.map((item) => [item.toWaypoint, item]));
