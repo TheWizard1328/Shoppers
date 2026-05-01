@@ -729,6 +729,7 @@ Deno.serve(async (req) => {
         explicitOrderedStopsOnly: true,
         explicitRouteOrigin: routeHasStarted ? 'last_finished_stop' : 'home',
         explicitRouteDestination: 'home',
+        resolvedOriginCoords: currentPosition ? { lat: currentPosition.lat, lon: currentPosition.lng } : null,
         bypassPolylineUpdated: true,
         bypassPolylineDelete: true,
         reuseProvidedPolylines: false

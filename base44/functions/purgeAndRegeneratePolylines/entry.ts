@@ -733,6 +733,7 @@ Deno.serve(async (req) => {
       explicitOrderedStopsOnly = false,
       explicitRouteOrigin = null,
       explicitRouteDestination = null,
+      resolvedOriginCoords = null,
       bypassPolylineDelete = false,
       reuseProvidedPolylines = false,
       sourcePage = null
@@ -1053,12 +1054,15 @@ Deno.serve(async (req) => {
         const isToday = deliveryDate === getEdmontonDateString();
         const lockHomeOrigin = explicitRouteOrigin === 'home' && hasHomeCoords;
         const lockHomeDestination = explicitRouteDestination === 'home' && hasHomeCoords;
+        const explicitResolvedOrigin = isValidCoordinatePair(Number(resolvedOriginCoords?.lat), Number(resolvedOriginCoords?.lon))
+          ? { lat: Number(resolvedOriginCoords.lat), lon: Number(resolvedOriginCoords.lon) }
+          : null;
 
         const useLastFinishedOrigin = explicitRouteOrigin === 'last_finished_stop';
-        const originFromFinishedStop = lockHomeOrigin
+        const originFromFinishedStop = explicitResolvedOrigin || (lockHomeOrigin
           ? { lat: homeLat, lon: homeLon }
-          : (useLastFinishedOrigin || latestFinishedStop ? getLatLon(latestFinishedStop) : null);
-        const useDriverLocationAsOrigin = !explicitStopOrderIds.length && !useLastFinishedOrigin && scope === 'active_only' && firstActive && isToday && isValidCoordinatePair(currentLat, currentLon);
+          : (useLastFinishedOrigin || latestFinishedStop ? getLatLon(latestFinishedStop) : null));
+        const useDriverLocationAsOrigin = !explicitStopOrderIds.length && !useLastFinishedOrigin && !explicitResolvedOrigin && scope === 'active_only' && firstActive && isToday && isValidCoordinatePair(currentLat, currentLon);
 
         if (useDriverLocationAsOrigin && !originFromFinishedStop) {
           pushSegment({ lat: currentLat, lon: currentLon }, firstActive);
