@@ -339,6 +339,7 @@ Deno.serve(async (req) => {
 
     const explicitNextDelivery = incompleteDeliveries.find((delivery) => delivery?.isNextDelivery === true) || null;
     const explicitNextCoords = explicitNextDelivery ? getDeliveryCoords(explicitNextDelivery, patientMap, storeMap) : null;
+    const latestFinishedCoords = latestFinishedDelivery ? getDeliveryCoords(latestFinishedDelivery, patientMap, storeMap) : null;
     const previousStopBeforeNext = explicitNextDelivery
       ? allDeliveries
           .filter((delivery) => delivery?.id !== explicitNextDelivery.id)
@@ -347,19 +348,19 @@ Deno.serve(async (req) => {
       : null;
     const previousStopCoords = previousStopBeforeNext ? getDeliveryCoords(previousStopBeforeNext, patientMap, storeMap) : null;
     const routeHasStarted = completedDeliveries.length > 0 || !!previousStopBeforeNext;
-    const shouldLockExplicitNextStop = !!explicitNextDelivery && !forceFullRemainingRouteOptimization;
+    const shouldLockExplicitNextStop = !!explicitNextDelivery;
 
-    if (previousStopCoords) {
+    if (routeHasStarted && latestFinishedCoords) {
+      currentPosition = latestFinishedCoords;
+      locationSource = 'last_finished_stop';
+    }
+
+    if (!currentPosition && previousStopCoords) {
       currentPosition = previousStopCoords;
       locationSource = 'previous_stop_before_next';
     }
 
-    if (!currentPosition && routeHasStarted && latestFinishedDelivery) {
-      currentPosition = getDeliveryCoords(latestFinishedDelivery, patientMap, storeMap);
-      locationSource = currentPosition ? 'last_finished_stop' : null;
-    }
-
-    if (!routeHasStarted && !currentPosition && explicitNextCoords) {
+    if (!currentPosition && explicitNextCoords) {
       currentPosition = explicitNextCoords;
       locationSource = 'next_delivery_stop';
     }
