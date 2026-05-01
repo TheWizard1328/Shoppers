@@ -576,15 +576,30 @@ Deno.serve(async (req) => {
           // Direct routing call using polylineOrigin (last finished stop or home).
           // This avoids invoking getHereDirections as a separate function (saves 1 HERE call
           // because purgeAndRegeneratePolylines will reuse these precomputed polylines).
+          // Prepend lockedNextStop (pickup/isNextDelivery) so it gets a polyline too.
+          // polylineOrigin→lockedNextStop→d1→d2→...→dN, then home.
+          // Without this, the pickup stop has no polyline (routeIndex = -1 in the mapping below).
+          const allRoutingStops = lockedNextStop
+            ? [lockedNextStop, ...orderedStopsForPolyline]
+            : orderedStopsForPolyline;
           const perStopPolylines = await fetchRoutingPolylines(
             hereApiKey,
             hereTransportMode,
             polylineOrigin,
-            orderedStopsForPolyline.map((s) => ({ lat: s.lat, lng: s.lng })),
+            allRoutingStops.map((s) => ({ lat: s.lat, lng: s.lng })),
             resolvedHomePosition
           );
           polylineData = {
-            polylines: orderedStopsForPolyline.map((stop, i) => ({
+            // Key by deliveryId for reliable lookup (not index arithmetic)
+            byDeliveryId: new Map(allRoutingStops.map((stop, i) => [
+              stop.delivery.id,
+              {
+                encodedPolyline:           perStopPolylines[i]?.encodedPolyline          ?? null,
+                estimatedDistanceKm:       perStopPolylines[i]?.estimatedDistanceKm      ?? null,
+                estimatedDurationMinutes:  perStopPolylines[i]?.estimatedDurationMinutes ?? null,
+              }
+            ])),
+            polylines: allRoutingStops.map((stop, i) => ({
               deliveryId:                stop.delivery.id,
               encodedPolyline:           perStopPolylines[i]?.encodedPolyline          ?? null,
               estimated_distance_km:     perStopPolylines[i]?.estimatedDistanceKm      ?? null,
@@ -659,9 +674,10 @@ Deno.serve(async (req) => {
         });
 
         const sequencedStops = orderedStops.map((item) => item.stop);
-        const polylineSegments = Array.isArray(hereAttempt?.polylineData?.polylines)
-          ? hereAttempt.polylineData.polylines
-          : [];
+        // Use deliveryId-keyed map for reliable lookup regardless of lockedNextStop offset
+        const polylineByDeliveryId = hereAttempt?.polylineData?.byDeliveryId instanceof Map
+          ? hereAttempt.polylineData.byDeliveryId
+          : new Map();
         segmentPolylines = routeStops.map((stop, index) => {
           const previousStop = index === 0 ? null : routeStops[index - 1];
           const origin = index === 0
@@ -670,16 +686,14 @@ Deno.serve(async (req) => {
               ? { lat: previousStop.lat, lng: previousStop.lng }
               : null;
           const destination = { lat: stop.lat, lng: stop.lng };
-          const routeIndex = lockedNextStop ? index - 1 : index;
-          const matchedSequencedStop = routeIndex >= 0 ? sequencedStops[routeIndex] : null;
-          const matchedSegment = routeIndex >= 0 ? polylineSegments[routeIndex] : null;
+          const matched = polylineByDeliveryId.get(stop.delivery.id) || null;
           return {
             deliveryId: stop.delivery.id,
             origin,
             destination,
-            encodedPolyline: matchedSequencedStop && matchedSegment?.encodedPolyline ? matchedSegment.encodedPolyline : null,
-            estimatedDistanceKm: matchedSegment?.estimated_distance_km ?? null,
-            estimatedDurationMinutes: matchedSegment?.estimated_duration_minutes ?? null
+            encodedPolyline: matched?.encodedPolyline ?? null,
+            estimatedDistanceKm: matched?.estimatedDistanceKm ?? null,
+            estimatedDurationMinutes: matched?.estimatedDurationMinutes ?? null
           };
         });
         optimizedStopTransportModes = routeStops.map((stop, index) => {
@@ -859,7 +873,16 @@ Deno.serve(async (req) => {
 
     const shouldRefreshPolylines = activeStops.length > 0;
 
-    if (shouldRefreshPolylines) {
+    // Skip purgeAndRegeneratePolylines if ALL active stops already have polylines
+    // (they were written directly to the DB in finalDeliveryWriteBatch above).
+    const stopsWithPolylines = segmentPolylines.filter((s) => !!s.encodedPolyline).length;
+    const allStopsHavePolylines = stopsWithPolylines === activeStops.length;
+    if (allStopsHavePolylines) {
+      console.log(`🗺️ [optimizeRemainingStops] All ${activeStops.length} stops have polylines from fetchRoutingPolylines — skipping purgeAndRegeneratePolylines entirely ✅`);
+    }
+
+    if (shouldRefreshPolylines && !allStopsHavePolylines) {
+      console.log(`🗺️ [optimizeRemainingStops] ${activeStops.length - stopsWithPolylines} stops missing polylines — calling purgeAndRegeneratePolylines for remaining`);
       await base44.asServiceRole.functions.invoke('purgeAndRegeneratePolylines', {
         driverId,
         deliveryDate,
