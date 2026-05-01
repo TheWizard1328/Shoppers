@@ -457,11 +457,7 @@ export default function useStopCardActions(params) {
           const isCurrent = d.id === delivery.id;
           return {
             ...d,
-            ...(isCurrent ? {
-              isNextDelivery: true,
-            } : {
-              ...(d.isNextDelivery ? { isNextDelivery: false } : {})
-            })
+            isNextDelivery: isCurrent
           };
         });
 
