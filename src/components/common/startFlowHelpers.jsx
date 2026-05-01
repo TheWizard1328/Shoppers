@@ -126,6 +126,9 @@ export async function runStartFlow({
 
     const locallyReorderedRoute = reorderActiveRouteLocally(startedRouteDeliveries, delivery.id);
     const locallyChangedStops = getChangedDeliveries(routeDeliveries, locallyReorderedRoute);
+    const localNextStop = locallyReorderedRoute.find((item) => item && item.id !== delivery.id && item.isNextDelivery === true)
+      || locallyReorderedRoute.find((item) => item && item.id !== delivery.id && !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(item.status))
+      || null;
 
     await persistLocalRouteChanges({
       originalRoute: routeDeliveries,
@@ -136,7 +139,7 @@ export async function runStartFlow({
 
     await setAndCenterNextDelivery({
       driverDeliveries: locallyReorderedRoute,
-      targetDeliveryId: delivery.id,
+      targetDeliveryId: localNextStop?.id || null,
       updateDeliveryLocal,
       updateDeliveriesLocally,
       driverId: delivery.driver_id,
@@ -174,9 +177,12 @@ export async function runStartFlow({
             driver_id: delivery.driver_id,
             delivery_date: delivery.delivery_date
           });
+          const refreshedNextStop = refreshedRouteDeliveries.find((item) => item && item.isNextDelivery === true)
+            || refreshedRouteDeliveries.find((item) => item && item.id !== delivery.id && !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(item.status))
+            || null;
           await setAndCenterNextDelivery({
             driverDeliveries: refreshedRouteDeliveries,
-            targetDeliveryId: delivery.id,
+            targetDeliveryId: refreshedNextStop?.id || null,
             updateDeliveryLocal,
             updateDeliveriesLocally,
             driverId: delivery.driver_id,
