@@ -377,6 +377,11 @@ export default function DeliveryFormView({
             const previousDriverId = delivery?.driver_id;
             const previousDeliveryDate = delivery?.delivery_date;
             const shouldOptimizeInBackground = hasTimeWindowChanges;
+            const travelModeOnly = !!delivery &&
+              !hasTimeWindowChanges &&
+              (formData?.transport_mode || formData?.finished_leg_transport_mode || '') !== (delivery?.transport_mode || delivery?.finished_leg_transport_mode || '') &&
+              (formData?.driver_id || '') === (delivery?.driver_id || '') &&
+              (formData?.delivery_date || '') === (delivery?.delivery_date || '');
 
             await handleSubmit(e);
 
@@ -399,6 +404,7 @@ export default function DeliveryFormView({
               driverId,
               deliveryDate,
               hasTimeWindowChanges: shouldOptimizeInBackground,
+              travelModeOnly,
               currentUser
             });
 
@@ -1075,10 +1081,17 @@ export default function DeliveryFormView({
                       return recalculateAndUpdateStopOrders(routeDriverId, routeDeliveryDate);
                     })
                   ).then(() => {
+                    const travelModeOnly = !!delivery &&
+                      !hasTimeWindowChanges &&
+                      (formData?.transport_mode || formData?.finished_leg_transport_mode || '') !== (delivery?.transport_mode || delivery?.finished_leg_transport_mode || '') &&
+                      (formData?.driver_id || '') === (delivery?.driver_id || '') &&
+                      (formData?.delivery_date || '') === (delivery?.delivery_date || '');
+
                     runPostDeliveryUpdateSync({
                       driverId,
                       deliveryDate,
                       hasTimeWindowChanges: shouldOptimizeInBackground,
+                      travelModeOnly,
                       currentUser
                     });
                   });
