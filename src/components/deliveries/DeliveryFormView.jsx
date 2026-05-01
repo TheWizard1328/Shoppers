@@ -784,14 +784,18 @@ export default function DeliveryFormView({
                             </div>
 
                             <div className="px-3 py-2 rounded-lg space-y-2 border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                              <div className="space-y-1">
+                                <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Name *</Label>
+                                <Input ref={patientNameInputRef} value={formData.patient_name || ''} onChange={(e) => setFormData((p) => ({ ...p, patient_name: e.target.value }))} placeholder="Patient name" data-hotkey-add="true" disabled={isSaving} className="h-9 text-sm" />
+                              </div>
                               <div className="flex gap-3">
-                                <div className="flex-1 space-y-1">
-                                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Name *</Label>
-                                  <Input ref={patientNameInputRef} value={formData.patient_name || ''} onChange={(e) => setFormData((p) => ({ ...p, patient_name: e.target.value }))} placeholder="Patient name" data-hotkey-add="true" disabled={isSaving} className="h-9 text-sm" />
-                                </div>
                                 <div className="flex-1 space-y-1">
                                   <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Phone</Label>
                                   <PhoneInput value={formData.patient_phone || ''} onChange={(v) => setFormData((p) => ({ ...p, patient_phone: v }))} data-hotkey-add="true" disabled={isSaving} className="h-9 text-sm" />
+                                </div>
+                                <div className="flex-1 space-y-1">
+                                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Alternate Phone</Label>
+                                  <PhoneInput value={formData.patient_phone_secondary || ''} onChange={(v) => setFormData((p) => ({ ...p, patient_phone_secondary: v }))} data-hotkey-add="true" disabled={isSaving} className="h-9 text-sm" />
                                 </div>
                               </div>
                               <div className="flex gap-3">
@@ -898,14 +902,18 @@ export default function DeliveryFormView({
 
                           {/* Patient Name / Phone / Address / Unit */}
                           <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                            <div className="space-y-1">
+                              <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Name *</Label>
+                              <Input ref={patientNameInputRef} value={formData.patient_name || ''} onChange={(e) => setFormData((p) => ({ ...p, patient_name: e.target.value }))} placeholder="Patient name" disabled={isSaving} className="h-9 text-sm" />
+                            </div>
                             <div className="flex gap-3">
-                              <div className="flex-1 space-y-1">
-                                <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Name *</Label>
-                                <Input ref={patientNameInputRef} value={formData.patient_name || ''} onChange={(e) => setFormData((p) => ({ ...p, patient_name: e.target.value }))} placeholder="Patient name" disabled={isSaving} className="h-9 text-sm" />
-                              </div>
                               <div className="flex-1 space-y-1">
                                 <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Phone</Label>
                                 <PhoneInput value={formData.patient_phone || ''} onChange={(v) => setFormData((p) => ({ ...p, patient_phone: v }))} disabled={isSaving} className="h-9 text-sm" />
+                              </div>
+                              <div className="flex-1 space-y-1">
+                                <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Alternate Phone</Label>
+                                <PhoneInput value={formData.patient_phone_secondary || ''} onChange={(v) => setFormData((p) => ({ ...p, patient_phone_secondary: v }))} disabled={isSaving} className="h-9 text-sm" />
                               </div>
                             </div>
                             <div className="flex gap-3">
