@@ -395,15 +395,16 @@ Deno.serve(async (req) => {
 
     const nextDeliveryStop = orderedOptimizationStops.find((stop) => stop.delivery.isNextDelivery === true) || null;
     const lockedNextStop = !preserveExistingOrder && shouldLockExplicitNextStop && nextDeliveryStop ? nextDeliveryStop : null;
-    const stopsToSequence = lockedNextStop
-      ? orderedOptimizationStops.filter((stop) => stop.delivery.id !== lockedNextStop.delivery.id)
+    const routeOriginStop = lockedNextStop || null;
+    const stopsToSequence = routeOriginStop
+      ? orderedOptimizationStops.filter((stop) => stop.delivery.id !== routeOriginStop.delivery.id)
       : orderedOptimizationStops;
 
     console.log(`\n🎯 [optimizeRemainingStops] Optimizing remaining route: ${optimizationStops.length} stops`);
 
     let attemptedHereCalls = 0;
     let usedTimeWindows = true;
-    let routeStops = lockedNextStop ? [lockedNextStop] : [];
+    let routeStops = routeOriginStop ? [routeOriginStop] : [];
     let directionsLegs = [];
     let segmentPolylines = [];
     let optimizedStopTransportModes = [];
@@ -413,12 +414,16 @@ Deno.serve(async (req) => {
       : null;
 
     const executeHereSequence = async (includeTimeWindows) => {
+      const sequenceStart = routeOriginStop
+        ? { lat: routeOriginStop.lat, lng: routeOriginStop.lng }
+        : currentPosition;
+
       const params = new URLSearchParams();
       params.set('apiKey', hereApiKey);
       params.set('departure', buildLocalIso(deliveryDate, currentLocalTime || formatMinutesToTime(currentMinutes)));
       params.set('mode', `fastest;${hereTransportMode};traffic:disabled`);
       params.set('improveFor', 'time');
-      params.set('start', `driverStart;${currentPosition.lat},${currentPosition.lng}`);
+      params.set('start', `driverStart;${sequenceStart.lat},${sequenceStart.lng}`);
       if (resolvedHomePosition) {
         params.set('end', `driverHome;${resolvedHomePosition.lat},${resolvedHomePosition.lng}`);
       }
@@ -453,9 +458,13 @@ Deno.serve(async (req) => {
           const polylineWaypoints = orderedStopsForPolyline.slice(0, -1);
           const polylineDestination = orderedStopsForPolyline[orderedStopsForPolyline.length - 1];
           const polylineResponse = await base44.asServiceRole.functions.invoke('getHereDirections', {
-            origin: { lat: currentPosition.lat, lng: currentPosition.lng },
-            destination: { lat: polylineDestination.lat, lng: polylineDestination.lng },
-            waypoints: polylineWaypoints.map((stop) => ({ lat: stop.lat, lng: stop.lng })),
+            origin: routeOriginStop
+              ? { lat: routeOriginStop.lat, lng: routeOriginStop.lng }
+              : { lat: currentPosition.lat, lng: currentPosition.lng },
+            destination: resolvedHomePosition
+              ? { lat: resolvedHomePosition.lat, lng: resolvedHomePosition.lng }
+              : { lat: polylineDestination.lat, lng: polylineDestination.lng },
+            waypoints: orderedStopsForPolyline.map((stop) => ({ lat: stop.lat, lng: stop.lng })),
             transportMode: preferredTravelMode
           }).catch(() => null);
           polylineData = polylineResponse?.data || polylineResponse || null;
@@ -517,7 +526,7 @@ Deno.serve(async (req) => {
             const distKm = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, stop.lat, stop.lng);
             return { duration: Math.ceil((distKm / 40) * 60 * 60 * 1.3), distance: distKm * 1000 };
           }
-          const routeIndex = lockedNextStop ? index - 1 : index;
+          const routeIndex = index - 1;
           const waypoint = orderedStops[routeIndex]?.waypoint;
           const leg = waypoint ? interconnectionByToWaypoint.get(waypoint.id) : null;
           return {
@@ -526,7 +535,6 @@ Deno.serve(async (req) => {
           };
         });
 
-        const sequencedStops = orderedStops.map((item) => item.stop);
         const polylineSegments = Array.isArray(hereAttempt?.polylineData?.polylines)
           ? hereAttempt.polylineData.polylines
           : [];
@@ -538,14 +546,12 @@ Deno.serve(async (req) => {
               ? { lat: previousStop.lat, lng: previousStop.lng }
               : null;
           const destination = { lat: stop.lat, lng: stop.lng };
-          const routeIndex = lockedNextStop ? index - 1 : index;
-          const matchedSequencedStop = routeIndex >= 0 ? sequencedStops[routeIndex] : null;
-          const matchedSegment = routeIndex >= 0 ? polylineSegments[routeIndex] : null;
+          const matchedSegment = polylineSegments[index] || null;
           return {
             deliveryId: stop.delivery.id,
             origin,
             destination,
-            encodedPolyline: matchedSequencedStop && matchedSegment?.encodedPolyline ? matchedSegment.encodedPolyline : null,
+            encodedPolyline: matchedSegment?.encodedPolyline || null,
             estimatedDistanceKm: matchedSegment?.estimated_distance_km ?? null,
             estimatedDurationMinutes: matchedSegment?.estimated_duration_minutes ?? null
           };

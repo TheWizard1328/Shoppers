@@ -1071,18 +1071,12 @@ Deno.serve(async (req) => {
 
         for (let index = 0; index < activeStops.length; index += 1) {
           const stop = activeStops[index];
-          const stopOrderValue = Number(stop?.stop_order || 0);
-          const previousStopByOrder = stopOrderValue > 1
-            ? deliveries
-                .filter((delivery) => delivery?.id !== stop?.id)
-                .find((delivery) => Number(delivery?.stop_order || 0) === stopOrderValue - 1) || null
-            : null;
-          const previousStopCoords = previousStopByOrder ? getLatLon(previousStopByOrder) : null;
           const previousActiveStop = activeStops[index - 1];
-          const from = index === 0 && originFromFinishedStop
-            ? originFromFinishedStop
-            : previousStopCoords
-              || (previousActiveStop ? getLatLon(previousActiveStop) : null)
+          const from = index === 0
+            ? (explicitResolvedOrigin
+              || originFromFinishedStop
+              || (!routeAlreadyStarted && hasHomeCoords ? { lat: homeLat, lon: homeLon } : null))
+            : (previousActiveStop ? getLatLon(previousActiveStop) : null)
               || originFromFinishedStop
               || (!routeAlreadyStarted && hasHomeCoords ? { lat: homeLat, lon: homeLon } : null);
           const to = getLatLon(stop);
