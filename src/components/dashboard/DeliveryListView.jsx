@@ -149,7 +149,7 @@ const DeliveryRow = memo(({
       </div> :
 
     <div
-      onClick={handleRowClick} className="py-2 grid min-w-max grid-cols-[120px_90px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px] gap-1 border-b cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
+      onClick={handleRowClick} className="py-2 grid min-w-max grid-cols-[90px_120px_90px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px] gap-1 border-b cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
 
 
 
@@ -561,7 +561,7 @@ const DeliveryListView = ({
             onScroll={syncHeaderScroll}
             className="delivery-list-header-scroll max-w-full overflow-x-auto overflow-y-hidden">
             
-              <div className="grid min-w-max grid-cols-[90px_90px_90px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px] gap-2 px-4 py-3 text-sm font-semibold" style={{ color: 'var(--text-slate-700)', width: listWidth }}>
+              <div className="grid min-w-max grid-cols-[90px_120px_90px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px] gap-2 px-4 py-3 text-sm font-semibold" style={{ color: 'var(--text-slate-700)', width: listWidth }}>
                 {bulkEditMode &&
               <div className="flex items-center justify-center">
                     <Checkbox
