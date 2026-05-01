@@ -150,6 +150,7 @@ const isHistoricalRouteDate = (dateStr) => {
   return String(dateStr) < getEdmontonTodayDateString();
 };
 
+
 // ─── HERE Routing helpers (added to eliminate duplicate API call) ─────────────
 
 const decodeHereFlexiblePolylineForRouting = (encoded) => {
@@ -221,8 +222,9 @@ const fetchRoutingPolylines = async (hereApiKey, transportMode, polylineOrigin, 
   params.set('return', 'polyline,summary');
   params.set('origin', `${allPoints[0].lat},${allPoints[0].lng}`);
   params.set('destination', `${allPoints[allPoints.length - 1].lat},${allPoints[allPoints.length - 1].lng}`);
-  allPoints.slice(1, -1).forEach((pt, i) => {
-    params.set(`via[${i}]`, `${pt.lat},${pt.lng}!passThrough=false`);
+  // Use append('via') — HERE router expects repeated 'via' params, NOT indexed keys like via[0]
+  allPoints.slice(1, -1).forEach((pt) => {
+    params.append('via', `${pt.lat},${pt.lng}`);
   });
 
   try {
@@ -521,6 +523,7 @@ Deno.serve(async (req) => {
       ? { lat: Number(driverAppUser.home_latitude), lng: Number(driverAppUser.home_longitude) }
       : null;
 
+
     // polylineOrigin: where the VISUAL polyline starts from.
     // This is the stop BEFORE isNextDelivery (last finished stop), or home if no stops finished.
     // Different from currentPosition which is the optimization start point.
@@ -532,7 +535,7 @@ Deno.serve(async (req) => {
       ?? resolvedHomePosition
       ?? currentPosition;
 
-    const executeHereSequence = async (includeTimeWindows) => {
+        const executeHereSequence = async (includeTimeWindows) => {
       const params = new URLSearchParams();
       params.set('apiKey', hereApiKey);
       params.set('departure', buildLocalIso(deliveryDate, currentLocalTime || formatMinutesToTime(currentMinutes)));
