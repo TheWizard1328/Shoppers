@@ -1,5 +1,11 @@
 export const getApiLogCallCount = (log) => {
+  const provider = getApiLogProvider(log);
   const rawCount = Number(log?.metadata?.call_count ?? log?.metadata?.api_calls ?? 1);
+
+  if (provider === 'here') {
+    return rawCount > 0 ? 1 : 0;
+  }
+
   return Number.isFinite(rawCount) && rawCount >= 0 ? rawCount : 1;
 };
 

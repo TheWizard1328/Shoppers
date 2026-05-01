@@ -381,6 +381,7 @@ function groupModeOverrideRanges(stops, getMode) {
   return groups;
 }
 
+
 async function bulkUpdateDeliveries(base44, deliveries, updatesById) {
   if (!(updatesById instanceof Map) || updatesById.size === 0) {
     return deliveries || [];
@@ -469,7 +470,7 @@ async function reintegratePendingBreadcrumbLive(base44, driverId, deliveryDate, 
   const pendingRows = await base44.asServiceRole.entities.PendingBreadcrumbLive.filter(
     { driver_id: driverId, delivery_date: deliveryDate },
     '-updated_date',
-50000
+    50000
   );
 
   const rowsForDate = pendingRows || [];
@@ -736,7 +737,6 @@ Deno.serve(async (req) => {
       bypassPolylineDelete = false,
       reuseProvidedPolylines = false,
       sourcePage = null
-
     } = body || {};
 
     if (!driverId || !deliveryDate) {

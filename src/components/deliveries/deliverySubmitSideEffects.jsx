@@ -18,7 +18,6 @@ function getEdmontonDateString(value = new Date()) {
 }
 import { getDriverDisplayName } from '../utils/driverUtils';
 import { sendDeliveryMessage } from '../utils/deliveryMessaging';
-import { runPostDeliveryUpdateSync } from '../utils/deliveryFormActionHelpers';
 
 export async function runDeliverySubmitSideEffects({
   delivery,
@@ -149,27 +148,6 @@ export async function runDeliverySubmitSideEffects({
       await Promise.all(updatePromises);
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
-  }
-
-  const isHistoricalCompletion = Boolean(
-    statusChangedToCompletion &&
-    delivery &&
-    formData?.delivery_date &&
-    String(formData.delivery_date) < getEdmontonDateString()
-  );
-  const optimizationStartTime = isHistoricalCompletion && typeof t === 'string' && t.includes('T')
-    ? t.split('T')[1]?.slice(0, 5) || null
-    : null;
-
-  if (statusChangedToCompletion || timeWindowChanged) {
-    runPostDeliveryUpdateSync({
-      driverId: formData.driver_id,
-      deliveryDate: formData.delivery_date,
-      hasTimeWindowChanges: true,
-      currentUser,
-      optimizationStartTime,
-      skipCurrentTimeEtaChecks: isHistoricalCompletion
-    });
   }
 
   if (travelModeChanged && !driverChanged && !dateChanged && !timeWindowChanged && !statusChangedToCompletion && !actualDeliveryTimeChanged) {

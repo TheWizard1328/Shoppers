@@ -483,7 +483,6 @@ export async function setAndCenterNextDelivery({
 export async function syncNextDeliveryFlagsLocally({ driverDeliveries = [], nextDeliveryId = null, updateDeliveriesLocally, persistToBackend = false }) {
   const scopedDeliveries = (driverDeliveries || []).filter(Boolean);
   if (scopedDeliveries.length === 0) return [];
-  if (!nextDeliveryId) return [];
 
   const currentNextDelivery = scopedDeliveries.find((item) => item?.isNextDelivery);
   const transferredDistance = currentNextDelivery && currentNextDelivery.id !== nextDeliveryId
@@ -605,8 +604,7 @@ export async function optimizeRouteAndApplyNextDelivery({
   forceRefreshDriverDeliveries,
   fallbackNextDeliveryId = null,
   shouldRegeneratePolylines = false,
-  runOptimization = false,
-  preserveExistingOrder = false
+  runOptimization = false
 }) {
   const optimizationKey = `${driverId || 'unknown'}:${deliveryDate || 'unknown'}`;
   if (routeOptimizationInflight.has(optimizationKey)) {
@@ -626,15 +624,13 @@ export async function optimizeRouteAndApplyNextDelivery({
     if (runOptimization) {
       const optimizeResponse = await base44.functions.invoke('optimizeRemainingStops', {
         driverId,
-        deliveryDate,
-        preserveExistingOrder
+        deliveryDate
       }).catch(() => null);
       optimizeData = optimizeResponse?.data || optimizeResponse || optimizeData;
     }
 
     const refreshedDriverDeliveries = await base44.entities.Delivery.filter({ driver_id: driverId, delivery_date: deliveryDate });
-    const backendNextDeliveryId = refreshedDriverDeliveries.find((item) => item?.isNextDelivery === true)?.id || null;
-    const resolvedNextDeliveryId = backendNextDeliveryId || fallbackNextDeliveryId || null;
+    const resolvedNextDeliveryId = fallbackNextDeliveryId || refreshedDriverDeliveries.find((item) => item?.isNextDelivery === true)?.id || null;
     await setAndCenterNextDelivery({
       driverDeliveries: refreshedDriverDeliveries,
       targetDeliveryId: resolvedNextDeliveryId,

@@ -155,7 +155,7 @@ export default function StopCardHeader({
           className="bg-secondary text-white mt-1 px-2 py-0.5 text-sm font-bold rounded-full inline-flex items-center border transition-colors w-[40px] justify-center"
           style={{ backgroundColor: storeColor || "#10B981", color: "white" }}>
 
-          #{delivery?.stop_order || delivery?.display_stop_order || 0}
+          #{delivery?.display_stop_order || delivery?.stop_order || 0}
         </Badge>
 
         {isPickup && pendingPickups && pendingPickups.length > 0 &&

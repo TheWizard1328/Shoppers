@@ -75,6 +75,7 @@ Deno.serve(async (req) => {
       display_stop_order: selectedStopOrder,
       travel_dist: 0,
       ...(selectedDelivery?.delivery_time_start ? {} : { delivery_time_start: normalizeLocalTimeString(currentLocalTime) || getCurrentLocalTimeString() }),
+      ...(selectedDelivery?.delivery_time_end ? {} : { delivery_time_end: normalizeLocalTimeString(currentLocalTime) || getCurrentLocalTimeString() }),
       delivery_time_eta: normalizeLocalTimeString(currentLocalTime) || getCurrentLocalTimeString()
     };
 
@@ -106,7 +107,7 @@ Deno.serve(async (req) => {
 
     let optimization = {
       skipped: true,
-      reason: 'start_delivery_locked_next_stop'
+      reason: 'start_delivery_no_full_reoptimization'
     };
 
     try {
@@ -115,8 +116,7 @@ Deno.serve(async (req) => {
         deliveryDate,
         currentLocalTime: optimizationSeedTime,
         preserveExistingOrder: false,
-        forceFullRemainingRouteOptimization: false,
-        source: 'handleStartDelivery'
+        forceFullRemainingRouteOptimization: false
       });
       const optimizationData = optimizationResponse?.data || optimizationResponse || {};
       optimization = {

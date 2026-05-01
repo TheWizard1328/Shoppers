@@ -460,7 +460,6 @@ Deno.serve(async (req) => {
             transportMode: preferredTravelMode
           }).catch(() => null);
           polylineData = polylineResponse?.data || polylineResponse || null;
-
         }
       }
 
