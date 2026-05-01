@@ -330,7 +330,7 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
   const initialValues = useMemo(() => ({
     delivery_date: getSharedValue(selectedDeliveries, (delivery) => delivery?.delivery_date, ""),
     driverChoice: getSharedValue(selectedDeliveries, (delivery) => delivery?.driver_id, "unchanged"),
-    travelModeChoice: getSharedValue(selectedDeliveries, (delivery) => delivery?.transport_mode || delivery?.finished_leg_transport_mode, "mixed"),
+    travelModeChoice: getSharedValue(selectedDeliveries, (delivery) => delivery?.transport_mode ?? delivery?.finished_leg_transport_mode, "mixed"),
     delivery_time_start: getSharedValue(selectedDeliveries, (delivery) => delivery?.delivery_time_start, ""),
     delivery_time_end: getSharedValue(selectedDeliveries, (delivery) => delivery?.delivery_time_end, ""),
     statusChoice: getSharedValue(selectedDeliveries, (delivery) => delivery?.status, "unchanged"),

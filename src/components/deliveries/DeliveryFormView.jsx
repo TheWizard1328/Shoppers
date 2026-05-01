@@ -2,7 +2,7 @@
  * DeliveryFormView - The pure render/JSX layer for DeliveryForm.
  * All logic remains in DeliveryForm.jsx; this file just renders it.
  */
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -671,9 +671,9 @@ export default function DeliveryFormView({
                         <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Travel Mode</Label>
                         }
                           <TravelModeButtons
-                          value={formData.finished_leg_transport_mode || delivery?.finished_leg_transport_mode || 'driving'}
+                          value={formData.transport_mode || formData.finished_leg_transport_mode || delivery?.transport_mode || delivery?.finished_leg_transport_mode || 'driving'}
                           onChange={async (mode) => {
-                            setFormData((prev) => ({ ...prev, finished_leg_transport_mode: mode }));
+                            setFormData((prev) => ({ ...prev, transport_mode: mode, finished_leg_transport_mode: mode }));
                           }}
                           currentUser={currentUser}
                           appUsers={appUsers}

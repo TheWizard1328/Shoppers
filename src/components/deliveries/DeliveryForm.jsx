@@ -372,6 +372,8 @@ export default function DeliveryForm({
         no_charge: delivery.no_charge || false,
         extra_time: delivery.extra_time || 0,
         barcode_values: delivery.barcode_values || [], receipt_barcode_values: delivery.receipt_barcode_values || [],
+        transport_mode: delivery.transport_mode || delivery.finished_leg_transport_mode || 'driving',
+        finished_leg_transport_mode: delivery.transport_mode || delivery.finished_leg_transport_mode || 'driving',
         recurring: patient?.recurring || false,
         recurring_daily: patient?.recurring_daily || false,
         recurring_weekly_mon: patient?.recurring_weekly_mon || false,
