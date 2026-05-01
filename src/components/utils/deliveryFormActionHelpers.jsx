@@ -90,8 +90,8 @@ export const closeDeliveryFormAfterSave = ({ handleClearForm, onCancel }) => {
   onCancel();
 };
 
-export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindowChanges, currentUser }) => {
-  if (!driverId || !deliveryDate) return;
+export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindowChanges, travelModeOnly = false, currentUser }) => {
+  if (!driverId || !deliveryDate || travelModeOnly) return;
 
   const syncKey = `${driverId}:${deliveryDate}:${hasTimeWindowChanges ? 'optimize' : 'eta'}`;
   const now = Date.now();

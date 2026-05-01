@@ -1401,6 +1401,7 @@ export default function DeliveryForm({
         driverChanged,
         dateChanged,
         timeWindowChanged,
+        travelModeChanged,
         statusChangedToInTransit,
         statusChangedToCompletion,
         actualDeliveryTimeChanged,
@@ -1492,7 +1493,7 @@ export default function DeliveryForm({
       await runDeliverySubmitSideEffects({
         delivery, formData, selectedPatient, currentUser, oldDriver, newDriver, driverChanged,
         isCurrentUserDriver:userHasRole(currentUser,'driver'), statusChangedToCompletion,
-        actualDeliveryTimeChanged, timeWindowChanged, t:dataToSave.actual_delivery_time, allDeliveries,
+        actualDeliveryTimeChanged, timeWindowChanged, travelModeChanged, t:dataToSave.actual_delivery_time, allDeliveries,
         isPickupMode, updateDeliveryLocal, dateChanged
       });
       return true;
