@@ -52,13 +52,18 @@ Deno.serve(async (req) => {
     }, 'stop_order', 5000);
 
     const finishedStatuses = new Set(['completed', 'failed', 'cancelled', 'returned']);
+    const completedStops = (routeDeliveries || []).filter((d) => finishedStatuses.has(d?.status));
+    const numCompleted = completedStops.length;
     const selectedStopOrder = numCompleted + 1;
     const normalizedTime = normalizeLocalTimeString(currentLocalTime) || getCurrentLocalTimeString();
+
+    const previousNextDelivery = (routeDeliveries || []).find((d) => d?.id !== deliveryId && d?.isNextDelivery === true) || null;
 
     const startPayload = {
       isNextDelivery: true,
       stop_order: selectedStopOrder,
       display_stop_order: selectedStopOrder,
+      delivery_time_start: normalizedTime,
     };
 
     // Clear isNextDelivery on any other stop that had it
@@ -84,7 +89,7 @@ Deno.serve(async (req) => {
     return Response.json({
       success: true,
       newNextDeliveryId: deliveryId,
-      oldNextDeliveryId,
+      oldNextDeliveryId: previousNextDelivery?.id || null,
       selectedStopOrder,
       routeChanged: false,
       optimization: {

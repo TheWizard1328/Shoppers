@@ -499,12 +499,25 @@ export default function useStopCardActions(params) {
           try {
             if (!delivery?.id || !delivery?.driver_id || !delivery?.delivery_date) return;
             await base44.functions.invoke('handleStartDelivery', { deliveryId: delivery.id, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime });
+            const optimizeResponse = await base44.functions.invoke('optimizeRemainingStops', {
+              driverId: delivery.driver_id,
+              deliveryDate: delivery.delivery_date,
+              currentLocalTime,
+              deviceTime: new Date().toISOString(),
+              forceFullRemainingRouteOptimization: true,
+              bypassDriverStatus: true
+            }).catch(() => null);
+            const optimizeData = optimizeResponse?.data || optimizeResponse || null;
             await base44.functions.invoke('recalculateTrackingNumbers', {
               driverId: delivery.driver_id,
               deliveryDate: delivery.delivery_date
             }).catch(() => null);
+            if (optimizeData?.success && Array.isArray(optimizeData.optimizedRoute) && optimizeData.optimizedRoute.length > 0) {
+              window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: delivery.driver_id, updates: optimizeData.optimizedRoute.map((stop) => ({ deliveryId: stop.deliveryId || stop.delivery_id, newEta: stop.newETA || stop.eta })).filter((stop) => stop.deliveryId && stop.newEta) } }));
+            }
+            await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
             fabControlEvents.reactivatePhaseTwoIfAvailable();
-            window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true } }));
+            window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: false } }));
           } catch (optErr) {
             const isNotFound = optErr?.status === 404 || optErr?.response?.status === 404 || String(optErr?.message || '').includes('404');
             if (!isNotFound) console.warn('⚠️ [Start] background start update failed:', optErr?.message || optErr);
