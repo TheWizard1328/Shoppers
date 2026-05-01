@@ -450,6 +450,7 @@ export default function useStopCardActions(params) {
         if (!isValidObjectId(delivery.id) || !isValidObjectId(delivery.driver_id)) throw new Error('This stop is still syncing. Please try again in a moment.');
 
         const routeDeliveries = getDriverRouteDeliveries(allDeliveries, delivery);
+        window.dispatchEvent(new CustomEvent('rememberStartButtonMapState'));
         await collapseDriverStopCards();
 
         const startedRouteDeliveries = routeDeliveries.map((d) => {
@@ -502,9 +503,45 @@ export default function useStopCardActions(params) {
           await base44.entities.Patient.update(patient.id, { status: 'active' });
         }
 
-        await setAndCenterNextDelivery({ driverDeliveries: startedRouteDeliveries, targetDeliveryId: delivery.id, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true });
+        const locallyReorderedRoute = reorderActiveRouteLocally(startedRouteDeliveries, delivery.id);
+        const locallyChangedStops = locallyReorderedRoute.filter((item) => {
+          const existing = routeDeliveries.find((routeItem) => routeItem?.id === item?.id);
+          return existing && (
+            Number(existing.stop_order || 0) !== Number(item.stop_order || 0) ||
+            (existing.isNextDelivery || false) !== (item.isNextDelivery || false) ||
+            (existing.status || null) !== (item.status || null) ||
+            (existing.delivery_time_eta || null) !== (item.delivery_time_eta || null) ||
+            (existing.delivery_time_start || null) !== (item.delivery_time_start || null) ||
+            (existing.delivery_time_end || null) !== (item.delivery_time_end || null) ||
+            Number(existing.travel_dist || 0) !== Number(item.travel_dist || 0)
+          );
+        });
+
+        if (locallyChangedStops.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, locallyChangedStops.filter(Boolean));
+          updateDeliveriesLocally?.(locallyChangedStops.filter(Boolean), false);
+        }
+
+        await Promise.all(
+          locallyChangedStops.map((item) => {
+            const existing = routeDeliveries.find((routeItem) => routeItem?.id === item?.id);
+            if (!existing) return Promise.resolve(null);
+            const updates = {};
+            if (existing.status !== item.status) updates.status = item.status;
+            if ((existing.isNextDelivery || false) !== (item.isNextDelivery || false)) updates.isNextDelivery = item.isNextDelivery || false;
+            if ((existing.delivery_time_start || null) !== (item.delivery_time_start || null)) updates.delivery_time_start = item.delivery_time_start || null;
+            if ((existing.delivery_time_end || null) !== (item.delivery_time_end || null)) updates.delivery_time_end = item.delivery_time_end || null;
+            if ((existing.delivery_time_eta || null) !== (item.delivery_time_eta || null)) updates.delivery_time_eta = item.delivery_time_eta || null;
+            if ((existing.stop_order || null) !== (item.stop_order || null)) updates.stop_order = item.stop_order || null;
+            if ((existing.travel_dist || 0) !== (item.travel_dist || 0)) updates.travel_dist = item.travel_dist || 0;
+            if (Object.keys(updates).length === 0) return Promise.resolve(null);
+            return updateDeliveryLocal(item.id, updates, { skipSmartRefresh: true, isBatchOperation: true });
+          })
+        );
+
+        await setAndCenterNextDelivery({ driverDeliveries: locallyReorderedRoute, targetDeliveryId: delivery.id, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true });
         window.dispatchEvent(new CustomEvent('centerStopCard', { detail: { deliveryId: delivery.id } }));
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true, freshDeliveries: startedChangedDeliveries } }));
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true, freshDeliveries: locallyChangedStops } }));
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
 
         Promise.resolve().then(async () => {
@@ -544,6 +581,7 @@ export default function useStopCardActions(params) {
               });
             }
             fabControlEvents.resetToPhaseOneAfterDone(3000);
+            window.dispatchEvent(new CustomEvent('restoreStartButtonMapState'));
             window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true } }));
           } catch (optErr) {
             const isNotFound = optErr?.status === 404 || optErr?.response?.status === 404 || String(optErr?.message || '').includes('404');
