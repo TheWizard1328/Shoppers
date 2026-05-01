@@ -527,14 +527,23 @@ export default function useStopCardActions(params) {
             const backendOptimizedRoute = Array.isArray(startData?.optimization?.optimizedRoute) ? startData.optimization.optimizedRoute : [];
             if (optimizationDeferred) {
               const refreshedRouteDeliveries = await base44.entities.Delivery.filter({ driver_id: delivery.driver_id, delivery_date: delivery.delivery_date });
+              const refreshedStartedDelivery = refreshedRouteDeliveries.find((item) => item?.id === delivery.id);
               await setAndCenterNextDelivery({
                 driverDeliveries: refreshedRouteDeliveries,
                 targetDeliveryId: delivery.id,
                 updateDeliveryLocal,
                 updateDeliveriesLocally,
                 driverId: delivery.driver_id,
-                deliveryDate: delivery.delivery_date
+                deliveryDate: delivery.delivery_date,
+                collapseCards: false,
+                persistToBackend: false
               });
+              if (refreshedStartedDelivery?.stop_order && updateDeliveriesLocally) {
+                updateDeliveriesLocally(
+                  refreshedRouteDeliveries.map((item) => item?.id === delivery.id ? { ...item, stop_order: refreshedStartedDelivery.stop_order, display_stop_order: refreshedStartedDelivery.stop_order } : item),
+                  true
+                );
+              }
             }
             if (backendOptimizedRoute.length > 0) {
               window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { updates: backendOptimizedRoute.map((u) => ({ deliveryId: u.deliveryId || u.delivery_id, newEta: u.eta || u.newETA })) } }));
