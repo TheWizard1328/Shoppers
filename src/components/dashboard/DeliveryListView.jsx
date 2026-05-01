@@ -561,7 +561,7 @@ const DeliveryListView = ({
             onScroll={syncHeaderScroll}
             className="delivery-list-header-scroll max-w-full overflow-x-auto overflow-y-hidden">
             
-              <div className="grid min-w-max grid-cols-[90px_120px_100px_100px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_100px_100px_120px] gap-1 py-2 text-sm font-semibold" style={{ color: 'var(--text-slate-700)', width: listWidth }}>
+              <div className="grid min-w-max grid-cols-[90px_120px_100px_100px_200px_minmax(200px,1fr)_100px_100px_100px_100px_120px] gap-1 py-2 text-sm font-semibold" style={{ color: 'var(--text-slate-700)', width: listWidth }}>
                 {bulkEditMode &&
               <div className="flex items-center justify-center">
                     <Checkbox
