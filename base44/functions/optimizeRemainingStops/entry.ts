@@ -815,12 +815,27 @@ Deno.serve(async (req) => {
       }
     }
 
-    const activeStops = routeStops.map((stop, index) => ({
-      ...stop.delivery,
-      stop_order: completedDeliveries.length + index + 1,
-      display_stop_order: completedDeliveries.length + index + 1,
-      delivery_time_eta: stageEtaMap.get(stop.delivery.id) || stop.delivery.delivery_time_eta
-    }));
+    const activeStops = routeStops.map((stop, index) => {
+      const persistedStopOrder = completedDeliveries.length + index + 1;
+      return {
+        ...stop.delivery,
+        stop_order: persistedStopOrder,
+        display_stop_order: persistedStopOrder,
+        delivery_time_eta: stageEtaMap.get(stop.delivery.id) || stop.delivery.delivery_time_eta
+      };
+    });
+
+    const activeStopOrderMap = new Map(activeStops.map((stop) => [String(stop.id), Number(stop.stop_order)]));
+    const remainingPendingStops = pendingRouteDeliveries
+      .filter((delivery) => !activeStopOrderMap.has(String(delivery?.id)))
+      .slice()
+      .sort((a, b) => (Number(a?.stop_order) || Number.MAX_SAFE_INTEGER) - (Number(b?.stop_order) || Number.MAX_SAFE_INTEGER));
+
+    const pendingStartOrder = completedDeliveries.length + activeStops.length + 1;
+    remainingPendingStops.forEach((delivery, index) => {
+      const nextOrder = pendingStartOrder + index;
+      activeStopOrderMap.set(String(delivery.id), nextOrder);
+    });
 
     console.log(`\n🔢 [optimizeRemainingStops] HERE returned ${activeStops.length} ordered stops`);
 
@@ -893,7 +908,7 @@ Deno.serve(async (req) => {
 
     for (let i = 0; i < activeStops.length; i++) {
       const stop = activeStops[i];
-      const newOrder = preserveExistingOrder ? Number(stop.stop_order || i + 1) : startingOrder + i + 1;
+      const newOrder = preserveExistingOrder ? Number(stop.stop_order || i + 1) : Number(activeStopOrderMap.get(String(stop.id)) || (startingOrder + i + 1));
       const pendingStartTime = resolvePendingStartTime(stop);
       const segmentPolyline = segmentPolylines.find((segment) => segment.deliveryId === stop.id) || null;
       const resolvedTransportMode = String(stop?.transport_mode || preferredTravelMode || 'driving').toLowerCase();
@@ -1009,7 +1024,7 @@ Deno.serve(async (req) => {
       optimizedRoute: activeStops.map((stop, index) => ({
         deliveryId: stop.id,
         newETA: stop.delivery_time_eta,
-        stop_order: startingOrder + index + 1,
+        stop_order: Number(activeStopOrderMap.get(String(stop.id)) || (startingOrder + index + 1)),
         travel_dist: Number(directionsLegs[index]?.distance)
           ? Number((Number(directionsLegs[index].distance) / 1000).toFixed(3))
           : null
