@@ -90,10 +90,10 @@ export const closeDeliveryFormAfterSave = ({ handleClearForm, onCancel }) => {
   onCancel();
 };
 
-export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindowChanges, travelModeOnly = false, currentUser }) => {
+export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindowChanges, travelModeOnly = false, currentUser, optimizationStartTime = null, skipCurrentTimeEtaChecks = false }) => {
   if (!driverId || !deliveryDate || travelModeOnly) return;
 
-  const syncKey = `${driverId}:${deliveryDate}:${hasTimeWindowChanges ? 'optimize' : 'eta'}`;
+  const syncKey = `${driverId}:${deliveryDate}:${hasTimeWindowChanges ? 'optimize' : 'eta'}:${optimizationStartTime || 'live'}:${skipCurrentTimeEtaChecks ? 'skip' : 'check'}`;
   const now = Date.now();
   if (lastPostDeliverySyncKey === syncKey && now - lastPostDeliverySyncAt < 15000) return;
   lastPostDeliverySyncKey = syncKey;
@@ -105,13 +105,27 @@ export const runPostDeliveryUpdateSync = ({ driverId, deliveryDate, hasTimeWindo
 
     try {
       if (hasTimeWindowChanges) {
-        const optimizationResponse = await optimizeRemainingStops({
+        await optimizeRemainingStops({
           driverId,
           deliveryDate,
-          currentLocalTime,
-          deviceTime: currentLocalTime
+          currentLocalTime: optimizationStartTime || currentLocalTime,
+          deviceTime: optimizationStartTime || currentLocalTime,
+          optimizationStartTime,
+          skipCurrentTimeEtaChecks
         });
       } else {
+        if (skipCurrentTimeEtaChecks) {
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+            detail: {
+              triggeredBy: 'historicalDeliveryUpdateSkippedEtaRefresh',
+              driverId,
+              deliveryDate,
+              alreadyOptimized: false
+            }
+          }));
+          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+          return;
+        }
         const [driverRecords, deliveryRecords] = await Promise.all([
           base44.entities.AppUser.filter({ user_id: driverId }).catch((error) => {
             console.warn('⚠️ [DeliveryForm] Driver refresh skipped:', error?.message || error);

@@ -277,7 +277,7 @@ Deno.serve(async (req) => {
     console.log('✅ [optimizeRemainingStops] User authenticated:', user.email);
 
     const body = await req.json();
-    const { driverId, deliveryDate, currentLocalTime, deviceTime, preserveExistingOrder = false, forceFullRemainingRouteOptimization = false } = body;
+    const { driverId, deliveryDate, currentLocalTime, deviceTime, optimizationStartTime = null, skipCurrentTimeEtaChecks = false, preserveExistingOrder = false, forceFullRemainingRouteOptimization = false } = body;
     
     if (!driverId || !deliveryDate) {
       return Response.json({ 
@@ -286,9 +286,10 @@ Deno.serve(async (req) => {
     }
 
     // Parse current time
+    const effectiveStartTime = optimizationStartTime || currentLocalTime;
     let currentMinutes;
-    if (currentLocalTime) {
-      const [hours, minutes] = currentLocalTime.split(':').map(Number);
+    if (effectiveStartTime) {
+      const [hours, minutes] = effectiveStartTime.split(':').map(Number);
       currentMinutes = hours * 60 + minutes;
     } else if (deviceTime) {
       const deviceDate = new Date(deviceTime);
@@ -538,7 +539,7 @@ Deno.serve(async (req) => {
         const executeHereSequence = async (includeTimeWindows) => {
       const params = new URLSearchParams();
       params.set('apiKey', hereApiKey);
-      params.set('departure', buildLocalIso(deliveryDate, currentLocalTime || formatMinutesToTime(currentMinutes)));
+      params.set('departure', buildLocalIso(deliveryDate, effectiveStartTime || formatMinutesToTime(currentMinutes)));
       params.set('mode', `fastest;${hereTransportMode};traffic:disabled`);
       params.set('improveFor', 'time');
       params.set('start', `driverStart;${currentPosition.lat},${currentPosition.lng}`);
@@ -699,6 +700,9 @@ Deno.serve(async (req) => {
       let cumulativeTime = currentMinutes;
 
       for (let i = 0; i < routeStops.length; i++) {
+        if (skipCurrentTimeEtaChecks && historicalRoute) {
+          break;
+        }
         const stop = routeStops[i];
         const travelSeconds = directionsLegs[i] ? directionsLegs[i].duration : 300;
         const travelMinutes = Math.ceil(travelSeconds / 60);
