@@ -470,7 +470,7 @@ async function reintegratePendingBreadcrumbLive(base44, driverId, deliveryDate, 
   const pendingRows = await base44.asServiceRole.entities.PendingBreadcrumbLive.filter(
     { driver_id: driverId, delivery_date: deliveryDate },
     '-updated_date',
-    50000
+50000
   );
 
   const rowsForDate = pendingRows || [];
@@ -736,8 +736,25 @@ Deno.serve(async (req) => {
       resolvedOriginCoords = null,
       bypassPolylineDelete = false,
       reuseProvidedPolylines = false,
-      sourcePage = null
+      sourcePage = null,
+      precomputedSegmentPolylines = [],   // populated by optimizeRemainingStops to skip HERE call
     } = body || {};
+
+    // Build fast deliveryId → polyline lookup from data provided by optimizeRemainingStops.
+    // When present, these cover the active-stop segments so we can skip calling HERE.
+    const precomputedPolylineById = new Map(
+      (Array.isArray(precomputedSegmentPolylines) ? precomputedSegmentPolylines : [])
+        .filter((item) => item?.deliveryId && item?.encoded_polyline)
+        .map((item) => [String(item.deliveryId), {
+          encoded_polyline:          item.encoded_polyline,
+          estimated_distance_km:     item.estimated_distance_km    ?? null,
+          estimated_duration_minutes: item.estimated_duration_minutes ?? null,
+        }])
+    );
+    const hasPrecomputedPolylines = precomputedPolylineById.size > 0;
+    if (hasPrecomputedPolylines) {
+      console.log(`[purgeAndRegeneratePolylines] ${precomputedPolylineById.size} precomputed polylines received — will skip HERE for matched segments`);
+    }
 
     if (!driverId || !deliveryDate) {
       return Response.json({ error: 'driverId and deliveryDate are required' }, { status: 400 });
@@ -1130,6 +1147,29 @@ Deno.serve(async (req) => {
             }
           });
         }
+
+        // ── Intercept: fill directionsBySegmentKey from precomputed data before calling HERE ──
+        if (hasPrecomputedPolylines) {
+          for (const spec of uncachedSegments) {
+            const matchingStop = activeStops.find((stop) => {
+              const stopCoords = getLatLon(stop);
+              return stop?.id && stopCoords && samePoint({ lat: stopCoords.lat, lon: stopCoords.lon }, spec.to);
+            });
+            const precomputed = matchingStop?.id ? precomputedPolylineById.get(String(matchingStop.id)) : null;
+            if (precomputed) {
+              directionsBySegmentKey.set(makeSegmentKey(driverId, deliveryDate, spec.from, spec.to), precomputed);
+            }
+          }
+          const coveredCount = uncachedSegments.filter(
+            (spec) => directionsBySegmentKey.has(makeSegmentKey(driverId, deliveryDate, spec.from, spec.to))
+          ).length;
+          if (coveredCount === uncachedSegments.length) {
+            console.log(`[purgeAndRegeneratePolylines] All ${coveredCount} segments covered by precomputed polylines — HERE call skipped entirely ✅`);
+          } else {
+            console.log(`[purgeAndRegeneratePolylines] ${coveredCount}/${uncachedSegments.length} segments covered by precomputed polylines — HERE call for remaining`);
+          }
+        }
+        // ────────────────────────────────────────────────────────────────────────
 
         const remainingUncachedSegments = uncachedSegments.filter((spec) => !directionsBySegmentKey.has(makeSegmentKey(driverId, deliveryDate, spec.from, spec.to)));
 
