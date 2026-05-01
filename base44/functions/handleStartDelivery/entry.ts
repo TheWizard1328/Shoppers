@@ -116,7 +116,8 @@ Deno.serve(async (req) => {
         deliveryDate,
         currentLocalTime: optimizationSeedTime,
         preserveExistingOrder: false,
-        forceFullRemainingRouteOptimization: false
+        forceFullRemainingRouteOptimization: false,
+        source: 'handleStartDelivery'
       });
       const optimizationData = optimizationResponse?.data || optimizationResponse || {};
       optimization = {

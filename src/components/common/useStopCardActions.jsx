@@ -525,12 +525,14 @@ export default function useStopCardActions(params) {
             const startData = startResponse?.data || startResponse || {};
             const optimizationDeferred = startData?.optimization?.deferred === true || startData?.optimization?.reason === 'rate_limited';
             const backendOptimizedRoute = Array.isArray(startData?.optimization?.optimizedRoute) ? startData.optimization.optimizedRoute : [];
+            const refreshedRouteDeliveries = await base44.entities.Delivery.filter({ driver_id: delivery.driver_id, delivery_date: delivery.delivery_date });
+            const backendNextDeliveryId = refreshedRouteDeliveries.find((item) => item?.isNextDelivery === true)?.id || delivery.id;
+
             if (optimizationDeferred) {
-              const refreshedRouteDeliveries = await base44.entities.Delivery.filter({ driver_id: delivery.driver_id, delivery_date: delivery.delivery_date });
               const refreshedStartedDelivery = refreshedRouteDeliveries.find((item) => item?.id === delivery.id);
               await setAndCenterNextDelivery({
                 driverDeliveries: refreshedRouteDeliveries,
-                targetDeliveryId: delivery.id,
+                targetDeliveryId: backendNextDeliveryId,
                 updateDeliveryLocal,
                 updateDeliveriesLocally,
                 driverId: delivery.driver_id,
@@ -544,7 +546,10 @@ export default function useStopCardActions(params) {
                   true
                 );
               }
+            } else if (updateDeliveriesLocally) {
+              updateDeliveriesLocally(refreshedRouteDeliveries, true);
             }
+
             if (backendOptimizedRoute.length > 0) {
               window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { updates: backendOptimizedRoute.map((u) => ({ deliveryId: u.deliveryId || u.delivery_id, newEta: u.eta || u.newETA })) } }));
               if (startData?.routeChanged || startData?.optimization?.routeChanged || startData?.optimization?.activeStopCountChanged) {
