@@ -167,7 +167,7 @@ export default function MapViewCycleFAB({ currentUser = null, filteredDeliveries
             !isEnabled
               ? 'bg-gray-400 hover:bg-gray-500'
               : currentPhase === 1
-                ? (isLocked && !isTemporarilyDeactivated ? 'bg-blue-600 hover:bg-blue-700' : 'bg-green-600 hover:bg-green-700')
+                ? (isLocked && !isTemporarilyDeactivated ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 hover:bg-gray-500')
                 : currentPhase === 2
                   ? 'bg-blue-600 hover:bg-blue-700'
                   : currentPhase === 3
