@@ -479,7 +479,10 @@ export default function useStopCardActions(params) {
             const updates = {};
             if ((existing.isNextDelivery || false) !== (item.isNextDelivery || false)) updates.isNextDelivery = item.isNextDelivery || false;
             if (Object.keys(updates).length === 0) return Promise.resolve(null);
-            return updateDeliveryLocal(item.id, updates, { skipSmartRefresh: true, isBatchOperation: true });
+            return Promise.all([
+              updateDeliveryLocal(item.id, updates, { skipSmartRefresh: true, isBatchOperation: true }),
+              base44.entities.Delivery.update(item.id, updates).catch(() => null)
+            ]);
           })
         );
 
