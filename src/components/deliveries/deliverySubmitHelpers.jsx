@@ -110,15 +110,13 @@ export const buildPickupSnapshot = (data) => JSON.stringify({
 export const getDeliverySubmitFlags = ({ delivery, formData, dataToSave }) => {
   const driverChanged = delivery && delivery.driver_id !== formData.driver_id;
   const dateChanged = delivery && delivery.delivery_date !== formData.delivery_date;
+  const transportModeBefore = delivery?.transport_mode || delivery?.finished_leg_transport_mode || '';
+  const transportModeAfter = dataToSave?.transport_mode || dataToSave?.finished_leg_transport_mode || '';
+  const travelModeChanged = !!(delivery && transportModeAfter !== transportModeBefore);
   const timeWindowChanged = !!(
-    delivery && (
+    delivery && !travelModeChanged && (
       (dataToSave.delivery_time_start || '') !== (delivery.delivery_time_start || '') ||
       (dataToSave.delivery_time_end || '') !== (delivery.delivery_time_end || '')
-    )
-  );
-  const travelModeChanged = !!(
-    delivery && (
-      (dataToSave.transport_mode || dataToSave.finished_leg_transport_mode || '') !== (delivery.transport_mode || delivery.finished_leg_transport_mode || '')
     )
   );
   const statusChangedToInTransit = !!(

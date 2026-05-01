@@ -1409,6 +1409,15 @@ export default function DeliveryForm({
         actualDeliveryTimeChanged,
         codWasRemoved
       } = getDeliverySubmitFlags({ delivery, formData, dataToSave });
+
+      const travelModeOnly = !!delivery &&
+        travelModeChanged &&
+        !driverChanged &&
+        !dateChanged &&
+        !timeWindowChanged &&
+        !statusChangedToInTransit &&
+        !statusChangedToCompletion &&
+        !actualDeliveryTimeChanged;
       const oldDriver = driverChanged ? drivers.find((d) => d?.id === delivery.driver_id) : null;
       const newDriver = driverChanged ? drivers.find((d) => d?.id === formData.driver_id) : null;
 
@@ -1438,7 +1447,7 @@ export default function DeliveryForm({
         });
 
         await updateDeliveryLocal(delivery.id, buildUpdatedDeliveryPayload({ dataToSave, formData }));
-        const skipImmediateDeliveriesUpdatedEvent = Boolean(timeWindowChanged);
+        const skipImmediateDeliveriesUpdatedEvent = Boolean(timeWindowChanged || travelModeOnly);
         if (['completed', 'failed', 'cancelled'].includes(formData.status)) {
           const expectedTravelDist = Number(dataToSave.travel_dist ?? formData.travel_dist ?? 0);
           const currentTravelDist = Number(delivery?.travel_dist ?? 0);
