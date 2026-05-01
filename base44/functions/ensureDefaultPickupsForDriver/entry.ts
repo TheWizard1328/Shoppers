@@ -127,7 +127,7 @@ function findReusablePickup(pickups, targetSlot) {
     [...(pickups || [])].sort(byNewest).find((pickup) => ['pending', 'in_transit'].includes(pickup?.status) && sameSlot(pickup));
 }
 
-async function ensurePickup(base44, { store, deliveryDate, driverId, driverName, slot, dispatcherId, createdByAppUserId }) {
+async function ensurePickup(base44, { store, deliveryDate, driverId, driverName, slot, dispatcherId, createdByAppUserId, createdByUserId }) {
   const normalizePickupPuid = async (pickup) => {
     if (!pickup?.id) return pickup;
     const desiredPuid = pickup.puid || pickup.stop_id || null;
@@ -180,6 +180,7 @@ async function ensurePickup(base44, { store, deliveryDate, driverId, driverName,
     driver_name: driverName,
     dispatcher_id: dispatcherId,
     created_by_app_user_id: createdByAppUserId,
+    created_by_user_id: createdByUserId,
     ampm_deliveries: slot,
     status: 'en_route',
     delivery_time_start: times.start || fallbackTimes.start,
@@ -236,6 +237,7 @@ Deno.serve(async (req) => {
           slot,
           dispatcherId,
           createdByAppUserId: creatorAppUserId,
+          createdByUserId: user.id,
         });
 
         ensuredPickups.push({ ...pickup, patient_id: null, puid: pickup?.stop_id || pickup?.puid || null });
