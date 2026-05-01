@@ -516,6 +516,34 @@ export default function useStopCardActions(params) {
               window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: delivery.driver_id, updates: optimizeData.optimizedRoute.map((stop) => ({ deliveryId: stop.deliveryId || stop.delivery_id, newEta: stop.newETA || stop.eta })).filter((stop) => stop.deliveryId && stop.newEta) } }));
             }
             await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+            await base44.functions.invoke('purgeAndRegeneratePolylines', {
+              driverId: delivery.driver_id,
+              deliveryDate: delivery.delivery_date,
+              scope: 'active_only',
+              reason: optimizeData?.routeChanged ? 'route_reordered' : 'manual',
+              sourcePage: 'Dashboard',
+              bypassDriverStatus: true,
+              routeStopOrder: Array.isArray(optimizeData?.optimizedRoute)
+                ? optimizeData.optimizedRoute.map((stop) => stop.deliveryId || stop.delivery_id).filter(Boolean)
+                : [],
+              orderedStopsWithTransportMode: Array.isArray(optimizeData?.optimizedRoute)
+                ? optimizeData.optimizedRoute.map((stop) => ({
+                    deliveryId: stop.deliveryId || stop.delivery_id,
+                    transport_mode: stop.transport_mode || stop.finished_leg_transport_mode || currentPreferredTravelMode,
+                    finished_leg_transport_mode: stop.finished_leg_transport_mode || stop.transport_mode || currentPreferredTravelMode,
+                    encoded_polyline: stop.encoded_polyline || null,
+                    estimated_distance_km: stop.estimated_distance_km ?? null,
+                    estimated_duration_minutes: stop.estimated_duration_minutes ?? null
+                  })).filter((stop) => stop.deliveryId)
+                : [],
+              explicitOrderedStopsOnly: true,
+              explicitRouteOrigin: 'last_finished_stop',
+              explicitRouteDestination: 'home',
+              bypassPolylineUpdated: true,
+              bypassPolylineDelete: true,
+              reuseProvidedPolylines: true
+            }).catch(() => null);
+            await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
             fabControlEvents.reactivatePhaseTwoIfAvailable();
             window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: false } }));
           } catch (optErr) {

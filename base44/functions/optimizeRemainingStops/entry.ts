@@ -729,6 +729,21 @@ Deno.serve(async (req) => {
     );
 
     const nextStopId = explicitNextDelivery?.id || activeStops[0]?.id || null;
+    if (nextStopId) {
+      await Promise.all(
+        incompleteDeliveries.map((delivery) =>
+          base44.asServiceRole.entities.Delivery.update(delivery.id, {
+            isNextDelivery: delivery.id === nextStopId
+          }).catch((error) => {
+            if (isNotFoundError(error)) return null;
+            throw error;
+          })
+        )
+      );
+      activeStops.forEach((stop) => {
+        stop.isNextDelivery = stop.id === nextStopId;
+      });
+    }
 
     finalDeliveryWriteBatch.forEach(({ data, label }) => {
       console.log(`  🔢 [optimizeRemainingStops] Stop #${data.stop_order}: ${label}${data.delivery_time_start ? ` (start: ${data.delivery_time_start})` : ''}`);
@@ -779,6 +794,11 @@ Deno.serve(async (req) => {
         deliveryId: stop.id,
         newETA: stop.delivery_time_eta,
         stop_order: startingOrder + index + 1,
+        isNextDelivery: stop.id === nextStopId,
+        transport_mode: stop.transport_mode || preferredTravelMode,
+        encoded_polyline: segmentPolylines[index]?.encodedPolyline || null,
+        estimated_distance_km: typeof segmentPolylines[index]?.estimatedDistanceKm === 'number' ? segmentPolylines[index].estimatedDistanceKm : null,
+        estimated_duration_minutes: typeof segmentPolylines[index]?.estimatedDurationMinutes === 'number' ? segmentPolylines[index].estimatedDurationMinutes : null,
         travel_dist: Number(directionsLegs[index]?.distance)
           ? Number((Number(directionsLegs[index].distance) / 1000).toFixed(3))
           : null
