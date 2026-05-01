@@ -149,7 +149,7 @@ const DeliveryRow = memo(({
       </div> :
 
     <div
-      onClick={handleRowClick} className="px-4 py-2 grid min-w-max grid-cols-[120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px] gap-2 border-b cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
+      onClick={handleRowClick} className="px-3 py-2 grid min-w-max grid-cols-[120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px] gap-2 border-b cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
 
 
 
@@ -374,16 +374,16 @@ const DeliveryListView = ({
         <div className="flex flex-col items-center">
           <span className="font-semibold text-slate-900 dark:text-slate-100"><span className={codSymbolColorClass}>$</span>{requiredAmount.toFixed(2)}</span>
           <span className="text-xs text-emerald-600 dark:text-emerald-300">Collected{types.length ? ` • ${types.join(' + ')}` : ''}</span>
-        </div>
-      );
+        </div>);
+
     }
 
     return (
       <div className="flex flex-col items-center">
         <span className="font-semibold text-slate-900 dark:text-slate-100"><span className={codSymbolColorClass}>$</span>{requiredAmount.toFixed(2)}</span>
         <span className="text-xs text-amber-600 dark:text-amber-300">Pending collection</span>
-      </div>
-    );
+      </div>);
+
   }, []);
 
   const getTimeDisplay = useCallback((delivery) => {
