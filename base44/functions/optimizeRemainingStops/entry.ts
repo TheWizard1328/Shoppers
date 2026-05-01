@@ -1,42 +1,6 @@
 // Redeployed on 2026-04-09
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
-const logApiUsage = async ({
-  base44,
-  appUserId,
-  appUserName,
-  provider,
-  apiType,
-  purpose,
-  functionName,
-  metadata = {},
-  success,
-  durationMs,
-  errorMessage,
-  callCount = 1,
-}) => {
-  if (!base44) return;
-
-  await base44.asServiceRole.entities.GoogleAPILog.create({
-    timestamp: new Date().toISOString(),
-    api_type: apiType,
-    purpose,
-    function_name: functionName,
-    user_id: appUserId || null,
-    user_name: appUserName || null,
-    metadata: {
-      api_provider: provider,
-      call_count: Number(callCount) || 1,
-      success: success === true,
-      duration_ms: durationMs,
-      error_message: errorMessage || undefined,
-      ...metadata,
-    },
-  }).catch((error) => {
-    console.warn('[optimizeRemainingStops] Failed to persist API usage log:', error?.message || error);
-  });
-};
-
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
 const isRateLimitError = (error) => error?.status === 429 || error?.response?.status === 429 || String(error?.message || '').toLowerCase().includes('rate limit');
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
@@ -65,18 +29,6 @@ const getDeliveryCoords = (delivery, patientMap, storeMap) => {
     return { lat: Number(store.latitude), lng: Number(store.longitude) };
   }
   return null;
-};
-
-const compareStopsDeterministically = (a, b) => {
-  const aTime = Number.isFinite(a?.timeMinutes) ? a.timeMinutes : Number.MAX_SAFE_INTEGER;
-  const bTime = Number.isFinite(b?.timeMinutes) ? b.timeMinutes : Number.MAX_SAFE_INTEGER;
-  if (aTime !== bTime) return aTime - bTime;
-
-  const aOrder = Number(a?.delivery?.stop_order || Number.MAX_SAFE_INTEGER);
-  const bOrder = Number(b?.delivery?.stop_order || Number.MAX_SAFE_INTEGER);
-  if (aOrder !== bOrder) return aOrder - bOrder;
-
-  return String(a?.delivery?.id || '').localeCompare(String(b?.delivery?.id || ''));
 };
 
 /**
@@ -198,154 +150,6 @@ const isHistoricalRouteDate = (dateStr) => {
   return String(dateStr) < getEdmontonTodayDateString();
 };
 
-
-// ─── HERE Routing helpers (added to eliminate duplicate API call) ─────────────
-
-const decodeHereFlexiblePolylineForRouting = (encoded) => {
-  const ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
-  const DEC = {};
-  ALPHA.split('').forEach((c, i) => { DEC[c] = i; });
-  const values = [];
-  let cur = 0, shift = 0;
-  for (const ch of encoded) {
-    const v = DEC[ch];
-    if (v == null) return [];
-    cur |= (v & 0x1f) << shift;
-    if (v & 0x20) { shift += 5; continue; }
-    values.push(cur); cur = 0; shift = 0;
-  }
-  if (shift > 0 || values.length < 2 || values[0] !== 1) return [];
-  const header = values[1];
-  const precision = header & 15;
-  const thirdDim = (header >> 4) & 7;
-  const factor = 10 ** precision;
-  const dim = thirdDim ? 3 : 2;
-  const toSigned = (n) => (n & 1) ? ~(n >> 1) : (n >> 1);
-  let lat = 0, lng = 0;
-  const coords = [];
-  for (let i = 2; i < values.length; i += dim) {
-    lat += toSigned(values[i]);
-    lng += toSigned(values[i + 1]);
-    coords.push([lat / factor, lng / factor]);
-  }
-  return coords;
-};
-
-const encodeGooglePolylineLocal = (points) => {
-  const encodeSigned = (value) => {
-    let signed = value << 1;
-    if (value < 0) signed = ~signed;
-    let encoded = '';
-    while (signed >= 0x20) {
-      encoded += String.fromCharCode((0x20 | (signed & 0x1f)) + 63);
-      signed >>= 5;
-    }
-    encoded += String.fromCharCode(signed + 63);
-    return encoded;
-  };
-  let lastLat = 0, lastLng = 0, result = '';
-  for (const [lat, lng] of points) {
-    const latE5 = Math.round(lat * 1e5);
-    const lngE5 = Math.round(lng * 1e5);
-    result += encodeSigned(latE5 - lastLat);
-    result += encodeSigned(lngE5 - lastLng);
-    lastLat = latE5; lastLng = lngE5;
-  }
-  return result;
-};
-
-/**
- * Fetch per-segment polylines from HERE router API directly.
- * Uses polylineOrigin (last finished stop or home) as the visual start point,
- * NOT currentPosition (which is the optimization start point).
- * This means purgeAndRegeneratePolylines can reuse these and skip its own HERE call.
- */
-const fetchRoutingPolylines = async (base44, user, driverAppUser, hereApiKey, transportMode, polylineOrigin, orderedStops, homeDestination) => {
-  const allPoints = [polylineOrigin, ...orderedStops, ...(homeDestination ? [homeDestination] : [])];
-  if (allPoints.length < 2) return [];
-
-  const params = new URLSearchParams();
-  params.set('apiKey', hereApiKey);
-  params.set('transportMode', transportMode);
-  params.set('return', 'polyline,summary');
-  params.set('origin', `${allPoints[0].lat},${allPoints[0].lng}`);
-  params.set('destination', `${allPoints[allPoints.length - 1].lat},${allPoints[allPoints.length - 1].lng}`);
-  // Use append('via') — HERE router expects repeated 'via' params, NOT indexed keys like via[0]
-  allPoints.slice(1, -1).forEach((pt) => {
-    params.append('via', `${pt.lat},${pt.lng}`);
-  });
-
-  const startedAt = Date.now();
-  try {
-    console.log(`🗺️ [optimizeRemainingStops] fetchRoutingPolylines: origin=${polylineOrigin.lat},${polylineOrigin.lng} stops=${orderedStops.length} home=${!!homeDestination}`);
-    const res = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, {
-      signal: AbortSignal.timeout(15000)
-    });
-    const routeData = await res.json().catch(() => null);
-    const sections = routeData?.routes?.[0]?.sections ?? [];
-    console.log(`✅ [optimizeRemainingStops] fetchRoutingPolylines: got ${sections.length} sections for ${orderedStops.length} stops`);
-
-    await logApiUsage({
-      base44,
-      appUserId: driverAppUser?.id,
-      appUserName: driverAppUser?.user_name || user?.full_name,
-      provider: 'here',
-      apiType: 'Directions (HERE)',
-      purpose: 'Route optimization / polyline update',
-      functionName: 'optimizeRemainingStops:fetchRoutingPolylines',
-      success: res.ok,
-      durationMs: Date.now() - startedAt,
-      callCount: 1,
-      metadata: {
-        transport_mode: transportMode,
-        stops_count: orderedStops.length,
-        includes_home_destination: !!homeDestination,
-        status_code: res.status
-      }
-    });
-
-    return orderedStops.map((_stop, i) => {
-      const section = sections[i] ?? null;
-      if (!section) return { encodedPolyline: null, estimatedDistanceKm: null, estimatedDurationMinutes: null };
-      const hereEncoded = section.polyline ?? '';
-      let googleEncoded = null;
-      if (hereEncoded) {
-        const coords = decodeHereFlexiblePolylineForRouting(hereEncoded);
-        if (coords.length >= 2) googleEncoded = encodeGooglePolylineLocal(coords);
-      }
-      const distanceM = section.summary?.length ?? 0;
-      const durationS = section.summary?.duration ?? 0;
-      return {
-        encodedPolyline: googleEncoded,
-        estimatedDistanceKm: distanceM > 0 ? Number((distanceM / 1000).toFixed(3)) : null,
-        estimatedDurationMinutes: durationS > 0 ? Number((durationS / 60).toFixed(1)) : null,
-      };
-    });
-  } catch (err) {
-    await logApiUsage({
-      base44,
-      appUserId: driverAppUser?.id,
-      appUserName: driverAppUser?.user_name || user?.full_name,
-      provider: 'here',
-      apiType: 'Directions (HERE)',
-      purpose: 'Route optimization / polyline update',
-      functionName: 'optimizeRemainingStops:fetchRoutingPolylines',
-      success: false,
-      durationMs: Date.now() - startedAt,
-      errorMessage: err?.message || 'Unknown error',
-      callCount: 1,
-      metadata: {
-        transport_mode: transportMode,
-        stops_count: orderedStops.length,
-        includes_home_destination: !!homeDestination
-      }
-    });
-    console.warn('[optimizeRemainingStops] fetchRoutingPolylines failed:', err?.message);
-    return orderedStops.map(() => ({ encodedPolyline: null, estimatedDistanceKm: null, estimatedDurationMinutes: null }));
-  }
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
 /**
  * Optimize Remaining Stops - staged optimization for driver's route
  */
@@ -363,7 +167,7 @@ Deno.serve(async (req) => {
     console.log('✅ [optimizeRemainingStops] User authenticated:', user.email);
 
     const body = await req.json();
-    const { driverId, deliveryDate, currentLocalTime, deviceTime, optimizationStartTime = null, skipCurrentTimeEtaChecks = false, preserveExistingOrder = false, forceFullRemainingRouteOptimization = false, source = 'unknown' } = body;
+    const { driverId, deliveryDate, currentLocalTime, deviceTime, preserveExistingOrder = false, forceFullRemainingRouteOptimization = false } = body;
     
     if (!driverId || !deliveryDate) {
       return Response.json({ 
@@ -372,10 +176,9 @@ Deno.serve(async (req) => {
     }
 
     // Parse current time
-    const effectiveStartTime = optimizationStartTime || currentLocalTime;
     let currentMinutes;
-    if (effectiveStartTime) {
-      const [hours, minutes] = effectiveStartTime.split(':').map(Number);
+    if (currentLocalTime) {
+      const [hours, minutes] = currentLocalTime.split(':').map(Number);
       currentMinutes = hours * 60 + minutes;
     } else if (deviceTime) {
       const deviceDate = new Date(deviceTime);
@@ -610,25 +413,10 @@ Deno.serve(async (req) => {
       ? { lat: Number(driverAppUser.home_latitude), lng: Number(driverAppUser.home_longitude) }
       : null;
 
-
-    // polylineOrigin: where the VISUAL polyline starts from.
-    // This is the stop BEFORE isNextDelivery (last finished stop), or home if no stops finished.
-    // Different from currentPosition which is the optimization start point.
-    const polylineOrigin = routeHasStarted
-      ? (
-          previousStopCoords
-          ?? (latestFinishedDelivery ? getDeliveryCoords(latestFinishedDelivery, patientMap, storeMap) : null)
-          ?? currentPosition
-        )
-      : (
-          resolvedHomePosition
-          ?? currentPosition
-        );
-
-        const executeHereSequence = async (includeTimeWindows) => {
+    const executeHereSequence = async (includeTimeWindows) => {
       const params = new URLSearchParams();
       params.set('apiKey', hereApiKey);
-      params.set('departure', buildLocalIso(deliveryDate, effectiveStartTime || formatMinutesToTime(currentMinutes)));
+      params.set('departure', buildLocalIso(deliveryDate, currentLocalTime || formatMinutesToTime(currentMinutes)));
       params.set('mode', `fastest;${hereTransportMode};traffic:disabled`);
       params.set('improveFor', 'time');
       params.set('start', `driverStart;${currentPosition.lat},${currentPosition.lng}`);
@@ -647,34 +435,10 @@ Deno.serve(async (req) => {
       });
 
       attemptedHereCalls += 1;
-      const sequenceStartedAt = Date.now();
       const response = await fetch(`https://wps.hereapi.com/v8/findsequence2?${params.toString()}`, {
         signal: AbortSignal.timeout(20000)
       });
       const data = await response.json().catch(() => null);
-
-      await logApiUsage({
-        base44,
-        appUserId: driverAppUser?.id,
-        appUserName: driverAppUser?.user_name || user?.full_name,
-        provider: 'here',
-        apiType: 'Directions (HERE)',
-        purpose: `Route optimization${source ? ` (${source})` : ''}`,
-        functionName: `optimizeRemainingStops:findsequence2:${source || 'unknown'}`,
-        success: response.ok,
-        durationMs: Date.now() - sequenceStartedAt,
-        errorMessage: response.ok ? null : JSON.stringify(data || {}).slice(0, 500),
-        callCount: 1,
-        metadata: {
-          driver_id: driverId,
-          delivery_date: deliveryDate,
-          transport_mode: hereTransportMode,
-          include_time_windows: includeTimeWindows,
-          stops_count: stopsToSequence.length,
-          locked_next_stop: !!lockedNextStop,
-          source
-        }
-      });
 
       let polylineData = null;
       if (response.ok && Array.isArray(data?.results) && data.results[0]) {
@@ -687,11 +451,16 @@ Deno.serve(async (req) => {
           .filter(Boolean);
 
         if (orderedStopsForPolyline.length > 0) {
-          // Direct routing call using polylineOrigin (last finished stop or home).
-          // This avoids invoking getHereDirections as a separate function (saves 1 HERE call
-          // because purgeAndRegeneratePolylines will reuse these precomputed polylines).
-          // Polyline generation happens after routeStops is fully ordered (see below).
-          polylineData = null;
+          const polylineWaypoints = orderedStopsForPolyline.slice(0, -1);
+          const polylineDestination = orderedStopsForPolyline[orderedStopsForPolyline.length - 1];
+          const polylineResponse = await base44.asServiceRole.functions.invoke('getHereDirections', {
+            origin: { lat: currentPosition.lat, lng: currentPosition.lng },
+            destination: { lat: polylineDestination.lat, lng: polylineDestination.lng },
+            waypoints: polylineWaypoints.map((stop) => ({ lat: stop.lat, lng: stop.lng })),
+            transportMode: preferredTravelMode
+          }).catch(() => null);
+          polylineData = polylineResponse?.data || polylineResponse || null;
+
         }
       }
 
@@ -741,12 +510,7 @@ Deno.serve(async (req) => {
           .filter((waypoint) => waypoint.id !== 'driverStart' && waypoint.id !== 'driverEnd')
           .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
           .map((waypoint, index) => ({ stop: stopsToSequence[index] && stopsToSequence.find((item) => (item.delivery.stop_id || item.delivery.delivery_id || item.delivery.id) === waypoint.id) || null, waypoint }))
-          .filter((item) => item.stop)
-          .sort((a, b) => {
-            const sameSequence = Number(a?.waypoint?.sequence || 0) === Number(b?.waypoint?.sequence || 0);
-            const sameWindow = Number(a?.stop?.timeMinutes ?? Number.MAX_SAFE_INTEGER) === Number(b?.stop?.timeMinutes ?? Number.MAX_SAFE_INTEGER);
-            return sameSequence && sameWindow ? compareStopsDeterministically(a.stop, b.stop) : 0;
-          });
+          .filter((item) => item.stop);
 
         routeStops = [...routeStops, ...orderedStops.map((item) => item.stop)];
         const interconnectionByToWaypoint = new Map(interconnections.map((item) => [item.toWaypoint, item]));
@@ -765,14 +529,39 @@ Deno.serve(async (req) => {
         });
 
         const sequencedStops = orderedStops.map((item) => item.stop);
-        // segmentPolylines will be populated after routeStops is fully ordered (see below).
-        optimizedStopTransportModes = routeStops.map((stop) => {
+        const polylineSegments = Array.isArray(hereAttempt?.polylineData?.polylines)
+          ? hereAttempt.polylineData.polylines
+          : [];
+        segmentPolylines = routeStops.map((stop, index) => {
+          const previousStop = index === 0 ? null : routeStops[index - 1];
+          const origin = index === 0
+            ? currentPosition
+            : previousStop
+              ? { lat: previousStop.lat, lng: previousStop.lng }
+              : null;
+          const destination = { lat: stop.lat, lng: stop.lng };
+          const routeIndex = lockedNextStop ? index - 1 : index;
+          const matchedSequencedStop = routeIndex >= 0 ? sequencedStops[routeIndex] : null;
+          const matchedSegment = routeIndex >= 0 ? polylineSegments[routeIndex] : null;
+          return {
+            deliveryId: stop.delivery.id,
+            origin,
+            destination,
+            encodedPolyline: matchedSequencedStop && matchedSegment?.encodedPolyline ? matchedSegment.encodedPolyline : null,
+            estimatedDistanceKm: matchedSegment?.estimated_distance_km ?? null,
+            estimatedDurationMinutes: matchedSegment?.estimated_duration_minutes ?? null
+          };
+        });
+        optimizedStopTransportModes = routeStops.map((stop, index) => {
           const resolvedTransportMode = String(stop?.delivery?.transport_mode || preferredTravelMode || 'driving').toLowerCase();
           const safeTransportMode = ['driving', 'cycling', 'pedestrian'].includes(resolvedTransportMode) ? resolvedTransportMode : 'driving';
           return {
             deliveryId: stop.delivery.id,
             transport_mode: safeTransportMode,
-            finished_leg_transport_mode: safeTransportMode
+            finished_leg_transport_mode: safeTransportMode,
+            encoded_polyline: segmentPolylines[index]?.encodedPolyline || null,
+            estimated_distance_km: typeof segmentPolylines[index]?.estimatedDistanceKm === 'number' ? segmentPolylines[index].estimatedDistanceKm : null,
+            estimated_duration_minutes: typeof segmentPolylines[index]?.estimatedDurationMinutes === 'number' ? segmentPolylines[index].estimatedDurationMinutes : null
           };
         });
         console.log(`✅ [optimizeRemainingStops] HERE sequencing success${usedTimeWindows ? ' with time windows' : ' without time windows'}`);
@@ -815,9 +604,6 @@ Deno.serve(async (req) => {
       let cumulativeTime = currentMinutes;
 
       for (let i = 0; i < routeStops.length; i++) {
-        if (skipCurrentTimeEtaChecks && historicalRoute) {
-          break;
-        }
         const stop = routeStops[i];
         const travelSeconds = directionsLegs[i] ? directionsLegs[i].duration : 300;
         const travelMinutes = Math.ceil(travelSeconds / 60);
@@ -836,69 +622,12 @@ Deno.serve(async (req) => {
       }
     }
 
-    const activeStops = routeStops
-      .map((stop, index) => {
-        const persistedStopOrder = completedDeliveries.length + index + 1;
-        return {
-          ...stop.delivery,
-          _route_lat: stop.lat,
-          _route_lng: stop.lng,
-          stop_order: persistedStopOrder,
-          display_stop_order: persistedStopOrder,
-          delivery_time_eta: stageEtaMap.get(stop.delivery.id) || stop.delivery.delivery_time_eta
-        };
-      })
-      .sort((a, b) => {
-        if (a.isNextDelivery === true && b.isNextDelivery !== true) return -1;
-        if (b.isNextDelivery === true && a.isNextDelivery !== true) return 1;
-        const etaDiff = (parseTimeToMinutes(a.delivery_time_eta) ?? Number.MAX_SAFE_INTEGER) - (parseTimeToMinutes(b.delivery_time_eta) ?? Number.MAX_SAFE_INTEGER);
-        if (etaDiff !== 0) return etaDiff;
-        return compareStopsDeterministically(a, b);
-      })
-      .map((stop, index) => ({
-        ...stop,
-        isNextDelivery: index === 0 ? stop.isNextDelivery === true : false,
-        stop_order: completedDeliveries.length + index + 1,
-        display_stop_order: completedDeliveries.length + index + 1
-      }));
-
-    const activeStopOrderMap = new Map(activeStops.map((stop) => [String(stop.id), Number(stop.stop_order)]));
-    const remainingPendingStops = pendingRouteDeliveries
-      .filter((delivery) => !activeStopOrderMap.has(String(delivery?.id)))
-      .slice()
-      .sort((a, b) => (Number(a?.stop_order) || Number.MAX_SAFE_INTEGER) - (Number(b?.stop_order) || Number.MAX_SAFE_INTEGER));
-
-    const pendingStartOrder = completedDeliveries.length + activeStops.length + 1;
-    remainingPendingStops.forEach((delivery, index) => {
-      const nextOrder = pendingStartOrder + index;
-      activeStopOrderMap.set(String(delivery.id), nextOrder);
-    });
+    const activeStops = routeStops.map((stop) => ({
+      ...stop.delivery,
+      delivery_time_eta: stageEtaMap.get(stop.delivery.id) || stop.delivery.delivery_time_eta
+    }));
 
     console.log(`\n🔢 [optimizeRemainingStops] HERE returned ${activeStops.length} ordered stops`);
-
-    // ── Fetch all segment polylines in one call now that routeStops order is final ──────────
-    // Route: polylineOrigin → stop[0] → stop[1] → ... → stop[N-1] → home
-    // One HERE router call, N+1 sections, section[i] = leg INTO routeStops[i].
-    if (activeStops.length > 0) {
-      const perStopPolylines = await fetchRoutingPolylines(
-        base44,
-        user,
-        driverAppUser,
-        hereApiKey,
-        hereTransportMode,
-        polylineOrigin,
-        activeStops.map((s) => ({ lat: s._route_lat, lng: s._route_lng })),
-        resolvedHomePosition
-      );
-      segmentPolylines = activeStops.map((stop, i) => ({
-        deliveryId:              stop.id,
-        encodedPolyline:         perStopPolylines[i]?.encodedPolyline         ?? null,
-        estimatedDistanceKm:     perStopPolylines[i]?.estimatedDistanceKm     ?? null,
-        estimatedDurationMinutes: perStopPolylines[i]?.estimatedDurationMinutes ?? null,
-      }));
-      console.log(`🗺️ [optimizeRemainingStops] Polylines fetched: ${segmentPolylines.filter((s) => !!s.encodedPolyline).length}/${activeStops.length} stops have polylines`);
-    }
-    // ──────────────────────────────────────────────────────────────────────────────────────────
 
     // STEP 8: Build one final delivery write batch and update once
     const startingOrder = completedDeliveries.length;
@@ -945,7 +674,7 @@ Deno.serve(async (req) => {
 
     for (let i = 0; i < activeStops.length; i++) {
       const stop = activeStops[i];
-      const newOrder = preserveExistingOrder ? Number(stop.stop_order || i + 1) : Number(activeStopOrderMap.get(String(stop.id)) || (startingOrder + i + 1));
+      const newOrder = preserveExistingOrder ? Number(stop.stop_order || i + 1) : startingOrder + i + 1;
       const pendingStartTime = resolvePendingStartTime(stop);
       const segmentPolyline = segmentPolylines.find((segment) => segment.deliveryId === stop.id) || null;
       const resolvedTransportMode = String(stop?.transport_mode || preferredTravelMode || 'driving').toLowerCase();
@@ -953,7 +682,6 @@ Deno.serve(async (req) => {
       const updateData = {
         stop_order: newOrder,
         display_stop_order: newOrder,
-        isNextDelivery: stop.isNextDelivery === true,
         delivery_time_eta: stop.delivery_time_eta,
         transport_mode: safeTransportMode,
         travel_dist: Number(directionsLegs[i]?.distance)
@@ -974,8 +702,6 @@ Deno.serve(async (req) => {
 
       stop.stop_order = newOrder;
       stop.display_stop_order = newOrder;
-      delete stop._route_lat;
-      delete stop._route_lng;
 
       finalDeliveryWriteBatch.push({
         id: stop.id,
@@ -1003,16 +729,7 @@ Deno.serve(async (req) => {
 
     const shouldRefreshPolylines = activeStops.length > 0;
 
-    // Skip purgeAndRegeneratePolylines if ALL active stops already have polylines
-    // (they were written directly to the DB in finalDeliveryWriteBatch above).
-    const stopsWithPolylines = segmentPolylines.filter((s) => !!s.encodedPolyline).length;
-    const allStopsHavePolylines = stopsWithPolylines === activeStops.length;
-    if (allStopsHavePolylines) {
-      console.log(`🗺️ [optimizeRemainingStops] All ${activeStops.length} stops have polylines from fetchRoutingPolylines — skipping purgeAndRegeneratePolylines entirely ✅`);
-    }
-
-    if (shouldRefreshPolylines && !allStopsHavePolylines) {
-      console.log(`🗺️ [optimizeRemainingStops] ${activeStops.length - stopsWithPolylines} stops missing polylines — calling purgeAndRegeneratePolylines for remaining`);
+    if (shouldRefreshPolylines) {
       await base44.asServiceRole.functions.invoke('purgeAndRegeneratePolylines', {
         driverId,
         deliveryDate,
@@ -1023,20 +740,12 @@ Deno.serve(async (req) => {
         routeStopOrder: activeStops.map((stop) => stop.id),
         orderedStopsWithTransportMode: optimizedStopTransportModes,
         explicitOrderedStopsOnly: true,
-        explicitRouteOrigin: previousStopCoords ? 'previous_stop_before_next' : routeHasStarted ? 'last_finished_stop' : 'home',
+        explicitRouteOrigin: previousStopCoords || routeHasStarted ? 'last_finished_stop' : 'home',
         explicitRouteDestination: 'home',
-        resolvedOriginCoords: polylineOrigin ? { lat: polylineOrigin.lat, lon: polylineOrigin.lng } : null,
+        resolvedOriginCoords: currentPosition ? { lat: currentPosition.lat, lon: currentPosition.lng } : null,
         bypassPolylineUpdated: true,
         bypassPolylineDelete: true,
-        reuseProvidedPolylines: segmentPolylines.some((s) => !!s.encodedPolyline),
-        precomputedSegmentPolylines: segmentPolylines
-          .filter((s) => !!s.encodedPolyline)
-          .map((s) => ({
-            deliveryId:                s.deliveryId,
-            encoded_polyline:          s.encodedPolyline,
-            estimated_distance_km:     s.estimatedDistanceKm      ?? null,
-            estimated_duration_minutes: s.estimatedDurationMinutes ?? null,
-          })),
+        reuseProvidedPolylines: false
       }).catch((error) => {
         console.warn('⚠️ [optimizeRemainingStops] Polyline refresh failed:', error?.message || error);
         return null;
@@ -1047,27 +756,6 @@ Deno.serve(async (req) => {
     // HERE usage is logged inside getHereDirections so dashboard counts stay aligned to real HTTP calls.
 
     console.log(`\n✅ [optimizeRemainingStops] Route optimization complete - ${activeStops.length} stops updated in one final batch, ${attemptedHereCalls} API calls`);
-
-    await logApiUsage({
-      base44,
-      appUserId: driverAppUser?.id,
-      appUserName: driverAppUser?.user_name || user?.full_name,
-      provider: 'here',
-      apiType: 'Directions (HERE)',
-      purpose: `Route optimization summary${source ? ` (${source})` : ''}`,
-      functionName: `optimizeRemainingStops:summary:${source || 'unknown'}`,
-      success: true,
-      durationMs: 0,
-      callCount: attemptedHereCalls,
-      metadata: {
-        driver_id: driverId,
-        delivery_date: deliveryDate,
-        optimized_count: activeStops.length,
-        route_changed: routeOrderChanged,
-        used_time_windows: usedTimeWindows,
-        source
-      }
-    });
 
     return Response.json({
       success: true,
@@ -1084,9 +772,8 @@ Deno.serve(async (req) => {
       nextDeliveryId: nextStopId,
       optimizedRoute: activeStops.map((stop, index) => ({
         deliveryId: stop.id,
-        isNextDelivery: stop.isNextDelivery === true,
         newETA: stop.delivery_time_eta,
-        stop_order: Number(activeStopOrderMap.get(String(stop.id)) || (startingOrder + index + 1)),
+        stop_order: startingOrder + index + 1,
         travel_dist: Number(directionsLegs[index]?.distance)
           ? Number((Number(directionsLegs[index].distance) / 1000).toFixed(3))
           : null
