@@ -452,6 +452,9 @@ export default function useStopCardActions(params) {
         const routeDeliveries = getDriverRouteDeliveries(allDeliveries, delivery);
         await collapseDriverStopCards();
 
+        const finishedStopCount = routeDeliveries.filter((d) => d && FINISHED_STATUSES.includes(d.status)).length;
+        const startedStopOrder = finishedStopCount + 1;
+
         const startedRouteDeliveries = routeDeliveries.map((d) => {
           if (!d) return d;
           const isCurrent = d.id === delivery.id;
@@ -459,6 +462,7 @@ export default function useStopCardActions(params) {
             ...d,
             ...(isCurrent ? {
               status: isPickup ? 'en_route' : 'in_transit',
+              stop_order: startedStopOrder,
               ...(shouldPreserveWindowTimesOnStart ? {} : { delivery_time_start: currentLocalTime, delivery_time_end: currentLocalTime }),
               delivery_time_eta: currentLocalTime,
               isNextDelivery: true,
