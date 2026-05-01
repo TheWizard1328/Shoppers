@@ -1,3 +1,4 @@
+// Redeployed on 2026-05-01
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 const SPECIAL_STORE_NAMES = new Set(['Lakeland Ridge', 'Sherwood Pk Mall', 'WestPark', 'SouthPoint']);
