@@ -75,7 +75,6 @@ Deno.serve(async (req) => {
       display_stop_order: selectedStopOrder,
       travel_dist: 0,
       ...(selectedDelivery?.delivery_time_start ? {} : { delivery_time_start: normalizeLocalTimeString(currentLocalTime) || getCurrentLocalTimeString() }),
-      ...(selectedDelivery?.delivery_time_end ? {} : { delivery_time_end: normalizeLocalTimeString(currentLocalTime) || getCurrentLocalTimeString() }),
       delivery_time_eta: normalizeLocalTimeString(currentLocalTime) || getCurrentLocalTimeString()
     };
 
