@@ -376,9 +376,13 @@ export default function DeliveryFormView({
             const deliveryDate = formData?.delivery_date;
             const previousDriverId = delivery?.driver_id;
             const previousDeliveryDate = delivery?.delivery_date;
-            const shouldOptimizeInBackground = hasTimeWindowChanges;
+            const originalTimeStart = delivery?.delivery_time_start || '';
+            const originalTimeEnd = delivery?.delivery_time_end || '';
+            const nextTimeStart = formData?.delivery_time_start || '';
+            const nextTimeEnd = formData?.delivery_time_end || '';
+            const shouldOptimizeInBackground = originalTimeStart !== nextTimeStart || originalTimeEnd !== nextTimeEnd;
             const travelModeOnly = !!delivery &&
-              !hasTimeWindowChanges &&
+              !shouldOptimizeInBackground &&
               (formData?.transport_mode || formData?.finished_leg_transport_mode || '') !== (delivery?.transport_mode || delivery?.finished_leg_transport_mode || '') &&
               (formData?.driver_id || '') === (delivery?.driver_id || '') &&
               (formData?.delivery_date || '') === (delivery?.delivery_date || '');
@@ -1047,7 +1051,11 @@ export default function DeliveryFormView({
                   const deliveryDate = formData?.delivery_date;
                   const previousDriverId = delivery?.driver_id;
                   const previousDeliveryDate = delivery?.delivery_date;
-                  const shouldOptimizeInBackground = hasTimeWindowChanges;
+                  const originalTimeStart = delivery?.delivery_time_start || '';
+                  const originalTimeEnd = delivery?.delivery_time_end || '';
+                  const nextTimeStart = formData?.delivery_time_start || '';
+                  const nextTimeEnd = formData?.delivery_time_end || '';
+                  const shouldOptimizeInBackground = originalTimeStart !== nextTimeStart || originalTimeEnd !== nextTimeEnd;
                   let didSave = false;
                   const submitEvent = { preventDefault: () => {}, stopPropagation: () => {} };
 
