@@ -459,7 +459,6 @@ export default function useStopCardActions(params) {
             ...d,
             ...(isCurrent ? {
               status: isPickup ? 'en_route' : 'in_transit',
-              stop_order: 1,
               ...(shouldPreserveWindowTimesOnStart ? {} : { delivery_time_start: currentLocalTime, delivery_time_end: currentLocalTime }),
               delivery_time_eta: currentLocalTime,
               isNextDelivery: true,
