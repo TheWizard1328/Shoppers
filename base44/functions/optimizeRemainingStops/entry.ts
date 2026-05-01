@@ -31,20 +31,17 @@ const getDeliveryCoords = (delivery, patientMap, storeMap) => {
   return null;
 };
 
-/**
- * Calculate crow-flies distance between two coordinates (Haversine formula)
- */
 const calculateCrowFliesDistance = (lat1, lng1, lat2, lng2) => {
-  const R = 6371; // Earth's radius in km
+  const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLng = (lng2 - lng1) * Math.PI / 180;
-  
+
   const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
     Math.sin(dLng / 2) * Math.sin(dLng / 2);
-  
+
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c; // Distance in kilometers
+  return R * c;
 };
 
 const addRouteToHomePenalty = (routeStops, homePosition) => {
@@ -54,9 +51,6 @@ const addRouteToHomePenalty = (routeStops, homePosition) => {
   return calculateCrowFliesDistance(lastStop.lat, lastStop.lng, homePosition.lat, homePosition.lng);
 };
 
-/**
- * Parse time string (HH:mm) to minutes since midnight
- */
 const parseTimeToMinutes = (timeStr) => {
   if (!timeStr || typeof timeStr !== 'string') return Infinity;
   const parts = timeStr.split(':');
@@ -67,9 +61,6 @@ const parseTimeToMinutes = (timeStr) => {
   return h * 60 + m;
 };
 
-/**
- * Format minutes since midnight to HH:mm string
- */
 const formatMinutesToTime = (minutes) => {
   const h = Math.floor(minutes / 60) % 24;
   const m = minutes % 60;
@@ -150,12 +141,28 @@ const isHistoricalRouteDate = (dateStr) => {
   return String(dateStr) < getEdmontonTodayDateString();
 };
 
-/**
- * Optimize Remaining Stops - staged optimization for driver's route
- */
+const getLegTravelMinutes = ({ stop, leg, segmentPolyline, fallbackMinutes = 5 }) => {
+  const estimatedDurationMinutes = segmentPolyline?.estimatedDurationMinutes;
+  if (typeof estimatedDurationMinutes === 'number' && estimatedDurationMinutes > 0) {
+    return Math.ceil(estimatedDurationMinutes);
+  }
+
+  const deliveryEstimatedDuration = stop?.delivery?.estimated_duration_minutes;
+  if (typeof deliveryEstimatedDuration === 'number' && deliveryEstimatedDuration > 0) {
+    return Math.ceil(deliveryEstimatedDuration);
+  }
+
+  const travelSeconds = Number(leg?.duration || 0);
+  if (travelSeconds > 0) {
+    return Math.ceil(travelSeconds / 60);
+  }
+
+  return fallbackMinutes;
+};
+
 Deno.serve(async (req) => {
   console.log('🚀 [optimizeRemainingStops] Function called');
-  
+
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
@@ -163,19 +170,18 @@ Deno.serve(async (req) => {
     if (!user) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
+
     console.log('✅ [optimizeRemainingStops] User authenticated:', user.email);
 
     const body = await req.json();
     const { driverId, deliveryDate, currentLocalTime, deviceTime, preserveExistingOrder = false, forceFullRemainingRouteOptimization = false } = body;
-    
+
     if (!driverId || !deliveryDate) {
-      return Response.json({ 
-        error: 'Missing required parameters: driverId, deliveryDate' 
+      return Response.json({
+        error: 'Missing required parameters: driverId, deliveryDate'
       }, { status: 400 });
     }
 
-    // Parse current time
     let currentMinutes;
     if (currentLocalTime) {
       const [hours, minutes] = currentLocalTime.split(':').map(Number);
@@ -198,8 +204,7 @@ Deno.serve(async (req) => {
     }
 
     console.log(`🔄 [optimizeRemainingStops] Optimizing remaining stops for driver ${driverId} on ${deliveryDate}`);
-    
-    // Get driver info
+
     const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
     const driverAppUser = appUsers?.[0];
     const bypassDriverStatus = body?.bypassDriverStatus === true;
@@ -239,33 +244,30 @@ Deno.serve(async (req) => {
     if (!hereApiKey) {
       return Response.json({ error: `${activeApiKeyName} secret is not set` }, { status: 500 });
     }
-    
+
     if (!driverAppUser) {
       return Response.json({ error: 'Driver not found' }, { status: 404 });
     }
-    
-    // Fetch all deliveries for the driver on this date
+
     const allDeliveries = await base44.asServiceRole.entities.Delivery.filter({
       driver_id: driverId,
       delivery_date: deliveryDate
     }, 'stop_order');
-    
+
     if (!allDeliveries || allDeliveries.length === 0) {
       return Response.json({ message: 'No deliveries found', routeChanged: false });
     }
 
     console.log(`📦 [optimizeRemainingStops] Found ${allDeliveries.length} deliveries`);
 
-    // Separate completed and incomplete deliveries
     const completedDeliveries = allDeliveries.filter(d => FINISHED_STATUSES.includes(d.status));
     const incompleteDeliveries = allDeliveries.filter(d => !FINISHED_STATUSES.includes(d.status));
     const activeRouteDeliveries = incompleteDeliveries.filter((delivery) => ACTIVE_STATUSES.includes(delivery.status));
     const pendingRouteDeliveries = incompleteDeliveries.filter((delivery) => delivery.status === 'pending');
     const optimizableDeliveries = [...activeRouteDeliveries, ...pendingRouteDeliveries];
-    const polylineEligibleDeliveries = [...activeRouteDeliveries];
 
     if (optimizableDeliveries.length === 0) {
-      return Response.json({ 
+      return Response.json({
         success: true,
         message: 'No optimizable stops found',
         routeChanged: false,
@@ -279,9 +281,8 @@ Deno.serve(async (req) => {
       console.log(`   - ${d.patient_name || 'Pickup'}: isNextDelivery=${d.isNextDelivery}, delivery_time_start=${d.delivery_time_start}`);
     });
 
-    // Get patient and store data for coordinates
     const patientIds = [...new Set(optimizableDeliveries.filter(d => d.patient_id).map(d => d.patient_id))];
-    const patients = patientIds.length > 0 
+    const patients = patientIds.length > 0
       ? await base44.asServiceRole.entities.Patient.filter({ id: { $in: patientIds } })
       : [];
     const patientMap = new Map(patients.map(p => [p.id, p]));
@@ -292,7 +293,6 @@ Deno.serve(async (req) => {
       : [];
     const storeMap = new Map(stores.map(s => [s.id, s]));
 
-    // Build stops with coordinates
     const pickupWindowByStopId = new Map(
       optimizableDeliveries
         .filter((delivery) => delivery && !delivery.patient_id && delivery.stop_id)
@@ -334,7 +334,6 @@ Deno.serve(async (req) => {
     const historicalRoute = isHistoricalRouteDate(deliveryDate);
     const latestFinishedDelivery = getLatestFinishedDelivery(completedDeliveries);
 
-    // STEP 2: Determine origin for the incomplete section only
     let currentPosition;
     let locationSource;
 
@@ -374,9 +373,9 @@ Deno.serve(async (req) => {
       currentPosition = { lat: Number(driverAppUser.home_latitude), lng: Number(driverAppUser.home_longitude) };
       locationSource = 'home';
     }
-    
+
     if (!currentPosition) {
-      return Response.json({ 
+      return Response.json({
         error: 'Driver location not available - no GPS, last completed, or home location set'
       }, { status: 404 });
     }
@@ -385,7 +384,6 @@ Deno.serve(async (req) => {
     console.log(`🎯 [optimizeRemainingStops] Active next stop: ${explicitNextDelivery?.id || 'none'}`);
     console.log(`🏁 [optimizeRemainingStops] Home remains locked as final destination${driverAppUser.home_latitude != null && driverAppUser.home_longitude != null ? '' : ' (not set)'}`);
 
-    // STEP 3: Let HERE sequence the full incomplete route in one call
     const optimizationStops = optimizableDeliveries
       .map((delivery) => stops.find((item) => item.delivery.id === delivery.id) || null)
       .filter(Boolean);
@@ -567,14 +565,15 @@ Deno.serve(async (req) => {
       }
     }
 
-    // STEP 4: Calculate ETAs from the sequenced route
     const stageEtaMap = new Map();
+    const segmentPolylineByDeliveryId = new Map(segmentPolylines.map((segment) => [segment.deliveryId, segment]));
 
     if (historicalRoute && routeStops.length > 0) {
       const firstStop = routeStops[0];
-      let cumulativeTime = parseTimeToMinutes(firstStop.windowStart || firstStop.delivery.time_window_start || firstStop.delivery.delivery_time_start);
-      if (!Number.isFinite(cumulativeTime)) {
-        cumulativeTime = currentMinutes;
+      let cumulativeTime = currentMinutes;
+      const firstStopWindowStart = parseTimeToMinutes(firstStop.windowStart || firstStop.delivery.time_window_start || firstStop.delivery.delivery_time_start);
+      if (Number.isFinite(firstStopWindowStart) && cumulativeTime < firstStopWindowStart) {
+        cumulativeTime = firstStopWindowStart;
       }
 
       const firstStopEta = formatMinutesToTime(cumulativeTime);
@@ -584,8 +583,12 @@ Deno.serve(async (req) => {
 
       for (let i = 1; i < routeStops.length; i++) {
         const stop = routeStops[i];
-        const travelSeconds = directionsLegs[i] ? directionsLegs[i].duration : 300;
-        const travelMinutes = Math.ceil(travelSeconds / 60);
+        const segmentPolyline = segmentPolylineByDeliveryId.get(stop.delivery.id) || null;
+        const travelMinutes = getLegTravelMinutes({
+          stop,
+          leg: directionsLegs[i],
+          segmentPolyline
+        });
         cumulativeTime += travelMinutes;
 
         const windowStart = parseTimeToMinutes(stop.windowStart || stop.delivery.time_window_start || stop.delivery.delivery_time_start);
@@ -604,9 +607,16 @@ Deno.serve(async (req) => {
 
       for (let i = 0; i < routeStops.length; i++) {
         const stop = routeStops[i];
-        const travelSeconds = directionsLegs[i] ? directionsLegs[i].duration : 300;
-        const travelMinutes = Math.ceil(travelSeconds / 60);
-        cumulativeTime += travelMinutes;
+        const segmentPolyline = segmentPolylineByDeliveryId.get(stop.delivery.id) || null;
+        const isLockedStartedStop = i === 0 && !!lockedNextStop;
+        if (!isLockedStartedStop) {
+          const travelMinutes = getLegTravelMinutes({
+            stop,
+            leg: directionsLegs[i],
+            segmentPolyline
+          });
+          cumulativeTime += travelMinutes;
+        }
 
         const windowStart = parseTimeToMinutes(stop.windowStart || stop.delivery.time_window_start);
         if (Number.isFinite(windowStart) && cumulativeTime < windowStart) {
@@ -628,7 +638,6 @@ Deno.serve(async (req) => {
 
     console.log(`\n🔢 [optimizeRemainingStops] HERE returned ${activeStops.length} ordered stops`);
 
-    // STEP 8: Build one final delivery write batch and update once
     const startingOrder = completedDeliveries.length;
     const originalActiveOrder = activeRouteDeliveries
       .slice()
@@ -724,8 +733,6 @@ Deno.serve(async (req) => {
       console.log(`  🔢 [optimizeRemainingStops] Stop #${data.stop_order}: ${label}${data.delivery_time_start ? ` (start: ${data.delivery_time_start})` : ''}`);
     });
 
-    // Tracking numbers are intentionally delayed until Assign All / Accept All.
-
     const shouldRefreshPolylines = activeStops.length > 0;
 
     if (shouldRefreshPolylines) {
@@ -751,8 +758,6 @@ Deno.serve(async (req) => {
       });
       console.log(`🗺️ [optimizeRemainingStops] Active route polyline refresh requested (${routeOrderChanged ? 'reordered' : 'same-order'})`);
     }
-
-    // HERE usage is logged inside getHereDirections so dashboard counts stay aligned to real HTTP calls.
 
     console.log(`\n✅ [optimizeRemainingStops] Route optimization complete - ${activeStops.length} stops updated in one final batch, ${attemptedHereCalls} API calls`);
 
@@ -793,7 +798,7 @@ Deno.serve(async (req) => {
     }
 
     console.error('❌ [optimizeRemainingStops] ERROR:', error.message);
-    return Response.json({ 
+    return Response.json({
       error: error.message,
       stack: error.stack
     }, { status: 500 });
