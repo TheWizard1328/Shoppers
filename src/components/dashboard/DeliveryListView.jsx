@@ -216,7 +216,7 @@ const DeliveryRow = memo(({
               <span className="text-[11px] text-slate-600">x{delivery.receipt_barcode_values.length}</span>
             </button> :
 
-        <div className="w-[72px] h-7 bg-white border rounded-sm overflow-hidden flex items-center justify-center text-slate-400" style={{ borderColor: 'var(--border-slate-200)' }}>—</div>
+        <div className="w-[82px] h-7 bg-white border rounded-sm overflow-hidden flex items-center justify-center text-slate-400" style={{ borderColor: 'var(--border-slate-200)' }}>—</div>
         }
         </div>
 
@@ -233,7 +233,7 @@ const DeliveryRow = memo(({
               <span className="text-[11px] text-slate-600">x{delivery.barcode_values.length}</span>
             </button> :
 
-        <div className="w-[72px] h-7 bg-white border rounded-sm overflow-hidden flex items-center justify-center text-slate-400" style={{ borderColor: 'var(--border-slate-200)' }}>—</div>
+        <div className="w-[82px] h-7 bg-white border rounded-sm overflow-hidden flex items-center justify-center text-slate-400" style={{ borderColor: 'var(--border-slate-200)' }}>—</div>
         }
         </div>
 
