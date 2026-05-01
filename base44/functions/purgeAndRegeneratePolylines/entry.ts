@@ -470,7 +470,7 @@ async function reintegratePendingBreadcrumbLive(base44, driverId, deliveryDate, 
   const pendingRows = await base44.asServiceRole.entities.PendingBreadcrumbLive.filter(
     { driver_id: driverId, delivery_date: deliveryDate },
     '-updated_date',
-50000
+    50000
   );
 
   const rowsForDate = pendingRows || [];
@@ -923,7 +923,21 @@ Deno.serve(async (req) => {
         .filter((item) => item?.deliveryId)
         .map((item) => [item.deliveryId, item])
     );
-    const reusablePolylineMetaById = reuseProvidedPolylines ? explicitStopMetaById : new Map();
+    // Inject precomputed polylines (from optimizeRemainingStops) into explicitStopMetaById
+    // so the reuseProvidedPolylines path picks them up without a separate HERE call.
+    precomputedPolylineById.forEach((polylineData, deliveryId) => {
+      const existing = explicitStopMetaById.get(deliveryId) || {};
+      explicitStopMetaById.set(deliveryId, {
+        ...existing,
+        deliveryId,
+        encoded_polyline:           polylineData.encoded_polyline,
+        estimated_distance_km:      polylineData.estimated_distance_km,
+        estimated_duration_minutes:  polylineData.estimated_duration_minutes,
+      });
+    });
+    // Force reuse when we have precomputed data — avoids HERE call entirely.
+    const effectiveReusePolylines = reuseProvidedPolylines || hasPrecomputedPolylines;
+    const reusablePolylineMetaById = effectiveReusePolylines ? explicitStopMetaById : new Map();
     const deliveryById = new Map((deliveries || []).filter((delivery) => delivery?.id).map((delivery) => [delivery.id, delivery]));
     const orderedDeliveries = (explicitStopOrderIds.length > 0
       ? explicitStopOrderIds.map((id) => deliveryById.get(id) || null).filter(Boolean)
@@ -1128,7 +1142,7 @@ Deno.serve(async (req) => {
         const uncachedSegments = [...segmentSpecs];
         const directionsBySegmentKey = new Map();
 
-        if (reuseProvidedPolylines) {
+        if (effectiveReusePolylines) {
           uncachedSegments.forEach((spec) => {
             const matchingStop = activeStops.find((stop) => {
               const stopCoords = getLatLon(stop);
