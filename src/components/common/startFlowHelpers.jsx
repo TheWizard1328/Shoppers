@@ -22,7 +22,7 @@ const buildStartRoute = ({ routeDeliveries, delivery, isPickup, currentLocalTime
           delivery_time_end: currentLocalTime
         }),
         delivery_time_eta: currentLocalTime,
-        isNextDelivery: true,
+        isNextDelivery: false,
         travel_dist: 0
       } : {
         ...(item.isNextDelivery ? { isNextDelivery: false } : {})
@@ -46,7 +46,7 @@ const getChangedDeliveries = (originalRoute, nextRoute) => nextRoute.filter((ite
 
 const persistLocalRouteChanges = async ({ originalRoute, changedStops, updateDeliveryLocal, updateDeliveriesLocally }) => {
   const safeChangedStops = changedStops.filter(Boolean);
-  if (safeChangedStops.length === 0) return;
+  if (safeChangedStops.length === 0) return [];
 
   await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, safeChangedStops);
   updateDeliveriesLocally?.(safeChangedStops, false);
@@ -67,6 +67,8 @@ const persistLocalRouteChanges = async ({ originalRoute, changedStops, updateDel
       return updateDeliveryLocal(item.id, updates, { skipSmartRefresh: true, isBatchOperation: true });
     })
   );
+
+  return safeChangedStops;
 };
 
 export async function runStartFlow({
@@ -113,7 +115,7 @@ export async function runStartFlow({
       shouldPreserveWindowTimesOnStart
     });
 
-    await persistLocalRouteChanges({
+    const initialChangedStops = await persistLocalRouteChanges({
       originalRoute: routeDeliveries,
       changedStops: getChangedDeliveries(routeDeliveries, startedRouteDeliveries),
       updateDeliveryLocal,
@@ -130,22 +132,29 @@ export async function runStartFlow({
       || locallyReorderedRoute.find((item) => item && item.id !== delivery.id && !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(item.status))
       || null;
 
-    await persistLocalRouteChanges({
+    const reorderedChangedStops = await persistLocalRouteChanges({
       originalRoute: routeDeliveries,
       changedStops: locallyChangedStops,
       updateDeliveryLocal,
       updateDeliveriesLocally
     });
 
-    await setAndCenterNextDelivery({
+    const nextDeliverySync = await setAndCenterNextDelivery({
       driverDeliveries: locallyReorderedRoute,
       targetDeliveryId: localNextStop?.id || null,
       updateDeliveryLocal,
       updateDeliveriesLocally,
       driverId: delivery.driver_id,
       deliveryDate: delivery.delivery_date,
-      skipBackgroundSync: true
+      skipBackgroundSync: true,
+      persistToBackend: true
     });
+
+    const fullySavedRouteStops = Array.from(new Map([
+      ...initialChangedStops,
+      ...reorderedChangedStops,
+      ...(nextDeliverySync?.changedDeliveries || [])
+    ].filter(Boolean).map((item) => [item.id, item])).values());
 
     window.dispatchEvent(new CustomEvent('centerStopCard', { detail: { deliveryId: delivery.id } }));
     window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
@@ -154,7 +163,7 @@ export async function runStartFlow({
         driverId: delivery.driver_id,
         deliveryDate: delivery.delivery_date,
         preserveLocalState: true,
-        freshDeliveries: locallyChangedStops
+        freshDeliveries: fullySavedRouteStops
       }
     }));
     window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
@@ -263,6 +272,6 @@ export async function runStartFlow({
     smartRefreshManager.resume();
     setIsEntityUpdating(false);
     setIsProcessingBackground(false);
-    resetActionLocks(true);
+    resetActionLocks(false);
   }
 }

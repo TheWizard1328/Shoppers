@@ -518,7 +518,8 @@ export async function syncNextDeliveryFlagsLocally({ driverDeliveries = [], next
     await Promise.all(changedDeliveries.map((item) =>
       base44.entities.Delivery.update(item.id, {
         isNextDelivery: !!item.isNextDelivery,
-        travel_dist: item.travel_dist
+        travel_dist: item.travel_dist,
+        stop_order: item.stop_order
       }).catch(() => null)
     ));
   }
