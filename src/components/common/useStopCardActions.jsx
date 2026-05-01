@@ -452,24 +452,27 @@ export default function useStopCardActions(params) {
         const routeDeliveries = getDriverRouteDeliveries(allDeliveries, delivery);
         await collapseDriverStopCards();
 
-        const startedRouteDeliveries = routeDeliveries.map((d) => {
-          if (!d) return d;
-          const hadNextFlag = d.isNextDelivery === true;
-          const isCurrent = d.id === delivery.id;
-          if (isCurrent) {
-            return {
-              ...d,
-              isNextDelivery: true
-            };
-          }
-          if (hadNextFlag) {
-            return {
-              ...d,
-              isNextDelivery: false
-            };
-          }
-          return d;
-        });
+        const finishedStatuses = new Set(FINISHED_STATUSES);
+        const completedStops = routeDeliveries
+          .filter((d) => d && finishedStatuses.has(d.status))
+          .sort((a, b) => Number(a?.stop_order || 0) - Number(b?.stop_order || 0));
+        const activeStops = routeDeliveries
+          .filter((d) => d && !finishedStatuses.has(d.status) && d.status !== 'pending')
+          .sort((a, b) => Number(a?.stop_order || 0) - Number(b?.stop_order || 0));
+        const pendingStops = routeDeliveries
+          .filter((d) => d && d.status === 'pending')
+          .sort((a, b) => Number(a?.stop_order || 0) - Number(b?.stop_order || 0));
+
+        const reorderedActiveStops = activeStops.filter((d) => d?.id !== delivery.id);
+        reorderedActiveStops.unshift(delivery);
+        const startedRouteDeliveries = [...completedStops, ...reorderedActiveStops, ...pendingStops]
+          .filter(Boolean)
+          .map((d, index) => ({
+            ...d,
+            stop_order: index + 1,
+            display_stop_order: index + 1,
+            isNextDelivery: d.id === delivery.id
+          }));
 
         const { offlineDB } = await import('../utils/offlineDatabase');
         const startedChangedDeliveries = startedRouteDeliveries.filter((item) => {
@@ -488,6 +491,8 @@ export default function useStopCardActions(params) {
             if (!existing) return Promise.resolve(null);
             const updates = {};
             if ((existing.isNextDelivery || false) !== (item.isNextDelivery || false)) updates.isNextDelivery = item.isNextDelivery || false;
+            if (Number(existing.stop_order || 0) !== Number(item.stop_order || 0)) updates.stop_order = item.stop_order;
+            if (Number(existing.display_stop_order || 0) !== Number(item.display_stop_order || 0)) updates.display_stop_order = item.display_stop_order;
             if (Object.keys(updates).length === 0) return Promise.resolve(null);
             return Promise.all([
               updateDeliveryLocal(item.id, updates, { skipSmartRefresh: true, isBatchOperation: true }),
@@ -500,7 +505,7 @@ export default function useStopCardActions(params) {
           await base44.entities.Patient.update(patient.id, { status: 'active' });
         }
 
-        await setAndCenterNextDelivery({ driverDeliveries: startedRouteDeliveries, targetDeliveryId: delivery.id, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true });
+        await setAndCenterNextDelivery({ driverDeliveries: startedRouteDeliveries, targetDeliveryId: delivery.id, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true, persistToBackend: true });
         window.dispatchEvent(new CustomEvent('centerStopCard', { detail: { deliveryId: delivery.id } }));
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true, freshDeliveries: startedChangedDeliveries } }));
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));

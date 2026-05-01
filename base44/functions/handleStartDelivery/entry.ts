@@ -52,49 +52,75 @@ Deno.serve(async (req) => {
     }, 'stop_order', 5000);
 
     const finishedStatuses = new Set(['completed', 'failed', 'cancelled', 'returned']);
-    const completedStops = (routeDeliveries || []).filter((d) => finishedStatuses.has(d?.status));
-    const numCompleted = completedStops.length;
-    const selectedStopOrder = numCompleted + 1;
-    const normalizedTime = normalizeLocalTimeString(currentLocalTime) || getCurrentLocalTimeString();
+    const completedStops = (routeDeliveries || [])
+      .filter((d) => finishedStatuses.has(d?.status))
+      .sort((a, b) => Number(a?.stop_order || 0) - Number(b?.stop_order || 0));
+    const activeStops = (routeDeliveries || [])
+      .filter((d) => !finishedStatuses.has(d?.status) && d?.status !== 'pending')
+      .sort((a, b) => Number(a?.stop_order || 0) - Number(b?.stop_order || 0));
+    const pendingStops = (routeDeliveries || [])
+      .filter((d) => d?.status === 'pending')
+      .sort((a, b) => Number(a?.stop_order || 0) - Number(b?.stop_order || 0));
 
+    const normalizedTime = normalizeLocalTimeString(currentLocalTime) || getCurrentLocalTimeString();
     const previousNextDelivery = (routeDeliveries || []).find((d) => d?.id !== deliveryId && d?.isNextDelivery === true) || null;
 
-    const startPayload = {
-      isNextDelivery: true,
-      stop_order: selectedStopOrder,
-      display_stop_order: selectedStopOrder,
-      delivery_time_start: normalizedTime,
-    };
+    const reorderedActiveStops = activeStops
+      .filter((d) => d?.id !== deliveryId)
+      .sort((a, b) => Number(a?.stop_order || 0) - Number(b?.stop_order || 0));
+    const selectedDelivery = (routeDeliveries || []).find((d) => d?.id === deliveryId) || null;
+    if (!selectedDelivery) {
+      return Response.json({ error: 'Delivery not found' }, { status: 404 });
+    }
+    reorderedActiveStops.unshift(selectedDelivery);
 
-    // Clear isNextDelivery on any other stop that had it
-    const nextFlagResetUpdates = (routeDeliveries || [])
-      .filter((d) => d?.id !== deliveryId && d?.isNextDelivery === true)
-      .map((d) =>
-        base44.asServiceRole.entities.Delivery.update(d.id, { isNextDelivery: false }).catch((error) => {
+    const reorderedRoute = [...completedStops, ...reorderedActiveStops, ...pendingStops].filter(Boolean);
+    const updatesToPersist = reorderedRoute
+      .map((delivery, index) => {
+        const nextOrder = index + 1;
+        const isTargetDelivery = delivery.id === deliveryId;
+        const payload = {
+          stop_order: nextOrder,
+          display_stop_order: nextOrder,
+          isNextDelivery: isTargetDelivery
+        };
+        if (isTargetDelivery) {
+          payload.delivery_time_start = normalizedTime;
+        }
+        return { delivery, payload };
+      })
+      .filter(({ delivery, payload }) => {
+        const currentStart = normalizeLocalTimeString(delivery?.delivery_time_start) || delivery?.delivery_time_start || null;
+        const nextStart = payload.delivery_time_start || null;
+        return Number(delivery?.stop_order || 0) !== Number(payload.stop_order)
+          || Number(delivery?.display_stop_order || 0) !== Number(payload.display_stop_order)
+          || Boolean(delivery?.isNextDelivery) !== Boolean(payload.isNextDelivery)
+          || currentStart !== nextStart;
+      });
+
+    await Promise.all(
+      updatesToPersist.map(({ delivery, payload }) =>
+        base44.asServiceRole.entities.Delivery.update(delivery.id, payload).catch((error) => {
           if (!isNotFoundError(error) && !isRateLimitError(error)) {
-            console.warn(`⚠️ [handleStartDelivery] Failed clearing next-stop flag ${d.id}:`, error?.message || error);
+            console.warn(`⚠️ [handleStartDelivery] Failed updating stop ${delivery.id}:`, error?.message || error);
           }
           if (isRateLimitError(error)) throw error;
           return null;
         })
-      );
+      )
+    );
 
-    await Promise.all([
-      ...nextFlagResetUpdates,
-      base44.asServiceRole.entities.Delivery.update(deliveryId, startPayload)
-    ]);
-
-    console.log(`🔄 [handleStartDelivery] Stop ${deliveryId} set as next (stop_order=${selectedStopOrder}, numCompleted=${numCompleted})`);
+    console.log(`🔄 [handleStartDelivery] Route serialized for stop ${deliveryId} before optimization`);
 
     return Response.json({
       success: true,
       newNextDeliveryId: deliveryId,
       oldNextDeliveryId: previousNextDelivery?.id || null,
-      selectedStopOrder,
-      routeChanged: false,
+      selectedStopOrder: reorderedRoute.findIndex((d) => d?.id === deliveryId) + 1,
+      routeChanged: updatesToPersist.length > 0,
       optimization: {
         skipped: true,
-        reason: 'start_button_sets_next_delivery_only'
+        reason: 'start_button_serialized_route_before_optimization'
       }
     });
 
