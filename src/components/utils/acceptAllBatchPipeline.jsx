@@ -81,7 +81,8 @@ export async function runAcceptAllBatchPipeline({
     deliveryDate: triggerDelivery.delivery_date,
     currentLocalTime,
     deviceTime: new Date().toISOString(),
-    forceFullRemainingRouteOptimization: false
+    forceFullRemainingRouteOptimization: false,
+    bypassDriverStatus: true
   });
   const optimizeData = optimizeResponse?.data || optimizeResponse || {};
 

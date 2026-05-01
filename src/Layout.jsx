@@ -1900,7 +1900,7 @@ export default function Layout({ children, currentPageName }) {
 
                     <SidebarDivider />
 
-                    {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
+                    {false && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
                   <Link
                     to={createPageUrl('Patients')}
                     onClick={(e) => {

@@ -591,7 +591,9 @@ Deno.serve(async (req) => {
       destinationLng,
       normalizedTransportMode
     });
-    routeCallCount += 1;
+    if ((routedGeometry.sections || []).length > 0) {
+      routeCallCount += 1;
+    }
     const routedSections = routedGeometry.sections || [];
 
     const orderedPoints = [{ lat: originLat, lng: originLng }, ...orderedStops.map((stop) => ({ lat: stop.lat, lng: stop.lng }))];
