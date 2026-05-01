@@ -531,7 +531,7 @@ export default function useStopCardActions(params) {
               window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: delivery.driver_id, updates: optimizeData.optimizedRoute.map((stop) => ({ deliveryId: stop.deliveryId || stop.delivery_id, newEta: stop.newETA || stop.eta })).filter((stop) => stop.deliveryId && stop.newEta) } }));
             }
             await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-            await base44.functions.invoke('purgeAndRegeneratePolylines', {
+            const polylineResponse = await base44.functions.invoke('purgeAndRegeneratePolylines', {
               driverId: delivery.driver_id,
               deliveryDate: delivery.delivery_date,
               scope: 'active_only',
@@ -558,9 +558,24 @@ export default function useStopCardActions(params) {
               bypassPolylineDelete: true,
               reuseProvidedPolylines: true
             }).catch(() => null);
-            await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+            const refreshedDeliveries = await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+            const refreshedList = Array.isArray(refreshedDeliveries)
+              ? refreshedDeliveries
+              : Array.isArray(refreshedDeliveries?.deliveries)
+                ? refreshedDeliveries.deliveries
+                : null;
+            if (Array.isArray(refreshedList) && refreshedList.length > 0) {
+              updateDeliveriesLocally?.(refreshedList, true);
+              window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, freshDeliveries: refreshedList } }));
+            } else {
+              window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: false } }));
+            }
+            window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers, triggeredBy: 'startOptimized' } }));
+            if (polylineResponse) {
+              window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startPolylinesUpdated', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, freshDeliveries: refreshedList || undefined } }));
+            }
             fabControlEvents.reactivatePhaseTwoIfAvailable();
-            window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: false } }));
           } catch (optErr) {
             const isNotFound = optErr?.status === 404 || optErr?.response?.status === 404 || String(optErr?.message || '').includes('404');
             if (!isNotFound) console.warn('⚠️ [Start] background start update failed:', optErr?.message || optErr);
