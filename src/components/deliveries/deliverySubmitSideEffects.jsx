@@ -31,6 +31,7 @@ export async function runDeliverySubmitSideEffects({
   statusChangedToCompletion,
   actualDeliveryTimeChanged,
   timeWindowChanged,
+  travelModeChanged,
   t,
   allDeliveries,
   isPickupMode,
@@ -147,6 +148,17 @@ export async function runDeliverySubmitSideEffects({
       await Promise.all(updatePromises);
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
+  }
+
+  if (travelModeChanged && !driverChanged && !dateChanged && !timeWindowChanged && !statusChangedToCompletion && !actualDeliveryTimeChanged) {
+    setTimeout(() => {
+      import('../utils/deliveryFormActionHelpers')
+        .then(({ resumeDeliveryFormManagers }) => resumeDeliveryFormManagers())
+        .catch((error) => {
+          console.warn('⚠️ [DeliveryForm] Failed to resume managers:', error);
+        });
+    }, 0);
+    return;
   }
 
   setTimeout(() => {

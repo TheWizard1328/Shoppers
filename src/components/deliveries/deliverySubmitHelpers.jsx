@@ -39,8 +39,10 @@ export const prepareDeliverySaveData = ({ formData, delivery, isCompletionStatus
 
   const transitionsToPending = dataToSave.status === 'pending' && delivery?.status !== 'pending';
   const isNewDeliveryCreation = !delivery?.id;
-  if (formData.finished_leg_transport_mode || delivery?.finished_leg_transport_mode || isNewDeliveryCreation || transitionsToPending) {
-    dataToSave.finished_leg_transport_mode = formData.finished_leg_transport_mode || delivery?.finished_leg_transport_mode || 'driving';
+  if (formData.finished_leg_transport_mode || delivery?.finished_leg_transport_mode || delivery?.transport_mode || isNewDeliveryCreation || transitionsToPending) {
+    const nextTravelMode = formData.finished_leg_transport_mode || delivery?.transport_mode || delivery?.finished_leg_transport_mode || 'driving';
+    dataToSave.finished_leg_transport_mode = nextTravelMode;
+    dataToSave.transport_mode = nextTravelMode;
   }
 
   if (isCompletionStatus) {
@@ -114,6 +116,11 @@ export const getDeliverySubmitFlags = ({ delivery, formData, dataToSave }) => {
       (dataToSave.delivery_time_end || '') !== (delivery.delivery_time_end || '')
     )
   );
+  const travelModeChanged = !!(
+    delivery && (
+      (dataToSave.transport_mode || dataToSave.finished_leg_transport_mode || '') !== (delivery.transport_mode || delivery.finished_leg_transport_mode || '')
+    )
+  );
   const statusChangedToInTransit = !!(
     delivery &&
     formData.status === 'in_transit' &&
@@ -139,6 +146,7 @@ export const getDeliverySubmitFlags = ({ delivery, formData, dataToSave }) => {
     driverChanged,
     dateChanged,
     timeWindowChanged,
+    travelModeChanged,
     statusChangedToInTransit,
     statusChangedToCompletion,
     actualDeliveryTimeChanged,
