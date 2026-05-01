@@ -815,8 +815,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    const activeStops = routeStops.map((stop) => ({
+    const activeStops = routeStops.map((stop, index) => ({
       ...stop.delivery,
+      stop_order: completedDeliveries.length + index + 1,
+      display_stop_order: completedDeliveries.length + index + 1,
       delivery_time_eta: stageEtaMap.get(stop.delivery.id) || stop.delivery.delivery_time_eta
     }));
 
