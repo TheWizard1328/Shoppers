@@ -340,10 +340,22 @@ Deno.serve(async (req) => {
 
     const explicitNextDelivery = incompleteDeliveries.find((delivery) => delivery?.isNextDelivery === true) || null;
     const explicitNextCoords = explicitNextDelivery ? getDeliveryCoords(explicitNextDelivery, patientMap, storeMap) : null;
-    const routeHasStarted = completedDeliveries.length > 0;
+    const previousStopBeforeNext = explicitNextDelivery
+      ? allDeliveries
+          .filter((delivery) => delivery?.id !== explicitNextDelivery.id)
+          .filter((delivery) => Number(delivery?.stop_order || 0) < Number(explicitNextDelivery?.stop_order || 0))
+          .sort((a, b) => Number(b?.stop_order || 0) - Number(a?.stop_order || 0))[0] || null
+      : null;
+    const previousStopCoords = previousStopBeforeNext ? getDeliveryCoords(previousStopBeforeNext, patientMap, storeMap) : null;
+    const routeHasStarted = completedDeliveries.length > 0 || !!previousStopBeforeNext;
     const shouldLockExplicitNextStop = !!explicitNextDelivery && !forceFullRemainingRouteOptimization;
 
-    if (routeHasStarted && latestFinishedDelivery) {
+    if (previousStopCoords) {
+      currentPosition = previousStopCoords;
+      locationSource = 'previous_stop_before_next';
+    }
+
+    if (!currentPosition && routeHasStarted && latestFinishedDelivery) {
       currentPosition = getDeliveryCoords(latestFinishedDelivery, patientMap, storeMap);
       locationSource = currentPosition ? 'last_finished_stop' : null;
     }
@@ -353,7 +365,7 @@ Deno.serve(async (req) => {
       locationSource = 'next_delivery_stop';
     }
 
-    if (!currentPosition && !routeHasStarted && driverAppUser.current_latitude != null && driverAppUser.current_longitude != null) {
+    if (!routeHasStarted && !currentPosition && driverAppUser.current_latitude != null && driverAppUser.current_longitude != null) {
       currentPosition = { lat: Number(driverAppUser.current_latitude), lng: Number(driverAppUser.current_longitude) };
       locationSource = 'driver_gps';
     }
@@ -727,7 +739,7 @@ Deno.serve(async (req) => {
         routeStopOrder: activeStops.map((stop) => stop.id),
         orderedStopsWithTransportMode: optimizedStopTransportModes,
         explicitOrderedStopsOnly: true,
-        explicitRouteOrigin: routeHasStarted ? 'last_finished_stop' : 'home',
+        explicitRouteOrigin: previousStopCoords || routeHasStarted ? 'last_finished_stop' : 'home',
         explicitRouteDestination: 'home',
         resolvedOriginCoords: currentPosition ? { lat: currentPosition.lat, lon: currentPosition.lng } : null,
         bypassPolylineUpdated: true,
