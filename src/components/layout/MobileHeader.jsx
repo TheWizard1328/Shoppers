@@ -51,11 +51,7 @@ export default function MobileHeader({
     <header
       data-mobile-header
       className="mobile-header border-b sticky top-0 z-50 overflow-visible"
-      style={{
-        '--mobile-header-offset': 'calc(env(safe-area-inset-top, 0px) + 56px)'
-      }}
       style={{ 
-        '--mobile-header-offset': 'calc(env(safe-area-inset-top, 0px) + 56px)',
         borderColor: 'var(--border-slate-200)', 
         background: 'var(--bg-white)',
         paddingTop: 'env(safe-area-inset-top, 0px)'
