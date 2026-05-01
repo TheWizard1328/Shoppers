@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
 
     let optimization = {
       skipped: true,
-      reason: 'start_delivery_no_full_reoptimization'
+      reason: 'start_delivery_locked_next_stop'
     };
 
     try {
@@ -116,7 +116,7 @@ Deno.serve(async (req) => {
         deliveryDate,
         currentLocalTime: optimizationSeedTime,
         preserveExistingOrder: false,
-        forceFullRemainingRouteOptimization: true
+        forceFullRemainingRouteOptimization: false
       });
       const optimizationData = optimizationResponse?.data || optimizationResponse || {};
       optimization = {
