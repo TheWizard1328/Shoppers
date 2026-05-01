@@ -458,15 +458,7 @@ export default function useStopCardActions(params) {
           return {
             ...d,
             ...(isCurrent ? {
-              status: isPickup ? 'en_route' : 'in_transit',
-              // FIX: Do NOT set stop_order here — backend calculates correct position
-              // based on number of completed stops. Setting 1 here causes the lock
-              // in optimizeRemainingStops to see wrong previousStopBeforeNext.
-              ...(shouldPreserveWindowTimesOnStart ? {} : { delivery_time_start: currentLocalTime }),
-              // FIX: Do NOT set delivery_time_end — that's the completion time, not start time.
-              // FIX: Do NOT set delivery_time_eta — optimizeRemainingStops sets it correctly.
               isNextDelivery: true,
-              travel_dist: 0
             } : {
               ...(d.isNextDelivery ? { isNextDelivery: false } : {})
             })
@@ -489,15 +481,7 @@ export default function useStopCardActions(params) {
             const existing = routeDeliveries.find((routeItem) => routeItem?.id === item?.id);
             if (!existing) return Promise.resolve(null);
             const updates = {};
-            if (existing.status !== item.status) updates.status = item.status;
             if ((existing.isNextDelivery || false) !== (item.isNextDelivery || false)) updates.isNextDelivery = item.isNextDelivery || false;
-            if ((existing.delivery_time_start || null) !== (item.delivery_time_start || null)) updates.delivery_time_start = item.delivery_time_start || null;
-            // FIX: Never write delivery_time_end or delivery_time_eta from Start action
-            // FIX: Never write stop_order from frontend — backend sets the correct value
-            // if ((existing.delivery_time_end || null) !== (item.delivery_time_end || null)) updates.delivery_time_end = item.delivery_time_end || null;
-            // if ((existing.delivery_time_eta || null) !== (item.delivery_time_eta || null)) updates.delivery_time_eta = item.delivery_time_eta || null;
-            // if ((existing.stop_order || null) !== (item.stop_order || null)) updates.stop_order = item.stop_order || null;
-            if ((existing.travel_dist || 0) !== (item.travel_dist || 0)) updates.travel_dist = item.travel_dist || 0;
             if (Object.keys(updates).length === 0) return Promise.resolve(null);
             return updateDeliveryLocal(item.id, updates, { skipSmartRefresh: true, isBatchOperation: true });
           })
@@ -513,30 +497,9 @@ export default function useStopCardActions(params) {
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
 
         Promise.resolve().then(async () => {
-          window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
           try {
             if (!delivery?.id || !delivery?.driver_id || !delivery?.delivery_date) return;
-            const startResponse = await base44.functions.invoke('handleStartDelivery', { deliveryId: delivery.id, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime });
-            const startData = startResponse?.data || startResponse || {};
-            const optimizationDeferred = startData?.optimization?.deferred === true || startData?.optimization?.reason === 'rate_limited';
-            const backendOptimizedRoute = Array.isArray(startData?.optimization?.optimizedRoute) ? startData.optimization.optimizedRoute : [];
-            if (optimizationDeferred) {
-              const refreshedRouteDeliveries = await base44.entities.Delivery.filter({ driver_id: delivery.driver_id, delivery_date: delivery.delivery_date });
-              await setAndCenterNextDelivery({
-                driverDeliveries: refreshedRouteDeliveries,
-                targetDeliveryId: delivery.id,
-                updateDeliveryLocal,
-                updateDeliveriesLocally,
-                driverId: delivery.driver_id,
-                deliveryDate: delivery.delivery_date
-              });
-            }
-            if (backendOptimizedRoute.length > 0) {
-              window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { updates: backendOptimizedRoute.map((u) => ({ deliveryId: u.deliveryId || u.delivery_id, newEta: u.eta || u.newETA })) } }));
-              if (startData?.routeChanged || startData?.optimization?.routeChanged || startData?.optimization?.activeStopCountChanged) {
-                window.dispatchEvent(new CustomEvent('routeReordered', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, source: 'startOptimized' } }));
-              }
-            }
+            await base44.functions.invoke('handleStartDelivery', { deliveryId: delivery.id, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime });
             await base44.functions.invoke('recalculateTrackingNumbers', {
               driverId: delivery.driver_id,
               deliveryDate: delivery.delivery_date
@@ -545,9 +508,7 @@ export default function useStopCardActions(params) {
             window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true } }));
           } catch (optErr) {
             const isNotFound = optErr?.status === 404 || optErr?.response?.status === 404 || String(optErr?.message || '').includes('404');
-            if (!isNotFound) console.warn('⚠️ [Start] background optimization failed:', optErr?.message || optErr);
-          } finally {
-            window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
+            if (!isNotFound) console.warn('⚠️ [Start] background start update failed:', optErr?.message || optErr);
           }
         });
 

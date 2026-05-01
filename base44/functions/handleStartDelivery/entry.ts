@@ -52,49 +52,13 @@ Deno.serve(async (req) => {
     }, 'stop_order', 5000);
 
     const finishedStatuses = new Set(['completed', 'failed', 'cancelled', 'returned']);
-    const activeStatuses = new Set(['in_transit', 'en_route']);
-
-    const selectedDelivery = (routeDeliveries || []).find((d) => d.id === deliveryId) || null;
-    if (!selectedDelivery) {
-      return Response.json({ error: 'Selected stop was not found' }, { status: 404 });
-    }
-
-    const oldNextDeliveryId = (routeDeliveries || [])
-      .find((d) => d?.isNextDelivery === true && d.id !== deliveryId)?.id || null;
-
-    // ── Correctly count finished stops ──────────────────────────────────────────
-    // Sort by stop_order so we get the true highest completed position.
-    const completedDeliveries = (routeDeliveries || [])
-      .filter((d) => finishedStatuses.has(d?.status))
-      .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
-
-    const numCompleted = completedDeliveries.length;
-
-    // ── BUG FIX 1: stop_order = (# finished stops) + 1 ─────────────────────────
-    // The selected stop should become the NEXT stop after the last finished one.
-    // It does NOT matter where it currently sits in the incomplete list.
     const selectedStopOrder = numCompleted + 1;
-
-    const selectedStatus = activeStatuses.has(selectedDelivery?.status)
-      ? selectedDelivery.status
-      : (selectedDelivery?.patient_id ? 'in_transit' : 'en_route');
-
-    // ── BUG FIX 2: Never set delivery_time_end on Start ──────────────────────────
-    // delivery_time_end is the must-deliver-before DEADLINE, not a completion time.
-    // Only set delivery_time_start if it hasn't been set yet.
-    // delivery_time_eta will be recalculated by optimizeRemainingStops.
     const normalizedTime = normalizeLocalTimeString(currentLocalTime) || getCurrentLocalTimeString();
 
     const startPayload = {
-      status: selectedStatus,
       isNextDelivery: true,
       stop_order: selectedStopOrder,
       display_stop_order: selectedStopOrder,
-      travel_dist: 0,
-      // Only set delivery_time_start if not already set (don't overwrite a re-started stop)
-      ...(selectedDelivery?.delivery_time_start ? {} : { delivery_time_start: normalizedTime }),
-      // BUG FIX: Do NOT set delivery_time_end — it is the must-deliver-before deadline, set from patient data only
-      // BUG FIX: Do NOT set delivery_time_eta here — optimizeRemainingStops will set it correctly
     };
 
     // Clear isNextDelivery on any other stop that had it
@@ -117,55 +81,16 @@ Deno.serve(async (req) => {
 
     console.log(`🔄 [handleStartDelivery] Stop ${deliveryId} set as next (stop_order=${selectedStopOrder}, numCompleted=${numCompleted})`);
 
-    // ── BUG FIX 3: Seed time for optimization comes from last finished stop ──────
-    // If stops are finished, use the actual completion time of the last one as
-    // the optimization seed so ETAs cascade correctly from there.
-    // Only fall back to currentLocalTime if no stops have been completed yet.
-    const lastFinished = completedDeliveries[completedDeliveries.length - 1];
-    // Only actual_delivery_time is valid — delivery_time_end is the deadline, not completion time
-    const lastFinishedTime = getTimeStringFromTimestamp(lastFinished?.actual_delivery_time) || null;
-    const optimizationSeedTime = lastFinishedTime || normalizedTime;
-
-    console.log(`🕐 [handleStartDelivery] Optimization seed time: ${optimizationSeedTime} (from ${lastFinishedTime ? 'last finished stop actual_delivery_time' : 'current time'})`);
-
-    let optimization = {
-      skipped: true,
-      reason: 'start_delivery_no_full_reoptimization'
-    };
-
-    try {
-      const optimizationResponse = await base44.asServiceRole.functions.invoke('optimizeRemainingStops', {
-        driverId,
-        deliveryDate,
-        // BUG FIX 4: Pass the seed time — ETAs cascade from last finished stop, not from 'now'
-        currentLocalTime: optimizationSeedTime,
-        preserveExistingOrder: false,
-        // BUG FIX 5: forceFullRemainingRouteOptimization = false means isNextDelivery lock IS respected
-        forceFullRemainingRouteOptimization: false
-      });
-      const optimizationData = optimizationResponse?.data || optimizationResponse || {};
-      optimization = {
-        ...optimizationData,
-        skipped: optimizationData?.success !== true
-      };
-    } catch (error) {
-      if (isRateLimitError(error)) {
-        optimization = { deferred: true, reason: 'rate_limited' };
-      } else {
-        console.warn('⚠️ [handleStartDelivery] optimizeRemainingStops failed:', error?.message || error);
-      }
-    }
-
-    console.log(`✅ [handleStartDelivery] Done — stop_order=${selectedStopOrder}, optimization=${JSON.stringify({ skipped: optimization?.skipped, routeChanged: optimization?.routeChanged })}`);
-
     return Response.json({
       success: true,
-      distanceTransferred: 0,
       newNextDeliveryId: deliveryId,
       oldNextDeliveryId,
       selectedStopOrder,
-      routeChanged: optimization?.routeChanged === true,
-      optimization
+      routeChanged: false,
+      optimization: {
+        skipped: true,
+        reason: 'start_button_sets_next_delivery_only'
+      }
     });
 
   } catch (error) {
