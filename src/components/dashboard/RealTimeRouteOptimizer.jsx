@@ -210,7 +210,8 @@ export default function RealTimeRouteOptimizer({
         'assign all',
         'accept all',
         'reoptimizeRoute',
-        'manualOptimize'
+        'manualOptimize',
+        'start'
       ]);
       if (!allowedTriggers.has(normalizedTrigger)) {
         return;
