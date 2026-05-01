@@ -454,11 +454,21 @@ export default function useStopCardActions(params) {
 
         const startedRouteDeliveries = routeDeliveries.map((d) => {
           if (!d) return d;
+          const hadNextFlag = d.isNextDelivery === true;
           const isCurrent = d.id === delivery.id;
-          return {
-            ...d,
-            isNextDelivery: isCurrent
-          };
+          if (isCurrent) {
+            return {
+              ...d,
+              isNextDelivery: true
+            };
+          }
+          if (hadNextFlag) {
+            return {
+              ...d,
+              isNextDelivery: false
+            };
+          }
+          return d;
         });
 
         const { offlineDB } = await import('../utils/offlineDatabase');
