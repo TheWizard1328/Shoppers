@@ -766,16 +766,13 @@ Deno.serve(async (req) => {
 
         const sequencedStops = orderedStops.map((item) => item.stop);
         // segmentPolylines will be populated after routeStops is fully ordered (see below).
-        optimizedStopTransportModes = routeStops.map((stop, index) => {
+        optimizedStopTransportModes = routeStops.map((stop) => {
           const resolvedTransportMode = String(stop?.delivery?.transport_mode || preferredTravelMode || 'driving').toLowerCase();
           const safeTransportMode = ['driving', 'cycling', 'pedestrian'].includes(resolvedTransportMode) ? resolvedTransportMode : 'driving';
           return {
             deliveryId: stop.delivery.id,
             transport_mode: safeTransportMode,
-            finished_leg_transport_mode: safeTransportMode,
-            encoded_polyline: segmentPolylines[index]?.encodedPolyline || null,
-            estimated_distance_km: typeof segmentPolylines[index]?.estimatedDistanceKm === 'number' ? segmentPolylines[index].estimatedDistanceKm : null,
-            estimated_duration_minutes: typeof segmentPolylines[index]?.estimatedDurationMinutes === 'number' ? segmentPolylines[index].estimatedDurationMinutes : null
+            finished_leg_transport_mode: safeTransportMode
           };
         });
         console.log(`✅ [optimizeRemainingStops] HERE sequencing success${usedTimeWindows ? ' with time windows' : ' without time windows'}`);
@@ -839,15 +836,28 @@ Deno.serve(async (req) => {
       }
     }
 
-    const activeStops = routeStops.map((stop, index) => {
-      const persistedStopOrder = completedDeliveries.length + index + 1;
-      return {
-        ...stop.delivery,
-        stop_order: persistedStopOrder,
-        display_stop_order: persistedStopOrder,
-        delivery_time_eta: stageEtaMap.get(stop.delivery.id) || stop.delivery.delivery_time_eta
-      };
-    });
+    const activeStops = routeStops
+      .map((stop, index) => {
+        const persistedStopOrder = completedDeliveries.length + index + 1;
+        return {
+          ...stop.delivery,
+          _route_lat: stop.lat,
+          _route_lng: stop.lng,
+          stop_order: persistedStopOrder,
+          display_stop_order: persistedStopOrder,
+          delivery_time_eta: stageEtaMap.get(stop.delivery.id) || stop.delivery.delivery_time_eta
+        };
+      })
+      .sort((a, b) => {
+        const etaDiff = (parseTimeToMinutes(a.delivery_time_eta) ?? Number.MAX_SAFE_INTEGER) - (parseTimeToMinutes(b.delivery_time_eta) ?? Number.MAX_SAFE_INTEGER);
+        if (etaDiff !== 0) return etaDiff;
+        return compareStopsDeterministically(a, b);
+      })
+      .map((stop, index) => ({
+        ...stop,
+        stop_order: completedDeliveries.length + index + 1,
+        display_stop_order: completedDeliveries.length + index + 1
+      }));
 
     const activeStopOrderMap = new Map(activeStops.map((stop) => [String(stop.id), Number(stop.stop_order)]));
     const remainingPendingStops = pendingRouteDeliveries
@@ -866,7 +876,7 @@ Deno.serve(async (req) => {
     // ── Fetch all segment polylines in one call now that routeStops order is final ──────────
     // Route: polylineOrigin → stop[0] → stop[1] → ... → stop[N-1] → home
     // One HERE router call, N+1 sections, section[i] = leg INTO routeStops[i].
-    if (routeStops.length > 0) {
+    if (activeStops.length > 0) {
       const perStopPolylines = await fetchRoutingPolylines(
         base44,
         user,
@@ -874,16 +884,16 @@ Deno.serve(async (req) => {
         hereApiKey,
         hereTransportMode,
         polylineOrigin,
-        routeStops.map((s) => ({ lat: s.lat, lng: s.lng })),
+        activeStops.map((s) => ({ lat: s._route_lat, lng: s._route_lng })),
         resolvedHomePosition
       );
-      segmentPolylines = routeStops.map((stop, i) => ({
-        deliveryId:              stop.delivery.id,
+      segmentPolylines = activeStops.map((stop, i) => ({
+        deliveryId:              stop.id,
         encodedPolyline:         perStopPolylines[i]?.encodedPolyline         ?? null,
         estimatedDistanceKm:     perStopPolylines[i]?.estimatedDistanceKm     ?? null,
         estimatedDurationMinutes: perStopPolylines[i]?.estimatedDurationMinutes ?? null,
       }));
-      console.log(`🗺️ [optimizeRemainingStops] Polylines fetched: ${segmentPolylines.filter((s) => !!s.encodedPolyline).length}/${routeStops.length} stops have polylines`);
+      console.log(`🗺️ [optimizeRemainingStops] Polylines fetched: ${segmentPolylines.filter((s) => !!s.encodedPolyline).length}/${activeStops.length} stops have polylines`);
     }
     // ──────────────────────────────────────────────────────────────────────────────────────────
 
@@ -960,6 +970,8 @@ Deno.serve(async (req) => {
 
       stop.stop_order = newOrder;
       stop.display_stop_order = newOrder;
+      delete stop._route_lat;
+      delete stop._route_lng;
 
       finalDeliveryWriteBatch.push({
         id: stop.id,
