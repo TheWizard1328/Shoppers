@@ -528,13 +528,16 @@ Deno.serve(async (req) => {
     // polylineOrigin: where the VISUAL polyline starts from.
     // This is the stop BEFORE isNextDelivery (last finished stop), or home if no stops finished.
     // Different from currentPosition which is the optimization start point.
-    const polylineOrigin =
-      previousStopCoords
-      ?? (routeHasStarted && latestFinishedDelivery
-          ? getDeliveryCoords(latestFinishedDelivery, patientMap, storeMap)
-          : null)
-      ?? resolvedHomePosition
-      ?? currentPosition;
+    const polylineOrigin = routeHasStarted
+      ? (
+          previousStopCoords
+          ?? (latestFinishedDelivery ? getDeliveryCoords(latestFinishedDelivery, patientMap, storeMap) : null)
+          ?? currentPosition
+        )
+      : (
+          resolvedHomePosition
+          ?? currentPosition
+        );
 
         const executeHereSequence = async (includeTimeWindows) => {
       const params = new URLSearchParams();
