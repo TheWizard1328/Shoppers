@@ -1,6 +1,42 @@
 // Redeployed on 2026-04-09
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
+const logApiUsage = async ({
+  base44,
+  appUserId,
+  appUserName,
+  provider,
+  apiType,
+  purpose,
+  functionName,
+  metadata = {},
+  success,
+  durationMs,
+  errorMessage,
+  callCount = 1,
+}) => {
+  if (!base44) return;
+
+  await base44.asServiceRole.entities.GoogleAPILog.create({
+    timestamp: new Date().toISOString(),
+    api_type: apiType,
+    purpose,
+    function_name: functionName,
+    user_id: appUserId || null,
+    user_name: appUserName || null,
+    metadata: {
+      api_provider: provider,
+      call_count: Number(callCount) || 1,
+      success: success === true,
+      duration_ms: durationMs,
+      error_message: errorMessage || undefined,
+      ...metadata,
+    },
+  }).catch((error) => {
+    console.warn('[optimizeRemainingStops] Failed to persist API usage log:', error?.message || error);
+  });
+};
+
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
 const isRateLimitError = (error) => error?.status === 429 || error?.response?.status === 429 || String(error?.message || '').toLowerCase().includes('rate limit');
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
@@ -212,7 +248,7 @@ const encodeGooglePolylineLocal = (points) => {
  * NOT currentPosition (which is the optimization start point).
  * This means purgeAndRegeneratePolylines can reuse these and skip its own HERE call.
  */
-const fetchRoutingPolylines = async (hereApiKey, transportMode, polylineOrigin, orderedStops, homeDestination) => {
+const fetchRoutingPolylines = async (base44, user, driverAppUser, hereApiKey, transportMode, polylineOrigin, orderedStops, homeDestination) => {
   const allPoints = [polylineOrigin, ...orderedStops, ...(homeDestination ? [homeDestination] : [])];
   if (allPoints.length < 2) return [];
 
@@ -227,6 +263,7 @@ const fetchRoutingPolylines = async (hereApiKey, transportMode, polylineOrigin, 
     params.append('via', `${pt.lat},${pt.lng}`);
   });
 
+  const startedAt = Date.now();
   try {
     console.log(`🗺️ [optimizeRemainingStops] fetchRoutingPolylines: origin=${polylineOrigin.lat},${polylineOrigin.lng} stops=${orderedStops.length} home=${!!homeDestination}`);
     const res = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, {
@@ -235,6 +272,25 @@ const fetchRoutingPolylines = async (hereApiKey, transportMode, polylineOrigin, 
     const routeData = await res.json().catch(() => null);
     const sections = routeData?.routes?.[0]?.sections ?? [];
     console.log(`✅ [optimizeRemainingStops] fetchRoutingPolylines: got ${sections.length} sections for ${orderedStops.length} stops`);
+
+    await logApiUsage({
+      base44,
+      appUserId: driverAppUser?.id,
+      appUserName: driverAppUser?.user_name || user?.full_name,
+      provider: 'here',
+      apiType: 'Directions (HERE)',
+      purpose: 'Route optimization / polyline update',
+      functionName: 'optimizeRemainingStops:fetchRoutingPolylines',
+      success: res.ok,
+      durationMs: Date.now() - startedAt,
+      callCount: 1,
+      metadata: {
+        transport_mode: transportMode,
+        stops_count: orderedStops.length,
+        includes_home_destination: !!homeDestination,
+        status_code: res.status
+      }
+    });
 
     return orderedStops.map((_stop, i) => {
       const section = sections[i] ?? null;
@@ -254,6 +310,24 @@ const fetchRoutingPolylines = async (hereApiKey, transportMode, polylineOrigin, 
       };
     });
   } catch (err) {
+    await logApiUsage({
+      base44,
+      appUserId: driverAppUser?.id,
+      appUserName: driverAppUser?.user_name || user?.full_name,
+      provider: 'here',
+      apiType: 'Directions (HERE)',
+      purpose: 'Route optimization / polyline update',
+      functionName: 'optimizeRemainingStops:fetchRoutingPolylines',
+      success: false,
+      durationMs: Date.now() - startedAt,
+      errorMessage: err?.message || 'Unknown error',
+      callCount: 1,
+      metadata: {
+        transport_mode: transportMode,
+        stops_count: orderedStops.length,
+        includes_home_destination: !!homeDestination
+      }
+    });
     console.warn('[optimizeRemainingStops] fetchRoutingPolylines failed:', err?.message);
     return orderedStops.map(() => ({ encodedPolyline: null, estimatedDistanceKm: null, estimatedDurationMinutes: null }));
   }
@@ -736,6 +810,9 @@ Deno.serve(async (req) => {
     // One HERE router call, N+1 sections, section[i] = leg INTO routeStops[i].
     if (routeStops.length > 0) {
       const perStopPolylines = await fetchRoutingPolylines(
+        base44,
+        user,
+        driverAppUser,
         hereApiKey,
         hereTransportMode,
         polylineOrigin,
