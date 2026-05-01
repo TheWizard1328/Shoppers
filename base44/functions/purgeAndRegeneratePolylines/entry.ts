@@ -1062,6 +1062,7 @@ Deno.serve(async (req) => {
         const originFromFinishedStop = explicitResolvedOrigin || (lockHomeOrigin
           ? { lat: homeLat, lon: homeLon }
           : (useLastFinishedOrigin || latestFinishedStop ? getLatLon(latestFinishedStop) : null));
+        const routeAlreadyStarted = useLastFinishedOrigin || !!explicitResolvedOrigin || !!latestFinishedStop;
         const useDriverLocationAsOrigin = !explicitStopOrderIds.length && !useLastFinishedOrigin && !explicitResolvedOrigin && scope === 'active_only' && firstActive && isToday && isValidCoordinatePair(currentLat, currentLon);
 
         if (useDriverLocationAsOrigin && !originFromFinishedStop) {
@@ -1070,10 +1071,18 @@ Deno.serve(async (req) => {
 
         for (let index = 0; index < activeStops.length; index += 1) {
           const stop = activeStops[index];
-          const previousStop = activeStops[index - 1];
-          const from = previousStop
-            ? getLatLon(previousStop)
-            : originFromFinishedStop || (hasHomeCoords ? { lat: homeLat, lon: homeLon } : null);
+          const stopOrderValue = Number(stop?.stop_order || 0);
+          const previousStopByOrder = stopOrderValue > 1
+            ? deliveries
+                .filter((delivery) => delivery?.id !== stop?.id)
+                .find((delivery) => Number(delivery?.stop_order || 0) === stopOrderValue - 1) || null
+            : null;
+          const previousStopCoords = previousStopByOrder ? getLatLon(previousStopByOrder) : null;
+          const previousActiveStop = activeStops[index - 1];
+          const from = previousStopCoords
+            || (previousActiveStop ? getLatLon(previousActiveStop) : null)
+            || originFromFinishedStop
+            || (!routeAlreadyStarted && hasHomeCoords ? { lat: homeLat, lon: homeLon } : null);
           const to = getLatLon(stop);
           const stopMeta = explicitStopMetaById.get(stop?.id) || null;
           const transportMode = getNormalizedTravelMode(
