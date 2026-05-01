@@ -483,6 +483,7 @@ export async function setAndCenterNextDelivery({
 export async function syncNextDeliveryFlagsLocally({ driverDeliveries = [], nextDeliveryId = null, updateDeliveriesLocally, persistToBackend = false }) {
   const scopedDeliveries = (driverDeliveries || []).filter(Boolean);
   if (scopedDeliveries.length === 0) return [];
+  if (!nextDeliveryId) return [];
 
   const currentNextDelivery = scopedDeliveries.find((item) => item?.isNextDelivery);
   const transferredDistance = currentNextDelivery && currentNextDelivery.id !== nextDeliveryId
@@ -632,7 +633,8 @@ export async function optimizeRouteAndApplyNextDelivery({
     }
 
     const refreshedDriverDeliveries = await base44.entities.Delivery.filter({ driver_id: driverId, delivery_date: deliveryDate });
-    const resolvedNextDeliveryId = fallbackNextDeliveryId || refreshedDriverDeliveries.find((item) => item?.isNextDelivery === true)?.id || null;
+    const backendNextDeliveryId = refreshedDriverDeliveries.find((item) => item?.isNextDelivery === true)?.id || null;
+    const resolvedNextDeliveryId = backendNextDeliveryId || fallbackNextDeliveryId || null;
     await setAndCenterNextDelivery({
       driverDeliveries: refreshedDriverDeliveries,
       targetDeliveryId: resolvedNextDeliveryId,
