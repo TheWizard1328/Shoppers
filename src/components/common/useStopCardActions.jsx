@@ -230,9 +230,52 @@ export default function useStopCardActions(params) {
 
       if (optimizeData?.success && Array.isArray(optimizeData.optimizedRoute) && optimizeData.optimizedRoute.length > 0) {
         window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: delivery.driver_id, updates: optimizeData.optimizedRoute.map((stop) => ({ deliveryId: stop.deliveryId || stop.delivery_id, newEta: stop.newETA || stop.eta })).filter((stop) => stop.deliveryId && stop.newEta) } }));
-        if (optimizeData.routeChanged || optimizeData.activeStopCountChanged) {
-          window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllRouteReordered', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true } }));
-        }
+      }
+
+      const polylineResponse = await base44.functions.invoke('purgeAndRegeneratePolylines', {
+        driverId: delivery.driver_id,
+        deliveryDate: delivery.delivery_date,
+        scope: 'active_only',
+        reason: optimizeData?.routeChanged ? 'route_reordered' : 'manual',
+        sourcePage: 'Dashboard',
+        bypassDriverStatus: true,
+        routeStopOrder: Array.isArray(optimizeData?.optimizedRoute)
+          ? optimizeData.optimizedRoute.map((stop) => stop.deliveryId || stop.delivery_id).filter(Boolean)
+          : [],
+        orderedStopsWithTransportMode: Array.isArray(optimizeData?.optimizedRoute)
+          ? optimizeData.optimizedRoute.map((stop) => ({
+              deliveryId: stop.deliveryId || stop.delivery_id,
+              transport_mode: stop.transport_mode || stop.finished_leg_transport_mode || currentPreferredTravelMode,
+              finished_leg_transport_mode: stop.finished_leg_transport_mode || stop.transport_mode || currentPreferredTravelMode,
+              encoded_polyline: stop.encoded_polyline || null,
+              estimated_distance_km: stop.estimated_distance_km ?? null,
+              estimated_duration_minutes: stop.estimated_duration_minutes ?? null
+            })).filter((stop) => stop.deliveryId)
+          : [],
+        explicitOrderedStopsOnly: true,
+        explicitRouteOrigin: 'last_finished_stop',
+        explicitRouteDestination: 'home',
+        bypassPolylineUpdated: true,
+        bypassPolylineDelete: true,
+        reuseProvidedPolylines: true
+      }).catch(() => null);
+
+      const refreshedDeliveries = await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+      const refreshedList = Array.isArray(refreshedDeliveries)
+        ? refreshedDeliveries
+        : Array.isArray(refreshedDeliveries?.deliveries)
+          ? refreshedDeliveries.deliveries
+          : null;
+
+      if (Array.isArray(refreshedList) && refreshedList.length > 0) {
+        updateDeliveriesLocally?.(refreshedList, true);
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, fullReplacement: true, freshDeliveries: refreshedList } }));
+      } else {
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: false, fullReplacement: true } }));
+      }
+
+      if (polylineResponse) {
+        window.dispatchEvent(new CustomEvent('polylineUpdated', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, source: 'accept_all_button' } }));
       }
 
       if (codBatch.length > 0) {

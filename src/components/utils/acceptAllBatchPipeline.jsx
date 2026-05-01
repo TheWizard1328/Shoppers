@@ -118,27 +118,6 @@ export async function runAcceptAllBatchPipeline({
     item && item.driver_id === triggerDelivery.driver_id && item.delivery_date === triggerDelivery.delivery_date
   );
 
-  await Promise.all(finalRouteStops.map((item) => {
-    const staged = stagedStatusMap.get(item.id);
-    return base44.entities.Delivery.update(item.id, {
-      status: staged?.status ?? item.status,
-      isNextDelivery: staged?.isNextDelivery ?? !!item.isNextDelivery,
-      active: staged?.active ?? item.active,
-      stop_order: item.stop_order,
-      display_stop_order: item.display_stop_order,
-      delivery_time_eta: item.delivery_time_eta,
-      delivery_time_start: item.delivery_time_start,
-      ampm_deliveries: staged?.ampm_deliveries ?? item.ampm_deliveries,
-      travel_dist: item.travel_dist,
-      encoded_polyline: item.encoded_polyline,
-      transport_mode: item.transport_mode,
-      estimated_distance_km: item.estimated_distance_km,
-      estimated_duration_minutes: item.estimated_duration_minutes
-    });
-  }));
-
-  await processPendingMutations();
-
   const codBatch = scopedPendingDeliveries.filter((pd) => pd.cod_total_amount_required > 0 && pd.patient_id).map((pendingDelivery) => {
     const storeForCod = stores.find((s) => s && s.id === pendingDelivery.store_id);
     return {
