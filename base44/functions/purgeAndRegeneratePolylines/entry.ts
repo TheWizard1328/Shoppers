@@ -1079,10 +1079,12 @@ Deno.serve(async (req) => {
             : null;
           const previousStopCoords = previousStopByOrder ? getLatLon(previousStopByOrder) : null;
           const previousActiveStop = activeStops[index - 1];
-          const from = previousStopCoords
-            || (previousActiveStop ? getLatLon(previousActiveStop) : null)
-            || originFromFinishedStop
-            || (!routeAlreadyStarted && hasHomeCoords ? { lat: homeLat, lon: homeLon } : null);
+          const from = index === 0 && originFromFinishedStop
+            ? originFromFinishedStop
+            : previousStopCoords
+              || (previousActiveStop ? getLatLon(previousActiveStop) : null)
+              || originFromFinishedStop
+              || (!routeAlreadyStarted && hasHomeCoords ? { lat: homeLat, lon: homeLon } : null);
           const to = getLatLon(stop);
           const stopMeta = explicitStopMetaById.get(stop?.id) || null;
           const transportMode = getNormalizedTravelMode(
