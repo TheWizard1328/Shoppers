@@ -105,13 +105,6 @@ Deno.serve(async (req) => {
     const latestFinishedTime = getTimeStringFromTimestamp(completedDeliveries[completedDeliveries.length - 1]?.actual_delivery_time);
     const optimizationSeedTime = normalizeLocalTimeString(currentLocalTime) || latestFinishedTime || getCurrentLocalTimeString();
 
-    const isHistoricalRoute = String(deliveryDate) < new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'America/Edmonton',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    }).format(new Date());
-
     let optimization = {
       skipped: true,
       reason: 'start_delivery_no_full_reoptimization'
@@ -122,7 +115,7 @@ Deno.serve(async (req) => {
         driverId,
         deliveryDate,
         currentLocalTime: optimizationSeedTime,
-        preserveExistingOrder: isHistoricalRoute,
+        preserveExistingOrder: false,
         forceFullRemainingRouteOptimization: false
       });
       const optimizationData = optimizationResponse?.data || optimizationResponse || {};
