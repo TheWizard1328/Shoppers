@@ -28,6 +28,50 @@ export default function RealTimeRouteOptimizer({
 }) {
   const [notification, setNotification] = useState(null);
 
+  const applyOptimizedUiState = (data, source) => {
+    if (!data?.routeChanged) return;
+
+    if (Array.isArray(data.optimizedRoute) && data.optimizedRoute.length > 0) {
+      window.dispatchEvent(new CustomEvent('etaUpdated', {
+        detail: {
+          driverId: selectedDriverId,
+          updates: data.optimizedRoute.map((stop) => ({
+            deliveryId: stop.deliveryId || stop.delivery_id,
+            newEta: stop.newETA || stop.eta
+          })).filter((stop) => stop.deliveryId && stop.newEta)
+        }
+      }));
+    }
+
+    if (showUIRef.current) {
+      setNotification({
+        id: Date.now(),
+        updates: data.optimizedRoute || [],
+        totalStops: data.totalStops || data.optimizedCount || 0
+      });
+      setTimeout(() => setNotification(null), 6000);
+    }
+
+    if (onRouteOptimized) {
+      onRouteOptimized(data.optimizedRoute);
+    }
+
+    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+      detail: {
+        driverId: selectedDriverId,
+        deliveryDate: selectedDate,
+        triggeredBy: source,
+        alreadyOptimized: true
+      }
+    }));
+    window.dispatchEvent(new CustomEvent('routeReordered', {
+      detail: { driverId: selectedDriverId, deliveryDate: selectedDate, source }
+    }));
+    window.dispatchEvent(new CustomEvent('routeOptimizationComplete', {
+      detail: { driverId: selectedDriverId, deliveryDate: selectedDate, source, showUI: showUIRef.current }
+    }));
+  };
+
   const optimizeRoute = async () => {
     // CRITICAL: Only run on driver's mobile device
     const isMobile = isMobileDevice();
@@ -118,49 +162,7 @@ export default function RealTimeRouteOptimizer({
         console.log(`✅ [RealTimeRouteOptimizer] Route ${data.routeChanged ? 'OPTIMIZED' : 'unchanged'}`);
         
         if (data.routeChanged) {
-          if (Array.isArray(data.optimizedRoute) && data.optimizedRoute.length > 0) {
-            window.dispatchEvent(new CustomEvent('etaUpdated', {
-              detail: {
-                driverId: selectedDriverId,
-                updates: data.optimizedRoute.map((stop) => ({
-                  deliveryId: stop.deliveryId || stop.delivery_id,
-                  newEta: stop.newETA || stop.eta
-                })).filter((stop) => stop.deliveryId && stop.newEta)
-              }
-            }));
-          }
-
-          // CRITICAL: Backend has already updated stop_order and ETAs
-          // Just show notification and force UI refresh
-          if (showUIRef.current) {
-            setNotification({
-              id: Date.now(),
-              updates: data.optimizedRoute || [],
-              totalStops: data.totalStops || 0
-            });
-            setTimeout(() => setNotification(null), 6000);
-          }
-
-          if (onRouteOptimized) {
-            onRouteOptimized(data.optimizedRoute);
-          }
-
-          // CRITICAL: Force UI refresh to show new stop orders and ETAs
-          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-            detail: {
-              driverId: selectedDriverId,
-              deliveryDate: selectedDate,
-              triggeredBy: 'realTimeRouteOptimizer',
-              alreadyOptimized: true
-            }
-          }));
-          // Also signal downstream layers to invalidate polylines for this driver/date
-          window.dispatchEvent(new CustomEvent('routeReordered', {
-            detail: { driverId: selectedDriverId, deliveryDate: selectedDate, source: 'realTimeRouteOptimizer' }
-          }));
-          window.dispatchEvent(new CustomEvent('routeOptimizationComplete', {
-            detail: { driverId: selectedDriverId, deliveryDate: selectedDate, source: 'realTimeRouteOptimizer', showUI: showUIRef.current }
-          }));
+          applyOptimizedUiState(data, 'realTimeRouteOptimizer');
         }
       }
     } catch (error) {
@@ -198,7 +200,7 @@ export default function RealTimeRouteOptimizer({
 
     // CRITICAL: Listen for deliveriesUpdated events and check if already optimized
     const handleDeliveriesUpdated = (event) => {
-      const { alreadyOptimized, triggeredBy, driverId, deliveryDate } = event.detail || {};
+      const { alreadyOptimized, triggeredBy, driverId, deliveryDate, optimization } = event.detail || {};
       
       // Only run for explicit triggers (assign/accept all, start, or explicit FAB/manual)
       const normalizedTrigger = String(triggeredBy || '').trim();
@@ -224,13 +226,20 @@ export default function RealTimeRouteOptimizer({
         'assign all',
         'accept all',
         'reoptimizeRoute',
-        'manualOptimize'
+        'manualOptimize',
+        'startOptimized'
       ]);
       showUIRef.current = uiTriggers.has(normalizedTrigger);
       
-      // Skip if data is already optimized (came from backend optimization)
+      // If backend already optimized it, just apply the same UI/update path without re-running optimization
       if (alreadyOptimized) {
-        console.log(`⏭️ [RealTimeRouteOptimizer] Skipping - data already optimized by ${triggeredBy}`);
+        console.log(`✅ [RealTimeRouteOptimizer] Applying pre-optimized update from ${triggeredBy}`);
+        if (driverId !== selectedDriverId || deliveryDate !== selectedDate) {
+          return;
+        }
+        if (optimization?.routeChanged) {
+          applyOptimizedUiState(optimization, triggeredBy || 'preOptimized');
+        }
         return;
       }
 

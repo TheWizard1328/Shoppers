@@ -557,7 +557,7 @@ export default function useStopCardActions(params) {
               deliveryDate: delivery.delivery_date
             }).catch(() => null);
             fabControlEvents.reactivatePhaseTwoIfAvailable();
-            window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true } }));
+            window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, optimization: startData?.optimization || null } }));
           } catch (optErr) {
             const isNotFound = optErr?.status === 404 || optErr?.response?.status === 404 || String(optErr?.message || '').includes('404');
             if (!isNotFound) console.warn('⚠️ [Start] background optimization failed:', optErr?.message || optErr);
