@@ -149,7 +149,7 @@ const DeliveryRow = memo(({
       </div> :
 
     <div
-      onClick={handleRowClick} className="py-2 grid min-w-max grid-cols-[50px_120px_100px_100px_200px_minmax(370px,1fr)_110px_110px_110px_110px_110px] gap-1 border-b cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
+      onClick={handleRowClick} className="py-2 grid min-w-max grid-cols-[50px_120px_100px_100px_200px_minmax(40px,1fr)_110px_110px_110px_110px_110px] gap-1 border-b cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
 
 
 
