@@ -604,7 +604,8 @@ export async function optimizeRouteAndApplyNextDelivery({
   forceRefreshDriverDeliveries,
   fallbackNextDeliveryId = null,
   shouldRegeneratePolylines = false,
-  runOptimization = false
+  runOptimization = false,
+  preserveExistingOrder = false
 }) {
   const optimizationKey = `${driverId || 'unknown'}:${deliveryDate || 'unknown'}`;
   if (routeOptimizationInflight.has(optimizationKey)) {
@@ -624,7 +625,8 @@ export async function optimizeRouteAndApplyNextDelivery({
     if (runOptimization) {
       const optimizeResponse = await base44.functions.invoke('optimizeRemainingStops', {
         driverId,
-        deliveryDate
+        deliveryDate,
+        preserveExistingOrder
       }).catch(() => null);
       optimizeData = optimizeResponse?.data || optimizeResponse || optimizeData;
     }
