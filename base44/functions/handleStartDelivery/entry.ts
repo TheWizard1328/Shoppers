@@ -66,8 +66,12 @@ Deno.serve(async (req) => {
       .filter((delivery) => finishedStatuses.has(delivery?.status))
       .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
 
+    const incompleteDeliveries = (routeDeliveries || [])
+      .filter((delivery) => !finishedStatuses.has(delivery?.status))
+      .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
+
     const selectedStatus = selectedDelivery?.patient_id ? 'in_transit' : 'en_route';
-    const selectedStopOrder = completedDeliveries.length + 1;
+    const selectedStopOrder = 1;
     const startPayload = {
       status: activeStatuses.has(selectedDelivery?.status) ? selectedDelivery.status : selectedStatus,
       isNextDelivery: true,
