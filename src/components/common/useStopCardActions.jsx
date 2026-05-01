@@ -455,24 +455,26 @@ export default function useStopCardActions(params) {
         const finishedStopCount = routeDeliveries.filter((d) => d && FINISHED_STATUSES.includes(d.status)).length;
         const startedStopOrder = finishedStopCount + 1;
 
-        const startedRouteDeliveries = routeDeliveries.map((d) => {
-          if (!d) return d;
-          const isCurrent = d.id === delivery.id;
-          return {
-            ...d,
-            ...(isCurrent ? {
-              status: isPickup ? 'en_route' : 'in_transit',
-              stop_order: startedStopOrder,
-              display_stop_order: startedStopOrder,
-              ...(shouldPreserveWindowTimesOnStart ? {} : { delivery_time_start: currentLocalTime, delivery_time_end: currentLocalTime }),
-              delivery_time_eta: currentLocalTime,
-              isNextDelivery: true,
-              travel_dist: 0
-            } : {
-              ...(d.isNextDelivery ? { isNextDelivery: false } : {})
-            })
-          };
-        });
+        const startedRouteDeliveries = reorderActiveRouteLocally(
+          routeDeliveries.map((d) => {
+            if (!d) return d;
+            const isCurrent = d.id === delivery.id;
+            return {
+              ...d,
+              ...(isCurrent ? {
+                status: isPickup ? 'en_route' : 'in_transit',
+                stop_order: startedStopOrder,
+                ...(shouldPreserveWindowTimesOnStart ? {} : { delivery_time_start: currentLocalTime, delivery_time_end: currentLocalTime }),
+                delivery_time_eta: currentLocalTime,
+                isNextDelivery: true,
+                travel_dist: 0
+              } : {
+                ...(d.isNextDelivery ? { isNextDelivery: false } : {})
+              })
+            };
+          }),
+          delivery.id
+        ).map((d) => d?.id === delivery.id ? { ...d, stop_order: startedStopOrder } : d);
 
         const { offlineDB } = await import('../utils/offlineDatabase');
         const startedChangedDeliveries = startedRouteDeliveries.filter((item) => {
