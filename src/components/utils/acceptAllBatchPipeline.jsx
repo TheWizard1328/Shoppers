@@ -44,6 +44,7 @@ export async function runAcceptAllBatchPipeline({
         status: 'in_transit',
         isNextDelivery: false,
         delivery_time_start: transitionedStopStartTime,
+        ampm_deliveries: item.ampm_deliveries || triggerDelivery.ampm_deliveries || (transitionedStopStartTime >= '15:00' ? 'PM' : 'AM'),
         ...(item.active === false ? { active: true } : {})
       };
     }
@@ -67,7 +68,8 @@ export async function runAcceptAllBatchPipeline({
         status: item.status,
         isNextDelivery: !!item.isNextDelivery,
         active: item.active,
-        delivery_time_start: item.delivery_time_start
+        delivery_time_start: item.delivery_time_start,
+        ampm_deliveries: item.ampm_deliveries
       })
     ));
 
@@ -125,7 +127,12 @@ export async function runAcceptAllBatchPipeline({
       display_stop_order: item.display_stop_order,
       delivery_time_eta: item.delivery_time_eta,
       delivery_time_start: item.delivery_time_start,
-      travel_dist: item.travel_dist
+      ampm_deliveries: staged?.ampm_deliveries ?? item.ampm_deliveries,
+      travel_dist: item.travel_dist,
+      encoded_polyline: item.encoded_polyline,
+      transport_mode: item.transport_mode,
+      estimated_distance_km: item.estimated_distance_km,
+      estimated_duration_minutes: item.estimated_duration_minutes
     });
   }));
 

@@ -385,6 +385,8 @@ Deno.serve(async (req) => {
   let base44 = null;
   let appUser = null;
   let routeCallCount = 0;
+  let caller = 'unknown_here_caller';
+  let callerContext = null;
   const startedAt = Date.now();
 
   try {
@@ -413,8 +415,8 @@ Deno.serve(async (req) => {
     const normalizedTransportMode = requestedTransportMode === 'cycling' || requestedTransportMode === 'pedestrian'
       ? requestedTransportMode
       : 'driving';
-    const caller = String(body?.caller || 'unknown_here_caller');
-    const callerContext = body?.caller_context || null;
+    caller = String(body?.caller || 'unknown_here_caller');
+    callerContext = body?.caller_context || null;
 
     const originLat = Number(origin?.lat);
     const originLng = Number(origin?.lng);
