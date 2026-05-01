@@ -363,7 +363,7 @@ Deno.serve(async (req) => {
     console.log('✅ [optimizeRemainingStops] User authenticated:', user.email);
 
     const body = await req.json();
-    const { driverId, deliveryDate, currentLocalTime, deviceTime, optimizationStartTime = null, skipCurrentTimeEtaChecks = false, preserveExistingOrder = false, forceFullRemainingRouteOptimization = false } = body;
+    const { driverId, deliveryDate, currentLocalTime, deviceTime, optimizationStartTime = null, skipCurrentTimeEtaChecks = false, preserveExistingOrder = false, forceFullRemainingRouteOptimization = false, source = 'unknown' } = body;
     
     if (!driverId || !deliveryDate) {
       return Response.json({ 
@@ -647,10 +647,34 @@ Deno.serve(async (req) => {
       });
 
       attemptedHereCalls += 1;
+      const sequenceStartedAt = Date.now();
       const response = await fetch(`https://wps.hereapi.com/v8/findsequence2?${params.toString()}`, {
         signal: AbortSignal.timeout(20000)
       });
       const data = await response.json().catch(() => null);
+
+      await logApiUsage({
+        base44,
+        appUserId: driverAppUser?.id,
+        appUserName: driverAppUser?.user_name || user?.full_name,
+        provider: 'here',
+        apiType: 'Directions (HERE)',
+        purpose: `Route optimization${source ? ` (${source})` : ''}`,
+        functionName: `optimizeRemainingStops:findsequence2:${source || 'unknown'}`,
+        success: response.ok,
+        durationMs: Date.now() - sequenceStartedAt,
+        errorMessage: response.ok ? null : JSON.stringify(data || {}).slice(0, 500),
+        callCount: 1,
+        metadata: {
+          driver_id: driverId,
+          delivery_date: deliveryDate,
+          transport_mode: hereTransportMode,
+          include_time_windows: includeTimeWindows,
+          stops_count: stopsToSequence.length,
+          locked_next_stop: !!lockedNextStop,
+          source
+        }
+      });
 
       let polylineData = null;
       if (response.ok && Array.isArray(data?.results) && data.results[0]) {
@@ -1007,6 +1031,27 @@ Deno.serve(async (req) => {
     // HERE usage is logged inside getHereDirections so dashboard counts stay aligned to real HTTP calls.
 
     console.log(`\n✅ [optimizeRemainingStops] Route optimization complete - ${activeStops.length} stops updated in one final batch, ${attemptedHereCalls} API calls`);
+
+    await logApiUsage({
+      base44,
+      appUserId: driverAppUser?.id,
+      appUserName: driverAppUser?.user_name || user?.full_name,
+      provider: 'here',
+      apiType: 'Directions (HERE)',
+      purpose: `Route optimization summary${source ? ` (${source})` : ''}`,
+      functionName: `optimizeRemainingStops:summary:${source || 'unknown'}`,
+      success: true,
+      durationMs: 0,
+      callCount: attemptedHereCalls,
+      metadata: {
+        driver_id: driverId,
+        delivery_date: deliveryDate,
+        optimized_count: activeStops.length,
+        route_changed: routeOrderChanged,
+        used_time_windows: usedTimeWindows,
+        source
+      }
+    });
 
     return Response.json({
       success: true,
