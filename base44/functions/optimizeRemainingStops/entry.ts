@@ -849,12 +849,15 @@ Deno.serve(async (req) => {
         };
       })
       .sort((a, b) => {
+        if (a.isNextDelivery === true && b.isNextDelivery !== true) return -1;
+        if (b.isNextDelivery === true && a.isNextDelivery !== true) return 1;
         const etaDiff = (parseTimeToMinutes(a.delivery_time_eta) ?? Number.MAX_SAFE_INTEGER) - (parseTimeToMinutes(b.delivery_time_eta) ?? Number.MAX_SAFE_INTEGER);
         if (etaDiff !== 0) return etaDiff;
         return compareStopsDeterministically(a, b);
       })
       .map((stop, index) => ({
         ...stop,
+        isNextDelivery: index === 0 ? stop.isNextDelivery === true : false,
         stop_order: completedDeliveries.length + index + 1,
         display_stop_order: completedDeliveries.length + index + 1
       }));
@@ -950,6 +953,7 @@ Deno.serve(async (req) => {
       const updateData = {
         stop_order: newOrder,
         display_stop_order: newOrder,
+        isNextDelivery: stop.isNextDelivery === true,
         delivery_time_eta: stop.delivery_time_eta,
         transport_mode: safeTransportMode,
         travel_dist: Number(directionsLegs[i]?.distance)
@@ -1080,6 +1084,7 @@ Deno.serve(async (req) => {
       nextDeliveryId: nextStopId,
       optimizedRoute: activeStops.map((stop, index) => ({
         deliveryId: stop.id,
+        isNextDelivery: stop.isNextDelivery === true,
         newETA: stop.delivery_time_eta,
         stop_order: Number(activeStopOrderMap.get(String(stop.id)) || (startingOrder + index + 1)),
         travel_dist: Number(directionsLegs[index]?.distance)
