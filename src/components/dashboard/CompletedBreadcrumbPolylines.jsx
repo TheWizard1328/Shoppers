@@ -396,19 +396,19 @@ export default function CompletedBreadcrumbPolylines({
     if (!coords) return;
 
     renderedLines.push(
-      <React.Fragment key={`stored-finished-group-${segment.id}-${polylineRenderKey}-${highlightedDeliveryId || "none"}`}>
+      [
         <Polyline
           key={`stored-finished-${segment.id}-${polylineRenderKey}-${highlightedDeliveryId || "none"}`}
           positions={coords}
           pathOptions={getFinishedLegRouteStyle(segment.driverId, segment.finishedLegTransportMode, Math.max(segment.opacity, 0.35), 0)}
           pane="completedBreadcrumbPane"
-        />
+        />,
         <RouteDirectionDecorator
           key={`stored-finished-arrow-${segment.id}-${polylineRenderKey}-${highlightedDeliveryId || "none"}`}
           positions={coords}
           color={getRouteShadeColor(segment.driverId, 0)}
         />
-      </React.Fragment>
+      ]
     );
   });
 
@@ -470,5 +470,5 @@ export default function CompletedBreadcrumbPolylines({
       });
   });
 
-  return renderedLines.length ? <>{renderedLines}</> : null;
+  return renderedLines.length ? renderedLines.flat() : null;
 }
