@@ -539,7 +539,9 @@ Deno.serve(async (req) => {
     const fetchYearData = async (year, cityId, options = {}) => {
       const cacheKey = `${CACHE_VERSION}_${year}_${cityId || 'all'}_${options.startDate || 'full'}_${options.endDate || 'full'}_${options.includePayroll ? 'payroll' : 'admin'}`;
       const cached = statsCache.get(cacheKey);
-      if (!CACHE_DISABLED && cached && (Date.now() - cached.timestamp < SERVER_CACHE_TTL_MS)) {
+      const yearIsCurrent = Number(year) === new Date().getFullYear();
+      const serverCacheTtl = yearIsCurrent ? CURRENT_MONTH_CACHE_TTL_MS : Number.POSITIVE_INFINITY;
+      if (!CACHE_DISABLED && cached && (Date.now() - cached.timestamp < serverCacheTtl)) {
         return cached.data;
       }
 
