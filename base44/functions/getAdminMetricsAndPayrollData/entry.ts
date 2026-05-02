@@ -8,7 +8,7 @@ const SUMMARY_VERSION = '3';
 const LIVE_SYNC_WINDOW_DAYS = 7;
 const statsCache = new Map();
 const CACHE_DISABLED = false;
-const SERVER_CACHE_TTL_MS = 5 * 60 * 1000;
+const SERVER_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const BATCH_LIMIT = 1000;
 
 const pickFields = (record, fields) => {
@@ -766,13 +766,28 @@ Deno.serve(async (req) => {
       const currentYear = new Date().getFullYear();
       let summaryRecords = await fetchYearSummaryRecords(adminMetricsYear, normalizedCityId);
 
-      if (!summaryRecords.length || summaryRecords.length < 12 || (forceRefreshCurrentYear && adminMetricsYear === currentYear)) {
+      const shouldManualFullRefresh = forceRefreshCurrentYear === true && adminMetricsYear === currentYear;
+      const needsInitialSummaryBuild = !summaryRecords.length;
+      const needsCurrentMonthRefresh = adminMetricsYear === currentYear && (
+        refreshCurrentMonthSummary === true || summaryRecords.length < 12
+      );
+
+      if (needsInitialSummaryBuild || shouldManualFullRefresh || needsCurrentMonthRefresh) {
         const backfill = await buildSummaryBackfill(adminMetricsYear, normalizedCityId, {
-          force: forceRefreshCurrentYear === true,
+          force: shouldManualFullRefresh,
           includePayroll: false,
-          refreshCurrentMonthOnly: false
+          refreshCurrentMonthOnly: !shouldManualFullRefresh && adminMetricsYear === currentYear
         });
-        summaryRecords = backfill.summaryRecords;
+
+        if (shouldManualFullRefresh || needsInitialSummaryBuild) {
+          summaryRecords = backfill.summaryRecords;
+        } else {
+          const refreshedMap = new Map((summaryRecords || []).map((record) => [record?.month, record]));
+          (backfill.summaryRecords || []).forEach((record) => {
+            if (record?.month) refreshedMap.set(record.month, record);
+          });
+          summaryRecords = Array.from(refreshedMap.values());
+        }
       }
 
       const composed = composeMetricsFromSummaries(summaryRecords);

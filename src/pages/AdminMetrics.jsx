@@ -130,11 +130,13 @@ export default function AdminMetrics() {
 
     setIsBackgroundSyncing(true);
     try {
+      const targetYear = parseInt(year, 10);
+      const currentYear = new Date().getFullYear();
       const response = await getAdminMetricsAndPayrollData({
-        adminMetricsYear: parseInt(year, 10),
+        adminMetricsYear: targetYear,
         adminMetricsCityId: cityId === 'all' ? null : cityId,
         forceRefreshCurrentYear: forceRefresh,
-        refreshCurrentMonthSummary: false,
+        refreshCurrentMonthSummary: !forceRefresh && targetYear === currentYear,
         payrollYear: null,
         payrollCityId: null,
         payrollDriverId: null
