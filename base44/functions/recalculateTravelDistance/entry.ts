@@ -69,6 +69,7 @@ Deno.serve(async (req) => {
 
     const currentDelivery = sortedDeliveries[currentIndex];
     const previousDelivery = currentIndex > 0 ? sortedDeliveries[currentIndex - 1] : null;
+    const isFirstStop = currentIndex === 0;
 
     const patientIds = [...new Set(sortedDeliveries.filter((item) => item?.patient_id).map((item) => item.patient_id))];
     const storeIds = [...new Set(sortedDeliveries.filter((item) => item?.store_id).map((item) => item.store_id))];
@@ -81,13 +82,22 @@ Deno.serve(async (req) => {
     const patientMap = new Map((patients || []).map((patient) => [patient.id, patient]));
     const storeMap = new Map((stores || []).map((store) => [store.id, store]));
 
-    const from = previousDelivery ? getLatLon(previousDelivery, patientMap, storeMap) : (() => {
-      const store = storeMap.get(currentDelivery?.store_id);
-      if (store?.latitude != null && store?.longitude != null) {
-        return { lat: Number(store.latitude), lon: Number(store.longitude) };
+    if (isFirstStop) {
+      const shouldUpdateFirstStop = force || Number(currentDelivery.travel_dist || 0) !== 0;
+      if (!shouldUpdateFirstStop) {
+        return Response.json({ success: true, skipped: true, travel_dist: currentDelivery.travel_dist });
       }
-      return null;
-    })();
+
+      await base44.asServiceRole.entities.Delivery.update(deliveryId, { travel_dist: 0 });
+
+      return Response.json({
+        success: true,
+        travel_dist: 0,
+        source: 'route_start'
+      });
+    }
+
+    const from = getLatLon(previousDelivery, patientMap, storeMap);
     const to = getLatLon(currentDelivery, patientMap, storeMap);
 
     if (!from || !to) {

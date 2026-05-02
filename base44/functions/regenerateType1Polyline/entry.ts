@@ -302,7 +302,10 @@ async function persistRouteSections(base44, deliveries = [], pointSpecs = [], ro
 
     const estimatedDistanceKm = round3(section.estimated_distance_km);
     const currentTravelDist = Number(delivery?.travel_dist);
-    const shouldReplaceTravelDist = estimatedDistanceKm !== null && (!Number.isFinite(currentTravelDist) || estimatedDistanceKm - currentTravelDist > 0.75);
+    const isFirstStop = index === 0;
+    const shouldReplaceTravelDist = isFirstStop
+      ? Number(currentTravelDist || 0) !== 0
+      : estimatedDistanceKm !== null && (!Number.isFinite(currentTravelDist) || estimatedDistanceKm - currentTravelDist > 0.75);
 
     deliveryUpdates.push({
       id: delivery.id,
@@ -310,7 +313,7 @@ async function persistRouteSections(base44, deliveries = [], pointSpecs = [], ro
       transport_mode: section.transport_mode || transportMode,
       estimated_distance_km: estimatedDistanceKm,
       estimated_duration_minutes: section.estimated_duration_minutes ?? null,
-      ...(shouldReplaceTravelDist ? { travel_dist: estimatedDistanceKm } : {}),
+      ...(shouldReplaceTravelDist ? { travel_dist: isFirstStop ? 0 : estimatedDistanceKm } : {}),
       PolylineUpdated: true
     });
   }
@@ -608,14 +611,14 @@ Deno.serve(async (req) => {
       const exactNextStopCoords = getLatLon(nextRouteStop) || nextStopCoords;
       const estimatedDistanceKm = round3(directions.estimated_distance_km);
       const currentTravelDist = Number(nextRouteStop?.travel_dist);
-      const shouldReplaceTravelDist = estimatedDistanceKm !== null && (!Number.isFinite(currentTravelDist) || estimatedDistanceKm - currentTravelDist > 0.75);
+      const shouldReplaceTravelDist = (!Number.isFinite(currentTravelDist) || Number(currentTravelDist || 0) !== 0);
       const singleDeliveryUpdate = {
         id: nextRouteStop.id,
         encoded_polyline: directions.encoded_polyline,
         transport_mode: directions.transport_mode || preferredTravelMode,
         estimated_distance_km: estimatedDistanceKm,
         estimated_duration_minutes: directions.estimated_duration_minutes ?? null,
-        ...(shouldReplaceTravelDist ? { travel_dist: estimatedDistanceKm } : {}),
+        ...(shouldReplaceTravelDist ? { travel_dist: 0 } : {}),
         PolylineUpdated: true
       };
       const { changedUpdates } = await syncDeliveriesPolylinesToOffline(base44, [singleDeliveryUpdate]);
