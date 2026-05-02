@@ -49,13 +49,27 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
     return viewMode === 'deliveries' && fees > 0;
   };
 
+  const getCompletedMonthsCount = () => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    const targetYear = parseInt(selectedYear, 10);
+
+    if (targetYear < currentYear) return 12;
+    if (targetYear > currentYear) return 0;
+    return Math.max(0, currentMonth - 1);
+  };
+
   // Calculate totals and averages per store (yearly)
   const calculateStoreTotals = () => {
     const totals = {};
+    const completedTotals = {};
     const counts = {};
+    const completedMonthsCount = getCompletedMonthsCount();
 
     stores.forEach((store) => {
       totals[store.abbreviation] = 0;
+      completedTotals[store.abbreviation] = 0;
       counts[store.abbreviation] = 0;
     });
 
@@ -80,21 +94,25 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
             value = storeData.fees ?? fallback?.fees ?? fallback?.total_fees ?? 0;
           }
           totals[storeData.abbreviation] += value;
+          if (month <= completedMonthsCount) {
+            completedTotals[storeData.abbreviation] += value;
+          }
           if (value > 0) counts[storeData.abbreviation]++;
         }
       });
     }
 
-    return { totals, counts };
+    return { totals, completedTotals, counts };
   };
 
-  const { totals, counts, grandTotal } = useMemo(() => {
+  const { totals, completedTotals, counts, grandTotal, completedGrandTotal } = useMemo(() => {
     const totalsResult = calculateStoreTotals();
     return {
       ...totalsResult,
-      grandTotal: Object.values(totalsResult.totals).reduce((sum, val) => sum + val, 0)
+      grandTotal: Object.values(totalsResult.totals).reduce((sum, val) => sum + val, 0),
+      completedGrandTotal: Object.values(totalsResult.completedTotals).reduce((sum, val) => sum + val, 0)
     };
-  }, [stores, monthlyStoreData, monthlyStoreFees, metricsViewMode, metricsData.envelopeMetrics, showEnvelopeAdjustedTotals]);
+  }, [stores, monthlyStoreData, monthlyStoreFees, metricsViewMode, metricsData.envelopeMetrics, showEnvelopeAdjustedTotals, selectedYear]);
 
   // Calculate monthly totals (row totals)
   const getMonthTotal = (month) => {
@@ -147,27 +165,11 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
     return value;
   };
 
-  const getCompletedMonthsCount = () => {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth() + 1;
-    const targetYear = parseInt(selectedYear, 10);
-
-    if (targetYear < currentYear) return 12;
-    if (targetYear > currentYear) return 0;
-    return Math.max(0, currentMonth - 1);
-  };
-
   const getStoreCompletedMonthsAverage = (store) => {
     const completedMonthsCount = getCompletedMonthsCount();
     if (completedMonthsCount === 0) return 0;
 
-    let total = 0;
-    for (let month = 1; month <= completedMonthsCount; month++) {
-      total += getValue(store.abbreviation, month) || 0;
-    }
-
-    return total / completedMonthsCount;
+    return (completedTotals[store.abbreviation] || 0) / completedMonthsCount;
   };
 
   const getMonthHighlightData = (month) => {
@@ -219,7 +221,7 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
   const calculateCompletedMonthsAverage = (store) => {
     const completedMonthsCount = getCompletedMonthsCount();
     if (completedMonthsCount === 0) return 0;
-    return (totals[store.abbreviation] || 0) / completedMonthsCount;
+    return (completedTotals[store.abbreviation] || 0) / completedMonthsCount;
   };
 
   if (!metricsData) return null;
@@ -392,7 +394,7 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
                 <td className="text-center px-1 py-0.5 font-semibold text-slate-700 border-l-2 border-purple-300 tabular-nums">
                   {(() => {
                     const completedMonthsCount = getCompletedMonthsCount();
-                    const totalAvg = completedMonthsCount > 0 ? grandTotal / completedMonthsCount : 0;
+                    const totalAvg = completedMonthsCount > 0 ? completedGrandTotal / completedMonthsCount : 0;
                     return totalAvg > 0 ? formatValue(Math.round(totalAvg)) : '';
                   })()}
                 </td>

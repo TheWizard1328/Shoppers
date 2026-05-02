@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { BarChart3, DollarSign, Store, Package, RefreshCw, TrendingUp, Users, Truck, Share2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { backgroundMetricsSync } from '@/functions/backgroundMetricsSync';
+import { getAdminMetricsAndPayrollData } from '@/functions/getAdminMetricsAndPayrollData';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { getEffectiveUser } from '@/components/utils/auth';
 import { offlineDB } from '@/components/utils/offlineDatabase';
@@ -124,6 +125,59 @@ export default function AdminMetrics() {
     });
   }, [getAdminMetricsCacheKey]);
 
+  const runBackgroundSummaryRefresh = useCallback(async (year, cityId, forceRefresh = false) => {
+    if (!hasAccess || !cityId) return;
+    if (!forceRefresh && Date.now() - last429AtRef.current < 15000) return;
+
+    setIsBackgroundSyncing(true);
+    try {
+      const syncResponse = await backgroundMetricsSync({
+        year: parseInt(year, 10),
+        cityId: cityId === 'all' ? null : cityId,
+        month: new Date().getMonth() + 1
+      });
+
+      const shouldPullFreshMetrics = forceRefresh || syncResponse?.data?.needsRefresh;
+      if (!shouldPullFreshMetrics) {
+        setLiveSyncStatus((prev) => ({
+          ...(prev || {}),
+          source: 'summary',
+          currentMonthSynced: true,
+          liveWindowApplied: false,
+          liveWindowDays: 7
+        }));
+        return;
+      }
+
+      const response = await getAdminMetricsAndPayrollData({
+        adminMetricsYear: parseInt(year, 10),
+        adminMetricsCityId: cityId === 'all' ? null : cityId,
+        forceRefreshCurrentYear: forceRefresh,
+        refreshCurrentMonthSummary: true,
+        payrollYear: null,
+        payrollCityId: null,
+        payrollDriverId: null
+      });
+
+      const data = response?.data?.adminMetrics || response?.adminMetrics;
+      const syncStatus = response?.data?.adminMetricsMeta || response?.adminMetricsMeta || null;
+      if (!data?.error && latestSelectionRef.current.year === year && latestSelectionRef.current.cityId === cityId) {
+        setMetricsData(data);
+        setLiveSyncStatus(syncStatus);
+        setLoadedFromOffline(false);
+        await saveOfflineMetrics(year, cityId, data, syncStatus);
+      }
+    } catch (err) {
+      const status = err?.response?.status || err?.status;
+      if (status === 429) {
+        last429AtRef.current = Date.now();
+      }
+      console.error('Background summary refresh failed:', err);
+    } finally {
+      setIsBackgroundSyncing(false);
+    }
+  }, [hasAccess, saveOfflineMetrics]);
+
   // Fetch metrics from backend - only when year or city changes or on initial load
   const fetchMetrics = useCallback(async (year, cityId, isInitial = false) => {
     if (!hasAccess || !cityId) return;
@@ -137,62 +191,28 @@ export default function AdminMetrics() {
       return inFlightMetricsRequestRef.current;
     }
 
-    if (!isForceRefresh && Date.now() - last429AtRef.current < 15000) {
-      return;
-    }
-
     latestSelectionRef.current = { year, cityId };
 
     const runRequest = async () => {
+      setError(null);
+
       if (shouldUseOfflineFirst) {
         setIsLoading(true);
-        setError(null);
         const hadOfflineData = await loadOfflineMetrics(year, cityId);
+        setIsLoading(false);
         if (hadOfflineData) {
           servedOfflineForSelectionRef.current = selectionKey;
+          runBackgroundSummaryRefresh(year, cityId, false);
           return;
         }
-        setIsFetching(true);
-      } else {
-        if (!isForceRefresh && servedOfflineForSelectionRef.current === selectionKey) {
-          return;
-        }
-        setIsFetching(true);
-        setError(null);
       }
 
+      setIsFetching(true);
+      setIsLoading(!metricsData);
       try {
-        const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
-          adminMetricsYear: parseInt(year),
-          adminMetricsCityId: cityId === 'all' ? null : cityId,
-          forceRefreshCurrentYear: isForceRefresh,
-          refreshCurrentMonthSummary: isForceRefresh,
-          payrollYear: null,
-          payrollCityId: null,
-          payrollDriverId: null
-        });
-        const data = response?.data?.adminMetrics || response?.adminMetrics;
-        const syncStatus = response?.data?.adminMetricsMeta || response?.adminMetricsMeta || null;
-
-        if (data?.error) {
-          throw new Error(data.error);
-        }
-
-        if (latestSelectionRef.current.year !== year || latestSelectionRef.current.cityId !== cityId) {
-          return;
-        }
-
-        setMetricsData(data);
-        setLiveSyncStatus(syncStatus);
-        setLoadedFromOffline(false);
-        setSelectedMonth(null);
-        await saveOfflineMetrics(year, cityId, data, syncStatus);
+        await runBackgroundSummaryRefresh(year, cityId, isForceRefresh);
       } catch (err) {
-        console.error('Failed to fetch metrics:', err);
         const status = err?.response?.status || err?.status;
-        if (status === 429) {
-          last429AtRef.current = Date.now();
-        }
         if (!metricsData && status !== 429) {
           setError(err?.response?.data?.error || err.message || 'Failed to load metrics');
         }
@@ -207,7 +227,7 @@ export default function AdminMetrics() {
     lastMetricsRequestKeyRef.current = requestKey;
     inFlightMetricsRequestRef.current = runRequest();
     return inFlightMetricsRequestRef.current;
-  }, [hasAccess, loadOfflineMetrics, saveOfflineMetrics, metricsData]);
+  }, [hasAccess, loadOfflineMetrics, metricsData, runBackgroundSummaryRefresh]);
 
   // Initial load - wait for city to be set
   useEffect(() => {
@@ -261,10 +281,12 @@ export default function AdminMetrics() {
   useEffect(() => {
     if (!hasAccess || !selectedCityId || !selectedYear || !metricsData) return;
     if (backgroundSyncStartedRef.current) return;
-    if (loadedFromOffline) return;
 
     backgroundSyncStartedRef.current = true;
-  }, [hasAccess, selectedCityId, selectedYear, metricsData, loadedFromOffline]);
+    if (loadedFromOffline) {
+      runBackgroundSummaryRefresh(selectedYear, selectedCityId, false);
+    }
+  }, [hasAccess, selectedCityId, selectedYear, metricsData, loadedFromOffline, runBackgroundSummaryRefresh]);
 
   // Filter data based on selected month, store, and driver (client-side filtering)
   const filteredData = useMemo(() => {
