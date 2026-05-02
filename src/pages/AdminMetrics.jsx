@@ -444,6 +444,9 @@ export default function AdminMetrics() {
     }).format(amount || 0);
   };
 
+  const displayMetricsData = metricsData || EMPTY_METRICS_DATA;
+  const showNoDataMessage = !!selectedCityId && !isLoading && !error && !metricsData;
+
   const bottomStoreChartData = useMemo(() => {
     if (!metricsData) return [];
 
@@ -748,9 +751,6 @@ export default function AdminMetrics() {
       </div>);
 
   }
-
-  const displayMetricsData = metricsData || EMPTY_METRICS_DATA;
-  const showNoDataMessage = !!selectedCityId && !isLoading && !error && !metricsData;
 
   return (
     <div className="h-full min-h-0 overflow-y-auto overflow-x-hidden p-4 md:p-6" style={{ background: 'var(--bg-slate-50)' }}>
