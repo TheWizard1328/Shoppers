@@ -79,7 +79,7 @@ export default function AdminMetrics() {
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [liveSyncStatus, setLiveSyncStatus] = useState(null);
   const [isBackgroundSyncing, setIsBackgroundSyncing] = useState(false);
-  const [backgroundSyncMonthLabel, setBackgroundSyncMonthLabel] = useState('');
+  const [backgroundSyncLabel, setBackgroundSyncLabel] = useState('');
   const backgroundSyncLabelTimerRef = useRef(null);
   const [showBackgroundSyncLabel, setShowBackgroundSyncLabel] = useState(false);
   const [loadedFromOffline, setLoadedFromOffline] = useState(false);
@@ -165,8 +165,8 @@ export default function AdminMetrics() {
     if (!hasAccess || !cityId) return;
     if (!forceRefresh && Date.now() - last429AtRef.current < 15000) return;
 
-    const syncingMonthIndex = new Date().getMonth();
-    setBackgroundSyncMonthLabel(MONTH_NAMES[syncingMonthIndex]);
+    const syncingLabel = `${backgroundSyncDateLabel} • ${backgroundSyncDriverName}`;
+    setBackgroundSyncLabel(syncingLabel);
     if (backgroundSyncLabelTimerRef.current) clearTimeout(backgroundSyncLabelTimerRef.current);
     setShowBackgroundSyncLabel(false);
     backgroundSyncLabelTimerRef.current = setTimeout(() => {
@@ -217,7 +217,7 @@ export default function AdminMetrics() {
         backgroundSyncLabelTimerRef.current = null;
       }
       setShowBackgroundSyncLabel(false);
-      setBackgroundSyncMonthLabel('');
+      setBackgroundSyncLabel('');
       setIsBackgroundSyncing(false);
     }
   }, [hasAccess, loadOfflineMetrics, metricsData, saveOfflineMetrics]);
@@ -422,6 +422,14 @@ export default function AdminMetrics() {
     }).format(amount || 0);
   };
 
+  const backgroundSyncDriverName = selectedDriverId === 'all'
+    ? 'All drivers'
+    : displayMetricsData?.driverData?.find((d) => d.driverId === selectedDriverId)?.name || 'Selected driver';
+
+  const backgroundSyncDateLabel = selectedMonth
+    ? `${MONTH_NAMES[selectedMonth - 1]} ${selectedYear}`
+    : `Current month ${MONTH_NAMES[new Date().getMonth()]} ${new Date().getFullYear()}`;
+
   const needsCitySelection = hasAccess && cities.length > 0 && !selectedCityId;
 
   useEffect(() => {
@@ -546,7 +554,7 @@ export default function AdminMetrics() {
                 {loadedFromOffline ? 'Loaded from offline cache' : liveSyncStatus.source === 'summary' ? 'Loaded from summary' : liveSyncStatus.liveWindowApplied ? `Live sync: last ${liveSyncStatus.liveWindowDays} days` : 'Summary only'}
               </Badge>
             )}
-            {showBackgroundSyncLabel && <span>Refreshing {backgroundSyncMonthLabel || 'current month'} summary in background…</span>}
+            {showBackgroundSyncLabel && <span>Refreshing {backgroundSyncLabel || 'Current month • All drivers'} in background…</span>}
             {!isBackgroundSyncing && !showBackgroundSyncLabel && liveSyncStatus?.currentMonthSynced && <span>Summary is up to date.</span>}
           </div>
         )}
