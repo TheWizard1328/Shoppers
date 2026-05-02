@@ -350,8 +350,8 @@ export function exportPayrollPdf({
         doc.text(periodValues.deductionsTotal.toFixed(2), col3_calcTotals + 15, y, { align: 'right' });
         y += lineHeight;
         if (periodValues.deductions?.length > 0) {
-          const deductionLabelX = col1_rowTitles + 5;
-          const deductionAmountX = col3_calcTotals - 10;
+          const deductionLabelX = col1_rowTitles + 1;
+          const deductionAmountX = col3_calcTotals - 14;
           doc.setFontSize(7);
           periodValues.deductions.forEach((ded) => {
             doc.text(`• ${ded.name}:`, deductionLabelX, y);
