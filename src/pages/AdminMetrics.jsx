@@ -84,6 +84,8 @@ export default function AdminMetrics() {
   const [showBackgroundSyncLabel, setShowBackgroundSyncLabel] = useState(false);
   const [loadedFromOffline, setLoadedFromOffline] = useState(false);
   const backgroundSyncStartedRef = useRef(false);
+  const lastBackgroundSyncKeyRef = useRef('');
+  const lastBackgroundSyncAtRef = useRef(0);
   const inFlightMetricsRequestRef = useRef(null);
   const lastMetricsRequestKeyRef = useRef('');
   const latestSelectionRef = useRef({ year: null, cityId: null });
@@ -165,6 +167,12 @@ export default function AdminMetrics() {
     if (!hasAccess || !cityId) return;
     if (!forceRefresh && Date.now() - last429AtRef.current < 15000) return;
 
+    const syncKey = `${year}-${cityId}-${selectedMonth || 'all'}-${selectedDriverId || 'all'}`;
+    const now = Date.now();
+    if (!forceRefresh && lastBackgroundSyncKeyRef.current === syncKey && now - lastBackgroundSyncAtRef.current < 60000) return;
+    lastBackgroundSyncKeyRef.current = syncKey;
+    lastBackgroundSyncAtRef.current = now;
+
     const syncingLabel = `${backgroundSyncDateLabel} • ${backgroundSyncDriverName}`;
     setBackgroundSyncLabel(syncingLabel);
     if (backgroundSyncLabelTimerRef.current) clearTimeout(backgroundSyncLabelTimerRef.current);
@@ -220,7 +228,16 @@ export default function AdminMetrics() {
       setBackgroundSyncLabel('');
       setIsBackgroundSyncing(false);
     }
-  }, [hasAccess, loadOfflineMetrics, metricsData, saveOfflineMetrics]);
+  }, [
+    hasAccess,
+    loadOfflineMetrics,
+    metricsData,
+    saveOfflineMetrics,
+    backgroundSyncDateLabel,
+    backgroundSyncDriverName,
+    selectedMonth,
+    selectedDriverId
+  ]);
 
   // Fetch metrics from backend - only when year or city changes or on initial load
   const fetchMetrics = useCallback(async (year, cityId, isInitial = false) => {
@@ -325,11 +342,10 @@ export default function AdminMetrics() {
   useEffect(() => {
     if (!hasAccess || !selectedCityId || !selectedYear || !metricsData) return;
     if (backgroundSyncStartedRef.current) return;
+    if (!loadedFromOffline) return;
 
     backgroundSyncStartedRef.current = true;
-    if (loadedFromOffline) {
-      runBackgroundSummaryRefresh(selectedYear, selectedCityId, false);
-    }
+    runBackgroundSummaryRefresh(selectedYear, selectedCityId, false);
   }, [hasAccess, selectedCityId, selectedYear, metricsData, loadedFromOffline, runBackgroundSummaryRefresh]);
 
   // Filter data based on selected month, store, and driver (client-side filtering)
