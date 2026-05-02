@@ -225,6 +225,7 @@ const mergeMetrics = (baseMetrics, incomingMetrics) => {
     dailyDeliveryData: {},
     dailyStoreData: {},
     monthlyStoreData: {},
+    monthlyStoreExtraKm: {},
     storeFeeTotals: {
       total_fees_owed: (baseMetrics.storeFeeTotals?.total_fees_owed || 0) + (incomingMetrics.storeFeeTotals?.total_fees_owed || 0),
       app_fee_rate: incomingMetrics.storeFeeTotals?.app_fee_rate || baseMetrics.storeFeeTotals?.app_fee_rate || 0,
