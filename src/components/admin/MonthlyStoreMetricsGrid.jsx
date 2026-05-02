@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -13,27 +13,26 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
  * 1. Total deliveries per store per month
  * 2. Total payable app fees per store per month
  */
-export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onStoreMonthClick, selectedMonth, selectedStoreMonth, onResetView, onViewModeChange, metricsViewMode, showEnvelopeAdjustedTotals, onEnvelopeToggleChange }) {
+function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onStoreMonthClick, selectedMonth, selectedStoreMonth, onResetView, onViewModeChange, metricsViewMode, showEnvelopeAdjustedTotals, onEnvelopeToggleChange }) {
 
-  if (!metricsData) return null;
-
-  const monthlyStoreData = metricsData.monthlyStoreData || {};
+  const monthlyStoreData = metricsData?.monthlyStoreData || {};
   const monthlyStoreFees = metricsData.monthlyStoreFees || {};
 
   // Default metricsViewMode if not provided
   const viewMode = metricsViewMode || 'deliveries';
 
-  // Build stores list from monthlyStoreData (all unique stores across all months)
-  const storeMap = new Map();
-  for (let month = 1; month <= 12; month++) {
-    const monthData = monthlyStoreData[month] || [];
-    monthData.forEach((store) => {
-      if (store.abbreviation && !storeMap.has(store.abbreviation)) {
-        storeMap.set(store.abbreviation, store);
-      }
-    });
-  }
-  const stores = Array.from(storeMap.values()).sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity));
+  const stores = useMemo(() => {
+    const storeMap = new Map();
+    for (let month = 1; month <= 12; month++) {
+      const monthData = monthlyStoreData[month] || [];
+      monthData.forEach((store) => {
+        if (store.abbreviation && !storeMap.has(store.abbreviation)) {
+          storeMap.set(store.abbreviation, store);
+        }
+      });
+    }
+    return Array.from(storeMap.values()).sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity));
+  }, [monthlyStoreData]);
 
   // Helper to get store ID by abbreviation and month
   const getStoreId = (storeAbbr, month) => {
@@ -89,10 +88,13 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
     return { totals, counts };
   };
 
-  const { totals, counts } = calculateStoreTotals();
-
-  // Get grand total
-  const grandTotal = Object.values(totals).reduce((sum, val) => sum + val, 0);
+  const { totals, counts, grandTotal } = useMemo(() => {
+    const totalsResult = calculateStoreTotals();
+    return {
+      ...totalsResult,
+      grandTotal: Object.values(totalsResult.totals).reduce((sum, val) => sum + val, 0)
+    };
+  }, [stores, monthlyStoreData, monthlyStoreFees, metricsViewMode, metricsData.envelopeMetrics, showEnvelopeAdjustedTotals]);
 
   // Calculate monthly totals (row totals)
   const getMonthTotal = (month) => {
@@ -219,6 +221,8 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
     if (completedMonthsCount === 0) return 0;
     return (totals[store.abbreviation] || 0) / completedMonthsCount;
   };
+
+  if (!metricsData) return null;
 
   return (
     <Card className="bg-card text-card-foreground rounded-xl border shadow flex min-h-0 flex-col max-h-[500px] lg:max-h-[500px] overflow-hidden">
@@ -419,4 +423,6 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
       </CardContent>
     </Card>);
 
-}
+    }
+
+    export default React.memo(MonthlyStoreMetricsGrid);

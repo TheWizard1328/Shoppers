@@ -238,7 +238,6 @@ export default function AdminMetrics() {
           year: parseInt(selectedYear),
           cityId: selectedCityId === 'all' ? null : selectedCityId
         });
-        await fetchMetrics(selectedYear, selectedCityId, false);
       } catch (error) {
         console.warn('Background metrics sync skipped:', error?.message || error);
       } finally {
