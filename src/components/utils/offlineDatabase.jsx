@@ -4,7 +4,7 @@
  */
 
 const DB_NAME = 'rxdeliver_persistent_offline_v2';
-const DB_VERSION = 12; // Incremented for live breadcrumb key schema update
+const DB_VERSION = 13; // Incremented for payroll realtime offline store
 const CACHE_SCHEMA_VERSION = 1;
 const DEFAULT_CACHE_SCOPE = 'global';
 
@@ -21,6 +21,7 @@ const STORES = {
   SQUARE_TRANSACTIONS: 'square_transactions',
   DRIVER_OVERVIEW_STATS: 'driver_overview_stats',
   ADMIN_METRICS_CACHE: 'admin_metrics_cache',
+  PAYROLL: 'payroll',
   SYNC_STATUS: 'sync_status',
   PENDING_MUTATIONS: 'pending_mutations',
   SYNC_METADATA: 'sync_metadata', // Timestamp tracking per entity
@@ -193,6 +194,14 @@ const openDatabase = async () => {
         adminMetricsStore.createIndex('year', 'year', { unique: false });
         adminMetricsStore.createIndex('city_id', 'city_id', { unique: false });
         adminMetricsStore.createIndex('updated_date', 'updated_date', { unique: false });
+      }
+
+      if (!db.objectStoreNames.contains(STORES.PAYROLL)) {
+        const payrollStore = db.createObjectStore(STORES.PAYROLL, { keyPath: 'id' });
+        payrollStore.createIndex('driver_id', 'driver_id', { unique: false });
+        payrollStore.createIndex('pay_period_start', 'pay_period_start', { unique: false });
+        payrollStore.createIndex('pay_period_end', 'pay_period_end', { unique: false });
+        payrollStore.createIndex('updated_date', 'updated_date', { unique: false });
       }
 
       if (!db.objectStoreNames.contains(STORES.SYNC_METADATA)) {

@@ -24,6 +24,7 @@ const eventBuffers = {
   Delivery: new Map(),
   Patient: new Map(),
   AppUser: new Map(),
+  Payroll: new Map(),
   Message: new Map(),
 
   GoogleAPILog: new Map(),
@@ -64,6 +65,8 @@ async function flushBuffered(entityName) {
       fullReplacementData = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
     } else if (entityName === 'Patient') {
       fullReplacementData = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+    } else if (entityName === 'Payroll') {
+      fullReplacementData = await offlineDB.getAll(offlineDB.STORES.PAYROLL);
     } else if (entityName === 'AppSettings') {
       fullReplacementData = null;
     }
@@ -101,6 +104,11 @@ async function flushBuffered(entityName) {
         }));
         window.dispatchEvent(new CustomEvent('adminUtilitiesAppSettingsUpdated', {
           detail: { source: 'appSettingsRealtime', type: eventType, id, data }
+        }));
+      }
+      if (entityName === 'Payroll' && data) {
+        window.dispatchEvent(new CustomEvent('payrollUpdated', {
+          detail: { type: eventType, id, data, fromRealtime: true }
         }));
       }
     }
@@ -192,6 +200,16 @@ async function flushBuffered(entityName) {
     window.dispatchEvent(new CustomEvent('patientsUpdated', {
       detail: {
         patients: fullReplacementData,
+        fromRealtime: true,
+        fullReplacement: true
+      }
+    }));
+  }
+
+  if (typeof window !== 'undefined' && entityName === 'Payroll' && Array.isArray(fullReplacementData)) {
+    window.dispatchEvent(new CustomEvent('payrollRecordsUpdated', {
+      detail: {
+        payrollRecords: fullReplacementData,
         fromRealtime: true,
         fullReplacement: true
       }
@@ -394,6 +412,7 @@ const subscribeToEntity = (entityName) => {
                             entityName === 'Patient' ? offlineDB.STORES.PATIENTS :
                             entityName === 'City' ? offlineDB.STORES.CITIES :
                             entityName === 'Store' ? offlineDB.STORES.STORES :
+                            entityName === 'Payroll' ? offlineDB.STORES.PAYROLL :
                             entityName === 'Message' ? null : null;
 
           if (entityName === 'Message' && typeof window !== 'undefined') {
@@ -415,6 +434,7 @@ const subscribeToEntity = (entityName) => {
           const storeName = entityName === 'AppUser' ? offlineDB.STORES.APP_USERS :
                             entityName === 'Delivery' ? offlineDB.STORES.DELIVERIES :
                             entityName === 'Patient' ? offlineDB.STORES.PATIENTS :
+                            entityName === 'Payroll' ? offlineDB.STORES.PAYROLL :
                             null;
 
           if (storeName) {
@@ -452,6 +472,7 @@ export const connect = () => {
     subscribeToEntity('Delivery');
     subscribeToEntity('Patient');
     subscribeToEntity('AppUser');
+    subscribeToEntity('Payroll');
     subscribeToEntity('Message');
     subscribeToEntity('GoogleAPILog');
     subscribeToEntity('AppSettings');
@@ -601,6 +622,7 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
     const storeName = entity === 'AppUser' ? offlineDB.STORES.APP_USERS :
       entity === 'Delivery' ? offlineDB.STORES.DELIVERIES :
       entity === 'Patient' ? offlineDB.STORES.PATIENTS :
+      entity === 'Payroll' ? offlineDB.STORES.PAYROLL :
       null;
 
     if (storeName) {
@@ -719,6 +741,17 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
           patients: data ? [data] : undefined,
           deletedId: action === 'delete' ? id : undefined,
           deletedIds: action === 'delete' ? [id] : [],
+          fromRealtime: true
+        }
+      }));
+    }
+
+    if (entity === 'Payroll') {
+      window.dispatchEvent(new CustomEvent('payrollUpdated', {
+        detail: {
+          payrollRecord: data,
+          payrollRecords: data ? [data] : undefined,
+          deletedId: action === 'delete' ? id : undefined,
           fromRealtime: true
         }
       }));
