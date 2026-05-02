@@ -167,13 +167,20 @@ export default function AdminMetrics() {
     if (!hasAccess || !cityId) return;
     if (!forceRefresh && Date.now() - last429AtRef.current < 15000) return;
 
+    const syncMonthLabel = selectedMonth
+      ? `${MONTH_NAMES[selectedMonth - 1]} ${year}`
+      : `Current month ${MONTH_NAMES[new Date().getMonth()]} ${new Date().getFullYear()}`;
+    const syncDriverLabel = selectedDriverId === 'all'
+      ? 'All drivers'
+      : metricsData?.driverData?.find((d) => d.driverId === selectedDriverId)?.name || 'Selected driver';
+
     const syncKey = `${year}-${cityId}-${selectedMonth || 'all'}-${selectedDriverId || 'all'}`;
     const now = Date.now();
     if (!forceRefresh && lastBackgroundSyncKeyRef.current === syncKey && now - lastBackgroundSyncAtRef.current < 60000) return;
     lastBackgroundSyncKeyRef.current = syncKey;
     lastBackgroundSyncAtRef.current = now;
 
-    const syncingLabel = `${backgroundSyncDateLabel} • ${backgroundSyncDriverName}`;
+    const syncingLabel = `${syncMonthLabel} • ${syncDriverLabel}`;
     setBackgroundSyncLabel(syncingLabel);
     if (backgroundSyncLabelTimerRef.current) clearTimeout(backgroundSyncLabelTimerRef.current);
     setShowBackgroundSyncLabel(false);
@@ -233,8 +240,6 @@ export default function AdminMetrics() {
     loadOfflineMetrics,
     metricsData,
     saveOfflineMetrics,
-    backgroundSyncDateLabel,
-    backgroundSyncDriverName,
     selectedMonth,
     selectedDriverId
   ]);
@@ -437,14 +442,6 @@ export default function AdminMetrics() {
       currency: 'USD'
     }).format(amount || 0);
   };
-
-  const backgroundSyncDriverName = selectedDriverId === 'all'
-    ? 'All drivers'
-    : displayMetricsData?.driverData?.find((d) => d.driverId === selectedDriverId)?.name || 'Selected driver';
-
-  const backgroundSyncDateLabel = selectedMonth
-    ? `${MONTH_NAMES[selectedMonth - 1]} ${selectedYear}`
-    : `Current month ${MONTH_NAMES[new Date().getMonth()]} ${new Date().getFullYear()}`;
 
   const needsCitySelection = hasAccess && cities.length > 0 && !selectedCityId;
 
