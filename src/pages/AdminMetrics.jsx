@@ -57,6 +57,8 @@ export default function AdminMetrics() {
   const inFlightMetricsRequestRef = useRef(null);
   const lastMetricsRequestKeyRef = useRef('');
   const latestSelectionRef = useRef({ year: null, cityId: null });
+  const servedOfflineForSelectionRef = useRef('');
+  const last429AtRef = useRef(0);
 
   const availableYears = useMemo(() => {
     const currentYear = new Date().getFullYear();
@@ -128,10 +130,15 @@ export default function AdminMetrics() {
 
     const isForceRefresh = isInitial === 'force-refresh';
     const shouldUseOfflineFirst = isInitial === true;
-    const requestKey = `${year}-${cityId}-${isForceRefresh ? 'force' : shouldUseOfflineFirst ? 'initial' : 'normal'}`;
+    const selectionKey = `${year}-${cityId}`;
+    const requestKey = `${selectionKey}-${isForceRefresh ? 'force' : shouldUseOfflineFirst ? 'initial' : 'normal'}`;
 
     if (inFlightMetricsRequestRef.current && lastMetricsRequestKeyRef.current === requestKey) {
       return inFlightMetricsRequestRef.current;
+    }
+
+    if (!isForceRefresh && Date.now() - last429AtRef.current < 15000) {
+      return;
     }
 
     latestSelectionRef.current = { year, cityId };
@@ -141,12 +148,15 @@ export default function AdminMetrics() {
         setIsLoading(true);
         setError(null);
         const hadOfflineData = await loadOfflineMetrics(year, cityId);
-        if (!hadOfflineData) {
-          setIsFetching(true);
-        } else {
+        if (hadOfflineData) {
+          servedOfflineForSelectionRef.current = selectionKey;
           return;
         }
+        setIsFetching(true);
       } else {
+        if (!isForceRefresh && servedOfflineForSelectionRef.current === selectionKey) {
+          return;
+        }
         setIsFetching(true);
         setError(null);
       }
@@ -180,6 +190,9 @@ export default function AdminMetrics() {
       } catch (err) {
         console.error('Failed to fetch metrics:', err);
         const status = err?.response?.status || err?.status;
+        if (status === 429) {
+          last429AtRef.current = Date.now();
+        }
         if (!metricsData && status !== 429) {
           setError(err?.response?.data?.error || err.message || 'Failed to load metrics');
         }
@@ -223,6 +236,7 @@ export default function AdminMetrics() {
   const handleYearChange = (newYear) => {
     if (newYear === selectedYear) return;
     backgroundSyncStartedRef.current = false;
+    servedOfflineForSelectionRef.current = '';
     setSelectedYear(newYear);
   };
 
@@ -232,12 +246,14 @@ export default function AdminMetrics() {
     setSelectedCityId(newCityId);
     setMetricsData(null);
     setLoadedFromOffline(false);
+    servedOfflineForSelectionRef.current = '';
     backgroundSyncStartedRef.current = false;
   };
 
   const handleManualRefresh = async () => {
     setIsManualRefreshing(true);
     backgroundSyncStartedRef.current = true;
+    servedOfflineForSelectionRef.current = '';
     await fetchMetrics(selectedYear, selectedCityId, 'force-refresh');
     setIsManualRefreshing(false);
   };
