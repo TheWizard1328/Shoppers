@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { MobileSelect } from '@/components/ui/mobile-select';
 import { isMobileDevice, isMobileDeviceForTheme } from '../utils/deviceUtils';
 import { globalFilters } from '../utils/globalFilters';
-import { clearUserCache } from '../utils/auth';
+import { clearUserCache, getEffectiveUser } from '../utils/auth';
 import { clearSettingsCache } from '../utils/userSettingsManager';
 import { base44 } from '@/api/base44Client';
 import DeleteAccountMenuItem from '@/components/settings/DeleteAccountMenuItem';
@@ -35,6 +35,30 @@ export default function SettingsMenu({
   const [isDemoActive, setIsDemoActive] = useState(false);
   const demoStateLoadedRef = useRef(false);
   const demoStateLoadingRef = useRef(false);
+
+  const handleCityFilterChange = async (cityId) => {
+    if (!cityId || cityId === globalFilters.getSelectedCityId()) return;
+
+    globalFilters.updateFilters({
+      selectedCityId: cityId,
+      selectedStoreId: 'all',
+      selectedDriverId: 'all'
+    });
+
+    clearUserCache();
+    clearSettingsCache();
+
+    const refreshedUser = await getEffectiveUser().catch(() => null);
+
+    window.dispatchEvent(new CustomEvent('cityChanged', {
+      detail: {
+        cityId,
+        refreshedUser
+      }
+    }));
+
+    window.dispatchEvent(new CustomEvent('forceDataRefresh'));
+  };
 
   useEffect(() => {
     if (!currentUser?.app_roles?.includes('admin')) return;
@@ -155,17 +179,13 @@ export default function SettingsMenu({
           {isMobileDeviceForUI ? (
             <MobileSelect 
               value={globalFilters.getSelectedCityId()}
-              onValueChange={(cityId) => {
-                globalFilters.setSelectedCityId(cityId);
-              }}
+              onValueChange={handleCityFilterChange}
               options={cities.map((city) => ({ value: city.id, label: city.name }))}
             />
           ) : (
             <Select
               value={globalFilters.getSelectedCityId()}
-              onValueChange={(cityId) => {
-                globalFilters.setSelectedCityId(cityId);
-              }}
+              onValueChange={handleCityFilterChange}
             >
               <SelectTrigger 
                 className="w-full min-h-11" 
