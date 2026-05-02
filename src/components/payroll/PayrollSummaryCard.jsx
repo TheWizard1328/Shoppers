@@ -1247,7 +1247,8 @@ export default function PayrollSummaryCard({
                     ytdDataByDriver={ytdDataByDriver}
                     isPeriodEndOfMonth={isPeriodEndOfMonth}
                     onDeductionsClick={setDeductionOverlayDriverId}
-                    onBonusClick={setBonusOverlayDriverId} />);
+                    onBonusClick={setBonusOverlayDriverId}
+                    payrollRecord={driverPayrollRecord} />);
 
 
               }

@@ -483,11 +483,12 @@ export default function DriverPayroll() {
 
   const totalNetPay = useMemo(() => filteredPayrollRecords.reduce((sum, r) => sum + (Number(r.net_pay) || 0), 0), [filteredPayrollRecords]);
   const totalDeliveries = useMemo(() => {
-    if (!payrollData) return 0;
+    const payrollRows = Array.isArray(payrollData) ? payrollData : [];
+    if (payrollRows.length === 0) return 0;
     if (selectedDriverId === 'all') {
-      return payrollData.reduce((sum, driverData) => sum + (Number(driverData.graphDeliveryCount) || 0), 0);
+      return payrollRows.reduce((sum, driverData) => sum + (Number(driverData?.graphDeliveryCount) || 0), 0);
     }
-    const selectedDriverData = payrollData.find((driverData) => driverData.driver.id === selectedDriverId);
+    const selectedDriverData = payrollRows.find((driverData) => driverData?.driver?.id === selectedDriverId);
     return Number(selectedDriverData?.graphDeliveryCount) || 0;
   }, [payrollData, selectedDriverId]);
   const periodLabel = useMemo(() => currentPeriod ? currentPeriod.label : '', [currentPeriod]);

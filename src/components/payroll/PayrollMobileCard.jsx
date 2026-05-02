@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useUser } from '../utils/UserContext';
@@ -297,6 +297,16 @@ export default function PayrollMobileCard({
             <div className="text-right pr-0.5">$</div>
             <div className="text-right">{(ytdDataByDriver[data.driver.id]?.ytdNetPay || 0).toFixed(2)}</div>
           </div>
+
+          {isAdmin && (
+            <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-slate-600)' }}>
+              <div className="text-left">Paid:</div>
+              <div className="text-right pr-0.5">$</div>
+              <div className="text-right font-semibold">{(Number(payrollRecord?.paid_amount) || 0).toFixed(2)}</div>
+              <div></div>
+              <div></div>
+            </div>
+          )}
 
           {/* Inline Notes (hidden from exports) */}
           <div data-notes-section="true" className="mt-3 space-y-3">
