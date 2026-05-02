@@ -29,7 +29,8 @@ export default function PayrollMobileCard({
   onDeductionsClick,
   onBonusClick,
   onAppFeeClick,
-  onNotesClick
+  onNotesClick,
+  onPaidAmountSave
 }) {
   const [expandedSection, setExpandedSection] = useState(null);
   const { currentUser } = useUser();
@@ -39,6 +40,7 @@ export default function PayrollMobileCard({
   const [driverNotes, setDriverNotes] = useState('');
   const [isSavingAdmin, setIsSavingAdmin] = useState(false);
   const [isSavingDriver, setIsSavingDriver] = useState(false);
+  const [paidDraft, setPaidDraft] = useState('0.00');
 
   const toLocalYMD = (d) => {
     const y = d.getFullYear();
@@ -60,11 +62,13 @@ export default function PayrollMobileCard({
           setPayrollRecord(rec);
           setAdminNotes(rec.admin_notes || '');
           setDriverNotes(rec.driver_notes || '');
+          setPaidDraft((Number(rec.paid_amount) || 0).toFixed(2));
         } else {
           setPayrollRecordId(null);
           setPayrollRecord(null);
           setAdminNotes('');
           setDriverNotes('');
+          setPaidDraft('0.00');
         }
       } catch (_) {/* no-op */}
     })();
@@ -96,6 +100,7 @@ export default function PayrollMobileCard({
   const periodAppFee = appFeeAmount || 0;
   const periodGross = data?.grandTotal || 0;
   const periodTax = data?.taxAmount || 0;
+  const paidAmountValue = Number(payrollRecord?.paid_amount) || 0;
   const periodNet = getPeriodNetAmount({
     grandTotal: periodGross,
     taxAmount: periodTax,
@@ -298,15 +303,34 @@ export default function PayrollMobileCard({
             <div className="text-right">{(ytdDataByDriver[data.driver.id]?.ytdNetPay || 0).toFixed(2)}</div>
           </div>
 
-          {isAdmin && (
-            <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-slate-600)' }}>
-              <div className="text-left">Paid:</div>
-              <div className="text-right pr-0.5">$</div>
-              <div className="text-right font-semibold">{(Number(payrollRecord?.paid_amount) || 0).toFixed(2)}</div>
-              <div></div>
-              <div></div>
+          <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-slate-600)' }}>
+            <div className="text-left">Paid:</div>
+            <div className="text-right pr-0.5">$</div>
+            <div className="text-right font-semibold">
+              {isAdmin ? (
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={paidDraft}
+                  onChange={(e) => setPaidDraft(e.target.value.replace(/[^0-9.]/g, ''))}
+                  onBlur={async () => {
+                    const nextPaidAmount = Number.parseFloat(paidDraft || '0') || 0;
+                    const formatted = nextPaidAmount.toFixed(2);
+                    setPaidDraft(formatted);
+                    if (payrollRecordId && onPaidAmountSave) {
+                      await onPaidAmountSave(data.driver.id, nextPaidAmount);
+                      setPayrollRecord((prev) => prev ? { ...prev, paid_amount: nextPaidAmount } : prev);
+                    }
+                  }}
+                  className="h-7 w-full min-w-0 rounded border border-slate-300 bg-white px-1 text-right font-semibold text-slate-900"
+                />
+              ) : (
+                paidAmountValue.toFixed(2)
+              )}
             </div>
-          )}
+            <div></div>
+            <div></div>
+          </div>
 
           {/* Inline Notes (hidden from exports) */}
           <div data-notes-section="true" className="mt-3 space-y-3">

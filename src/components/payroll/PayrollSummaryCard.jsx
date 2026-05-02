@@ -1248,7 +1248,11 @@ export default function PayrollSummaryCard({
                     isPeriodEndOfMonth={isPeriodEndOfMonth}
                     onDeductionsClick={setDeductionOverlayDriverId}
                     onBonusClick={setBonusOverlayDriverId}
-                    payrollRecord={driverPayrollRecord} />);
+                    payrollRecord={driverPayrollRecord}
+                    onPaidAmountSave={async (driverId, paidAmount) => {
+                      skipNextAutoSyncRef.current = true;
+                      await savePayrollChanges(driverId, { paid_amount: paidAmount });
+                    }} />);
 
 
               }
