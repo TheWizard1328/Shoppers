@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useUser } from '../utils/UserContext';
+import { getPeriodNetAmount, sumDeductionAmounts } from './payrollSummaryCalculations';
 
 /**
  * Mobile-friendly payroll card for displaying driver payroll
@@ -90,56 +91,18 @@ export default function PayrollMobileCard({
     setExpandedSection(expandedSection === section ? null : section);
   };
 
-  // Calculate YTD totals from deliveries
-  const calculateYTDTotals = () => {
-    if (!currentPeriod || !deliveries.length) {
-      return { ytdGrossPay: 0, ytdNetPay: 0, ytdTaxAmount: 0, ytdDeductions: 0, ytdBonusPay: 0, ytdAppFeeAmount: 0 };
-    }
-
-    const yearStart = new Date(currentPeriod.start.getFullYear(), 0, 1);
-    const ytdDeliveries = deliveries.filter((d) => {
-      if (!d || d.driver_id !== data.driver.id) return false;
-      const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
-      if (!validStatus) return false;
-      const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-      return deliveryDate >= yearStart && deliveryDate <= currentPeriod.end;
-    });
-
-    const ytdTotalDeliveries = ytdDeliveries.length;
-    const ytdTotalBasePay = ytdTotalDeliveries * data.payRate;
-
-    const ytdExtraKm = ytdDeliveries.reduce((sum, d) => {
-      const patient = patients?.find((p) => p?.id === d.patient_id);
-      if (!patient?.distance_from_store) return sum;
-      const distance = d.paid_km_override ?? patient.distance_from_store;
-      const extraKm = Math.max(0, distance - data.extraKmLimit);
-      return sum + extraKm;
-    }, 0);
-    const ytdExtraKmPay = ytdExtraKm * data.extraKmRate;
-
-    const ytdOversizedCount = ytdDeliveries.filter((d) => d.oversized).length;
-    const ytdOversizedPay = ytdOversizedCount * data.oversizedRate;
-
-    const ytdGrossPay = ytdTotalBasePay + ytdExtraKmPay + ytdOversizedPay;
-    const ytdTaxAmount = data.taxRate ? ytdGrossPay * data.taxRate : 0;
-    const ytdDeductions = data.totalDeductions || 0;
-    const ytdBonusPay = data.bonusPay || 0;
-    const ytdAppFeeAmount = data.appFeeAmount || 0;
-    const ytdNetPay = ytdGrossPay + ytdTaxAmount - ytdDeductions + ytdBonusPay + ytdAppFeeAmount;
-
-    return { ytdGrossPay, ytdNetPay, ytdTaxAmount, ytdDeductions, ytdBonusPay, ytdAppFeeAmount };
-  };
-
-  const ytdTotals = calculateYTDTotals();
-
-  // Period values aligned with desktop with 2-decimal rounding per component to avoid penny drift
-  const r2 = (n) => Math.round((n || 0) * 100) / 100;
-  const periodGross = r2(data?.grandTotal || 0);
-  const periodTax = r2(data?.taxAmount || 0);
-  const periodDeductions = r2(payrollRecord?.total_deductions ?? (data?.deductions || data?.total_deductions || data?.totalDeductions || 0));
-  const periodBonus = r2(bonusAmount || 0);
-  const periodAppFee = r2(appFeeAmount || 0);
-  const periodNet = r2(periodGross + periodTax - periodDeductions + periodBonus + periodAppFee);
+  const periodDeductions = sumDeductionAmounts(payrollRecord?.deductions || data?.deductionsArray || []);
+  const periodBonus = bonusAmount || 0;
+  const periodAppFee = appFeeAmount || 0;
+  const periodGross = data?.grandTotal || 0;
+  const periodTax = data?.taxAmount || 0;
+  const periodNet = getPeriodNetAmount({
+    grandTotal: periodGross,
+    taxAmount: periodTax,
+    bonusPay: periodBonus,
+    deductions: payrollRecord?.deductions || data?.deductionsArray || [],
+    appFeeAmount: periodAppFee
+  });
 
 
 

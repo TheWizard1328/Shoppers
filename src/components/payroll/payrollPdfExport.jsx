@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import { userHasRole, isAppOwner } from '../utils/userRoles';
+import { getPeriodNetAmount, sumDeductionAmounts } from './payrollSummaryCalculations';
 
 /**
  * Export payroll data to PDF
@@ -179,6 +179,26 @@ export function exportPayrollPdf({
   const dates = getDatesArray();
   const activeStores = getActiveStores(stores);
 
+  const getDriverPeriodValues = (driverData) => {
+    const edit = driverEdits?.[driverData.driver.id] || {};
+    const deductions = edit.deductions || driverData.deductionsArray || [];
+    const bonusPay = edit.bonusPay || 0;
+    const appFeeAmount = isPeriodEndOfMonth ? (edit.appFeeAmount || calculateAppFeeAmount(driverData.driver.id, edit.appFeePercent || 0)) : 0;
+    return {
+      deductions,
+      deductionsTotal: sumDeductionAmounts(deductions),
+      bonusPay,
+      appFeeAmount,
+      netPay: getPeriodNetAmount({
+        grandTotal: driverData.grandTotal || 0,
+        taxAmount: driverData.taxAmount || 0,
+        bonusPay,
+        deductions,
+        appFeeAmount
+      })
+    };
+  };
+
   if (isSingleDriver) {
     const doc = new jsPDF({ orientation: 'landscape' });
     const leftMargin = 14;
@@ -186,6 +206,7 @@ export function exportPayrollPdf({
 
     const driverData = payrollData.find((d) => d.driver.id === selectedDriverId);
     if (!driverData) return;
+    const periodValues = getDriverPeriodValues(driverData);
 
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
@@ -308,7 +329,7 @@ export function exportPayrollPdf({
     doc.setFont('helvetica', 'normal');
     y += lineHeight;
 
-    const hasDeductions = driverData.taxAmount > 0 || driverData.deductions > 0;
+    const hasDeductions = (driverData.taxAmount || 0) > 0 || periodValues.deductionsTotal > 0 || periodValues.bonusPay > 0 || periodValues.appFeeAmount > 0;
     if (hasDeductions) {
       doc.text('Net Pay:', col1_rowTitles, y);
       doc.text('=$', col3_calcTotals, y);
@@ -323,14 +344,14 @@ export function exportPayrollPdf({
         doc.text(driverData.taxAmount.toFixed(2), col3_calcTotals + 15, y, { align: 'right' });
         y += lineHeight;
       }
-      if (driverData.deductions > 0) {
+      if (periodValues.deductionsTotal > 0) {
         doc.text('Deductions:', col1_rowTitles, y);
         doc.text('-$', col3_calcTotals, y);
-        doc.text(driverData.deductions.toFixed(2), col3_calcTotals + 15, y, { align: 'right' });
+        doc.text(periodValues.deductionsTotal.toFixed(2), col3_calcTotals + 15, y, { align: 'right' });
         y += lineHeight;
-        if (driverData.deductionsArray?.length > 0) {
+        if (periodValues.deductions?.length > 0) {
           doc.setFontSize(7);
-          driverData.deductionsArray.forEach((ded) => {
+          periodValues.deductions.forEach((ded) => {
             doc.text(`  • ${ded.name}:`, col1_rowTitles + 2, y);
             doc.text('-$', col3_calcTotals, y);
             doc.text(ded.amount.toFixed(2), col3_calcTotals + 15, y, { align: 'right' });
@@ -339,51 +360,31 @@ export function exportPayrollPdf({
           doc.setFontSize(8);
         }
       }
+      if (periodValues.bonusPay > 0) {
+        doc.text('Bonus:', col1_rowTitles, y);
+        doc.text('+$', col3_calcTotals, y);
+        doc.text(periodValues.bonusPay.toFixed(2), col3_calcTotals + 15, y, { align: 'right' });
+        y += lineHeight;
+      }
+      if (periodValues.appFeeAmount > 0) {
+        doc.text('App Fee Cut:', col1_rowTitles, y);
+        doc.text('+$', col3_calcTotals, y);
+        doc.text(periodValues.appFeeAmount.toFixed(2), col3_calcTotals + 15, y, { align: 'right' });
+        y += lineHeight;
+      }
       y += 1;
     }
 
     doc.setFont('helvetica', 'bold');
     doc.text('Gross Pay:', col1_rowTitles, y);
     doc.text('=$', col3_calcTotals, y);
-    doc.text(driverData.grossPay.toFixed(2), col3_calcTotals + 15, y, { align: 'right' });
+    doc.text(periodValues.netPay.toFixed(2), col3_calcTotals + 15, y, { align: 'right' });
     doc.text('=$', col5_ytdTotals, y);
     doc.text(ytdGrossPay.toFixed(2), rightMargin - 2, y, { align: 'right' });
     y += lineHeight;
 
     doc.setDrawColor(150, 150, 150);
     doc.line(divider1, summaryStartY - 5, divider1, y);
-
-    // App Fee
-    if (currentUser && (userHasRole(currentUser, 'admin') || isAppOwner(currentUser))) {
-      let appFeeTotal = 0;
-      const periodDeliveries = deliveries.filter((d) => {
-        if (!d || d.driver_id !== selectedDriverId) return false;
-        const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && d.after_hours_pickup;
-        if (!validStatus) return false;
-        if (!d.patient_id && !d.after_hours_pickup) return false;
-        const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-        return deliveryDate >= currentPeriod.start && deliveryDate <= currentPeriod.end;
-      });
-      periodDeliveries.forEach((d) => {
-        const store = stores.find((s) => s?.id === d.store_id);
-        if (!store) return;
-        let paysAppFees = store.pays_app_fees || false;
-        if (store.app_fee_history?.length > 0) {
-          const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-          const sorted = [...store.app_fee_history].sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date));
-          const entry = sorted.find((e) => new Date(e.effective_date) <= deliveryDate);
-          if (entry) paysAppFees = entry.pays_app_fees;
-        }
-        if (paysAppFees && driverData.appFeePercentage > 0) appFeeTotal += driverData.payRate * driverData.appFeePercentage;
-      });
-      if (appFeeTotal > 0 && driverData.appFeePercentage > 0) {
-        doc.setFont('helvetica', 'normal');
-        doc.text(`App Fee (${(driverData.appFeePercentage * 100).toFixed(0)}%):`, col1_rowTitles, y);
-        doc.text('$', col3_calcTotals + 1, y);
-        doc.text(appFeeTotal.toFixed(2), col3_calcTotals + 15, y, { align: 'right' });
-        y += lineHeight;
-      }
-    }
 
     y += 1;
     doc.setDrawColor(100, 100, 100);
@@ -450,6 +451,7 @@ export function exportPayrollPdf({
   doc.text(`Pay Period Type: ${payPeriod.charAt(0).toUpperCase() + payPeriod.slice(1)}`, 14, y); y += 12;
 
   payrollData.filter((data) => data.totalDeliveries > 0).forEach((data) => {
+    const periodValues = getDriverPeriodValues(data);
     if (y > 250) { doc.addPage(); y = 20; }
     const driverName = data.driver.user_name || data.driver.full_name;
     doc.setFontSize(12); doc.setFont('helvetica', 'bold');
@@ -468,9 +470,9 @@ export function exportPayrollPdf({
     doc.setFont('helvetica', 'normal');
     doc.text('Gross:', rightCol - 40, y - 14); doc.text(`$${(data.grandTotal || 0).toFixed(2)}`, rightCol, y - 14, { align: 'right' });
     doc.text('Tax:', rightCol - 40, y - 9); doc.text(`$${(data.taxAmount || 0).toFixed(2)}`, rightCol, y - 9, { align: 'right' });
-    doc.text('Deductions:', rightCol - 40, y - 4); doc.text(`-$${(data.deductions || 0).toFixed(2)}`, rightCol, y - 4, { align: 'right' });
+    doc.text('Deductions:', rightCol - 40, y - 4); doc.text(`-$${periodValues.deductionsTotal.toFixed(2)}`, rightCol, y - 4, { align: 'right' });
     doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
-    doc.text('Net:', rightCol - 40, y + 2); doc.text(`$${(data.grossPay || 0).toFixed(2)}`, rightCol, y + 2, { align: 'right' });
+    doc.text('Net:', rightCol - 40, y + 2); doc.text(`$${periodValues.netPay.toFixed(2)}`, rightCol, y + 2, { align: 'right' });
     y += 8;
     doc.setDrawColor(200, 200, 200); doc.line(14, y, portraitWidth - 14, y); y += 8;
   });
@@ -485,7 +487,7 @@ export function exportPayrollPdf({
     doc.text(`Tax: $${grandTotalTax.toFixed(2)}`, rightCol, y, { align: 'right' }); y += 5;
     doc.text(`Deductions: $${grandTotalDeductions.toFixed(2)}`, rightCol, y, { align: 'right' }); y += 6;
     doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
-    doc.text(`Net: $${grandTotalGross.toFixed(2)}`, rightCol, y, { align: 'right' });
+    doc.text(`Net: $${driversWithDeliveries.reduce((sum, d) => sum + getDriverPeriodValues(d).netPay, 0).toFixed(2)}`, rightCol, y, { align: 'right' });
   }
 
   doc.save(filename);
