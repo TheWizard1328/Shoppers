@@ -6,6 +6,7 @@ import { cityFilteredRealtimeSync } from './cityFilteredRealtimeSync';
 import { subscribeToRealtime } from './realtimeSync';
 import { ensurePolylineSubscription } from './hereRouting';
 import ImmediateNextDeliveryController from './ImmediateNextDeliveryController';
+import { globalFilters } from './globalFilters';
 
 const AppDataContext = createContext(null);
 
@@ -277,6 +278,72 @@ export const AppDataProvider = ({ children, value }) => {
   useEffect(() => { deliveriesRef.current = value.deliveries; }, [value.deliveries]);
   useEffect(() => { appUsersRef.current = value.appUsers; }, [value.appUsers]);
   useEffect(() => { patientsRef.current = value.patients; }, [value.patients]);
+
+  useEffect(() => {
+    const handleCityChanged = (event) => {
+      const nextCityId = event?.detail?.cityId || globalFilters.getSelectedCityId();
+      if (!nextCityId || nextCityId === 'all') return;
+
+      const cityStores = (value.stores || []).filter((store) => store?.city_id === nextCityId);
+      const cityStoreIds = new Set(cityStores.map((store) => store.id));
+      const selectedDate = value.selectedDate || globalFilters.getSelectedDate();
+
+      const filteredDeliveries = (deliveriesRef.current || []).filter((delivery) => {
+        if (!delivery || !cityStoreIds.has(delivery.store_id)) return false;
+        if (!selectedDate) return true;
+        return delivery.delivery_date === selectedDate;
+      });
+
+      const filteredPatients = (patientsRef.current || []).filter((patient) => patient && cityStoreIds.has(patient.store_id));
+      const filteredAppUsers = (appUsersRef.current || []).filter((appUser) => {
+        if (!appUser) return false;
+        const cityIds = Array.isArray(appUser.city_ids) ? appUser.city_ids : [];
+        return appUser.city_id === nextCityId || cityIds.includes(nextCityId);
+      });
+
+      if (updateDeliveriesLocallyRef.current) {
+        updateDeliveriesLocallyRef.current(filteredDeliveries, true);
+      }
+
+      if (value.updatePatientsLocally) {
+        value.updatePatientsLocally({ upserts: filteredPatients, deleteIds: [] });
+      } else if (applyPatientChangesLocallyRef.current) {
+        applyPatientChangesLocallyRef.current({ upserts: filteredPatients, deleteIds: [] });
+      }
+
+      if (updateAppUsersLocallyRef.current) {
+        updateAppUsersLocallyRef.current(filteredAppUsers, true);
+      }
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: {
+            freshDeliveries: filteredDeliveries,
+            preserveLocalState: true,
+            triggeredBy: 'cityChanged'
+          }
+        }));
+        window.dispatchEvent(new CustomEvent('patientsUpdated', {
+          detail: {
+            patients: filteredPatients,
+            preserveLocalState: true,
+            triggeredBy: 'cityChanged'
+          }
+        }));
+        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+          detail: {
+            appUsers: filteredAppUsers,
+            forceAll: true,
+            fromCityChange: true
+          }
+        }));
+        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+      }
+    };
+
+    window.addEventListener('cityChanged', handleCityChanged);
+    return () => window.removeEventListener('cityChanged', handleCityChanged);
+  }, [value.stores, value.selectedDate, value.updatePatientsLocally]);
 
   useEffect(() => {
     if (!value.currentUser) return;
@@ -714,6 +781,8 @@ export const AppDataProvider = ({ children, value }) => {
 
   const wrappedValue = useMemo(() => ({
     ...value,
+    selectedCityId: value.selectedCityId || globalFilters.getSelectedCityId(),
+    selectedDate: value.selectedDate || globalFilters.getSelectedDate(),
     updateDeliveriesLocally: wrappedUpdateDeliveriesLocally,
     updateAppUsersLocally: wrappedUpdateAppUsersLocally,
     updatePatientsLocally: value.updatePatientsLocally,

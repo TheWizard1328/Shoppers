@@ -45,12 +45,16 @@ export default function SettingsMenu({
       selectedDriverId: 'all'
     });
 
+    window.dispatchEvent(new CustomEvent('cityChanged', {
+      detail: { cityId }
+    }));
+
     clearUserCache();
     clearSettingsCache();
 
     const refreshedUser = await getEffectiveUser().catch(() => null);
 
-    window.dispatchEvent(new CustomEvent('cityChanged', {
+    window.dispatchEvent(new CustomEvent('cityChangedDataReady', {
       detail: {
         cityId,
         refreshedUser
