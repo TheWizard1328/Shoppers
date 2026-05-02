@@ -261,6 +261,7 @@ const mergeMetrics = (baseMetrics, incomingMetrics) => {
     merged.storeDataByMonth[month] = mergeArrayByKey(baseMetrics.storeDataByMonth?.[month], incomingMetrics.storeDataByMonth?.[month], 'storeId');
     merged.driverDataByMonth[month] = mergeArrayByKey(baseMetrics.driverDataByMonth?.[month], incomingMetrics.driverDataByMonth?.[month], 'driverId');
     merged.monthlyStoreData[month] = mergeArrayByKey(baseMetrics.monthlyStoreData?.[month], incomingMetrics.monthlyStoreData?.[month], 'storeId');
+    merged.monthlyStoreExtraKm[month] = mergeArrayByKey(baseMetrics.monthlyStoreExtraKm?.[month], incomingMetrics.monthlyStoreExtraKm?.[month], 'storeId');
     merged.dailyDeliveryData[month] = mergeArrayByKey(baseMetrics.dailyDeliveryData?.[month], incomingMetrics.dailyDeliveryData?.[month], 'day');
 
     const baseDailyStore = baseMetrics.dailyStoreData?.[month] || {};
@@ -924,6 +925,7 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
     dailyDeliveryData: {},
     dailyStoreData: {},
     monthlyStoreData: {},
+    monthlyStoreExtraKm: {},
     storeFeeTotals: {
       total_fees_owed: 0,
       app_fee_rate: appFeeRate,
@@ -1077,12 +1079,13 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
       if (!metrics.storeDataByMonth[monthIndex + 1]) metrics.storeDataByMonth[monthIndex + 1] = [];
       let monthlyStoreEntry = metrics.storeDataByMonth[monthIndex + 1].find(s => s.storeId === delivery.store_id);
       if (!monthlyStoreEntry) {
-        monthlyStoreEntry = { abbreviation: store.abbreviation, name: store.name, storeId: delivery.store_id, completed: 0, failed: 0, afterHours: 0, color: store.color, sortOrder: store.sort_order };
+        monthlyStoreEntry = { abbreviation: store.abbreviation, name: store.name, storeId: delivery.store_id, completed: 0, failed: 0, afterHours: 0, extra_km: 0, color: store.color, sortOrder: store.sort_order };
         metrics.storeDataByMonth[monthIndex + 1].push(monthlyStoreEntry);
       }
       if (isCountableCompletedDelivery(delivery)) monthlyStoreEntry.completed++;
       if (isCountableFailedDelivery(delivery)) monthlyStoreEntry.failed++;
       if (isCountableAfterHoursPickup(delivery)) monthlyStoreEntry.afterHours++;
+      if (delivery.patient_id && (isCountableCompletedDelivery(delivery) || isCountableFailedDelivery(delivery))) monthlyStoreEntry.extra_km += calculateExtraKm(delivery);
 
       if (!metrics.dailyStoreData[monthIndex + 1]) metrics.dailyStoreData[monthIndex + 1] = {};
       if (!metrics.dailyStoreData[monthIndex + 1][delivery.store_id]) metrics.dailyStoreData[monthIndex + 1][delivery.store_id] = [];
@@ -1127,6 +1130,16 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
         metrics.monthlyStoreData[m].push({ ...storeData, fees: 0 });
       }
     });
+
+    metrics.monthlyStoreExtraKm[m] = (metrics.storeDataByMonth[m] || []).map((storeData) => ({
+      storeId: storeData.storeId,
+      abbreviation: storeData.abbreviation,
+      name: storeData.name,
+      storeAbbr: storeData.abbreviation,
+      extra_km: storeData.extra_km || 0,
+      color: storeData.color,
+      sortOrder: storeData.sortOrder
+    }));
   }
 
   metrics.monthlyData = Array(12).fill(null).map((_, index) => {

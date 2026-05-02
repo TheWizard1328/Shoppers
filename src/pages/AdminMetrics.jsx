@@ -39,6 +39,7 @@ const EMPTY_METRICS_DATA = {
   dailyStoreData: {},
   monthlyStoreData: {},
   monthlyStoreFees: {},
+  monthlyStoreExtraKm: {},
   storeFeeTotals: {
     total_fees_owed: 0,
     app_fee_rate: 0,
