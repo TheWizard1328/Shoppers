@@ -49,7 +49,7 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
     if (mode === 'extra_km') {
       return dayData.extra_km || 0;
     }
-    // deliveries mode
+    // deliveries mode: only driver-payable work
     return (dayData.completed || 0) + (dayData.failed || 0) + (dayData.afterHours || 0);
   };
 
