@@ -650,7 +650,11 @@ export default function PayrollSummaryCard({
   const grandTotalTax = driversWithDeliveries.reduce((sum, d) => sum + d.taxAmount, 0);
   const grandTotalDeductions = driversWithDeliveries.reduce((sum, d) => sum + sumDeductionAmounts(driverEdits[d.driver.id]?.deductions || d.deductionsArray || []), 0);
   const grandTotalBonus = driversWithDeliveries.reduce((sum, d) => sum + (Number(driverEdits[d.driver.id]?.bonusPay) || 0), 0);
-  const grandTotalAppFee = driversWithDeliveries.reduce((sum, d) => sum + (isPeriodEndOfMonth ? driverEdits[d.driver.id]?.appFeeAmount || calculateAppFeeAmount(d.driver.id, driverEdits[d.driver.id]?.appFeePercent || 0) : 0), 0);
+  const grandTotalAppFee = driversWithDeliveries.reduce((sum, d) => {
+    if (!isPeriodEndOfMonth) return sum;
+    const payrollRecord = getDriverPayrollRecord(d.driver.id);
+    return sum + (Number(payrollRecord?.app_fee_amount) || 0);
+  }, 0);
   const grandTotalGross = driversWithDeliveries.reduce((sum, d) => sum + d.grossPay, 0);
   const grandTotalNet = driversWithDeliveries.reduce((sum, d) => sum + ((d.grandTotal || 0) + (d.taxAmount || 0) - sumDeductionAmounts(driverEdits[d.driver.id]?.deductions || d.deductionsArray || []) + (Number(driverEdits[d.driver.id]?.bonusPay) || 0) + (isPeriodEndOfMonth ? driverEdits[d.driver.id]?.appFeeAmount || calculateAppFeeAmount(d.driver.id, driverEdits[d.driver.id]?.appFeePercent || 0) : 0)), 0);
 
