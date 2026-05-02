@@ -60,7 +60,7 @@ export default function AdminMetrics() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [selectedMonth, setSelectedMonth] = useState(null); // null = all year, 1-12 = specific month
   const [selectedStoreMonth, setSelectedStoreMonth] = useState(null); // { month, storeId, storeAbbr } for day-by-day breakdown
-  const [metricsViewMode, setMetricsViewMode] = useState('deliveries'); // 'deliveries' or 'fees'
+  const [metricsViewMode, setMetricsViewMode] = useState('deliveries'); // 'deliveries' | 'fees' | 'extra_km'
   const [showEnvelopeAdjustedTotals, setShowEnvelopeAdjustedTotals] = useState(false);
   const [selectedCityId, setSelectedCityId] = useState(null); // Will be set to user's city
   const [cities, setCities] = useState([]);

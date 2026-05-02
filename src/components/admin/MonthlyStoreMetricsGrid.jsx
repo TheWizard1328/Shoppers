@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Table, DollarSign } from 'lucide-react';
+import { Table, DollarSign, Route } from 'lucide-react';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -17,9 +17,11 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
 
   const monthlyStoreData = metricsData?.monthlyStoreData || {};
   const monthlyStoreFees = metricsData.monthlyStoreFees || {};
+  const monthlyStoreExtraKm = metricsData?.monthlyStoreExtraKm || {};
 
   // Default metricsViewMode if not provided
   const viewMode = metricsViewMode || 'deliveries';
+  const isExtraKmMode = viewMode === 'extra_km';
 
   const stores = useMemo(() => {
     const storeMap = new Map();
@@ -47,6 +49,14 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
     const fallback = (monthlyStoreFees[month] || []).find((s) => s.abbreviation === storeAbbr || s.storeAbbr === storeAbbr);
     const fees = storeData?.fees ?? fallback?.fees ?? fallback?.total_fees ?? 0;
     return viewMode === 'deliveries' && fees > 0;
+  };
+
+  const hasExtraKmForStoreMonth = (storeAbbr, month) => {
+    const monthData = monthlyStoreData[month] || [];
+    const storeData = monthData.find((s) => s.abbreviation === storeAbbr);
+    const fallback = (monthlyStoreExtraKm[month] || []).find((s) => s.abbreviation === storeAbbr || s.storeAbbr === storeAbbr);
+    const extraKm = storeData?.extra_km ?? fallback?.extra_km ?? fallback?.extraKm ?? fallback?.total_extra_km ?? 0;
+    return extraKm > 0;
   };
 
   const getCompletedMonthsCount = () => {
@@ -80,18 +90,18 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
         if (totals[storeData.abbreviation] !== undefined) {
           let value;
           if (metricsViewMode === 'deliveries') {
-            // Total = Completed Deliveries + After Hours + Failed
             const totalDeliveries = (storeData.completed || 0) + (storeData.failed || 0) + (storeData.afterHours || 0);
-            // Only add envelope adjustment if toggle is on AND this store has envelope data
             const envelopeInfo = metricsData.envelopeMetrics?.byStoreAndMonth?.[storeData.storeId]?.[month];
             const envelopeAdjustment = showEnvelopeAdjustedTotals && envelopeInfo?.totalEnvelopeValue > 0 ?
             envelopeInfo.totalEnvelopeValue - envelopeInfo.envelopeDeliveriesCount :
             0;
             value = totalDeliveries + envelopeAdjustment;
-          } else {
-            // Fees view: prefer inline fees, fallback to monthlyStoreFees structure
+          } else if (metricsViewMode === 'fees') {
             const fallback = (monthlyStoreFees[month] || []).find((s) => s.abbreviation === storeData.abbreviation || s.storeAbbr === storeData.abbreviation);
             value = storeData.fees ?? fallback?.fees ?? fallback?.total_fees ?? 0;
+          } else {
+            const fallback = (monthlyStoreExtraKm[month] || []).find((s) => s.abbreviation === storeData.abbreviation || s.storeAbbr === storeData.abbreviation);
+            value = storeData.extra_km ?? fallback?.extra_km ?? fallback?.extraKm ?? fallback?.total_extra_km ?? 0;
           }
           totals[storeData.abbreviation] += value;
           if (month <= completedMonthsCount) {
@@ -112,7 +122,7 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
       grandTotal: Object.values(totalsResult.totals).reduce((sum, val) => sum + val, 0),
       completedGrandTotal: Object.values(totalsResult.completedTotals).reduce((sum, val) => sum + val, 0)
     };
-  }, [stores, monthlyStoreData, monthlyStoreFees, metricsViewMode, metricsData.envelopeMetrics, showEnvelopeAdjustedTotals, selectedYear]);
+  }, [stores, monthlyStoreData, monthlyStoreFees, monthlyStoreExtraKm, metricsViewMode, metricsData.envelopeMetrics, showEnvelopeAdjustedTotals, selectedYear]);
 
   // Calculate monthly totals (row totals)
   const getMonthTotal = (month) => {
@@ -120,17 +130,18 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
     return monthData.reduce((sum, store) => {
       let value;
       if (metricsViewMode === 'deliveries') {
-        // Total = Completed Deliveries + After Hours + Failed
         const totalDeliveries = (store.completed || 0) + (store.failed || 0) + (store.afterHours || 0);
-        // Only add envelope adjustment if toggle is on AND this store has envelope data
         const envelopeInfo = metricsData.envelopeMetrics?.byStoreAndMonth?.[store.storeId]?.[month];
         const envelopeAdjustment = showEnvelopeAdjustedTotals && envelopeInfo?.totalEnvelopeValue > 0 ?
         envelopeInfo.totalEnvelopeValue - envelopeInfo.envelopeDeliveriesCount :
         0;
         value = totalDeliveries + envelopeAdjustment;
-      } else {
+      } else if (metricsViewMode === 'fees') {
         const fallback = (monthlyStoreFees[month] || []).find((s) => s.abbreviation === store.abbreviation || s.storeAbbr === store.abbreviation);
         value = store.fees ?? fallback?.fees ?? fallback?.total_fees ?? 0;
+      } else {
+        const fallback = (monthlyStoreExtraKm[month] || []).find((s) => s.abbreviation === store.abbreviation || s.storeAbbr === store.abbreviation);
+        value = store.extra_km ?? fallback?.extra_km ?? fallback?.extraKm ?? fallback?.total_extra_km ?? 0;
       }
       return sum + value;
     }, 0);
@@ -144,23 +155,23 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
 
     let value;
     if (metricsViewMode === 'deliveries') {
-      // Total = Completed Deliveries + After Hours + Failed
       const totalDeliveries = (storeData.completed || 0) + (storeData.afterHours || 0) + (storeData.failed || 0);
 
       if (showEnvelopeAdjustedTotals) {
-        // When toggle is ON: combine deliveries + envelope adjustment into single value
         const envelopeInfo = metricsData.envelopeMetrics?.byStoreAndMonth?.[storeData.storeId]?.[month];
         const envelopeAdjustment = envelopeInfo?.totalEnvelopeValue > 0 ?
         envelopeInfo.totalEnvelopeValue - envelopeInfo.envelopeDeliveriesCount :
         0;
         value = totalDeliveries + envelopeAdjustment;
       } else {
-        // When toggle is OFF: show base deliveries (formatValue will add envelope in brackets)
         value = totalDeliveries;
       }
-    } else {
+    } else if (metricsViewMode === 'fees') {
       const fallback = (monthlyStoreFees[month] || []).find((s) => s.abbreviation === storeData.abbreviation || s.storeAbbr === storeData.abbreviation);
       value = storeData.fees ?? fallback?.fees ?? fallback?.total_fees ?? 0;
+    } else {
+      const fallback = (monthlyStoreExtraKm[month] || []).find((s) => s.abbreviation === storeData.abbreviation || s.storeAbbr === storeData.abbreviation);
+      value = storeData.extra_km ?? fallback?.extra_km ?? fallback?.extraKm ?? fallback?.total_extra_km ?? 0;
     }
     return value;
   };
@@ -199,6 +210,9 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
     if (metricsViewMode === 'fees') {
       return `$${value.toFixed(2)}`;
     }
+    if (metricsViewMode === 'extra_km') {
+      return value % 1 === 0 ? value.toLocaleString() : value.toFixed(2);
+    }
 
     // When toggle is OFF: show "deliveries(envelope)" like "74(34)"
     // When toggle is ON: show combined adjusted total like "94"
@@ -233,23 +247,23 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <CardTitle className="flex items-center gap-2 text-base">
             {metricsViewMode === 'deliveries' ?
-            <Table className="w-5 h-5" /> :
-
-            <DollarSign className="w-5 h-5" />
+            <Table className="w-5 h-5" /> : metricsViewMode === 'fees' ?
+            <DollarSign className="w-5 h-5" /> :
+            <Route className="w-5 h-5" />
             }
-            Monthly Store {metricsViewMode === 'deliveries' ? 'Deliveries' : 'App Fees'} ({selectedYear})
+            Monthly Store {metricsViewMode === 'deliveries' ? 'Deliveries' : metricsViewMode === 'fees' ? 'App Fees' : 'Extra KM'} ({selectedYear})
           </CardTitle>
           
           <div className="flex w-full items-center justify-between gap-2 flex-nowrap md:w-auto md:justify-end">
             {/* Centered Envelope Totals Toggle */}
-            <div className="flex items-center space-x-2 shrink-0">
+            {!isExtraKmMode && <div className="flex items-center space-x-2 shrink-0">
               <Switch
                 id="envelope-totals-grid"
                 checked={showEnvelopeAdjustedTotals}
                 onCheckedChange={onEnvelopeToggleChange} />
 
               <Label htmlFor="envelope-totals-grid" className="text-xs whitespace-nowrap">Envelope Totals</Label>
-            </div>
+            </div>}
             
             <div className="flex gap-2 shrink-0">
               {(selectedMonth || selectedStoreMonth) &&
@@ -279,6 +293,15 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
                 className="text-xs h-7 px-2">
 
                 App Fees
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={metricsViewMode === 'extra_km' ? 'default' : 'outline'}
+                onClick={() => onViewModeChange?.('extra_km')}
+                className="text-xs h-7 px-2">
+
+                Extra KM
               </Button>
             </div>
           </div>
@@ -335,7 +358,7 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
                       return (
                         <td
                           key={store.abbreviation}
-                          className={`text-center px-1 py-0.5 tabular-nums cursor-pointer hover:bg-blue-100 ${isStoreMonthSelected ? 'bg-blue-200' : ''} ${isFeePayingStoreMonth(store.abbreviation, month) ? 'font-extrabold' : ''}`}
+                          className={`text-center px-1 py-0.5 tabular-nums cursor-pointer hover:bg-blue-100 ${isStoreMonthSelected ? 'bg-blue-200' : ''} ${isFeePayingStoreMonth(store.abbreviation, month) || isExtraKmMode && hasExtraKmForStoreMonth(store.abbreviation, month) ? 'font-extrabold' : ''}`}
                           style={{
                             color: value !== null && value !== undefined && value > 0 ? getStoreColor(store) : '#94a3b8',
                             backgroundColor: isTopStoreForMonth ? '#86efac' : isAboveAverageForMonth ? '#fde047' : undefined,
@@ -367,7 +390,7 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
                 {stores.map((store) =>
                 <td
                   key={store.abbreviation}
-                  className={`text-center px-1 py-0.5 tabular-nums ${Object.keys(monthlyStoreData).some((month) => isFeePayingStoreMonth(store.abbreviation, Number(month))) ? 'font-extrabold' : ''}`}
+                  className={`text-center px-1 py-0.5 tabular-nums ${Object.keys(monthlyStoreData).some((month) => isFeePayingStoreMonth(store.abbreviation, Number(month)) || isExtraKmMode && hasExtraKmForStoreMonth(store.abbreviation, Number(month))) ? 'font-extrabold' : ''}`}
                   style={{ color: getStoreColor(store) }}>
 
                     {formatValue(totals[store.abbreviation])}
