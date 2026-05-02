@@ -27,8 +27,8 @@ export const calculateDeliveryPay = (delivery, driver, patient = null) => {
     const extraKmRate = driver.extra_km_rate || 0;
     const extraKmLimit = driver.extra_km_limit || 0;
     
-    // Priority: paid_km_override > patient.distance_from_store > travel_dist
-    const paidKm = delivery.paid_km_override ?? patient?.distance_from_store ?? delivery.travel_dist ?? 0;
+    // Priority: paid_km_override > patient.distance_from_store
+    const paidKm = delivery.paid_km_override ?? patient?.distance_from_store ?? 0;
 
     if (paidKm > extraKmLimit && extraKmRate > 0) {
       const extraKm = paidKm - extraKmLimit;

@@ -72,6 +72,5 @@ export const buildPatientStagedDelivery = ({
   store_abbreviation: store.abbreviation,
   distanceFromStore,
   delivery_address: patient?.address || store.address,
-  paid_km_override: distanceFromStore !== null && distanceFromStore !== undefined ? parseFloat(distanceFromStore.toFixed(2)) : null,
   ...(includeFirstDelivery ? { first_delivery: isNewPatient || !patient?.last_delivery_date } : {})
 });

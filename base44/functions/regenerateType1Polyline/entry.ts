@@ -18,6 +18,11 @@ function round5(value) {
   return Number(Number(value).toFixed(5));
 }
 
+function round3(value) {
+  if (!Number.isFinite(Number(value))) return null;
+  return Number(Number(value).toFixed(3));
+}
+
 function encodeSigned(value) {
   let signed = value << 1;
   if (value < 0) signed = ~signed;
@@ -197,7 +202,7 @@ async function getSegmentDirections(base44, from, to, transportMode = 'driving',
   if (cachedPolyline) {
     return {
       encoded_polyline: cachedPolyline.encoded_polyline,
-      estimated_distance_km: cachedPolyline.estimated_distance_km ?? null,
+      estimated_distance_km: round3(cachedPolyline.estimated_distance_km),
       estimated_duration_minutes: cachedPolyline.estimated_duration_minutes ?? null,
       transport_mode: cachedPolyline.transport_mode || transportMode || 'driving',
       from_cache: true
@@ -295,12 +300,17 @@ async function persistRouteSections(base44, deliveries = [], pointSpecs = [], ro
     const section = routeSections[index];
     if (!delivery?.id || !from || !stopPoint || !section?.encoded_polyline) continue;
 
+    const estimatedDistanceKm = round3(section.estimated_distance_km);
+    const currentTravelDist = Number(delivery?.travel_dist);
+    const shouldReplaceTravelDist = estimatedDistanceKm !== null && (!Number.isFinite(currentTravelDist) || estimatedDistanceKm - currentTravelDist > 0.75);
+
     deliveryUpdates.push({
       id: delivery.id,
       encoded_polyline: section.encoded_polyline,
       transport_mode: section.transport_mode || transportMode,
-      estimated_distance_km: section.estimated_distance_km ?? null,
+      estimated_distance_km: estimatedDistanceKm,
       estimated_duration_minutes: section.estimated_duration_minutes ?? null,
+      ...(shouldReplaceTravelDist ? { travel_dist: estimatedDistanceKm } : {}),
       PolylineUpdated: true
     });
   }
@@ -349,9 +359,10 @@ async function getMultiStopRoute(base44, points, transportMode = 'driving') {
         polyline = encodeGooglePolyline([[fromPoint.lat, fromPoint.lon], [toPoint.lat, toPoint.lon]]);
       }
 
+      const estimatedDistanceKm = round3(section?.estimated_distance_km);
       return {
         encoded_polyline: polyline,
-        estimated_distance_km: section?.estimated_distance_km ?? null,
+        estimated_distance_km: estimatedDistanceKm,
         estimated_duration_minutes: section?.estimated_duration_minutes ?? null,
         transport_mode: data?.transport_mode || transportMode || 'driving'
       };
@@ -595,12 +606,16 @@ Deno.serve(async (req) => {
       );
     } else {
       const exactNextStopCoords = getLatLon(nextRouteStop) || nextStopCoords;
+      const estimatedDistanceKm = round3(directions.estimated_distance_km);
+      const currentTravelDist = Number(nextRouteStop?.travel_dist);
+      const shouldReplaceTravelDist = estimatedDistanceKm !== null && (!Number.isFinite(currentTravelDist) || estimatedDistanceKm - currentTravelDist > 0.75);
       const singleDeliveryUpdate = {
         id: nextRouteStop.id,
         encoded_polyline: directions.encoded_polyline,
         transport_mode: directions.transport_mode || preferredTravelMode,
-        estimated_distance_km: directions.estimated_distance_km ?? null,
+        estimated_distance_km: estimatedDistanceKm,
         estimated_duration_minutes: directions.estimated_duration_minutes ?? null,
+        ...(shouldReplaceTravelDist ? { travel_dist: estimatedDistanceKm } : {}),
         PolylineUpdated: true
       };
       const { changedUpdates } = await syncDeliveriesPolylinesToOffline(base44, [singleDeliveryUpdate]);
