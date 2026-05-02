@@ -905,7 +905,7 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
 
   const isCountableCompletedDelivery = (d) => d?.no_charge !== true && !isAfterHoursPickupDelivery(d) && isCompletedStatus(d);
   const isCountableFailedDelivery = (d) => d?.no_charge !== true && !isAfterHoursPickupDelivery(d) && isFailedStatus(d);
-  const isCountableAfterHoursPickup = (d) => d?.no_charge !== true && isAfterHoursPickupDelivery(d) && (isCompletedStatus(d) || isFailedStatus(d));
+  const isCountableAfterHoursPickup = (d) => d?.no_charge !== true && isAfterHoursPickupDelivery(d) && (isCompletedStatus(d) || isCancelledStatus(d));
 
   const isBillableDelivery = (d, storePaysFees) => isAdminBillableDelivery(d, storePaysFees);
 
