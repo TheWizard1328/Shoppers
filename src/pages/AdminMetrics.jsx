@@ -56,6 +56,7 @@ export default function AdminMetrics() {
   const backgroundSyncStartedRef = useRef(false);
   const inFlightMetricsRequestRef = useRef(null);
   const lastMetricsRequestKeyRef = useRef('');
+  const latestSelectionRef = useRef({ year: null, cityId: null });
 
   const availableYears = useMemo(() => {
     const currentYear = new Date().getFullYear();
@@ -70,7 +71,13 @@ export default function AdminMetrics() {
         setCurrentUser(user);
         setHasAccess(isAppOwner(user) || userHasRole(user, 'admin'));
 
-        // Load cities for filter
+        // Load cities for filter (offline-first)
+        const cachedCities = await offlineDB.getAll(offlineDB.STORES.CITIES).catch(() => []);
+        if (cachedCities?.length) {
+          const sortedCachedCities = cachedCities.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+          setCities(sortedCachedCities);
+        }
+
         const citiesData = await base44.entities.City.list();
         const sortedCities = citiesData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
         setCities(sortedCities);
@@ -96,7 +103,7 @@ export default function AdminMetrics() {
     const cached = await offlineDB.getById(offlineDB.STORES.ADMIN_METRICS_CACHE, cacheId);
     if (!cached?.metricsData) return false;
 
-    setMetricsData(cached.metricsData);
+    setMetricsData((prev) => prev || cached.metricsData);
     setLiveSyncStatus(cached.liveSyncStatus || null);
     setLoadedFromOffline(true);
     setIsLoading(false);
@@ -127,6 +134,8 @@ export default function AdminMetrics() {
       return inFlightMetricsRequestRef.current;
     }
 
+    latestSelectionRef.current = { year, cityId };
+
     const runRequest = async () => {
       if (shouldUseOfflineFirst) {
         setIsLoading(true);
@@ -134,6 +143,8 @@ export default function AdminMetrics() {
         const hadOfflineData = await loadOfflineMetrics(year, cityId);
         if (!hadOfflineData) {
           setIsFetching(true);
+        } else {
+          return;
         }
       } else {
         setIsFetching(true);
@@ -155,6 +166,10 @@ export default function AdminMetrics() {
 
         if (data?.error) {
           throw new Error(data.error);
+        }
+
+        if (latestSelectionRef.current.year !== year || latestSelectionRef.current.cityId !== cityId) {
+          return;
         }
 
         setMetricsData(data);
@@ -209,13 +224,14 @@ export default function AdminMetrics() {
     if (newYear === selectedYear) return;
     backgroundSyncStartedRef.current = false;
     setSelectedYear(newYear);
-    fetchMetrics(newYear, selectedCityId, false);
   };
 
   // Handle city change
   const handleCityChange = (newCityId) => {
     if (!newCityId || newCityId === 'all' || newCityId === selectedCityId) return;
     setSelectedCityId(newCityId);
+    setMetricsData(null);
+    setLoadedFromOffline(false);
     backgroundSyncStartedRef.current = false;
   };
 
@@ -227,27 +243,12 @@ export default function AdminMetrics() {
   };
 
   useEffect(() => {
-    if (!hasAccess || !selectedCityId || !selectedYear || isLoading || !metricsData) return;
+    if (!hasAccess || !selectedCityId || !selectedYear || !metricsData) return;
     if (backgroundSyncStartedRef.current) return;
+    if (loadedFromOffline) return;
 
     backgroundSyncStartedRef.current = true;
-    const runBackgroundSync = async () => {
-      try {
-        setIsBackgroundSyncing(true);
-        await backgroundMetricsSync({
-          year: parseInt(selectedYear),
-          cityId: selectedCityId === 'all' ? null : selectedCityId
-        });
-      } catch (error) {
-        console.warn('Background metrics sync skipped:', error?.message || error);
-      } finally {
-        setIsBackgroundSyncing(false);
-      }
-    };
-
-    const timer = setTimeout(runBackgroundSync, 1200);
-    return () => clearTimeout(timer);
-  }, [hasAccess, selectedCityId, selectedYear, isLoading, metricsData, fetchMetrics]);
+  }, [hasAccess, selectedCityId, selectedYear, metricsData, loadedFromOffline]);
 
   // Filter data based on selected month, store, and driver (client-side filtering)
   const filteredData = useMemo(() => {
