@@ -1,3 +1,4 @@
+import { base44 } from "@/api/base44Client";
 import { smartRefreshManager } from "../utils/smartRefreshManager";
 import { getDriverNameForStorage } from "../utils/driverUtils";
 import { getPickupStopIdForDelivery } from "../utils/ampmUtils";
@@ -92,11 +93,33 @@ export function buildDeliveryBulkUpdates({
   return nextUpdates;
 }
 
-export async function finalizeBulkEdit({ setSelectedBulkDeliveryIds, setBulkEditMode }) {
+export async function finalizeBulkEdit({ setSelectedBulkDeliveryIds, setBulkEditMode, affectedRoutes = [] }) {
   setSelectedBulkDeliveryIds([]);
   setBulkEditMode(false);
 
   Promise.resolve().then(async () => {
+    const uniqueRoutes = Array.from(
+      new Map(
+        (affectedRoutes || [])
+          .filter((route) => route?.driver_id && route?.delivery_date)
+          .map((route) => [`${route.driver_id}::${route.delivery_date}`, route])
+      ).values()
+    );
+
+    await Promise.all(uniqueRoutes.map(async ({ driver_id, delivery_date }) => {
+      await base44.functions.invoke('optimizeRemainingStops', {
+        driverId: driver_id,
+        deliveryDate: delivery_date
+      }).catch(() => null);
+
+      await base44.functions.invoke('purgeAndRegeneratePolylines', {
+        driverId: driver_id,
+        deliveryDate: delivery_date,
+        scope: 'active_only',
+        reason: 'route_reordered'
+      }).catch(() => null);
+    }));
+
     smartRefreshManager.restart();
     invalidate("Delivery");
     window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
@@ -147,7 +170,10 @@ export async function applyBulkEditStops({
       });
 
       const { updateDeliveryLocal } = await import("../utils/entityMutations");
-      return updateDeliveryLocal(deliveryId, nextUpdates, { isBatchOperation: true });
+      return updateDeliveryLocal(deliveryId, nextUpdates, {
+        isBatchOperation: true,
+        deferPolylineRefresh: true
+      });
     })
   )
     .then(() => {
@@ -175,9 +201,17 @@ export async function applyBulkEditStops({
         }
       }));
 
+      const affectedRoutes = freshDeliveries
+        .filter((delivery) => selectedBulkDeliveryIds.includes(delivery.id))
+        .map((delivery) => ({
+          driver_id: delivery.driver_id,
+          delivery_date: delivery.delivery_date
+        }));
+
       return finalizeBulkEdit({
         setSelectedBulkDeliveryIds,
-        setBulkEditMode
+        setBulkEditMode,
+        affectedRoutes
       });
     })
     .finally(() => {
