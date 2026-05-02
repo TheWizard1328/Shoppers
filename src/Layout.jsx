@@ -1205,41 +1205,6 @@ export default function Layout({ children, currentPageName }) {
         }
       );
 
-      // Load Users in background (admin only)
-      let authUsersData = [];
-      if (userHasRole(currentUser, 'admin')) {
-        setTimeout(async () => {
-          authUsersData = await getData('User', null, null, forceRefresh);
-
-          const mergedUsersMap = new Map();
-          if (currentUser) mergedUsersMap.set(currentUser.id, currentUser);
-
-          authUsersData.forEach((authUser) => {
-            if (!authUser) return;
-            const appUser = allAppUsers.find((au) => au && au.user_id === authUser.id);
-            const merged = createMergedUser(authUser, appUser);
-            if (merged) mergedUsersMap.set(merged.id, merged);
-          });
-
-          const mergedUsers = Array.from(mergedUsersMap.values()).filter(Boolean);
-          // CRITICAL: Deduplicate by id to prevent duplicate users in state
-          const dedupedUsers = Array.from(new Map(mergedUsers.map((u) => [u.id, u])).values());
-          setUsers(dedupedUsers);
-
-          let activeDrivers = dedupedUsers.filter((user) => {
-            if (!user || !user.app_roles || !Array.isArray(user.app_roles)) return false;
-            if (!user.app_roles.includes('driver') && !user.app_roles.includes('admin')) return false;
-            if (!user.user_name) return false;
-            if (user.status !== 'active') return false;
-            return true;
-          });
-          activeDrivers = sortUsers(activeDrivers);
-          setDrivers(activeDrivers);
-
-          // CRITICAL: Dispatch event to force QuickStats to refresh
-          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-        }, 500);
-      }
       const mergedUsersMap = new Map();
 
       if (currentUser) {
