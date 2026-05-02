@@ -37,6 +37,7 @@ export default function AdminMetrics() {
   const [selectedCityId, setSelectedCityId] = useState(null); // Will be set to user's city
   const [cities, setCities] = useState([]);
   const [metricsData, setMetricsData] = useState(null);
+  const citySelectTriggerRef = useRef(null);
 
   // Unified fee totals (supports both admin metrics and store metrics shapes)
   const feeTotals = useMemo(() => {
@@ -157,6 +158,7 @@ export default function AdminMetrics() {
 
   // Handle city change
   const handleCityChange = (newCityId) => {
+    if (!newCityId || newCityId === 'all') return;
     setSelectedCityId(newCityId);
     backgroundSyncStartedRef.current = false;
   };
@@ -282,12 +284,33 @@ export default function AdminMetrics() {
     }).format(amount || 0);
   };
 
+  const needsCitySelection = hasAccess && cities.length > 0 && !selectedCityId;
+
+  useEffect(() => {
+    if (!needsCitySelection) return;
+    const timer = setTimeout(() => {
+      citySelectTriggerRef.current?.click();
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [needsCitySelection]);
+
   if (!hasAccess) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
         <Card className="p-8 text-center" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
           <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--text-slate-900)' }}>Access Denied</h2>
           <p style={{ color: 'var(--text-slate-600)' }}>Only app owners can access this page.</p>
+        </Card>
+      </div>);
+
+  }
+
+  if (needsCitySelection) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
+        <Card className="p-8 text-center" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
+          <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--text-slate-900)' }}>Select a City</h2>
+          <p style={{ color: 'var(--text-slate-600)' }}>Choose a city before opening admin metrics.</p>
         </Card>
       </div>);
 
@@ -334,7 +357,7 @@ export default function AdminMetrics() {
           </div>
           <div className="flex items-center gap-1.5 md:gap-2 flex-nowrap overflow-x-auto overflow-y-hidden pb-1">
             <Select value={selectedCityId || ''} onValueChange={handleCityChange}>
-              <SelectTrigger className="w-[5.5rem] sm:w-[7rem] md:w-[140px]">
+              <SelectTrigger ref={citySelectTriggerRef} className="w-[5.5rem] sm:w-[7rem] md:w-[140px]">
                 <SelectValue placeholder="Select City" />
               </SelectTrigger>
               <SelectContent>

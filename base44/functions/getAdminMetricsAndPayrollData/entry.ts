@@ -471,7 +471,17 @@ Deno.serve(async (req) => {
       refreshCurrentMonthSummary = false
     } = body;
 
-    const normalizedCityId = adminMetricsCityId || 'all';
+    const isInvalidCitySelection = (value) => value == null || value === '' || value === 'all';
+
+    if (adminMetricsYear && isInvalidCitySelection(adminMetricsCityId)) {
+      return Response.json({ error: 'City selection is required for admin metrics.' }, { status: 400 });
+    }
+
+    if (payrollYear && isInvalidCitySelection(payrollCityId)) {
+      return Response.json({ error: 'City selection is required for payroll.' }, { status: 400 });
+    }
+
+    const normalizedCityId = adminMetricsCityId;
 
     const fetchMonthlySummaryRecord = async (year, month, cityId) => {
       const summaryRecords = await base44.asServiceRole.entities.AdminMetricsSummary.filter({ year, month, city_id: cityId }, '', 10).catch((error) => {
@@ -778,7 +788,7 @@ Deno.serve(async (req) => {
     let payrollData = null;
     let payrollPagination = null;
     if (payrollYear) {
-      const normalizedPayrollCityId = payrollCityId || 'all';
+      const normalizedPayrollCityId = payrollCityId;
       const shouldPaginatePayroll = payrollPaginationMode === 'paged';
       const pageRange = shouldPaginatePayroll ? getPageDateRange(payrollYear, payrollPageMonths) : null;
       const yearData = await fetchYearData(payrollYear, normalizedPayrollCityId, {

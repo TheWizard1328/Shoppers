@@ -269,6 +269,7 @@ export default function DriverPayroll() {
   const lastFetchSignatureRef = useRef('');
   const lastFetchTimestampRef = useRef(0);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const citySelectTriggerRef = useRef(null);
 
   // Define isDriver early (after refs, before useMemo/useCallback that might use it)
   const isDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin');
@@ -483,6 +484,7 @@ export default function DriverPayroll() {
   const totalNetPay = useMemo(() => filteredPayrollRecords.reduce((sum, r) => sum + (Number(r.net_pay) || 0), 0), [filteredPayrollRecords]);
   const totalDeliveries = useMemo(() => cityFilteredDeliveries.length, [cityFilteredDeliveries]);
   const periodLabel = useMemo(() => currentPeriod ? currentPeriod.label : '', [currentPeriod]);
+  const needsCitySelection = !!currentUser && sortedCities.length > 0 && !selectedCityId;
 
   const handlePayPeriodChange = useCallback((newPayPeriod) => {
     isManualChangeRef.current = true;
@@ -726,7 +728,7 @@ export default function DriverPayroll() {
         return data;
       } catch (error) {
         console.error('Failed to fetch payroll data:', error);
-        toast.error('Failed to refresh payroll data');
+        toast.error(error?.response?.data?.error || error?.message || 'Failed to refresh payroll data');
         throw error;
       } finally {
         fetchPayrollInFlightRef.current = null;
@@ -739,6 +741,7 @@ export default function DriverPayroll() {
   }, [selectedYear, selectedCityId, currentUser, isPayrollPageActive]);
 
   const handleManualRefresh = useCallback(async () => {
+    if (!selectedCityId) return;
     setIsRefreshing(true);
     console.log('🔄 [DriverPayroll] Manual refresh triggered');
     try {
@@ -749,11 +752,11 @@ export default function DriverPayroll() {
       toast.success('Payroll data refreshed');
     } catch (error) {
       console.error('❌ [DriverPayroll] Refresh failed:', error);
-      toast.error('Failed to refresh payroll data');
+      toast.error(error?.response?.data?.error || error?.message || 'Failed to refresh payroll data');
     } finally {
       setIsRefreshing(false);
     }
-  }, [fetchPayroll, refreshPayrollRecords]);
+  }, [fetchPayroll, refreshPayrollRecords, selectedCityId]);
 
   // Navigation handlers - must be useCallback
   const goToPrevPeriod = useCallback(() => {
@@ -772,17 +775,22 @@ export default function DriverPayroll() {
     }
   }, [selectedPeriodIndex, allPeriods.length]);
 
-  // Keep a valid city selected and trigger fetch only when a city exists
+  // Require a valid city selection before loading payroll data
   useEffect(() => {
     if (!sortedCities.length) return;
     if (selectedCityId && sortedCities.some((city) => city.id === selectedCityId)) return;
-    const fallbackCityId = currentUser?.city_id && sortedCities.some((city) => city.id === currentUser.city_id) ?
-    currentUser.city_id :
-    sortedCities[0]?.id || '';
-    if (fallbackCityId && fallbackCityId !== selectedCityId) {
-      setSelectedCityId(fallbackCityId);
+    if (selectedCityId) {
+      setSelectedCityId('');
     }
-  }, [sortedCities, selectedCityId, currentUser]);
+  }, [sortedCities, selectedCityId]);
+
+  useEffect(() => {
+    if (!needsCitySelection) return;
+    const timer = setTimeout(() => {
+      citySelectTriggerRef.current?.click();
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [needsCitySelection]);
 
   // Trigger fetch when filters change (after initialization)
   useEffect(() => {
@@ -798,7 +806,7 @@ export default function DriverPayroll() {
 
     const initFromOfflineData = async () => {
       const defaultCityId = currentUser?.city_id || '';
-      setSelectedCityId(defaultCityId);
+      setSelectedCityId(defaultCityId && defaultCityId !== 'all' ? defaultCityId : '');
 
       if (isDriver) {
         setSelectedDriverId(currentUser.id);
@@ -983,6 +991,10 @@ export default function DriverPayroll() {
   <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
       <span className="text-lg text-slate-600">Please log in to view payroll</span>
     </div> :
+  needsCitySelection ?
+  <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
+      <span className="text-lg text-slate-600">Select a city to view payroll.</span>
+    </div> :
   isLoadingPayroll || payPeriod === null || selectedPeriodIndex === null ?
   <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
       <div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full"></div>
@@ -1038,11 +1050,12 @@ export default function DriverPayroll() {
             <div className="flex items-center gap-2">
               {/* City Filter */}
               <Select value={selectedCityId} onValueChange={(v) => {
+              if (!v || v === 'all') return;
               React.startTransition(() => {
                 setSelectedCityId(v);
               });
             }} disabled={isDriver || !sortedCities.length}>
-                <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                <SelectTrigger ref={citySelectTriggerRef} className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                   <SelectValue placeholder="City" />
                 </SelectTrigger>
                 <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
