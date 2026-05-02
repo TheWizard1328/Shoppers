@@ -819,7 +819,7 @@ export default function DeliveryForm({
     setIsPatientFormOpen(true);
     onCreatePatient((createdPatient) => {
       setIsPatientFormOpen(false);
-      handlePatientSelect(createdPatient, true);
+      handlePatientSelect(createdPatient, false);
     }, patientWithEmpty, 'duplicate');
 
     setPatientSearch('');
@@ -856,7 +856,7 @@ export default function DeliveryForm({
     onCreatePatient((createdPatient) => {
       setIsPatientFormOpen(false);
       setNewPatientMode(null);
-      handlePatientSelect(createdPatient, true);
+      handlePatientSelect(createdPatient, false);
     }, patientWithoutAddress, 'newAddress');
   }, [patients, formData, stores, drivers, allDeliveries, onCreatePatient, handlePatientSelect, shouldAutoFocusFields]);
 
