@@ -10,6 +10,9 @@ const statsCache = new Map();
 const CACHE_DISABLED = false;
 const CURRENT_MONTH_CACHE_TTL_MS = 3 * 60 * 60 * 1000;
 const BATCH_LIMIT = 1000;
+const APP_USER_BATCH_LIMIT = 1000;
+const PAYROLL_BATCH_LIMIT = 1000;
+const DELIVERY_PAGE_MONTHS = [1, 2, 3, 4];
 
 const pickFields = (record, fields) => {
   const picked = {};
@@ -40,21 +43,29 @@ const getNextDate = (dateStr) => {
   return date.toISOString().split('T')[0];
 };
 
-const fetchDateRangeRecords = async (entityApi, dateField, startStr, endStr, sort = '-created_date', extraFilter = {}) => {
+const fetchDateRangeRecords = async (entityApi, dateField, startStr, endStr, sort = '-created_date', extraFilter = {}, limit = BATCH_LIMIT) => {
   const records = await entityApi.filter({
     ...extraFilter,
     [dateField]: { $gte: startStr, $lte: endStr }
-  }, sort, BATCH_LIMIT);
+  }, sort, limit);
 
   if (!Array.isArray(records)) return [];
-  if (records.length < BATCH_LIMIT || startStr === endStr) return records;
+  if (records.length < limit || startStr === endStr) return records;
 
   const midpoint = getMidpointDate(startStr, endStr);
   if (midpoint <= startStr || midpoint >= endStr) return records;
 
-  const leftRecords = await fetchDateRangeRecords(entityApi, dateField, startStr, midpoint, sort, extraFilter);
-  const rightRecords = await fetchDateRangeRecords(entityApi, dateField, getNextDate(midpoint), endStr, sort, extraFilter);
+  const leftRecords = await fetchDateRangeRecords(entityApi, dateField, startStr, midpoint, sort, extraFilter, limit);
+  const rightRecords = await fetchDateRangeRecords(entityApi, dateField, getNextDate(midpoint), endStr, sort, extraFilter, limit);
   return dedupeById([...leftRecords, ...rightRecords]);
+};
+
+const getChunkedMonths = (months, chunkSize = DELIVERY_PAGE_MONTHS.length) => {
+  const chunks = [];
+  for (let index = 0; index < months.length; index += chunkSize) {
+    chunks.push(months.slice(index, index + chunkSize));
+  }
+  return chunks;
 };
 
 const DELIVERY_FIELDS = [
@@ -579,24 +590,54 @@ Deno.serve(async (req) => {
       const yearStart = options.startDate || `${year}-01-01`;
       const yearEnd = options.endDate || `${year}-12-31`;
 
-      const [appSettings, allYearDeliveriesRaw, allYearPayrollRaw] = await Promise.all([
+      const monthNumbers = [];
+      const startDateObj = new Date(`${yearStart}T00:00:00`);
+      const endDateObj = new Date(`${yearEnd}T00:00:00`);
+      for (let month = startDateObj.getMonth() + 1; month <= endDateObj.getMonth() + 1; month += 1) {
+        monthNumbers.push(month);
+      }
+
+      const deliveryMonthChunks = getChunkedMonths(monthNumbers);
+      const deliveryChunkResults = [];
+      for (const monthChunk of deliveryMonthChunks) {
+        const chunkRange = getPageDateRange(year, monthChunk);
+        if (!chunkRange) continue;
+        const chunkDeliveries = await fetchDateRangeRecords(
+          base44.asServiceRole.entities.Delivery,
+          'delivery_date',
+          chunkRange.start,
+          chunkRange.end,
+          '-delivery_date',
+          deliveryFilter,
+          BATCH_LIMIT
+        );
+        deliveryChunkResults.push(...(chunkDeliveries || []));
+      }
+
+      const [appSettings, allYearPayrollRaw] = await Promise.all([
         base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }),
-        fetchDateRangeRecords(base44.asServiceRole.entities.Delivery, 'delivery_date', yearStart, yearEnd, '-delivery_date', deliveryFilter),
-        options.includePayroll ? fetchDateRangeRecords(base44.asServiceRole.entities.Payroll, 'pay_period_start', yearStart, yearEnd, '-pay_period_start') : Promise.resolve([])
+        options.includePayroll ? fetchDateRangeRecords(base44.asServiceRole.entities.Payroll, 'pay_period_start', yearStart, yearEnd, '-pay_period_start', {}, PAYROLL_BATCH_LIMIT) : Promise.resolve([])
       ]);
 
-      const deliveries = dedupeById(allYearDeliveriesRaw || []);
+      const deliveries = dedupeById(deliveryChunkResults || []);
 
       const relevantStoreIds = Array.from(new Set(deliveries.map((delivery) => delivery.store_id).filter(Boolean)));
       const relevantDriverIds = Array.from(new Set(deliveries.map((delivery) => delivery.driver_id).filter(Boolean)));
 
       const relevantPatientIds = Array.from(new Set(deliveries.map((delivery) => delivery.patient_id).filter(Boolean)));
 
+      const appUserFilter = cityId && cityId !== 'all'
+        ? { city_ids: { $in: [cityId] } }
+        : {};
+
       const [storesRaw, appUsersRaw, patientsRaw] = await Promise.all([
         relevantStoreIds.length
           ? (cityStores.length ? cityStores.filter((store) => relevantStoreIds.includes(store.id)) : base44.asServiceRole.entities.Store.filter({ id: { $in: relevantStoreIds } }, '', 5000))
           : (cityStores.length ? cityStores : []),
-        base44.asServiceRole.entities.AppUser.list('', 5000),
+        base44.asServiceRole.entities.AppUser.filter(appUserFilter, '', APP_USER_BATCH_LIMIT).catch((error) => {
+          if (isNotFoundError(error)) return [];
+          throw error;
+        }),
         relevantPatientIds.length
           ? base44.asServiceRole.entities.Patient.filter({ id: { $in: relevantPatientIds } }, '', 5000)
           : Promise.resolve([])
