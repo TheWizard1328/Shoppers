@@ -54,6 +54,8 @@ export default function AdminMetrics() {
   const [isBackgroundSyncing, setIsBackgroundSyncing] = useState(false);
   const [loadedFromOffline, setLoadedFromOffline] = useState(false);
   const backgroundSyncStartedRef = useRef(false);
+  const inFlightMetricsRequestRef = useRef(null);
+  const lastMetricsRequestKeyRef = useRef('');
 
   const availableYears = useMemo(() => {
     const currentYear = new Date().getFullYear();
@@ -119,50 +121,64 @@ export default function AdminMetrics() {
 
     const isForceRefresh = isInitial === 'force-refresh';
     const shouldUseOfflineFirst = isInitial === true;
+    const requestKey = `${year}-${cityId}-${isForceRefresh ? 'force' : shouldUseOfflineFirst ? 'initial' : 'normal'}`;
 
-    if (shouldUseOfflineFirst) {
-      setIsLoading(true);
-      setError(null);
-      const hadOfflineData = await loadOfflineMetrics(year, cityId);
-      if (!hadOfflineData) {
+    if (inFlightMetricsRequestRef.current && lastMetricsRequestKeyRef.current === requestKey) {
+      return inFlightMetricsRequestRef.current;
+    }
+
+    const runRequest = async () => {
+      if (shouldUseOfflineFirst) {
+        setIsLoading(true);
+        setError(null);
+        const hadOfflineData = await loadOfflineMetrics(year, cityId);
+        if (!hadOfflineData) {
+          setIsFetching(true);
+        }
+      } else {
         setIsFetching(true);
-      }
-    } else {
-      setIsFetching(true);
-      setError(null);
-    }
-
-    try {
-      const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
-        adminMetricsYear: parseInt(year),
-        adminMetricsCityId: cityId === 'all' ? null : cityId,
-        forceRefreshCurrentYear: isForceRefresh,
-        refreshCurrentMonthSummary: isForceRefresh,
-        payrollYear: null,
-        payrollCityId: null,
-        payrollDriverId: null
-      });
-      const data = response?.data?.adminMetrics || response?.adminMetrics;
-      const syncStatus = response?.data?.adminMetricsMeta || response?.adminMetricsMeta || null;
-
-      if (data?.error) {
-        throw new Error(data.error);
+        setError(null);
       }
 
-      setMetricsData(data);
-      setLiveSyncStatus(syncStatus);
-      setLoadedFromOffline(false);
-      setSelectedMonth(null); // Reset month selection when year changes
-      await saveOfflineMetrics(year, cityId, data, syncStatus);
-    } catch (err) {
-      console.error('Failed to fetch metrics:', err);
-      if (!metricsData) {
-        setError(err?.response?.data?.error || err.message || 'Failed to load metrics');
+      try {
+        const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
+          adminMetricsYear: parseInt(year),
+          adminMetricsCityId: cityId === 'all' ? null : cityId,
+          forceRefreshCurrentYear: isForceRefresh,
+          refreshCurrentMonthSummary: isForceRefresh,
+          payrollYear: null,
+          payrollCityId: null,
+          payrollDriverId: null
+        });
+        const data = response?.data?.adminMetrics || response?.adminMetrics;
+        const syncStatus = response?.data?.adminMetricsMeta || response?.adminMetricsMeta || null;
+
+        if (data?.error) {
+          throw new Error(data.error);
+        }
+
+        setMetricsData(data);
+        setLiveSyncStatus(syncStatus);
+        setLoadedFromOffline(false);
+        setSelectedMonth(null);
+        await saveOfflineMetrics(year, cityId, data, syncStatus);
+      } catch (err) {
+        console.error('Failed to fetch metrics:', err);
+        const status = err?.response?.status || err?.status;
+        if (!metricsData && status !== 429) {
+          setError(err?.response?.data?.error || err.message || 'Failed to load metrics');
+        }
+      } finally {
+        setIsLoading(false);
+        setIsFetching(false);
+        inFlightMetricsRequestRef.current = null;
+        lastMetricsRequestKeyRef.current = '';
       }
-    } finally {
-      setIsLoading(false);
-      setIsFetching(false);
-    }
+    };
+
+    lastMetricsRequestKeyRef.current = requestKey;
+    inFlightMetricsRequestRef.current = runRequest();
+    return inFlightMetricsRequestRef.current;
   }, [hasAccess, loadOfflineMetrics, saveOfflineMetrics, metricsData]);
 
   // Initial load - wait for city to be set
@@ -190,13 +206,15 @@ export default function AdminMetrics() {
 
   // Handle year change without full refresh
   const handleYearChange = (newYear) => {
+    if (newYear === selectedYear) return;
+    backgroundSyncStartedRef.current = false;
     setSelectedYear(newYear);
-    fetchMetrics(newYear, selectedCityId, false); // isInitial = false - keeps content visible
+    fetchMetrics(newYear, selectedCityId, false);
   };
 
   // Handle city change
   const handleCityChange = (newCityId) => {
-    if (!newCityId || newCityId === 'all') return;
+    if (!newCityId || newCityId === 'all' || newCityId === selectedCityId) return;
     setSelectedCityId(newCityId);
     backgroundSyncStartedRef.current = false;
   };
