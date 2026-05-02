@@ -350,11 +350,13 @@ export function exportPayrollPdf({
         doc.text(periodValues.deductionsTotal.toFixed(2), col3_calcTotals + 15, y, { align: 'right' });
         y += lineHeight;
         if (periodValues.deductions?.length > 0) {
+          const deductionLabelX = col1_rowTitles + 5;
+          const deductionAmountX = col3_calcTotals - 10;
           doc.setFontSize(7);
           periodValues.deductions.forEach((ded) => {
-            doc.text(`  • ${ded.name}:`, col1_rowTitles + 2, y);
-            doc.text('-$', col3_calcTotals, y);
-            doc.text(ded.amount.toFixed(2), col3_calcTotals + 15, y, { align: 'right' });
+            doc.text(`• ${ded.name}:`, deductionLabelX, y);
+            doc.text('-$', deductionAmountX, y);
+            doc.text(ded.amount.toFixed(2), deductionAmountX + 15, y, { align: 'right' });
             y += 3.5;
           });
           doc.setFontSize(8);
