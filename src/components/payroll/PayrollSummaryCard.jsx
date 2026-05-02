@@ -350,6 +350,10 @@ export default function PayrollSummaryCard({
         if (onPayrollRecordsChange) {
           onPayrollRecordsChange(nextPayrollRecords);
         }
+        try {
+          const { broadcastMutation } = await import('../utils/realtimeSync');
+          await broadcastMutation('Payroll', 'create', newRecord.id, newRecord);
+        } catch (e) {/* ignore */}
         existingRecord = newRecord;
       }
 
@@ -367,6 +371,10 @@ export default function PayrollSummaryCard({
       const nextPayrollRecords = payrollRecords.map((r) => r.id === existingRecord.id ? mergedRecord : r);
       setPayrollRecords(nextPayrollRecords);
       if (onPayrollRecordsChange) onPayrollRecordsChange(nextPayrollRecords);
+      try {
+        const { broadcastMutation } = await import('../utils/realtimeSync');
+        await broadcastMutation('Payroll', 'update', mergedRecord.id, mergedRecord);
+      } catch (e) {/* ignore */}
 
       const mergedPaidAmount = mergedRecord?.paid_amount;
       if (mergedPaidAmount != null) {
@@ -477,6 +485,10 @@ export default function PayrollSummaryCard({
 
       setPayrollRecords(nextPayrollRecords);
       if (onPayrollRecordsChange) onPayrollRecordsChange(nextPayrollRecords);
+      try {
+        const { broadcastMutation } = await import('../utils/realtimeSync');
+        await broadcastMutation('Payroll', existingRecord ? 'update' : 'create', mergedRecord.id, mergedRecord);
+      } catch (e) {/* ignore */}
 
       try {
         const { offlineDB } = await import('../utils/offlineDatabase');
@@ -506,7 +518,13 @@ export default function PayrollSummaryCard({
           appFeeAmount
         });
         const paidAmount = parsePaidAmount(edit.paidAmount, netAmount);
-        if (rec) await base44.entities.Payroll.update(rec.id, { paid_amount: paidAmount, status: 'admin_finalized', admin_finalized_at: new Date().toISOString(), admin_finalized_by: currentUser?.id });
+        if (rec) {
+          const finalizedRecord = await base44.entities.Payroll.update(rec.id, { paid_amount: paidAmount, status: 'admin_finalized', admin_finalized_at: new Date().toISOString(), admin_finalized_by: currentUser?.id });
+          try {
+            const { broadcastMutation } = await import('../utils/realtimeSync');
+            await broadcastMutation('Payroll', 'update', finalizedRecord.id || rec.id, { ...rec, ...finalizedRecord, paid_amount: paidAmount, status: 'admin_finalized', admin_finalized_at: finalizedRecord.admin_finalized_at || new Date().toISOString(), admin_finalized_by: currentUser?.id });
+          } catch (e) {/* ignore */}
+        }
       }
       await notifyAdminApprovedPayroll({ admin: currentUser, periodLabel: currentPeriod?.label || 'this period', driversWithDeliveries: dwdList, appUsers });
       if (refreshPayrollRecords) {await refreshPayrollRecords();} else

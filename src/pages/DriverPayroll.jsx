@@ -482,7 +482,14 @@ export default function DriverPayroll() {
   }, [payrollRecords, currentPeriod, driversInPayCycle, selectedDriverId, selectedCityId, payPeriod]);
 
   const totalNetPay = useMemo(() => filteredPayrollRecords.reduce((sum, r) => sum + (Number(r.net_pay) || 0), 0), [filteredPayrollRecords]);
-  const totalDeliveries = useMemo(() => cityFilteredDeliveries.length, [cityFilteredDeliveries]);
+  const totalDeliveries = useMemo(() => {
+    if (!payrollData) return 0;
+    if (selectedDriverId === 'all') {
+      return payrollData.reduce((sum, driverData) => sum + (Number(driverData.graphDeliveryCount) || 0), 0);
+    }
+    const selectedDriverData = payrollData.find((driverData) => driverData.driver.id === selectedDriverId);
+    return Number(selectedDriverData?.graphDeliveryCount) || 0;
+  }, [payrollData, selectedDriverId]);
   const periodLabel = useMemo(() => currentPeriod ? currentPeriod.label : '', [currentPeriod]);
   const needsCitySelection = !!currentUser && sortedCities.length > 0 && !selectedCityId;
 
