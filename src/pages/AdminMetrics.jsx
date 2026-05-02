@@ -79,6 +79,7 @@ export default function AdminMetrics() {
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [liveSyncStatus, setLiveSyncStatus] = useState(null);
   const [isBackgroundSyncing, setIsBackgroundSyncing] = useState(false);
+  const [backgroundSyncMonthLabel, setBackgroundSyncMonthLabel] = useState('');
   const backgroundSyncLabelTimerRef = useRef(null);
   const [showBackgroundSyncLabel, setShowBackgroundSyncLabel] = useState(false);
   const [loadedFromOffline, setLoadedFromOffline] = useState(false);
@@ -164,6 +165,8 @@ export default function AdminMetrics() {
     if (!hasAccess || !cityId) return;
     if (!forceRefresh && Date.now() - last429AtRef.current < 15000) return;
 
+    const syncingMonthIndex = new Date().getMonth();
+    setBackgroundSyncMonthLabel(MONTH_NAMES[syncingMonthIndex]);
     if (backgroundSyncLabelTimerRef.current) clearTimeout(backgroundSyncLabelTimerRef.current);
     setShowBackgroundSyncLabel(false);
     backgroundSyncLabelTimerRef.current = setTimeout(() => {
@@ -214,6 +217,7 @@ export default function AdminMetrics() {
         backgroundSyncLabelTimerRef.current = null;
       }
       setShowBackgroundSyncLabel(false);
+      setBackgroundSyncMonthLabel('');
       setIsBackgroundSyncing(false);
     }
   }, [hasAccess, loadOfflineMetrics, metricsData, saveOfflineMetrics]);
@@ -542,7 +546,7 @@ export default function AdminMetrics() {
                 {loadedFromOffline ? 'Loaded from offline cache' : liveSyncStatus.source === 'summary' ? 'Loaded from summary' : liveSyncStatus.liveWindowApplied ? `Live sync: last ${liveSyncStatus.liveWindowDays} days` : 'Summary only'}
               </Badge>
             )}
-            {showBackgroundSyncLabel && <span>Refreshing summary in background…</span>}
+            {showBackgroundSyncLabel && <span>Refreshing {backgroundSyncMonthLabel || 'current month'} summary in background…</span>}
             {!isBackgroundSyncing && !showBackgroundSyncLabel && liveSyncStatus?.currentMonthSynced && <span>Summary is up to date.</span>}
           </div>
         )}
