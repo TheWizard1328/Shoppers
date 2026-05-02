@@ -145,6 +145,24 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
     return value;
   };
 
+  const getMonthHighlightData = (month) => {
+    const monthValues = stores
+      .map((store) => ({
+        abbreviation: store.abbreviation,
+        value: getValue(store.abbreviation, month) || 0
+      }))
+      .filter((item) => item.value > 0);
+
+    if (!monthValues.length) {
+      return { maxValue: 0, averageValue: 0 };
+    }
+
+    const maxValue = Math.max(...monthValues.map((item) => item.value));
+    const averageValue = monthValues.reduce((sum, item) => sum + item.value, 0) / monthValues.length;
+
+    return { maxValue, averageValue };
+  };
+
   // Format value based on view mode
   const formatValue = (value, storeId = null, month = null, baseValue = null) => {
     if (value === null || value === undefined) return '';
@@ -300,6 +318,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
                 const month = idx + 1;
                 const monthTotal = getMonthTotal(month);
                 const isMonthSelected = selectedMonth === month;
+                const { maxValue, averageValue } = getMonthHighlightData(month);
                 return (
                   <tr key={month} className={`border-b hover:bg-slate-50 ${isMonthSelected ? 'bg-emerald-50' : ''}`}>
                     <td
@@ -319,12 +338,18 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
 
                       // Leave blank if value is 0, null, or undefined
                       const shouldShowBlank = value === null || value === undefined || value === 0;
+                      const isTopStoreForMonth = !shouldShowBlank && value === maxValue;
+                      const isAboveAverageForMonth = !shouldShowBlank && value > averageValue && !isTopStoreForMonth;
 
                       return (
                         <td
                           key={store.abbreviation}
                           className={`text-center px-1 py-0.5 tabular-nums cursor-pointer hover:bg-blue-100 ${isStoreMonthSelected ? 'bg-blue-200' : ''} ${isFeePayingStoreMonth(store.abbreviation, month) ? 'font-extrabold' : ''}`}
-                          style={{ color: value !== null && value !== undefined && value > 0 ? getStoreColor(store) : '#94a3b8' }}
+                          style={{
+                            color: value !== null && value !== undefined && value > 0 ? getStoreColor(store) : '#94a3b8',
+                            backgroundColor: isTopStoreForMonth ? '#86efac' : isAboveAverageForMonth ? '#fde047' : undefined,
+                            boxShadow: isTopStoreForMonth || isAboveAverageForMonth ? 'inset 0 0 0 1px rgba(15,23,42,0.12)' : undefined
+                          }}
                           onClick={() => {
                             if (value !== null && value !== undefined && value > 0) {
                               // Get the actual storeId from the store object, not from getStoreId
