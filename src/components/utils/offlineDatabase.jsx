@@ -20,6 +20,7 @@ const STORES = {
   SQUARE_CATALOG_ITEMS: 'square_catalog_items',
   SQUARE_TRANSACTIONS: 'square_transactions',
   DRIVER_OVERVIEW_STATS: 'driver_overview_stats',
+  ADMIN_METRICS_CACHE: 'admin_metrics_cache',
   SYNC_STATUS: 'sync_status',
   PENDING_MUTATIONS: 'pending_mutations',
   SYNC_METADATA: 'sync_metadata', // Timestamp tracking per entity
@@ -185,6 +186,13 @@ const openDatabase = async () => {
         statsStore.createIndex('year', 'year', { unique: false });
         statsStore.createIndex('store_ids_hash', 'store_ids_hash', { unique: false });
         statsStore.createIndex('updated_date', 'updated_date', { unique: false });
+      }
+
+      if (!db.objectStoreNames.contains(STORES.ADMIN_METRICS_CACHE)) {
+        const adminMetricsStore = db.createObjectStore(STORES.ADMIN_METRICS_CACHE, { keyPath: 'id' });
+        adminMetricsStore.createIndex('year', 'year', { unique: false });
+        adminMetricsStore.createIndex('city_id', 'city_id', { unique: false });
+        adminMetricsStore.createIndex('updated_date', 'updated_date', { unique: false });
       }
 
       if (!db.objectStoreNames.contains(STORES.SYNC_METADATA)) {

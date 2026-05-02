@@ -8,6 +8,7 @@ import { base44 } from '@/api/base44Client';
 import { backgroundMetricsSync } from '@/functions/backgroundMetricsSync';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { getEffectiveUser } from '@/components/utils/auth';
+import { offlineDB } from '@/components/utils/offlineDatabase';
 import { isAppOwner, userHasRole } from '../components/utils/userRoles';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -51,6 +52,7 @@ export default function AdminMetrics() {
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [liveSyncStatus, setLiveSyncStatus] = useState(null);
   const [isBackgroundSyncing, setIsBackgroundSyncing] = useState(false);
+  const [loadedFromOffline, setLoadedFromOffline] = useState(false);
   const backgroundSyncStartedRef = useRef(false);
 
   const availableYears = useMemo(() => {
@@ -85,20 +87,52 @@ export default function AdminMetrics() {
     checkAccess();
   }, []);
 
+  const getAdminMetricsCacheKey = useCallback((year, cityId) => `admin-metrics-${year}-${cityId}`, []);
+
+  const loadOfflineMetrics = useCallback(async (year, cityId) => {
+    const cacheId = getAdminMetricsCacheKey(year, cityId);
+    const cached = await offlineDB.getById(offlineDB.STORES.ADMIN_METRICS_CACHE, cacheId);
+    if (!cached?.metricsData) return false;
+
+    setMetricsData(cached.metricsData);
+    setLiveSyncStatus(cached.liveSyncStatus || null);
+    setLoadedFromOffline(true);
+    setIsLoading(false);
+    return true;
+  }, [getAdminMetricsCacheKey]);
+
+  const saveOfflineMetrics = useCallback(async (year, cityId, data, syncStatus) => {
+    const cacheId = getAdminMetricsCacheKey(year, cityId);
+    await offlineDB.save(offlineDB.STORES.ADMIN_METRICS_CACHE, {
+      id: cacheId,
+      year: parseInt(year, 10),
+      city_id: cityId,
+      metricsData: data,
+      liveSyncStatus: syncStatus,
+      updated_date: new Date().toISOString()
+    });
+  }, [getAdminMetricsCacheKey]);
+
   // Fetch metrics from backend - only when year or city changes or on initial load
   const fetchMetrics = useCallback(async (year, cityId, isInitial = false) => {
     if (!hasAccess || !cityId) return;
 
-    // Only show full loading screen on initial load
-    if (isInitial) {
+    const isForceRefresh = isInitial === 'force-refresh';
+    const shouldUseOfflineFirst = isInitial === true;
+
+    if (shouldUseOfflineFirst) {
       setIsLoading(true);
+      setError(null);
+      const hadOfflineData = await loadOfflineMetrics(year, cityId);
+      if (!hadOfflineData) {
+        setIsFetching(true);
+      }
     } else {
       setIsFetching(true);
+      setError(null);
     }
-    setError(null);
 
     try {
-      const isForceRefresh = isInitial === 'force-refresh';
       const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
         adminMetricsYear: parseInt(year),
         adminMetricsCityId: cityId === 'all' ? null : cityId,
@@ -117,15 +151,19 @@ export default function AdminMetrics() {
 
       setMetricsData(data);
       setLiveSyncStatus(syncStatus);
+      setLoadedFromOffline(false);
       setSelectedMonth(null); // Reset month selection when year changes
+      await saveOfflineMetrics(year, cityId, data, syncStatus);
     } catch (err) {
       console.error('Failed to fetch metrics:', err);
-      setError(err?.response?.data?.error || err.message || 'Failed to load metrics');
+      if (!metricsData) {
+        setError(err?.response?.data?.error || err.message || 'Failed to load metrics');
+      }
     } finally {
       setIsLoading(false);
       setIsFetching(false);
     }
-  }, [hasAccess]);
+  }, [hasAccess, loadOfflineMetrics, saveOfflineMetrics, metricsData]);
 
   // Initial load - wait for city to be set
   useEffect(() => {
@@ -378,8 +416,13 @@ export default function AdminMetrics() {
               </SelectContent>
             </Select>
             <div className="ml-0 md:ml-auto flex items-center gap-1.5 md:gap-2 shrink-0">
-              <Button variant="outline" size="icon" onClick={handleManualRefresh} disabled={isFetching || isManualRefreshing}>
-                <RefreshCw className={`w-4 h-4 ${(isFetching || isManualRefreshing) ? 'animate-spin' : ''}`} />
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleManualRefresh}
+                disabled={isFetching || isManualRefreshing}
+                className={isBackgroundSyncing ? 'border-emerald-500 text-emerald-600' : ''}>
+                <RefreshCw className={`w-4 h-4 ${(isFetching || isManualRefreshing || isBackgroundSyncing) ? 'animate-spin' : ''} ${isBackgroundSyncing ? 'text-emerald-600' : ''}`} />
               </Button>
               <Button variant="outline" size="icon">
                 <Share2 className="w-4 h-4" />
@@ -392,7 +435,7 @@ export default function AdminMetrics() {
           <div className="flex items-center gap-2 text-xs md:text-sm" style={{ color: 'var(--text-slate-600)' }}>
             {liveSyncStatus && (
               <Badge variant="secondary">
-                {liveSyncStatus.source === 'summary' ? 'Loaded from summary' : liveSyncStatus.liveWindowApplied ? `Live sync: last ${liveSyncStatus.liveWindowDays} days` : 'Summary only'}
+                {loadedFromOffline ? 'Loaded from offline cache' : liveSyncStatus.source === 'summary' ? 'Loaded from summary' : liveSyncStatus.liveWindowApplied ? `Live sync: last ${liveSyncStatus.liveWindowDays} days` : 'Summary only'}
               </Badge>
             )}
             {isBackgroundSyncing && <span>Refreshing summary in background…</span>}
