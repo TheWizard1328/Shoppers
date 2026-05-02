@@ -18,6 +18,7 @@ import { GoogleAddressAutocomplete } from "@/components/ui/google-address-autoco
 import { realtimeSync } from "@/components/utils/realtimeSync";
 import { base44 } from "@/api/base44Client";
 import { createPatientLocal, updatePatientLocal } from '../utils/entityMutations';
+import { offlineDB } from '../utils/offlineDatabase';
 import { isMobileDevice, canAutoFocusFormFields } from '@/components/utils/deviceUtils';
 import { globalFilters } from '@/components/utils/globalFilters';
 
@@ -536,22 +537,27 @@ export default function PatientForm({
         // Instant local broadcast so UI + offline DB cascade immediately
         try { realtimeSync.broadcast('Patient', 'update', savedPatientId, { id: savedPatientId, ...(patient || {}), ...dataToSave }); } catch {}
       } else {
-        // STEP 1: Create new patient directly on backend
-        console.log('  📝 Creating new patient on backend...');
-        const { base44 } = await import('@/api/base44Client');
-        
-        backendPatient = await base44.entities.Patient.create(dataToSave);
+        // STEP 1: Create new patient through shared mutation flow
+        console.log('  📝 Creating new patient with realtime sync...');
+
+        backendPatient = await createPatientLocal(dataToSave);
         savedPatientId = backendPatient.id;
-        console.log('  ✅ Patient created on backend:', savedPatientId);
-        
-        // Save to offline DB AFTER backend creation
-        const { offlineDB } = await import('../utils/offlineDatabase');
+        console.log('  ✅ Patient created:', savedPatientId);
+
         await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [backendPatient]);
         console.log('  ✅ Patient synced to offline DB');
-        
-        // Instant local broadcast so UI + offline DB cascade immediately
-        try { realtimeSync.broadcast('Patient', 'create', savedPatientId, { id: savedPatientId, ...backendPatient, ...dataToSave }); } catch {}
-        
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('patientsUpdated', {
+            detail: {
+              patients: [backendPatient],
+              fromPatientFormCreate: true,
+              fullReplacement: false,
+              preserveLocalState: true
+            }
+          }));
+        }
+
         if (returnPatientOnSave) {
           const completePatient = {
             ...backendPatient,
@@ -573,16 +579,18 @@ export default function PatientForm({
       }
 
       // STEP 2: Broadcast change to other devices (non-blocking)
-      try {
-        const { base44 } = await import('@/api/base44Client');
-        await base44.functions.invoke('broadcastEntityChange', {
-          entity_name: 'Patient',
-          operation: patient ? 'update' : 'create',
-          metadata: { id: savedPatientId }
-        });
-        console.log('  📡 Broadcasted to other devices');
-      } catch (broadcastError) {
-        console.warn('  ⚠️ Broadcast failed (non-critical):', broadcastError.message);
+      if (patient) {
+        try {
+          const { base44 } = await import('@/api/base44Client');
+          await base44.functions.invoke('broadcastEntityChange', {
+            entity_name: 'Patient',
+            operation: 'update',
+            metadata: { id: savedPatientId }
+          });
+          console.log('  📡 Broadcasted to other devices');
+        } catch (broadcastError) {
+          console.warn('  ⚠️ Broadcast failed (non-critical):', broadcastError.message);
+        }
       }
 
       // STEP 3: Fetch latest data if updating (for updates, refetch to ensure offline DB is fresh)
