@@ -133,7 +133,7 @@ export default function AdminMetrics() {
     try {
       const syncResponse = await backgroundMetricsSync({
         year: parseInt(year, 10),
-        cityId: cityId === 'all' ? null : cityId,
+        cityId,
         month: new Date().getMonth() + 1
       });
 
@@ -146,6 +146,12 @@ export default function AdminMetrics() {
           liveWindowApplied: false,
           liveWindowDays: 7
         }));
+        if (!metricsData) {
+          const hadOfflineData = await loadOfflineMetrics(year, cityId);
+          if (!hadOfflineData) {
+            setError('No metrics data available.');
+          }
+        }
         return;
       }
 
@@ -172,11 +178,17 @@ export default function AdminMetrics() {
       if (status === 429) {
         last429AtRef.current = Date.now();
       }
+      if (!metricsData) {
+        const hadOfflineData = await loadOfflineMetrics(year, cityId);
+        if (!hadOfflineData && status !== 429) {
+          setError(err?.response?.data?.error || err.message || 'Failed to load metrics');
+        }
+      }
       console.error('Background summary refresh failed:', err);
     } finally {
       setIsBackgroundSyncing(false);
     }
-  }, [hasAccess, saveOfflineMetrics]);
+  }, [hasAccess, loadOfflineMetrics, metricsData, saveOfflineMetrics]);
 
   // Fetch metrics from backend - only when year or city changes or on initial load
   const fetchMetrics = useCallback(async (year, cityId, isInitial = false) => {
