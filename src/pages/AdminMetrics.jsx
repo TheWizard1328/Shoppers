@@ -382,6 +382,52 @@ export default function AdminMetrics() {
     return () => clearTimeout(timer);
   }, [needsCitySelection]);
 
+  const renderHeaderSection = () => (
+    <div className="shrink-0 space-y-3">
+      <div>
+        <h1 className="text-2xl md:text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
+          Admin Metrics
+        </h1>
+      </div>
+      <div className="flex items-center gap-1.5 md:gap-2 flex-nowrap overflow-x-auto overflow-y-hidden pb-1">
+        <Select value={selectedCityId || ''} onValueChange={handleCityChange}>
+          <SelectTrigger ref={citySelectTriggerRef} className="w-[5.5rem] sm:w-[7rem] md:w-[140px]">
+            <SelectValue placeholder="Select City" />
+          </SelectTrigger>
+          <SelectContent>
+            {cities.map((city) =>
+            <SelectItem key={city.id} value={city.id}>{city.name}</SelectItem>
+            )}
+          </SelectContent>
+        </Select>
+
+        <Select value={selectedYear} onValueChange={handleYearChange}>
+          <SelectTrigger className="w-[5rem] sm:w-[7rem] md:w-[140px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {availableYears.map((year) =>
+            <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+            )}
+          </SelectContent>
+        </Select>
+        <div className="ml-0 md:ml-auto flex items-center gap-1.5 md:gap-2 shrink-0">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={handleManualRefresh}
+            disabled={!selectedCityId || isFetching || isManualRefreshing}
+            className={isBackgroundSyncing ? 'border-emerald-500 text-emerald-600' : ''}>
+            <RefreshCw className={`w-4 h-4 ${(isFetching || isManualRefreshing || isBackgroundSyncing) ? 'animate-spin' : ''} ${isBackgroundSyncing ? 'text-emerald-600' : ''}`} />
+          </Button>
+          <Button variant="outline" size="icon" disabled={!selectedCityId}>
+            <Share2 className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+
   if (!hasAccess) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
@@ -395,11 +441,14 @@ export default function AdminMetrics() {
 
   if (needsCitySelection) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
-        <Card className="p-8 text-center" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
-          <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--text-slate-900)' }}>Select a City</h2>
-          <p style={{ color: 'var(--text-slate-600)' }}>Choose a city before opening admin metrics.</p>
-        </Card>
+      <div className="h-full min-h-0 overflow-y-auto overflow-x-hidden p-4 md:p-6" style={{ background: 'var(--bg-slate-50)' }}>
+        <div className="max-w-7xl mx-auto min-h-full flex flex-col gap-3 md:gap-4">
+          {renderHeaderSection()}
+          <Card className="p-8 text-center" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
+            <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--text-slate-900)' }}>Select a City</h2>
+            <p style={{ color: 'var(--text-slate-600)' }}>Choose a city to load admin metrics.</p>
+          </Card>
+        </div>
       </div>);
 
   }
@@ -437,49 +486,7 @@ export default function AdminMetrics() {
     <div className="h-full min-h-0 overflow-y-auto overflow-x-hidden p-4 md:p-6" style={{ background: 'var(--bg-slate-50)' }}>
       <div className="max-w-7xl mx-auto min-h-full flex flex-col gap-3 md:gap-4">
         {/* Header */}
-        <div className="shrink-0 space-y-3">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
-              Admin Metrics
-            </h1>
-          </div>
-          <div className="flex items-center gap-1.5 md:gap-2 flex-nowrap overflow-x-auto overflow-y-hidden pb-1">
-            <Select value={selectedCityId || ''} onValueChange={handleCityChange}>
-              <SelectTrigger ref={citySelectTriggerRef} className="w-[5.5rem] sm:w-[7rem] md:w-[140px]">
-                <SelectValue placeholder="Select City" />
-              </SelectTrigger>
-              <SelectContent>
-                {cities.map((city) =>
-                <SelectItem key={city.id} value={city.id}>{city.name}</SelectItem>
-                )}
-              </SelectContent>
-            </Select>
-
-            <Select value={selectedYear} onValueChange={handleYearChange}>
-              <SelectTrigger className="w-[5rem] sm:w-[7rem] md:w-[140px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {availableYears.map((year) =>
-                <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
-                )}
-              </SelectContent>
-            </Select>
-            <div className="ml-0 md:ml-auto flex items-center gap-1.5 md:gap-2 shrink-0">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleManualRefresh}
-                disabled={isFetching || isManualRefreshing}
-                className={isBackgroundSyncing ? 'border-emerald-500 text-emerald-600' : ''}>
-                <RefreshCw className={`w-4 h-4 ${(isFetching || isManualRefreshing || isBackgroundSyncing) ? 'animate-spin' : ''} ${isBackgroundSyncing ? 'text-emerald-600' : ''}`} />
-              </Button>
-              <Button variant="outline" size="icon">
-                <Share2 className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
+        {renderHeaderSection()}
 
         {(liveSyncStatus || isBackgroundSyncing) && (
           <div className="flex items-center gap-2 text-xs md:text-sm" style={{ color: 'var(--text-slate-600)' }}>
