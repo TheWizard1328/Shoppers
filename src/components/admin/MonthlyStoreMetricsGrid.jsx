@@ -145,6 +145,29 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
     return value;
   };
 
+  const getCompletedMonthsCount = () => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    const targetYear = parseInt(selectedYear, 10);
+
+    if (targetYear < currentYear) return 12;
+    if (targetYear > currentYear) return 0;
+    return Math.max(0, currentMonth - 1);
+  };
+
+  const getStoreCompletedMonthsAverage = (store) => {
+    const completedMonthsCount = getCompletedMonthsCount();
+    if (completedMonthsCount === 0) return 0;
+
+    let total = 0;
+    for (let month = 1; month <= completedMonthsCount; month++) {
+      total += getValue(store.abbreviation, month) || 0;
+    }
+
+    return total / completedMonthsCount;
+  };
+
   const getMonthHighlightData = (month) => {
     const monthValues = stores
       .map((store) => ({
@@ -154,13 +177,16 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
       .filter((item) => item.value > 0);
 
     if (!monthValues.length) {
-      return { maxValue: 0, averageValue: 0 };
+      return { maxValue: 0, averagesByStore: {} };
     }
 
     const maxValue = Math.max(...monthValues.map((item) => item.value));
-    const averageValue = monthValues.reduce((sum, item) => sum + item.value, 0) / monthValues.length;
+    const averagesByStore = stores.reduce((acc, store) => {
+      acc[store.abbreviation] = getStoreCompletedMonthsAverage(store);
+      return acc;
+    }, {});
 
-    return { maxValue, averageValue };
+    return { maxValue, averagesByStore };
   };
 
   // Format value based on view mode
@@ -318,7 +344,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
                 const month = idx + 1;
                 const monthTotal = getMonthTotal(month);
                 const isMonthSelected = selectedMonth === month;
-                const { maxValue, averageValue } = getMonthHighlightData(month);
+                const { maxValue, averagesByStore } = getMonthHighlightData(month);
                 return (
                   <tr key={month} className={`border-b hover:bg-slate-50 ${isMonthSelected ? 'bg-emerald-50' : ''}`}>
                     <td
@@ -338,8 +364,9 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
 
                       // Leave blank if value is 0, null, or undefined
                       const shouldShowBlank = value === null || value === undefined || value === 0;
+                      const storeAverage = averagesByStore[store.abbreviation] || 0;
                       const isTopStoreForMonth = !shouldShowBlank && value === maxValue;
-                      const isAboveAverageForMonth = !shouldShowBlank && value > averageValue && !isTopStoreForMonth;
+                      const isAboveAverageForMonth = !shouldShowBlank && storeAverage > 0 && value > storeAverage && !isTopStoreForMonth;
 
                       return (
                         <td
