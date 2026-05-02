@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Package, Ruler } from 'lucide-react';
@@ -10,8 +10,8 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
  * Shows daily totals (billable + non-billable) for each store across all days in selected month
  * Top row: Store abbreviations | Left column: Days 1-31
  */
-export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, selectedYear, onResetView }) {
-  const [viewMode, setViewMode] = useState('deliveries'); // 'deliveries' or 'extra_km'
+export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, selectedYear, metricsViewMode = 'deliveries', onResetView }) {
+  const viewMode = metricsViewMode;
   if (!metricsData || !selectedMonth) {
     return (
       <Card>
@@ -26,6 +26,8 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
   const monthData = monthlyStoreData[selectedMonth] || [];
   const daysInMonth = new Date(parseInt(selectedYear), selectedMonth, 0).getDate();
   const dailyStoreData = metricsData.dailyStoreData?.[selectedMonth] || {};
+  const monthlyStoreFees = metricsData.monthlyStoreFees || {};
+  const monthlyStoreExtraKm = metricsData.monthlyStoreExtraKm || {};
 
   // Build stores list from this month's data
   const stores = monthData.sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity));
@@ -45,11 +47,21 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
     const storeDaily = dailyStoreData[storeId] || [];
     const dayData = storeDaily.find(d => d.day === day);
     if (!dayData) return 0;
-    
+
     if (mode === 'extra_km') {
       return dayData.extra_km || 0;
     }
-    // deliveries mode: only driver-payable work
+
+    if (mode === 'fees') {
+      const monthStore = monthData.find((store) => (store.storeId || store.id) === storeId);
+      const fallbackFee = (monthlyStoreFees[selectedMonth] || []).find((store) => (store.storeId || store.id) === storeId);
+      const monthTotalFees = monthStore?.fees ?? fallbackFee?.fees ?? fallbackFee?.total_fees ?? 0;
+      const monthTotalDeliveries = (monthStore?.completed || 0) + (monthStore?.failed || 0) + (monthStore?.afterHours || 0);
+      const dayTotalDeliveries = (dayData.completed || 0) + (dayData.failed || 0) + (dayData.afterHours || 0);
+      if (monthTotalFees <= 0 || monthTotalDeliveries <= 0 || dayTotalDeliveries <= 0) return 0;
+      return monthTotalFees * (dayTotalDeliveries / monthTotalDeliveries);
+    }
+
     return (dayData.completed || 0) + (dayData.failed || 0) + (dayData.afterHours || 0);
   };
 
@@ -60,11 +72,16 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
 
   // Calculate store totals (sum across all days for each store)
   const getStoreTotal = (store, mode = 'deliveries') => {
-    const storeDaily = dailyStoreData[store.storeId || store.id] || [];
+    const storeId = store.storeId || store.id;
+    const storeDaily = dailyStoreData[storeId] || [];
     if (mode === 'extra_km') {
-      return storeDaily.reduce((sum, day) => sum + (day.extra_km || 0), 0);
+      const fallbackKm = (monthlyStoreExtraKm[selectedMonth] || []).find((item) => (item.storeId || item.id) === storeId);
+      return fallbackKm?.extra_km ?? storeDaily.reduce((sum, day) => sum + (day.extra_km || 0), 0);
     }
-    // deliveries mode
+    if (mode === 'fees') {
+      const fallbackFee = (monthlyStoreFees[selectedMonth] || []).find((item) => (item.storeId || item.id) === storeId);
+      return store.fees ?? fallbackFee?.fees ?? fallbackFee?.total_fees ?? 0;
+    }
     return storeDaily.reduce((sum, day) => sum + (day.completed || 0) + (day.failed || 0) + (day.afterHours || 0), 0);
   };
 

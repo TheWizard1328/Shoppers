@@ -754,10 +754,11 @@ export default function AdminMetrics() {
               <DayByDayStoreMetricsGrid
                 metricsData={{
                   ...metricsData,
-                  dailyDeliveryData: metricsData.dailyDeliveryData // Pass the already-calculated daily data
+                  dailyDeliveryData: metricsData.dailyDeliveryData
                 }}
                 selectedMonth={selectedMonth}
                 selectedYear={selectedYear}
+                metricsViewMode={metricsViewMode}
                 selectedCityId={selectedCityId} /> :
 
 
