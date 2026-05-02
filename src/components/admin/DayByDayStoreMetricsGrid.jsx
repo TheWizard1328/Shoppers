@@ -133,12 +133,12 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
                           className="text-center px-1 py-0.5 tabular-nums"
                           style={{ color: value > 0 ? (store.color || '#64748b') : '#94a3b8' }}
                         >
-                          {value > 0 ? (viewMode === 'extra_km' ? value.toFixed(2) : value) : ''}
+                          {value > 0 ? Number(value).toFixed(2) : ''}
                         </td>
                       );
                     })}
                     <td className="text-center px-1 py-0.5 font-semibold text-slate-900 border-l-2 border-slate-300 tabular-nums">
-                      {dayTotal > 0 ? (viewMode === 'extra_km' ? dayTotal.toFixed(2) : dayTotal) : ''}
+                      {dayTotal > 0 ? Number(dayTotal).toFixed(2) : ''}
                     </td>
                   </tr>
                 );
@@ -155,12 +155,12 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
                       className="text-center px-1 py-0.5 tabular-nums"
                       style={{ color: store.color || '#64748b' }}
                     >
-                      {total > 0 ? (viewMode === 'extra_km' ? total.toFixed(2) : total) : ''}
+                      {total > 0 ? Number(total).toFixed(2) : ''}
                     </td>
                   );
                 })}
                 <td className="text-center px-1 py-0.5 font-bold text-slate-900 border-l-2 border-slate-300 tabular-nums">
-                  {grandTotal > 0 ? (viewMode === 'extra_km' ? grandTotal.toFixed(2) : grandTotal) : ''}
+                  {grandTotal > 0 ? Number(grandTotal).toFixed(2) : ''}
                 </td>
               </tr>
 
@@ -169,7 +169,7 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
                 <td className="px-1.5 py-0.5 text-slate-600 sticky left-0 bg-slate-50 z-10 border-r border-slate-300">Avg</td>
                 {stores.map(store => {
                    const total = getStoreTotal(store, viewMode);
-                   const avg = total > 0 ? (total / daysInMonth).toFixed(viewMode === 'extra_km' ? 2 : 1) : '';
+                   const avg = total > 0 ? Number(total / daysInMonth).toFixed(2) : '';
                    return (
                      <td key={store.storeId || store.id} className="text-center px-1 py-0.5 tabular-nums text-slate-600">
                        {avg}
@@ -177,7 +177,7 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
                    );
                  })}
                  <td className="text-center px-1 py-0.5 font-semibold text-slate-700 border-l-2 border-slate-300 tabular-nums">
-                   {grandTotal > 0 ? (grandTotal / daysInMonth).toFixed(viewMode === 'extra_km' ? 2 : 1) : ''}
+                   {grandTotal > 0 ? Number(grandTotal / daysInMonth).toFixed(2) : ''}
                 </td>
               </tr>
             </tbody>
