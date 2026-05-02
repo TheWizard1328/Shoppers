@@ -5,7 +5,6 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BarChart3, DollarSign, Store, Package, RefreshCw, TrendingUp, Users, Truck, Share2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
-import { backgroundMetricsSync } from '@/functions/backgroundMetricsSync';
 import { getAdminMetricsAndPayrollData } from '@/functions/getAdminMetricsAndPayrollData';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { getEffectiveUser } from '@/components/utils/auth';
@@ -131,42 +130,23 @@ export default function AdminMetrics() {
 
     setIsBackgroundSyncing(true);
     try {
-      const syncResponse = await backgroundMetricsSync({
-        year: parseInt(year, 10),
-        cityId,
-        month: new Date().getMonth() + 1
-      });
-
-      const shouldPullFreshMetrics = forceRefresh || syncResponse?.data?.needsRefresh;
-      if (!shouldPullFreshMetrics) {
-        setLiveSyncStatus((prev) => ({
-          ...(prev || {}),
-          source: 'summary',
-          currentMonthSynced: true,
-          liveWindowApplied: false,
-          liveWindowDays: 7
-        }));
-        if (!metricsData) {
-          const hadOfflineData = await loadOfflineMetrics(year, cityId);
-          if (!hadOfflineData) {
-            setError('No metrics data available.');
-          }
-        }
-        return;
-      }
-
       const response = await getAdminMetricsAndPayrollData({
         adminMetricsYear: parseInt(year, 10),
         adminMetricsCityId: cityId === 'all' ? null : cityId,
         forceRefreshCurrentYear: forceRefresh,
-        refreshCurrentMonthSummary: true,
+        refreshCurrentMonthSummary: false,
         payrollYear: null,
         payrollCityId: null,
         payrollDriverId: null
       });
 
       const data = response?.data?.adminMetrics || response?.adminMetrics;
-      const syncStatus = response?.data?.adminMetricsMeta || response?.adminMetricsMeta || null;
+      const syncStatus = response?.data?.adminMetricsMeta || response?.adminMetricsMeta || {
+        source: 'summary',
+        currentMonthSynced: false,
+        liveWindowApplied: false,
+        liveWindowDays: 7
+      };
       if (!data?.error && latestSelectionRef.current.year === year && latestSelectionRef.current.cityId === cityId) {
         setMetricsData(data);
         setLiveSyncStatus(syncStatus);
