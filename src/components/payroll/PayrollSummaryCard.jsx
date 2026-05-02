@@ -105,18 +105,18 @@ export default function PayrollSummaryCard({
         const isInterStore = patientName.includes('INTERSTORE') || patientName.includes('(ISD)') || patientName.includes('(ISP)');
         const isPatientOrTransfer = !!d.patient_id;
         const isAfterHours = d.after_hours_pickup === true;
-        const isRegularPickup = !isAfterHours && !isPatientOrTransfer && !isInterStore;
 
         if (d.status === 'completed' || d.status === 'failed') {/* valid */} else
         if (d.status === 'cancelled') {
-          if (!isAfterHours && !isPatientReturn && !isRegularPickup) {
+          if (!isAfterHours && !isPatientReturn) {
             return false;
           }
         } else {
           return false;
         }
 
-        if (!isPatientOrTransfer && !isAfterHours && !isRegularPickup) return false;
+        if (!isPatientOrTransfer && !isAfterHours) return false;
+        if (isInterStore && !isAfterHours) return false;
 
         const date = new Date(d.delivery_date + 'T00:00:00');
         const inPeriod = date >= currentPeriod.start && date <= currentPeriod.end;
@@ -290,10 +290,10 @@ export default function PayrollSummaryCard({
       const isInterStore = patientName.includes('INTERSTORE') || patientName.includes('(ISD)') || patientName.includes('(ISP)');
       const isPatientOrTransfer = !!d.patient_id;
       const isAfterHours = d.after_hours_pickup === true;
-      const isRegularPickup = !isAfterHours && !isPatientOrTransfer && !isInterStore;
-      const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && (isAfterHours || isPatientReturn || isRegularPickup);
+      const validStatus = d.status === 'completed' || d.status === 'failed' || d.status === 'cancelled' && (isAfterHours || isPatientReturn);
       if (!validStatus) return;
-      if (!isPatientOrTransfer && !isAfterHours && !isRegularPickup) return;
+      if (!isPatientOrTransfer && !isAfterHours) return;
+      if (isInterStore && !isAfterHours) return;
       const store = stores.find((s) => s?.id === d.store_id);
       if (!store) return;
       let paysAppFees = store.pays_app_fees || false;
