@@ -910,18 +910,16 @@ function Dashboard() {
   // Filter drivers based on role - NEVER based on deliveries (except dispatcher)
   const driversList = useMemo(() => {
     // CRITICAL: Build drivers from AppUsers ONLY (most reliable source)
-    const driversSource = (appUsers || []).
-    filter((au) => au && au.user_id && au.app_roles?.includes('driver') && au.status === 'active').
-    map((au) => ({
+    const driversSource = (appUsers || [])
+    .filter((au) => au && au.user_id && au.app_roles?.includes('driver') && au.status === 'active')
+    .map((au) => ({
+      ...au,
       id: au.user_id,
       user_id: au.user_id,
       user_name: au.user_name,
-      full_name: au.user_name,
-      app_roles: au.app_roles,
-      status: au.status,
-      sort_order: au.sort_order
-    })).
-    sort((a, b) => {
+      full_name: au.user_name
+    }))
+    .sort((a, b) => {
       const sortOrderA = a.sort_order ?? Infinity;
       const sortOrderB = b.sort_order ?? Infinity;
       if (sortOrderA !== sortOrderB) return sortOrderA - sortOrderB;

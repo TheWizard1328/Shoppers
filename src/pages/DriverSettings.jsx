@@ -337,12 +337,13 @@ export default function DriverSettings() {
       
       {/* Edit Driver Form */}
       {editingDriver && (() => {
-        // CRITICAL: Merge driver data with fresh AppUser data for accurate form population
         const latestAppUser = mergedAppUsers.find((au) => au?.user_id === editingDriver.id);
+        const sourceDriver = latestAppUser || editingDriver;
         const mergedDriver = {
           ...editingDriver,
           ...latestAppUser,
-          id: editingDriver.id, // Keep the user ID
+          ...sourceDriver,
+          id: editingDriver.id,
           user_id: editingDriver.id
         };
         return (
