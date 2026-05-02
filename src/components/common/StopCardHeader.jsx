@@ -125,10 +125,11 @@ export default function StopCardHeader({
   if (showDriverPay) {
     let driverAppUser = null;
     if (appUsers && appUsers.length > 0) {
-      if (userHasRole(currentUser, "admin")) driverAppUser = appUsers.find((au) => au?.user_id === delivery?.driver_id);else
-      driverAppUser = appUsers.find((au) => au?.user_id === currentUser?.id);
+      driverAppUser = appUsers.find((au) => au?.user_id === delivery?.driver_id);
     }
-    if (!driverAppUser && safeDriver && safeDriver.pay_rate_per_delivery) driverAppUser = safeDriver;
+    if (!driverAppUser && safeDriver && safeDriver.id === delivery?.driver_id && safeDriver.pay_rate_per_delivery) {
+      driverAppUser = safeDriver;
+    }
 
     const pay = driverAppUser ? calculateDeliveryPay(delivery, driverAppUser, patient) : 0;
     const baseRate = driverAppUser?.pay_rate_per_delivery || 0;
