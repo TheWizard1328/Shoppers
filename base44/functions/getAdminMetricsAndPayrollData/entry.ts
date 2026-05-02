@@ -8,7 +8,7 @@ const SUMMARY_VERSION = '3';
 const LIVE_SYNC_WINDOW_DAYS = 7;
 const statsCache = new Map();
 const CACHE_DISABLED = false;
-const SERVER_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const CURRENT_MONTH_CACHE_TTL_MS = 3 * 60 * 60 * 1000;
 const BATCH_LIMIT = 1000;
 
 const pickFields = (record, fields) => {
@@ -483,6 +483,19 @@ Deno.serve(async (req) => {
 
     const normalizedCityId = adminMetricsCityId;
 
+    const isCurrentMonthSelection = (year, month) => {
+      const now = new Date();
+      return Number(year) === now.getFullYear() && Number(month) === now.getMonth() + 1;
+    };
+
+    const summaryRecordIsFresh = (summaryRecord, year, month) => {
+      if (!summaryRecord?.calculated_at) return false;
+      if (!isCurrentMonthSelection(year, month)) return true;
+      const calculatedAt = new Date(summaryRecord.calculated_at).getTime();
+      if (Number.isNaN(calculatedAt)) return false;
+      return Date.now() - calculatedAt < CURRENT_MONTH_CACHE_TTL_MS;
+    };
+
     const fetchMonthlySummaryRecord = async (year, month, cityId) => {
       const summaryRecords = await base44.asServiceRole.entities.AdminMetricsSummary.filter({ year, month, city_id: cityId }, '', 10).catch((error) => {
         if (isNotFoundError(error)) return [];
@@ -703,7 +716,8 @@ Deno.serve(async (req) => {
         if (!monthDeliveries.length) continue;
 
         const existingSummary = await fetchMonthlySummaryRecord(year, month, cityId);
-        if (!options.force && !countSummaryNeedsRefresh(existingSummary, monthDeliveries)) {
+        const existingSummaryIsFresh = summaryRecordIsFresh(existingSummary, year, month);
+        if (!options.force && existingSummaryIsFresh && !countSummaryNeedsRefresh(existingSummary, monthDeliveries)) {
           summaryRecords.push(existingSummary);
           continue;
         }
