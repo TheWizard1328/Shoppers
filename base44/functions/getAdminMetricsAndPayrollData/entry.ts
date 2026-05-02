@@ -748,14 +748,27 @@ Deno.serve(async (req) => {
     };
 
     const buildSummaryBackfill = async (year, cityId, options = {}) => {
-      const yearData = await fetchYearData(year, cityId, { includePayroll: !!options.includePayroll });
+      const yearData = options.refreshCurrentMonthOnly
+        ? null
+        : await fetchYearData(year, cityId, { includePayroll: !!options.includePayroll });
       const summaryRecords = [];
       const currentMonthNumber = new Date().getMonth() + 1;
 
       for (let month = 1; month <= 12; month++) {
         if (options.refreshCurrentMonthOnly && year === new Date().getFullYear() && month !== currentMonthNumber) continue;
         const { start, end } = getMonthDateRange(year, month);
-        const monthDeliveries = (yearData.deliveries || []).filter((delivery) => delivery?.delivery_date >= start && delivery?.delivery_date <= end);
+        const monthData = options.refreshCurrentMonthOnly
+          ? await fetchYearData(year, cityId, {
+              includePayroll: !!options.includePayroll,
+              startDate: start,
+              endDate: end
+            })
+          : {
+              ...yearData,
+              deliveries: (yearData.deliveries || []).filter((delivery) => delivery?.delivery_date >= start && delivery?.delivery_date <= end),
+              payrollRecords: (yearData.payrollRecords || []).filter((record) => record?.pay_period_start >= start && record?.pay_period_start <= end)
+            };
+        const monthDeliveries = monthData.deliveries || [];
         if (!monthDeliveries.length) continue;
 
         const existingSummary = await fetchMonthlySummaryRecord(year, month, cityId);
@@ -764,13 +777,6 @@ Deno.serve(async (req) => {
           summaryRecords.push(existingSummary);
           continue;
         }
-
-        const monthPayrollRecords = (yearData.payrollRecords || []).filter((record) => record?.pay_period_start >= start && record?.pay_period_start <= end);
-        const monthData = {
-          ...yearData,
-          deliveries: monthDeliveries,
-          payrollRecords: monthPayrollRecords
-        };
 
         const adminMetricsForMonth = processAdminMetrics(
           monthData.deliveries,
@@ -788,7 +794,7 @@ Deno.serve(async (req) => {
           year,
           month,
           cityId,
-          cityName: yearData.cityName,
+          cityName: monthData.cityName,
           adminMetrics: adminMetricsForMonth,
           payrollMetrics: payrollMetricsForMonth,
           deliveries: monthDeliveries

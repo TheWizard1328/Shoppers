@@ -79,6 +79,8 @@ export default function AdminMetrics() {
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [liveSyncStatus, setLiveSyncStatus] = useState(null);
   const [isBackgroundSyncing, setIsBackgroundSyncing] = useState(false);
+  const backgroundSyncLabelTimerRef = useRef(null);
+  const [showBackgroundSyncLabel, setShowBackgroundSyncLabel] = useState(false);
   const [loadedFromOffline, setLoadedFromOffline] = useState(false);
   const backgroundSyncStartedRef = useRef(false);
   const inFlightMetricsRequestRef = useRef(null);
@@ -93,6 +95,12 @@ export default function AdminMetrics() {
   }, []);
 
   // Check access and load cities
+  useEffect(() => {
+    return () => {
+      if (backgroundSyncLabelTimerRef.current) clearTimeout(backgroundSyncLabelTimerRef.current);
+    };
+  }, []);
+
   useEffect(() => {
     const checkAccess = async () => {
       try {
@@ -156,6 +164,11 @@ export default function AdminMetrics() {
     if (!hasAccess || !cityId) return;
     if (!forceRefresh && Date.now() - last429AtRef.current < 15000) return;
 
+    if (backgroundSyncLabelTimerRef.current) clearTimeout(backgroundSyncLabelTimerRef.current);
+    setShowBackgroundSyncLabel(false);
+    backgroundSyncLabelTimerRef.current = setTimeout(() => {
+      setShowBackgroundSyncLabel(true);
+    }, 600);
     setIsBackgroundSyncing(true);
     try {
       const targetYear = parseInt(year, 10);
@@ -196,6 +209,11 @@ export default function AdminMetrics() {
       }
       console.error('Background summary refresh failed:', err);
     } finally {
+      if (backgroundSyncLabelTimerRef.current) {
+        clearTimeout(backgroundSyncLabelTimerRef.current);
+        backgroundSyncLabelTimerRef.current = null;
+      }
+      setShowBackgroundSyncLabel(false);
       setIsBackgroundSyncing(false);
     }
   }, [hasAccess, loadOfflineMetrics, metricsData, saveOfflineMetrics]);
@@ -517,15 +535,15 @@ export default function AdminMetrics() {
           </Card>
         )}
 
-        {(liveSyncStatus || isBackgroundSyncing) && (
+        {(liveSyncStatus || showBackgroundSyncLabel) && (
           <div className="flex items-center gap-2 text-xs md:text-sm" style={{ color: 'var(--text-slate-600)' }}>
             {liveSyncStatus && (
               <Badge variant="secondary">
                 {loadedFromOffline ? 'Loaded from offline cache' : liveSyncStatus.source === 'summary' ? 'Loaded from summary' : liveSyncStatus.liveWindowApplied ? `Live sync: last ${liveSyncStatus.liveWindowDays} days` : 'Summary only'}
               </Badge>
             )}
-            {isBackgroundSyncing && <span>Refreshing summary in background…</span>}
-            {!isBackgroundSyncing && liveSyncStatus?.currentMonthSynced && <span>Summary is up to date.</span>}
+            {showBackgroundSyncLabel && <span>Refreshing summary in background…</span>}
+            {!isBackgroundSyncing && !showBackgroundSyncLabel && liveSyncStatus?.currentMonthSynced && <span>Summary is up to date.</span>}
           </div>
         )}
 
