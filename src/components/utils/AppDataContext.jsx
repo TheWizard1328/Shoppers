@@ -305,10 +305,18 @@ export const AppDataProvider = ({ children, value }) => {
         updateDeliveriesLocallyRef.current(filteredDeliveries, true);
       }
 
-      if (value.updatePatientsLocally) {
+      if (value.applyPatientChangesLocally) {
+        const existingPatientIds = new Set((patientsRef.current || []).filter(Boolean).map((patient) => patient.id));
+        const nextPatientIds = new Set(filteredPatients.map((patient) => patient.id));
+        const deleteIds = Array.from(existingPatientIds).filter((id) => !nextPatientIds.has(id));
+        value.applyPatientChangesLocally({ upserts: filteredPatients, deleteIds });
+      } else if (value.updatePatientsLocally) {
         value.updatePatientsLocally({ upserts: filteredPatients, deleteIds: [] });
       } else if (applyPatientChangesLocallyRef.current) {
-        applyPatientChangesLocallyRef.current({ upserts: filteredPatients, deleteIds: [] });
+        const existingPatientIds = new Set((patientsRef.current || []).filter(Boolean).map((patient) => patient.id));
+        const nextPatientIds = new Set(filteredPatients.map((patient) => patient.id));
+        const deleteIds = Array.from(existingPatientIds).filter((id) => !nextPatientIds.has(id));
+        applyPatientChangesLocallyRef.current({ upserts: filteredPatients, deleteIds });
       }
 
       if (updateAppUsersLocallyRef.current) {
@@ -327,6 +335,7 @@ export const AppDataProvider = ({ children, value }) => {
           detail: {
             patients: filteredPatients,
             preserveLocalState: true,
+            fullReplacement: true,
             triggeredBy: 'cityChanged'
           }
         }));
@@ -334,6 +343,7 @@ export const AppDataProvider = ({ children, value }) => {
           detail: {
             appUsers: filteredAppUsers,
             forceAll: true,
+            fullReplacement: true,
             fromCityChange: true
           }
         }));
