@@ -214,53 +214,11 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
     return store.color || '#64748b';
   };
 
-  // Smart average calculation:
-  // - Past completed months: use actual totals
-  // - Current month: project = (actual / daysElapsed) * totalDaysInMonth
-  // - Divide sum by current month number (number of months we're averaging over)
-  function calculateSmartAverage(store, allStores, monthlyStoreData, metricsData, viewMode, envelopeToggle, year) {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth() + 1; // 1-12
-    const today = now.getDate();
-
-    // Determine how many months to average over
-    const isCurrentYear = year === currentYear;
-    const monthsToAverage = isCurrentYear ? currentMonth : 12;
-
-    if (monthsToAverage === 0) return 0;
-
-    let totalSum = 0;
-
-    for (let month = 1; month <= monthsToAverage; month++) {
-      const monthData = monthlyStoreData[month] || [];
-      const storeData = monthData.find((s) => s.abbreviation === store.abbreviation);
-      if (!storeData) continue;
-
-      let value;
-      if (viewMode === 'deliveries') {
-        const totalDeliveries = (storeData.completed || 0) + (storeData.afterHours || 0) + (storeData.failed || 0);
-        const envelopeInfo = metricsData.envelopeMetrics?.byStoreAndMonth?.[storeData.storeId]?.[month];
-        const envelopeAdjustment = envelopeToggle && envelopeInfo?.totalEnvelopeValue > 0 ?
-        envelopeInfo.totalEnvelopeValue - envelopeInfo.envelopeDeliveriesCount : 0;
-        value = totalDeliveries + envelopeAdjustment;
-      } else {
-        value = storeData.fees || 0;
-      }
-
-      // Current month of current year: project the full month
-      if (isCurrentYear && month === currentMonth && today > 0) {
-        const daysInMonth = new Date(year, month, 0).getDate();
-        const dailyAvg = value / today;
-        const projected = Math.round(dailyAvg * daysInMonth);
-        totalSum += projected;
-      } else {
-        totalSum += value;
-      }
-    }
-
-    return totalSum / monthsToAverage;
-  }
+  const calculateCompletedMonthsAverage = (store) => {
+    const completedMonthsCount = getCompletedMonthsCount();
+    if (completedMonthsCount === 0) return 0;
+    return (totals[store.abbreviation] || 0) / completedMonthsCount;
+  };
 
   return (
     <Card className="bg-card text-card-foreground rounded-xl border shadow flex min-h-0 flex-col max-h-[500px] lg:max-h-[500px] overflow-hidden">
@@ -413,12 +371,11 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
                   {formatValue(grandTotal)}
                 </td>
               </tr>
-              {/* Average Row - Smart average: completed months use actual totals,
-                      current month is projected (dailyAvg * daysInMonth), then divide by current month number */}
+              {/* Average Row - uses completed months only, matching the totals shown above */}
               <tr className="bg-slate-50">
                 <td className="px-1.5 py-0.5 text-slate-600 sticky left-0 bg-slate-50 z-10">AVG</td>
                 {stores.map((store) => {
-                  const avg = calculateSmartAverage(store, stores, monthlyStoreData, metricsData, metricsViewMode, showEnvelopeAdjustedTotals, parseInt(selectedYear));
+                  const avg = calculateCompletedMonthsAverage(store);
                   return (
                     <td
                       key={store.abbreviation}
@@ -430,9 +387,8 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
                 })}
                 <td className="text-center px-1 py-0.5 font-semibold text-slate-700 border-l-2 border-purple-300 tabular-nums">
                   {(() => {
-                    const totalAvg = stores.reduce((sum, store) => {
-                      return sum + calculateSmartAverage(store, stores, monthlyStoreData, metricsData, metricsViewMode, showEnvelopeAdjustedTotals, parseInt(selectedYear));
-                    }, 0);
+                    const completedMonthsCount = getCompletedMonthsCount();
+                    const totalAvg = completedMonthsCount > 0 ? grandTotal / completedMonthsCount : 0;
                     return totalAvg > 0 ? formatValue(Math.round(totalAvg)) : '';
                   })()}
                 </td>
