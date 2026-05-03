@@ -907,7 +907,7 @@ export default function SquareManagement() {
   }, [activeView, filteredCatalogRows, filteredDeliveryRows, filteredTransactionRows, reconciliationRows, visibleStoreIds]);
 
   return (
-    <div className="p-4 md:p-6 bg-background text-foreground w-full min-h-screen flex flex-col overflow-y-auto" style={{ paddingBottom: navHeight ? navHeight + 8 : undefined }}>
+    <div className="px-4 md:px-6 pt-4 md:pt-6 bg-background text-foreground w-full h-screen overflow-hidden flex flex-col">
       <div className="flex flex-col gap-4 mb-6 flex-shrink-0">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
@@ -983,7 +983,7 @@ export default function SquareManagement() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 pr-1 overflow-y-auto">
+      <div className="flex-1 min-h-0 flex flex-col">
         {syncStatus &&
         <div className="mb-2">
             <SyncStatusIndicator
