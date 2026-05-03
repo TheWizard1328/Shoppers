@@ -1412,12 +1412,10 @@ async function handleSyncOnlineSquareEntities(base44, payload) {
   const cleanCatalog = catalogRecords.map(stripMeta);
   const cleanTransactions = transactionRecords.map(stripMeta);
 
-  // Nuclear clear: deleteMany({}) wipes the entire table in ONE API call.
-  // Then bulkCreate replaces with the fresh offline snapshot.
-  // Both clears run simultaneously, then both creates run simultaneously.
+  // Clear both entities using the existing paginated helper, then bulk-create the fresh snapshot.
   await Promise.all([
-    base44.asServiceRole.entities.SquareCatalogItems.deleteMany({}),
-    base44.asServiceRole.entities.SquareTransaction.deleteMany({}),
+    paginatedDeleteAll(base44.asServiceRole.entities.SquareCatalogItems),
+    paginatedDeleteAll(base44.asServiceRole.entities.SquareTransaction),
   ]);
 
   await Promise.all([
