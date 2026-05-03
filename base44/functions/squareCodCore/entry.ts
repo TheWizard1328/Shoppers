@@ -1002,6 +1002,7 @@ async function handleGetCodData(base44, payload = {}) {
 
     const store = storeByLocationId.get(resolvedLocationId);
     acc.push({
+      id: item?.id,                              // required by offline IndexedDB keyPath
       square_catalog_object_id: item?.id,
       square_catalog_version: item?.version || null,
       item_name: itemName,
@@ -1426,7 +1427,7 @@ async function handleSyncOnlineSquareEntities(base44, payload) {
   // Receives the already-saved offline DB records as source of truth.
   // Step 1: delete ALL existing online records for both entities.
   // Step 2: bulkCreate from the offline snapshot.
-  // This is a full atomic replace â€” no per-item looping.
+  // This is a full atomic replace Ã¢â‚¬â€ no per-item looping.
   const catalogRecords = Array.isArray(payload?.catalogRecords) ? payload.catalogRecords.filter(Boolean) : [];
   const transactionRecords = Array.isArray(payload?.transactionRecords) ? payload.transactionRecords.filter(Boolean) : [];
 
