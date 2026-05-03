@@ -687,7 +687,12 @@ export default function SquareManagement() {
       const store = stores.find((s) => s?.id === delivery.store_id);
       const config = locationConfigs.find((c) => c?.id === store?.square_location_config_id);
       const linkedCatalog = catalogItems.find((item) => item?.delivery_id === delivery.id);
-      const hasMatch = config?.square_location_id ? hasMatchingSquareTransaction(delivery, config.square_location_id) : false;
+      // Fallback: if config join fails, infer location_id from a matching transaction for this store
+      const fallbackLocationId = !config?.square_location_id
+        ? (allTransactions.find((t) => t?.store_id === delivery.store_id && t?.location_id)?.location_id || null)
+        : null;
+      const resolvedLocationId = config?.square_location_id || fallbackLocationId;
+      const hasMatch = resolvedLocationId ? hasMatchingSquareTransaction(delivery, resolvedLocationId) : false;
       const collectionType = Array.isArray(delivery?.cod_payments) && delivery.cod_payments.length > 0 ?
       Array.from(new Set(delivery.cod_payments.map((payment) => payment?.type).filter(Boolean))).join(', ') :
       null;
@@ -700,7 +705,7 @@ export default function SquareManagement() {
         itemName: patient?.full_name || delivery.delivery_id || delivery.stop_id || 'Unknown Delivery',
         amount: Number(delivery.cod_total_amount_required || 0),
         storeName: store?.name || 'Unknown',
-        locationId: config?.square_location_id || '--',
+        locationId: resolvedLocationId || '--',
         catalogId: linkedCatalog?.catalog_object_id || '--',
         deliveryDate: delivery.delivery_date,
         collectionType,
@@ -1085,13 +1090,14 @@ export default function SquareManagement() {
         }
 
         {activeView === 'reconciliation' ?
-        <SquareCodDatasetTable title="Reconciliation" rows={reconciliationRows} isLoading={isLoading} emptyTitle="No unmatched deliveries" emptyDescription="Deliveries that do not have a matching transaction by amount and Square location will appear here." showLocationColumn={currentUser && isAppOwner(currentUser)} navHeight={navHeight} /> :
+        <SquareCodDatasetTable key="reconciliation" title="Reconciliation" rows={reconciliationRows} isLoading={isLoading} emptyTitle="No unmatched deliveries" emptyDescription="Deliveries that do not have a matching transaction by amount and Square location will appear here." showLocationColumn={currentUser && isAppOwner(currentUser)} navHeight={navHeight} /> :
         activeView === 'deliveries' ?
-        <SquareCodDatasetTable title="In App COD Deliveries" rows={filteredDeliveryRows} isLoading={isLoading} emptyTitle="No COD deliveries found" emptyDescription="COD deliveries from your local cache will appear here even if Square data was cleared." showLocationColumn={currentUser && isAppOwner(currentUser)} navHeight={navHeight} /> :
+        <SquareCodDatasetTable key="deliveries" title="In App COD Deliveries" rows={filteredDeliveryRows} isLoading={isLoading} emptyTitle="No COD deliveries found" emptyDescription="COD deliveries from your local cache will appear here even if Square data was cleared." showLocationColumn={currentUser && isAppOwner(currentUser)} navHeight={navHeight} /> :
         activeView === 'transactions' ?
-        <SquareCodDatasetTable title="Square Transactions" rows={filteredTransactionRows} isLoading={isLoading} emptyTitle="No Square transactions found" emptyDescription="Recent Square transactions for the active city will appear here." showLocationColumn={currentUser && isAppOwner(currentUser)} navHeight={navHeight} /> :
+        <SquareCodDatasetTable key="transactions" title="Square Transactions" rows={filteredTransactionRows} isLoading={isLoading} emptyTitle="No Square transactions found" emptyDescription="Recent Square transactions for the active city will appear here." showLocationColumn={currentUser && isAppOwner(currentUser)} navHeight={navHeight} /> :
 
         <SquareCodDatasetTable
+          key="catalog"
           title="Square Catalog Items"
           rows={filteredCatalogRows}
           isLoading={isLoading}
