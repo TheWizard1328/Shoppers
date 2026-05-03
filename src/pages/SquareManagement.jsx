@@ -236,14 +236,17 @@ export default function SquareManagement() {
       const codData = codResponse?.data || codResponse || {};
       const catalogRecords = codData.catalogRecords || [];
       const transactionRecords = codData.transactionRecords || [];
+      const strippedDeliveries = Array.isArray(codData.deliveries)
+        ? codData.deliveries.map(({ delivery_route_breadcrumbs, encoded_polyline, proof_photo_urls, signature_image_url, ...rest }) => rest)
+        : [];
 
       // Step 2: Bulk replace BOTH offline IndexedDB stores
       // replaceAllRecords = clearStore + bulkSave in one shot, no per-item ops
       await Promise.all([
         offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_CATALOG_ITEMS, catalogRecords),
         offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_TRANSACTIONS, transactionRecords),
-        Array.isArray(codData.deliveries)
-          ? offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, codData.deliveries)
+        strippedDeliveries.length > 0
+          ? offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, strippedDeliveries)
           : Promise.resolve()
       ]);
 
