@@ -5,10 +5,20 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const payload = await req.json().catch(() => ({}));
-    const response = await base44.functions.invoke('squareCodCore', {
-      action: 'fetchPayments',
-      ...payload,
-    });
+    const response = {
+      data: {
+        success: true,
+        paused: true,
+        paymentsCount: 0,
+        transactions: [],
+        soldItems: [],
+        soldCatalogItems: [],
+        catalogItems: [],
+        catalogItemCount: 0,
+        dateRange: null,
+      },
+      status: 200,
+    };
 
     return Response.json(response?.data || response, { status: response?.status || 200 });
   } catch (error) {
