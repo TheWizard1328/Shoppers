@@ -1287,6 +1287,17 @@ async function handleSyncCatalogItems(base44) {
   };
 }
 
+async function paginatedDeleteAll(entityApi, pageSize = 200) {
+  while (true) {
+    const records = await entityApi.list('-updated_date', pageSize).catch(() => []);
+    if (!records?.length) break;
+    for (const record of records) {
+      await entityApi.delete(record.id);
+    }
+    if (records.length < pageSize) break;
+  }
+}
+
 async function handleSyncOnlineSquareEntities(base44, payload) {
   const catalogRecords = Array.isArray(payload?.catalogRecords) ? payload.catalogRecords.filter(Boolean) : [];
 
