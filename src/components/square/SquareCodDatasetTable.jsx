@@ -25,25 +25,25 @@ export default function SquareCodDatasetTable({
   onRowClick
 }) {
   return (
-    <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 flex flex-col min-h-0 md:flex-1">
+    <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 flex flex-col flex-1 min-h-0">
       <CardHeader className="sticky top-0 z-10 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
         <CardTitle className="text-base md:text-lg text-slate-900 dark:text-slate-50">{title}</CardTitle>
       </CardHeader>
-      <CardContent className="p-6 pt-0 overflow-y-visible" style={{ paddingBottom: navHeight ? navHeight + 8 : undefined }}>
+      <CardContent className="p-0 overflow-hidden flex flex-col flex-1 min-h-0">
         {isLoading ?
-        <div className="flex items-center justify-center py-12">
+        <div className="flex items-center justify-center py-12 px-6">
             <div className="animate-spin w-8 h-8 border-4 rounded-full" style={{ borderColor: 'var(--border-emerald-500)', borderTopColor: 'transparent' }} />
           </div> :
         rows.length === 0 ?
-        <div className="text-center py-12 text-slate-500 dark:text-slate-400">
+        <div className="text-center py-12 px-6 text-slate-500 dark:text-slate-400">
             <DollarSign className="w-10 md:w-12 h-10 md:h-12 mx-auto mb-4 opacity-50" />
             <p className="text-sm md:text-base">{emptyTitle}</p>
             {emptyDescription && <p className="text-xs md:text-sm mt-1">{emptyDescription}</p>}
           </div> :
 
-        <>
-            <div className="hidden md:flex h-full min-h-0 flex-col">
-              <div className="overflow-x-auto">
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+            <div className="hidden md:flex flex-col flex-1 min-h-0 overflow-hidden">
+              <div className="overflow-x-auto px-0">
                 <table className="w-full table-fixed">
                   <thead className="bg-white dark:bg-slate-900">
                     <tr className="border-b text-left text-sm text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700">
@@ -58,7 +58,7 @@ export default function SquareCodDatasetTable({
                   </thead>
                 </table>
               </div>
-              <div className="min-h-0 flex-1 overflow-y-auto overflow-x-auto pb-2">
+              <div className="min-h-0 flex-1 overflow-y-auto overflow-x-auto" style={{ paddingBottom: navHeight ? navHeight + 8 : 8 }}>
                 <table className="w-full table-fixed">
                   <tbody>
                     {rows.map((row, index) =>
@@ -78,17 +78,17 @@ export default function SquareCodDatasetTable({
                         <td className="p-3 text-sm text-slate-900 dark:text-slate-50">{row.storeName || 'Unknown'}</td>
                         {showLocationColumn &&
                     <td className="p-3">
-                            <div className="text-xs font-mono truncate max-w-[180px] text-slate-600 dark:text-slate-400">{row.locationId || '—'}</div>
+                            <div className="text-xs font-mono truncate max-w-[180px] text-slate-600 dark:text-slate-400">{row.locationId || '--'}</div>
                           </td>
                     }
                         <td className="p-3">
-                          <div className="text-xs font-mono truncate max-w-[150px] text-slate-600 dark:text-slate-400">{row.catalogId || '—'}</div>
+                          <div className="text-xs font-mono truncate max-w-[150px] text-slate-600 dark:text-slate-400">{row.catalogId || '--'}</div>
                         </td>
                         <td className="p-3 text-xs text-slate-600 dark:text-slate-400">{formatDate(row.collectionDate || row.deliveryDate)}</td>
                         <td className="p-3">
                           <div className="space-y-1">
                             <div className="flex justify-start" onClick={(e) => e.stopPropagation()}>
-                              {row.actions || <span className="text-slate-400">—</span>}
+                              {row.actions || <span className="text-slate-400">â€”</span>}
                             </div>
                             {row.notes &&
                         <div className="text-xs text-slate-500 dark:text-slate-400 whitespace-pre-wrap text-right">
@@ -104,7 +104,7 @@ export default function SquareCodDatasetTable({
               </div>
             </div>
 
-            <div className="md:hidden h-full overflow-y-auto space-y-3">
+            <div className="md:hidden overflow-y-auto flex-1 min-h-0 space-y-3 p-4" style={{ paddingBottom: navHeight ? navHeight + 8 : 8 }}>
               {rows.map((row, index) =>
             <div
               key={row.id || `${row.itemName}-${index}`}
@@ -137,13 +137,13 @@ export default function SquareCodDatasetTable({
                     {showLocationColumn &&
                 <div className="rounded-xl bg-slate-50 dark:bg-slate-900/50 px-3 py-2">
                         <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Square Location ID</div>
-                        <div className="mt-1 text-xs font-mono text-slate-700 dark:text-slate-300 break-all">{row.locationId || '—'}</div>
+                        <div className="mt-1 text-xs font-mono text-slate-700 dark:text-slate-300 break-all">{row.locationId || '--'}</div>
                       </div>
                 }
 
                     <div className="rounded-xl bg-slate-50 dark:bg-slate-900/50 px-3 py-2">
                       <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Catalog ID</div>
-                      <div className="mt-1 text-xs font-mono text-slate-700 dark:text-slate-300 break-all">{row.catalogId || '—'}</div>
+                      <div className="mt-1 text-xs font-mono text-slate-700 dark:text-slate-300 break-all">{row.catalogId || '--'}</div>
                     </div>
 
                     {row.notes &&
@@ -157,7 +157,7 @@ export default function SquareCodDatasetTable({
                 </div>
             )}
             </div>
-          </>
+          </div>
         }
       </CardContent>
     </Card>);
