@@ -1,5 +1,5 @@
 // Redeployed on 2026-04-09
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 const SQUARE_BASE_URL = 'https://connect.squareup.com';
 const SQUARE_VERSION = '2025-01-23';
@@ -1489,7 +1489,7 @@ async function handleSyncSquareCods(base44, payload) {
     const allCatalogIds = Array.from(new Set((allCatalogItems || []).map((item) => item?.id).filter(Boolean)));
     const purgeDeleteResult = allCatalogIds.length ? await deleteCatalogObjects(allCatalogIds, accessToken) : { deleted: [], failed: [] };
 
-    await base44.asServiceRole.entities.SquareCatalogItems.deleteMany({});
+    await paginatedDeleteAll(base44.asServiceRole.entities.SquareCatalogItems);
 
     const existingTransactions = await base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 2000).catch(() => []);
     {
