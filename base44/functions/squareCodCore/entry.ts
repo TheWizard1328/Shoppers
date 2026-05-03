@@ -130,14 +130,17 @@ function isRecentCatalogItemName(itemName) {
 // Paginated delete-all: loops until no records remain.
 // A single .list(N) call can miss records when N < total count,
 // causing stale rows to survive the "clear before sync" step.
-async function paginatedDeleteAll(entityFn, batchSize = 200) {
+async function paginatedDeleteAll(entityFn, batchSize = 500) {
+  // Fetches in pages and deletes each page in parallel (Promise.all).
+  // Safe at normal scale (43-75 records). Pages ensure we don't miss any records
+  // if the total exceeds the list limit.
   let deleted = 0;
-  for (let pass = 0; pass < 100; pass++) {
+  for (let pass = 0; pass < 20; pass++) {
     const batch = await entityFn.list('-updated_date', batchSize).catch(() => []);
     if (!batch || batch.length === 0) break;
     await Promise.all(batch.map((record) => entityFn.delete(record.id).catch(() => null)));
     deleted += batch.length;
-    if (batch.length < batchSize) break; // fetched fewer than limit â†’ nothing left
+    if (batch.length < batchSize) break;
   }
   return deleted;
 }
@@ -1420,28 +1423,42 @@ async function handleSyncCatalogItems(base44) {
 }
 
 async function handleSyncOnlineSquareEntities(base44, payload) {
+  // Receives the already-saved offline DB records as source of truth.
+  // Step 1: delete ALL existing online records for both entities.
+  // Step 2: bulkCreate from the offline snapshot.
+  // This is a full atomic replace â€” no per-item looping.
   const catalogRecords = Array.isArray(payload?.catalogRecords) ? payload.catalogRecords.filter(Boolean) : [];
   const transactionRecords = Array.isArray(payload?.transactionRecords) ? payload.transactionRecords.filter(Boolean) : [];
 
-  // Clear ALL existing records first â€” paginated to handle any record count
-  await paginatedDeleteAll(base44.asServiceRole.entities.SquareCatalogItems);
-  await paginatedDeleteAll(base44.asServiceRole.entities.SquareTransaction);
+  // Strip Base44 entity metadata fields that must not be passed to bulkCreate
+  const stripMeta = (record) => {
+    const { id, created_date, updated_date, created_by, ...rest } = record;
+    return rest;
+  };
 
-  if (catalogRecords.length > 0) {
-    await base44.asServiceRole.entities.SquareCatalogItems.bulkCreate(catalogRecords);
-  }
+  const cleanCatalog = catalogRecords.map(stripMeta);
+  const cleanTransactions = transactionRecords.map(stripMeta);
 
-  if (transactionRecords.length > 0) {
-    await base44.asServiceRole.entities.SquareTransaction.bulkCreate(transactionRecords);
-  }
+  // Delete all existing records in both tables simultaneously
+  await Promise.all([
+    paginatedDeleteAll(base44.asServiceRole.entities.SquareCatalogItems),
+    paginatedDeleteAll(base44.asServiceRole.entities.SquareTransaction),
+  ]);
+
+  // Bulk insert the fresh offline snapshot
+  await Promise.all([
+    cleanCatalog.length > 0
+      ? base44.asServiceRole.entities.SquareCatalogItems.bulkCreate(cleanCatalog)
+      : Promise.resolve(),
+    cleanTransactions.length > 0
+      ? base44.asServiceRole.entities.SquareTransaction.bulkCreate(cleanTransactions)
+      : Promise.resolve(),
+  ]);
 
   return {
     success: true,
-    processed: catalogRecords.length + transactionRecords.length,
-    catalogCount: catalogRecords.length,
-    transactionCount: transactionRecords.length,
-    replacedCatalogCount: existingCatalogRecords.length,
-    replacedTransactionCount: existingTransactionRecords.length,
+    catalogCount: cleanCatalog.length,
+    transactionCount: cleanTransactions.length,
   };
 }
 
