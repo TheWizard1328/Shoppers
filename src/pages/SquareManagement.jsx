@@ -700,8 +700,8 @@ export default function SquareManagement() {
         itemName: patient?.full_name || delivery.delivery_id || delivery.stop_id || 'Unknown Delivery',
         amount: Number(delivery.cod_total_amount_required || 0),
         storeName: store?.name || 'Unknown',
-        locationId: config?.square_location_id || '—',
-        catalogId: linkedCatalog?.catalog_object_id || '—',
+        locationId: config?.square_location_id || 'â€”',
+        catalogId: linkedCatalog?.catalog_object_id || 'â€”',
         deliveryDate: delivery.delivery_date,
         collectionType,
         subtext: delivery.driver_name || null,
@@ -769,8 +769,8 @@ export default function SquareManagement() {
         itemName: transaction.item_name || transaction.square_payment_id || 'Square Transaction',
         amount: Number(transaction.amount || 0),
         storeName: store?.name || config?.name || 'Unknown',
-        locationId: transaction.location_id || '—',
-        catalogId: transaction.square_catalog_object_id || '—',
+        locationId: transaction.location_id || 'â€”',
+        catalogId: transaction.square_catalog_object_id || 'â€”',
         deliveryDate: displayDate,
         collectionDate,
         collectionType,
@@ -803,8 +803,8 @@ export default function SquareManagement() {
         itemName: item.name || item.item_name || 'Catalog Item',
         amount: Number(item.price_dollars || item.amount || 0),
         storeName: store?.name || config?.name || 'Unknown',
-        locationId: item.location_id || '—',
-        catalogId: item.catalog_object_id || item.id || '—',
+        locationId: item.location_id || 'â€”',
+        catalogId: item.catalog_object_id || item.id || 'â€”',
         deliveryDate: item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate,
         subtext: item.description || item.status || null,
         actions:
@@ -907,7 +907,7 @@ export default function SquareManagement() {
   }, [activeView, filteredCatalogRows, filteredDeliveryRows, filteredTransactionRows, reconciliationRows, visibleStoreIds]);
 
   return (
-    <div className="px-4 md:px-6 pt-4 md:pt-6 bg-background text-foreground w-full h-screen overflow-hidden flex flex-col">
+    <div className="px-4 md:px-6 pt-4 md:pt-6 bg-background text-foreground w-full h-full overflow-hidden flex flex-col">
       <div className="flex flex-col gap-4 mb-6 flex-shrink-0">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
