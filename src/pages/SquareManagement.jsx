@@ -210,6 +210,15 @@ export default function SquareManagement() {
     setIsSyncing(true);
     setError(null);
     try {
+      const { offlineDB } = await import('@/components/utils/offlineDatabase');
+      await Promise.all([
+        offlineDB.clearStore(offlineDB.STORES.SQUARE_CATALOG_ITEMS),
+        offlineDB.clearStore(offlineDB.STORES.SQUARE_TRANSACTIONS)
+      ]);
+      setCatalogItems([]);
+      setSoldCatalogItems([]);
+      setAllTransactions([]);
+
       const codResponse = await base44.functions.invoke('squareCodCore', {
         action: 'getCodData',
         forceDeliveryRefresh: true,
@@ -222,7 +231,6 @@ export default function SquareManagement() {
         transactionRecords: codData.transactionRecords || [],
       });
 
-      const { offlineDB } = await import('@/components/utils/offlineDatabase');
       if (Array.isArray(codData.deliveries)) {
         await offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, codData.deliveries);
       }
