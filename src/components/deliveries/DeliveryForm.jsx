@@ -1041,7 +1041,7 @@ export default function DeliveryForm({
         : 0;
       const trackingNumber = trackingNumberBase === 0 ? '00' : String(trackingNumberBase);
 
-      await createDeliveryLocal({
+      const createdPickup = await createDeliveryLocal({
         ...pickupToCreate,
         patient_id: null,
         status: 'en_route',
@@ -1052,8 +1052,22 @@ export default function DeliveryForm({
         time_window_end: pickupTimes?.delivery_time_end || pickupToCreate.time_window_end || ''
       });
 
+      const routeDriverId = createdPickup?.driver_id || formData.driver_id;
+      const routeDeliveryDate = createdPickup?.delivery_date || formData.delivery_date;
+      if (routeDriverId && routeDeliveryDate) {
+        await base44.functions.invoke('optimizeRemainingStops', {
+          driverId: routeDriverId,
+          deliveryDate: routeDeliveryDate
+        }).catch(() => null);
+        await base44.functions.invoke('purgeAndRegeneratePolylines', {
+          driverId: routeDriverId,
+          deliveryDate: routeDeliveryDate
+        }).catch(() => null);
+      }
+
       setHasChanges(false);
       setError(null);
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryId: createdPickup?.id, deliveryDate: routeDeliveryDate, driverId: routeDriverId, triggeredBy: 'pickupAddWithOptimization' } }));
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
       closeDeliveryFormAfterSave({ handleClearForm, onCancel });
       return;
