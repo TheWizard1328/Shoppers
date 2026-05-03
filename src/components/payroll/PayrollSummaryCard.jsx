@@ -1431,11 +1431,11 @@ export default function PayrollSummaryCard({
                               <td className="text-right pr-0.5">$</td>
                               <td className="text-right font-semibold" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdTaxAmount ?? 0).toFixed(2)}</td>
                             </tr>
-                            <tr style={{ color: 'var(--text-slate-600)' }}>
+                            <tr style={{ color: '#ef4444' }}>
                               <td className="text-right pr-0.5">-$</td>
                               <td className="text-right font-semibold" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount ?? 0).toFixed(2)}</td>
                             </tr>
-                            <tr style={{ color: 'var(--text-slate-600)' }}>
+                            <tr style={{ color: '#16a34a' }}>
                               <td className="text-right pr-0.5">+$</td>
                               <td className="text-right font-semibold" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdBonusAmount ?? 0).toFixed(2)}</td>
                             </tr>
