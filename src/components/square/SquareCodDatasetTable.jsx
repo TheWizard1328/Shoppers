@@ -29,7 +29,7 @@ export default function SquareCodDatasetTable({
       <CardHeader className="sticky top-0 z-10 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
         <CardTitle className="text-base md:text-lg text-slate-900 dark:text-slate-50">{title}</CardTitle>
       </CardHeader>
-      <CardContent className="flex-1 min-h-0 overflow-visible md:overflow-y-auto" style={{ paddingBottom: navHeight ? navHeight + 8 : undefined }}>
+      <CardContent className="flex-1 min-h-0 overflow-hidden" style={{ paddingBottom: navHeight ? navHeight + 8 : undefined }}>
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin w-8 h-8 border-4 rounded-full" style={{ borderColor: 'var(--border-emerald-500)', borderTopColor: 'transparent' }} />
@@ -42,63 +42,69 @@ export default function SquareCodDatasetTable({
           </div>
         ) : (
           <>
-            <div className="hidden md:block overflow-x-auto pb-2">
-              <table className="w-full">
-                <thead className="sticky top-0 z-10 bg-white dark:bg-slate-900">
-                  <tr className="border-b text-left text-sm text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700">
-                    <th className="p-3">Item Name</th>
-                    <th className="p-3">Amount</th>
-                    <th className="p-3">Store</th>
-                    {showLocationColumn && <th className="p-3">Square Location ID</th>}
-                    <th className="p-3">Catalog ID</th>
-                    <th className="p-3">Collection Date</th>
-                    <th className="p-3">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row, index) => (
-                    <tr
-                      key={row.id || `${row.itemName}-${index}`}
-                      onClick={onRowClick ? () => onRowClick(row) : undefined}
-                      className="transition-colors border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                    >
-                      <td className="p-3">
-                        <div className="font-medium text-sm text-slate-900 dark:text-slate-50">{row.itemName || 'N/A'}</div>
-                        {row.subtext && <div className="text-xs mt-1 text-slate-600 dark:text-slate-400">{row.subtext}</div>}
-                      </td>
-                      <td className="p-3">
-                        <div className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{formatAmount(row.amount)}</div>
-                        {row.collectionType && <div className="inline-flex mt-1 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-medium text-slate-700 dark:text-slate-300">{row.collectionType}</div>}
-                      </td>
-                      <td className="p-3 text-sm text-slate-900 dark:text-slate-50">{row.storeName || 'Unknown'}</td>
-                      {showLocationColumn && (
-                        <td className="p-3">
-                          <div className="text-xs font-mono truncate max-w-[180px] text-slate-600 dark:text-slate-400">{row.locationId || '—'}</div>
-                        </td>
-                      )}
-                      <td className="p-3">
-                        <div className="text-xs font-mono truncate max-w-[150px] text-slate-600 dark:text-slate-400">{row.catalogId || '—'}</div>
-                      </td>
-                      <td className="p-3 text-xs text-slate-600 dark:text-slate-400">{formatDate(row.collectionDate || row.deliveryDate)}</td>
-                      <td className="p-3">
-                        <div className="space-y-1">
-                          <div className="flex justify-start" onClick={(e) => e.stopPropagation()}>
-                            {row.actions || <span className="text-slate-400">—</span>}
-                          </div>
-                          {row.notes && (
-                            <div className="text-xs text-slate-500 dark:text-slate-400 whitespace-pre-wrap text-right">
-                              {row.notes}
-                            </div>
-                          )}
-                        </div>
-                      </td>
+            <div className="hidden md:flex h-full min-h-0 flex-col">
+              <div className="overflow-x-auto">
+                <table className="w-full table-fixed">
+                  <thead className="bg-white dark:bg-slate-900">
+                    <tr className="border-b text-left text-sm text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700">
+                      <th className="p-3">Item Name</th>
+                      <th className="p-3">Amount</th>
+                      <th className="p-3">Store</th>
+                      {showLocationColumn && <th className="p-3">Square Location ID</th>}
+                      <th className="p-3">Catalog ID</th>
+                      <th className="p-3">Collection Date</th>
+                      <th className="p-3">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                </table>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto overflow-x-auto pb-2">
+                <table className="w-full table-fixed">
+                  <tbody>
+                    {rows.map((row, index) => (
+                      <tr
+                        key={row.id || `${row.itemName}-${index}`}
+                        onClick={onRowClick ? () => onRowClick(row) : undefined}
+                        className="transition-colors border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                      >
+                        <td className="p-3">
+                          <div className="font-medium text-sm text-slate-900 dark:text-slate-50">{row.itemName || 'N/A'}</div>
+                          {row.subtext && <div className="text-xs mt-1 text-slate-600 dark:text-slate-400">{row.subtext}</div>}
+                        </td>
+                        <td className="p-3">
+                          <div className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{formatAmount(row.amount)}</div>
+                          {row.collectionType && <div className="inline-flex mt-1 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-medium text-slate-700 dark:text-slate-300">{row.collectionType}</div>}
+                        </td>
+                        <td className="p-3 text-sm text-slate-900 dark:text-slate-50">{row.storeName || 'Unknown'}</td>
+                        {showLocationColumn && (
+                          <td className="p-3">
+                            <div className="text-xs font-mono truncate max-w-[180px] text-slate-600 dark:text-slate-400">{row.locationId || '—'}</div>
+                          </td>
+                        )}
+                        <td className="p-3">
+                          <div className="text-xs font-mono truncate max-w-[150px] text-slate-600 dark:text-slate-400">{row.catalogId || '—'}</div>
+                        </td>
+                        <td className="p-3 text-xs text-slate-600 dark:text-slate-400">{formatDate(row.collectionDate || row.deliveryDate)}</td>
+                        <td className="p-3">
+                          <div className="space-y-1">
+                            <div className="flex justify-start" onClick={(e) => e.stopPropagation()}>
+                              {row.actions || <span className="text-slate-400">—</span>}
+                            </div>
+                            {row.notes && (
+                              <div className="text-xs text-slate-500 dark:text-slate-400 whitespace-pre-wrap text-right">
+                                {row.notes}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
-            <div className="md:hidden space-y-3">
+            <div className="md:hidden h-full overflow-y-auto space-y-3">
               {rows.map((row, index) => (
                 <div
                   key={row.id || `${row.itemName}-${index}`}
