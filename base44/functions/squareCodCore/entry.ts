@@ -1101,9 +1101,22 @@ async function handleGetCodData(base44, payload = {}) {
     return acc;
   }, []);
 
+  const strippedDeliveries = safeDeliveries.map((delivery) => ({
+    id: delivery?.id,
+    delivery_id: delivery?.delivery_id,
+    delivery_date: delivery?.delivery_date,
+    status: delivery?.status,
+    cod_total_amount_required: delivery?.cod_total_amount_required,
+    cod_payments: delivery?.cod_payments,
+    store_id: delivery?.store_id,
+    patient_id: delivery?.patient_id,
+    driver_id: delivery?.driver_id,
+    driver_name: delivery?.driver_name,
+  }));
+
   return {
     success: true,
-    deliveries: safeDeliveries,
+    deliveries: strippedDeliveries,
     shouldRefreshDeliveries: refreshDeliveries,
     deliverySyncWindow: {
       startDate: startDateStr,
