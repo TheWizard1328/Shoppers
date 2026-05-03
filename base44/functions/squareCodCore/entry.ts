@@ -1427,7 +1427,7 @@ async function handleSyncOnlineSquareEntities(base44, payload) {
   // Receives the already-saved offline DB records as source of truth.
   // Step 1: delete ALL existing online records for both entities.
   // Step 2: bulkCreate from the offline snapshot.
-  // This is a full atomic replace Ã¢â‚¬â€ no per-item looping.
+  // This is a full atomic replace - no per-item looping.
   const catalogRecords = Array.isArray(payload?.catalogRecords) ? payload.catalogRecords.filter(Boolean) : [];
   const transactionRecords = Array.isArray(payload?.transactionRecords) ? payload.transactionRecords.filter(Boolean) : [];
 

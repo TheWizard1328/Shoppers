@@ -103,15 +103,12 @@ export const requestThrottler = {
         // Small delay between requests in same priority
         await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
       } catch (error) {
-        // Check if rate limited
         if (error.response?.status === 429 || error.message?.includes('Rate limit')) {
           isRateLimited = true;
           rateLimitUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
           console.warn(`⚠️ [RequestThrottler] Rate limit detected - backing off for ${Math.round(RATE_LIMIT_BACKOFF_MS / 1000)}s`);
           RATE_LIMIT_BACKOFF_MS = RATE_LIMIT_BACKOFF_MS === 15000 ? 30000 : 60000;
-          
-          // Re-queue the request
-          requestQueue.unshift(request);
+          request.reject(error);
         } else {
           request.reject(error);
         }

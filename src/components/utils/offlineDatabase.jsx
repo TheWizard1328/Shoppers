@@ -89,13 +89,13 @@ const openDatabase = async () => {
       
       // CRITICAL: Handle unexpected close events
       dbInstance.onclose = () => {
-        console.warn(`âš ï¸ [OfflineDB] Database connection closed unexpectedly: ${DB_NAME}`);
+        console.warn(`[OfflineDB] Database connection closed unexpectedly: ${DB_NAME}`);
         dbInstance = null;
         dbOpenPromise = null;
       };
       
       dbInstance.onversionchange = () => {
-        console.warn('âš ï¸ [OfflineDB] Database version change detected - closing gracefully');
+        console.warn('[OfflineDB] Database version change detected - closing gracefully');
         dbInstance.close();
         dbInstance = null;
         dbOpenPromise = null;
@@ -279,7 +279,7 @@ const bulkSave = async (storeName, records) => {
   const duplicatesRemoved = records.length - deduplicatedRecords.length;
   
   if (duplicatesRemoved > 0) {
-    console.warn(`âš ï¸ [OfflineDB] bulkSave removed ${duplicatesRemoved} duplicate IDs before saving to ${storeName}`);
+    console.warn(`[OfflineDB] bulkSave removed ${duplicatesRemoved} duplicate IDs before saving to ${storeName}`);
   }
 
   try {
@@ -536,7 +536,7 @@ const updateSyncStatus = async (entityName, status) => {
       request.onerror = () => reject(request.error);
     });
   } catch (error) {
-    console.error('âŒ [OfflineDB] updateSyncStatus error:', error);
+    console.error('[OfflineDB] updateSyncStatus error:', error);
   }
 };
 
@@ -610,7 +610,7 @@ const getStats = async () => {
       }
     };
   } catch (error) {
-    console.error('âŒ [getStats] Error retrieving stats:', error);
+    console.error('[OfflineDB] Error retrieving stats:', error);
     // CRITICAL: Return default stats structure instead of null
     return {
       patients: { count: 0, lastSync: 'Never' },
@@ -808,7 +808,7 @@ const updateSyncMetadata = async (entityName, latestServerTimestamp, lastSyncTim
       request.onerror = () => reject(request.error);
     });
   } catch (error) {
-    console.error('âŒ [OfflineDB] updateSyncMetadata error:', error);
+    console.error('[OfflineDB] updateSyncMetadata error:', error);
   }
 };
 
@@ -902,7 +902,7 @@ const deduplicateAppUsers = async () => {
     const allAppUsers = await getAll(STORES.APP_USERS);
     
     if (!allAppUsers || allAppUsers.length === 0) {
-      console.log('âœ… [OfflineDB] No AppUsers to deduplicate');
+      console.log('[OfflineDB] No AppUsers to deduplicate');
       return { success: true, removed: 0 };
     }
 
@@ -945,9 +945,9 @@ const deduplicateAppUsers = async () => {
  * Deduplicate Delivery records - keeps most recent based on status priority
  * CRITICAL: Groups by delivery_date, driver_id, and stop_id
  * Rules:
- * - If all have same status â†’ keep most recent
- * - If mixed statuses â†’ keep the completed one (prioritized)
- * - If no completed but mixed in_transit/en_route â†’ keep most recent
+ * - If all have same status -> keep most recent
+ * - If mixed statuses -> keep the completed one (prioritized)
+ * - If no completed but mixed in_transit/en_route -> keep most recent
  */
 /**
  * Delete all deliveries for a specific date using the delivery_date index
@@ -1123,7 +1123,7 @@ const pruneDeliveriesOlderThan60Days = async () => {
     if (removedCount > 0) {
       await clearStore(STORES.DELIVERIES);
       await bulkSave(STORES.DELIVERIES, deliveriesToKeep);
-      console.log(`âœ… [OfflineDB] Pruned ${removedCount} deliveries older than 60 days`);
+      console.log(`[OfflineDB] Pruned ${removedCount} deliveries older than 60 days`);
       return { success: true, removed: removedCount };
     }
 

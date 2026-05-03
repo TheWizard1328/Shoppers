@@ -106,8 +106,6 @@ class BackgroundSyncManager {
     if (this.isRunning && !this.currentSyncInterval) {
       this.scheduleNextSync();
     }
-
-    this.forceSyncNow().catch(() => {});
   }
 
   /**
