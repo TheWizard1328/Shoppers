@@ -9,6 +9,8 @@ const MATCH_DATE_OFFSET_DAYS = 2;
 const SQUARE_API_MAX_RETRIES = 3;
 const SQUARE_RETRY_BASE_DELAY_MS = 400;
 const DELIVERY_BULK_REFRESH_INTERVAL_MS = 60 * 60 * 1000;
+const MAX_TRANSACTION_ORDERS = 1000;
+const MAX_PROCESSED_TRANSACTIONS = 1000;
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -147,6 +149,15 @@ function formatLocalDate(date) {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+function isOnOrAfterDate(leftValue, rightValue) {
+  const left = parseDateValue(leftValue);
+  const right = parseDateValue(rightValue);
+  if (!left || !right || Number.isNaN(left.getTime()) || Number.isNaN(right.getTime())) return false;
+  left.setHours(0, 0, 0, 0);
+  right.setHours(0, 0, 0, 0);
+  return left.getTime() >= right.getTime();
 }
 
 function shouldRefreshDeliveries(lastRefreshedAt, forceRefresh = false) {
@@ -447,7 +458,7 @@ async function listActiveCatalogItems(accessToken) {
   return objects;
 }
 
-async function listCompletedOrders(locationIds, startAt, accessToken) {
+async function listCompletedOrders(locationIds, startAt, accessToken, maxOrders = 1000) {
   if (!locationIds.length) return [];
 
   const orders = [];
@@ -461,10 +472,10 @@ async function listCompletedOrders(locationIds, startAt, accessToken) {
       query: {
         filter: {
           state_filter: { states: ['COMPLETED'] },
-          date_time_filter: { closed_at: { start_at: startAt } },
+          date_time_filter: { created_at: { start_at: startAt } },
         },
         sort: {
-          sort_field: 'CLOSED_AT',
+          sort_field: 'CREATED_AT',
           sort_order: 'DESC',
         },
       },
@@ -472,9 +483,9 @@ async function listCompletedOrders(locationIds, startAt, accessToken) {
 
     orders.push(...(json.orders || []));
     cursor = json.cursor;
-  } while (cursor);
+  } while (cursor && orders.length < maxOrders);
 
-  return orders;
+  return orders.slice(0, maxOrders);
 }
 
 function flattenPaidOrderItems(orders) {
@@ -498,7 +509,8 @@ function flattenPaidOrderItems(orders) {
           item_name: itemName,
           amount_cents: amountCents,
           catalog_object_id: lineItem?.catalog_object_id || null,
-          payment_date: order?.closed_at || order?.updated_at || order?.created_at || null,
+          payment_date: order?.created_at || null,
+          order_created_at: order?.created_at || null,
         });
       }
     }
@@ -822,8 +834,8 @@ async function handleFetchPayments(base44, payload) {
   const allPayments = [];
   const soldCatalogItems = [];
   const soldCatalogItemKeys = new Set();
-  const completedOrders = await listCompletedOrders(locationIds, startDate.toISOString(), accessToken).catch(() => []);
-  const paidOrderItems = flattenPaidOrderItems(completedOrders || []);
+  const completedOrders = await listCompletedOrders(locationIds, startDate.toISOString(), accessToken, MAX_TRANSACTION_ORDERS).catch(() => []);
+  const paidOrderItems = flattenPaidOrderItems(completedOrders || []).slice(0, MAX_PROCESSED_TRANSACTIONS);
 
   for (const item of paidOrderItems) {
     const amountCents = toAmountCents(item?.amount_cents);
@@ -972,9 +984,37 @@ async function handleGetCodData(base44, payload = {}) {
     safeDeliveries = (Array.isArray(deliveriesResult) ? deliveriesResult : []).map(unwrapEntityRecord).filter(Boolean);
   }
 
+  const deliveryMatchSignatures = new Set(
+    safeDeliveries
+      .filter((delivery) => Number(delivery?.cod_total_amount_required || 0) > 0)
+      .flatMap((delivery) => {
+        const amountCents = Math.round(Number(delivery?.cod_total_amount_required || 0) * 100);
+        const store = safeStores.find((entry) => entry?.id === delivery?.store_id);
+        const config = activeConfigById.get(store?.square_location_config_id);
+        const locationId = config?.square_location_id;
+        if (!locationId) return [];
+        return buildLocationDateAmountSignatureCandidates(locationId, delivery?.delivery_date, amountCents, 0);
+      })
+  );
+
   const liveCatalogItems = await listActiveCatalogItems(accessToken).catch(() => []);
-  const completedOrders = await listCompletedOrders(locationIds, new Date(transactionRetentionStartMs).toISOString(), accessToken).catch(() => []);
-  const paidOrderItems = flattenPaidOrderItems(completedOrders || []);
+  const completedOrders = await listCompletedOrders(locationIds, new Date(transactionRetentionStartMs).toISOString(), accessToken, MAX_TRANSACTION_ORDERS).catch(() => []);
+  const paidOrderItems = flattenPaidOrderItems(completedOrders || [])
+    .filter((item) => {
+      if (!item?.location_id) return false;
+      const signature = buildLocationDateAmountSignature(item.location_id, item.order_created_at || item.payment_date || item.item_name, item.amount_cents);
+      if (!deliveryMatchSignatures.has(signature)) return false;
+      const matchingDelivery = safeDeliveries.find((delivery) => {
+        if (Number(delivery?.cod_total_amount_required || 0) <= 0) return false;
+        const store = safeStores.find((entry) => entry?.id === delivery?.store_id);
+        const config = activeConfigById.get(store?.square_location_config_id);
+        if (config?.square_location_id !== item.location_id) return false;
+        if (Math.round(Number(delivery?.cod_total_amount_required || 0) * 100) !== toAmountCents(item.amount_cents)) return false;
+        return isOnOrAfterDate(item.order_created_at || item.payment_date, delivery?.delivery_date);
+      });
+      return !!matchingDelivery;
+    })
+    .slice(0, MAX_PROCESSED_TRANSACTIONS);
 
   const catalogRecords = (liveCatalogItems || []).reduce((acc, item) => {
     const amountCents = getCatalogItemAmountCents(item);
