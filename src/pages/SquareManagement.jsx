@@ -1033,7 +1033,7 @@ export default function SquareManagement() {
             </Select>
 
             {currentUser && isAppOwner(currentUser) &&
-            <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="w-full gap-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 md:w-[130px] shrink-0 justify-between md:justify-between self-start">
+            <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="w-full gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 md:w-[130px] shrink-0 justify-center self-start">
                 <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
                 <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : 'Sync'}</span>
                 <span className="sm:hidden">{isSyncing ? 'Syncing' : 'Sync'}</span>
