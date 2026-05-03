@@ -127,6 +127,20 @@ function isRecentCatalogItemName(itemName) {
   const cutoff = Date.now() - CATALOG_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
   return Number.isFinite(itemTime) && itemTime >= cutoff;
 }
+// Paginated delete-all: loops until no records remain.
+// A single .list(N) call can miss records when N < total count,
+// causing stale rows to survive the "clear before sync" step.
+async function paginatedDeleteAll(entityFn, batchSize = 200) {
+  let deleted = 0;
+  for (let pass = 0; pass < 100; pass++) {
+    const batch = await entityFn.list('-updated_date', batchSize).catch(() => []);
+    if (!batch || batch.length === 0) break;
+    await Promise.all(batch.map((record) => entityFn.delete(record.id).catch(() => null)));
+    deleted += batch.length;
+    if (batch.length < batchSize) break; // fetched fewer than limit â†’ nothing left
+  }
+  return deleted;
+}
 
 function getLookbackStartAt() {
   return new Date(Date.now() - CATALOG_LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString();
@@ -1367,10 +1381,8 @@ async function handleSyncCatalogItems(base44) {
       const delivery = deliveryById.get(transaction.delivery_id);
       return isRecentDelivery(delivery?.delivery_date || transaction?.item_name);
     });
-  const existingSquareCatalogItems = await base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 2000).catch(() => []);
-  for (const record of existingSquareCatalogItems || []) {
-    await base44.asServiceRole.entities.SquareCatalogItems.delete(record.id);
-  }
+  // Use paginated delete to guarantee ALL records are removed regardless of total count
+  await paginatedDeleteAll(base44.asServiceRole.entities.SquareCatalogItems);
 
   if (syncedCatalogTransactions.length > 0) {
     await base44.asServiceRole.entities.SquareCatalogItems.bulkCreate(syncedCatalogTransactions.map((transaction) => {
@@ -1411,11 +1423,9 @@ async function handleSyncOnlineSquareEntities(base44, payload) {
   const catalogRecords = Array.isArray(payload?.catalogRecords) ? payload.catalogRecords.filter(Boolean) : [];
   const transactionRecords = Array.isArray(payload?.transactionRecords) ? payload.transactionRecords.filter(Boolean) : [];
 
-  const existingCatalogRecords = await base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 5000).catch(() => []);
-  const existingTransactionRecords = await base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 5000).catch(() => []);
-
-  await Promise.all((existingCatalogRecords || []).map((record) => base44.asServiceRole.entities.SquareCatalogItems.delete(record.id).catch(() => null)));
-  await Promise.all((existingTransactionRecords || []).map((record) => base44.asServiceRole.entities.SquareTransaction.delete(record.id).catch(() => null)));
+  // Clear ALL existing records first â€” paginated to handle any record count
+  await paginatedDeleteAll(base44.asServiceRole.entities.SquareCatalogItems);
+  await paginatedDeleteAll(base44.asServiceRole.entities.SquareTransaction);
 
   if (catalogRecords.length > 0) {
     await base44.asServiceRole.entities.SquareCatalogItems.bulkCreate(catalogRecords);
@@ -1490,8 +1500,7 @@ async function handleSyncSquareCods(base44, payload) {
     const allCatalogIds = Array.from(new Set((allCatalogItems || []).map((item) => item?.id).filter(Boolean)));
     const purgeDeleteResult = allCatalogIds.length ? await deleteCatalogObjects(allCatalogIds, accessToken) : { deleted: [], failed: [] };
 
-    const existingCatalogRecords = await base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 2000).catch(() => []);
-    await Promise.all((existingCatalogRecords || []).map((record) => base44.asServiceRole.entities.SquareCatalogItems.delete(record.id).catch(() => null)));
+    await paginatedDeleteAll(base44.asServiceRole.entities.SquareCatalogItems);
 
     const existingTransactions = await base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 2000).catch(() => []);
     await Promise.all(
