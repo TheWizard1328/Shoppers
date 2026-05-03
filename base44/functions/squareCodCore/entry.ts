@@ -505,12 +505,14 @@ function flattenPaidOrderItems(orders) {
       for (let index = 0; index < quantity; index += 1) {
         items.push({
           order_id: order?.id,
+          line_item_uid: lineItem?.uid || `${order?.id || 'order'}-${lineItem?.catalog_object_id || itemName}-${index}`,
           location_id: order?.location_id || null,
           item_name: itemName,
           amount_cents: amountCents,
           catalog_object_id: lineItem?.catalog_object_id || null,
           payment_date: order?.created_at || null,
           order_created_at: order?.created_at || null,
+          note: order?.note || '',
         });
       }
     }
@@ -821,16 +823,154 @@ async function handleMarkCollectedDebit(base44, payload) {
 
 async function handleFetchPayments(base44, payload) {
   await requireUser(base44);
+  const accessToken = ensureSquareToken();
+  const requestedDaysBack = Number(payload?.daysBack || TRANSACTION_RETENTION_DAYS);
+  const daysBack = Number.isFinite(requestedDaysBack) && requestedDaysBack > 0 ? requestedDaysBack : TRANSACTION_RETENTION_DAYS;
+  const lookbackStartAt = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000).toISOString();
+
+  const [stores, locationConfigs, deliveries, appUsers, patients, existingTransactions] = await Promise.all([
+    base44.asServiceRole.entities.Store.list('-updated_date', 500).catch(() => []),
+    base44.asServiceRole.entities.SquareLocationConfig.filter({ status: 'active' }).catch(() => []),
+    base44.asServiceRole.entities.Delivery.filter({ delivery_date: { $gte: formatLocalDate(new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000)), $lte: formatLocalDate(new Date()) } }, '-updated_date', 5000).catch(() => []),
+    base44.asServiceRole.entities.AppUser.list('-updated_date', 2000).catch(() => []),
+    base44.asServiceRole.entities.Patient.list('-updated_date', 5000).catch(() => []),
+    base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 5000).catch(() => []),
+  ]);
+
+  const activeConfigById = new Map((locationConfigs || []).map((config) => [config.id, config]));
+  const storeByLocationId = new Map(
+    (stores || []).map((store) => {
+      const config = activeConfigById.get(store?.square_location_config_id);
+      return config?.square_location_id ? [config.square_location_id, store] : null;
+    }).filter(Boolean)
+  );
+  const drivers = (appUsers || []).filter((user) => Array.isArray(user?.app_roles) && user.app_roles.includes('driver'));
+  const patientsById = new Map((patients || []).map((patient) => [patient.id, patient]));
+  const deliveriesWithAmounts = (deliveries || []).filter((delivery) => Number(delivery?.cod_total_amount_required || 0) > 0);
+  const locationIds = Array.from(new Set(Array.from(storeByLocationId.keys())));
+
+  const completedOrders = await listCompletedOrders(locationIds, lookbackStartAt, accessToken, MAX_TRANSACTION_ORDERS);
+  const paidOrderItems = flattenPaidOrderItems(completedOrders).filter((item) => {
+    const paymentTime = new Date(item?.payment_date || item?.order_created_at || 0).getTime();
+    return Number.isFinite(paymentTime) && paymentTime >= getTransactionRetentionStartMs();
+  });
+
+  const getDriverFromDelivery = (delivery) => {
+    if (!delivery?.driver_id) return null;
+    return drivers.find((driver) => driver?.user_id === delivery.driver_id || driver?.id === delivery.driver_id) || null;
+  };
+
+  const getDeliveryCandidatesForItem = (item, store) => {
+    const noteText = normalizeText(item?.note || '');
+    const paymentDateIso = (item?.payment_date || item?.order_created_at || '').slice(0, 10);
+    return deliveriesWithAmounts.filter((delivery) => {
+      if (store?.id && delivery?.store_id !== store.id) return false;
+      const deliveryAmount = Math.round(Number(delivery?.cod_total_amount_required || 0) * 100);
+      if (deliveryAmount !== toAmountCents(item?.amount_cents)) return false;
+      const candidateSignatures = buildLocationDateAmountSignatureCandidates(item?.location_id, delivery?.delivery_date, deliveryAmount);
+      const itemSignature = buildLocationDateAmountSignature(item?.location_id, paymentDateIso || item?.item_name, item?.amount_cents);
+      return candidateSignatures.includes(itemSignature);
+    });
+  };
+
+  const matchDeliveryForItem = (item, store) => {
+    const noteText = normalizeText(item?.note || '');
+    const candidates = getDeliveryCandidatesForItem(item, store);
+    if (!candidates.length) return null;
+
+    const deliveryIdMatch = noteText.match(/delivery\s*(id|#)?\s*[:=-]?\s*([a-f0-9]{24})/i);
+    if (deliveryIdMatch) {
+      const matchedById = candidates.find((delivery) => delivery?.id === deliveryIdMatch[2]);
+      if (matchedById) return matchedById;
+    }
+
+    const stopIdMatch = noteText.match(/\b(?:sid|stop\s*id)\s*[:=-]?\s*([a-z0-9-]+)/i);
+    if (stopIdMatch) {
+      const matchedByStopId = candidates.find((delivery) => normalizeText(delivery?.stop_id).toLowerCase() === normalizeText(stopIdMatch[1]).toLowerCase());
+      if (matchedByStopId) return matchedByStopId;
+    }
+
+    const patientNoteMatch = candidates.find((delivery) => {
+      const patient = patientsById.get(delivery?.patient_id);
+      return patient && notesContainPatientName(noteText, patient?.full_name);
+    });
+    if (patientNoteMatch) return patientNoteMatch;
+
+    const itemNameMatch = candidates.find((delivery) => {
+      const patient = patientsById.get(delivery?.patient_id);
+      return patient && notesContainPatientName(item?.item_name, patient?.full_name);
+    });
+    if (itemNameMatch) return itemNameMatch;
+
+    return candidates[0];
+  };
+
+  const transactionRecords = [];
+  const seenKeys = new Set();
+
+  for (const item of paidOrderItems) {
+    const store = storeByLocationId.get(item?.location_id) || null;
+    const matchedDelivery = matchDeliveryForItem(item, store);
+    const matchedPatient = matchedDelivery ? patientsById.get(matchedDelivery?.patient_id) : null;
+    const matchedDriver = matchedDelivery ? getDriverFromDelivery(matchedDelivery) : null;
+    const uniqueKey = `${item?.order_id}::${item?.line_item_uid}`;
+    if (seenKeys.has(uniqueKey)) continue;
+    seenKeys.add(uniqueKey);
+
+    const existing = (existingTransactions || []).find((transaction) =>
+      normalizeText(transaction?.square_transaction_id) === normalizeText(item?.order_id) &&
+      normalizeText(transaction?.raw_square_data?.line_item_uid) === normalizeText(item?.line_item_uid)
+    );
+
+    const payloadRecord = {
+      square_transaction_id: item?.order_id || null,
+      square_payment_id: `${item?.order_id || 'order'}:${item?.line_item_uid || 'line'}`,
+      square_catalog_object_id: item?.catalog_object_id || null,
+      item_name: item?.item_name || '',
+      amount: toAmountCents(item?.amount_cents) / 100,
+      amount_cents: toAmountCents(item?.amount_cents),
+      type: 'collection',
+      status: 'completed',
+      delivery_id: matchedDelivery?.id || null,
+      patient_id: matchedPatient?.id || matchedDelivery?.patient_id || null,
+      store_id: matchedDelivery?.store_id || store?.id || null,
+      location_id: item?.location_id || null,
+      driver_id: matchedDelivery?.driver_id || matchedDriver?.id || matchedDriver?.user_id || null,
+      dispatcher_id: matchedDelivery?.created_by_app_user_id || null,
+      payment_method: 'card',
+      raw_square_data: {
+        ...(existing?.raw_square_data || {}),
+        line_item_uid: item?.line_item_uid || null,
+        payment_date: item?.payment_date || null,
+        order_created_at: item?.order_created_at || null,
+        notes: item?.note || '',
+        matched_by: matchedDelivery ? 'delivery_match' : 'unmatched',
+      },
+    };
+
+    if (existing) {
+      await base44.asServiceRole.entities.SquareTransaction.update(existing.id, payloadRecord);
+      transactionRecords.push({ id: existing.id, ...payloadRecord });
+    } else {
+      const created = await base44.asServiceRole.entities.SquareTransaction.create(payloadRecord);
+      transactionRecords.push(created);
+    }
+  }
+
   return {
     success: true,
-    paused: true,
-    paymentsCount: 0,
-    transactions: [],
-    soldItems: [],
-    soldCatalogItems: [],
+    paused: false,
+    paymentsCount: transactionRecords.length,
+    transactions: transactionRecords,
+    soldItems: transactionRecords,
+    soldCatalogItems: transactionRecords.filter((transaction) => transaction?.square_catalog_object_id),
     catalogItems: [],
     catalogItemCount: 0,
-    dateRange: null,
+    dateRange: {
+      start_at: lookbackStartAt,
+      end_at: new Date().toISOString(),
+      days_back: daysBack,
+    },
   };
 }
 
