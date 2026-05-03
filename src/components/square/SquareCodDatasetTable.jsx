@@ -25,11 +25,11 @@ export default function SquareCodDatasetTable({
   onRowClick
 }) {
   return (
-    <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 flex flex-col min-h-0 md:flex-1">
+    <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 flex flex-col">
       <CardHeader className="sticky top-0 z-10 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
         <CardTitle className="text-base md:text-lg text-slate-900 dark:text-slate-50">{title}</CardTitle>
       </CardHeader>
-      <CardContent className="flex-1 min-h-0 overflow-hidden" style={{ paddingBottom: navHeight ? navHeight + 8 : undefined }}>
+      <CardContent className="overflow-visible" style={{ paddingBottom: navHeight ? navHeight + 8 : undefined }}>
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin w-8 h-8 border-4 rounded-full" style={{ borderColor: 'var(--border-emerald-500)', borderTopColor: 'transparent' }} />
@@ -42,25 +42,20 @@ export default function SquareCodDatasetTable({
           </div>
         ) : (
           <>
-            <div className="hidden md:flex h-full min-h-0 flex-col">
-              <div className="overflow-x-auto">
-                <table className="w-full table-fixed">
-                  <thead className="bg-white dark:bg-slate-900">
-                    <tr className="border-b text-left text-sm text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700">
-                      <th className="p-3">Item Name</th>
-                      <th className="p-3">Amount</th>
-                      <th className="p-3">Store</th>
-                      {showLocationColumn && <th className="p-3">Square Location ID</th>}
-                      <th className="p-3">Catalog ID</th>
-                      <th className="p-3">Collection Date</th>
-                      <th className="p-3">Actions</th>
-                    </tr>
-                  </thead>
-                </table>
-              </div>
-              <div className="min-h-0 flex-1 overflow-y-auto overflow-x-auto pb-2">
-                <table className="w-full table-fixed">
-                  <tbody>
+            <div className="hidden md:block overflow-x-auto pb-2">
+              <table className="w-full">
+                <thead className="sticky top-0 z-10 bg-white dark:bg-slate-900">
+                  <tr className="border-b text-left text-sm text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700">
+                    <th className="p-3">Item Name</th>
+                    <th className="p-3">Amount</th>
+                    <th className="p-3">Store</th>
+                    {showLocationColumn && <th className="p-3">Square Location ID</th>}
+                    <th className="p-3">Catalog ID</th>
+                    <th className="p-3">Collection Date</th>
+                    <th className="p-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
                     {rows.map((row, index) => (
                       <tr
                         key={row.id || `${row.itemName}-${index}`}
@@ -99,12 +94,11 @@ export default function SquareCodDatasetTable({
                         </td>
                       </tr>
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                </tbody>
+              </table>
             </div>
 
-            <div className="md:hidden h-full overflow-y-auto space-y-3">
+            <div className="md:hidden space-y-3">
               {rows.map((row, index) => (
                 <div
                   key={row.id || `${row.itemName}-${index}`}
