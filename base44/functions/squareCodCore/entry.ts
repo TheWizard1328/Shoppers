@@ -960,7 +960,7 @@ async function handleGetCodData(base44, payload = {}) {
   const completedOrders = await listCompletedOrders(locationIds, new Date(transactionRetentionStartMs).toISOString(), accessToken).catch(() => []);
   const paidOrderItems = flattenPaidOrderItems(completedOrders || []);
 
-  const catalogRecords = (liveCatalogItems || []).flatMap((item) => {
+  const catalogRecords = (liveCatalogItems || []).reduce((acc, item) => {
     const amountCents = getCatalogItemAmountCents(item);
     const itemName = item?.item_data?.name || '';
     const locationIdsForItem = Array.from(new Set([
@@ -968,43 +968,60 @@ async function handleGetCodData(base44, payload = {}) {
       ...(item?.item_data?.variations || []).flatMap((variation) => variation?.present_at_location_ids || []),
     ].filter(Boolean)));
 
-    if (locationIdsForItem.length === 0) return [];
+    if (locationIdsForItem.length === 0) return acc;
 
     const matchedTransaction = (existingTransactions || []).find((transaction) => {
       if (normalizeText(transaction.square_catalog_object_id) && normalizeText(transaction.square_catalog_object_id) === normalizeText(item?.id)) return true;
       return buildItemSignature(transaction?.item_name, transaction?.amount_cents ?? Math.round(Number(transaction?.amount || 0) * 100)) === buildItemSignature(itemName, amountCents);
     });
 
-    return locationIdsForItem.map((locationId) => {
-      const store = storeByLocationId.get(locationId);
-      return {
-        square_catalog_object_id: item?.id,
-        square_catalog_version: item?.version || null,
-        item_name: itemName,
-        description: item?.item_data?.description || '',
-        amount: amountCents / 100,
-        amount_cents: amountCents,
-        delivery_id: matchedTransaction?.delivery_id || null,
-        delivery_date: toIsoDate(itemName),
-        patient_id: matchedTransaction?.patient_id || null,
-        store_id: matchedTransaction?.store_id || store?.id || null,
-        location_id: locationId,
-        status: 'active',
-        created_date: item?.created_at || null,
-        updated_date: item?.updated_at || null,
-      };
-    });
-  });
+    // Pick ONE location per catalog object: prefer the one that matches a known store,
+    // then fall back to the transaction's location, then the first in the list.
+    // This prevents one Square item from producing N duplicate DB rows (one per location).
+    const resolvedLocationId =
+      matchedTransaction?.location_id && locationIdsForItem.includes(matchedTransaction.location_id)
+        ? matchedTransaction.location_id
+        : locationIdsForItem.find((lid) => storeByLocationId.has(lid)) || locationIdsForItem[0];
 
-  const recentTransactionRecords = paidOrderItems.map((item, index) => {
+    const store = storeByLocationId.get(resolvedLocationId);
+    acc.push({
+      square_catalog_object_id: item?.id,
+      square_catalog_version: item?.version || null,
+      item_name: itemName,
+      description: item?.item_data?.description || '',
+      amount: amountCents / 100,
+      amount_cents: amountCents,
+      delivery_id: matchedTransaction?.delivery_id || null,
+      delivery_date: toIsoDate(itemName),
+      patient_id: matchedTransaction?.patient_id || null,
+      store_id: matchedTransaction?.store_id || store?.id || null,
+      location_id: resolvedLocationId,
+      status: 'active',
+      created_date: item?.created_at || null,
+      updated_date: item?.updated_at || null,
+    });
+    return acc;
+  }, []);
+
+  const seenTransactionKeys = new Set();
+  const recentTransactionRecords = paidOrderItems.reduce((acc, item, index) => {
     const amountCents = toAmountCents(item?.amount_cents);
+    // Build a stable dedup key: prefer catalog_object_id+location (one per payment item),
+    // fall back to order_id+amount+location to catch same-order multi-item cases.
+    const dedupKey = item?.catalog_object_id
+      ? `${item.catalog_object_id}::${item?.location_id || ''}`
+      : `${item?.order_id || index}::${amountCents}::${item?.location_id || ''}`;
+
+    if (seenTransactionKeys.has(dedupKey)) return acc;
+    seenTransactionKeys.add(dedupKey);
+
     const matchedTransaction = existingTransactions.find((transaction) => {
       if (normalizeText(transaction.square_payment_id) && normalizeText(transaction.square_payment_id) === normalizeText(item?.square_payment_id || item?.payment_id)) return true;
       if (normalizeText(transaction.square_catalog_object_id) && normalizeText(transaction.square_catalog_object_id) === normalizeText(item?.catalog_object_id)) return true;
       return buildLocationDateAmountSignature(transaction?.location_id, transaction?.item_name, transaction?.amount_cents ?? Math.round(Number(transaction?.amount || 0) * 100)) === buildLocationDateAmountSignature(item?.location_id, item?.item_name, amountCents);
     });
     const store = storeByLocationId.get(item?.location_id);
-    return {
+    acc.push({
       square_transaction_id: item?.order_id || `${item?.catalog_object_id || 'order'}-${index}`,
       square_payment_id: item?.order_id || `${item?.catalog_object_id || 'payment'}-${index}`,
       square_catalog_object_id: item?.catalog_object_id || matchedTransaction?.square_catalog_object_id || null,
@@ -1023,8 +1040,9 @@ async function handleGetCodData(base44, payload = {}) {
       raw_square_data: item,
       created_date: item?.payment_date || null,
       updated_date: item?.payment_date || null,
-    };
-  });
+    });
+    return acc;
+  }, []);
 
   return {
     success: true,
