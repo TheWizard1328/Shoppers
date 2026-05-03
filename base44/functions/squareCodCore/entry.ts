@@ -1030,8 +1030,11 @@ async function handleGetCodData(base44, payload = {}) {
   );
 
   const liveCatalogItems = await listActiveCatalogItems(accessToken).catch(() => []);
-  const completedOrders = [];
-  const paidOrderItems = [];
+  const completedOrders = await listCompletedOrders(locationIds, getLookbackStartAt(), accessToken, MAX_TRANSACTION_ORDERS).catch(() => []);
+  const paidOrderItems = flattenPaidOrderItems(completedOrders).filter((item) => {
+    const paymentTime = new Date(item?.payment_date || item?.order_created_at || 0).getTime();
+    return Number.isFinite(paymentTime) && paymentTime >= transactionRetentionStartMs;
+  });
 
   const catalogRecords = (liveCatalogItems || []).reduce((acc, item) => {
     const amountCents = getCatalogItemAmountCents(item);
@@ -1080,7 +1083,51 @@ async function handleGetCodData(base44, payload = {}) {
   const seenTransactionKeys = new Set();
   const recentTransactionRecords = [];
 
+  for (const item of paidOrderItems) {
+    const uniqueKey = `${item?.order_id}::${item?.line_item_uid}`;
+    if (!item?.order_id || seenTransactionKeys.has(uniqueKey)) continue;
+    seenTransactionKeys.add(uniqueKey);
+
+    const store = storeByLocationId.get(item?.location_id) || null;
+    const matchedTransaction = (existingTransactions || []).find((transaction) =>
+      normalizeText(transaction?.square_transaction_id) === normalizeText(item?.order_id) &&
+      normalizeText(transaction?.raw_square_data?.line_item_uid) === normalizeText(item?.line_item_uid)
+    );
+
+    const amountCents = toAmountCents(item?.amount_cents);
+    const transactionRecord = {
+      id: matchedTransaction?.id || `${item?.order_id}:${item?.line_item_uid}`,
+      square_transaction_id: item?.order_id || null,
+      square_payment_id: `${item?.order_id || 'order'}:${item?.line_item_uid || 'line'}`,
+      square_catalog_object_id: item?.catalog_object_id || null,
+      item_name: item?.item_name || '',
+      amount: amountCents / 100,
+      amount_cents: amountCents,
+      type: 'collection',
+      status: 'completed',
+      delivery_id: matchedTransaction?.delivery_id || null,
+      patient_id: matchedTransaction?.patient_id || null,
+      store_id: matchedTransaction?.store_id || store?.id || null,
+      location_id: item?.location_id || null,
+      driver_id: matchedTransaction?.driver_id || null,
+      dispatcher_id: matchedTransaction?.dispatcher_id || null,
+      payment_method: matchedTransaction?.payment_method || 'card',
+      created_date: item?.payment_date || matchedTransaction?.created_date || null,
+      updated_date: item?.payment_date || matchedTransaction?.updated_date || null,
+      raw_square_data: {
+        ...(matchedTransaction?.raw_square_data || {}),
+        line_item_uid: item?.line_item_uid || null,
+        payment_date: item?.payment_date || null,
+        order_created_at: item?.order_created_at || null,
+        notes: item?.note || '',
+      },
+    };
+
+    recentTransactionRecords.push(transactionRecord);
+  }
+
   const strippedDeliveries = safeDeliveries.map((delivery) => ({
+
     id: delivery?.id,
     delivery_id: delivery?.delivery_id,
     delivery_date: delivery?.delivery_date,
@@ -1440,15 +1487,20 @@ async function paginatedDeleteAll(entityApi, pageSize = 200) {
 
 async function handleSyncOnlineSquareEntities(base44, payload) {
   const catalogRecords = Array.isArray(payload?.catalogRecords) ? payload.catalogRecords.filter(Boolean) : [];
+  const transactionRecords = Array.isArray(payload?.transactionRecords) ? payload.transactionRecords.filter(Boolean) : [];
 
   const stripMeta = (record) => {
-    const { id, created_date, updated_date, created_by, ...rest } = record || {};
+    const { id, created_date, updated_date, created_by, created_by_id, is_sample, ...rest } = record || {};
     return rest;
   };
 
   const cleanCatalog = catalogRecords.map(stripMeta);
+  const cleanTransactions = transactionRecords.map(stripMeta);
 
-  await paginatedDeleteAll(base44.asServiceRole.entities.SquareCatalogItems);
+  await Promise.all([
+    paginatedDeleteAll(base44.asServiceRole.entities.SquareCatalogItems),
+    paginatedDeleteAll(base44.asServiceRole.entities.SquareTransaction),
+  ]);
 
   const bulkCreateInChunks = async (entityApi, records) => {
     if (!records.length) return;
@@ -1458,13 +1510,16 @@ async function handleSyncOnlineSquareEntities(base44, payload) {
     }
   };
 
-  await bulkCreateInChunks(base44.asServiceRole.entities.SquareCatalogItems, cleanCatalog);
+  await Promise.all([
+    bulkCreateInChunks(base44.asServiceRole.entities.SquareCatalogItems, cleanCatalog),
+    bulkCreateInChunks(base44.asServiceRole.entities.SquareTransaction, cleanTransactions),
+  ]);
 
   return {
     success: true,
-    paused: true,
+    paused: false,
     catalogCount: cleanCatalog.length,
-    transactionCount: 0,
+    transactionCount: cleanTransactions.length,
   };
 }
 
