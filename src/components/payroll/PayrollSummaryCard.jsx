@@ -567,6 +567,7 @@ export default function PayrollSummaryCard({
   };
 
   const formatCurrency = (amount, decimals = 2) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(amount);
+  const formatPayrollAmount = (amount) => new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(amount) || 0);
   const getPaidDraftValue = (driverId, fallback) => {
     if (Object.prototype.hasOwnProperty.call(paidDrafts, driverId)) return paidDrafts[driverId];
     return fallback.toFixed(2);
@@ -1320,12 +1321,12 @@ export default function PayrollSummaryCard({
                             <tr style={{ color: 'var(--text-slate-600)' }}>
                               <td className="text-left pr-2">Gross:</td>
                               <td className="text-right pr-0.5">$</td>
-                              <td className="text-right font-semibold" style={{ width: '60px' }}>{(data.grandTotal || 0).toFixed(2)}</td>
+                              <td className="text-right font-semibold" style={{ width: '60px' }}>{formatPayrollAmount(data.grandTotal || 0)}</td>
                             </tr>
                             <tr style={{ color: 'var(--text-slate-600)' }}>
                               <td className="text-left pr-2">Tax:</td>
                               <td className="text-right pr-0.5">$</td>
-                              <td className="text-right font-semibold" style={{ width: '60px' }}>{(data.taxAmount || 0).toFixed(2)}</td>
+                              <td className="text-right font-semibold" style={{ width: '60px' }}>{formatPayrollAmount(data.taxAmount || 0)}</td>
                             </tr>
                             <tr style={{ color: '#ef4444' }}>
                               <td className="text-left pr-2">
@@ -1337,7 +1338,7 @@ export default function PayrollSummaryCard({
                                     }
                               </td>
                               <td className="text-right pr-0.5">-$</td>
-                              <td className="text-right font-semibold" style={{ width: '60px' }}>{sumDeductionAmounts(edit.deductions || []).toFixed(2)}</td>
+                              <td className="text-right font-semibold" style={{ width: '60px' }}>{formatPayrollAmount(sumDeductionAmounts(edit.deductions || []))}</td>
                             </tr>
                             <tr style={{ color: '#16a34a' }}>
                               <td className="text-left pr-2">
@@ -1349,13 +1350,13 @@ export default function PayrollSummaryCard({
                                     }
                               </td>
                               <td className="text-right pr-0.5">+$</td>
-                              <td className="text-right font-semibold" style={{ width: '60px' }}>{(edit.bonusPay || 0).toFixed(2)}</td>
+                              <td className="text-right font-semibold" style={{ width: '60px' }}>{formatPayrollAmount(edit.bonusPay || 0)}</td>
                             </tr>
                             {isAdmin && isPeriodEndOfMonth && (isAppOwner(currentUser) || (edit.appFeePercent || 0) > 0) &&
                                 <tr style={{ color: 'var(--text-slate-600)' }} data-app-fee-row="true">
                                 <td className="text-left pr-2">App Fee %:</td>
                                 <td className="text-right pr-0.5">+$</td>
-                                <td className="text-right font-semibold" style={{ width: '60px' }}>{(edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0)).toFixed(2)}</td>
+                                <td className="text-right font-semibold" style={{ width: '60px' }}>{formatPayrollAmount(edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0))}</td>
                               </tr>
                                 }
                             <tr style={{ borderTop: '1px solid var(--border-slate-300)' }}>
@@ -1364,7 +1365,7 @@ export default function PayrollSummaryCard({
                             <tr className="text-lg font-bold text-emerald-600">
                               <td className="text-left pr-2">Net:</td>
                               <td className="text-right pr-0.5">$</td>
-                              <td className="text-right" style={{ width: '60px' }}>{getPeriodNetAmount({ grandTotal: data.grandTotal || 0, taxAmount: data.taxAmount || 0, deductions: edit.deductions || [], bonusPay: edit.bonusPay || 0, appFeeAmount: isPeriodEndOfMonth ? edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0) : 0 }).toFixed(2)}</td>
+                              <td className="text-right" style={{ width: '60px' }}>{formatPayrollAmount(getPeriodNetAmount({ grandTotal: data.grandTotal || 0, taxAmount: data.taxAmount || 0, deductions: edit.deductions || [], bonusPay: edit.bonusPay || 0, appFeeAmount: isPeriodEndOfMonth ? edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0) : 0 }))}</td>
                             </tr>
                             {canFinalize && (isAdmin || selectedDriverId === currentUser?.id) &&
                                 <tr style={{ color: 'var(--text-slate-600)' }}>
@@ -1404,10 +1405,10 @@ export default function PayrollSummaryCard({
 
 
                                     <div className="h-7 min-h-0 w-[60px] flex items-center justify-end text-right font-semibold">
-                                    {parsePaidAmount(
-                                        edit.paidAmount,
-                                        (data.grandTotal || 0) + (data.taxAmount || 0) - sumDeductionAmounts(edit.deductions || []) + (edit.bonusPay || 0) + (isPeriodEndOfMonth ? edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0) : 0)
-                                      ).toFixed(2)}
+                                    {formatPayrollAmount(parsePaidAmount(
+                                      edit.paidAmount,
+                                      (data.grandTotal || 0) + (data.taxAmount || 0) - sumDeductionAmounts(edit.deductions || []) + (edit.bonusPay || 0) + (isPeriodEndOfMonth ? edit.appFeeAmount || calculateAppFeeAmount(driverKey, edit.appFeePercent || 0) : 0)
+                                    ))}
                                   </div>
                                     }
                               </td>
@@ -1425,24 +1426,24 @@ export default function PayrollSummaryCard({
                           <tbody>
                             <tr style={{ color: 'var(--text-slate-600)' }}>
                               <td className="text-right pr-0.5">$</td>
-                              <td className="text-right font-semibold" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdNetPay ?? 0).toFixed(2)}</td>
+                              <td className="text-right font-semibold" style={{ width: '60px' }}>{formatPayrollAmount(ytdDataByDriver[data.driver.id]?.ytdNetPay ?? 0)}</td>
                             </tr>
                             <tr style={{ color: 'var(--text-slate-600)' }}>
                               <td className="text-right pr-0.5">$</td>
-                              <td className="text-right font-semibold" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdTaxAmount ?? 0).toFixed(2)}</td>
+                              <td className="text-right font-semibold" style={{ width: '60px' }}>{formatPayrollAmount(ytdDataByDriver[data.driver.id]?.ytdTaxAmount ?? 0)}</td>
                             </tr>
                             <tr style={{ color: '#ef4444' }}>
                               <td className="text-right pr-0.5">-$</td>
-                              <td className="text-right font-semibold" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount ?? 0).toFixed(2)}</td>
+                              <td className="text-right font-semibold" style={{ width: '60px' }}>{formatPayrollAmount(ytdDataByDriver[data.driver.id]?.ytdDeductionsAmount ?? 0)}</td>
                             </tr>
                             <tr style={{ color: '#16a34a' }}>
                               <td className="text-right pr-0.5">+$</td>
-                              <td className="text-right font-semibold" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdBonusAmount ?? 0).toFixed(2)}</td>
+                              <td className="text-right font-semibold" style={{ width: '60px' }}>{formatPayrollAmount(ytdDataByDriver[data.driver.id]?.ytdBonusAmount ?? 0)}</td>
                             </tr>
                             {isAdmin && isPeriodEndOfMonth && (isAppOwner(currentUser) || driverEdits[data.driver.id]?.appFeePercent > 0) &&
                                 <tr style={{ color: 'var(--text-slate-600)' }} data-app-fee-ytd-row="true">
                                 <td className="text-right pr-0.5">+$</td>
-                                <td className="text-right font-semibold" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount ?? 0).toFixed(2)}</td>
+                                <td className="text-right font-semibold" style={{ width: '60px' }}>{formatPayrollAmount(ytdDataByDriver[data.driver.id]?.ytdAppFeeAmount ?? 0)}</td>
                               </tr>
                                 }
                             <tr style={{ borderTop: '1px solid var(--border-slate-300)' }}>
@@ -1450,7 +1451,7 @@ export default function PayrollSummaryCard({
                             </tr>
                             <tr className="text-lg font-bold text-emerald-600">
                               <td className="text-right pr-0.5">$</td>
-                              <td className="text-right" style={{ width: '60px' }}>{(ytdDataByDriver[data.driver.id]?.ytdGrossPay ?? 0).toFixed(2)}</td>
+                              <td className="text-right" style={{ width: '60px' }}>{formatPayrollAmount(ytdDataByDriver[data.driver.id]?.ytdGrossPay ?? 0)}</td>
                             </tr>
                           </tbody>
                         </table>
