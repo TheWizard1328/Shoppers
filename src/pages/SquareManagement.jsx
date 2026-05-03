@@ -31,7 +31,8 @@ export default function SquareManagement() {
     syncSquareCODSnapshotOffline,
     getCatalogItemsOffline,
     getPaymentTransactionsOffline,
-    getSquareCODSyncStatus
+    getSquareCODSyncStatus,
+    purgeSquareCODOfflineDataBeforeSync
   } = squareCODOfflineManager;
 
   const [catalogItems, setCatalogItems] = useState([]);
@@ -314,6 +315,7 @@ export default function SquareManagement() {
         setIsLoading(false);
         setHasInitialLoadCompleted(true);
 
+        await purgeSquareCODOfflineDataBeforeSync();
         await syncFromSquare();
         setBgSyncProgress({ stage: 'idle' });
       } catch (err) {
@@ -323,7 +325,7 @@ export default function SquareManagement() {
     };
 
     loadData();
-  }, [appCurrentUser, appDataAppUsers, appDataStores, appDataPatients, getSourceWindow, loadReconciliationFromOffline, loadSquareViewFromOffline, loadSyncStatus, refreshOfflineSquareFromOnlineEntities]);
+  }, [appCurrentUser, appDataAppUsers, appDataStores, appDataPatients, getSourceWindow, loadReconciliationFromOffline, loadSquareViewFromOffline, loadSyncStatus, refreshOfflineSquareFromOnlineEntities, purgeSquareCODOfflineDataBeforeSync]);
 
   useEffect(() => {
     if (!hasInitialLoadCompleted) return;

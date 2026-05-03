@@ -260,6 +260,10 @@ export const clearSquareCODOfflineData = async () => {
   }
 };
 
+export const purgeSquareCODOfflineDataBeforeSync = async () => {
+  return await clearSquareCODOfflineData();
+};
+
 export const getSquareCODSyncStatus = async () => {
   try {
     const [catalogStatus, transactionStatus] = await Promise.all([
@@ -303,5 +307,6 @@ export const squareCODOfflineManager = {
   handleSquareCatalogItemRealtimeEvent,
   handleSquareTransactionRealtimeEvent,
   clearSquareCODOfflineData,
+  purgeSquareCODOfflineDataBeforeSync,
   getSquareCODSyncStatus
 };
