@@ -31,7 +31,9 @@ export default function SquareManagement() {
     syncSquareCODSnapshotOffline,
     getCatalogItemsOffline,
     getPaymentTransactionsOffline,
-    getSquareCODSyncStatus
+    getSquareCODSyncStatus,
+    saveCatalogItemsOffline,
+    savePaymentTransactionsOffline
   } = squareCODOfflineManager;
 
   const [catalogItems, setCatalogItems] = useState([]);
@@ -211,35 +213,45 @@ export default function SquareManagement() {
     setError(null);
     try {
       const { offlineDB } = await import('@/components/utils/offlineDatabase');
-      await Promise.all([
-      offlineDB.clearStore(offlineDB.STORES.SQUARE_CATALOG_ITEMS),
-      offlineDB.clearStore(offlineDB.STORES.SQUARE_TRANSACTIONS)]
-      );
-      setCatalogItems([]);
-      setSoldCatalogItems([]);
-      setAllTransactions([]);
 
+      // Step 1: Fetch 90 days of fresh data from Square API
       const codResponse = await base44.functions.invoke('squareCodCore', {
         action: 'getCodData',
         forceDeliveryRefresh: true
       });
       const codData = codResponse?.data || codResponse || {};
+      const catalogRecords = codData.catalogRecords || [];
+      const transactionRecords = codData.transactionRecords || [];
 
+      // Step 2: Bulk replace offline IndexedDB stores (clearStore + bulkSave)
+      await Promise.all([
+        saveCatalogItemsOffline(catalogRecords),
+        savePaymentTransactionsOffline(transactionRecords),
+        Array.isArray(codData.deliveries)
+          ? offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, codData.deliveries)
+          : Promise.resolve()
+      ]);
+
+      // Step 3: Read back from offline DBs to get normalized records
+      const [offlineCatalog, offlineTransactions] = await Promise.all([
+        offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS),
+        offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS)
+      ]);
+
+      // Step 4: Bulk replace BOTH online DBs using offline DB as source of truth
+      // Backend does: delete all existing records, then bulkCreate from what we send
       await base44.functions.invoke('squareCodCore', {
         action: 'syncOnlineSquareEntities',
-        catalogRecords: codData.catalogRecords || [],
-        transactionRecords: codData.transactionRecords || []
+        catalogRecords: offlineCatalog || [],
+        transactionRecords: offlineTransactions || []
       });
 
-      if (Array.isArray(codData.deliveries)) {
-        await offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, codData.deliveries);
-      }
-
-      await refreshOfflineSquareFromOnlineEntities();
+      // Step 5: Refresh UI from offline
       await refreshUiFromOfflineOnly();
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
       window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
       toast.success('Square data synced');
+
     } catch (err) {
       setError(err.message);
       toast.error('Failed to sync: ' + err.message);
