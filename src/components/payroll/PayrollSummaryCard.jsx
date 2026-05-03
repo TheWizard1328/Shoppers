@@ -1327,10 +1327,10 @@ export default function PayrollSummaryCard({
                               <td className="text-right pr-0.5">$</td>
                               <td className="text-right font-semibold" style={{ width: '60px' }}>{(data.taxAmount || 0).toFixed(2)}</td>
                             </tr>
-                            <tr style={{ color: 'var(--text-slate-600)' }}>
+                            <tr style={{ color: '#ef4444' }}>
                               <td className="text-left pr-2">
                                 {isAdmin ?
-                                    <button onClick={() => setDeductionOverlayDriverId(data.driver.id)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium !min-h-0 h-auto py-0 leading-none align-middle">
+                                    <button onClick={() => setDeductionOverlayDriverId(data.driver.id)} className="text-red-600 hover:text-red-700 cursor-pointer font-medium !min-h-0 h-auto py-0 leading-none align-middle">
                                     Deductions:
                                   </button> :
                                     'Deductions:'
@@ -1339,10 +1339,10 @@ export default function PayrollSummaryCard({
                               <td className="text-right pr-0.5">-$</td>
                               <td className="text-right font-semibold" style={{ width: '60px' }}>{sumDeductionAmounts(edit.deductions || []).toFixed(2)}</td>
                             </tr>
-                            <tr style={{ color: 'var(--text-slate-600)' }}>
+                            <tr style={{ color: '#16a34a' }}>
                               <td className="text-left pr-2">
                                 {isAdmin ?
-                                    <button onClick={() => setBonusOverlayDriverId(data.driver.id)} className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium !min-h-0 h-auto py-0 leading-none align-middle">
+                                    <button onClick={() => setBonusOverlayDriverId(data.driver.id)} className="text-green-600 hover:text-green-700 cursor-pointer font-medium !min-h-0 h-auto py-0 leading-none align-middle">
                                     Bonus:
                                   </button> :
                                     'Bonus:'
@@ -1651,7 +1651,7 @@ export default function PayrollSummaryCard({
                                   <td className="text-right font-semibold" style={{ width: '60px' }}>{grandTotalDeductions.toFixed(2)}</td>
                                 </tr>
                               }
-                              <tr style={{ color: 'var(--text-slate-600)' }}>
+                              <tr style={{ color: '#16a34a' }}>
                                 <td className="text-left pr-2">Bonus:</td>
                                 <td className="text-right pr-0.5">+$</td>
                                 <td className="text-right font-semibold" style={{ width: '60px' }}>{grandTotalBonus.toFixed(2)}</td>
@@ -1704,7 +1704,7 @@ export default function PayrollSummaryCard({
                                   <td className="text-right font-semibold" style={{ width: '60px' }}>{ytdGrandTotalDeductions.toFixed(2)}</td>
                                 </tr>
                               }
-                              <tr style={{ color: 'var(--text-slate-600)' }}>
+                              <tr style={{ color: '#16a34a' }}>
                                 <td className="text-right pr-0.5">+$</td>
                                 <td className="text-right font-semibold" style={{ width: '60px' }}>{ytdGrandTotalBonus.toFixed(2)}</td>
                               </tr>
@@ -1793,7 +1793,7 @@ export default function PayrollSummaryCard({
                     }
 
                     {/* Bonus */}
-                    <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: 'var(--text-blue-700)' }}>
+                    <div className="grid gap-1" style={{ gridTemplateColumns: '1fr 22px 60px 22px 60px', color: '#16a34a' }}>
                       <div className="text-left">Bonus:</div>
                       <div className="text-right pr-0.5">+$</div>
                       <div className="text-right font-semibold">{grandTotalBonus.toFixed(2)}</div>
