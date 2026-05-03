@@ -748,9 +748,9 @@ export default function SquareManagement() {
 
     return dedupedTransactions.map((transaction) => {
       const config = locationConfigs.find((c) => c?.square_location_id === transaction.location_id);
-      const resolvedStore = stores.find((s) => s?.id === transaction.store_id) || stores.find((s) => s?.square_location_config_id === config?.id) || null;
-      const matchedDelivery = findMatchingDeliveryForTransaction(transaction, resolvedStore?.id || null);
-      const store = resolvedStore || (matchedDelivery ? stores.find((s) => s?.id === matchedDelivery.store_id) : null);
+      const matchedDelivery = findMatchingDeliveryForTransaction(transaction, transaction.store_id || null);
+      const store = stores.find((s) => s?.id === transaction.store_id) || (matchedDelivery ? stores.find((s) => s?.id === matchedDelivery.store_id) : null) || stores.find((s) => s?.square_location_config_id === config?.id) || null;
+      const resolvedConfig = config || locationConfigs.find((c) => c?.id === store?.square_location_config_id) || null;
       const collectionDate = getTransactionEffectiveDateString(transaction);
       const parsedDeliveryDate = parseSquareItemName(transaction.item_name)?.deliveryDate;
       const displayDate = matchedDelivery?.delivery_date || collectionDate || parsedDeliveryDate || transaction.created_date;
@@ -768,8 +768,8 @@ export default function SquareManagement() {
         rawStoreId: transaction.store_id || store?.id || null,
         itemName: transaction.item_name || transaction.square_payment_id || 'Square Transaction',
         amount: Number(transaction.amount || 0),
-        storeName: store?.name || config?.name || 'Unknown',
-        locationId: transaction.location_id || '--',
+        storeName: store?.name || resolvedConfig?.name || config?.name || 'Unknown',
+        locationId: transaction.location_id || resolvedConfig?.square_location_id || '--',
         catalogId: transaction.square_catalog_object_id || '--',
         deliveryDate: displayDate,
         collectionDate,

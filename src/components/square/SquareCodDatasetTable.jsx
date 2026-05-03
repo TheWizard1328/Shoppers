@@ -73,7 +73,13 @@ export default function SquareCodDatasetTable({
                         </td>
                         <td className="p-3">
                           <div className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{formatAmount(row.amount)}</div>
-                          {row.collectionType && <div className="inline-flex mt-1 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-medium text-slate-700 dark:text-slate-300">{row.collectionType}</div>}
+                          {row.collectionType && (
+                            <div
+                              className={`inline-flex mt-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${String(row.collectionType).toLowerCase().includes('cash') ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}`}
+                            >
+                              {row.collectionType}
+                            </div>
+                          )}
                         </td>
                         <td className="p-3 text-sm text-slate-900 dark:text-slate-50">{row.storeName || 'Unknown'}</td>
                         {showLocationColumn &&
