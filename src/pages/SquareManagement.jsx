@@ -1001,7 +1001,7 @@ export default function SquareManagement() {
           <div className="grid grid-cols-3 gap-1 md:flex md:flex-row md:flex-wrap md:items-center md:gap-3 w-full">
             {currentUser && isAppOwner(currentUser) && drivers.length > 0 &&
             <Select value={selectedDriverFilter} onValueChange={setSelectedDriverFilter}>
-                <SelectTrigger className="w-full min-w-0 px-2 text-xs md:w-[100px] md:px-3 md:text-sm">
+                <SelectTrigger className="w-full min-w-0 px-2 text-xs md:w-[120px] md:px-3 md:text-sm">
                   <SelectValue placeholder="All Drivers" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1014,7 +1014,7 @@ export default function SquareManagement() {
             }
 
             <Select value={selectedStoreFilter} onValueChange={setSelectedStoreFilter}>
-              <SelectTrigger className="w-full min-w-0 px-2 text-xs md:w-[100px] md:px-3 md:text-sm">
+              <SelectTrigger className="w-full min-w-0 px-2 text-xs md:w-[120px] md:px-3 md:text-sm">
                 <SelectValue placeholder="All Stores" />
               </SelectTrigger>
               <SelectContent>
@@ -1026,7 +1026,7 @@ export default function SquareManagement() {
             </Select>
 
             <Select value={selectedDaysRange} onValueChange={setSelectedDaysRange}>
-              <SelectTrigger className="w-full min-w-0 px-2 text-xs md:w-[100px] md:px-3 md:text-sm">
+              <SelectTrigger className="w-full min-w-0 px-2 text-xs md:w-[120px] md:px-3 md:text-sm">
                 <SelectValue placeholder="Days" />
               </SelectTrigger>
               <SelectContent>
