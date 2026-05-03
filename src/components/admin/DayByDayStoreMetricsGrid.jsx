@@ -97,7 +97,6 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
   return (
     <Card className="overflow-visible">
       <CardContent className="p-0 overflow-visible">
-...
         <div className="w-full overflow-x-auto overflow-y-visible">
           <table className="w-full text-xs">
             <thead>
