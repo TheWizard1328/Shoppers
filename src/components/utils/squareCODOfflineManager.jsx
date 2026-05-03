@@ -1,320 +1,324 @@
+/**
+ * Background Sync Worker
+ * 
+ * Intelligently syncs data in the background during idle time.
+ * Uses priority levels and monitors user activity to minimize API calls.
+ * 
+ * STRATEGY:
+ * 1. HIGH PRIORITY (every 30s when active): On-duty drivers, active deliveries
+ * 2. MEDIUM PRIORITY (every 5min): Today's patients, Square transactions
+ * 3. LOW PRIORITY (every 30min): Historical deliveries, inactive data, Cities, Stores
+ */
+
+import { base44 } from '@/api/base44Client';
 import { offlineDB } from './offlineDatabase';
+import { format } from 'date-fns';
+import { queueEntityRequest } from './requestQueue';
 
-const DEFAULT_LOOKBACK_DAYS = 60;
-
-const getLookbackDays = () => DEFAULT_LOOKBACK_DAYS;
-const SQUARE_COD_STORES = {
-  CATALOG_ITEMS: offlineDB.STORES.SQUARE_CATALOG_ITEMS,
-  PAYMENT_TRANSACTIONS: offlineDB.STORES.SQUARE_TRANSACTIONS
-};
-
-const getLookbackStartMs = () => {
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - getLookbackDays());
-  cutoff.setHours(0, 0, 0, 0);
-  return cutoff.getTime();
-};
-
-const isRecentSquareTransaction = (transaction) => {
-  const rawDate = transaction?.created_date || transaction?.updated_date || transaction?.raw_square_data?.payment_date || 0;
-  const timestamp = new Date(rawDate).getTime();
-  return Number.isFinite(timestamp) && timestamp >= getLookbackStartMs();
-};
-
-const parseCatalogDate = (record) => {
-  if (record?.delivery_date) {
-    return new Date(`${record.delivery_date}T00:00:00`).getTime();
-  }
-
-  const itemName = record?.item_name || record?.name || '';
-  const match = String(itemName).match(/^(\d{2})[\/-](\d{2})/);
-  if (match) {
-    const today = new Date();
-    const candidate = new Date(today.getFullYear(), Number(match[1]) - 1, Number(match[2]));
-    const msInDay = 24 * 60 * 60 * 1000;
-    if (candidate.getTime() - today.getTime() > 45 * msInDay) {
-      candidate.setFullYear(candidate.getFullYear() - 1);
-    }
-    return candidate.getTime();
-  }
-
-  return new Date(record?.created_date || record?.updated_date || 0).getTime();
-};
-
-const isRecentCatalogItem = (record) => {
-  const timestamp = parseCatalogDate(record);
-  return Number.isFinite(timestamp) && timestamp >= getLookbackStartMs();
-};
-
-const normalizeCatalogEntityRecord = (record) => ({
-  ...record,
-  id: record?.id || record?.square_catalog_object_id,
-  amount: Number(record?.amount || 0),
-  amount_cents: record?.amount_cents ?? Math.round(Number(record?.amount || 0) * 100),
-  status: record?.status || 'active'
-});
-
-const isActualCollectedTransaction = (transaction) => {
-  if (!transaction) return false;
-  const label = `${transaction?.item_name || ''} ${transaction?.delivery_id || ''}`.toLowerCase();
-  return !(transaction?.type === 'transfer' || label.includes('transfer') || label.includes('interstore') || label.includes('inter-store'));
-};
-
-const mapCatalogEntityToUIItem = (record) => ({
-  id: record.id,
-  catalog_object_id: record.square_catalog_object_id || record.id,
-  variation_id: null,
-  name: record.item_name,
-  description: record.description || '',
-  price_cents: record.amount_cents ?? Math.round(Number(record.amount || 0) * 100),
-  price_dollars: Number(record.amount || 0),
-  location_id: record.location_id || '',
-  present_at_locations: record.location_id ? [record.location_id] : [],
-  present_at_all: false,
-  updated_at: record.updated_date,
-  version: record.square_catalog_version || 0,
-  transaction_id: null,
-  delivery_id: record.delivery_id,
-  patient_id: record.patient_id,
-  store_id: record.store_id,
-  status: record.status || 'active',
-  created_date: record.created_date,
-  is_sold: false
-});
-
-const updateCatalogSyncStatus = async () => {
-  const allItems = await offlineDB.getAll(SQUARE_COD_STORES.CATALOG_ITEMS);
-  await offlineDB.updateSyncStatus('SquareCatalogItems', {
-    status: 'synced',
-    recordCount: allItems.length,
-    lastSync: new Date().toISOString()
-  });
-};
-
-const updateTransactionSyncStatus = async () => {
-  const allTransactions = await offlineDB.getAll(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS);
-  await offlineDB.updateSyncStatus('SquareTransaction', {
-    status: 'synced',
-    recordCount: allTransactions.length,
-    lastSync: new Date().toISOString()
-  });
-};
-
-const pruneStoredCatalogItems = async () => {
-  const items = await offlineDB.getAll(SQUARE_COD_STORES.CATALOG_ITEMS);
-  const recentItems = (items || []).filter(isRecentCatalogItem);
-
-  if (recentItems.length !== (items || []).length) {
-    await offlineDB.clearStore(SQUARE_COD_STORES.CATALOG_ITEMS);
-    if (recentItems.length > 0) {
-      await offlineDB.bulkSave(SQUARE_COD_STORES.CATALOG_ITEMS, recentItems);
-    }
-  }
-
-  await updateCatalogSyncStatus();
-  return recentItems;
-};
-
-const pruneStoredSquareTransactions = async () => {
-  const transactions = await offlineDB.getAll(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS);
-  const recentTransactions = (transactions || []).filter(isRecentSquareTransaction);
-
-  if (recentTransactions.length !== (transactions || []).length) {
-    await offlineDB.clearStore(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS);
-    if (recentTransactions.length > 0) {
-      await offlineDB.bulkSave(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS, recentTransactions);
-    }
-  }
-
-  await updateTransactionSyncStatus();
-  return recentTransactions;
-};
-
-export const saveCatalogItemsOffline = async (items) => {
-  try {
-    // Do NOT filter by date here â€” the online DB was just cleared and rebuilt from
-    // the Square API, so every record in it is valid. Filtering would silently drop
-    // records whose created_date/updated_date fields are null after entity serialization.
-    const normalizedItems = (items || []).filter(Boolean).map(normalizeCatalogEntityRecord);
-    await offlineDB.clearStore(SQUARE_COD_STORES.CATALOG_ITEMS);
-
-    if (normalizedItems.length > 0) {
-      await offlineDB.bulkSave(SQUARE_COD_STORES.CATALOG_ITEMS, normalizedItems);
-    }
-
-    await updateCatalogSyncStatus();
-    return { success: true, count: normalizedItems.length };
-  } catch (error) {
-    console.error('âŒ [SquareCODOffline] Error saving catalog items:', error);
-    return { success: false, error: error.message };
-  }
-};
-
-export const savePaymentTransactionsOffline = async (transactions) => {
-  try {
-    // Do NOT filter by date here â€” the online DB was just cleared and rebuilt from
-    // the Square API. Trust the source completely. Filter out only non-collected types.
-    const normalizedTransactions = (transactions || []).filter(Boolean).filter(isActualCollectedTransaction);
-    await offlineDB.clearStore(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS);
-
-    if (normalizedTransactions.length > 0) {
-      await offlineDB.bulkSave(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS, normalizedTransactions);
-    }
-
-    await updateTransactionSyncStatus();
-    return { success: true, count: normalizedTransactions.length };
-  } catch (error) {
-    console.error('âŒ [SquareCODOffline] Error saving payment transactions:', error);
-    return { success: false, error: error.message };
-  }
-};
-
-export const syncSquareCODSnapshotOffline = async ({ catalogItems = [], transactions = [] }) => {
-  const [catalogResult, transactionResult] = await Promise.all([
-    saveCatalogItemsOffline(catalogItems),
-    savePaymentTransactionsOffline(transactions)
-  ]);
-
-  return {
-    success: catalogResult.success && transactionResult.success,
-    catalogCount: catalogResult.count || 0,
-    transactionCount: transactionResult.count || 0
-  };
-};
-
-export const getCatalogItemsOffline = async () => {
-  try {
-    const items = await pruneStoredCatalogItems();
-    return (items || []).map(mapCatalogEntityToUIItem);
-  } catch (error) {
-    console.error('âŒ [SquareCODOffline] Error retrieving catalog items:', error);
-    return [];
-  }
-};
-
-export const getPaymentTransactionsOffline = async () => {
-  try {
-    return await pruneStoredSquareTransactions();
-  } catch (error) {
-    console.error('âŒ [SquareCODOffline] Error retrieving payment transactions:', error);
-    return [];
-  }
-};
-
-export const getCatalogItemsByLocationOffline = async (locationId) => {
-  try {
-    const items = await offlineDB.getByIndex(SQUARE_COD_STORES.CATALOG_ITEMS, 'location_id', locationId);
-    return (items || []).map(mapCatalogEntityToUIItem);
-  } catch (error) {
-    console.error('âŒ [SquareCODOffline] Error retrieving items by location:', error);
-    return [];
-  }
-};
-
-export const getPaymentTransactionsByLocationOffline = async (locationId) => {
-  try {
-    const transactions = await getPaymentTransactionsOffline();
-    return (transactions || []).filter((transaction) => transaction.location_id === locationId);
-  } catch (error) {
-    console.error('âŒ [SquareCODOffline] Error retrieving transactions by location:', error);
-    return [];
-  }
-};
-
-export const handleSquareCatalogItemRealtimeEvent = async (event) => {
-  if (!event?.type) return;
-
-  if (event.type === 'delete') {
-    await offlineDB.deleteRecord(SQUARE_COD_STORES.CATALOG_ITEMS, event.id);
-  } else if (event.data?.id) {
-    const normalizedRecord = normalizeCatalogEntityRecord(event.data);
-    if (isRecentCatalogItem(normalizedRecord)) {
-      await offlineDB.save(SQUARE_COD_STORES.CATALOG_ITEMS, normalizedRecord);
-    } else {
-      await offlineDB.deleteRecord(SQUARE_COD_STORES.CATALOG_ITEMS, event.data.id);
-    }
-  }
-
-  await pruneStoredCatalogItems();
-};
-
-export const handleSquareTransactionRealtimeEvent = async (event) => {
-  if (!event?.type) return;
-
-  if (event.type === 'delete') {
-    await offlineDB.deleteRecord(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS, event.id);
-  } else if (event.data?.id) {
-    if (isRecentSquareTransaction(event.data)) {
-      await offlineDB.save(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS, event.data);
-    } else {
-      await offlineDB.deleteRecord(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS, event.data.id);
-    }
-  }
-
-  await pruneStoredSquareTransactions();
-};
-
-export const clearSquareCODOfflineData = async () => {
-  try {
-    await Promise.all([
-      offlineDB.clearStore(SQUARE_COD_STORES.CATALOG_ITEMS),
-      offlineDB.clearStore(SQUARE_COD_STORES.PAYMENT_TRANSACTIONS)
-    ]);
-
-    await Promise.all([
-      updateCatalogSyncStatus(),
-      updateTransactionSyncStatus()
-    ]);
-
-    return { success: true };
-  } catch (error) {
-    console.error('âŒ [SquareCODOffline] Error clearing data:', error);
-    return { success: false, error: error.message };
-  }
-};
-
-export const getSquareCODSyncStatus = async () => {
-  try {
-    const [catalogStatus, transactionStatus] = await Promise.all([
-      offlineDB.getSyncStatus('SquareCatalogItems'),
-      offlineDB.getSyncStatus('SquareTransaction')
-    ]);
-
-    return {
-      catalog: catalogStatus || { status: 'never_synced', recordCount: 0 },
-      transactions: transactionStatus || { status: 'never_synced', recordCount: 0 }
+class BackgroundSyncWorker {
+  constructor() {
+    this.isRunning = false;
+    this.isPaused = false;
+    this.lastUserActivity = Date.now();
+    this.listeners = new Set();
+    
+    // Track last sync times per priority level
+    this.lastSync = {
+      highPriority: 0,      // On-duty drivers, active deliveries
+      mediumPriority: 0,    // Today's patients, Square TX
+      lowPriority: 0        // Cities, Stores, historical data
     };
-  } catch (error) {
-    console.error('âŒ [SquareCODOffline] Error getting sync status:', error);
-    return { catalog: null, transactions: null };
+    
+    // Sync intervals (milliseconds)
+    this.intervals = {
+      highPriority: 30000,    // 30 seconds - critical data
+      mediumPriority: 300000, // 5 minutes - important but not critical
+      lowPriority: 1800000    // 30 minutes - rarely changes
+    };
+    
+    // Track consecutive errors for backoff
+    this.consecutiveErrors = 0;
+    this.maxConsecutiveErrors = 3;
+    this.cooldownUntil = 0;
+    
+    // Setup user activity tracking
+    this._setupActivityTracking();
   }
-};
-
-export const initializeCatalogItemsStore = async () => {
-  try {
-    const db = await offlineDB.openDatabase();
-
-    if (!db.objectStoreNames.contains(SQUARE_COD_STORES.CATALOG_ITEMS)) {
-      console.log('âš ï¸ [SquareCODOffline] Catalog items store does not exist, need to upgrade DB');
+  
+  /**
+   * Track user activity to adjust sync frequency
+   */
+  _setupActivityTracking() {
+    if (typeof window === 'undefined') return;
+    
+    const updateActivity = () => {
+      this.lastUserActivity = Date.now();
+    };
+    
+    ['click', 'keydown', 'scroll', 'touchstart'].forEach(event => {
+      window.addEventListener(event, updateActivity, { passive: true });
+    });
+  }
+  
+  /**
+   * Check if user is idle (no activity for 2 minutes)
+   */
+  isUserIdle() {
+    return (Date.now() - this.lastUserActivity) > 120000;
+  }
+  
+  /**
+   * Start background sync worker
+   */
+  start() {
+    if (this.isRunning) return;
+    
+    console.log('ðŸ”„ [BackgroundSync] Starting worker...');
+    this.isRunning = true;
+    this.isPaused = false;
+    
+    // Run sync loop
+    this._runSyncLoop();
+  }
+  
+  /**
+   * Stop background sync worker
+   */
+  stop() {
+    console.log('â¹ï¸ [BackgroundSync] Stopping worker');
+    this.isRunning = false;
+  }
+  
+  /**
+   * Pause syncing (during user operations)
+   */
+  pause() {
+    console.log('â¸ï¸ [BackgroundSync] Paused');
+    this.isPaused = true;
+  }
+  
+  /**
+   * Resume syncing
+   */
+  resume() {
+    console.log('â–¶ï¸ [BackgroundSync] Resumed');
+    this.isPaused = false;
+  }
+  
+  /**
+   * Subscribe to sync events
+   */
+  subscribe(callback) {
+    this.listeners.add(callback);
+    return () => this.listeners.delete(callback);
+  }
+  
+  /**
+   * Notify listeners
+   */
+  async _notify(event) {
+    // CRITICAL: Import offlineDB dynamically to avoid circular dependencies
+    const { offlineDB } = await import('./offlineDatabase');
+    
+    this.listeners.forEach(cb => {
+      try {
+        cb(event, offlineDB);
+      } catch (e) {
+        console.error('[BackgroundSync] Listener error:', e);
+      }
+    });
+  }
+  
+  /**
+   * Main sync loop - DISABLED to prevent rate limits
+   */
+  async _runSyncLoop() {
+    console.log('ðŸ“´ [BackgroundSync] Sync loop DISABLED - no automatic background syncing');
+    // App is 100% offline-only - no background API calls
+  }
+  
+  /**
+   * HIGH PRIORITY: Sync on-duty drivers and active deliveries
+   */
+  async _syncHighPriority() {
+    if (this.isPaused) return;
+    
+    try {
+      console.log('ðŸ”¥ [BackgroundSync] HIGH: On-duty drivers + active deliveries');
+      
+      // Fetch only on-duty/on-break drivers
+      const onDutyDrivers = await queueEntityRequest(
+        () => base44.entities.AppUser.filter({
+          app_roles: { $in: ['driver'] },
+          driver_status: { $in: ['on_duty', 'on_break'] }
+        }),
+        'AppUser [on-duty drivers]'
+      );
+      
+      if (onDutyDrivers && onDutyDrivers.length > 0) {
+        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, onDutyDrivers);
+        this._notify({ type: 'sync_complete', priority: 'high', entity: 'AppUser', count: onDutyDrivers.length });
+      }
+      
+      // Fetch active deliveries for today only
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      const activeDeliveries = await queueEntityRequest(
+        () => base44.entities.Delivery.filter({
+          delivery_date: todayStr,
+          status: { $in: ['pending', 'in_transit', 'en_route'] }
+        }),
+        'Delivery [active today]'
+      );
+      
+      if (activeDeliveries && activeDeliveries.length > 0) {
+        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, activeDeliveries);
+        this._notify({ type: 'sync_complete', priority: 'high', entity: 'Delivery', count: activeDeliveries.length });
+      }
+      
+      this.consecutiveErrors = 0;
+      
+    } catch (error) {
+      this._handleError(error);
     }
-
-    return { success: true };
-  } catch (error) {
-    console.error('âŒ [SquareCODOffline] Error initializing store:', error);
-    return { success: false, error: error.message };
   }
-};
+  
+  /**
+   * MEDIUM PRIORITY: Sync today's patients and Square transactions
+   */
+  async _syncMediumPriority() {
+    if (this.isPaused) return;
+    
+    try {
+      console.log('ðŸ“Š [BackgroundSync] MEDIUM: Today patients + Square TX');
+      
+      // Get patient IDs from today's deliveries
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      const todayDeliveries = await offlineDB.getByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', todayStr);
+      const todayPatientIds = [...new Set(
+        todayDeliveries
+          .filter(d => d && d.patient_id)
+          .map(d => d.patient_id)
+      )];
+      
+      if (todayPatientIds.length > 0) {
+        // Fetch only today's patients in batches
+        const batchSize = 100;
+        for (let i = 0; i < todayPatientIds.length; i += batchSize) {
+          if (this.isPaused) break;
+          
+          const batchIds = todayPatientIds.slice(i, i + batchSize);
+          const patients = await queueEntityRequest(
+            () => base44.entities.Patient.filter({ id: { $in: batchIds } }),
+            `Patient [batch ${i / batchSize + 1}]`
+          );
+          
+          if (patients && patients.length > 0) {
+            await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patients);
+          }
+          
+          await new Promise(r => setTimeout(r, 2000)); // 2s between batches
+        }
+        
+        this._notify({ type: 'sync_complete', priority: 'medium', entity: 'Patient', count: todayPatientIds.length });
+      }
+      
+      // Fetch Square transactions â€” use a full replace (clear + save) not a merge,
+      // so the offline DB stays in sync with the online DB without accumulating stale records.
+      const squareTX = await queueEntityRequest(
+        () => base44.entities.SquareTransaction.list('-updated_date', 2000),
+        'SquareTransaction [recent]'
+      );
+      
+      if (squareTX) {
+        await offlineDB.clearStore(offlineDB.STORES.SQUARE_TRANSACTIONS);
+        if (squareTX.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.SQUARE_TRANSACTIONS, squareTX);
+        }
+        this._notify({ type: 'sync_complete', priority: 'medium', entity: 'SquareTransaction', count: squareTX.length });
+      }
+      
+      this.consecutiveErrors = 0;
+      
+    } catch (error) {
+      this._handleError(error);
+    }
+  }
+  
+  /**
+   * LOW PRIORITY: Sync rarely-changing data (cities, stores, historical deliveries)
+   */
+  async _syncLowPriority() {
+    if (this.isPaused) return;
+    if (!this.isUserIdle()) return; // Only sync when user is idle
+    
+    try {
+      console.log('ðŸŒ [BackgroundSync] LOW: Cities, Stores, historical');
+      
+      // Fetch cities
+      const cities = await queueEntityRequest(
+        () => base44.entities.City.list(),
+        'City [all]'
+      );
+      
+      if (cities && cities.length > 0) {
+        await offlineDB.bulkSave(offlineDB.STORES.CITIES, cities);
+      }
+      
+      await new Promise(r => setTimeout(r, 2000));
+      
+      // Fetch stores
+      const stores = await queueEntityRequest(
+        () => base44.entities.Store.list(),
+        'Store [all]'
+      );
+      
+      if (stores && stores.length > 0) {
+        await offlineDB.bulkSave(offlineDB.STORES.STORES, stores);
+      }
+      
+      this._notify({ type: 'sync_complete', priority: 'low', entity: 'City,Store' });
+      this.consecutiveErrors = 0;
+      
+    } catch (error) {
+      this._handleError(error);
+    }
+  }
+  
+  /**
+   * Handle sync errors with exponential backoff
+   */
+  _handleError(error) {
+    this.consecutiveErrors++;
+    
+    if (error.response?.status === 429 || error.message?.includes('429')) {
+      console.warn(`â° [BackgroundSync] Rate limit - cooldown ${this.consecutiveErrors * 30}s`);
+      this.cooldownUntil = Date.now() + (this.consecutiveErrors * 30000);
+    } else {
+      console.error('[BackgroundSync] Error:', error.message);
+    }
+    
+    if (this.consecutiveErrors >= this.maxConsecutiveErrors) {
+      console.warn(`ðŸ›‘ [BackgroundSync] Max errors reached - pausing for 5 minutes`);
+      this.cooldownUntil = Date.now() + 300000; // 5 minute cooldown
+      this.consecutiveErrors = 0;
+    }
+  }
+  
+  /**
+   * Force immediate sync of specific priority
+   */
+  async forceSync(priority = 'high') {
+    if (priority === 'high') {
+      this.lastSync.highPriority = 0;
+      await this._syncHighPriority();
+    } else if (priority === 'medium') {
+      this.lastSync.mediumPriority = 0;
+      await this._syncMediumPriority();
+    } else if (priority === 'low') {
+      this.lastSync.lowPriority = 0;
+      await this._syncLowPriority();
+    }
+  }
+}
 
-export const squareCODOfflineManager = {
-  saveCatalogItemsOffline,
-  savePaymentTransactionsOffline,
-  syncSquareCODSnapshotOffline,
-  getCatalogItemsOffline,
-  getPaymentTransactionsOffline,
-  getCatalogItemsByLocationOffline,
-  getPaymentTransactionsByLocationOffline,
-  handleSquareCatalogItemRealtimeEvent,
-  handleSquareTransactionRealtimeEvent,
-  clearSquareCODOfflineData,
-  getSquareCODSyncStatus
-};
+export const backgroundSyncWorker = new BackgroundSyncWorker();
