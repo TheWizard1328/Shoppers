@@ -682,7 +682,7 @@ export default function SquareManagement() {
   }, [currentUser, currentAppUser, drivers, selectedDriverFilter, locationConfigs]);
 
   const filteredDeliveryRows = useMemo(() => {
-    return (deliveries || []).
+    const rows = (deliveries || []).
     filter((delivery) => {
       if (!delivery) return false;
       if (delivery.status === 'failed') return false;
@@ -712,6 +712,7 @@ export default function SquareManagement() {
 
       return {
         id: delivery.id,
+        key: `${delivery.id || 'delivery'}|${resolvedLocationId || '--'}|${delivery.delivery_date || 'no-date'}`,
         rawDelivery: delivery,
         amountSet: getDeliveryPaymentAmountSet(delivery),
         rawStoreId: delivery.store_id || null,
@@ -727,6 +728,14 @@ export default function SquareManagement() {
         <Button variant="secondary" size="sm" className="border border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Matched</Button> :
         <Button variant="secondary" size="sm" className="border border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-100">No Match</Button>
       };
+    });
+
+    const seenRowKeys = new Set();
+    return rows.filter((row) => {
+      const rowKey = row.key || row.id;
+      if (seenRowKeys.has(rowKey)) return false;
+      seenRowKeys.add(rowKey);
+      return true;
     });
   }, [deliveries, visibleStoreIds, lookbackStart, selectedDriverFilter, selectedDriverUserIds, patients, stores, locationConfigs, catalogItems, allTransactions]);
 
@@ -764,7 +773,7 @@ export default function SquareManagement() {
       dedupedTransactions.push(transaction);
     });
 
-    return dedupedTransactions.map((transaction) => {
+    const rows = dedupedTransactions.map((transaction) => {
       const config = locationConfigs.find((c) => c?.square_location_id === transaction.location_id);
       const matchedDelivery = findMatchingDeliveryForTransaction(transaction, transaction.store_id || null);
       const store = stores.find((s) => s?.id === transaction.store_id) || (matchedDelivery ? stores.find((s) => s?.id === matchedDelivery.store_id) : null) || stores.find((s) => s?.square_location_config_id === config?.id) || null;
@@ -779,6 +788,7 @@ export default function SquareManagement() {
 
       return {
         id: transaction.id,
+        key: `${transaction.id || transaction.square_payment_id || 'transaction'}|${transaction.location_id || '--'}|${collectionDate || displayDate || 'no-date'}|${Number(transaction.amount || 0)}`,
         rawTransaction: transaction,
         amountSet: getTransactionAmountSet(transaction),
         searchNames: getTransactionSearchNames(transaction),
@@ -799,10 +809,18 @@ export default function SquareManagement() {
         null
       };
     }).sort((a, b) => String(b.itemName || '').localeCompare(String(a.itemName || ''), undefined, { sensitivity: 'base' }));
+
+    const seenRowKeys = new Set();
+    return rows.filter((row) => {
+      const rowKey = row.key || row.id;
+      if (seenRowKeys.has(rowKey)) return false;
+      seenRowKeys.add(rowKey);
+      return true;
+    });
   }, [allTransactions, lookbackStart, visibleStoreIds, visibleLocationIds, selectedDriverFilter, selectedDriverUserIds, locationConfigs, stores, drivers, getTransactionSearchNames, getTransactionFilterDate, getTransactionEffectiveDateString, findMatchingDeliveryForTransaction]);
 
   const filteredCatalogRows = useMemo(() => {
-    return (catalogItems || []).
+    const rows = (catalogItems || []).
     filter((item) => {
       if (driverScopedLocationIds && item.location_id && !driverScopedLocationIds.has(item.location_id)) return false;
       if (visibleLocationIds.size > 0 && item.location_id && !visibleLocationIds.has(item.location_id)) return false;
@@ -818,6 +836,7 @@ export default function SquareManagement() {
       const store = stores.find((s) => s?.id === item.store_id) || stores.find((s) => s?.square_location_config_id === config?.id);
       return {
         id: item.catalog_object_id || item.id,
+        key: `${item.catalog_object_id || item.id || 'catalog'}|${item.location_id || '--'}|${item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate || 'no-date'}`,
         itemName: item.name || item.item_name || 'Catalog Item',
         amount: Number(item.price_dollars || item.amount || 0),
         storeName: store?.name || config?.name || 'Unknown',
@@ -846,6 +865,14 @@ export default function SquareManagement() {
       };
     }).
     sort((a, b) => String(b.deliveryDate || '').localeCompare(String(a.deliveryDate || '')));
+
+    const seenRowKeys = new Set();
+    return rows.filter((row) => {
+      const rowKey = row.key || row.id;
+      if (seenRowKeys.has(rowKey)) return false;
+      seenRowKeys.add(rowKey);
+      return true;
+    });
   }, [catalogItems, locationConfigs, stores, visibleStoreIds, visibleLocationIds, driverScopedLocationIds, deletingId, lookbackStart]);
 
   const reconciliationRows = useMemo(() => [], []);
