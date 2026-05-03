@@ -991,10 +991,10 @@ export default function SquareManagement() {
         </div>
 
         <div className="flex flex-col gap-2">
-          <div className="grid grid-cols-3 gap-1 md:flex md:flex-row md:flex-wrap md:items-center md:gap-3 w-full">
+          <div className="grid grid-cols-2 gap-2 md:flex md:flex-row md:flex-wrap md:items-center md:gap-3 w-full">
             {currentUser && isAppOwner(currentUser) && drivers.length > 0 &&
             <Select value={selectedDriverFilter} onValueChange={setSelectedDriverFilter}>
-                <SelectTrigger className="w-full min-w-0 px-2 text-xs md:w-[120px] md:px-3 md:text-sm">
+                <SelectTrigger className="w-full min-w-0 px-2 text-xs md:w-[130px] md:px-3 md:text-sm">
                   <SelectValue placeholder="All Drivers" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1007,7 +1007,7 @@ export default function SquareManagement() {
             }
 
             <Select value={selectedStoreFilter} onValueChange={setSelectedStoreFilter}>
-              <SelectTrigger className="w-full min-w-0 px-2 text-xs md:w-[120px] md:px-3 md:text-sm">
+              <SelectTrigger className="w-full min-w-0 px-2 text-xs md:w-[130px] md:px-3 md:text-sm">
                 <SelectValue placeholder="All Stores" />
               </SelectTrigger>
               <SelectContent>
@@ -1019,7 +1019,7 @@ export default function SquareManagement() {
             </Select>
 
             <Select value={selectedDaysRange} onValueChange={setSelectedDaysRange}>
-              <SelectTrigger className="w-full min-w-0 px-2 text-xs md:w-[120px] md:px-3 md:text-sm">
+              <SelectTrigger className="w-full min-w-0 px-2 text-xs md:w-[130px] md:px-3 md:text-sm">
                 <SelectValue placeholder="Days" />
               </SelectTrigger>
               <SelectContent>
@@ -1033,7 +1033,7 @@ export default function SquareManagement() {
             </Select>
 
             {currentUser && isAppOwner(currentUser) &&
-            <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="gap-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 shrink-0 self-start">
+            <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="w-full gap-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 md:w-[130px] shrink-0 justify-between md:justify-between self-start">
                 <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
                 <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : 'Sync'}</span>
                 <span className="sm:hidden">{isSyncing ? 'Syncing' : 'Sync'}</span>
