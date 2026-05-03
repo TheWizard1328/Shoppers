@@ -227,44 +227,43 @@ export default function SquareManagement() {
     try {
       const { offlineDB } = await import('@/components/utils/offlineDatabase');
 
-      // Step 1: Fetch fresh data from Square API
-      // - Catalog: ALL active items (no date filter)
-      // - Transactions: past 90 days
+      // Step 1: Fetch fresh data from backend snapshot
       const codResponse = await base44.functions.invoke('squareCodCore', {
         action: 'getCodData',
         forceDeliveryRefresh: true
       });
       const codData = codResponse?.data || codResponse || {};
-      const catalogRecords = codData.catalogRecords || [];
-      const transactionRecords = codData.transactionRecords || [];
       const strippedDeliveries = Array.isArray(codData.deliveries)
         ? codData.deliveries.map(({ delivery_route_breadcrumbs, encoded_polyline, proof_photo_urls, signature_image_url, ...rest }) => rest)
         : [];
+      const catalogRecords = codData.catalogRecords || [];
+      const transactionRecords = codData.transactionRecords || [];
 
-      // Step 2: Bulk replace BOTH offline IndexedDB stores
-      // replaceAllRecords = clearStore + bulkSave in one shot, no per-item ops
+      // Step 2: Sync deliveries tab source first
+      if (strippedDeliveries.length > 0) {
+        await offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, strippedDeliveries);
+      }
+
+      // Step 3: Sync catalog + transactions after deliveries
       await Promise.all([
         offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_CATALOG_ITEMS, catalogRecords),
-        offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_TRANSACTIONS, transactionRecords),
-        strippedDeliveries.length > 0
-          ? offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, strippedDeliveries)
-          : Promise.resolve()
+        offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_TRANSACTIONS, transactionRecords)
       ]);
 
-      // Step 3: Read back from offline DBs - these are now the source of truth
+      // Step 4: Read back from offline DBs - these are now the source of truth
       const [offlineCatalog, offlineTransactions] = await Promise.all([
         offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS),
         offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS)
       ]);
 
-      // Step 4: Fully replace BOTH online DBs from the completed offline snapshot
+      // Step 5: Fully replace online Square entities from the completed offline snapshot
       await base44.functions.invoke('squareCodCore', {
         action: 'syncOnlineSquareEntities',
         catalogRecords: offlineCatalog || [],
         transactionRecords: offlineTransactions || []
       });
 
-      // Step 5: Refresh UI from offline
+      // Step 6: Refresh UI from offline
       await refreshUiFromOfflineOnly();
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
       window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
