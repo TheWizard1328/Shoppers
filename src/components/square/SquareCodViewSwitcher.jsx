@@ -24,7 +24,7 @@ export default function SquareCodViewSwitcher({ activeView, onChange, counts = {
             onClick={() => onChange(view.key)}
             className="h-11 justify-between rounded-2xl px-4 md:h-9 md:w-[110px]] md:justify-center md:gap-2 md:rounded-full md:px-3"
           >
-            <span>{view.label}</span>
+            <span>{view.label}:</span>
             {typeof count === "number" && (
               <span className="text-xs opacity-80">{count}</span>
             )}
