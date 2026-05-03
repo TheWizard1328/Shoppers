@@ -288,20 +288,20 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
               <Button
                 type="button"
                 size="sm"
-                variant={metricsViewMode === 'fees' ? 'default' : 'outline'}
-                onClick={() => onViewModeChange?.('fees')}
-                className="text-xs h-7 px-2">
-
-                App Fees
-              </Button>
-              <Button
-                type="button"
-                size="sm"
                 variant={metricsViewMode === 'extra_km' ? 'default' : 'outline'}
                 onClick={() => onViewModeChange?.('extra_km')}
                 className="text-xs h-7 px-2">
 
                 Extra KM
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={metricsViewMode === 'fees' ? 'default' : 'outline'}
+                onClick={() => onViewModeChange?.('fees')}
+                className="text-xs h-7 px-2">
+
+                App Fees
               </Button>
             </div>
           </div>
