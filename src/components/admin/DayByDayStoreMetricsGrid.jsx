@@ -12,6 +12,7 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
  */
 export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, selectedYear, metricsViewMode = 'deliveries', onResetView }) {
   const viewMode = metricsViewMode;
+  const formatGridValue = (value) => viewMode === 'fees' || viewMode === 'extra_km' ? Number(value).toFixed(2) : Math.round(Number(value)).toString();
   if (!metricsData || !selectedMonth) {
     return (
       <Card>
@@ -132,12 +133,12 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
                           className="text-center px-1 py-0.5 tabular-nums"
                           style={{ color: value > 0 ? (store.color || '#64748b') : '#94a3b8' }}
                         >
-                          {value > 0 ? Number(value).toFixed(2) : ''}
+                          {value > 0 ? formatGridValue(value) : ''}
                         </td>
                       );
                     })}
                     <td className="text-center px-1 py-0.5 font-semibold text-slate-900 border-l-2 border-slate-300 tabular-nums">
-                      {dayTotal > 0 ? Number(dayTotal).toFixed(2) : ''}
+                      {dayTotal > 0 ? formatGridValue(dayTotal) : ''}
                     </td>
                   </tr>
                 );
@@ -154,12 +155,12 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
                       className="text-center px-1 py-0.5 tabular-nums"
                       style={{ color: store.color || '#64748b' }}
                     >
-                      {total > 0 ? Number(total).toFixed(2) : ''}
+                      {total > 0 ? formatGridValue(total) : ''}
                     </td>
                   );
                 })}
                 <td className="text-center px-1 py-0.5 font-bold text-slate-900 border-l-2 border-slate-300 tabular-nums">
-                  {grandTotal > 0 ? Number(grandTotal).toFixed(2) : ''}
+                  {grandTotal > 0 ? formatGridValue(grandTotal) : ''}
                 </td>
               </tr>
 
@@ -168,7 +169,7 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
                 <td className="px-1.5 py-0.5 text-slate-600 sticky left-0 bg-slate-50 z-10 border-r border-slate-300">Avg</td>
                 {stores.map(store => {
                    const total = getStoreTotal(store, viewMode);
-                   const avg = total > 0 ? Number(total / daysInMonth).toFixed(2) : '';
+                   const avg = total > 0 ? formatGridValue(total / daysInMonth) : '';
                    return (
                      <td key={store.storeId || store.id} className="text-center px-1 py-0.5 tabular-nums text-slate-600">
                        {avg}
@@ -176,7 +177,7 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
                    );
                  })}
                  <td className="text-center px-1 py-0.5 font-semibold text-slate-700 border-l-2 border-slate-300 tabular-nums">
-                   {grandTotal > 0 ? Number(grandTotal / daysInMonth).toFixed(2) : ''}
+                   {grandTotal > 0 ? formatGridValue(grandTotal / daysInMonth) : ''}
                 </td>
               </tr>
             </tbody>
