@@ -31,9 +31,7 @@ export default function SquareManagement() {
     syncSquareCODSnapshotOffline,
     getCatalogItemsOffline,
     getPaymentTransactionsOffline,
-    getSquareCODSyncStatus,
-    saveCatalogItemsOffline,
-    savePaymentTransactionsOffline
+    getSquareCODSyncStatus
   } = squareCODOfflineManager;
 
   const [catalogItems, setCatalogItems] = useState([]);
@@ -214,7 +212,9 @@ export default function SquareManagement() {
     try {
       const { offlineDB } = await import('@/components/utils/offlineDatabase');
 
-      // Step 1: Fetch 90 days of fresh data from Square API
+      // Step 1: Fetch fresh data from Square API
+      // - Catalog: ALL active items (no date filter)
+      // - Transactions: past 90 days
       const codResponse = await base44.functions.invoke('squareCodCore', {
         action: 'getCodData',
         forceDeliveryRefresh: true
@@ -223,23 +223,24 @@ export default function SquareManagement() {
       const catalogRecords = codData.catalogRecords || [];
       const transactionRecords = codData.transactionRecords || [];
 
-      // Step 2: Bulk replace offline IndexedDB stores (clearStore + bulkSave)
+      // Step 2: Bulk replace BOTH offline IndexedDB stores
+      // replaceAllRecords = clearStore + bulkSave in one shot, no per-item ops
       await Promise.all([
-        saveCatalogItemsOffline(catalogRecords),
-        savePaymentTransactionsOffline(transactionRecords),
+        offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_CATALOG_ITEMS, catalogRecords),
+        offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_TRANSACTIONS, transactionRecords),
         Array.isArray(codData.deliveries)
           ? offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, codData.deliveries)
           : Promise.resolve()
       ]);
 
-      // Step 3: Read back from offline DBs to get normalized records
+      // Step 3: Read back from offline DBs â€” these are now the source of truth
       const [offlineCatalog, offlineTransactions] = await Promise.all([
         offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS),
         offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS)
       ]);
 
-      // Step 4: Bulk replace BOTH online DBs using offline DB as source of truth
-      // Backend does: delete all existing records, then bulkCreate from what we send
+      // Step 4: Bulk replace BOTH online DBs from the offline snapshot
+      // Backend: delete ALL existing records, then bulkCreate â€” no per-item looping
       await base44.functions.invoke('squareCodCore', {
         action: 'syncOnlineSquareEntities',
         catalogRecords: offlineCatalog || [],
