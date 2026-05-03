@@ -322,3 +322,54 @@ class BackgroundSyncWorker {
 }
 
 export const backgroundSyncWorker = new BackgroundSyncWorker();
+
+export const syncSquareCODSnapshotOffline = async ({ catalogItems = [], transactions = [] }) => {
+  const safeCatalogItems = Array.isArray(catalogItems) ? catalogItems.filter(Boolean) : [];
+  const safeTransactions = Array.isArray(transactions) ? transactions.filter(Boolean) : [];
+
+  await Promise.all([
+    offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_CATALOG_ITEMS, safeCatalogItems),
+    offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_TRANSACTIONS, safeTransactions)
+  ]);
+
+  await Promise.all([
+    offlineDB.updateSyncStatus('SquareCatalogItems', {
+      status: 'synced',
+      recordCount: safeCatalogItems.length,
+      lastSync: new Date().toISOString()
+    }),
+    offlineDB.updateSyncStatus('SquareTransaction', {
+      status: 'synced',
+      recordCount: safeTransactions.length,
+      lastSync: new Date().toISOString()
+    })
+  ]);
+
+  return {
+    success: true,
+    catalogCount: safeCatalogItems.length,
+    transactionCount: safeTransactions.length
+  };
+};
+
+export const getCatalogItemsOffline = async () => {
+  const items = await offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS);
+  return items || [];
+};
+
+export const getPaymentTransactionsOffline = async () => {
+  const transactions = await offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS);
+  return transactions || [];
+};
+
+export const getSquareCODSyncStatus = async () => {
+  const [catalog, transactions] = await Promise.all([
+    offlineDB.getSyncStatus('SquareCatalogItems'),
+    offlineDB.getSyncStatus('SquareTransaction')
+  ]);
+
+  return {
+    catalog: catalog || { status: 'never_synced', recordCount: 0 },
+    transactions: transactions || { status: 'never_synced', recordCount: 0 }
+  };
+};
