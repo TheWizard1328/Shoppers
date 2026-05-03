@@ -244,6 +244,7 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
     <Card className="bg-card text-card-foreground rounded-xl border shadow flex min-h-0 flex-col max-h-[500px] lg:max-h-[500px] overflow-hidden">
       <CardHeader className="pb-3 shrink-0">
         <p className="text-xs text-slate-500 mb-2">💡 Click a month row name to filter all charts, or click a store value to see day-by-day breakdown</p>
+        <p className="text-xs text-slate-500 mb-2">Green highlights show the top store value for that month, and yellow highlights show values above that store’s average for the month.</p>
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <CardTitle className="flex items-center gap-2 text-base">
             {metricsViewMode === 'deliveries' ?
