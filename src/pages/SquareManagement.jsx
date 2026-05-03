@@ -481,8 +481,8 @@ export default function SquareManagement() {
       const parsedFromName = new Date(`${parsedItem.deliveryDate}T00:00:00`);
       if (!Number.isNaN(parsedFromName.getTime())) return parsedFromName;
     }
-    return getTransactionCreatedDate(transaction);
-  }, [getTransactionCreatedDate]);
+    return null;
+  }, []);
 
   const getTransactionEffectiveDateString = useCallback((transaction) => {
     const parsed = getTransactionFilterDate(transaction);
@@ -719,8 +719,9 @@ export default function SquareManagement() {
     (allTransactions || [])
       .filter((transaction) => {
         if (!transaction || isTransferTransaction(transaction)) return false;
+        const hasFormattedItemDate = !!parseSquareItemName(transaction?.item_name)?.deliveryDate;
         const transactionDate = getTransactionFilterDate(transaction);
-        if (!transactionDate || transactionDate < lookbackStart) return false;
+        if (hasFormattedItemDate && (!transactionDate || transactionDate < lookbackStart)) return false;
 
         const config = locationConfigs.find((c) => c?.square_location_id === transaction.location_id);
         const matchedDelivery = findMatchingDeliveryForTransaction(transaction, transaction.store_id || null);
