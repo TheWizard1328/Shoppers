@@ -8,6 +8,9 @@ const TRANSACTION_RETENTION_DAYS = 60;
 const MATCH_DATE_OFFSET_DAYS = 2;
 const SQUARE_API_MAX_RETRIES = 3;
 const SQUARE_RETRY_BASE_DELAY_MS = 400;
+const SQUARE_REQUEST_SPACING_MS = 350;
+const SQUARE_BATCH_PAUSE_MS = 1200;
+const SQUARE_BATCH_SIZE = 4;
 const DELIVERY_BULK_REFRESH_INTERVAL_MS = 60 * 60 * 1000;
 const MAX_TRANSACTION_ORDERS = 1000;
 const MAX_PROCESSED_TRANSACTIONS = 1000;
@@ -53,6 +56,89 @@ function formatItemName(deliveryDate, storeAbbreviation, patientName) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function createSquareSyncMonitor(base44, syncName = 'square_sync') {
+  const state = {
+    runId: null,
+    requestCount: 0,
+    retryCount: 0,
+    rateLimitHits: 0,
+    errorCount: 0,
+  };
+
+  const writeLog = async (level, step, message, details = {}) => {
+    await base44.asServiceRole.entities.SquareSyncLog.create({
+      sync_run_id: state.runId,
+      level,
+      step,
+      message,
+      details,
+      logged_at: new Date().toISOString(),
+    }).catch(() => null);
+  };
+
+  return {
+    state,
+    async start(meta = {}) {
+      const run = await base44.asServiceRole.entities.SquareSyncHealth.create({
+        sync_name: syncName,
+        status: 'running',
+        started_at: new Date().toISOString(),
+        request_count: 0,
+        retry_count: 0,
+        rate_limit_hits: 0,
+        error_count: 0,
+        summary: 'Sync started',
+        meta,
+      }).catch(() => null);
+      state.runId = run?.id || null;
+      await writeLog('info', 'start', 'Square sync started', meta);
+    },
+    async finish(status, summary, meta = {}) {
+      if (state.runId) {
+        await base44.asServiceRole.entities.SquareSyncHealth.update(state.runId, {
+          status,
+          finished_at: new Date().toISOString(),
+          request_count: state.requestCount,
+          retry_count: state.retryCount,
+          rate_limit_hits: state.rateLimitHits,
+          error_count: state.errorCount,
+          summary,
+          meta,
+        }).catch(() => null);
+      }
+      await writeLog(status === 'error' ? 'error' : status === 'warning' ? 'warn' : 'info', 'finish', summary, meta);
+    },
+    async log(level, step, message, details = {}) {
+      await writeLog(level, step, message, details);
+    },
+  };
+}
+
+function createSquareRequestQueue(monitor) {
+  let requestCounter = 0;
+
+  return {
+    async run(step, task) {
+      const currentIndex = requestCounter;
+      requestCounter += 1;
+
+      if (currentIndex > 0) {
+        await sleep(SQUARE_REQUEST_SPACING_MS);
+      }
+      if (currentIndex > 0 && currentIndex % SQUARE_BATCH_SIZE === 0) {
+        await sleep(SQUARE_BATCH_PAUSE_MS);
+      }
+
+      try {
+        monitor.state.requestCount += 1;
+        return await task();
+      } catch (error) {
+        throw error;
+      }
+    },
+  };
 }
 
 function isRetryableSquareStatus(status) {
@@ -288,12 +374,14 @@ async function requireAdminIfAuthenticated(base44) {
   return user;
 }
 
-async function squareFetch(path, method, accessToken, body) {
+async function squareFetch(path, method, accessToken, body, options = {}) {
+  const monitor = options.monitor;
+  const queue = options.queue;
   let lastError = null;
 
   for (let attempt = 1; attempt <= SQUARE_API_MAX_RETRIES; attempt += 1) {
     try {
-      const response = await fetch(`${SQUARE_BASE_URL}${path}`, {
+      const response = await (queue ? queue.run(path, () => fetch(`${SQUARE_BASE_URL}${path}`, {
         method,
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -301,7 +389,15 @@ async function squareFetch(path, method, accessToken, body) {
           'Square-Version': SQUARE_VERSION,
         },
         body: body ? JSON.stringify(body) : undefined,
-      });
+      })) : fetch(`${SQUARE_BASE_URL}${path}`, {
+        method,
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'Square-Version': SQUARE_VERSION,
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      }));
 
       const responseText = await response.text();
       const json = responseText ? JSON.parse(responseText) : {};
@@ -309,6 +405,11 @@ async function squareFetch(path, method, accessToken, body) {
         const message = json?.errors?.map((error) => error.detail).join(', ') || `Square API error ${response.status}`;
         lastError = new HttpError(response.status, message);
         if (attempt < SQUARE_API_MAX_RETRIES && isRetryableSquareStatus(response.status)) {
+          if (monitor) {
+            monitor.state.retryCount += 1;
+            if (response.status === 429) monitor.state.rateLimitHits += 1;
+            await monitor.log('warn', 'square_fetch', `Retrying ${path}`, { status: response.status, attempt });
+          }
           await sleep(SQUARE_RETRY_BASE_DELAY_MS * attempt);
           continue;
         }
@@ -319,8 +420,16 @@ async function squareFetch(path, method, accessToken, body) {
     } catch (error) {
       lastError = error;
       if (attempt < SQUARE_API_MAX_RETRIES) {
+        if (monitor) {
+          monitor.state.retryCount += 1;
+          await monitor.log('warn', 'square_fetch', `Retrying ${path}`, { attempt, error: error?.message || String(error) });
+        }
         await sleep(SQUARE_RETRY_BASE_DELAY_MS * attempt);
         continue;
+      }
+      if (monitor) {
+        monitor.state.errorCount += 1;
+        await monitor.log('error', 'square_fetch', `Square request failed for ${path}`, { error: error?.message || String(error) });
       }
       throw lastError;
     }
@@ -439,7 +548,7 @@ async function createCatalogItem({ itemName, amountCents, locationId, deliveryId
   return (json.objects || []).find((object) => object.type === 'ITEM') || null;
 }
 
-async function listActiveCatalogItems(accessToken) {
+async function listActiveCatalogItems(accessToken, options = {}) {
   const objects = [];
   let cursor = undefined;
 
@@ -449,7 +558,7 @@ async function listActiveCatalogItems(accessToken) {
       include_deleted_objects: false,
       archived_state: 'ARCHIVED_STATE_NOT_ARCHIVED',
       cursor,
-    });
+    }, options);
 
     objects.push(...(json.objects || []));
     cursor = json.cursor;
@@ -458,7 +567,7 @@ async function listActiveCatalogItems(accessToken) {
   return objects;
 }
 
-async function listCompletedOrders(locationIds, startAt, accessToken, maxOrders = 1000) {
+async function listCompletedOrders(locationIds, startAt, accessToken, maxOrders = 1000, options = {}) {
   if (!locationIds.length) return [];
 
   const orders = [];
@@ -479,7 +588,7 @@ async function listCompletedOrders(locationIds, startAt, accessToken, maxOrders 
           sort_order: 'DESC',
         },
       },
-    });
+    }, options);
 
     orders.push(...(json.orders || []));
     cursor = json.cursor;
@@ -976,6 +1085,9 @@ async function handleFetchPayments(base44, payload) {
 
 async function handleGetCodData(base44, payload = {}) {
   const accessToken = ensureSquareToken();
+  const monitor = createSquareSyncMonitor(base44, 'square_get_cod_data');
+  const queue = createSquareRequestQueue(monitor);
+  await monitor.start({ action: 'getCodData' });
   const requestedDaysBack = Number(payload?.daysBack || TRANSACTION_RETENTION_DAYS);
   const daysBack = Number.isFinite(requestedDaysBack) && requestedDaysBack > 0 ? requestedDaysBack : CATALOG_LOOKBACK_DAYS;
   const transactionRetentionStartMs = Date.now() - daysBack * 24 * 60 * 60 * 1000;
@@ -1029,8 +1141,8 @@ async function handleGetCodData(base44, payload = {}) {
       })
   );
 
-  const liveCatalogItems = await listActiveCatalogItems(accessToken).catch(() => []);
-  const completedOrders = await listCompletedOrders(locationIds, getLookbackStartAt(), accessToken, MAX_TRANSACTION_ORDERS).catch(() => []);
+  const liveCatalogItems = await listActiveCatalogItems(accessToken, { monitor, queue }).catch(() => []);
+  const completedOrders = await listCompletedOrders(locationIds, getLookbackStartAt(), accessToken, MAX_TRANSACTION_ORDERS, { monitor, queue }).catch(() => []);
   const paidOrderItems = flattenPaidOrderItems(completedOrders).filter((item) => {
     const paymentTime = new Date(item?.payment_date || item?.order_created_at || 0).getTime();
     return Number.isFinite(paymentTime) && paymentTime >= transactionRetentionStartMs;
@@ -1140,7 +1252,7 @@ async function handleGetCodData(base44, payload = {}) {
     driver_name: delivery?.driver_name,
   }));
 
-  return {
+  const result = {
     success: true,
     deliveries: strippedDeliveries,
     shouldRefreshDeliveries: refreshDeliveries,
@@ -1154,6 +1266,12 @@ async function handleGetCodData(base44, payload = {}) {
     locationConfigs: safeLocationConfigs,
     locationIds,
   };
+
+  await monitor.finish(monitor.state.rateLimitHits > 0 ? 'warning' : 'success', 'Square COD data sync completed', {
+    catalogCount: catalogRecords.length,
+    transactionCount: recentTransactionRecords.length,
+  });
+  return result;
 }
 
 async function handleRecordPayment(base44, payload) {

@@ -9,6 +9,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import AuditTable from "@/components/square-audit/AuditTable";
+import SyncHealthPanel from "@/components/square-audit/SyncHealthPanel";
+import { base44 } from "@/api/base44Client";
 import {
   attachDiscrepancies,
   buildStoreMaps,
@@ -33,6 +35,7 @@ export default function SquareSyncAudit() {
     catalogItems: [],
     deliveries: [],
   });
+  const [syncHealth, setSyncHealth] = React.useState({ runs: [], logs: [] });
 
   const loadAuditData = React.useCallback(async () => {
     const range = getAuditRange();
@@ -45,7 +48,7 @@ export default function SquareSyncAudit() {
         throw new Error(syncData.error || "Square reconciliation failed");
       }
 
-      const [locationConfigsResponse, storesResponse, patientsResponse, deliveriesResponse, squareTransactionsResponse, squareCatalogItemsResponse] = await Promise.all([
+      const [locationConfigsResponse, storesResponse, patientsResponse, deliveriesResponse, squareTransactionsResponse, squareCatalogItemsResponse, syncHealthResponse] = await Promise.all([
         base44.entities.SquareLocationConfig.filter({ status: "active" }),
         base44.entities.Store.list(),
         base44.entities.Patient.list(),
@@ -57,9 +60,11 @@ export default function SquareSyncAudit() {
         }),
         base44.entities.SquareTransaction.list("-updated_date", 2000),
         base44.entities.SquareCatalogItems.list("-updated_date", 2000),
+        base44.functions.invoke("squareSyncHealth", {}),
       ]);
 
       const locationConfigs = (locationConfigsResponse || []).map((record) => ({ id: record?.id, ...(record?.data || {}) }));
+      setSyncHealth(syncHealthResponse?.data || syncHealthResponse || { runs: [], logs: [] });
       const stores = (storesResponse || []).map((record) => ({ id: record?.id, ...(record?.data || {}) }));
       const patients = (patientsResponse || []).map((record) => ({ id: record?.id, ...(record?.data || {}) }));
       const storesWithSquareLocationIds = stores.filter((store) => {
