@@ -1376,37 +1376,10 @@ async function handleSyncCatalogItems(base44) {
     await base44.asServiceRole.entities.SquareTransaction.delete(transaction.id);
   }
 
-  const staleIds = new Set(staleTransactions.map((transaction) => transaction.id));
-  const syncedCatalogTransactions = (allTransactionsAfterSync || [])
-    .filter((transaction) => !staleIds.has(transaction.id))
-    .filter((transaction) => transaction?.square_catalog_object_id)
-    .filter((transaction) => transaction?.location_id)
-    .filter((transaction) => {
-      const delivery = deliveryById.get(transaction.delivery_id);
-      return isRecentDelivery(delivery?.delivery_date || transaction?.item_name);
-    });
-  // Use paginated delete to guarantee ALL records are removed regardless of total count
-  await paginatedDeleteAll(base44.asServiceRole.entities.SquareCatalogItems);
-
-  if (syncedCatalogTransactions.length > 0) {
-    await base44.asServiceRole.entities.SquareCatalogItems.bulkCreate(syncedCatalogTransactions.map((transaction) => {
-      const delivery = deliveryById.get(transaction.delivery_id);
-      return {
-        square_catalog_object_id: transaction.square_catalog_object_id,
-        square_catalog_version: transaction.square_catalog_version || null,
-        item_name: transaction.item_name,
-        description: '',
-        amount: Number(transaction.amount || 0),
-        amount_cents: transaction.amount_cents || Math.round(Number(transaction.amount || 0) * 100),
-        delivery_id: transaction.delivery_id,
-        delivery_date: delivery?.delivery_date || toIsoDate(transaction.item_name),
-        patient_id: transaction.patient_id || null,
-        store_id: transaction.store_id || null,
-        location_id: transaction.location_id || null,
-        status: transaction.status === 'pending' ? 'active' : 'completed',
-      };
-    }));
-  }
+  // NOTE: SquareCatalogItems is now SOLELY managed by syncFromSquare (the full Square API sync).
+  // handleSyncSquareCods previously rebuilt SquareCatalogItems from SquareTransaction records,
+  // but this caused the catalog to grow beyond Square's actual live item count because
+  // SquareTransaction accumulates historical data. We no longer touch SquareCatalogItems here.
 
   return {
     success: true,
@@ -1419,7 +1392,7 @@ async function handleSyncCatalogItems(base44) {
     created_catalog_items: createdCount,
     updated_pending_transactions: updatedPendingCount,
     pruned_transactions: staleTransactions.length,
-    synced_square_catalog_items: syncedCatalogTransactions.length,
+    synced_square_catalog_items: 0,
   };
 }
 
