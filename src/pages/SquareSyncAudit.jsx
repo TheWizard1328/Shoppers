@@ -10,7 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import AuditTable from "@/components/square-audit/AuditTable";
 import SyncHealthPanel from "@/components/square-audit/SyncHealthPanel";
-import { base44 } from "@/api/base44Client";
 import {
   attachDiscrepancies,
   buildStoreMaps,
