@@ -1396,35 +1396,33 @@ async function handleSyncCatalogItems(base44) {
 }
 
 async function handleSyncOnlineSquareEntities(base44, payload) {
-  // Receives the already-saved offline DB records as source of truth.
-  // Step 1: delete ALL existing online records for both entities.
-  // Step 2: bulkCreate from the offline snapshot.
-  // This is a full atomic replace - no per-item looping.
   const catalogRecords = Array.isArray(payload?.catalogRecords) ? payload.catalogRecords.filter(Boolean) : [];
   const transactionRecords = Array.isArray(payload?.transactionRecords) ? payload.transactionRecords.filter(Boolean) : [];
 
-  // Strip Base44 entity metadata fields that must not be passed to bulkCreate
   const stripMeta = (record) => {
-    const { id, created_date, updated_date, created_by, ...rest } = record;
+    const { id, created_date, updated_date, created_by, ...rest } = record || {};
     return rest;
   };
 
   const cleanCatalog = catalogRecords.map(stripMeta);
   const cleanTransactions = transactionRecords.map(stripMeta);
 
-  // Clear both entities using the existing paginated helper, then bulk-create the fresh snapshot.
   await Promise.all([
     paginatedDeleteAll(base44.asServiceRole.entities.SquareCatalogItems),
     paginatedDeleteAll(base44.asServiceRole.entities.SquareTransaction),
   ]);
 
+  const bulkCreateInChunks = async (entityApi, records) => {
+    if (!records.length) return;
+    const chunkSize = 200;
+    for (let i = 0; i < records.length; i += chunkSize) {
+      await entityApi.bulkCreate(records.slice(i, i + chunkSize));
+    }
+  };
+
   await Promise.all([
-    cleanCatalog.length > 0
-      ? base44.asServiceRole.entities.SquareCatalogItems.bulkCreate(cleanCatalog)
-      : Promise.resolve(),
-    cleanTransactions.length > 0
-      ? base44.asServiceRole.entities.SquareTransaction.bulkCreate(cleanTransactions)
-      : Promise.resolve(),
+    bulkCreateInChunks(base44.asServiceRole.entities.SquareCatalogItems, cleanCatalog),
+    bulkCreateInChunks(base44.asServiceRole.entities.SquareTransaction, cleanTransactions),
   ]);
 
   return {

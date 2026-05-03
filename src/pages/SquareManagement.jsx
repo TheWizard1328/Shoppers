@@ -109,10 +109,24 @@ export default function SquareManagement() {
   }, [getCatalogItemsOffline, getPaymentTransactionsOffline, getSquareCODSyncStatus]);
 
   const refreshOfflineSquareFromOnlineEntities = useCallback(async () => {
+    const loadAllRecords = async (entityApi) => {
+      const pageSize = 1000;
+      let skip = 0;
+      let allRecords = [];
+      while (true) {
+        const page = await entityApi.list('-updated_date', pageSize, skip);
+        if (!page?.length) break;
+        allRecords = allRecords.concat(page);
+        if (page.length < pageSize) break;
+        skip += pageSize;
+      }
+      return allRecords;
+    };
+
     const [catalogRecords, transactionRecords] = await Promise.all([
-    base44.entities.SquareCatalogItems.list('-updated_date', 5000),
-    base44.entities.SquareTransaction.list('-updated_date', 5000)]
-    );
+      loadAllRecords(base44.entities.SquareCatalogItems),
+      loadAllRecords(base44.entities.SquareTransaction)
+    ]);
 
     await syncSquareCODSnapshotOffline({
       catalogItems: catalogRecords || [],
@@ -233,14 +247,13 @@ export default function SquareManagement() {
           : Promise.resolve()
       ]);
 
-      // Step 3: Read back from offline DBs â€” these are now the source of truth
+      // Step 3: Read back from offline DBs - these are now the source of truth
       const [offlineCatalog, offlineTransactions] = await Promise.all([
         offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS),
         offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS)
       ]);
 
-      // Step 4: Bulk replace BOTH online DBs from the offline snapshot
-      // Backend: delete ALL existing records, then bulkCreate â€” no per-item looping
+      // Step 4: Fully replace BOTH online DBs from the completed offline snapshot
       await base44.functions.invoke('squareCodCore', {
         action: 'syncOnlineSquareEntities',
         catalogRecords: offlineCatalog || [],
@@ -298,9 +311,7 @@ export default function SquareManagement() {
         setIsLoading(false);
         setHasInitialLoadCompleted(true);
 
-        await refreshOfflineSquareFromOnlineEntities();
-        await loadSquareViewFromOffline();
-        await loadSyncStatus();
+        await syncFromSquare();
         setBgSyncProgress({ stage: 'idle' });
       } catch (err) {
         console.error('Failed to load COD data:', err);
