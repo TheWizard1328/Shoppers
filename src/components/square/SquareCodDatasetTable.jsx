@@ -14,6 +14,16 @@ const formatDate = (value) => {
   return normalized.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 };
 
+const getRowKey = (row, index) => [
+  row.id,
+  row.catalogId,
+  row.locationId,
+  row.deliveryDate,
+  row.collectionDate,
+  row.itemName,
+  index
+].filter(Boolean).join("|");
+
 export default function SquareCodDatasetTable({
   title,
   rows,
@@ -63,7 +73,7 @@ export default function SquareCodDatasetTable({
                   <tbody>
                     {rows.map((row, index) =>
                   <tr
-                    key={row.id || `${row.itemName}-${index}`}
+                    key={getRowKey(row, index)}
                     onClick={onRowClick ? () => onRowClick(row) : undefined}
                     className="transition-colors border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50">
                     
