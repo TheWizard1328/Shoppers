@@ -184,12 +184,12 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
   };
 
   const getMonthHighlightData = (month) => {
-    const monthValues = stores
-      .map((store) => ({
-        abbreviation: store.abbreviation,
-        value: getValue(store.abbreviation, month) || 0
-      }))
-      .filter((item) => item.value > 0);
+    const monthValues = stores.
+    map((store) => ({
+      abbreviation: store.abbreviation,
+      value: getValue(store.abbreviation, month) || 0
+    })).
+    filter((item) => item.value > 0);
 
     if (!monthValues.length) {
       return { maxValue: 0, averagesByStore: {} };
@@ -242,9 +242,9 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
 
   return (
     <Card className="bg-card text-card-foreground rounded-xl border shadow flex min-h-0 flex-col max-h-[500px] lg:max-h-[500px] overflow-hidden">
-      <CardHeader className="pb-3 shrink-0">
-        <p className="text-xs text-slate-500 mb-2">💡 Click a month row name to filter all charts, or click a store value to see day-by-day breakdown</p>
-        <p className="text-xs text-slate-500 mb-2">Green highlights show the top store value for that month, and yellow highlights show values above that store’s average for the month.</p>
+      <CardHeader className="px-4 py-2 flex flex-col space-y-1.5 shrink-0">
+        <p className="text-slate-500 text-xs">💡 Click a month row name to filter all charts, or click a store value to see day-by-day breakdown</p>
+        <p className="text-slate-500 text-xs">Green highlights show the top store value for that month, and yellow highlights show values above that store’s average for the month.</p>
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <CardTitle className="flex items-center gap-2 text-base">
             {metricsViewMode === 'deliveries' ?
@@ -449,6 +449,6 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
       </CardContent>
     </Card>);
 
-    }
+}
 
-    export default React.memo(MonthlyStoreMetricsGrid);
+export default React.memo(MonthlyStoreMetricsGrid);

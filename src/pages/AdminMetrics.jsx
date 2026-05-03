@@ -168,12 +168,12 @@ export default function AdminMetrics() {
     if (!hasAccess || !cityId) return;
     if (!forceRefresh && Date.now() - last429AtRef.current < 15000) return;
 
-    const syncMonthLabel = selectedMonth
-      ? `${MONTH_NAMES[selectedMonth - 1]} ${year}`
-      : `Current month ${MONTH_NAMES[new Date().getMonth()]} ${new Date().getFullYear()}`;
-    const syncDriverLabel = selectedDriverId === 'all'
-      ? 'All drivers'
-      : metricsData?.driverData?.find((d) => d.driverId === selectedDriverId)?.name || 'Selected driver';
+    const syncMonthLabel = selectedMonth ?
+    `${MONTH_NAMES[selectedMonth - 1]} ${year}` :
+    `Current month ${MONTH_NAMES[new Date().getMonth()]} ${new Date().getFullYear()}`;
+    const syncDriverLabel = selectedDriverId === 'all' ?
+    'All drivers' :
+    metricsData?.driverData?.find((d) => d.driverId === selectedDriverId)?.name || 'Selected driver';
 
     const syncKey = `${year}-${cityId}-${selectedMonth || 'all'}-${selectedDriverId || 'all'}`;
     const now = Date.now();
@@ -237,13 +237,13 @@ export default function AdminMetrics() {
       setIsBackgroundSyncing(false);
     }
   }, [
-    hasAccess,
-    loadOfflineMetrics,
-    metricsData,
-    saveOfflineMetrics,
-    selectedMonth,
-    selectedDriverId
-  ]);
+  hasAccess,
+  loadOfflineMetrics,
+  metricsData,
+  saveOfflineMetrics,
+  selectedMonth,
+  selectedDriverId]
+  );
 
   // Fetch metrics from backend - only when year or city changes or on initial load
   const fetchMetrics = useCallback(async (year, cityId, isInitial = false) => {
@@ -474,41 +474,41 @@ export default function AdminMetrics() {
       });
     }
 
-    return (filteredData?.storeData || displayMetricsData.storeData || [])
-      .slice()
-      .filter((item) => {
-        const totalDeliveries = (item.completed || 0) + (item.failed || 0) + (item.afterHours || 0);
-        const extraKm = item.extra_km || item.extraKm || 0;
-        return totalDeliveries > 0 || (item.fees || 0) > 0 || extraKm > 0;
-      })
-      .sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity))
-      .map((item) => {
-        let envelopeValue = 0;
-        if (showEnvelopeAdjustedTotals && metricsData.envelopeMetrics?.byStoreAndMonth?.[item.storeId]) {
-          if (selectedMonth) {
-            envelopeValue = metricsData.envelopeMetrics.byStoreAndMonth[item.storeId][selectedMonth]?.totalEnvelopeValue || 0;
-          } else {
-            const storeMonthData = metricsData.envelopeMetrics.byStoreAndMonth[item.storeId];
-            for (const month in storeMonthData) {
-              envelopeValue += storeMonthData[month]?.totalEnvelopeValue || 0;
-            }
+    return (filteredData?.storeData || displayMetricsData.storeData || []).
+    slice().
+    filter((item) => {
+      const totalDeliveries = (item.completed || 0) + (item.failed || 0) + (item.afterHours || 0);
+      const extraKm = item.extra_km || item.extraKm || 0;
+      return totalDeliveries > 0 || (item.fees || 0) > 0 || extraKm > 0;
+    }).
+    sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity)).
+    map((item) => {
+      let envelopeValue = 0;
+      if (showEnvelopeAdjustedTotals && metricsData.envelopeMetrics?.byStoreAndMonth?.[item.storeId]) {
+        if (selectedMonth) {
+          envelopeValue = metricsData.envelopeMetrics.byStoreAndMonth[item.storeId][selectedMonth]?.totalEnvelopeValue || 0;
+        } else {
+          const storeMonthData = metricsData.envelopeMetrics.byStoreAndMonth[item.storeId];
+          for (const month in storeMonthData) {
+            envelopeValue += storeMonthData[month]?.totalEnvelopeValue || 0;
           }
         }
+      }
 
-        const totalCompleted = (item.completed || 0) + (item.afterHours || 0);
-        const totalFailed = item.failed || 0;
-        const extraKm = item.extra_km || item.extraKm || 0;
+      const totalCompleted = (item.completed || 0) + (item.afterHours || 0);
+      const totalFailed = item.failed || 0;
+      const extraKm = item.extra_km || item.extraKm || 0;
 
-        return {
-          ...item,
-          totalCompleted,
-          totalFailed,
-          envelopeCount: envelopeValue,
-          fees: item.fees || 0,
-          extraKm,
-          totalDeliveries: totalCompleted + totalFailed
-        };
-      });
+      return {
+        ...item,
+        totalCompleted,
+        totalFailed,
+        envelopeCount: envelopeValue,
+        fees: item.fees || 0,
+        extraKm,
+        totalDeliveries: totalCompleted + totalFailed
+      };
+    });
   }, [displayMetricsData.storeData, filteredData, metricsData, selectedMonth, selectedStoreMonth, selectedYear, showEnvelopeAdjustedTotals]);
 
   const bottomTimeChartData = useMemo(() => {
@@ -533,40 +533,40 @@ export default function AdminMetrics() {
 
       if (selectedDriverId === 'all') return displayMetricsData.monthlyData;
       return displayMetricsData.dailyDeliveryData ?
-        Object.values(metricsData.dailyDeliveryData).flat().filter((d) => d.driverId === selectedDriverId).reduce((acc, entry) => {
-          const existing = acc[entry.month - 1];
-          if (existing) {
-            existing.billable += entry.billable;
-            existing.nonBillable += entry.nonBillable;
-            existing.adjustedDeliveries += entry.adjustedDeliveries || 0;
-          } else {
-            acc[entry.month - 1] = { billable: entry.billable, nonBillable: entry.nonBillable, adjustedDeliveries: entry.adjustedDeliveries || 0, month: entry.month };
-          }
-          return acc;
-        }, Array(12).fill(null).map((_, i) => ({ billable: 0, nonBillable: 0, adjustedDeliveries: 0, month: i + 1 }))) :
-        metricsData.monthlyData;
+      Object.values(metricsData.dailyDeliveryData).flat().filter((d) => d.driverId === selectedDriverId).reduce((acc, entry) => {
+        const existing = acc[entry.month - 1];
+        if (existing) {
+          existing.billable += entry.billable;
+          existing.nonBillable += entry.nonBillable;
+          existing.adjustedDeliveries += entry.adjustedDeliveries || 0;
+        } else {
+          acc[entry.month - 1] = { billable: entry.billable, nonBillable: entry.nonBillable, adjustedDeliveries: entry.adjustedDeliveries || 0, month: entry.month };
+        }
+        return acc;
+      }, Array(12).fill(null).map((_, i) => ({ billable: 0, nonBillable: 0, adjustedDeliveries: 0, month: i + 1 }))) :
+      metricsData.monthlyData;
     }
 
     const daysInMonth = new Date(parseInt(selectedYear), selectedMonth, 0).getDate();
 
     if (metricsViewMode === 'fees') {
       const sourceRows = selectedStoreMonth ?
-        (bottomStoreChartData || []) :
-        Array.from({ length: daysInMonth }, (_, index) => {
-          const day = index + 1;
-          const totalFees = Object.values(metricsData.dailyStoreData?.[selectedMonth] || {}).reduce((sum, storeDays) => {
-            const entry = (storeDays || []).find((item) => item.day === day);
-            const storeId = storeDays?.[0]?.storeId;
-            const monthStore = (metricsData.monthlyStoreData?.[selectedMonth] || []).find((store) => (store.storeId || store.id) === storeId);
-            const fallbackFee = (metricsData.monthlyStoreFees?.[selectedMonth] || []).find((store) => (store.storeId || store.id) === storeId);
-            const monthTotalFees = monthStore?.fees ?? fallbackFee?.fees ?? fallbackFee?.total_fees ?? 0;
-            const monthTotalDeliveries = (monthStore?.completed || 0) + (monthStore?.failed || 0) + (monthStore?.afterHours || 0);
-            const dayTotalDeliveries = (entry?.completed || 0) + (entry?.failed || 0) + (entry?.afterHours || 0);
-            if (monthTotalFees <= 0 || monthTotalDeliveries <= 0 || dayTotalDeliveries <= 0) return sum;
-            return sum + monthTotalFees * (dayTotalDeliveries / monthTotalDeliveries);
-          }, 0);
-          return { day, fees: totalFees };
-        });
+      bottomStoreChartData || [] :
+      Array.from({ length: daysInMonth }, (_, index) => {
+        const day = index + 1;
+        const totalFees = Object.values(metricsData.dailyStoreData?.[selectedMonth] || {}).reduce((sum, storeDays) => {
+          const entry = (storeDays || []).find((item) => item.day === day);
+          const storeId = storeDays?.[0]?.storeId;
+          const monthStore = (metricsData.monthlyStoreData?.[selectedMonth] || []).find((store) => (store.storeId || store.id) === storeId);
+          const fallbackFee = (metricsData.monthlyStoreFees?.[selectedMonth] || []).find((store) => (store.storeId || store.id) === storeId);
+          const monthTotalFees = monthStore?.fees ?? fallbackFee?.fees ?? fallbackFee?.total_fees ?? 0;
+          const monthTotalDeliveries = (monthStore?.completed || 0) + (monthStore?.failed || 0) + (monthStore?.afterHours || 0);
+          const dayTotalDeliveries = (entry?.completed || 0) + (entry?.failed || 0) + (entry?.afterHours || 0);
+          if (monthTotalFees <= 0 || monthTotalDeliveries <= 0 || dayTotalDeliveries <= 0) return sum;
+          return sum + monthTotalFees * (dayTotalDeliveries / monthTotalDeliveries);
+        }, 0);
+        return { day, fees: totalFees };
+      });
       return sourceRows;
     }
 
@@ -631,23 +631,23 @@ export default function AdminMetrics() {
     };
 
     const driverData = selectedStoreMonth ?
-      aggregateDriverData(Object.values(metricsData.dailyDriverData?.[selectedStoreMonth.month] || {}).flat()) :
-      selectedMonth ?
-        aggregateDriverData(Object.values(metricsData.dailyDriverData?.[selectedMonth] || {}).flat()) :
-        getFilteredDriverData(displayMetricsData.driverData || []) || [];
+    aggregateDriverData(Object.values(metricsData.dailyDriverData?.[selectedStoreMonth.month] || {}).flat()) :
+    selectedMonth ?
+    aggregateDriverData(Object.values(metricsData.dailyDriverData?.[selectedMonth] || {}).flat()) :
+    getFilteredDriverData(displayMetricsData.driverData || []) || [];
 
-    return driverData
-      .slice()
-      .filter((driver) => {
-        if (metricsViewMode === 'fees') return (driver.fees || 0) > 0;
-        if (metricsViewMode === 'extra_km') return (driver.extraKm || 0) > 0;
-        return (driver.billable || 0) + (driver.nonBillable || 0) > 0;
-      })
-      .sort((a, b) => {
-        const aValue = metricsViewMode === 'fees' ? (a.fees || 0) : metricsViewMode === 'extra_km' ? (a.extraKm || 0) : (a.billable || 0) + (a.nonBillable || 0);
-        const bValue = metricsViewMode === 'fees' ? (b.fees || 0) : metricsViewMode === 'extra_km' ? (b.extraKm || 0) : (b.billable || 0) + (b.nonBillable || 0);
-        return bValue - aValue;
-      });
+    return driverData.
+    slice().
+    filter((driver) => {
+      if (metricsViewMode === 'fees') return (driver.fees || 0) > 0;
+      if (metricsViewMode === 'extra_km') return (driver.extraKm || 0) > 0;
+      return (driver.billable || 0) + (driver.nonBillable || 0) > 0;
+    }).
+    sort((a, b) => {
+      const aValue = metricsViewMode === 'fees' ? a.fees || 0 : metricsViewMode === 'extra_km' ? a.extraKm || 0 : (a.billable || 0) + (a.nonBillable || 0);
+      const bValue = metricsViewMode === 'fees' ? b.fees || 0 : metricsViewMode === 'extra_km' ? b.extraKm || 0 : (b.billable || 0) + (b.nonBillable || 0);
+      return bValue - aValue;
+    });
   }, [displayMetricsData.driverData, getFilteredDriverData, metricsData, metricsViewMode, selectedMonth, selectedStoreMonth]);
 
   const needsCitySelection = hasAccess && cities.length > 0 && !selectedCityId;
@@ -660,8 +660,8 @@ export default function AdminMetrics() {
     return () => clearTimeout(timer);
   }, [needsCitySelection]);
 
-  const renderHeaderSection = () => (
-    <div className="shrink-0 space-y-3">
+  const renderHeaderSection = () =>
+  <div className="shrink-0 space-y-3">
       <div>
         <h1 className="text-2xl md:text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
           Admin Metrics
@@ -674,8 +674,8 @@ export default function AdminMetrics() {
           </SelectTrigger>
           <SelectContent>
             {cities.map((city) =>
-            <SelectItem key={city.id} value={city.id}>{city.name}</SelectItem>
-            )}
+          <SelectItem key={city.id} value={city.id}>{city.name}</SelectItem>
+          )}
           </SelectContent>
         </Select>
 
@@ -685,26 +685,26 @@ export default function AdminMetrics() {
           </SelectTrigger>
           <SelectContent>
             {availableYears.map((year) =>
-            <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
-            )}
+          <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+          )}
           </SelectContent>
         </Select>
         <div className="ml-0 md:ml-auto flex items-center gap-1.5 md:gap-2 shrink-0">
           <Button
-            variant="outline"
-            size="icon"
-            onClick={handleManualRefresh}
-            disabled={!selectedCityId || isFetching || isManualRefreshing}
-            className={isBackgroundSyncing ? 'border-emerald-500 text-emerald-600' : ''}>
-            <RefreshCw className={`w-4 h-4 ${(isFetching || isManualRefreshing || isBackgroundSyncing) ? 'animate-spin' : ''} ${isBackgroundSyncing ? 'text-emerald-600' : ''}`} />
+          variant="outline"
+          size="icon"
+          onClick={handleManualRefresh}
+          disabled={!selectedCityId || isFetching || isManualRefreshing}
+          className={isBackgroundSyncing ? 'border-emerald-500 text-emerald-600' : ''}>
+            <RefreshCw className={`w-4 h-4 ${isFetching || isManualRefreshing || isBackgroundSyncing ? 'animate-spin' : ''} ${isBackgroundSyncing ? 'text-emerald-600' : ''}`} />
           </Button>
           <Button variant="outline" size="icon" disabled={!selectedCityId}>
             <Share2 className="w-4 h-4" />
           </Button>
         </div>
       </div>
-    </div>
-  );
+    </div>;
+
 
   if (!hasAccess) {
     return (
@@ -758,23 +758,23 @@ export default function AdminMetrics() {
         {/* Header */}
         {renderHeaderSection()}
 
-        {showNoDataMessage && (
-          <Card className="p-4" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+        {showNoDataMessage &&
+        <Card className="p-4" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
             <p style={{ color: 'var(--text-slate-600)' }}>No admin metrics data was found for the selected city yet.</p>
           </Card>
-        )}
+        }
 
-        {(liveSyncStatus || showBackgroundSyncLabel) && (
-          <div className="flex items-center gap-2 text-xs md:text-sm" style={{ color: 'var(--text-slate-600)' }}>
-            {liveSyncStatus && (
-              <Badge variant="secondary">
+        {(liveSyncStatus || showBackgroundSyncLabel) &&
+        <div className="flex items-center gap-2 text-xs md:text-sm" style={{ color: 'var(--text-slate-600)' }}>
+            {liveSyncStatus &&
+          <Badge variant="secondary">
                 {loadedFromOffline ? 'Loaded from offline cache' : liveSyncStatus.source === 'summary' ? 'Loaded from summary' : liveSyncStatus.liveWindowApplied ? `Live sync: last ${liveSyncStatus.liveWindowDays} days` : 'Summary only'}
               </Badge>
-            )}
+          }
             {showBackgroundSyncLabel && <span>Refreshing {backgroundSyncLabel || 'Current month • All drivers'} in background…</span>}
             {!isBackgroundSyncing && !showBackgroundSyncLabel && liveSyncStatus?.currentMonthSynced && <span>Summary is up to date.</span>}
           </div>
-        )}
+        }
 
         {/* Summary Cards */}
         <div className="shrink-0 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -787,12 +787,12 @@ export default function AdminMetrics() {
                 </div>
                 <p className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
                   {(() => {
-                    const sourceRows = selectedMonth
-                      ? (displayMetricsData.monthlyStoreData?.[selectedMonth] || [])
-                      : Object.values(displayMetricsData.monthlyStoreData || {}).flat();
-                    const total = sourceRows
-                      .filter((row) => (row.fees || 0) > 0)
-                      .reduce((sum, row) => sum + (row.completed || 0) + (row.failed || 0) + (row.afterHours || 0), 0);
+                    const sourceRows = selectedMonth ?
+                    displayMetricsData.monthlyStoreData?.[selectedMonth] || [] :
+                    Object.values(displayMetricsData.monthlyStoreData || {}).flat();
+                    const total = sourceRows.
+                    filter((row) => (row.fees || 0) > 0).
+                    reduce((sum, row) => sum + (row.completed || 0) + (row.failed || 0) + (row.afterHours || 0), 0);
                     return total.toLocaleString();
                   })()}
                 </p>
@@ -809,12 +809,12 @@ export default function AdminMetrics() {
                 </div>
                 <p className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
                   {(() => {
-                    const sourceRows = selectedMonth
-                      ? (displayMetricsData.monthlyStoreData?.[selectedMonth] || [])
-                      : Object.values(displayMetricsData.monthlyStoreData || {}).flat();
-                    const total = sourceRows
-                      .filter((row) => (row.fees || 0) <= 0)
-                      .reduce((sum, row) => sum + (row.completed || 0) + (row.failed || 0) + (row.afterHours || 0), 0);
+                    const sourceRows = selectedMonth ?
+                    displayMetricsData.monthlyStoreData?.[selectedMonth] || [] :
+                    Object.values(displayMetricsData.monthlyStoreData || {}).flat();
+                    const total = sourceRows.
+                    filter((row) => (row.fees || 0) <= 0).
+                    reduce((sum, row) => sum + (row.completed || 0) + (row.failed || 0) + (row.afterHours || 0), 0);
                     return total.toLocaleString();
                   })()}
                 </p>
@@ -922,7 +922,7 @@ export default function AdminMetrics() {
 
         {/* Row 2: Store Breakdown or Day-by-Day Breakdown */}
         <Card className="min-h-0 overflow-hidden" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="px-4 py-2 space-y-1.5 flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <Store className="w-5 h-5" />
               {selectedStoreMonth ?
@@ -1052,14 +1052,14 @@ export default function AdminMetrics() {
                         tick={selectedMonth ? (props) => {
                           const { x, y, payload } = props;
                           const dayData = bottomTimeChartData.find((d) => d.day === payload.value);
-                          const total = metricsViewMode === 'fees' ? (dayData?.fees || 0) : metricsViewMode === 'extra_km' ? (dayData?.extraKm || 0) : (dayData?.billable || 0) + (dayData?.nonBillable || 0);
+                          const total = metricsViewMode === 'fees' ? dayData?.fees || 0 : metricsViewMode === 'extra_km' ? dayData?.extraKm || 0 : (dayData?.billable || 0) + (dayData?.nonBillable || 0);
                           return (
                             <g transform={`translate(${x},${y})`}>
                             <text x={0} y={0} dy={12} textAnchor="middle" fill="var(--text-slate-600)" fontSize={10}>
                               {payload.value}
                             </text>
                             <text x={0} y={0} dy={24} textAnchor="middle" fill={metricsViewMode === 'fees' ? '#f59e0b' : metricsViewMode === 'extra_km' ? '#8b5cf6' : '#10b981'} fontSize={9} fontWeight="600">
-                              {total > 0 ? (metricsViewMode === 'fees' ? `$${Number(total).toFixed(0)}` : metricsViewMode === 'extra_km' ? Number(total).toFixed(2) : total) : ''}
+                              {total > 0 ? metricsViewMode === 'fees' ? `$${Number(total).toFixed(0)}` : metricsViewMode === 'extra_km' ? Number(total).toFixed(2) : total : ''}
                             </text>
                           </g>);
 
@@ -1085,7 +1085,7 @@ export default function AdminMetrics() {
                         <Bar dataKey="billable" fill={COLORS.billable} name="Billable" radius={[4, 4, 0, 0]} />
                         <Bar dataKey="nonBillable" fill={COLORS.nonBillable} name="Non-Billable" radius={[4, 4, 0, 0]} />
                       </>
-                    }
+                      }
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -1138,7 +1138,7 @@ export default function AdminMetrics() {
                         <Bar dataKey="billable" fill={COLORS.billable} name="Billable" radius={[2, 2, 0, 0]} />
                         <Bar dataKey="nonBillable" fill={COLORS.nonBillable} name="Non-Billable" radius={[2, 2, 0, 0]} />
                       </>
-                    }
+                      }
                   </BarChart>
                 </ResponsiveContainer>
               </div>
