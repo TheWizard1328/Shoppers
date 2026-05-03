@@ -130,21 +130,6 @@ function isRecentCatalogItemName(itemName) {
 // Paginated delete-all: loops until no records remain.
 // A single .list(N) call can miss records when N < total count,
 // causing stale rows to survive the "clear before sync" step.
-async function paginatedDeleteAll(entityFn, batchSize = 500) {
-  // Fetches in pages and deletes each page in parallel (Promise.all).
-  // Safe at normal scale (43-75 records). Pages ensure we don't miss any records
-  // if the total exceeds the list limit.
-  let deleted = 0;
-  for (let pass = 0; pass < 20; pass++) {
-    const batch = await entityFn.list('-updated_date', batchSize).catch(() => []);
-    if (!batch || batch.length === 0) break;
-    await Promise.all(batch.map((record) => entityFn.delete(record.id).catch(() => null)));
-    deleted += batch.length;
-    if (batch.length < batchSize) break;
-  }
-  return deleted;
-}
-
 function getLookbackStartAt() {
   return new Date(Date.now() - CATALOG_LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString();
 }
@@ -742,18 +727,25 @@ async function handleDeleteCodItem(base44, payload) {
   }
 
   const newStatus = reason === 'failed' ? 'failed' : 'cancelled';
-  await Promise.all(
-    relatedTransactions.map((transaction) =>
-      base44.asServiceRole.entities.SquareTransaction.update(transaction.id, {
-        status: newStatus,
-        raw_square_data: {
-          ...(transaction.raw_square_data || {}),
-          deleted_at: new Date().toISOString(),
-          deleted_reason: reason || 'manual_delete',
-        },
-      }).catch(() => null)
-    )
-  );
+  {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    for (let i = 0; i < relatedTransactions.length; i += 10) {
+      const chunk = relatedTransactions.slice(i, i + 10);
+      await Promise.all(
+        chunk.map((transaction) =>
+          base44.asServiceRole.entities.SquareTransaction.update(transaction.id, {
+            status: newStatus,
+            raw_square_data: {
+              ...(transaction.raw_square_data || {}),
+              deleted_at: new Date().toISOString(),
+              deleted_reason: reason || 'manual_delete',
+            },
+          }).catch(() => null)
+        )
+      );
+      if (i + 10 < relatedTransactions.length) await sleep(50);
+    }
+  }
 
   const catalogMatches = [];
   if (deliveryId) {
@@ -767,7 +759,14 @@ async function handleDeleteCodItem(base44, payload) {
 
   const uniqueCatalogMatches = Array.from(new Map(catalogMatches.filter(Boolean).map((item) => [item.id, item])).values());
   if (squareDeleteResult?.ok || !catalogIdToDelete || isTemporarySquareFailure) {
-    await Promise.all(uniqueCatalogMatches.map((item) => base44.asServiceRole.entities.SquareCatalogItems.delete(item.id).catch(() => null)));
+    {
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      for (let i = 0; i < uniqueCatalogMatches.length; i += 10) {
+        const chunk = uniqueCatalogMatches.slice(i, i + 10);
+        await Promise.all(chunk.map((item) => base44.asServiceRole.entities.SquareCatalogItems.delete(item.id).catch(() => null)));
+        if (i + 10 < uniqueCatalogMatches.length) await sleep(50);
+      }
+    }
   }
 
   return {
@@ -1413,13 +1412,14 @@ async function handleSyncOnlineSquareEntities(base44, payload) {
   const cleanCatalog = catalogRecords.map(stripMeta);
   const cleanTransactions = transactionRecords.map(stripMeta);
 
-  // Delete all existing records in both tables simultaneously
+  // Nuclear clear: deleteMany({}) wipes the entire table in ONE API call.
+  // Then bulkCreate replaces with the fresh offline snapshot.
+  // Both clears run simultaneously, then both creates run simultaneously.
   await Promise.all([
-    paginatedDeleteAll(base44.asServiceRole.entities.SquareCatalogItems),
-    paginatedDeleteAll(base44.asServiceRole.entities.SquareTransaction),
+    base44.asServiceRole.entities.SquareCatalogItems.deleteMany({}),
+    base44.asServiceRole.entities.SquareTransaction.deleteMany({}),
   ]);
 
-  // Bulk insert the fresh offline snapshot
   await Promise.all([
     cleanCatalog.length > 0
       ? base44.asServiceRole.entities.SquareCatalogItems.bulkCreate(cleanCatalog)
@@ -1491,23 +1491,29 @@ async function handleSyncSquareCods(base44, payload) {
     const allCatalogIds = Array.from(new Set((allCatalogItems || []).map((item) => item?.id).filter(Boolean)));
     const purgeDeleteResult = allCatalogIds.length ? await deleteCatalogObjects(allCatalogIds, accessToken) : { deleted: [], failed: [] };
 
-    await paginatedDeleteAll(base44.asServiceRole.entities.SquareCatalogItems);
+    await base44.asServiceRole.entities.SquareCatalogItems.deleteMany({});
 
     const existingTransactions = await base44.asServiceRole.entities.SquareTransaction.list('-updated_date', 2000).catch(() => []);
-    await Promise.all(
-      (existingTransactions || [])
-        .filter((transaction) => transaction?.status === 'pending')
-        .map((transaction) =>
-          base44.asServiceRole.entities.SquareTransaction.update(transaction.id, {
-            status: 'cancelled',
-            raw_square_data: {
-              ...(transaction.raw_square_data || {}),
-              deleted_at: new Date().toISOString(),
-              deleted_reason: 'purge_catalog_before_sync',
-            },
-          }).catch(() => null)
-        )
-    );
+    {
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      const pendingTx = (existingTransactions || []).filter((t) => t?.status === 'pending');
+      for (let i = 0; i < pendingTx.length; i += 10) {
+        const chunk = pendingTx.slice(i, i + 10);
+        await Promise.all(
+          chunk.map((transaction) =>
+            base44.asServiceRole.entities.SquareTransaction.update(transaction.id, {
+              status: 'cancelled',
+              raw_square_data: {
+                ...(transaction.raw_square_data || {}),
+                deleted_at: new Date().toISOString(),
+                deleted_reason: 'purge_catalog_before_sync',
+              },
+            }).catch(() => null)
+          )
+        );
+        if (i + 10 < pendingTx.length) await sleep(50);
+      }
+    }
 
     results.push({ action: 'purge', status: 'ok', result: { deletedCatalogItems: purgeDeleteResult.deleted.length } });
   }
