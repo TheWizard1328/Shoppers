@@ -67,6 +67,8 @@ export default function SquareManagement() {
   const lastRealtimeRefreshAtRef = useRef(0);
   const locationConfigsRef = useRef([]);
   const initialLoadKeyRef = useRef(null);
+  const syncInFlightRef = useRef(false);
+  const lastSyncAtRef = useRef(0);
 
   useEffect(() => {
     const measure = () => {
@@ -222,6 +224,13 @@ export default function SquareManagement() {
   }, [locationConfigs]);
 
   const syncFromSquare = async () => {
+    const now = Date.now();
+    if (syncInFlightRef.current || now - lastSyncAtRef.current < 30000) {
+      return;
+    }
+
+    syncInFlightRef.current = true;
+    lastSyncAtRef.current = now;
     setIsSyncing(true);
     setError(null);
     try {
@@ -273,6 +282,7 @@ export default function SquareManagement() {
       setError(err.message);
       toast.error('Failed to sync: ' + err.message);
     } finally {
+      syncInFlightRef.current = false;
       setIsSyncing(false);
       setIsLoading(false);
       await loadSyncStatus();
@@ -341,7 +351,7 @@ export default function SquareManagement() {
       if (realtimeRefreshTimeoutRef.current) clearTimeout(realtimeRefreshTimeoutRef.current);
 
       realtimeRefreshTimeoutRef.current = setTimeout(async () => {
-        if (!isActive || isSyncing || isUpdatingReconciliationCatalog) return;
+        if (!isActive || isSyncing || isUpdatingReconciliationCatalog || syncInFlightRef.current) return;
         lastRealtimeRefreshAtRef.current = Date.now();
         await refreshOfflineSquareFromOnlineEntities();
         await refreshUiFromOfflineOnly();
