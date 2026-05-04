@@ -215,7 +215,11 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     return appUsers.find((appUser) => appUser?.user_id === currentUser.id) || null;
   }, [appUsers, currentUser?.id]);
 
-  const safeDriver = useMemo(() => driver && typeof driver === 'object' ? driver : null, [driver]);
+  const safeDriver = useMemo(() => {
+    const assignedDriver = (drivers || []).find((item) => item?.id === delivery?.driver_id || item?.user_id === delivery?.driver_id);
+    if (assignedDriver && typeof assignedDriver === 'object') return assignedDriver;
+    return driver && typeof driver === 'object' ? driver : null;
+  }, [drivers, delivery?.driver_id, driver]);
   const driverBadgeColor = useMemo(() => getDriverColor && safeDriver ? getDriverColor(safeDriver) : '#64748b', [getDriverColor, safeDriver]);
   const driverBadgeTextColor = useMemo(() => getContrastColor(driverBadgeColor), [driverBadgeColor]);
   const codTotalCollected = useMemo(() => codPayments.reduce((sum, payment) => sum + (parseFloat(payment.amount) || 0), 0), [codPayments]);
