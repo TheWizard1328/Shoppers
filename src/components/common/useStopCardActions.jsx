@@ -709,10 +709,8 @@ export default function useStopCardActions(params) {
         const shouldRecalculateCompletionEtas = delivery?.delivery_date === localDeviceTodayStr && shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, completionUpdate.actual_delivery_time);
         await appendBoundaryBreadcrumbPoints({ driverId: delivery.driver_id, delivery, allDeliveries, patients, stores, appUsers, terminalStatus: 'completed', completedAt: completionUpdate.actual_delivery_time });
         if (shouldDeleteSquareCodBeforeComplete) await deleteCODWithTimeout(delivery.id, 'Deleted after card COD completion');
-        const { offlineDB: _offlineDB } = await import('../utils/offlineDatabase');
-        const clearNextFlags = sameRouteDeliveries.filter((d) => d && d.id !== delivery.id && d.isNextDelivery === true).map((d) => _offlineDB.bulkSave(_offlineDB.STORES.DELIVERIES, [{ ...d, isNextDelivery: false }]));
         if (isExpanded) await collapseDriverStopCards();
-        await Promise.all([updateDeliveryLocal(delivery.id, completionUpdate, { skipSmartRefresh: true }), ...clearNextFlags]);
+        await Promise.all([updateDeliveryLocal(delivery.id, completionUpdate, { skipSmartRefresh: true })]);
         if (patient?.id) {
           try {
             const { updatePatientLocal } = await import('../utils/offlineMutations');
@@ -814,10 +812,7 @@ export default function useStopCardActions(params) {
         const shouldDeleteSquareCodBeforeFailure = Number(delivery?.cod_total_amount_required || 0) > 0;
         await appendBoundaryBreadcrumbPoints({ driverId: delivery.driver_id, delivery, allDeliveries, patients, stores, appUsers, terminalStatus: status, completedAt: criticalUpdate.actual_delivery_time });
         if (shouldDeleteSquareCodBeforeFailure) await deleteCODWithTimeout(delivery.id, `Deleted before marking as ${status}`);
-        const { offlineDB: _failOfflineDB } = await import('../utils/offlineDatabase');
-        const failRouteDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
-        const clearFailNextFlags = failRouteDeliveries.filter((d) => d && d.id !== delivery.id && d.isNextDelivery === true).map((d) => _failOfflineDB.bulkSave(_failOfflineDB.STORES.DELIVERIES, [{ ...d, isNextDelivery: false }]));
-        await Promise.allSettled([updateDeliveryLocal(delivery.id, criticalUpdate, { skipSmartRefresh: true }), ...clearFailNextFlags]);
+        await Promise.allSettled([updateDeliveryLocal(delivery.id, criticalUpdate, { skipSmartRefresh: true })]);
         if (onStatusUpdate) await onStatusUpdate(delivery.id, status, criticalUpdate, false);
         if (pendingBreadcrumbsString) await clearPendingBreadcrumbsForDelivery({ driverUserId: delivery.driver_id, deliveryId: delivery.id, stopOrder: delivery.stop_order, appUsers, force: true });
         const actedOnNextDelivery = delivery?.isNextDelivery === true;
