@@ -11,9 +11,11 @@
  * @returns {number} - Total pay for this delivery in dollars
  */
 export const calculateDeliveryPay = (delivery, driver, patient = null) => {
+  console.log(`[PayCalculator] Delivery ID: ${delivery.patient_id}`);
   if (!delivery || !driver) return 0;
 
   // Pickups only earn pay if after_hours_pickup is true
+  console.log(`[PayCalculator] After Hours: ${delivery.after_hours_pickup}`);
   if (!delivery.patient_id && !delivery.after_hours_pickup) return 0;
 
   let totalPay = 0;
@@ -30,6 +32,11 @@ export const calculateDeliveryPay = (delivery, driver, patient = null) => {
     // Priority: paid_km_override > patient.distance_from_store
     const paidKm = delivery.paid_km_override ?? patient?.distance_from_store ?? 0;
 
+    console.log(`[PayCalculator] Ex Km: ${delivery.paid_km_override}`);
+    console.log(`[PayCalculator] Ex Km Rate: ${extraKmRate}`);
+    console.log(`[PayCalculator] Ex Km Limit: ${extraKmLimit}`);
+    console.log(`[PayCalculator] OS Rate: ${driver.oversized_item_rate}`);
+
     if (paidKm > extraKmLimit && extraKmRate > 0) {
       const extraKm = paidKm - extraKmLimit;
       totalPay += extraKm * extraKmRate;
@@ -40,7 +47,8 @@ export const calculateDeliveryPay = (delivery, driver, patient = null) => {
   if (delivery.oversized && driver.oversized_item_rate) {
     totalPay += driver.oversized_item_rate;
   }
-
+  
+  console.log(`[PayCalculator] Tot Pay: ${totalPay}`);
   return totalPay;
 };
 
