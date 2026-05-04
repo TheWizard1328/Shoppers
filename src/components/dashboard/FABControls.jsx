@@ -105,6 +105,8 @@ export default function FABControls({
   }, [isDriver, currentUser?.driver_status, driverLocation]);
 
   const immersiveFabBottom = `${topOverlayHeight + 12}px`;
+  const showReoptimizationFab = isAppOwner(currentUser) && selectedDriverId !== 'all';
+  const immersiveFabRightOffset = showReoptimizationFab ? 168 : 64;
   const canCallNextStop = immersiveHidden && !!nextStopPhone;
   const canNavigateNextStop = immersiveHidden && !!nextStop && !!onNavigateToNextStop;
 
@@ -132,7 +134,7 @@ export default function FABControls({
             onClick={() => { if (nextStopPhone) window.location.href = `tel:${String(nextStopPhone).replace(/[^\d+]/g, '')}`; }}
             disabled={!canCallNextStop}
             bottom={immersiveFabBottom}
-            right="116px"
+            right={`${immersiveFabRightOffset + 52}px`}
             opacity={isPrimaryDriverDeviceInMotion ? 0.45 : 1}
           />
           <ImmersiveActionFAB
@@ -141,7 +143,7 @@ export default function FABControls({
             onClick={() => onNavigateToNextStop?.()}
             disabled={!canNavigateNextStop}
             bottom={immersiveFabBottom}
-            right="64px"
+            right={`${immersiveFabRightOffset}px`}
             opacity={isPrimaryDriverDeviceInMotion ? 0.45 : 1}
           />
         </>
