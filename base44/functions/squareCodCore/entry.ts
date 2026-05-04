@@ -604,7 +604,7 @@ async function listActiveCatalogItems(accessToken, options = {}) {
   return objects;
 }
 
-async function fetchCompletedOrdersBatch(locationIds, startAt, accessToken, cursor, options = {}) {
+async function fetchOrdersBatch(locationIds, startAt, accessToken, cursor, states = ['COMPLETED', 'OPEN'], options = {}) {
   if (!locationIds.length) return { orders: [], cursor: null };
 
   const json = await squareFetch('/v2/orders/search', 'POST', accessToken, {
@@ -613,7 +613,7 @@ async function fetchCompletedOrdersBatch(locationIds, startAt, accessToken, curs
     limit: 500,
     query: {
       filter: {
-        state_filter: { states: ['COMPLETED'] },
+        state_filter: { states },
         date_time_filter: { created_at: { start_at: startAt } },
       },
       sort: {
@@ -629,7 +629,7 @@ async function fetchCompletedOrdersBatch(locationIds, startAt, accessToken, curs
   };
 }
 
-async function listCompletedOrders(locationIds, startAt, accessToken, maxOrders = 1000, options = {}) {
+async function listOrders(locationIds, startAt, accessToken, maxOrders = 1000, states = ['COMPLETED', 'OPEN'], options = {}) {
   if (!locationIds.length) return [];
 
   const orders = [];
@@ -637,7 +637,7 @@ async function listCompletedOrders(locationIds, startAt, accessToken, maxOrders 
   let batchCount = 0;
 
   do {
-    const batch = await fetchCompletedOrdersBatch(locationIds, startAt, accessToken, cursor, options);
+    const batch = await fetchOrdersBatch(locationIds, startAt, accessToken, cursor, states, options);
     const batchOrders = batch.orders || [];
 
     orders.push(...batchOrders);
@@ -661,7 +661,13 @@ async function listCompletedOrders(locationIds, startAt, accessToken, maxOrders 
   return orders.slice(0, maxOrders);
 }
 
-function flattenPaidOrderItems(orders) {
+function mapSquareOrderStateToTransactionStatus(orderState) {
+  if (orderState === 'COMPLETED') return 'completed';
+  if (orderState === 'OPEN') return 'pending';
+  return 'pending';
+}
+
+function flattenOrderItems(orders) {
   const items = [];
 
   for (const order of orders || []) {
@@ -674,6 +680,7 @@ function flattenPaidOrderItems(orders) {
       const explicitUnitAmount = toAmountCents(lineItem?.base_price_money?.amount);
       const grossAmount = toAmountCents(lineItem?.gross_sales_money?.amount || lineItem?.total_money?.amount);
       const amountCents = explicitUnitAmount || (quantity > 0 ? Math.round(grossAmount / quantity) : grossAmount);
+      const transactionStatus = mapSquareOrderStateToTransactionStatus(order?.state);
 
       for (let index = 0; index < quantity; index += 1) {
         items.push({
@@ -686,6 +693,8 @@ function flattenPaidOrderItems(orders) {
           payment_date: order?.created_at || null,
           order_created_at: order?.created_at || null,
           note: order?.note || '',
+          order_state: order?.state || null,
+          transaction_status: transactionStatus,
         });
       }
     }
@@ -1022,8 +1031,8 @@ async function handleFetchPayments(base44, payload) {
   const deliveriesWithAmounts = (deliveries || []).filter((delivery) => Number(delivery?.cod_total_amount_required || 0) > 0);
   const locationIds = Array.from(new Set(Array.from(storeByLocationId.keys())));
 
-  const completedOrders = await listCompletedOrders(locationIds, lookbackStartAt, accessToken, MAX_TRANSACTION_ORDERS);
-  const paidOrderItems = flattenPaidOrderItems(completedOrders).filter((item) => {
+  const completedOrders = await listOrders(locationIds, lookbackStartAt, accessToken, MAX_TRANSACTION_ORDERS, ['COMPLETED', 'OPEN']);
+  const paidOrderItems = flattenOrderItems(completedOrders).filter((item) => {
     const paymentTime = new Date(item?.payment_date || item?.order_created_at || 0).getTime();
     return Number.isFinite(paymentTime) && paymentTime >= getTransactionRetentionStartMs();
   });
@@ -1103,7 +1112,7 @@ async function handleFetchPayments(base44, payload) {
       amount: toAmountCents(item?.amount_cents) / 100,
       amount_cents: toAmountCents(item?.amount_cents),
       type: 'collection',
-      status: 'completed',
+      status: item?.transaction_status || 'pending',
       delivery_id: matchedDelivery?.id || null,
       patient_id: matchedPatient?.id || matchedDelivery?.patient_id || null,
       store_id: matchedDelivery?.store_id || store?.id || null,
@@ -1116,6 +1125,7 @@ async function handleFetchPayments(base44, payload) {
         line_item_uid: item?.line_item_uid || null,
         payment_date: item?.payment_date || null,
         order_created_at: item?.order_created_at || null,
+        order_state: item?.order_state || null,
         notes: item?.note || '',
         matched_by: matchedDelivery ? 'delivery_match' : 'unmatched',
       },
@@ -1206,8 +1216,8 @@ async function handleGetCodData(base44, payload = {}) {
   );
 
   const liveCatalogItems = await listActiveCatalogItems(accessToken, { monitor, queue }).catch(() => []);
-  const completedOrders = await listCompletedOrders(locationIds, getLookbackStartAt(), accessToken, MAX_TRANSACTION_ORDERS, { monitor, queue }).catch(() => []);
-  const paidOrderItems = flattenPaidOrderItems(completedOrders).filter((item) => {
+  const completedOrders = await listOrders(locationIds, getLookbackStartAt(), accessToken, MAX_TRANSACTION_ORDERS, ['COMPLETED', 'OPEN'], { monitor, queue }).catch(() => []);
+  const paidOrderItems = flattenOrderItems(completedOrders).filter((item) => {
     const paymentTime = new Date(item?.payment_date || item?.order_created_at || 0).getTime();
     return Number.isFinite(paymentTime) && paymentTime >= transactionRetentionStartMs;
   });
@@ -1280,7 +1290,7 @@ async function handleGetCodData(base44, payload = {}) {
       amount: amountCents / 100,
       amount_cents: amountCents,
       type: 'collection',
-      status: 'completed',
+      status: item?.transaction_status || 'pending',
       delivery_id: matchedTransaction?.delivery_id || null,
       patient_id: matchedTransaction?.patient_id || null,
       store_id: matchedTransaction?.store_id || store?.id || null,
@@ -1295,6 +1305,7 @@ async function handleGetCodData(base44, payload = {}) {
         line_item_uid: item?.line_item_uid || null,
         payment_date: item?.payment_date || null,
         order_created_at: item?.order_created_at || null,
+        order_state: item?.order_state || null,
         notes: item?.note || '',
       },
     };
@@ -1399,11 +1410,11 @@ async function handleSyncCatalogItems(base44) {
   const lookbackStartAt = getLookbackStartAt();
   const [allCatalogItems, completedOrders] = await Promise.all([
     listActiveCatalogItems(accessToken),
-    listCompletedOrders(allSquareLocationIds, lookbackStartAt, accessToken),
+    listOrders(allSquareLocationIds, lookbackStartAt, accessToken, MAX_TRANSACTION_ORDERS, ['COMPLETED', 'OPEN']),
   ]);
 
   const recentCatalogItems = (allCatalogItems || []).filter((item) => isRecentCatalogItemName(item?.item_data?.name));
-  const paidOrderItems = flattenPaidOrderItems(completedOrders).filter((item) => isRecentCatalogItemName(item?.item_name));
+  const paidOrderItems = flattenOrderItems(completedOrders).filter((item) => isRecentCatalogItemName(item?.item_name));
   const recentSquareTransactions = (squareTransactions || []).filter((transaction) => {
     const transactionTime = new Date(transaction?.created_date || transaction?.updated_date || 0).getTime();
     return Number.isFinite(transactionTime) && transactionTime >= transactionRetentionStartMs;
