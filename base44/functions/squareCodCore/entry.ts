@@ -14,6 +14,7 @@ const SQUARE_BATCH_SIZE = 4;
 const DELIVERY_BULK_REFRESH_INTERVAL_MS = 60 * 60 * 1000;
 const MAX_TRANSACTION_ORDERS = 1000;
 const MAX_PROCESSED_TRANSACTIONS = 1000;
+const BASE44_SYNC_CHUNK_DELAY_MS = 300;
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -1671,10 +1672,15 @@ async function paginatedDeleteAll(entityApi, pageSize = 200) {
   while (true) {
     const records = await entityApi.list('-updated_date', pageSize).catch(() => []);
     if (!records?.length) break;
-    for (const record of records) {
-      await entityApi.delete(record.id);
+
+    for (let i = 0; i < records.length; i += 25) {
+      const chunk = records.slice(i, i + 25);
+      await Promise.all(chunk.map((record) => entityApi.delete(record.id).catch(() => null)));
+      if (i + 25 < records.length) await sleep(BASE44_SYNC_CHUNK_DELAY_MS);
     }
+
     if (records.length < pageSize) break;
+    await sleep(BASE44_SYNC_CHUNK_DELAY_MS);
   }
 }
 
@@ -1697,9 +1703,10 @@ async function handleSyncOnlineSquareEntities(base44, payload) {
 
   const bulkCreateInChunks = async (entityApi, records) => {
     if (!records.length) return;
-    const chunkSize = 200;
+    const chunkSize = 100;
     for (let i = 0; i < records.length; i += chunkSize) {
       await entityApi.bulkCreate(records.slice(i, i + chunkSize));
+      if (i + chunkSize < records.length) await sleep(BASE44_SYNC_CHUNK_DELAY_MS);
     }
   };
 
