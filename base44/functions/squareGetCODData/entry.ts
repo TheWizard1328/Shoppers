@@ -12,6 +12,16 @@ Deno.serve(async (req) => {
 
     return Response.json(response?.data || response, { status: response?.status || 200 });
   } catch (error) {
-    return Response.json({ error: error?.message || 'Internal Server Error' }, { status: 500 });
+    const nestedError = error?.response?.data || error?.response?.error || null;
+    console.error('[squareGetCODData] invoke failed', {
+      message: error?.message || 'Internal Server Error',
+      status: error?.response?.status || null,
+      nestedError,
+    });
+    return Response.json({
+      error: error?.message || 'Internal Server Error',
+      status: error?.response?.status || null,
+      nestedError,
+    }, { status: 500 });
   }
 });

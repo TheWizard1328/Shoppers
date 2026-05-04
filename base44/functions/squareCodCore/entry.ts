@@ -68,6 +68,7 @@ function createSquareSyncMonitor(base44, syncName = 'square_sync') {
   };
 
   const writeLog = async (level, step, message, details = {}) => {
+    console.log(`[SquareSync][${level}] ${step}: ${message}`, JSON.stringify(details));
     await base44.asServiceRole.entities.SquareSyncLog.create({
       sync_run_id: state.runId,
       level,
@@ -75,7 +76,10 @@ function createSquareSyncMonitor(base44, syncName = 'square_sync') {
       message,
       details,
       logged_at: new Date().toISOString(),
-    }).catch(() => null);
+    }).catch((error) => {
+      console.error(`[SquareSync][log_persist_failed] ${step}: ${message}`, error?.message || String(error));
+      return null;
+    });
   };
 
   return {
