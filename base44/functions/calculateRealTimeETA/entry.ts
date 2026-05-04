@@ -1,32 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
-const toRadians = (value) => (Number(value) * Math.PI) / 180;
-
-const calculateDistanceKm = (origin, destination) => {
-  const lat1 = Number(origin?.lat);
-  const lon1 = Number(origin?.lng);
-  const lat2 = Number(destination?.lat);
-  const lon2 = Number(destination?.lng);
-
-  if (![lat1, lon1, lat2, lon2].every(Number.isFinite)) return null;
-
-  const earthRadiusKm = 6371;
-  const dLat = toRadians(lat2 - lat1);
-  const dLon = toRadians(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-  return earthRadiusKm * c;
-};
-
-const estimateDurationMinutes = (distanceKm, averageSpeedKmh = 40) => {
-  if (!Number.isFinite(distanceKm)) return null;
-  return Math.max(1, Math.round(distanceKm / averageSpeedKmh * 60));
-};
-
 const APP_TIMEZONE = 'America/Edmonton';
 
 const formatLocalIsoWithoutOffset = (date) => {
@@ -51,6 +24,18 @@ const formatLocalIsoWithoutOffset = (date) => {
   return `${year}-${month}-${day}T${hour}:${minute}:${second}`;
 };
 
+const parseTimestamp = (value) => {
+  if (!value || typeof value !== 'string') return null;
+  const normalized = value.includes('T') ? value : value.replace(' ', 'T');
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const toPositiveMinutes = (value) => {
+  const minutes = Number(value);
+  return Number.isFinite(minutes) && minutes >= 0 ? minutes : null;
+};
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -61,49 +46,32 @@ Deno.serve(async (req) => {
     }
 
     const payload = await req.json().catch(() => ({}));
-    const driver = payload?.driver || {};
     const deliveries = Array.isArray(payload?.deliveries) ? payload.deliveries : [];
-    const currentLocation = payload?.currentLocation || {
-      lat: driver?.current_latitude,
-      lng: driver?.current_longitude,
-    };
+    const lastStopCompletionTime = payload?.lastStopCompletionTime || payload?.actualDeliveryTime || payload?.completionTime || null;
+    const lastStopServiceTime = toPositiveMinutes(payload?.lastStopServiceTime ?? payload?.extra_time) ?? 0;
 
-    const fallbackLocation = {
-      lat: driver?.home_latitude,
-      lng: driver?.home_longitude,
-    };
-
-    const resolvedLocation = Number.isFinite(Number(currentLocation?.lat)) && Number.isFinite(Number(currentLocation?.lng))
-      ? currentLocation
-      : Number.isFinite(Number(fallbackLocation?.lat)) && Number.isFinite(Number(fallbackLocation?.lng))
-        ? fallbackLocation
-        : null;
-
-    if (!resolvedLocation) {
+    const baseTime = parseTimestamp(lastStopCompletionTime);
+    if (!baseTime || deliveries.length === 0) {
       return Response.json({ etaEstimates: [] });
     }
 
-    const etaEstimates = deliveries
+    const orderedDeliveries = [...deliveries]
+      .filter((delivery) => delivery?.id || delivery?.delivery_id)
+      .sort((a, b) => Number(a?.stop_order || 0) - Number(b?.stop_order || 0));
+
+    let rollingTime = new Date(baseTime.getTime() + lastStopServiceTime * 60000);
+
+    const etaEstimates = orderedDeliveries
       .map((delivery) => {
-        const destination = {
-          lat: delivery?.latitude,
-          lng: delivery?.longitude,
-        };
+        const estimatedDurationMinutes = toPositiveMinutes(delivery?.estimated_duration_minutes);
+        if (estimatedDurationMinutes === null) return null;
 
-        const distance_km = calculateDistanceKm(resolvedLocation, destination);
-        const estimated_duration_minutes = estimateDurationMinutes(distance_km);
-
-        if (!Number.isFinite(distance_km) || !Number.isFinite(estimated_duration_minutes)) {
-          return null;
-        }
-
-        const etaDate = new Date(Date.now() + estimated_duration_minutes * 60000);
+        rollingTime = new Date(rollingTime.getTime() + estimatedDurationMinutes * 60000);
 
         return {
           delivery_id: delivery?.id || delivery?.delivery_id || null,
-          distance_km: Number(distance_km.toFixed(2)),
-          estimated_duration_minutes,
-          estimated_arrival_time: formatLocalIsoWithoutOffset(etaDate),
+          estimated_duration_minutes: estimatedDurationMinutes,
+          estimated_arrival_time: formatLocalIsoWithoutOffset(rollingTime),
         };
       })
       .filter(Boolean);
