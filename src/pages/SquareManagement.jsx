@@ -233,53 +233,81 @@ export default function SquareManagement() {
     lastSyncAtRef.current = now;
     setIsSyncing(true);
     setError(null);
+
     try {
       const { offlineDB } = await import('@/components/utils/offlineDatabase');
 
-      // Step 1: Fetch fresh data from backend snapshot
-      const codResponse = await base44.functions.invoke('squareCodCore', {
-        action: 'getCodData',
-        forceDeliveryRefresh: true
-      });
-      const codData = codResponse?.data || codResponse || {};
-      const strippedDeliveries = Array.isArray(codData.deliveries)
-        ? codData.deliveries.map(({ delivery_route_breadcrumbs, encoded_polyline, proof_photo_urls, signature_image_url, ...rest }) => rest)
-        : [];
-      const catalogRecords = codData.catalogRecords || [];
-      const transactionRecords = codData.transactionRecords || [];
+      // 1) Load from offline DB first
+      await refreshUiFromOfflineOnly();
 
-      // Step 2: Sync deliveries tab source first
-      if (strippedDeliveries.length > 0) {
-        await offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, strippedDeliveries);
+      const { startDateStr, endDateStr } = getSourceWindow();
+      const offlineDeliveries = await loadDeliveriesFromOffline(offlineDB, startDateStr, endDateStr);
+      if (offlineDeliveries.length > 0) {
+        setDeliveries([...(offlineDeliveries || [])]);
       }
 
-      // Step 3: Sync catalog + transactions after deliveries
-      await Promise.all([
-        offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_CATALOG_ITEMS, catalogRecords),
-        offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_TRANSACTIONS, transactionRecords)
-      ]);
+      // 2) Refresh UI immediately without clearing totals
+      setIsLoading(false);
 
-      // Step 4: Read back from offline DBs - these are now the source of truth
-      const [offlineCatalog, offlineTransactions] = await Promise.all([
-        offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS),
-        offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS)
-      ]);
+      // 3) Sync catalog items first
+      let catalogError = null;
+      try {
+        await base44.functions.invoke('squareSyncCatalogItems', { skipLock: true });
+        const catalogRecords = await base44.entities.SquareCatalogItems.list('-updated_date', 2000);
+        await syncSquareCODSnapshotOffline({
+          catalogItems: catalogRecords || [],
+          transactions: await getPaymentTransactionsOffline()
+        });
+      } catch (err) {
+        catalogError = err;
+      }
 
-      // Step 5: Fully replace online Square entities from the completed offline snapshot
-      await base44.functions.invoke('squareCodCore', {
-        action: 'syncOnlineSquareEntities',
-        catalogRecords: offlineCatalog || [],
-        transactionRecords: offlineTransactions || []
-      });
+      // 4) Update catalog DB + UI even if fetch fails
+      await refreshUiFromOfflineOnly();
 
-      // Step 6: Refresh UI from offline
+      // 5) Sync transactions second
+      let transactionError = null;
+      try {
+        const codResponse = await base44.functions.invoke('squareGetCODData', {
+          forceDeliveryRefresh: true
+        });
+        const codData = codResponse?.data || codResponse || {};
+        const transactionRecords = codData.transactionRecords || [];
+        const strippedDeliveries = Array.isArray(codData.deliveries)
+          ? codData.deliveries.map(({ delivery_route_breadcrumbs, encoded_polyline, proof_photo_urls, signature_image_url, ...rest }) => rest)
+          : [];
+
+        if (strippedDeliveries.length > 0) {
+          await offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, strippedDeliveries);
+        }
+        await offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_TRANSACTIONS, transactionRecords);
+
+        const offlineCatalog = await offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS);
+        const offlineTransactions = await offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS);
+        await base44.functions.invoke('squareCodCore', {
+          action: 'syncOnlineSquareEntities',
+          catalogRecords: offlineCatalog || [],
+          transactionRecords: offlineTransactions || []
+        });
+      } catch (err) {
+        transactionError = err;
+      }
+
+      // 6) Update transactions DB + UI even if fetch fails
       await refreshUiFromOfflineOnly();
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
       window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
-      toast.success('Square data synced');
 
+      if (catalogError || transactionError) {
+        const message = catalogError?.message || transactionError?.message || 'Square sync partially failed';
+        setError(message);
+        toast.error('Sync finished with issues: ' + message);
+      } else {
+        toast.success('Square data synced');
+      }
     } catch (err) {
       setError(err.message);
+      await refreshUiFromOfflineOnly();
       toast.error('Failed to sync: ' + err.message);
     } finally {
       syncInFlightRef.current = false;
@@ -324,7 +352,6 @@ export default function SquareManagement() {
         setIsLoading(false);
         setHasInitialLoadCompleted(true);
 
-        await purgeSquareCODOfflineDataBeforeSync();
         await syncFromSquare();
         setBgSyncProgress({ stage: 'idle' });
       } catch (err) {
