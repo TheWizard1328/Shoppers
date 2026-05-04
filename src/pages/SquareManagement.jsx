@@ -595,28 +595,52 @@ export default function SquareManagement() {
     }) || null;
   }, [deliveries, getTransactionEffectiveDateString, patients]);
 
+  const formatItemNameForDisplay = useCallback((deliveryDate, storeAbbreviation, patientName) => {
+    const [, month, day] = String(deliveryDate || '').split('-');
+    const mm = month?.padStart(2, '0') || '00';
+    const dd = day?.padStart(2, '0') || '00';
+    return `${mm}/${dd}(${storeAbbreviation || 'NA'})-${patientName || 'Unknown Patient'}`;
+  }, []);
+
   const isTransferTransaction = (transaction) => {
     const label = `${transaction?.item_name || ''} ${transaction?.delivery_id || ''}`.toLowerCase();
     return transaction?.type === 'transfer' || label.includes('transfer') || label.includes('interstore') || label.includes('inter-store');
   };
 
-  const hasMatchingSquareTransaction = (delivery, locationId) => {
-    const deliveryAmountSet = getDeliveryPaymentAmountSet(delivery);
+  const hasMatchingSquareTransaction = useCallback((delivery, locationId, transactionsPool = allTransactions) => {
     const patient = patients.find((p) => p?.id === delivery?.patient_id || p?.patient_id === delivery?.patient_id);
     const patientName = patient?.full_name || '';
-    return (allTransactions || []).some((transaction) => {
+    const store = stores.find((s) => s?.id === delivery?.store_id);
+    const deliveryAmountCents = Math.round(Number(delivery?.cod_total_amount_required || 0) * 100);
+    const deliveryDate = delivery?.delivery_date ? format(new Date(`${delivery.delivery_date}T00:00:00`), 'MM/dd') : null;
+    const storeAbbreviation = String(store?.abbreviation || '').trim().toLowerCase();
+
+    return (transactionsPool || []).some((transactionLike) => {
+      const transaction = transactionLike?.rawTransaction || transactionLike;
       if (!transaction || isTransferTransaction(transaction)) return false;
       if (!transaction.square_payment_id) return false;
       if (transaction.type !== 'collection') return false;
       if (!['completed', 'refunded'].includes(transaction.status)) return false;
       if (transaction.delivery_id && transaction.delivery_id === delivery.id) return true;
-      const transactionAmountSet = getTransactionAmountSet(transaction);
-      if (!amountSetsIntersect(deliveryAmountSet, transactionAmountSet)) return false;
-      const sameStoreSameDay = transaction.location_id === locationId && transaction.store_id === delivery.store_id && transaction.created_date?.slice(0, 10) === delivery.delivery_date;
-      if (sameStoreSameDay) return true;
-      return getTransactionSearchNames(transaction).some((name) => patientNamesMatch(patientName, name));
+
+      const transactionAmountCents = Math.round(Number(transaction.amount || 0) * 100);
+      if (transactionAmountCents !== deliveryAmountCents) return false;
+
+      const transactionName = String(transaction.item_name || '').trim();
+      if (!transactionName || !patientNamesMatch(patientName, transactionName)) return false;
+
+      const parsed = parseSquareItemName(transactionName);
+      const transactionDate = parsed?.deliveryDate ? format(new Date(`${parsed.deliveryDate}T00:00:00`), 'MM/dd') : null;
+      const transactionStoreAbbreviation = String(parsed?.storeAbbr || '').trim().toLowerCase();
+
+      const dateMatches = !!deliveryDate && !!transactionDate && deliveryDate === transactionDate;
+      const storeMatches = !!storeAbbreviation && !!transactionStoreAbbreviation && storeAbbreviation === transactionStoreAbbreviation;
+
+      if (dateMatches && storeMatches) return true;
+      if (dateMatches || storeMatches) return true;
+      return true;
     });
-  };
+  }, [allTransactions, patients, stores]);
 
   const confirmDelete = async () => {
     if (!itemToDelete) return;
@@ -943,7 +967,21 @@ export default function SquareManagement() {
     });
   }, [catalogItems, locationConfigs, stores, visibleStoreIds, visibleLocationIds, driverScopedLocationIds, deletingId, lookbackStart]);
 
-  const reconciliationRows = useMemo(() => [], []);
+  const reconciliationRows = useMemo(() => {
+    return filteredDeliveryRows
+      .filter((deliveryRow) => !hasMatchingSquareTransaction(deliveryRow.rawDelivery, deliveryRow.locationId, filteredTransactionRows))
+      .map((deliveryRow) => {
+        const delivery = deliveryRow.rawDelivery;
+        const patient = patients.find((p) => p?.id === delivery?.patient_id || p?.patient_id === delivery?.patient_id);
+        const store = stores.find((s) => s?.id === delivery?.store_id);
+
+        return {
+          ...deliveryRow,
+          itemName: formatItemNameForDisplay(delivery?.delivery_date, store?.abbreviation, patient?.full_name),
+          actions: <Button variant="secondary" size="sm" className="border border-red-300 bg-red-100 text-red-800 hover:bg-red-100">Unmatched</Button>
+        };
+      });
+  }, [filteredDeliveryRows, filteredTransactionRows, hasMatchingSquareTransaction, patients, stores, formatItemNameForDisplay]);
 
   const codDeliveriesCount = useMemo(() => deliveries.filter((delivery) => {
     if (!delivery || Number(delivery.cod_total_amount_required || 0) <= 0) return false;
