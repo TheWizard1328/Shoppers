@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 
-export default function ImmersiveActionFAB({ icon: Icon, title, onClick, disabled = false, bottom, right, opacity = 1 }) {
+export default function ImmersiveActionFAB({ icon: Icon, title, onClick, disabled = false, bottom, right, opacity = 1, className = '' }) {
   return (
     <motion.div
       initial={{ scale: 0, opacity: 0 }}
@@ -16,7 +16,7 @@ export default function ImmersiveActionFAB({ icon: Icon, title, onClick, disable
         onClick={onClick}
         disabled={disabled}
         title={title}
-        className="inline-flex items-center justify-center h-10 w-10 rounded-full shadow-2xl p-0 transition-all duration-200 bg-slate-700 hover:bg-slate-800"
+        className={`inline-flex items-center justify-center h-10 w-10 rounded-full shadow-2xl p-0 transition-all duration-200 !text-white ${className}`}
         style={{ pointerEvents: 'auto', touchAction: 'manipulation', opacity }}
       >
         <Icon className="w-5 h-5 text-white" />

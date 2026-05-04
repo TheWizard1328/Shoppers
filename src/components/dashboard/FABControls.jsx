@@ -140,6 +140,7 @@ export default function FABControls({
             bottom={immersiveFabBottom}
             right={`${navigateFabRight}px`}
             opacity={isPrimaryDriverDeviceInMotion ? 0.45 : 1}
+            className="bg-blue-600 hover:bg-blue-700"
           />
           <ImmersiveActionFAB
             icon={Phone}
@@ -149,6 +150,7 @@ export default function FABControls({
             bottom={immersiveFabBottom}
             right={`${callFabRight}px`}
             opacity={isPrimaryDriverDeviceInMotion ? 0.45 : 1}
+            className="bg-blue-600 hover:bg-blue-700"
           />
         </>
       )}
