@@ -101,6 +101,10 @@ export default function SyncStatusIndicator({ syncStatus, isSyncing, error, codD
                 <CollapsibleContent forceMount className={`${isOpen ? 'block' : 'hidden'} md:block`}>
                   <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2">
                     <div className="rounded-xl bg-white/70 dark:bg-slate-900/40 px-3 py-2">
+                      <div className="text-[11px] text-muted-foreground">COD Deliveries</div>
+                      <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">{codDeliveryCount}</div>
+                    </div>
+                    <div className="rounded-xl bg-white/70 dark:bg-slate-900/40 px-3 py-2">
                       <div className="text-[11px] text-muted-foreground">Catalog</div>
                       <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">{catalogItemCount}</div>
                     </div>
@@ -112,17 +116,13 @@ export default function SyncStatusIndicator({ syncStatus, isSyncing, error, codD
                       <div className="text-[11px] text-muted-foreground">Sales</div>
                       <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">{salesCount}</div>
                     </div>
-                    <div className="rounded-xl bg-white/70 dark:bg-slate-900/40 px-3 py-2">
-                      <div className="text-[11px] text-muted-foreground">COD Deliveries</div>
-                      <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">{codDeliveryCount}</div>
-                    </div>
                   </div>
 
                   <div className="mt-2 flex flex-wrap gap-2 text-[11px] md:text-xs">
                     <span className="rounded-full bg-white/70 dark:bg-slate-900/40 px-2.5 py-1 text-slate-700 dark:text-slate-300">Cash {collectedCodTypeBreakdown.Cash}</span>
                     <span className="rounded-full bg-white/70 dark:bg-slate-900/40 px-2.5 py-1 text-slate-700 dark:text-slate-300">Debit {collectedCodTypeBreakdown.Debit}</span>
                     <span className="rounded-full bg-white/70 dark:bg-slate-900/40 px-2.5 py-1 text-slate-700 dark:text-slate-300">Credit {collectedCodTypeBreakdown.Credit}</span>
-                    <span className="rounded-full bg-white/70 dark:bg-slate-900/40 px-2.5 py-1 text-slate-700 dark:text-slate-300">Check {collectedCodTypeBreakdown.Check}</span>
+                    <span className="rounded-full bg-white/70 dark:bg-slate-900/40 px-2.5 py-1 text-slate-700 dark:text-slate-300">Cheque {collectedCodTypeBreakdown.Cheque}</span>
                   </div>
                 </CollapsibleContent>
                 {error && (
