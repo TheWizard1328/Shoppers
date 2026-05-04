@@ -225,7 +225,7 @@ export default function FABControls({
             bottom={immersiveFabBottom}
             right={`${callFabRight}px`}
             opacity={isPrimaryDriverDeviceInMotion ? 0.45 : 1}
-            className="bg-blue-600 hover:bg-blue-700"
+            className="bg-green-600 hover:bg-green-700"
           />
         </>
       )}
