@@ -1,12 +1,13 @@
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Navigation } from "lucide-react";
+import { Navigation, Phone, MapPin } from "lucide-react";
 import { format } from 'date-fns';
 import { base44 } from "@/api/base44Client";
 import { isAppOwner } from '@/components/utils/userRoles';
 import { pauseOfflineMutations, resumeOfflineMutations } from "@/components/utils/offlineMutations";
 import { pauseOfflineSync, resumeOfflineSync } from "@/components/utils/offlineSync";
 import MapViewCycleFAB from "@/components/dashboard/MapViewCycleFAB";
+import ImmersiveActionFAB from "@/components/dashboard/ImmersiveActionFAB";
 import { isMobileDevice } from '@/components/utils/deviceUtils';
 import { invalidateDeliveriesForDate } from "@/components/utils/dataManager";
 import { fabControlEvents } from "@/components/utils/fabControlEvents";
@@ -68,6 +69,9 @@ export default function FABControls({
   refreshData,
   immersiveHidden = false,
   topOverlayHeight = 0,
+  nextStop = null,
+  nextStopPhone = null,
+  onNavigateToNextStop,
 }) {
   useEffect(() => {
     const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
@@ -100,6 +104,10 @@ export default function FABControls({
     return isPrimaryDevice && speed > 0;
   }, [isDriver, currentUser?.driver_status, driverLocation]);
 
+  const immersiveFabBottom = `${topOverlayHeight + 12}px`;
+  const canCallNextStop = immersiveHidden && !!nextStopPhone;
+  const canNavigateNextStop = immersiveHidden && !!nextStop && !!onNavigateToNextStop;
+
   useEffect(() => {
     const unsubscribe = fabControlEvents.subscribe((event) => {
       if (event?.type !== 'IMMERSIVE_MODE_TOGGLED') return;
@@ -115,6 +123,29 @@ export default function FABControls({
       <MapViewCycleFAB currentUser={currentUser} filteredDeliveries={filteredDeliveries} onClick={() => {
         handleMapViewCycle();
       }} currentPhase={mapViewPhase} hasVisibleCards={!immersiveHidden && deliveriesWithStopOrder.length > 0} isAIVisible={showAIAssistant && isAIEnabled} isLocked={isMapViewLocked} isEnabled={isMapCycleEnabled} stopCardsHeight={!immersiveHidden && cardsReadyForFAB ? stopCardsBaseHeight : 0} isMotionDimmed={isPrimaryDriverDeviceInMotion} />
+
+      {immersiveHidden && (
+        <>
+          <ImmersiveActionFAB
+            icon={Phone}
+            title="Call next stop"
+            onClick={() => { if (nextStopPhone) window.location.href = `tel:${String(nextStopPhone).replace(/[^\d+]/g, '')}`; }}
+            disabled={!canCallNextStop}
+            bottom={immersiveFabBottom}
+            right="116px"
+            opacity={isPrimaryDriverDeviceInMotion ? 0.45 : 1}
+          />
+          <ImmersiveActionFAB
+            icon={MapPin}
+            title="Navigate to next stop"
+            onClick={() => onNavigateToNextStop?.()}
+            disabled={!canNavigateNextStop}
+            bottom={immersiveFabBottom}
+            right="64px"
+            opacity={isPrimaryDriverDeviceInMotion ? 0.45 : 1}
+          />
+        </>
+      )}
 
       {isAppOwner(currentUser) && selectedDriverId !== 'all' &&
         <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }} transition={{ type: "spring", stiffness: 260, damping: 20 }} className="z-[100]"
@@ -152,7 +183,6 @@ export default function FABControls({
                 if (data?.success) {
                   setOptimizationMessage(`Route optimized! ${data.optimizedCount} stops updated and polylines refreshed.`);
                   invalidateDeliveriesForDate(deliveryDate);
-                  // CRITICAL: Use Promise.race to prevent UI freeze if refreshData hangs
                   const refreshTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error('Refresh timeout')), 8000));
                   await Promise.race([refreshData(), refreshTimeout]).catch(() => {});
                   window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { driverId: targetDriverId, deliveryDate, triggeredBy: 'reoptimizeRoute', alreadyOptimized: true } }));
