@@ -1668,19 +1668,19 @@ async function handleSyncCatalogItems(base44) {
   };
 }
 
-async function paginatedDeleteAll(entityApi, pageSize = 200) {
+async function paginatedDeleteAll(entityApi, pageSize = 100) {
   while (true) {
     const records = await entityApi.list('-updated_date', pageSize).catch(() => []);
     if (!records?.length) break;
 
-    for (let i = 0; i < records.length; i += 25) {
-      const chunk = records.slice(i, i + 25);
+    for (let i = 0; i < records.length; i += 10) {
+      const chunk = records.slice(i, i + 10);
       await Promise.all(chunk.map((record) => entityApi.delete(record.id).catch(() => null)));
-      if (i + 25 < records.length) await sleep(BASE44_SYNC_CHUNK_DELAY_MS);
+      if (i + 10 < records.length) await sleep(BASE44_SYNC_CHUNK_DELAY_MS * 2);
     }
 
     if (records.length < pageSize) break;
-    await sleep(BASE44_SYNC_CHUNK_DELAY_MS);
+    await sleep(BASE44_SYNC_CHUNK_DELAY_MS * 2);
   }
 }
 
@@ -1703,10 +1703,10 @@ async function handleSyncOnlineSquareEntities(base44, payload) {
 
   const bulkCreateInChunks = async (entityApi, records) => {
     if (!records.length) return;
-    const chunkSize = 100;
+    const chunkSize = 25;
     for (let i = 0; i < records.length; i += chunkSize) {
       await entityApi.bulkCreate(records.slice(i, i + chunkSize));
-      if (i + chunkSize < records.length) await sleep(BASE44_SYNC_CHUNK_DELAY_MS);
+      if (i + chunkSize < records.length) await sleep(BASE44_SYNC_CHUNK_DELAY_MS * 2);
     }
   };
 

@@ -311,15 +311,19 @@ export default function SquareManagement() {
         onlineSyncError = err;
       }
 
-      if (catalogError || transactionError || onlineSyncError) {
-        const message = catalogError?.message || transactionError?.message || onlineSyncError?.message || 'Square sync partially failed';
+      if (catalogError || transactionError) {
+        const message = catalogError?.message || transactionError?.message || 'Square sync partially failed';
         console.error('[SquareManagement] Sync finished with issues', {
           catalogError: catalogError?.message || null,
           transactionError: transactionError?.message || null,
           onlineSyncError: onlineSyncError?.message || null,
         });
         setError(message);
-        toast.error('Background online sync had issues: ' + message);
+        toast.error('Sync finished with issues: ' + message);
+      } else if (onlineSyncError) {
+        console.error('[SquareManagement] Background online sync issue', {
+          onlineSyncError: onlineSyncError?.message || null,
+        });
       }
     } catch (err) {
       setError(err.message);
