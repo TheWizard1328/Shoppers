@@ -272,22 +272,24 @@ export default function SquareManagement() {
           forceDeliveryRefresh: true
         });
         const codData = codResponse?.data || codResponse || {};
+        const catalogRecords = codData.catalogRecords || [];
         const transactionRecords = codData.transactionRecords || [];
         const strippedDeliveries = Array.isArray(codData.deliveries)
           ? codData.deliveries.map(({ delivery_route_breadcrumbs, encoded_polyline, proof_photo_urls, signature_image_url, ...rest }) => rest)
           : [];
 
+        if (catalogRecords.length > 0) {
+          await offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_CATALOG_ITEMS, catalogRecords);
+        }
         if (strippedDeliveries.length > 0) {
           await offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, strippedDeliveries);
         }
         await offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_TRANSACTIONS, transactionRecords);
 
-        const offlineCatalog = await offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS);
-        const offlineTransactions = await offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS);
         await base44.functions.invoke('squareCodCore', {
           action: 'syncOnlineSquareEntities',
-          catalogRecords: offlineCatalog || [],
-          transactionRecords: offlineTransactions || []
+          catalogRecords,
+          transactionRecords
         });
       } catch (err) {
         transactionError = err;
@@ -300,6 +302,10 @@ export default function SquareManagement() {
 
       if (catalogError || transactionError) {
         const message = catalogError?.message || transactionError?.message || 'Square sync partially failed';
+        console.error('[SquareManagement] Sync finished with issues', {
+          catalogError: catalogError?.message || null,
+          transactionError: transactionError?.message || null,
+        });
         setError(message);
         toast.error('Sync finished with issues: ' + message);
       } else {
