@@ -745,27 +745,7 @@ Deno.serve(async (req) => {
     const shouldRefreshPolylines = activeStops.length > 0;
 
     if (shouldRefreshPolylines) {
-      await base44.asServiceRole.functions.invoke('purgeAndRegeneratePolylines', {
-        driverId,
-        deliveryDate,
-        scope: 'active_only',
-        reason: routeOrderChanged ? 'route_reordered' : 'manual',
-        sourcePage: 'Dashboard',
-        bypassDriverStatus: true,
-        routeStopOrder: activeStops.map((stop) => stop.id),
-        orderedStopsWithTransportMode: optimizedStopTransportModes,
-        explicitOrderedStopsOnly: true,
-        explicitRouteOrigin: previousStopCoords || routeHasStarted ? 'last_finished_stop' : 'home',
-        explicitRouteDestination: 'home',
-        resolvedOriginCoords: currentPosition ? { lat: currentPosition.lat, lon: currentPosition.lng } : null,
-        bypassPolylineUpdated: true,
-        bypassPolylineDelete: true,
-        reuseProvidedPolylines: false
-      }).catch((error) => {
-        console.warn('⚠️ [optimizeRemainingStops] Polyline refresh failed:', error?.message || error);
-        return null;
-      });
-      console.log(`🗺️ [optimizeRemainingStops] Active route polyline refresh requested (${routeOrderChanged ? 'reordered' : 'same-order'})`);
+      console.log(`🗺️ [optimizeRemainingStops] Polyline refresh deferred to caller (${routeOrderChanged ? 'reordered' : 'same-order'})`);
     }
 
     console.log(`\n✅ [optimizeRemainingStops] Route optimization complete - ${activeStops.length} stops updated in one final batch, ${attemptedHereCalls} API calls`);
@@ -783,6 +763,7 @@ Deno.serve(async (req) => {
       preserveExistingOrder,
       forceFullRemainingRouteOptimization,
       nextDeliveryId: nextStopId,
+      shouldRefreshPolylines,
       optimizedRoute: activeStops.map((stop, index) => ({
         deliveryId: stop.id,
         newETA: stop.delivery_time_eta,
