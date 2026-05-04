@@ -256,6 +256,34 @@ function mergeEncodedPolylines(polylines = []) {
   return merged.length > 1 ? encodeGooglePolyline(merged) : null;
 }
 
+function getLatestBreadcrumbPoint(delivery) {
+  const raw = delivery?.delivery_route_breadcrumbs;
+  if (!raw) return null;
+
+  let parsed = raw;
+  if (typeof raw === 'string') {
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+
+  if (!Array.isArray(parsed) || parsed.length === 0) return null;
+
+  for (let index = parsed.length - 1; index >= 0; index -= 1) {
+    const point = parsed[index];
+    if (!Array.isArray(point) || point.length < 2) continue;
+    const lat = Number(point[0]);
+    const lon = Number(point[1]);
+    if (Number.isFinite(lat) && Number.isFinite(lon)) {
+      return { lat, lon };
+    }
+  }
+
+  return null;
+}
+
 function buildChangedDeliveryUpdates(existingDeliveries = [], deliveryUpdates = []) {
   const existingMap = new Map((existingDeliveries || []).filter((item) => item?.id).map((item) => [item.id, item]));
 
@@ -508,8 +536,10 @@ Deno.serve(async (req) => {
     let baseOriginCoords = null;
     const isHomeStartType1 = !mostRecentFinishedStop && Number.isFinite(homeLat) && Number.isFinite(homeLon);
     if (mostRecentFinishedStop) {
-      baseOriginCoords = getLatLon(mostRecentFinishedStop);
-      console.log(`[regenerateType1Polyline] Using most recent finished stop ${mostRecentFinishedStop.id} as base origin`);
+      baseOriginCoords = getLatestBreadcrumbPoint(mostRecentFinishedStop) || getLatLon(mostRecentFinishedStop);
+      console.log(`[regenerateType1Polyline] Using most recent finished stop ${mostRecentFinishedStop.id} as base origin`, {
+        source: getLatestBreadcrumbPoint(mostRecentFinishedStop) ? 'breadcrumbs' : 'stop_coordinates'
+      });
     } else if (isHomeStartType1) {
       baseOriginCoords = { lat: homeLat, lon: homeLon };
       console.log('[regenerateType1Polyline] Using driver home location as base origin');
