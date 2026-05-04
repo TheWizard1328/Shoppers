@@ -672,7 +672,7 @@ function flattenOrderItems(orders) {
 
   for (const order of orders || []) {
     for (const lineItem of order?.line_items || []) {
-      const itemName = normalizeText(lineItem?.name);
+      const itemName = normalizeText(lineItem?.name || lineItem?.note);
       if (!itemName) continue;
 
       const quantityValue = Number(lineItem?.quantity || 1);
