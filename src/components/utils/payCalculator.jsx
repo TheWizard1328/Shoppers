@@ -11,6 +11,7 @@
  * @returns {number} - Total pay for this delivery in dollars
  */
 export const calculateDeliveryPay = (delivery, driver, patient = null) => {
+  console.log(`${delivery} | ${driver}`);
   if (!delivery || !driver) return 0;
 
   // Pickups only earn pay if after_hours_pickup is true
