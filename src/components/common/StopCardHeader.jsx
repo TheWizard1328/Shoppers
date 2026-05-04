@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import SpecialSymbolsBadges from "../utils/SpecialSymbolsBadges";
 import { getDriverDisplayName } from "../utils/driverUtils";
@@ -121,27 +121,28 @@ export default function StopCardHeader({
 
   // Driver pay (for finished stops shown to drivers/admins)
   const showDriverPay = isFinished && (userHasRole(currentUser, "driver") || userHasRole(currentUser, "admin")) && (delivery?.patient_id || delivery?.after_hours_pickup);
-  let payBadge = null;
-  if (showDriverPay) {
-    const driverAppUser = (appUsers || []).find((au) =>
-      au?.user_id === delivery?.driver_id || au?.id === delivery?.driver_id
-    ) || ((safeDriver?.user_id === delivery?.driver_id || safeDriver?.id === delivery?.driver_id) ? safeDriver : null);
+  const driverAppUser = React.useMemo(() => {
+    if (!delivery?.driver_id) return null;
+    return (appUsers || []).find((au) => au?.user_id === delivery.driver_id || au?.id === delivery.driver_id) ||
+      ((safeDriver?.user_id === delivery?.driver_id || safeDriver?.id === delivery?.driver_id) ? safeDriver : null);
+  }, [appUsers, delivery?.driver_id, safeDriver]);
 
-    const pay = driverAppUser ? calculateDeliveryPay(delivery, driverAppUser, patient) : 0;
+  const payBadge = React.useMemo(() => {
+    if (!showDriverPay || !driverAppUser) return null;
+
+    const pay = calculateDeliveryPay(delivery, driverAppUser, patient);
     const baseRate = driverAppUser?.pay_rate_per_delivery || 0;
     const isAfterHours = delivery?.after_hours_pickup === true;
     const hasExtraPay = pay > baseRate && !isAfterHours;
     const isNoCharge = delivery?.no_charge === true;
     const payDisplay = isNoCharge ? 'N/C' : formatPay(pay);
 
-    payBadge = !isAfterHours && !hasExtraPay ?
-    <div className="text-emerald-600 pt-1 text-xs font-bold">{payDisplay}</div> :
-
-    <Badge variant="secondary" className="inline-flex items-center border transition-colors text-xm font-bold px-2 py-0.5 rounded-full bg-green-200 !text-gray-800">
+    return !isAfterHours && !hasExtraPay ?
+      <div className="text-emerald-600 pt-1 text-xs font-bold">{payDisplay}</div> :
+      <Badge variant="secondary" className="inline-flex items-center border transition-colors text-xm font-bold px-2 py-0.5 rounded-full bg-green-200 !text-gray-800">
         {payDisplay}
       </Badge>;
-
-  }
+  }, [showDriverPay, driverAppUser, delivery, patient]);
 
   return (
     <>
