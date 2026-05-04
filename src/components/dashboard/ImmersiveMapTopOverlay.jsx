@@ -32,7 +32,7 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
   const batchTracking = formatBatchTracking(delivery, store);
 
   return (
-    <div className="absolute left-2 right-2 z-[240] pointer-events-none" style={{ top: `${Math.max(8, topOffset + 8)}px` }}>
+    <div className="absolute left-2 right-2 z-[700] pointer-events-none" style={{ top: `${Math.max(8, topOffset + 8)}px` }}>
       <div className="flex items-center justify-between gap-2 rounded-2xl border border-slate-200/80 bg-white/95 px-3 py-2 shadow-lg backdrop-blur-sm">
         <div className="flex min-w-0 items-center gap-2">
           <Badge
