@@ -97,6 +97,7 @@ export default function MapViewCycleFAB({ currentUser = null, filteredDeliveries
   // CRITICAL: Fixed position - uses base collapsed height, doesn't move with expansion
   const bottomPixels = ((hasVisibleCards && !immersiveHidden) ? stopCardsHeight : 0) + 10;
   const fabPosition = isMobileDevice() ? 'absolute' : 'fixed';
+  const rightPixels = immersiveHidden ? 12 : 16;
 
   const fabOpacity = useMemo(() => {
     if (!isEnabled) return 0.65;
@@ -146,8 +147,8 @@ export default function MapViewCycleFAB({ currentUser = null, filteredDeliveries
       animate={{ scale: 1, opacity: 1 }}
       exit={{ scale: 0, opacity: 0 }}
       transition={{ type: "spring", stiffness: 260, damping: 20 }}
-      className="right-4 z-[100]"
-      style={{ position: fabPosition, bottom: `${bottomPixels}px` }}>
+      className="z-[100]"
+      style={{ position: fabPosition, bottom: `${bottomPixels}px`, right: `${rightPixels}px` }}>
       
       <motion.div
         animate={isFlashing ? { scale: [1, 1.2, 1], opacity: [1, 0.6, 1] } : { scale: 1, opacity: 1 }}

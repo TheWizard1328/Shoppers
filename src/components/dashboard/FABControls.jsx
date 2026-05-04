@@ -106,7 +106,9 @@ export default function FABControls({
 
   const immersiveFabBottom = `${topOverlayHeight + 12}px`;
   const showReoptimizationFab = isAppOwner(currentUser) && selectedDriverId !== 'all';
-  const immersiveFabRightOffset = showReoptimizationFab ? 168 : 64;
+  const mapCycleFabRight = 12;
+  const navigateFabRight = showReoptimizationFab ? 64 : 64;
+  const callFabRight = showReoptimizationFab ? 116 : 116;
   const canCallNextStop = immersiveHidden && !!nextStopPhone;
   const canNavigateNextStop = immersiveHidden && !!nextStop && !!onNavigateToNextStop;
 
@@ -134,7 +136,7 @@ export default function FABControls({
             onClick={() => { if (nextStopPhone) window.location.href = `tel:${String(nextStopPhone).replace(/[^\d+]/g, '')}`; }}
             disabled={!canCallNextStop}
             bottom={immersiveFabBottom}
-            right={`${immersiveFabRightOffset + 52}px`}
+            right={`${callFabRight}px`}
             opacity={isPrimaryDriverDeviceInMotion ? 0.45 : 1}
           />
           <ImmersiveActionFAB
@@ -143,7 +145,7 @@ export default function FABControls({
             onClick={() => onNavigateToNextStop?.()}
             disabled={!canNavigateNextStop}
             bottom={immersiveFabBottom}
-            right={`${immersiveFabRightOffset}px`}
+            right={`${navigateFabRight}px`}
             opacity={isPrimaryDriverDeviceInMotion ? 0.45 : 1}
           />
         </>
@@ -151,7 +153,7 @@ export default function FABControls({
 
       {isAppOwner(currentUser) && selectedDriverId !== 'all' &&
         <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }} transition={{ type: "spring", stiffness: 260, damping: 20 }} className="z-[100]"
-          style={{ position: fabPosition, bottom: `${(!immersiveHidden && deliveriesWithStopOrder.length > 0 && cardsReadyForFAB ? stopCardsBaseHeight : bottomNavHeight) + 10}px`, right: '64px', pointerEvents: 'auto' }}>
+          style={{ position: fabPosition, bottom: `${(!immersiveHidden && deliveriesWithStopOrder.length > 0 && cardsReadyForFAB ? stopCardsBaseHeight : bottomNavHeight) + 10}px`, right: '168px', pointerEvents: 'auto' }}>
           <Button
             onClick={async () => {
               if (isReoptimizing) return;
