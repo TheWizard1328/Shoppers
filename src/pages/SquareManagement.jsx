@@ -836,13 +836,23 @@ export default function SquareManagement() {
     });
   }, [deliveries, visibleStoreIds, lookbackStart, selectedDriverFilter, selectedDriverUserIds, patients, stores, locationConfigs, catalogItems, allTransactions]);
 
+  const isCardSaleTransaction = useCallback((transaction) => {
+    if (!transaction || isTransferTransaction(transaction)) return false;
+    if (transaction?.type && transaction.type !== 'collection') return false;
+    const status = String(transaction?.status || '').toLowerCase();
+    if (!['completed', 'pending'].includes(status)) return false;
+    const orderState = String(transaction?.raw_square_data?.order_state || '').toUpperCase();
+    if (orderState && !['COMPLETED', 'OPEN'].includes(orderState)) return false;
+    return true;
+  }, []);
+
   const filteredTransactionRows = useMemo(() => {
     const dedupedTransactions = [];
     const seenTransactionKeys = new Set();
 
     (allTransactions || []).
     filter((transaction) => {
-      if (!transaction || isTransferTransaction(transaction)) return false;
+      if (!isCardSaleTransaction(transaction)) return false;
       const hasFormattedItemDate = !!parseSquareItemName(transaction?.item_name)?.deliveryDate;
       const transactionDate = getTransactionFilterDate(transaction);
       if (hasFormattedItemDate && (!transactionDate || transactionDate < lookbackStart)) return false;
@@ -1007,8 +1017,8 @@ export default function SquareManagement() {
     return counts;
   }, [deliveries, lookbackStart, selectedDriverFilter, selectedDriverUserIds]);
 
-  const filteredCardSpendCount = useMemo(() => filteredTransactionRows.length, [filteredTransactionRows]);
-  const filteredSalesCount = useMemo(() => soldCatalogItems.length, [soldCatalogItems]);
+  const filteredCardSalesCount = useMemo(() => filteredTransactionRows.length, [filteredTransactionRows]);
+  const filteredSalesCount = useMemo(() => soldCatalogItems.filter((transaction) => isCardSaleTransaction(transaction)).length, [soldCatalogItems, isCardSaleTransaction]);
 
   const viewCounts = {
     deliveries: filteredDeliveryRows.length,
@@ -1144,7 +1154,7 @@ export default function SquareManagement() {
             error={error}
             codDeliveryCount={codDeliveriesCount}
             catalogItemCount={filteredCatalogItems.length}
-            cardSpendCount={filteredCardSpendCount}
+            cardSpendCount={filteredCardSalesCount}
             salesCount={filteredSalesCount}
             collectedCodTypeBreakdown={collectedCodTypeBreakdown} />
           
