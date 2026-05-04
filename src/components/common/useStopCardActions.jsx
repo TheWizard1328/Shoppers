@@ -350,17 +350,31 @@ export default function useStopCardActions(params) {
     setIsCreatingReturn(true);
     const selectedReturnPatient = returnPatient;
     const resolvedStore = store || stores.find((s) => s && s.id === delivery?.store_id);
+    let createdReturnDelivery = null;
     try {
-      await onCreateReturn({ originalDelivery: delivery, returnPatient: selectedReturnPatient, store: resolvedStore, _skipPickupCreation: true });
+      createdReturnDelivery = await onCreateReturn({ originalDelivery: delivery, returnPatient: selectedReturnPatient, store: resolvedStore, _skipPickupCreation: true });
       setShowReturnConfirm(false);
       setReturnPatient(null);
       onClick?.(null);
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'return', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
       Promise.resolve().then(async () => {
         try {
+          const createdReturnDeliveryId = createdReturnDelivery?.id || createdReturnDelivery?.data?.id || null;
           const backgroundTasks = [];
           if ((delivery.cod_total_amount_required || 0) > 0) backgroundTasks.push(deleteCODWithTimeout(delivery.id, 'Removed after creating return delivery'));
           backgroundTasks.push((async () => {
+            const routeDeliveries = await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+            const refreshedRouteDeliveries = Array.isArray(routeDeliveries)
+              ? routeDeliveries
+              : Array.isArray(routeDeliveries?.deliveries)
+                ? routeDeliveries.deliveries
+                : [];
+            const routeWithoutNewReturn = refreshedRouteDeliveries.filter((item) => item?.id !== createdReturnDeliveryId);
+            const highestStopOrder = routeWithoutNewReturn.reduce((max, item) => Math.max(max, Number(item?.stop_order || 0)), 0);
+            if (createdReturnDeliveryId) {
+              await updateDeliveryLocal(createdReturnDeliveryId, { stop_order: highestStopOrder + 1, isNextDelivery: false }, { skipSmartRefresh: true });
+              await base44.entities.Delivery.update(createdReturnDeliveryId, { stop_order: highestStopOrder + 1, isNextDelivery: false }).catch(() => null);
+            }
             await optimizeRouteAndApplyNextDelivery({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, updateDeliveryLocal, updateDeliveriesLocally, forceRefreshDriverDeliveries, shouldRegeneratePolylines: false, runOptimization: false });
           })());
           if (userHasRole(currentUser, 'driver')) backgroundTasks.push(notifyDriverReturn({ driver: currentUser, patientName: displayName, delivery, store, appUsers }));
@@ -394,14 +408,19 @@ export default function useStopCardActions(params) {
           const retryDate = retryDraft.delivery_date;
           const retryDateDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === retryDate);
           const newRetryDelivery = await createDeliveryLocal({ ...retryDraft, stop_id: generateUniqueSID(retryDateDeliveries), puid: delivery.puid || delivery.stop_id || null, ampm_deliveries: delivery.ampm_deliveries, tracking_number: String(retryTrackingNumber), _skipPickupCreation: true });
+          const retryDeliveryId = newRetryDelivery?.id || newRetryDelivery?.data?.id || null;
+          const highestStopOrder = retryDateDeliveries.reduce((max, item) => Math.max(max, Number(item?.stop_order || 0)), 0);
+          if (retryDeliveryId) {
+            await updateDeliveryLocal(retryDeliveryId, { stop_order: highestStopOrder + 1, isNextDelivery: false }, { skipSmartRefresh: true });
+            await base44.entities.Delivery.update(retryDeliveryId, { stop_order: highestStopOrder + 1, isNextDelivery: false }).catch(() => null);
+          }
           if ((delivery.cod_total_amount_required || 0) > 0) {
             await deleteCODWithTimeout(delivery.id, 'Removed after creating retry delivery');
-            const retryDeliveryId = newRetryDelivery?.id || newRetryDelivery?.data?.id;
             if (retryDeliveryId && !isPickup) triggerSquareCodUpsert({ deliveryId: retryDeliveryId, patientName: patient?.full_name || 'Patient', storeAbbreviation: store?.abbreviation || '', codAmount: delivery.cod_total_amount_required, deliveryDate: retryDate, storeId: delivery.store_id });
           }
           await ensureDriverOnline();
           try {
-            await optimizeRouteAndApplyNextDelivery({ driverId: delivery.driver_id, deliveryDate: retryDate, updateDeliveryLocal, updateDeliveriesLocally, forceRefreshDriverDeliveries, shouldRegeneratePolylines: false, fallbackNextDeliveryId: newRetryDelivery?.id || newRetryDelivery?.data?.id || null, runOptimization: false });
+            await optimizeRouteAndApplyNextDelivery({ driverId: delivery.driver_id, deliveryDate: retryDate, updateDeliveryLocal, updateDeliveriesLocally, forceRefreshDriverDeliveries, shouldRegeneratePolylines: false, runOptimization: false });
           } catch {}
           if (userHasRole(currentUser, 'driver')) await notifyDriverRetry({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : displayName, delivery, store, appUsers });
         });
