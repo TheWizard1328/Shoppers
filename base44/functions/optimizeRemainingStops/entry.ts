@@ -444,34 +444,7 @@ Deno.serve(async (req) => {
       });
       const data = await response.json().catch(() => null);
 
-      let polylineData = null;
-      if (response.ok && Array.isArray(data?.results) && data.results[0]) {
-        const result = data.results[0];
-        const orderedWaypoints = (Array.isArray(result?.waypoints) ? result.waypoints : [])
-          .filter((waypoint) => waypoint.id !== 'driverStart' && waypoint.id !== 'driverEnd')
-          .sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
-        const orderedStopsForPolyline = orderedWaypoints
-          .map((waypoint) => stopsToSequence.find((item) => (item.delivery.stop_id || item.delivery.delivery_id || item.delivery.id) === waypoint.id) || null)
-          .filter(Boolean);
-
-        if (orderedStopsForPolyline.length > 0) {
-          const polylineWaypoints = orderedStopsForPolyline.slice(0, -1);
-          const polylineDestination = orderedStopsForPolyline[orderedStopsForPolyline.length - 1];
-          const polylineResponse = await base44.asServiceRole.functions.invoke('getHereDirections', {
-            origin: routeOriginStop
-              ? { lat: routeOriginStop.lat, lng: routeOriginStop.lng }
-              : { lat: currentPosition.lat, lng: currentPosition.lng },
-            destination: resolvedHomePosition
-              ? { lat: resolvedHomePosition.lat, lng: resolvedHomePosition.lng }
-              : { lat: polylineDestination.lat, lng: polylineDestination.lng },
-            waypoints: orderedStopsForPolyline.map((stop) => ({ lat: stop.lat, lng: stop.lng })),
-            transportMode: preferredTravelMode
-          }).catch(() => null);
-          polylineData = polylineResponse?.data || polylineResponse || null;
-        }
-      }
-
-      return { response, data, includeTimeWindows, polylineData };
+      return { response, data, includeTimeWindows, polylineData: null };
     };
 
     if (preserveExistingOrder) {
