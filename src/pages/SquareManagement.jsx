@@ -893,10 +893,6 @@ export default function SquareManagement() {
       if (driverScopedLocationIds && item.location_id && !driverScopedLocationIds.has(item.location_id)) return false;
       if (visibleLocationIds.size > 0 && item.location_id && !visibleLocationIds.has(item.location_id)) return false;
       if (visibleStoreIds.size > 0 && item.store_id && !visibleStoreIds.has(item.store_id)) return false;
-      const parsedItemDate = parseSquareItemName(item.name || item.item_name)?.deliveryDate;
-      if (!parsedItemDate) return false;
-      const itemDate = new Date(`${parsedItemDate}T00:00:00`);
-      if (Number.isNaN(itemDate.getTime()) || itemDate < lookbackStart) return false;
       return true;
     }).
     map((item) => {
