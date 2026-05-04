@@ -105,16 +105,16 @@ export default function SyncStatusIndicator({ syncStatus, isSyncing, error, codD
                       <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">{codDeliveryCount}</div>
                     </div>
                     <div className="rounded-xl bg-white/70 dark:bg-slate-900/40 px-3 py-2">
-                      <div className="text-[11px] text-muted-foreground">Catalog</div>
-                      <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">{catalogItemCount}</div>
-                    </div>
-                    <div className="rounded-xl bg-white/70 dark:bg-slate-900/40 px-3 py-2">
                       <div className="text-[11px] text-muted-foreground">Card Spend</div>
                       <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">{cardSpendCount}</div>
                     </div>
                     <div className="rounded-xl bg-white/70 dark:bg-slate-900/40 px-3 py-2">
                       <div className="text-[11px] text-muted-foreground">Sales</div>
                       <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">{salesCount}</div>
+                    </div>
+                    <div className="rounded-xl bg-white/70 dark:bg-slate-900/40 px-3 py-2">
+                      <div className="text-[11px] text-muted-foreground">Catalog</div>
+                      <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">{catalogItemCount}</div>
                     </div>
                   </div>
 
