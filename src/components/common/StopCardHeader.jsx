@@ -123,8 +123,9 @@ export default function StopCardHeader({
   const showDriverPay = isFinished && (userHasRole(currentUser, "driver") || userHasRole(currentUser, "admin")) && (delivery?.patient_id || delivery?.after_hours_pickup);
   let payBadge = null;
   if (showDriverPay) {
-    const driverAppUser = (appUsers || []).find((au) => au?.user_id === delivery?.driver_id) ||
-    ((safeDriver?.user_id === delivery?.driver_id || safeDriver?.id === delivery?.driver_id) && safeDriver?.pay_rate_per_delivery ? safeDriver : null);
+    const driverAppUser = (appUsers || []).find((au) =>
+      au?.user_id === delivery?.driver_id || au?.id === delivery?.driver_id
+    ) || ((safeDriver?.user_id === delivery?.driver_id || safeDriver?.id === delivery?.driver_id) ? safeDriver : null);
 
     const pay = driverAppUser ? calculateDeliveryPay(delivery, driverAppUser, patient) : 0;
     const baseRate = driverAppUser?.pay_rate_per_delivery || 0;
