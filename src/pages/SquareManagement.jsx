@@ -285,12 +285,6 @@ export default function SquareManagement() {
           await offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, strippedDeliveries);
         }
         await offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_TRANSACTIONS, transactionRecords);
-
-        await base44.functions.invoke('squareCodCore', {
-          action: 'syncOnlineSquareEntities',
-          catalogRecords,
-          transactionRecords
-        });
       } catch (err) {
         transactionError = err;
       }
@@ -300,16 +294,32 @@ export default function SquareManagement() {
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
       window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
 
-      if (catalogError || transactionError) {
-        const message = catalogError?.message || transactionError?.message || 'Square sync partially failed';
+      // 7) Release the UI as soon as offline data is ready; online sync continues in background
+      setIsSyncing(false);
+      setIsLoading(false);
+      toast.success('Square data synced locally');
+
+      // 8) Push offline snapshot to online DB in background only
+      let onlineSyncError = null;
+      try {
+        await base44.functions.invoke('squareCodCore', {
+          action: 'syncOnlineSquareEntities',
+          catalogRecords: await getCatalogItemsOffline(),
+          transactionRecords: await getPaymentTransactionsOffline()
+        });
+      } catch (err) {
+        onlineSyncError = err;
+      }
+
+      if (catalogError || transactionError || onlineSyncError) {
+        const message = catalogError?.message || transactionError?.message || onlineSyncError?.message || 'Square sync partially failed';
         console.error('[SquareManagement] Sync finished with issues', {
           catalogError: catalogError?.message || null,
           transactionError: transactionError?.message || null,
+          onlineSyncError: onlineSyncError?.message || null,
         });
         setError(message);
-        toast.error('Sync finished with issues: ' + message);
-      } else {
-        toast.success('Square data synced');
+        toast.error('Background online sync had issues: ' + message);
       }
     } catch (err) {
       setError(err.message);
