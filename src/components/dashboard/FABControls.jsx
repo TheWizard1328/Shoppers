@@ -15,7 +15,14 @@ import { useEffect, useMemo } from "react";
 
 const formatCoordinateValue = (value) => {
   const numericValue = typeof value === 'number' ? value : Number(String(value ?? '').trim());
-  return Number.isFinite(numericValue) ? String(numericValue) : null;
+  if (!Number.isFinite(numericValue)) return null;
+  if (numericValue === 0) return null;
+  return String(numericValue);
+};
+
+const normalizePhoneNumber = (value) => {
+  const digits = String(value ?? '').replace(/\D/g, '');
+  return digits.length > 0 ? digits : null;
 };
 
 const buildGoogleMapsCoordinateUrl = (latitude, longitude) => {
@@ -122,12 +129,18 @@ export default function FABControls({
     const targetDriverId = selectedDriverId !== 'all' ? selectedDriverId : currentUser?.id;
     const selectedDateStr = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null;
     if (!targetDriverId || !selectedDateStr) return null;
-    return deliveriesWithStopOrder.find((delivery) =>
+
+    const activeStops = deliveriesWithStopOrder.filter((delivery) =>
       delivery?.driver_id === targetDriverId &&
       delivery?.delivery_date === selectedDateStr &&
-      delivery?.isNextDelivery === true
-    ) || null;
-  }, [deliveriesWithStopOrder, selectedDriverId, currentUser?.id, selectedDate]);
+      delivery?.status !== 'pending' &&
+      !finishedStatuses.includes(delivery?.status)
+    );
+
+    return activeStops.find((delivery) => delivery?.isNextDelivery === true)
+      || activeStops.sort((a, b) => (a?.stop_order || 9999) - (b?.stop_order || 9999))[0]
+      || null;
+  }, [deliveriesWithStopOrder, selectedDriverId, currentUser?.id, selectedDate, finishedStatuses]);
   const selectedDriverNextStopPatient = useMemo(() => {
     if (!selectedDriverNextStop?.patient_id) return null;
     return patients.find((item) => item?.id === selectedDriverNextStop.patient_id) || null;
@@ -147,9 +160,14 @@ export default function FABControls({
   }, [selectedDriverNextStop, selectedDriverNextStopPatient, selectedDriverNextStopStore]);
   const nextStopPhoneValue = useMemo(() => {
     if (selectedDriverNextStop?.patient_id) {
-      return selectedDriverNextStopPatient?.phone || selectedDriverNextStopPatient?.phone_secondary || selectedDriverNextStop?.patient_phone || null;
+      return normalizePhoneNumber(selectedDriverNextStopPatient?.phone)
+        || normalizePhoneNumber(selectedDriverNextStopPatient?.phone_secondary)
+        || normalizePhoneNumber(selectedDriverNextStop?.patient_phone)
+        || null;
     }
-    return selectedDriverNextStopStore?.phone || selectedDriverNextStop?.store_phone || null;
+    return normalizePhoneNumber(selectedDriverNextStopStore?.phone)
+      || normalizePhoneNumber(selectedDriverNextStop?.store_phone)
+      || null;
   }, [selectedDriverNextStop, selectedDriverNextStopPatient, selectedDriverNextStopStore]);
   const nextStopNavigationHref = useMemo(
     () => buildGoogleMapsCoordinateUrl(nextStopLocation?.latitude, nextStopLocation?.longitude),
@@ -200,7 +218,7 @@ export default function FABControls({
             title="Call next stop"
             onClick={() => {
               if (nextStopPhoneValue) {
-                window.location.href = `tel:${String(nextStopPhoneValue).replace(/\D/g, '')}`;
+                window.location.href = `tel:${nextStopPhoneValue}`;
               }
             }}
             disabled={!canCallNextStop}
