@@ -1052,13 +1052,17 @@ async function handleFetchPayments(base44, payload) {
 
   const getDeliveryCandidatesForItem = (item, store) => {
     const paymentDateIso = (item?.payment_date || item?.order_created_at || '').slice(0, 10);
+    const combinedText = `${normalizeText(item?.note || '')} ${normalizeText(item?.item_name || '')}`.trim();
     return deliveriesWithAmounts.filter((delivery) => {
       if (store?.id && delivery?.store_id !== store.id) return false;
       const deliveryAmount = Math.round(Number(delivery?.cod_total_amount_required || 0) * 100);
       if (deliveryAmount !== toAmountCents(item?.amount_cents)) return false;
       const candidateSignatures = buildLocationDateAmountSignatureCandidates(item?.location_id, delivery?.delivery_date, deliveryAmount, 5);
       const itemSignature = buildLocationDateAmountSignature(item?.location_id, paymentDateIso || item?.item_name, item?.amount_cents);
-      return candidateSignatures.includes(itemSignature);
+      if (!candidateSignatures.includes(itemSignature)) return false;
+      const patient = patientsById.get(delivery?.patient_id);
+      const patientName = patient?.full_name;
+      return !!patientName && notesContainPatientName(combinedText, patientName);
     });
   };
 
