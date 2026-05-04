@@ -118,18 +118,34 @@ export default function FABControls({
 
   const immersiveFabBottom = `${topOverlayHeight + 12}px`;
   const showReoptimizationFab = isAppOwner(currentUser) && selectedDriverId !== 'all';
+  const selectedDriverNextStop = useMemo(() => {
+    const targetDriverId = selectedDriverId !== 'all' ? selectedDriverId : currentUser?.id;
+    if (!targetDriverId) return null;
+    return deliveriesWithStopOrder.find((delivery) => delivery?.driver_id === targetDriverId && delivery?.isNextDelivery === true) || null;
+  }, [deliveriesWithStopOrder, selectedDriverId, currentUser?.id]);
+  const selectedDriverNextStopPatient = useMemo(() => {
+    if (!selectedDriverNextStop?.patient_id) return null;
+    return patients.find((item) => item?.id === selectedDriverNextStop.patient_id) || null;
+  }, [selectedDriverNextStop, patients]);
+  const selectedDriverNextStopStore = useMemo(() => {
+    if (!selectedDriverNextStop?.store_id) return null;
+    return stores.find((item) => item?.id === selectedDriverNextStop.store_id) || null;
+  }, [selectedDriverNextStop, stores]);
   const nextStopLocation = useMemo(() => {
-    if (!nextStop) return null;
-    if (nextStop.patient_id) {
-      const patient = patients.find((item) => item?.id === nextStop.patient_id);
-      return patient ? { latitude: patient.latitude, longitude: patient.longitude } : null;
+    if (selectedDriverNextStop?.patient_id) {
+      return selectedDriverNextStopPatient ? { latitude: selectedDriverNextStopPatient.latitude, longitude: selectedDriverNextStopPatient.longitude } : null;
     }
-    if (nextStop.store_id) {
-      const store = stores.find((item) => item?.id === nextStop.store_id);
-      return store ? { latitude: store.latitude, longitude: store.longitude } : null;
+    if (selectedDriverNextStop?.store_id) {
+      return selectedDriverNextStopStore ? { latitude: selectedDriverNextStopStore.latitude, longitude: selectedDriverNextStopStore.longitude } : null;
     }
     return null;
-  }, [nextStop, patients, stores]);
+  }, [selectedDriverNextStop, selectedDriverNextStopPatient, selectedDriverNextStopStore]);
+  const nextStopPhoneValue = useMemo(() => {
+    if (selectedDriverNextStop?.patient_id) {
+      return selectedDriverNextStopPatient?.phone || selectedDriverNextStop?.patient_phone || null;
+    }
+    return selectedDriverNextStopStore?.phone || selectedDriverNextStop?.store_phone || null;
+  }, [selectedDriverNextStop, selectedDriverNextStopPatient, selectedDriverNextStopStore]);
   const nextStopNavigationHref = useMemo(
     () => buildGoogleMapsCoordinateUrl(nextStopLocation?.latitude, nextStopLocation?.longitude),
     [nextStopLocation]
@@ -139,7 +155,7 @@ export default function FABControls({
   const reoptimizationFabRight = mapCycleFabRight + fabSpacing;
   const navigateFabRight = showReoptimizationFab ? reoptimizationFabRight + fabSpacing : mapCycleFabRight + fabSpacing;
   const callFabRight = navigateFabRight + fabSpacing;
-  const canCallNextStop = immersiveHidden && !!nextStopPhone;
+  const canCallNextStop = immersiveHidden && !!nextStopPhoneValue;
   const canNavigateNextStop = immersiveHidden && !!nextStopNavigationHref;
 
   useEffect(() => {
@@ -178,8 +194,8 @@ export default function FABControls({
             icon={Phone}
             title="Call next stop"
             onClick={() => {
-              if (nextStopPhone) {
-                window.location.href = `tel:${String(nextStopPhone).replace(/\D/g, '')}`;
+              if (nextStopPhoneValue) {
+                window.location.href = `tel:${String(nextStopPhoneValue).replace(/\D/g, '')}`;
               }
             }}
             disabled={!canCallNextStop}
