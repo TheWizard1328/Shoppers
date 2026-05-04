@@ -630,7 +630,10 @@ export async function optimizeRouteAndApplyNextDelivery({
     }
 
     const refreshedDriverDeliveries = await base44.entities.Delivery.filter({ driver_id: driverId, delivery_date: deliveryDate });
-    const resolvedNextDeliveryId = fallbackNextDeliveryId || refreshedDriverDeliveries.find((item) => item?.isNextDelivery === true)?.id || null;
+    const firstEligibleActiveStop = (refreshedDriverDeliveries || [])
+      .filter((item) => item && !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(item.status))
+      .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0))[0] || null;
+    const resolvedNextDeliveryId = fallbackNextDeliveryId || refreshedDriverDeliveries.find((item) => item?.isNextDelivery === true)?.id || firstEligibleActiveStop?.id || null;
     await setAndCenterNextDelivery({
       driverDeliveries: refreshedDriverDeliveries,
       targetDeliveryId: resolvedNextDeliveryId,

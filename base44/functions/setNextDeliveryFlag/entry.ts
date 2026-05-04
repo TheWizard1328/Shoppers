@@ -43,6 +43,14 @@ Deno.serve(async (req) => {
       nextDelivery = activeDeliveries[0] || null;
     }
 
+    console.log('[setNextDeliveryFlag] Resolving next stop', {
+      driverId,
+      deliveryDate,
+      targetDeliveryId: targetDeliveryId || null,
+      activeCount: activeDeliveries.length,
+      resolvedNextDeliveryId: nextDelivery?.id || null
+    });
+
     const deliveriesToUpdate = activeDeliveries
       .filter((delivery) => Boolean(delivery?.isNextDelivery) !== Boolean(nextDelivery && delivery.id === nextDelivery.id))
       .map((delivery) => ({
