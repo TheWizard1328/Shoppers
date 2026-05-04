@@ -358,6 +358,9 @@ function notesContainPatientName(notesValue, patientName) {
   const exactOrPartial = patientTokens.every((patientToken) => noteTokens.some((noteToken) => noteToken.includes(patientToken) || patientToken.includes(noteToken)));
   if (exactOrPartial) return true;
 
+  const strongTokenOverlap = patientTokens.filter((patientToken) => noteTokens.some((noteToken) => noteToken.includes(patientToken) || patientToken.includes(noteToken))).length;
+  if (patientTokens.length >= 2 && strongTokenOverlap >= Math.min(2, patientTokens.length)) return true;
+
   return patientTokens.every((patientToken) => noteTokens.some((noteToken) => {
     const distance = levenshteinDistance(patientToken, noteToken);
     const maxLength = Math.max(patientToken.length, noteToken.length);
@@ -371,7 +374,7 @@ function buildComparableLocationSignature(itemName, amountCents, locationId) {
 
 function shouldIgnoreManualOrderLabel(value) {
   const normalized = normalizeMatchName(value);
-  return normalized === 'top ups' || normalized === 'top up' || normalized === 'top' || normalized === 'tip';
+  return normalized === 'top ups' || normalized === 'top up' || normalized === 'topup' || normalized === 'tip' || normalized === 'top';
 }
 
 function getCatalogItemAmountCents(item) {
@@ -1048,13 +1051,12 @@ async function handleFetchPayments(base44, payload) {
   };
 
   const getDeliveryCandidatesForItem = (item, store) => {
-    const noteText = normalizeText(item?.note || '');
     const paymentDateIso = (item?.payment_date || item?.order_created_at || '').slice(0, 10);
     return deliveriesWithAmounts.filter((delivery) => {
       if (store?.id && delivery?.store_id !== store.id) return false;
       const deliveryAmount = Math.round(Number(delivery?.cod_total_amount_required || 0) * 100);
       if (deliveryAmount !== toAmountCents(item?.amount_cents)) return false;
-      const candidateSignatures = buildLocationDateAmountSignatureCandidates(item?.location_id, delivery?.delivery_date, deliveryAmount);
+      const candidateSignatures = buildLocationDateAmountSignatureCandidates(item?.location_id, delivery?.delivery_date, deliveryAmount, 5);
       const itemSignature = buildLocationDateAmountSignature(item?.location_id, paymentDateIso || item?.item_name, item?.amount_cents);
       return candidateSignatures.includes(itemSignature);
     });
@@ -1088,6 +1090,13 @@ async function handleFetchPayments(base44, payload) {
       return patient && notesContainPatientName(item?.item_name, patient?.full_name);
     });
     if (itemNameMatch) return itemNameMatch;
+
+    const partialNameMatch = candidates.find((delivery) => {
+      const patient = patientsById.get(delivery?.patient_id);
+      const patientName = patient?.full_name;
+      return patientName && (notesContainPatientName(`${noteText} ${item?.item_name || ''}`, patientName));
+    });
+    if (partialNameMatch) return partialNameMatch;
 
     return candidates[0];
   };
