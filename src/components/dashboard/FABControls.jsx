@@ -13,6 +13,18 @@ import { invalidateDeliveriesForDate } from "@/components/utils/dataManager";
 import { fabControlEvents } from "@/components/utils/fabControlEvents";
 import { useEffect, useMemo } from "react";
 
+const formatCoordinateValue = (value) => {
+  const numericValue = typeof value === 'number' ? value : Number(String(value ?? '').trim());
+  return Number.isFinite(numericValue) ? String(numericValue) : null;
+};
+
+const buildGoogleMapsCoordinateUrl = (latitude, longitude) => {
+  const lat = formatCoordinateValue(latitude);
+  const lon = formatCoordinateValue(longitude);
+  if (!lat || !lon) return null;
+  return `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
+};
+
 const getMinutesFromTimeString = (value) => {
   if (typeof value !== 'string') return null;
   const match = value.trim().match(/^(\d{1,2}):(\d{2})$/);
@@ -106,13 +118,29 @@ export default function FABControls({
 
   const immersiveFabBottom = `${topOverlayHeight + 12}px`;
   const showReoptimizationFab = isAppOwner(currentUser) && selectedDriverId !== 'all';
+  const nextStopLocation = useMemo(() => {
+    if (!nextStop) return null;
+    if (nextStop.patient_id) {
+      const patient = patients.find((item) => item?.id === nextStop.patient_id);
+      return patient ? { latitude: patient.latitude, longitude: patient.longitude } : null;
+    }
+    if (nextStop.store_id) {
+      const store = stores.find((item) => item?.id === nextStop.store_id);
+      return store ? { latitude: store.latitude, longitude: store.longitude } : null;
+    }
+    return null;
+  }, [nextStop, patients, stores]);
+  const nextStopNavigationHref = useMemo(
+    () => buildGoogleMapsCoordinateUrl(nextStopLocation?.latitude, nextStopLocation?.longitude),
+    [nextStopLocation]
+  );
   const fabSpacing = 52;
   const mapCycleFabRight = immersiveHidden ? 12 : 16;
   const reoptimizationFabRight = mapCycleFabRight + fabSpacing;
   const navigateFabRight = showReoptimizationFab ? reoptimizationFabRight + fabSpacing : mapCycleFabRight + fabSpacing;
   const callFabRight = navigateFabRight + fabSpacing;
   const canCallNextStop = immersiveHidden && !!nextStopPhone;
-  const canNavigateNextStop = immersiveHidden && !!nextStop && !!onNavigateToNextStop;
+  const canNavigateNextStop = immersiveHidden && !!nextStopNavigationHref;
 
   useEffect(() => {
     const unsubscribe = fabControlEvents.subscribe((event) => {
@@ -135,7 +163,11 @@ export default function FABControls({
           <ImmersiveActionFAB
             icon={MapPin}
             title="Navigate to next stop"
-            onClick={() => onNavigateToNextStop?.()}
+            onClick={() => {
+              if (nextStopNavigationHref) {
+                window.open(nextStopNavigationHref, '_blank', 'noopener,noreferrer');
+              }
+            }}
             disabled={!canNavigateNextStop}
             bottom={immersiveFabBottom}
             right={`${navigateFabRight}px`}
@@ -145,7 +177,11 @@ export default function FABControls({
           <ImmersiveActionFAB
             icon={Phone}
             title="Call next stop"
-            onClick={() => { if (nextStopPhone) window.location.href = `tel:${String(nextStopPhone).replace(/[^\d+]/g, '')}`; }}
+            onClick={() => {
+              if (nextStopPhone) {
+                window.location.href = `tel:${String(nextStopPhone).replace(/\D/g, '')}`;
+              }
+            }}
             disabled={!canCallNextStop}
             bottom={immersiveFabBottom}
             right={`${callFabRight}px`}
