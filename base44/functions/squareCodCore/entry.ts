@@ -1054,15 +1054,17 @@ async function handleFetchPayments(base44, payload) {
     const paymentDateIso = (item?.payment_date || item?.order_created_at || '').slice(0, 10);
     const combinedText = `${normalizeText(item?.note || '')} ${normalizeText(item?.item_name || '')}`.trim();
     return deliveriesWithAmounts.filter((delivery) => {
-      if (store?.id && delivery?.store_id !== store.id) return false;
       const deliveryAmount = Math.round(Number(delivery?.cod_total_amount_required || 0) * 100);
       if (deliveryAmount !== toAmountCents(item?.amount_cents)) return false;
       const candidateSignatures = buildLocationDateAmountSignatureCandidates(item?.location_id, delivery?.delivery_date, deliveryAmount, 5);
       const itemSignature = buildLocationDateAmountSignature(item?.location_id, paymentDateIso || item?.item_name, item?.amount_cents);
-      if (!candidateSignatures.includes(itemSignature)) return false;
+      const storeMatches = store?.id ? delivery?.store_id === store.id : false;
+      const dateMatches = candidateSignatures.includes(itemSignature);
+      if (!dateMatches) return false;
       const patient = patientsById.get(delivery?.patient_id);
       const patientName = patient?.full_name;
-      return !!patientName && notesContainPatientName(combinedText, patientName);
+      if (!patientName || !notesContainPatientName(combinedText, patientName)) return false;
+      return true;
     });
   };
 
@@ -1071,38 +1073,41 @@ async function handleFetchPayments(base44, payload) {
     const candidates = getDeliveryCandidatesForItem(item, store);
     if (!candidates.length) return null;
 
+    const sameStoreCandidates = store?.id ? candidates.filter((delivery) => delivery?.store_id === store.id) : [];
+    const prioritizedCandidates = sameStoreCandidates.length ? [...sameStoreCandidates, ...candidates.filter((delivery) => delivery?.store_id !== store.id)] : candidates;
+
     const deliveryIdMatch = noteText.match(/delivery\s*(id|#)?\s*[:=-]?\s*([a-f0-9]{24})/i);
     if (deliveryIdMatch) {
-      const matchedById = candidates.find((delivery) => delivery?.id === deliveryIdMatch[2]);
+      const matchedById = prioritizedCandidates.find((delivery) => delivery?.id === deliveryIdMatch[2]);
       if (matchedById) return matchedById;
     }
 
     const stopIdMatch = noteText.match(/\b(?:sid|stop\s*id)\s*[:=-]?\s*([a-z0-9-]+)/i);
     if (stopIdMatch) {
-      const matchedByStopId = candidates.find((delivery) => normalizeText(delivery?.stop_id).toLowerCase() === normalizeText(stopIdMatch[1]).toLowerCase());
+      const matchedByStopId = prioritizedCandidates.find((delivery) => normalizeText(delivery?.stop_id).toLowerCase() === normalizeText(stopIdMatch[1]).toLowerCase());
       if (matchedByStopId) return matchedByStopId;
     }
 
-    const patientNoteMatch = candidates.find((delivery) => {
+    const patientNoteMatch = prioritizedCandidates.find((delivery) => {
       const patient = patientsById.get(delivery?.patient_id);
       return patient && notesContainPatientName(noteText, patient?.full_name);
     });
     if (patientNoteMatch) return patientNoteMatch;
 
-    const itemNameMatch = candidates.find((delivery) => {
+    const itemNameMatch = prioritizedCandidates.find((delivery) => {
       const patient = patientsById.get(delivery?.patient_id);
       return patient && notesContainPatientName(item?.item_name, patient?.full_name);
     });
     if (itemNameMatch) return itemNameMatch;
 
-    const partialNameMatch = candidates.find((delivery) => {
+    const partialNameMatch = prioritizedCandidates.find((delivery) => {
       const patient = patientsById.get(delivery?.patient_id);
       const patientName = patient?.full_name;
       return patientName && (notesContainPatientName(`${noteText} ${item?.item_name || ''}`, patientName));
     });
     if (partialNameMatch) return partialNameMatch;
 
-    return candidates[0];
+    return prioritizedCandidates[0];
   };
 
   const transactionRecords = [];
