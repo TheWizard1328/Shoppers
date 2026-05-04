@@ -368,6 +368,44 @@ function notesContainPatientName(notesValue, patientName) {
   }));
 }
 
+function getStoreAbbreviationVariants(store) {
+  const variants = new Set();
+  const pushTokens = (value) => {
+    const normalized = normalizeText(value);
+    if (!normalized) return;
+    variants.add(normalized.toLowerCase());
+    normalized
+      .split(/[^a-zA-Z0-9]+/)
+      .map((part) => part.trim().toLowerCase())
+      .filter(Boolean)
+      .forEach((part) => variants.add(part));
+  };
+
+  pushTokens(store?.abbreviation);
+  pushTokens(store?.name);
+  return Array.from(variants);
+}
+
+function getPreferredStoreAbbreviation(store) {
+  const normalizedAbbreviation = normalizeText(store?.abbreviation);
+  if (normalizedAbbreviation) return normalizedAbbreviation.toUpperCase();
+
+  const tokens = normalizeText(store?.name)
+    .split(/[^a-zA-Z0-9]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (!tokens.length) return 'NA';
+  if (tokens.length === 1) return tokens[0].slice(0, 2).toUpperCase();
+  return tokens.map((token) => token[0]).join('').slice(0, 2).toUpperCase();
+}
+
+function itemNameContainsStore(itemName, store) {
+  const normalizedItemName = normalizeMatchName(itemName);
+  if (!normalizedItemName) return false;
+  return getStoreAbbreviationVariants(store).some((variant) => normalizedItemName.includes(variant));
+}
+
 function buildComparableLocationSignature(itemName, amountCents, locationId) {
   return `${normalizeText(locationId)}::${normalizeMatchName(itemName)}::${toAmountCents(amountCents)}`;
 }
@@ -1054,11 +1092,12 @@ async function handleFetchPayments(base44, payload) {
     const paymentDateIso = (item?.payment_date || item?.order_created_at || '').slice(0, 10);
     const combinedText = `${normalizeText(item?.note || '')} ${normalizeText(item?.item_name || '')}`.trim();
     return deliveriesWithAmounts.filter((delivery) => {
+      if (store?.id && delivery?.store_id !== store.id) return false;
+      if (store && !itemNameContainsStore(item?.item_name, store) && !itemNameContainsStore(item?.note, store)) return false;
       const deliveryAmount = Math.round(Number(delivery?.cod_total_amount_required || 0) * 100);
       if (deliveryAmount !== toAmountCents(item?.amount_cents)) return false;
       const candidateSignatures = buildLocationDateAmountSignatureCandidates(item?.location_id, delivery?.delivery_date, deliveryAmount, 5);
       const itemSignature = buildLocationDateAmountSignature(item?.location_id, paymentDateIso || item?.item_name, item?.amount_cents);
-      const storeMatches = store?.id ? delivery?.store_id === store.id : false;
       const dateMatches = candidateSignatures.includes(itemSignature);
       if (!dateMatches) return false;
       const patient = patientsById.get(delivery?.patient_id);
@@ -1118,11 +1157,12 @@ async function handleFetchPayments(base44, payload) {
     const matchedDelivery = matchDeliveryForItem(item, store);
     const matchedPatient = matchedDelivery ? patientsById.get(matchedDelivery?.patient_id) : null;
     const matchedDriver = matchedDelivery ? getDriverFromDelivery(matchedDelivery) : null;
+    const matchedStore = matchedDelivery ? storeByLocationId.get(item?.location_id) || storeById?.get?.(matchedDelivery?.store_id) || store : store;
     const isCustomAmount = !normalizeText(item?.catalog_object_id);
-    const formattedCollectedName = matchedDelivery && store?.abbreviation
-      ? formatItemName(matchedDelivery.delivery_date, store.abbreviation, matchedPatient?.full_name || matchedDelivery?.patient_name)
+    const formattedCollectedName = matchedDelivery
+      ? formatItemName(matchedDelivery.delivery_date, getPreferredStoreAbbreviation(matchedStore), matchedPatient?.full_name || matchedDelivery?.patient_name)
       : '';
-    const displayItemName = isCustomAmount && formattedCollectedName ? `__**${formattedCollectedName}**__` : (item?.item_name || '');
+    const displayItemName = isCustomAmount && formattedCollectedName ? formattedCollectedName : (item?.item_name || '');
     const uniqueKey = `${item?.order_id}::${item?.line_item_uid}`;
     if (seenKeys.has(uniqueKey)) continue;
     seenKeys.add(uniqueKey);
@@ -1298,6 +1338,7 @@ async function handleGetCodData(base44, payload = {}) {
 
   const seenTransactionKeys = new Set();
   const recentTransactionRecords = [];
+  const storeById = new Map(safeStores.map((store) => [store.id, store]));
 
   for (const item of paidOrderItems) {
     const uniqueKey = `${item?.order_id}::${item?.line_item_uid}`;
