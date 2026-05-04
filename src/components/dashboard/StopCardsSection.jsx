@@ -6,7 +6,7 @@ import { createStopCardsScrollHandler } from "@/components/dashboard/StopCardsSc
 
 export default function StopCardsSection({
   currentUser, isDriver, isAdmin, isDispatcher, isMobile,
-  deliveries, patients, stores, drivers, deliveriesWithStopOrder,
+  deliveries, patients, stores, drivers, appUsers, deliveriesWithStopOrder,
   selectedDate, isAllDriversMode, isSnapshotModeActive,
   mapViewPhase, isMapViewLocked, setIsMapViewLocked, setMapViewPhase,
   setShouldFitBounds, setMapCenter, setMapZoom, getMapPadding,
@@ -109,6 +109,7 @@ export default function StopCardsSection({
           onStartDelivery={handleStartDelivery}
           allDeliveries={deliveries}
           selectedDate={selectedDate}
+          appUsers={appUsers}
           onDriverStatusChange={async () => {await refreshUser();}} />
         }
       </div>
