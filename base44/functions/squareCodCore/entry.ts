@@ -133,8 +133,24 @@ function createSquareRequestQueue(monitor) {
 
       try {
         monitor.state.requestCount += 1;
-        return await task();
+        await monitor.log('info', 'square_request_start', 'Square API request started', {
+          step,
+          requestIndex: currentIndex + 1,
+          spacingMs: currentIndex > 0 ? SQUARE_REQUEST_SPACING_MS : 0,
+          batchPauseApplied: currentIndex > 0 && currentIndex % SQUARE_BATCH_SIZE === 0,
+        });
+        const result = await task();
+        await monitor.log('info', 'square_request_success', 'Square API request completed', {
+          step,
+          requestIndex: currentIndex + 1,
+        });
+        return result;
       } catch (error) {
+        await monitor.log('error', 'square_request_failed', 'Square API request failed', {
+          step,
+          requestIndex: currentIndex + 1,
+          error: error?.message || String(error),
+        });
         throw error;
       }
     },
@@ -551,8 +567,10 @@ async function createCatalogItem({ itemName, amountCents, locationId, deliveryId
 async function listActiveCatalogItems(accessToken, options = {}) {
   const objects = [];
   let cursor = undefined;
+  let page = 0;
 
   do {
+    page += 1;
     const json = await squareFetch('/v2/catalog/search', 'POST', accessToken, {
       object_types: ['ITEM'],
       include_deleted_objects: false,
@@ -560,8 +578,22 @@ async function listActiveCatalogItems(accessToken, options = {}) {
       cursor,
     }, options);
 
-    objects.push(...(json.objects || []));
+    const batchObjects = json.objects || [];
+    objects.push(...batchObjects);
     cursor = json.cursor;
+
+    if (options?.monitor) {
+      await options.monitor.log('info', 'catalog_page', 'Processed Square catalog page', {
+        page,
+        batchSize: batchObjects.length,
+        totalCatalogItems: objects.length,
+        hasMore: !!cursor,
+      });
+    }
+
+    if (cursor) {
+      await sleep(SQUARE_BATCH_PAUSE_MS);
+    }
   } while (cursor);
 
   return objects;
@@ -1279,6 +1311,15 @@ async function handleGetCodData(base44, payload = {}) {
     driver_name: delivery?.driver_name,
   }));
 
+  await monitor.log('info', 'processing_summary', 'Square data processed into app records', {
+    deliveriesLoaded: strippedDeliveries.length,
+    deliveriesRefreshed: refreshDeliveries,
+    catalogCount: catalogRecords.length,
+    paidOrderItemsCount: paidOrderItems.length,
+    transactionCount: recentTransactionRecords.length,
+    locationCount: locationIds.length,
+  });
+
   const result = {
     success: true,
     deliveries: strippedDeliveries,
@@ -1297,6 +1338,9 @@ async function handleGetCodData(base44, payload = {}) {
   await monitor.finish(monitor.state.rateLimitHits > 0 ? 'warning' : 'success', 'Square COD data sync completed', {
     catalogCount: catalogRecords.length,
     transactionCount: recentTransactionRecords.length,
+    deliveriesLoaded: strippedDeliveries.length,
+    paidOrderItemsCount: paidOrderItems.length,
+    locationCount: locationIds.length,
   });
   return result;
 }
