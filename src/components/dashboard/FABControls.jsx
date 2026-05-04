@@ -120,9 +120,14 @@ export default function FABControls({
   const showReoptimizationFab = isAppOwner(currentUser) && selectedDriverId !== 'all';
   const selectedDriverNextStop = useMemo(() => {
     const targetDriverId = selectedDriverId !== 'all' ? selectedDriverId : currentUser?.id;
-    if (!targetDriverId) return null;
-    return deliveriesWithStopOrder.find((delivery) => delivery?.driver_id === targetDriverId && delivery?.isNextDelivery === true) || null;
-  }, [deliveriesWithStopOrder, selectedDriverId, currentUser?.id]);
+    const selectedDateStr = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null;
+    if (!targetDriverId || !selectedDateStr) return null;
+    return deliveriesWithStopOrder.find((delivery) =>
+      delivery?.driver_id === targetDriverId &&
+      delivery?.delivery_date === selectedDateStr &&
+      delivery?.isNextDelivery === true
+    ) || null;
+  }, [deliveriesWithStopOrder, selectedDriverId, currentUser?.id, selectedDate]);
   const selectedDriverNextStopPatient = useMemo(() => {
     if (!selectedDriverNextStop?.patient_id) return null;
     return patients.find((item) => item?.id === selectedDriverNextStop.patient_id) || null;
@@ -142,7 +147,7 @@ export default function FABControls({
   }, [selectedDriverNextStop, selectedDriverNextStopPatient, selectedDriverNextStopStore]);
   const nextStopPhoneValue = useMemo(() => {
     if (selectedDriverNextStop?.patient_id) {
-      return selectedDriverNextStopPatient?.phone || selectedDriverNextStop?.patient_phone || null;
+      return selectedDriverNextStopPatient?.phone || selectedDriverNextStopPatient?.phone_secondary || selectedDriverNextStop?.patient_phone || null;
     }
     return selectedDriverNextStopStore?.phone || selectedDriverNextStop?.store_phone || null;
   }, [selectedDriverNextStop, selectedDriverNextStopPatient, selectedDriverNextStopStore]);
