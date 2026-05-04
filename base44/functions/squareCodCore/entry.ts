@@ -1668,19 +1668,19 @@ async function handleSyncCatalogItems(base44) {
   };
 }
 
-async function paginatedDeleteAll(entityApi, pageSize = 100) {
+async function paginatedDeleteAll(entityApi, pageSize = 50) {
   while (true) {
     const records = await entityApi.list('-updated_date', pageSize).catch(() => []);
     if (!records?.length) break;
 
-    for (let i = 0; i < records.length; i += 10) {
-      const chunk = records.slice(i, i + 10);
+    for (let i = 0; i < records.length; i += 5) {
+      const chunk = records.slice(i, i + 5);
       await Promise.all(chunk.map((record) => entityApi.delete(record.id).catch(() => null)));
-      if (i + 10 < records.length) await sleep(BASE44_SYNC_CHUNK_DELAY_MS * 2);
+      if (i + 5 < records.length) await sleep(BASE44_SYNC_CHUNK_DELAY_MS * 4);
     }
 
     if (records.length < pageSize) break;
-    await sleep(BASE44_SYNC_CHUNK_DELAY_MS * 2);
+    await sleep(BASE44_SYNC_CHUNK_DELAY_MS * 4);
   }
 }
 
@@ -1693,27 +1693,46 @@ async function handleSyncOnlineSquareEntities(base44, payload) {
     return rest;
   };
 
-  const cleanCatalog = catalogRecords.map(stripMeta);
-  const cleanTransactions = transactionRecords.map(stripMeta);
+  const normalizeCatalogRecord = (record) => {
+    const clean = stripMeta(record);
+    if (!clean) return null;
+    return {
+      square_catalog_object_id: clean.square_catalog_object_id || clean.catalog_object_id || null,
+      square_catalog_version: clean.square_catalog_version || clean.version || null,
+      item_name: clean.item_name || clean.name || null,
+      description: clean.description || '',
+      amount: clean.amount ?? clean.price_dollars ?? (clean.price_cents != null ? Number(clean.price_cents) / 100 : null),
+      amount_cents: clean.amount_cents ?? clean.price_cents ?? null,
+      delivery_id: clean.delivery_id || null,
+      delivery_date: clean.delivery_date || null,
+      patient_id: clean.patient_id || null,
+      store_id: clean.store_id || null,
+      location_id: clean.location_id || null,
+      status: clean.status || 'active',
+    };
+  };
 
-  await Promise.all([
-    paginatedDeleteAll(base44.asServiceRole.entities.SquareCatalogItems),
-    paginatedDeleteAll(base44.asServiceRole.entities.SquareTransaction),
-  ]);
+  const cleanCatalog = catalogRecords.map(normalizeCatalogRecord).filter((record) => record?.square_catalog_object_id && record?.item_name && record?.amount != null && record?.location_id);
+  const cleanTransactions = transactionRecords.map(stripMeta).filter(Boolean);
 
   const bulkCreateInChunks = async (entityApi, records) => {
     if (!records.length) return;
-    const chunkSize = 25;
+    const chunkSize = 10;
     for (let i = 0; i < records.length; i += chunkSize) {
       await entityApi.bulkCreate(records.slice(i, i + chunkSize));
-      if (i + chunkSize < records.length) await sleep(BASE44_SYNC_CHUNK_DELAY_MS * 2);
+      if (i + chunkSize < records.length) await sleep(BASE44_SYNC_CHUNK_DELAY_MS * 3);
     }
   };
 
-  await Promise.all([
-    bulkCreateInChunks(base44.asServiceRole.entities.SquareCatalogItems, cleanCatalog),
-    bulkCreateInChunks(base44.asServiceRole.entities.SquareTransaction, cleanTransactions),
-  ]);
+  if (cleanCatalog.length > 0) {
+    await paginatedDeleteAll(base44.asServiceRole.entities.SquareCatalogItems, 50);
+    await bulkCreateInChunks(base44.asServiceRole.entities.SquareCatalogItems, cleanCatalog);
+  }
+
+  if (cleanTransactions.length > 0) {
+    await paginatedDeleteAll(base44.asServiceRole.entities.SquareTransaction, 50);
+    await bulkCreateInChunks(base44.asServiceRole.entities.SquareTransaction, cleanTransactions);
+  }
 
   return {
     success: true,

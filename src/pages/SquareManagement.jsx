@@ -299,13 +299,14 @@ export default function SquareManagement() {
       setIsLoading(false);
       toast.success('Square data synced locally');
 
-      // 8) Push offline snapshot to online DB in background only
+      // 8) Push only lightweight entity-shaped transaction data in background
       let onlineSyncError = null;
       try {
+        const transactionRecords = await getPaymentTransactionsOffline();
         await base44.functions.invoke('squareCodCore', {
           action: 'syncOnlineSquareEntities',
-          catalogRecords: await getCatalogItemsOffline(),
-          transactionRecords: await getPaymentTransactionsOffline()
+          catalogRecords: [],
+          transactionRecords
         });
       } catch (err) {
         onlineSyncError = err;
