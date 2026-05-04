@@ -369,6 +369,11 @@ function buildComparableLocationSignature(itemName, amountCents, locationId) {
   return `${normalizeText(locationId)}::${normalizeMatchName(itemName)}::${toAmountCents(amountCents)}`;
 }
 
+function shouldIgnoreManualOrderLabel(value) {
+  const normalized = normalizeMatchName(value);
+  return normalized === 'top ups' || normalized === 'top up' || normalized === 'top' || normalized === 'tip';
+}
+
 function getCatalogItemAmountCents(item) {
   const variations = item?.item_data?.variations || [];
   const variation = variations.find((entry) => entry?.item_variation_data?.price_money?.amount != null) || variations[0];
@@ -673,7 +678,7 @@ function flattenOrderItems(orders) {
   for (const order of orders || []) {
     for (const lineItem of order?.line_items || []) {
       const itemName = normalizeText(lineItem?.name || lineItem?.note);
-      if (!itemName) continue;
+      if (!itemName || shouldIgnoreManualOrderLabel(itemName)) continue;
 
       const quantityValue = Number(lineItem?.quantity || 1);
       const quantity = Number.isFinite(quantityValue) && quantityValue > 0 ? Math.round(quantityValue) : 1;
@@ -1095,6 +1100,11 @@ async function handleFetchPayments(base44, payload) {
     const matchedDelivery = matchDeliveryForItem(item, store);
     const matchedPatient = matchedDelivery ? patientsById.get(matchedDelivery?.patient_id) : null;
     const matchedDriver = matchedDelivery ? getDriverFromDelivery(matchedDelivery) : null;
+    const isCustomAmount = !normalizeText(item?.catalog_object_id);
+    const formattedCollectedName = matchedDelivery && store?.abbreviation
+      ? formatItemName(matchedDelivery.delivery_date, store.abbreviation, matchedPatient?.full_name || matchedDelivery?.patient_name)
+      : '';
+    const displayItemName = isCustomAmount && formattedCollectedName ? `__**${formattedCollectedName}**__` : (item?.item_name || '');
     const uniqueKey = `${item?.order_id}::${item?.line_item_uid}`;
     if (seenKeys.has(uniqueKey)) continue;
     seenKeys.add(uniqueKey);
@@ -1108,7 +1118,7 @@ async function handleFetchPayments(base44, payload) {
       square_transaction_id: item?.order_id || null,
       square_payment_id: `${item?.order_id || 'order'}:${item?.line_item_uid || 'line'}`,
       square_catalog_object_id: item?.catalog_object_id || null,
-      item_name: item?.item_name || '',
+      item_name: displayItemName,
       amount: toAmountCents(item?.amount_cents) / 100,
       amount_cents: toAmountCents(item?.amount_cents),
       type: 'collection',
@@ -1127,6 +1137,8 @@ async function handleFetchPayments(base44, payload) {
         order_created_at: item?.order_created_at || null,
         order_state: item?.order_state || null,
         notes: item?.note || '',
+        original_item_name: item?.item_name || '',
+        is_custom_amount: isCustomAmount,
         matched_by: matchedDelivery ? 'delivery_match' : 'unmatched',
       },
     };
