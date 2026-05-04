@@ -567,31 +567,58 @@ async function listActiveCatalogItems(accessToken, options = {}) {
   return objects;
 }
 
+async function fetchCompletedOrdersBatch(locationIds, startAt, accessToken, cursor, options = {}) {
+  if (!locationIds.length) return { orders: [], cursor: null };
+
+  const json = await squareFetch('/v2/orders/search', 'POST', accessToken, {
+    location_ids: locationIds,
+    cursor,
+    limit: 500,
+    query: {
+      filter: {
+        state_filter: { states: ['COMPLETED'] },
+        date_time_filter: { created_at: { start_at: startAt } },
+      },
+      sort: {
+        sort_field: 'CREATED_AT',
+        sort_order: 'DESC',
+      },
+    },
+  }, options);
+
+  return {
+    orders: json.orders || [],
+    cursor: json.cursor || null,
+  };
+}
+
 async function listCompletedOrders(locationIds, startAt, accessToken, maxOrders = 1000, options = {}) {
   if (!locationIds.length) return [];
 
   const orders = [];
-  let cursor = undefined;
+  let cursor = null;
+  let batchCount = 0;
 
   do {
-    const json = await squareFetch('/v2/orders/search', 'POST', accessToken, {
-      location_ids: locationIds,
-      cursor,
-      limit: 500,
-      query: {
-        filter: {
-          state_filter: { states: ['COMPLETED'] },
-          date_time_filter: { created_at: { start_at: startAt } },
-        },
-        sort: {
-          sort_field: 'CREATED_AT',
-          sort_order: 'DESC',
-        },
-      },
-    }, options);
+    const batch = await fetchCompletedOrdersBatch(locationIds, startAt, accessToken, cursor, options);
+    const batchOrders = batch.orders || [];
 
-    orders.push(...(json.orders || []));
-    cursor = json.cursor;
+    orders.push(...batchOrders);
+    cursor = batch.cursor;
+    batchCount += 1;
+
+    if (options?.monitor) {
+      await options.monitor.log('info', 'orders_batch', 'Processed Square orders batch', {
+        batch: batchCount,
+        batchSize: batchOrders.length,
+        totalOrders: orders.length,
+        hasMore: !!cursor,
+      });
+    }
+
+    if (cursor && orders.length < maxOrders) {
+      await sleep(SQUARE_BATCH_PAUSE_MS);
+    }
   } while (cursor && orders.length < maxOrders);
 
   return orders.slice(0, maxOrders);
