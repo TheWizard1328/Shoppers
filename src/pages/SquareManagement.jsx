@@ -1171,10 +1171,13 @@ export default function SquareManagement() {
                 if (createdCatalogRows.length > 0) {
                   const existingCatalogRecords = await base44.entities.SquareCatalogItems.list('-updated_date', 2000);
                   const preservedCatalogRows = (existingCatalogRecords || []).filter((record) => !createdCatalogRows.some((created) => created.delivery_id === record.delivery_id));
+                  const nextCatalogRows = [...createdCatalogRows, ...preservedCatalogRows];
                   await syncSquareCODSnapshotOffline({
-                    catalogItems: [...createdCatalogRows, ...preservedCatalogRows],
+                    catalogItems: nextCatalogRows,
                     transactions: allTransactions || []
                   });
+                  setCatalogItems(nextCatalogRows);
+                  setDeliveries((prev) => [...prev]);
                 }
 
                 await refreshOfflineSquareFromOnlineEntities();

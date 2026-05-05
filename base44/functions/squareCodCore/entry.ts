@@ -1868,7 +1868,7 @@ async function handleSyncSquareCods(base44, payload) {
   const purgeCatalogFirst = payload?.purgeCatalogFirst === true;
 
   if (!items.length && !deletions.length && !purgeCatalogFirst) {
-    return await handleSyncCatalogItems(base44);
+    return { success: true, processed: 0, results: [] };
   }
 
   const results = [];
