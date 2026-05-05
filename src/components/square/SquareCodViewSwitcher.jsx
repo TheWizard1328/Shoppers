@@ -22,12 +22,14 @@ export default function SquareCodViewSwitcher({ activeView, onChange, counts = {
             variant={isActive ? "default" : "outline"}
             size="sm"
             onClick={() => onChange(view.key)}
-            className="h-11 w-full justify-between rounded-2xl px-4 md:h-9 md:w-[130px] md:justify-between md:gap-2 md:rounded-full md:px-3">
-            
-            <span>{view.label}</span>
-            {typeof count === "number" &&
-            <span className="text-xs opacity-80">{count}</span>
-            }
+            className="h-11 w-full justify-center rounded-2xl px-4 md:h-9 md:w-[130px] md:justify-center md:rounded-full md:px-3"
+          >
+            <span className="flex items-center justify-center gap-1 text-center">
+              <span>{view.label}</span>
+              {typeof count === "number" && (
+                <span className="text-xs opacity-80">{count}</span>
+              )}
+            </span>
           </Button>);
 
       })}
