@@ -91,11 +91,13 @@ export default function StatsPanel({
       const cityStoreIds = new Set(
         (stores || []).filter((store) => store?.city_id === selectedCityId).map((store) => store.id)
       );
+      const dispatcherStoreIds = new Set(isDispatcher ? (currentUser?.store_ids || []) : []);
 
       const offlineDateDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr).catch(() => []);
       const sourceDeliveries = offlineDateDeliveries?.length > 0 ? offlineDateDeliveries : deliveries || [];
       const nextLegendDeliveries = sourceDeliveries.filter((delivery) => {
         if (!delivery || delivery.delivery_date !== selectedDateStr || !delivery.driver_id) return false;
+        if (isDispatcher) return dispatcherStoreIds.has(delivery.store_id);
         return cityStoreIds.size === 0 || cityStoreIds.has(delivery.store_id);
       });
 
