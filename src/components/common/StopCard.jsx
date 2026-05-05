@@ -683,6 +683,8 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
             open={showInterStoreDialog}
             delivery={delivery}
             match={interStoreMatch}
+            pickupPatientName={patient?.full_name || delivery?.patient_name}
+            originatingStoreName={store?.name}
             onSkip={() => {
               setShowInterStoreDialog(false);
               setInterStoreMatch(null);

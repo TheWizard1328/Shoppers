@@ -2,7 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom";
 import { Button } from "@/components/ui/button";
 
-export default function InterStoreDropoffDialog({ open, delivery, match, onConfirm, onSkip }) {
+export default function InterStoreDropoffDialog({ open, delivery, match, onConfirm, onSkip, pickupPatientName, originatingStoreName }) {
   if (!open) return null;
 
   return ReactDOM.createPortal(
@@ -13,6 +13,11 @@ export default function InterStoreDropoffDialog({ open, delivery, match, onConfi
           <p className="text-sm text-slate-600 mt-1">This completed stop looks like an InterStore Pickup.</p>
         </div>
 
+        <div className="rounded-lg bg-slate-50 p-3 text-sm space-y-1">
+          <div><span className="font-semibold">Pickup patient:</span> {pickupPatientName || '—'}</div>
+          <div><span className="font-semibold">Originating store:</span> {originatingStoreName || '—'}</div>
+        </div>
+
         {match ? (
           <div className="rounded-lg bg-slate-50 p-3 text-sm">
             <div><span className="font-semibold">Drop-off:</span> {match.full_name}</div>
@@ -20,7 +25,7 @@ export default function InterStoreDropoffDialog({ open, delivery, match, onConfi
           </div>
         ) : (
           <div className="rounded-lg bg-amber-50 text-amber-800 p-3 text-sm">
-            No matching InterStore Drop-off / ISD patient was found for this store address.
+            No matching InterStore Drop-off / ISD patient was found for this pickup yet.
           </div>
         )}
 
