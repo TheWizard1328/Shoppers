@@ -54,7 +54,7 @@ Deno.serve(async (req) => {
     const storePatients = await base44.asServiceRole.entities.Patient.filter({ store_id: delivery.store_id });
     const candidates = (storePatients || []).filter((item) => {
       const normalizedPatientAddress = normalizeValue(item.address);
-      return normalizedPatientAddress === normalizedStoreAddress && (containsISP(item.full_name) || containsISP(item.address));
+      return item?.store_id === delivery.store_id && normalizedPatientAddress === normalizedStoreAddress && (containsISP(item.full_name) || containsISP(item.address));
     });
     const match = candidates[0] || null;
 
