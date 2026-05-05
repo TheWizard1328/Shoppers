@@ -6,6 +6,7 @@ const isRateLimitError = (error) => error?.status === 429 || error?.response?.st
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
 const ACTIVE_STATUSES = ['in_transit', 'en_route'];
 const TIME_ZONE = 'America/Edmonton';
+const AUTOMATION_DEDUPE_WINDOW_MS = 10000;
 const WEEKDAY_CODES = ['su', 'mo', 'tu', 'we', 'th', 'fr', 'sa'];
 
 const getLatestFinishedDelivery = (deliveries) => [...(deliveries || [])]
@@ -160,6 +161,68 @@ const getLegTravelMinutes = ({ stop, leg, segmentPolyline, fallbackMinutes = 5 }
   return fallbackMinutes;
 };
 
+const extractOptimizationContext = (body = {}) => {
+  if (body?.driverId && body?.deliveryDate) {
+    return {
+      driverId: body.driverId,
+      deliveryDate: body.deliveryDate,
+      currentLocalTime: body.currentLocalTime,
+      deviceTime: body.deviceTime,
+      preserveExistingOrder: body.preserveExistingOrder === true,
+      forceFullRemainingRouteOptimization: body.forceFullRemainingRouteOptimization === true,
+      bypassDriverStatus: body.bypassDriverStatus === true,
+      triggerSource: body.triggerSource || 'manual'
+    };
+  }
+
+  const eventType = body?.event?.type;
+  const data = body?.data || null;
+  const oldData = body?.old_data || null;
+
+  const resolvedDriverId = body?.driverId || data?.driver_id || oldData?.driver_id || null;
+  const resolvedDeliveryDate = body?.deliveryDate || data?.delivery_date || oldData?.delivery_date || null;
+
+  return {
+    driverId: resolvedDriverId,
+    deliveryDate: resolvedDeliveryDate,
+    currentLocalTime: body.currentLocalTime,
+    deviceTime: body.deviceTime,
+    preserveExistingOrder: body.preserveExistingOrder === true,
+    forceFullRemainingRouteOptimization: body.forceFullRemainingRouteOptimization === true,
+    bypassDriverStatus: body.bypassDriverStatus === true,
+    triggerSource: eventType ? `automation:${eventType}` : 'automation',
+    eventType,
+    data,
+    oldData,
+    changedFields: Array.isArray(body?.changed_fields) ? body.changed_fields : []
+  };
+};
+
+const shouldSkipAutomationEvent = (context = {}) => {
+  if (!context?.eventType) return false;
+  const { eventType, data, oldData, changedFields } = context;
+
+  if (eventType === 'create') {
+    return !ACTIVE_STATUSES.includes(String(data?.status || ''));
+  }
+
+  if (eventType === 'delete') {
+    return false;
+  }
+
+  if (eventType !== 'update') return false;
+
+  const stopOrderChanged = changedFields.includes('stop_order') && !FINISHED_STATUSES.includes(String(data?.status || ''));
+  const nextDeliveryChanged = changedFields.includes('isNextDelivery') && data?.isNextDelivery === true;
+  const activatedToRoute = changedFields.includes('status')
+    && ACTIVE_STATUSES.includes(String(data?.status || ''))
+    && !ACTIVE_STATUSES.includes(String(oldData?.status || ''));
+
+  return !(stopOrderChanged || nextDeliveryChanged || activatedToRoute);
+};
+
+const dedupeKeyFor = (driverId, deliveryDate) => `optimizeRemainingStops:${driverId}:${deliveryDate}`;
+
 Deno.serve(async (req) => {
   console.log('🚀 [optimizeRemainingStops] Function called');
 
@@ -174,12 +237,69 @@ Deno.serve(async (req) => {
     console.log('✅ [optimizeRemainingStops] User authenticated:', user.email);
 
     const body = await req.json();
-    const { driverId, deliveryDate, currentLocalTime, deviceTime, preserveExistingOrder = false, forceFullRemainingRouteOptimization = false } = body;
+    const context = extractOptimizationContext(body);
+    const {
+      driverId,
+      deliveryDate,
+      currentLocalTime,
+      deviceTime,
+      preserveExistingOrder = false,
+      forceFullRemainingRouteOptimization = false,
+      bypassDriverStatus = false,
+      triggerSource = 'manual'
+    } = context;
 
     if (!driverId || !deliveryDate) {
       return Response.json({
         error: 'Missing required parameters: driverId, deliveryDate'
       }, { status: 400 });
+    }
+
+    if (shouldSkipAutomationEvent(context)) {
+      return Response.json({
+        success: true,
+        skipped: true,
+        reason: 'non_optimization_event',
+        triggerSource,
+        routeChanged: false,
+        optimizedCount: 0,
+        apiCallsMade: 0
+      });
+    }
+
+    const dedupeKey = dedupeKeyFor(driverId, deliveryDate);
+    const dedupeCheck = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: dedupeKey }, '-updated_date', 1);
+    const dedupeRecord = dedupeCheck?.[0] || null;
+    const lastRunAt = dedupeRecord?.setting_value?.last_run_at ? new Date(dedupeRecord.setting_value.last_run_at).getTime() : 0;
+    if (lastRunAt && Date.now() - lastRunAt < AUTOMATION_DEDUPE_WINDOW_MS) {
+      return Response.json({
+        success: true,
+        skipped: true,
+        reason: 'deduped_recent_run',
+        triggerSource,
+        routeChanged: false,
+        optimizedCount: 0,
+        apiCallsMade: 0
+      });
+    }
+
+    if (dedupeRecord?.id) {
+      await base44.asServiceRole.entities.AppSettings.update(dedupeRecord.id, {
+        setting_value: {
+          ...(dedupeRecord.setting_value || {}),
+          last_run_at: new Date().toISOString(),
+          trigger_source: triggerSource
+        }
+      });
+    } else {
+      await base44.asServiceRole.entities.AppSettings.create({
+        setting_key: dedupeKey,
+        description: 'Recent optimizeRemainingStops execution lock',
+        setting_value: {
+          last_run_at: new Date().toISOString(),
+          trigger_source: triggerSource
+        }
+      });
     }
 
     let currentMinutes;
@@ -207,7 +327,6 @@ Deno.serve(async (req) => {
 
     const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
     const driverAppUser = appUsers?.[0];
-    const bypassDriverStatus = body?.bypassDriverStatus === true;
     if (!driverAppUser) {
       return Response.json({
         success: true,
