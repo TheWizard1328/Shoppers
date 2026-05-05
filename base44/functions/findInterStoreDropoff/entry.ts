@@ -1,6 +1,10 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 const containsISP = (value) => String(value || '').toLowerCase().includes('(isp)') || String(value || '').toLowerCase().includes('isp');
+const containsISD = (value) => {
+  const normalized = String(value || '').toLowerCase();
+  return normalized.includes('interstore dropoff') || normalized.includes('(isd)');
+};
 const normalizeValue = (value) => String(value || '').trim().toLowerCase();
 
 Deno.serve(async (req) => {
@@ -54,7 +58,7 @@ Deno.serve(async (req) => {
     const storePatients = await base44.asServiceRole.entities.Patient.filter({ store_id: delivery.store_id });
     const candidates = (storePatients || []).filter((item) => {
       const normalizedPatientAddress = normalizeValue(item.address);
-      return item?.store_id === delivery.store_id && normalizedPatientAddress === normalizedStoreAddress && (containsISP(item.full_name) || containsISP(item.address));
+      return item?.store_id === delivery.store_id && normalizedPatientAddress === normalizedStoreAddress && (containsISD(item.full_name) || containsISD(item.address) || containsISD(item.notes));
     });
     const match = candidates[0] || null;
 
