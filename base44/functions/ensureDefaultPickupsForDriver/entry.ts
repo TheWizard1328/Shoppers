@@ -244,6 +244,14 @@ Deno.serve(async (req) => {
       }
     }
 
+    await base44.functions.invoke('optimizeRemainingStops', {
+      driverId,
+      deliveryDate
+    }).catch((error) => {
+      if (!isNotFoundError(error)) throw error;
+      return null;
+    });
+
     await base44.functions.invoke('recalculateTrackingNumbers', {
       driverId,
       deliveryDate

@@ -220,6 +220,9 @@ export async function handleBatchSave({
       });
 
       creatorFlowEnsuredPickups = normalizedDefaultPickups;
+      if (normalizedDefaultPickups.length > 0) {
+        routeStructureChanged = true;
+      }
 
       const ensureResultsByKey = new Map();
       for (const [key, { delivery }] of Array.from(groupedEnsureKeys.entries())) {
