@@ -204,14 +204,19 @@ export default function HereType1Polylines({
     const key = `active-${driverId}-${currentStop.id}`;
 
     let coords = null;
+    let shouldUseFallback = false;
     if (typeof currentStop?.encoded_polyline === 'string' && currentStop.encoded_polyline.trim()) {
       try {
         coords = decodePolyline(currentStop.encoded_polyline);
       } catch (_) {}
     }
 
-    if ((!coords || coords.length < 2) && origin && Number.isFinite(origin.latitude) && Number.isFinite(origin.longitude) && Number.isFinite(destination.latitude) && Number.isFinite(destination.longitude)) {
+    const hasStoredRoute = typeof currentStop?.encoded_polyline === 'string' && currentStop.encoded_polyline.trim().length > 0;
+    const hasRouteMetrics = Number(currentStop?.estimated_distance_km || 0) > 0 || Number(currentStop?.estimated_duration_minutes || 0) > 0;
+
+    if ((!coords || coords.length < 2) && !hasStoredRoute && !hasRouteMetrics && origin && Number.isFinite(origin.latitude) && Number.isFinite(origin.longitude) && Number.isFinite(destination.latitude) && Number.isFinite(destination.longitude)) {
       coords = makeFallback(origin, destination);
+      shouldUseFallback = true;
     }
 
     if (!coords || coords.length < 2 || seenKeys.has(key)) return;
@@ -221,7 +226,10 @@ export default function HereType1Polylines({
       <Polyline
         key={`type1-active-line-${driverId}-${currentStop.id}`}
         positions={coords}
-        pathOptions={getDriverRouteStyle(driverId, 0.95)}
+        pathOptions={{
+          ...getDriverRouteStyle(driverId, shouldUseFallback ? 0.75 : 0.95),
+          dashArray: shouldUseFallback ? '8,8' : getDriverRouteStyle(driverId).dashArray
+        }}
         pane="routeBasePane"
       />,
       <RouteDirectionDecorator
