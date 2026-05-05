@@ -260,27 +260,35 @@ export default function SquareManagement() {
       // 4) Refresh UI after offline DB sync
       await refreshUiFromOfflineOnly();
 
-      // 5) Sync transactions only
+      // 5) Sync latest Square catalog + transactions into app DB and offline cache
       let transactionError = null;
       try {
         const codResponse = await base44.functions.invoke('squareGetCODData', {
           forceDeliveryRefresh: true
         });
         const codData = codResponse?.data || codResponse || {};
+        const catalogRecords = codData.catalogRecords || [];
         const transactionRecords = codData.transactionRecords || [];
         const strippedDeliveries = Array.isArray(codData.deliveries)
           ? codData.deliveries.map(({ delivery_route_breadcrumbs, encoded_polyline, proof_photo_urls, signature_image_url, ...rest }) => rest)
           : [];
 
+        await base44.functions.invoke('squareCodCore', {
+          action: 'syncOnlineSquareEntities',
+          catalogRecords,
+          transactionRecords
+        });
+
         if (strippedDeliveries.length > 0) {
           await offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, strippedDeliveries);
         }
+        await offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_CATALOG_ITEMS, catalogRecords);
         await offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_TRANSACTIONS, transactionRecords);
       } catch (err) {
         transactionError = err;
       }
 
-      // 6) Update transactions DB + UI even if fetch fails
+      // 6) Update app DB + UI even if fetch fails
       await refreshUiFromOfflineOnly();
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
       window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
@@ -290,7 +298,7 @@ export default function SquareManagement() {
       setIsLoading(false);
       toast.success('Square data synced locally');
 
-      // 8) No catalog write-back during page/manual sync
+      // 8) Catalog write-back restored during page/manual sync
       let onlineSyncError = null;
 
       if (catalogError || transactionError) {
