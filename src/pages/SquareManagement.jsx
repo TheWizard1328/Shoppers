@@ -1133,7 +1133,7 @@ export default function SquareManagement() {
                   return selectedDriverUserIds.has(row.rawDelivery.driver_id);
                 });
 
-                await base44.functions.invoke('squareCodCore', {
+                const syncResponse = await base44.functions.invoke('squareCodCore', {
                   action: 'syncSquareCods',
                   items: filteredReconciliationItems.map((row) => ({
                     deliveryId: row.rawDelivery?.id,
@@ -1143,9 +1143,40 @@ export default function SquareManagement() {
                     storeId: row.rawStoreId,
                   })),
                 });
-                await base44.functions.invoke('squareGetCODData', {
-                  forceDeliveryRefresh: false
-                });
+
+                const syncResults = syncResponse?.data?.results || syncResponse?.results || [];
+                const createdCatalogRows = syncResults
+                  .filter((entry) => entry?.action === 'upsert' && entry?.status === 'ok' && entry?.result?.catalogObjectId)
+                  .map((entry) => {
+                    const row = filteredReconciliationItems.find((item) => item.rawDelivery?.id === entry.deliveryId);
+                    if (!row?.rawDelivery) return null;
+                    return {
+                      id: entry.result.catalogObjectId,
+                      square_catalog_object_id: entry.result.catalogObjectId,
+                      square_catalog_version: entry.result.catalogVersion || null,
+                      item_name: entry.result.itemName || row.itemName,
+                      description: '',
+                      amount: Number(row.amount || 0),
+                      amount_cents: Math.round(Number(row.amount || 0) * 100),
+                      delivery_id: row.rawDelivery.id,
+                      delivery_date: row.rawDelivery.delivery_date || null,
+                      patient_id: row.rawDelivery.patient_id || null,
+                      store_id: row.rawStoreId || null,
+                      location_id: row.locationId || null,
+                      status: 'active',
+                    };
+                  })
+                  .filter(Boolean);
+
+                if (createdCatalogRows.length > 0) {
+                  const existingCatalogRecords = await base44.entities.SquareCatalogItems.list('-updated_date', 2000);
+                  const preservedCatalogRows = (existingCatalogRecords || []).filter((record) => !createdCatalogRows.some((created) => created.delivery_id === record.delivery_id));
+                  await syncSquareCODSnapshotOffline({
+                    catalogItems: [...createdCatalogRows, ...preservedCatalogRows],
+                    transactions: allTransactions || []
+                  });
+                }
+
                 await refreshOfflineSquareFromOnlineEntities();
                 await refreshUiFromOfflineOnly();
                 setActiveView('catalog');
