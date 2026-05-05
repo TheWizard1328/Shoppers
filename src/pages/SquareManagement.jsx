@@ -1125,9 +1125,17 @@ export default function SquareManagement() {
             <Button onClick={async () => {
               try {
                 setIsUpdatingReconciliationCatalog(true);
+                const filteredReconciliationItems = reconciliationRows.filter((row) => {
+                  if (!row?.rawDelivery) return false;
+                  if (!visibleStoreIds.has(row.rawStoreId)) return false;
+                  if (selectedDriverFilter === 'all') return true;
+                  if (selectedDriverUserIds.size === 0) return false;
+                  return selectedDriverUserIds.has(row.rawDelivery.driver_id);
+                });
+
                 await base44.functions.invoke('squareCodCore', {
                   action: 'syncSquareCods',
-                  items: reconciliationRows.map((row) => ({
+                  items: filteredReconciliationItems.map((row) => ({
                     deliveryId: row.rawDelivery?.id,
                     patientName: row.itemName,
                     codAmount: row.amount,
