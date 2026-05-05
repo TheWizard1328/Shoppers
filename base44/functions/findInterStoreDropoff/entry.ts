@@ -54,13 +54,14 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, match: null, isInterStorePickup: true });
     }
 
-    const targetStoreId = patient?.store_id;
-    const normalizedStoreAddress = normalizeValue(store?.address);
+    const targetStoreId = delivery.store_id;
 
-    if (!targetStoreId || !normalizedStoreAddress) {
+    if (!targetStoreId) {
       return Response.json({ success: true, isInterStorePickup: true, match: null });
     }
 
+    const targetStoreMatches = await base44.asServiceRole.entities.Store.filter({ id: targetStoreId }, '-created_date', 1);
+    const targetStore = targetStoreMatches?.[0] || null;
     const storePatients = await base44.asServiceRole.entities.Patient.filter({ store_id: targetStoreId });
     const candidates = (storePatients || []).filter((item) => {
       const isIsdCandidate = containsISD(item?.full_name) || containsISD(item?.address) || containsISD(item?.notes);
@@ -76,6 +77,7 @@ Deno.serve(async (req) => {
         full_name: match.full_name,
         address: match.address,
         store_id: match.store_id,
+        store_name: targetStore?.name || null,
         patient_id: match.patient_id
       } : null
     });

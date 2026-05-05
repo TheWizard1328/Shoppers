@@ -19,9 +19,10 @@ export default function InterStoreDropoffDialog({ open, delivery, match, onConfi
         </div>
 
         {match ? (
-          <div className="rounded-lg bg-slate-50 p-3 text-sm">
+          <div className="rounded-lg bg-slate-50 p-3 text-sm space-y-1">
             <div><span className="font-semibold">Drop-off:</span> {match.full_name}</div>
             <div><span className="font-semibold">Address:</span> {match.address}</div>
+            <div><span className="font-semibold">Drop-off store:</span> {match.store_name || '—'}</div>
           </div>
         ) : (
           <div className="rounded-lg bg-amber-50 text-amber-800 p-3 text-sm">
