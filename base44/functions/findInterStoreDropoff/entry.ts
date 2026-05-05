@@ -54,11 +54,9 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, match: null, isInterStorePickup: true });
     }
 
-    const normalizedStoreAddress = normalizeValue(store.address);
     const storePatients = await base44.asServiceRole.entities.Patient.filter({ store_id: delivery.store_id });
     const candidates = (storePatients || []).filter((item) => {
-      const normalizedPatientAddress = normalizeValue(item.address);
-      return item?.store_id === delivery.store_id && normalizedPatientAddress === normalizedStoreAddress && (containsISD(item.full_name) || containsISD(item.address) || containsISD(item.notes));
+      return item?.store_id === delivery.store_id && (containsISD(item.full_name) || containsISD(item.address) || containsISD(item.notes));
     });
     const match = candidates[0] || null;
 
