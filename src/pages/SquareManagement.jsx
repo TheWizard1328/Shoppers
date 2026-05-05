@@ -249,16 +249,15 @@ export default function SquareManagement() {
       // 2) Refresh UI immediately without clearing totals
       setIsLoading(false);
 
-      // 3) Refresh full Square catalog into offline + online DBs
+      // 3) Pull what already exists in online Square entities into offline DB only
       let catalogError = null;
       try {
-        await base44.functions.invoke('squareSyncCatalogItems', { skipLock: true });
         await refreshOfflineSquareFromOnlineEntities();
       } catch (err) {
         catalogError = err;
       }
 
-      // 4) Refresh UI after full catalog sync
+      // 4) Refresh UI after offline DB sync
       await refreshUiFromOfflineOnly();
 
       // 5) Sync transactions only
@@ -291,18 +290,8 @@ export default function SquareManagement() {
       setIsLoading(false);
       toast.success('Square data synced locally');
 
-      // 8) Push only lightweight entity-shaped transaction data in background
+      // 8) No catalog write-back during page/manual sync
       let onlineSyncError = null;
-      try {
-        const transactionRecords = await getPaymentTransactionsOffline();
-        await base44.functions.invoke('squareCodCore', {
-          action: 'syncOnlineSquareEntities',
-          catalogRecords: [],
-          transactionRecords
-        });
-      } catch (err) {
-        onlineSyncError = err;
-      }
 
       if (catalogError || transactionError) {
         const message = catalogError?.message || transactionError?.message || 'Square sync partially failed';
