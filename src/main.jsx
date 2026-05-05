@@ -10,6 +10,13 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 )
 
 if ('serviceWorker' in navigator) {
+  window.__hereTileSwMessageQueue = window.__hereTileSwMessageQueue || [];
+
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    window.__hereTileSwMessageQueue.push(event?.data);
+    window.dispatchEvent(new CustomEvent('hereTileSwMessage'));
+  });
+
   window.addEventListener('load', async () => {
     navigator.serviceWorker.register('/map-tile-sw.js').then((registration) => {
       registration.update().catch(() => {});

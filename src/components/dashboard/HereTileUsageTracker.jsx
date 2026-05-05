@@ -7,9 +7,14 @@ export default function HereTileUsageTracker({ mapStyle, apiKeyReady }) {
   const processedKeysRef = useRef(new Set());
   const pendingCountRef = useRef(0);
   const flushTimeoutRef = useRef(null);
+  const messageQueueRef = useRef([]);
 
   useEffect(() => {
     if (!apiKeyReady) return;
+    if (typeof window !== 'undefined' && Array.isArray(window.__hereTileSwMessageQueue)) {
+      messageQueueRef.current = [...window.__hereTileSwMessageQueue];
+      window.__hereTileSwMessageQueue = [];
+    }
 
     const flushLogs = async () => {
       const count = pendingCountRef.current;
@@ -38,8 +43,7 @@ export default function HereTileUsageTracker({ mapStyle, apiKeyReady }) {
       }, 800);
     };
 
-    const handleMessage = (event) => {
-      const data = event?.data;
+    const processMessage = (data) => {
       if (!data || data.type !== "HERE_TILE_CACHED") return;
       const cacheKey = data.cacheKey || data.url;
       if (!cacheKey || processedKeysRef.current.has(cacheKey)) return;
@@ -48,10 +52,25 @@ export default function HereTileUsageTracker({ mapStyle, apiKeyReady }) {
       scheduleFlush();
     };
 
+    const handleMessage = (event) => {
+      processMessage(event?.data);
+    };
+
+    messageQueueRef.current.forEach(processMessage);
+    messageQueueRef.current = [];
+    const handleWindowQueuedMessage = () => {
+      if (typeof window === 'undefined' || !Array.isArray(window.__hereTileSwMessageQueue) || window.__hereTileSwMessageQueue.length === 0) return;
+      const queuedMessages = [...window.__hereTileSwMessageQueue];
+      window.__hereTileSwMessageQueue = [];
+      queuedMessages.forEach(processMessage);
+    };
+
     navigator.serviceWorker?.addEventListener("message", handleMessage);
+    window.addEventListener('hereTileSwMessage', handleWindowQueuedMessage);
 
     return () => {
       navigator.serviceWorker?.removeEventListener("message", handleMessage);
+      window.removeEventListener('hereTileSwMessage', handleWindowQueuedMessage);
       if (flushTimeoutRef.current) {
         window.clearTimeout(flushTimeoutRef.current);
         flushTimeoutRef.current = null;
