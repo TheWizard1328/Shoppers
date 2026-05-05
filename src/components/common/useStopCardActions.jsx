@@ -135,6 +135,8 @@ export default function useStopCardActions(params) {
     pendingFailureStatus,
     setPendingFailureStatus,
     setShowFailureReasonDialog,
+    setShowInterStoreDialog,
+    setInterStoreMatch,
     startTapLockRef,
     completeTapLockRef,
     actionTapLockRef,
@@ -779,9 +781,9 @@ export default function useStopCardActions(params) {
         try {
           const interStoreResponse = await base44.functions.invoke('findInterStoreDropoff', { deliveryId: delivery.id });
           const interStoreData = interStoreResponse?.data || interStoreResponse;
-          if (interStoreData?.isInterStorePickup) {
-            params?.setInterStoreMatch?.(interStoreData.match || null);
-            params?.setShowInterStoreDialog?.(true);
+          if (interStoreData?.isInterStorePickup && interStoreData?.match) {
+            setInterStoreMatch?.(interStoreData.match);
+            setShowInterStoreDialog?.(true);
           }
         } catch (_) {}
       } catch (error) {
