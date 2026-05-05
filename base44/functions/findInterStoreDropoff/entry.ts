@@ -6,6 +6,17 @@ const containsISD = (value) => {
   return normalized.includes('interstore drop off') || normalized.includes('interstore dropoff') || normalized.includes('(isd)') || normalized.includes('isd');
 };
 const normalizeValue = (value) => String(value || '').trim().toLowerCase();
+const tokenize = (value) => normalizeValue(value).split(/[^a-z0-9]+/).filter((token) => token.length >= 3);
+const hasAddressSimilarity = (candidate, origin) => {
+  const candidateValue = normalizeValue(candidate);
+  const originValue = normalizeValue(origin);
+  if (!candidateValue || !originValue) return false;
+  if (candidateValue.includes(originValue) || originValue.includes(candidateValue)) return true;
+  const originTokens = tokenize(originValue);
+  if (originTokens.length === 0) return false;
+  const sharedTokens = originTokens.filter((token) => candidateValue.includes(token));
+  return sharedTokens.length >= Math.min(2, originTokens.length);
+};
 
 Deno.serve(async (req) => {
   try {
@@ -66,11 +77,21 @@ Deno.serve(async (req) => {
 
     const targetStoreMatches = await base44.asServiceRole.entities.Store.filter({ id: targetStoreId }, '-created_date', 1);
     const targetStore = targetStoreMatches?.[0] || null;
+    const originStoreAddress = targetStore?.address || '';
+    const originStoreName = targetStore?.name || '';
     const storePatients = await base44.asServiceRole.entities.Patient.filter({ store_id: targetStoreId });
-    const candidates = (storePatients || []).filter((item) => {
-      const isIsdCandidate = containsISD(item?.full_name) || containsISD(item?.address) || containsISD(item?.notes);
-      return item?.store_id === targetStoreId && isIsdCandidate;
-    });
+    const candidates = (storePatients || [])
+      .filter((item) => {
+        const isIsdCandidate = containsISD(item?.full_name) || containsISD(item?.address) || containsISD(item?.notes);
+        if (!isIsdCandidate || item?.store_id !== targetStoreId) return false;
+        const similarToOrigin =
+          hasAddressSimilarity(item?.address, originStoreAddress) ||
+          hasAddressSimilarity(item?.full_name, originStoreAddress) ||
+          hasAddressSimilarity(item?.notes, originStoreAddress) ||
+          hasAddressSimilarity(item?.full_name, originStoreName) ||
+          hasAddressSimilarity(item?.notes, originStoreName);
+        return similarToOrigin;
+      });
     const match = candidates[0] || null;
 
     return Response.json({
