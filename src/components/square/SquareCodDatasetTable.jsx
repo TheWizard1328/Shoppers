@@ -61,7 +61,7 @@ export default function SquareCodDatasetTable({
                       <th className="p-3">Amount</th>
                       <th className="p-3">Store</th>
                       {showLocationColumn && <th className="p-3">Square Location ID</th>}
-                      <th className="p-3">Catalog ID</th>
+                      <th className="p-3">Transaction ID</th>
                       <th className="p-3">Collection Date</th>
                       <th className="p-3">Actions</th>
                     </tr>
@@ -158,7 +158,7 @@ export default function SquareCodDatasetTable({
                 }
 
                     <div className="rounded-xl bg-slate-50 dark:bg-slate-900/50 px-3 py-2">
-                      <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Catalog ID</div>
+                      <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Transaction ID</div>
                       <div className="mt-1 text-xs font-mono text-slate-700 dark:text-slate-300 break-all">{row.catalogId || '--'}</div>
                     </div>
 
