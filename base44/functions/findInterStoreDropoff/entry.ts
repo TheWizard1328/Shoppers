@@ -54,7 +54,11 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, match: null, isInterStorePickup: true });
     }
 
-    const targetStoreId = delivery.store_id;
+    const pickupMatches = delivery.puid
+      ? await base44.asServiceRole.entities.Delivery.filter({ stop_id: delivery.puid }, '-created_date', 1)
+      : [];
+    const pickupDelivery = pickupMatches?.[0] || null;
+    const targetStoreId = pickupDelivery?.store_id;
 
     if (!targetStoreId) {
       return Response.json({ success: true, isInterStorePickup: true, match: null });
