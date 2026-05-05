@@ -1125,7 +1125,16 @@ export default function SquareManagement() {
             <Button onClick={async () => {
               try {
                 setIsUpdatingReconciliationCatalog(true);
-                await base44.functions.invoke('squareSyncCatalogItems', { skipLock: true });
+                await base44.functions.invoke('squareCodCore', {
+                  action: 'syncSquareCods',
+                  items: reconciliationRows.map((row) => ({
+                    deliveryId: row.rawDelivery?.id,
+                    patientName: row.itemName,
+                    codAmount: row.amount,
+                    deliveryDate: row.rawDelivery?.delivery_date,
+                    storeId: row.rawStoreId,
+                  })),
+                });
                 await refreshOfflineSquareFromOnlineEntities();
                 await refreshUiFromOfflineOnly();
                 toast.success('Catalog updated');
