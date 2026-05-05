@@ -246,7 +246,20 @@ Deno.serve(async (req) => {
 
     await base44.functions.invoke('optimizeRemainingStops', {
       driverId,
-      deliveryDate
+      deliveryDate,
+      bypassDriverStatus: true
+    }).catch((error) => {
+      if (!isNotFoundError(error)) throw error;
+      return null;
+    });
+
+    await base44.functions.invoke('purgeAndRegeneratePolylines', {
+      driverId,
+      deliveryDate,
+      scope: 'active_only',
+      reason: 'manual',
+      sourcePage: 'Dashboard',
+      bypassDriverStatus: true
     }).catch((error) => {
       if (!isNotFoundError(error)) throw error;
       return null;
