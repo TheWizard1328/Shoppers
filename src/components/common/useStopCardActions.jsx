@@ -782,8 +782,24 @@ export default function useStopCardActions(params) {
           const interStoreResponse = await base44.functions.invoke('findInterStoreDropoff', { deliveryId: delivery.id });
           const interStoreData = interStoreResponse?.data || interStoreResponse;
           if (interStoreData?.isInterStorePickup) {
-            setInterStoreMatch?.(interStoreData.match || null);
-            setShowInterStoreDialog?.(true);
+            const originatingStoreId = interStoreData?.match?.store_id || null;
+            const driverRouteDeliveries = allDeliveries.filter((item) => item && item.driver_id === delivery.driver_id && item.delivery_date === delivery.delivery_date);
+            const hasEnRoutePickupForOriginStore = driverRouteDeliveries.some((item) =>
+              item &&
+              !item.patient_id &&
+              item.store_id === originatingStoreId &&
+              item.status === 'en_route'
+            );
+            const hasMatchingInTransitDropoff = driverRouteDeliveries.some((item) => {
+              if (!item || item.id === delivery.id || item.status !== 'in_transit') return false;
+              const notes = String(item.delivery_notes || '').toLowerCase();
+              return item.patient_id === interStoreData?.match?.id && (notes.includes('interstore drop-off') || notes.includes('interstore dropoff') || notes.includes('isd'));
+            });
+
+            if (!hasEnRoutePickupForOriginStore && !hasMatchingInTransitDropoff) {
+              setInterStoreMatch?.(interStoreData.match || null);
+              setShowInterStoreDialog?.(true);
+            }
           }
         } catch (_) {}
       } catch (error) {
