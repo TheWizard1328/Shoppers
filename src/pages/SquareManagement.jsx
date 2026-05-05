@@ -1135,8 +1135,12 @@ export default function SquareManagement() {
                     storeId: row.rawStoreId,
                   })),
                 });
+                await base44.functions.invoke('squareGetCODData', {
+                  forceDeliveryRefresh: false
+                });
                 await refreshOfflineSquareFromOnlineEntities();
                 await refreshUiFromOfflineOnly();
+                setActiveView('catalog');
                 toast.success('Catalog updated');
               } catch (err) {
                 toast.error('Failed to update catalog: ' + err.message);
