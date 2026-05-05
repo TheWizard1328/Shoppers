@@ -273,6 +273,7 @@ export default function SquareManagement() {
           ? codData.deliveries.map(({ delivery_route_breadcrumbs, encoded_polyline, proof_photo_urls, signature_image_url, ...rest }) => rest)
           : [];
 
+        await base44.functions.invoke('squareSyncCatalogItems', {});
         await base44.functions.invoke('squareCodCore', {
           action: 'syncOnlineSquareEntities',
           catalogRecords,
