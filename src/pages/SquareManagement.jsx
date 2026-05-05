@@ -260,7 +260,7 @@ export default function SquareManagement() {
       // 4) Refresh UI after offline DB sync
       await refreshUiFromOfflineOnly();
 
-      // 5) Sync latest Square catalog + transactions into app DB and offline cache
+      // 5) Pull latest Square catalog + transactions from API into offline cache only
       let transactionError = null;
       try {
         const codResponse = await base44.functions.invoke('squareGetCODData', {
@@ -272,13 +272,6 @@ export default function SquareManagement() {
         const strippedDeliveries = Array.isArray(codData.deliveries)
           ? codData.deliveries.map(({ delivery_route_breadcrumbs, encoded_polyline, proof_photo_urls, signature_image_url, ...rest }) => rest)
           : [];
-
-        await base44.functions.invoke('squareSyncCatalogItems', {});
-        await base44.functions.invoke('squareCodCore', {
-          action: 'syncOnlineSquareEntities',
-          catalogRecords,
-          transactionRecords
-        });
 
         if (strippedDeliveries.length > 0) {
           await offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, strippedDeliveries);
@@ -299,7 +292,7 @@ export default function SquareManagement() {
       setIsLoading(false);
       toast.success('Square data synced locally');
 
-      // 8) Catalog write-back restored during page/manual sync
+      // 8) No write-back during page/manual sync
       let onlineSyncError = null;
 
       if (catalogError || transactionError) {
