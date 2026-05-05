@@ -116,7 +116,7 @@ export default function SyncStatusIndicator({ syncStatus, isSyncing, error, codD
 
                   <div className="mt-2 flex flex-wrap gap-2 text-[11px] md:text-xs">
                     <span className="rounded-full bg-white/70 dark:bg-slate-900/40 px-2.5 py-1 text-slate-700 dark:text-slate-300">Cash {collectedCodTypeBreakdown.Cash | 0}</span>
-                    <span className="rounded-full bg-white/70 dark:bg-slate-900/40 px-2.5 py-1 text-slate-700 dark:text-slate-300">Debit {collectedCodTypeBreakdown.Debit} | 0</span>
+                    <span className="rounded-full bg-white/70 dark:bg-slate-900/40 px-2.5 py-1 text-slate-700 dark:text-slate-300">Debit {collectedCodTypeBreakdown.Debit | 0}</span>
                     <span className="rounded-full bg-white/70 dark:bg-slate-900/40 px-2.5 py-1 text-slate-700 dark:text-slate-300">Credit {collectedCodTypeBreakdown.Credit | 0}</span>
                     <span className="rounded-full bg-white/70 dark:bg-slate-900/40 px-2.5 py-1 text-slate-700 dark:text-slate-300">Cheque {collectedCodTypeBreakdown.Cheque | 0}</span>
                   </div>
