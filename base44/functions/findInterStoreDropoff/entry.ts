@@ -61,10 +61,18 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, isInterStorePickup: true, match: null });
     }
 
+    const normalizedStoreName = normalizeValue(store?.name);
     const storePatients = await base44.asServiceRole.entities.Patient.filter({ store_id: targetStoreId });
     const candidates = (storePatients || []).filter((item) => {
+      const normalizedPatientName = normalizeValue(item?.full_name);
       const normalizedPatientAddress = normalizeValue(item?.address);
-      return item?.store_id === targetStoreId && normalizedPatientAddress === normalizedStoreAddress && (containsISD(item.full_name) || containsISD(item.address) || containsISD(item.notes));
+      const normalizedPatientNotes = normalizeValue(item?.notes);
+      const isIsdCandidate = containsISD(item?.full_name) || containsISD(item?.address) || containsISD(item?.notes);
+      const partialStoreMatch =
+        (normalizedStoreAddress && (normalizedPatientAddress.includes(normalizedStoreAddress) || normalizedStoreAddress.includes(normalizedPatientAddress))) ||
+        (normalizedStoreName && (normalizedPatientName.includes(normalizedStoreName) || normalizedPatientNotes.includes(normalizedStoreName)));
+
+      return item?.store_id === targetStoreId && isIsdCandidate && partialStoreMatch;
     });
     const match = candidates[0] || null;
 
