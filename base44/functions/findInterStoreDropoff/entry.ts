@@ -3,7 +3,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 const containsISP = (value) => String(value || '').toLowerCase().includes('(isp)') || String(value || '').toLowerCase().includes('isp');
 const containsISD = (value) => {
   const normalized = String(value || '').toLowerCase();
-  return normalized.includes('interstore dropoff') || normalized.includes('(isd)');
+  return normalized.includes('interstore drop off') || normalized.includes('interstore dropoff') || normalized.includes('(isd)') || normalized.includes('isd');
 };
 const normalizeValue = (value) => String(value || '').trim().toLowerCase();
 
