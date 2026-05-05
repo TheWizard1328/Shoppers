@@ -383,12 +383,42 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null)
   setSyncInProgress(true);
   notifySyncStatus({ status: 'force_syncing', entity: 'Starting...', progress: 0 });
   try {
-    notifySyncStatus({ status: 'syncing', entity: 'Stores', progress: 10 });
-    const stores = await Store.list();
-    await offlineDB.replaceAllRecords(offlineDB.STORES.STORES, stores);
+    notifySyncStatus({ status: 'syncing', entity: 'Stores, Cities & AppUsers', progress: 10 });
+    const [stores, cities, appUsersRaw] = await Promise.all([
+      Store.list(),
+      City.list(),
+      fetchAppUsersDedup()
+    ]);
+
+    await Promise.all([
+      offlineDB.replaceAllRecords(offlineDB.STORES.STORES, stores),
+      offlineDB.replaceAllRecords(offlineDB.STORES.CITIES, cities)
+    ]);
     invalidateEntityCache('Store');
+    invalidateEntityCache('City');
+
+    const appUsersByUserId = new Map();
+    appUsersRaw.forEach(au => {
+      if (!au || !au.user_id) return;
+      const existing = appUsersByUserId.get(au.user_id);
+      if (!existing) {
+        appUsersByUserId.set(au.user_id, au);
+      } else {
+        const newLoc = au.location_updated_at ? new Date(au.location_updated_at).getTime() : 0;
+        const exLoc = existing.location_updated_at ? new Date(existing.location_updated_at).getTime() : 0;
+        const newUpd = au.updated_date ? new Date(au.updated_date).getTime() : 0;
+        const exUpd = existing.updated_date ? new Date(existing.updated_date).getTime() : 0;
+        if (newLoc > exLoc || (newLoc === exLoc && newUpd > exUpd)) {
+          appUsersByUserId.set(au.user_id, au);
+        }
+      }
+    });
+    const appUsers = Array.from(appUsersByUserId.values());
+    await offlineDB.replaceAllRecords(offlineDB.STORES.APP_USERS, appUsers);
+    invalidateEntityCache('AppUser');
+
     const cityStoreIds = (stores || []).filter((store) => !selectedCityId || store?.city_id === selectedCityId).map((store) => store.id);
-    notifySyncStatus({ status: 'syncing', entity: 'Stores', progress: 20, count: stores.length });
+    notifySyncStatus({ status: 'syncing', entity: 'Stores, Cities & AppUsers', progress: 25, count: stores.length + cities.length + appUsers.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
     notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 30 });
@@ -419,33 +449,6 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null)
     invalidateEntityCache('Patient');
     notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 75, count: totalPatients });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
-
-    notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 82 });
-    const appUsersRaw = await fetchAppUsersDedup();
-    const appUsersByUserId = new Map();
-    appUsersRaw.forEach(au => {
-      if (!au || !au.user_id) return;
-      const existing = appUsersByUserId.get(au.user_id);
-      if (!existing) {
-        appUsersByUserId.set(au.user_id, au);
-      } else {
-        const newLoc = au.location_updated_at ? new Date(au.location_updated_at).getTime() : 0;
-        const exLoc = existing.location_updated_at ? new Date(existing.location_updated_at).getTime() : 0;
-        const newUpd = au.updated_date ? new Date(au.updated_date).getTime() : 0;
-        const exUpd = existing.updated_date ? new Date(existing.updated_date).getTime() : 0;
-        if (newLoc > exLoc || (newLoc === exLoc && newUpd > exUpd)) {
-          appUsersByUserId.set(au.user_id, au);
-        }
-      }
-    });
-    const appUsers = Array.from(appUsersByUserId.values());
-    await offlineDB.replaceAllRecords(offlineDB.STORES.APP_USERS, appUsers);
-    invalidateEntityCache('AppUser');
-
-    notifySyncStatus({ status: 'syncing', entity: 'Cities', progress: 88 });
-    const cities = await City.list();
-    await offlineDB.replaceAllRecords(offlineDB.STORES.CITIES, cities);
-    invalidateEntityCache('City');
 
     notifySyncStatus({ status: 'syncing', entity: 'Companies', progress: 94 });
     const companies = await Company.list();
