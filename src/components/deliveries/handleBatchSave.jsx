@@ -59,6 +59,7 @@ export async function handleBatchSave({
 
   const routeDriverId = formData.driver_id || stagedDeliveries.find((delivery) => delivery?.driver_id)?.driver_id || '';
   const routeDeliveryDate = formData.delivery_date || stagedDeliveries.find((delivery) => delivery?.delivery_date)?.delivery_date || format(new Date(), 'yyyy-MM-dd');
+  let routeStructureChanged = false;
 
   console.log('[AddToRoute] handleBatchSave:start', {
     openMode: formData?.openMode,
@@ -147,7 +148,7 @@ export async function handleBatchSave({
 
       let ensuredPickupRecords = pickupRecordsFromStage;
       let stagedDeliveriesWithResolvedIds = patientDeliveriesReadyForDB;
-      let routeStructureChanged = newDeliveries.length > 0;
+      routeStructureChanged = newDeliveries.length > 0;
 
       const patientDeliveriesNeedingPickupEnsure = patientDeliveriesReadyForDB;
 
@@ -333,14 +334,14 @@ export async function handleBatchSave({
         }
 
         if (refreshDriverId && refreshDeliveryDate) {
+          if (routeStructureChanged) {
+            await recalculateAndUpdateStopOrders(refreshDriverId, refreshDeliveryDate);
+          }
+
           await base44.functions.invoke('recalculateTrackingNumbers', {
             driverId: refreshDriverId,
             deliveryDate: refreshDeliveryDate
           }).catch(() => null);
-
-          if (routeStructureChanged) {
-            await recalculateAndUpdateStopOrders(refreshDriverId, refreshDeliveryDate);
-          }
         }
 
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
