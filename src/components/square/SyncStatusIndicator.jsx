@@ -80,7 +80,7 @@ export default function SyncStatusIndicator({ syncStatus, isSyncing, error, codD
                     <span className="text-muted-foreground">•</span>
                     <span className="text-muted-foreground">Catalog Items: {catalogItemCount}</span>
                     <span className="text-muted-foreground">•</span>
-                    <span className="text-muted-foreground">Transactions: Card Spend: {cardSpendCount} Sales: {salesCount}</span>
+                    <span className="text-muted-foreground">Transactions: Card Spend: {cardSpendCount}</span>
                   </>
                 </div>
                 <div className="md:hidden flex items-center justify-between gap-3">
@@ -109,20 +109,16 @@ export default function SyncStatusIndicator({ syncStatus, isSyncing, error, codD
                       <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">{cardSpendCount}</div>
                     </div>
                     <div className="rounded-xl bg-white/70 dark:bg-slate-900/40 px-3 py-2">
-                      <div className="text-[11px] text-muted-foreground">Sales</div>
-                      <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">{salesCount}</div>
-                    </div>
-                    <div className="rounded-xl bg-white/70 dark:bg-slate-900/40 px-3 py-2">
                       <div className="text-[11px] text-muted-foreground">Catalog</div>
                       <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">{catalogItemCount}</div>
                     </div>
                   </div>
 
                   <div className="mt-2 flex flex-wrap gap-2 text-[11px] md:text-xs">
-                    <span className="rounded-full bg-white/70 dark:bg-slate-900/40 px-2.5 py-1 text-slate-700 dark:text-slate-300">Cash {collectedCodTypeBreakdown.Cash}</span>
-                    <span className="rounded-full bg-white/70 dark:bg-slate-900/40 px-2.5 py-1 text-slate-700 dark:text-slate-300">Debit {collectedCodTypeBreakdown.Debit}</span>
-                    <span className="rounded-full bg-white/70 dark:bg-slate-900/40 px-2.5 py-1 text-slate-700 dark:text-slate-300">Credit {collectedCodTypeBreakdown.Credit}</span>
-                    <span className="rounded-full bg-white/70 dark:bg-slate-900/40 px-2.5 py-1 text-slate-700 dark:text-slate-300">Cheque {collectedCodTypeBreakdown.Cheque}</span>
+                    <span className="rounded-full bg-white/70 dark:bg-slate-900/40 px-2.5 py-1 text-slate-700 dark:text-slate-300">Cash {collectedCodTypeBreakdown.Cash | 0}</span>
+                    <span className="rounded-full bg-white/70 dark:bg-slate-900/40 px-2.5 py-1 text-slate-700 dark:text-slate-300">Debit {collectedCodTypeBreakdown.Debit} | 0</span>
+                    <span className="rounded-full bg-white/70 dark:bg-slate-900/40 px-2.5 py-1 text-slate-700 dark:text-slate-300">Credit {collectedCodTypeBreakdown.Credit | 0}</span>
+                    <span className="rounded-full bg-white/70 dark:bg-slate-900/40 px-2.5 py-1 text-slate-700 dark:text-slate-300">Cheque {collectedCodTypeBreakdown.Cheque | 0}</span>
                   </div>
                 </CollapsibleContent>
                 {error && (
