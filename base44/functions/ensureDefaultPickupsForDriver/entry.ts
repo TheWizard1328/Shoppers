@@ -240,7 +240,7 @@ Deno.serve(async (req) => {
           createdByUserId: user.id,
         });
 
-        ensuredPickups.push({ ...pickup, patient_id: null, puid: pickup?.stop_id || pickup?.puid || null });
+        ensuredPickups.push({ ...pickup, patient_id: null, driver_name: pickup?.driver_name || driverName || '', puid: pickup?.stop_id || pickup?.puid || null });
       }
     }
 
@@ -278,11 +278,29 @@ Deno.serve(async (req) => {
       delivery_date: deliveryDate
     }, 'stop_order', 50000);
 
+    const pickupNameFixes = (refreshedPickups || [])
+      .filter((pickup) => pickup && !pickup.patient_id && pickup.driver_id === driverId && !pickup.driver_name)
+      .map((pickup) => base44.asServiceRole.entities.Delivery.update(pickup.id, { driver_name: driverName || '' }).catch((error) => {
+        if (isNotFoundError(error)) return null;
+        throw error;
+      }));
+
+    if (pickupNameFixes.length > 0) {
+      await Promise.all(pickupNameFixes);
+    }
+
+    const finalPickups = pickupNameFixes.length > 0
+      ? await base44.asServiceRole.entities.Delivery.filter({
+          driver_id: driverId,
+          delivery_date: deliveryDate
+        }, 'stop_order', 50000)
+      : refreshedPickups;
+
     return Response.json({
       success: true,
       driver_id: driverId,
       delivery_date: deliveryDate,
-      pickups: (refreshedPickups || []).filter((pickup) => pickup && !pickup.patient_id),
+      pickups: (finalPickups || []).filter((pickup) => pickup && !pickup.patient_id),
     });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });

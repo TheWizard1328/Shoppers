@@ -270,7 +270,9 @@ export default function FABControls({
                     scope: 'active_only',
                     reason: 'manual',
                     sourcePage: 'Dashboard',
-                    bypassDriverStatus: true
+                    bypassDriverStatus: true,
+                    bypassPolylineDelete: false,
+                    reuseProvidedPolylines: false
                   }).catch(() => null);
                   setOptimizationMessage(`Route optimized! ${data.optimizedCount} stops updated and polylines refreshed.`);
                   invalidateDeliveriesForDate(deliveryDate);
