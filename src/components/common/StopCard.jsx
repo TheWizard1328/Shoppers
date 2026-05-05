@@ -692,13 +692,16 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
             onConfirm={async () => {
               if (!interStoreMatch) return;
               const nextTrackingNumber = String((Number(delivery.tracking_number || 0) + 1)).padStart(2, '0');
+              const now = new Date();
+              const startInFiveMinutes = new Date(now.getTime() + 5 * 60 * 1000);
+              const deliveryTimeStart = `${String(startInFiveMinutes.getHours()).padStart(2, '0')}:${String(startInFiveMinutes.getMinutes()).padStart(2, '0')}`;
               await createDeliveryLocal({
                 patient_id: interStoreMatch.id,
                 store_id: delivery.store_id,
                 driver_id: delivery.driver_id,
                 driver_name: delivery.driver_name,
                 delivery_date: delivery.delivery_date,
-                delivery_time_start: delivery.delivery_time_start,
+                delivery_time_start: deliveryTimeStart,
                 delivery_time_end: delivery.delivery_time_end,
                 delivery_time_eta: delivery.delivery_time_eta,
                 status: 'in_transit',
