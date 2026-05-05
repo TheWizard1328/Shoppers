@@ -1,6 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 const containsISP = (value) => String(value || '').toLowerCase().includes('(isp)') || String(value || '').toLowerCase().includes('isp');
+const normalizeValue = (value) => String(value || '').trim().toLowerCase();
 
 Deno.serve(async (req) => {
   try {
@@ -28,23 +29,31 @@ Deno.serve(async (req) => {
       : [];
     const patient = patientMatches?.[0] || null;
 
-    const isInterStorePickup = containsISP(delivery.patient_name) || containsISP(delivery.delivery_notes) || containsISP(patient?.full_name) || containsISP(patient?.address);
+    const storeMatches = delivery.store_id
+      ? await base44.asServiceRole.entities.Store.filter({ id: delivery.store_id }, '-created_date', 1)
+      : [];
+    const store = storeMatches?.[0] || null;
+
+    const isInterStorePickup =
+      containsISP(delivery.patient_name) ||
+      containsISP(delivery.delivery_notes) ||
+      containsISP(patient?.full_name) ||
+      containsISP(patient?.address) ||
+      containsISP(store?.name) ||
+      containsISP(store?.address);
 
     if (!isInterStorePickup || !delivery.store_id) {
       return Response.json({ success: true, match: null, isInterStorePickup: false });
     }
 
-    const storeMatches = await base44.asServiceRole.entities.Store.filter({ id: delivery.store_id }, '-created_date', 1);
-    const store = storeMatches?.[0] || null;
-
     if (!store) {
       return Response.json({ success: true, match: null, isInterStorePickup: true });
     }
 
-    const normalizedStoreAddress = String(store.address || '').trim().toLowerCase();
+    const normalizedStoreAddress = normalizeValue(store.address);
     const storePatients = await base44.asServiceRole.entities.Patient.filter({ store_id: delivery.store_id });
     const candidates = (storePatients || []).filter((item) => {
-      const normalizedPatientAddress = String(item.address || '').trim().toLowerCase();
+      const normalizedPatientAddress = normalizeValue(item.address);
       return normalizedPatientAddress === normalizedStoreAddress && (containsISP(item.full_name) || containsISP(item.address));
     });
     const match = candidates[0] || null;
