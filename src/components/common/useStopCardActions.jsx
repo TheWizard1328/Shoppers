@@ -781,8 +781,8 @@ export default function useStopCardActions(params) {
         try {
           const interStoreResponse = await base44.functions.invoke('findInterStoreDropoff', { deliveryId: delivery.id });
           const interStoreData = interStoreResponse?.data || interStoreResponse;
-          if (interStoreData?.isInterStorePickup && interStoreData?.match) {
-            setInterStoreMatch?.(interStoreData.match);
+          if (interStoreData?.isInterStorePickup) {
+            setInterStoreMatch?.(interStoreData.match || null);
             setShowInterStoreDialog?.(true);
           }
         } catch (_) {}
