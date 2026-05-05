@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { filterValidStagedDeliveries, splitStagedDeliveriesForBatch, attachTrackingNumbers, getDeliveriesReadyForDB, buildExistingDeliveryBatchUpdate } from './deliveryBatchSaveHelpers';
 import { resetBatchSaveDraftState, closeBatchFormThenResumeManagers, restartBatchSmartRefresh, runCreateBatchRefresh } from './deliveryBatchSaveUiHelpers';
 import { handlePendingDeleteOnlySave } from './handlePendingDeleteOnlySave';
+import { recalculateAndUpdateStopOrders } from '../utils/stopOrderManager';
 
 export async function handleBatchSave({
   batchSaveLockRef,
@@ -146,6 +147,7 @@ export async function handleBatchSave({
 
       let ensuredPickupRecords = pickupRecordsFromStage;
       let stagedDeliveriesWithResolvedIds = patientDeliveriesReadyForDB;
+      let routeStructureChanged = newDeliveries.length > 0;
 
       const patientDeliveriesNeedingPickupEnsure = patientDeliveriesReadyForDB;
 
@@ -262,6 +264,7 @@ export async function handleBatchSave({
           .filter((pickup) => pickup?.id || pickup?.stop_id)
           .map((pickup) => [pickup.id || pickup.stop_id, pickup])
       ).values());
+      routeStructureChanged = routeStructureChanged || ensuredPickupRecords.length > 0;
 
       const ensuredPickupByKey = new Map(
         ensuredPickupRecords
@@ -320,17 +323,26 @@ export async function handleBatchSave({
           .filter(Boolean)
           .every((delivery) => ['pending', 'Staged'].includes(String(delivery?.status || '')));
 
+        const refreshDriverId = deliveriesReadyForDB.find((delivery) => delivery?.patient_id)?.driver_id || existingDeliveriesWithTRs[0]?.driver_id || formData.driver_id;
+        const refreshDeliveryDate = deliveriesReadyForDB.find((delivery) => delivery?.patient_id)?.delivery_date || existingDeliveriesWithTRs[0]?.delivery_date || formData.delivery_date;
+
         if (hasOnlyPendingOrStagedChanges || deliveriesToUpdate.length > 0 && newDeliveries.length === 0) {
           window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryDate: formData.delivery_date, driverId: formData.driver_id, triggeredBy: 'doneButtonUpdates', immediate: true } }));
         } else {
-          const refreshDriverId = deliveriesReadyForDB.find((delivery) => delivery?.patient_id)?.driver_id || existingDeliveriesWithTRs[0]?.driver_id || formData.driver_id;
-          const refreshDeliveryDate = deliveriesReadyForDB.find((delivery) => delivery?.patient_id)?.delivery_date || existingDeliveriesWithTRs[0]?.delivery_date || formData.delivery_date;
           await runCreateBatchRefresh({ refreshDriverId, refreshDeliveryDate });
+        }
+
+        if (refreshDriverId && refreshDeliveryDate) {
           await base44.functions.invoke('recalculateTrackingNumbers', {
             driverId: refreshDriverId,
             deliveryDate: refreshDeliveryDate
           }).catch(() => null);
+
+          if (routeStructureChanged) {
+            await recalculateAndUpdateStopOrders(refreshDriverId, refreshDeliveryDate);
+          }
         }
+
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
       } catch (bgError) {
         console.error('⚠️ [AddToRoute] Background operations failed:', bgError);

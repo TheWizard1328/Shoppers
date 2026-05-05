@@ -83,6 +83,11 @@ Deno.serve(async (req) => {
       const linkedDeliveries = deliveries
         .filter((delivery) => delivery && delivery.patient_id && delivery.puid === pickup.stop_id)
         .sort((a, b) => {
+          const aPending = a.status === 'pending';
+          const bPending = b.status === 'pending';
+          if (aPending && !bPending) return 1;
+          if (!aPending && bPending) return -1;
+
           const stopDelta = (a.stop_order || 999999) - (b.stop_order || 999999);
           if (stopDelta !== 0) return stopDelta;
           const etaA = String(a.delivery_time_eta || a.delivery_time_start || '99:99');
