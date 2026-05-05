@@ -1634,7 +1634,7 @@ async function handleSyncCatalogItems(base44) {
       || settledTransactionComparableSignatures.has(buildComparableLocationSignature(itemName, amountCents, activeConfig?.square_location_id))
       || deliveryDateSignatures.some((signatureKey) => settledTransactionDateLocationAmountSignatures.has(signatureKey));
     const shouldDeleteForInvalidState = !activeConfig || !store?.square_location_config_id || !activeConfig?.square_location_id || delivery?.status === 'failed';
-    const shouldDeleteCatalogItem = shouldDeleteForInvalidState || hasSquareConfirmedPayment || (delivery?.status === 'completed' && hasCollectedOfflinePayment(delivery));
+    const shouldDeleteCatalogItem = shouldDeleteForInvalidState || hasSquareConfirmedPayment;
 
     if (catalogItem && !isCatalogItemAtLocation(catalogItem, activeConfig?.square_location_id)) {
       itemsToDelete.push(catalogItem.id);
