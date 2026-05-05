@@ -699,7 +699,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                 delivery_time_start: delivery.delivery_time_start,
                 delivery_time_end: delivery.delivery_time_end,
                 delivery_time_eta: delivery.delivery_time_eta,
-                status: 'pending',
+                status: 'in_transit',
                 puid: delivery.stop_id || delivery.puid || null,
                 tracking_number: nextTrackingNumber,
                 ampm_deliveries: delivery.ampm_deliveries,
