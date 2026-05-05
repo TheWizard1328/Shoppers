@@ -249,38 +249,24 @@ export default function SquareManagement() {
       // 2) Refresh UI immediately without clearing totals
       setIsLoading(false);
 
-      // 3) Sync catalog items first
+      // 3) Do not sync Square catalog items here
       let catalogError = null;
-      try {
-        await base44.functions.invoke('squareSyncCatalogItems', { skipLock: true });
-        const catalogRecords = await base44.entities.SquareCatalogItems.list('-updated_date', 2000);
-        await syncSquareCODSnapshotOffline({
-          catalogItems: catalogRecords || [],
-          transactions: await getPaymentTransactionsOffline()
-        });
-      } catch (err) {
-        catalogError = err;
-      }
 
-      // 4) Update catalog DB + UI even if fetch fails
+      // 4) Refresh UI from existing offline/online entity state only
       await refreshUiFromOfflineOnly();
 
-      // 5) Sync transactions second
+      // 5) Sync transactions only
       let transactionError = null;
       try {
         const codResponse = await base44.functions.invoke('squareGetCODData', {
           forceDeliveryRefresh: true
         });
         const codData = codResponse?.data || codResponse || {};
-        const catalogRecords = codData.catalogRecords || [];
         const transactionRecords = codData.transactionRecords || [];
         const strippedDeliveries = Array.isArray(codData.deliveries)
           ? codData.deliveries.map(({ delivery_route_breadcrumbs, encoded_polyline, proof_photo_urls, signature_image_url, ...rest }) => rest)
           : [];
 
-        if (catalogRecords.length > 0) {
-          await offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_CATALOG_ITEMS, catalogRecords);
-        }
         if (strippedDeliveries.length > 0) {
           await offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, strippedDeliveries);
         }
@@ -932,6 +918,11 @@ export default function SquareManagement() {
       if (driverScopedLocationIds && item.location_id && !driverScopedLocationIds.has(item.location_id)) return false;
       if (visibleLocationIds.size > 0 && item.location_id && !visibleLocationIds.has(item.location_id)) return false;
       if (visibleStoreIds.size > 0 && item.store_id && !visibleStoreIds.has(item.store_id)) return false;
+      const itemDateValue = item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate;
+      if (itemDateValue) {
+        const itemDate = new Date(`${String(itemDateValue).slice(0, 10)}T00:00:00`);
+        if (!(itemDate instanceof Date) || Number.isNaN(itemDate.getTime()) || itemDate < lookbackStart) return false;
+      }
       return true;
     }).
     map((item) => {
@@ -1136,10 +1127,22 @@ export default function SquareManagement() {
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between w-full">
             <SquareCodViewSwitcher activeView={activeView} onChange={setActiveView} counts={viewCounts} />
             {activeView === 'reconciliation' &&
-            <Button onClick={() => {}} disabled className="gap-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 md:ml-3">
-                <CloudDownload className="w-4 h-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Update Catalog</span>
-                <span className="sm:hidden">Update</span>
+            <Button onClick={async () => {
+              try {
+                setIsUpdatingReconciliationCatalog(true);
+                await base44.functions.invoke('squareSyncCatalogItems', { skipLock: true });
+                await refreshOfflineSquareFromOnlineEntities();
+                await refreshUiFromOfflineOnly();
+                toast.success('Catalog updated');
+              } catch (err) {
+                toast.error('Failed to update catalog: ' + err.message);
+              } finally {
+                setIsUpdatingReconciliationCatalog(false);
+              }
+            }} disabled={isUpdatingReconciliationCatalog} className="gap-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 md:ml-3">
+                <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isUpdatingReconciliationCatalog ? 'animate-pulse' : ''}`} />
+                <span className="hidden sm:inline">{isUpdatingReconciliationCatalog ? 'Updating...' : 'Update Catalog'}</span>
+                <span className="sm:hidden">{isUpdatingReconciliationCatalog ? 'Updating' : 'Update'}</span>
               </Button>
             }
           </div>
