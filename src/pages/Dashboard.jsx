@@ -1650,7 +1650,7 @@ function Dashboard() {
     if (mapViewPhase === 1 && !isMapViewLocked) {triggerPhase(1, 3000);return;}
     if (mapViewPhase === 1 && isMapViewLocked) {triggerPhase(phase2Unavailable ? 3 : 2, null);return;}
     if (mapViewPhase === 2 && !isMapViewLocked) {triggerPhase(2, null);return;}
-    if (mapViewPhase === 2 && isMapViewLocked) {triggerPhase(2, null);return;}
+    if (mapViewPhase === 2 && isMapViewLocked) {triggerPhase(3, null);return;}
     if (mapViewPhase === 3 && !isMapViewLocked) {triggerPhase(3, null);return;}
     triggerPhase(1, 3000);
   }, [mapViewPhase, isMapViewLocked, isDriver, nextStopCoordinates, isDispatcher, isAdmin, isMobile, currentUser, deliveriesWithStopOrder, allDriverLocations, driverLocation, selectedDriverId, appUsers, isPrimaryDevice, getFabTargetDriverMapLocation]);
