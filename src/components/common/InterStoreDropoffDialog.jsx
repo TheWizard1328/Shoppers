@@ -20,7 +20,7 @@ export default function InterStoreDropoffDialog({ open, delivery, match, onConfi
           </div>
         ) : (
           <div className="rounded-lg bg-amber-50 text-amber-800 p-3 text-sm">
-            No matching (ISP) patient was found for this store.
+            No matching InterStore Drop-off / ISD patient was found for this store address.
           </div>
         )}
 
