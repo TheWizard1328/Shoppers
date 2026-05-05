@@ -264,6 +264,14 @@ export default function FABControls({
                 const response = await base44.functions.invoke('optimizeRemainingStops', { driverId: targetDriverId, deliveryDate, currentLocalTime: localTime, deviceTime: now.toISOString(), bypassDriverStatus: true });
                 const data = response?.data || response;
                 if (data?.success) {
+                  await base44.functions.invoke('purgeAndRegeneratePolylines', {
+                    driverId: targetDriverId,
+                    deliveryDate,
+                    scope: 'active_only',
+                    reason: 'manual',
+                    sourcePage: 'Dashboard',
+                    bypassDriverStatus: true
+                  }).catch(() => null);
                   setOptimizationMessage(`Route optimized! ${data.optimizedCount} stops updated and polylines refreshed.`);
                   invalidateDeliveriesForDate(deliveryDate);
                   const refreshTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error('Refresh timeout')), 8000));
