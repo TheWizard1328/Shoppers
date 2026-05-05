@@ -33,6 +33,7 @@ import { generateCompletionTimestamp, calculateRetroactiveStopTiming, parseLocal
 import { generateUniqueSID } from '../dashboard/DashboardHelpers';
 import StopCardConfirmDialogs from './StopCardConfirmDialogs';
 import StopCardReturnDialog from './StopCardReturnDialog';
+import InterStoreDropoffDialog from './InterStoreDropoffDialog';
 import StopCardPOD from './StopCardPOD';
 import StopCardFooter from './StopCardFooter';
 import { useDeliveryDisplayInfo } from './StopCardRedaction';
@@ -104,6 +105,8 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const [showFailureReasonDialog, setShowFailureReasonDialog] = useState(false);
   const [pendingFailureStatus, setPendingFailureStatus] = useState(null);
   const [isFailing, setIsFailing] = useState(false);
+  const [showInterStoreDialog, setShowInterStoreDialog] = useState(false);
+  const [interStoreMatch, setInterStoreMatch] = useState(null);
   const [isRestarting, setIsRestarting] = useState(false);
   const [isPrimaryDevice, setIsPrimaryDevice] = useState(true);
   const [activeDeliveryAction, setActiveDeliveryAction] = useState(() => getActiveDeliveryAction());
@@ -475,7 +478,9 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     showPhotoCapture,
     setShowPhotoCapture,
     setViewingImageUrl,
-    scheduleCompletionSideEffects
+    scheduleCompletionSideEffects,
+    setShowInterStoreDialog,
+    setInterStoreMatch
   });
 
   if (!delivery) return null;
@@ -673,6 +678,38 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
             deliveryName={displayName}
             isPickup={isPickup}
             statusType={pendingFailureStatus} />
+
+          <InterStoreDropoffDialog
+            open={showInterStoreDialog}
+            delivery={delivery}
+            match={interStoreMatch}
+            onSkip={() => {
+              setShowInterStoreDialog(false);
+              setInterStoreMatch(null);
+            }}
+            onConfirm={async () => {
+              if (!interStoreMatch) return;
+              const nextTrackingNumber = String((Number(delivery.tracking_number || 0) + 1)).padStart(2, '0');
+              await createDeliveryLocal({
+                patient_id: interStoreMatch.id,
+                store_id: delivery.store_id,
+                driver_id: delivery.driver_id,
+                driver_name: delivery.driver_name,
+                delivery_date: delivery.delivery_date,
+                delivery_time_start: delivery.delivery_time_start,
+                delivery_time_end: delivery.delivery_time_end,
+                delivery_time_eta: delivery.delivery_time_eta,
+                status: 'pending',
+                puid: delivery.stop_id || delivery.puid || null,
+                tracking_number: nextTrackingNumber,
+                ampm_deliveries: delivery.ampm_deliveries,
+                extra_time: 5,
+                delivery_notes: 'InterStore Drop-off'
+              });
+              setShowInterStoreDialog(false);
+              setInterStoreMatch(null);
+            }}
+          />
           
 
           {showBodySection &&

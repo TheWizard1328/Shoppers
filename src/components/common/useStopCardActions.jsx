@@ -775,6 +775,15 @@ export default function useStopCardActions(params) {
         if (userHasRole(currentUser, 'driver')) {
           await notifyDriverCompleted({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : displayName, delivery, store, appUsers }).catch(() => {});
         }
+
+        try {
+          const interStoreResponse = await base44.functions.invoke('findInterStoreDropoff', { deliveryId: delivery.id });
+          const interStoreData = interStoreResponse?.data || interStoreResponse;
+          if (interStoreData?.isInterStorePickup) {
+            params?.setInterStoreMatch?.(interStoreData.match || null);
+            params?.setShowInterStoreDialog?.(true);
+          }
+        } catch (_) {}
       } catch (error) {
         toast.error(`Failed to complete: ${error.message}`);
         throw error;
