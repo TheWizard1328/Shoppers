@@ -249,10 +249,16 @@ export default function SquareManagement() {
       // 2) Refresh UI immediately without clearing totals
       setIsLoading(false);
 
-      // 3) Do not sync Square catalog items here
+      // 3) Refresh full Square catalog into offline + online DBs
       let catalogError = null;
+      try {
+        await base44.functions.invoke('squareSyncCatalogItems', { skipLock: true });
+        await refreshOfflineSquareFromOnlineEntities();
+      } catch (err) {
+        catalogError = err;
+      }
 
-      // 4) Refresh UI from existing offline/online entity state only
+      // 4) Refresh UI after full catalog sync
       await refreshUiFromOfflineOnly();
 
       // 5) Sync transactions only
