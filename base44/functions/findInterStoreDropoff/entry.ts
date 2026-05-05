@@ -34,8 +34,19 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, match: null, isInterStorePickup: false });
     }
 
+    const storeMatches = await base44.asServiceRole.entities.Store.filter({ id: delivery.store_id }, '-created_date', 1);
+    const store = storeMatches?.[0] || null;
+
+    if (!store) {
+      return Response.json({ success: true, match: null, isInterStorePickup: true });
+    }
+
+    const normalizedStoreAddress = String(store.address || '').trim().toLowerCase();
     const storePatients = await base44.asServiceRole.entities.Patient.filter({ store_id: delivery.store_id });
-    const candidates = (storePatients || []).filter((item) => containsISP(item.full_name) || containsISP(item.address));
+    const candidates = (storePatients || []).filter((item) => {
+      const normalizedPatientAddress = String(item.address || '').trim().toLowerCase();
+      return normalizedPatientAddress === normalizedStoreAddress && (containsISP(item.full_name) || containsISP(item.address));
+    });
     const match = candidates[0] || null;
 
     return Response.json({
