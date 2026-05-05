@@ -967,6 +967,8 @@ export default function SquareManagement() {
   const reconciliationRows = useMemo(() => {
     return filteredDeliveryRows
       .filter((deliveryRow) => deliveryRow.locationId && deliveryRow.locationId !== '--')
+      .filter((deliveryRow) => !deliveryRow.rawDelivery?.square_catalog_uploaded)
+      .filter((deliveryRow) => !catalogItems.some((item) => item?.delivery_id === deliveryRow.rawDelivery?.id))
       .filter((deliveryRow) => !hasMatchingSquareTransaction(deliveryRow.rawDelivery, deliveryRow.locationId, filteredTransactionRows))
       .map((deliveryRow) => {
         const delivery = deliveryRow.rawDelivery;
@@ -979,7 +981,7 @@ export default function SquareManagement() {
           actions: <Button variant="secondary" size="sm" className="border border-red-300 bg-red-100 text-red-800 hover:bg-red-100">Unmatched</Button>
         };
       });
-  }, [filteredDeliveryRows, filteredTransactionRows, hasMatchingSquareTransaction, patients, stores, formatItemNameForDisplay]);
+  }, [filteredDeliveryRows, filteredTransactionRows, hasMatchingSquareTransaction, patients, stores, catalogItems, formatItemNameForDisplay]);
 
   const codDeliveriesCount = useMemo(() => deliveries.filter((delivery) => {
     if (!delivery || Number(delivery.cod_total_amount_required || 0) <= 0) return false;
@@ -1133,9 +1135,10 @@ export default function SquareManagement() {
                   return selectedDriverUserIds.has(row.rawDelivery.driver_id);
                 });
 
+                const visibleReconciliationItems = [...filteredReconciliationItems];
                 const syncResponse = await base44.functions.invoke('squareCodCore', {
                   action: 'syncSquareCods',
-                  items: filteredReconciliationItems.map((row) => ({
+                  items: visibleReconciliationItems.map((row) => ({
                     deliveryId: row.rawDelivery?.id,
                     patientName: row.itemName,
                     codAmount: row.amount,
@@ -1145,17 +1148,28 @@ export default function SquareManagement() {
                 });
 
                 const syncResults = syncResponse?.data?.results || syncResponse?.results || [];
-                const createdCatalogRows = syncResults
-                  .filter((entry) => entry?.action === 'upsert' && entry?.status === 'ok' && entry?.result?.catalogObjectId)
-                  .map((entry) => {
-                    const row = filteredReconciliationItems.find((item) => item.rawDelivery?.id === entry.deliveryId);
-                    if (!row?.rawDelivery) return null;
+                const successfulDeliveryIds = new Set(
+                  syncResults
+                    .filter((entry) => entry?.action === 'upsert' && entry?.status === 'ok' && entry?.result?.catalogObjectId)
+                    .map((entry) => entry.deliveryId)
+                    .filter(Boolean)
+                );
+
+                const createdCatalogRows = visibleReconciliationItems
+                  .filter((row) => successfulDeliveryIds.has(row.rawDelivery?.id))
+                  .map((row) => {
+                    const entry = syncResults.find((result) => result.deliveryId === row.rawDelivery?.id);
+                    if (!row?.rawDelivery || !entry?.result?.catalogObjectId) return null;
                     return {
                       id: entry.result.catalogObjectId,
+                      catalog_object_id: entry.result.catalogObjectId,
                       square_catalog_object_id: entry.result.catalogObjectId,
                       square_catalog_version: entry.result.catalogVersion || null,
+                      name: entry.result.itemName || row.itemName,
                       item_name: entry.result.itemName || row.itemName,
                       description: '',
+                      price_cents: Math.round(Number(row.amount || 0) * 100),
+                      price_dollars: Number(row.amount || 0),
                       amount: Number(row.amount || 0),
                       amount_cents: Math.round(Number(row.amount || 0) * 100),
                       delivery_id: row.rawDelivery.id,
@@ -1164,26 +1178,25 @@ export default function SquareManagement() {
                       store_id: row.rawStoreId || null,
                       location_id: row.locationId || null,
                       status: 'active',
+                      is_sold: false
                     };
                   })
                   .filter(Boolean);
 
                 if (createdCatalogRows.length > 0) {
-                  const existingCatalogRecords = await base44.entities.SquareCatalogItems.list('-updated_date', 2000);
-                  const preservedCatalogRows = (existingCatalogRecords || []).filter((record) => !createdCatalogRows.some((created) => created.delivery_id === record.delivery_id));
-                  const nextCatalogRows = [...createdCatalogRows, ...preservedCatalogRows];
-                  await syncSquareCODSnapshotOffline({
-                    catalogItems: nextCatalogRows,
-                    transactions: allTransactions || []
+                  setCatalogItems((prev) => {
+                    const preserved = (prev || []).filter((item) => !successfulDeliveryIds.has(item.delivery_id));
+                    return [...createdCatalogRows, ...preserved];
                   });
-                  setCatalogItems(nextCatalogRows);
-                  setDeliveries((prev) => [...prev]);
                 }
 
-                await refreshOfflineSquareFromOnlineEntities();
-                await refreshUiFromOfflineOnly();
-                setActiveView('catalog');
-                toast.success('Catalog updated');
+                setDeliveries((prev) => (prev || []).map((delivery) => (
+                  successfulDeliveryIds.has(delivery?.id)
+                    ? { ...delivery, square_catalog_uploaded: true }
+                    : delivery
+                )));
+
+                toast.success(`${successfulDeliveryIds.size} item${successfulDeliveryIds.size === 1 ? '' : 's'} added to Catalog`);
               } catch (err) {
                 toast.error('Failed to update catalog: ' + err.message);
               } finally {
