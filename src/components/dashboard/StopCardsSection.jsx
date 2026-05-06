@@ -54,7 +54,7 @@ export default function StopCardsSection({
           getMapPadding, mapLockTimeoutRef, mapLockExpiresAtRef
         }) : undefined}>
 
-        {(!isAllDriversMode || isDispatcher) &&
+        {deliveriesWithStopOrder.length > 0 &&
         <HorizontalStopCards
           ref={horizontalStopCardsRef}
           pickupCards={deliveriesWithStopOrder.
