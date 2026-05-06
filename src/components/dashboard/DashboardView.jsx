@@ -336,6 +336,21 @@ export default function DashboardView({
           }}
         >
           <DashboardBulkEditControls
+            stopCardsProps={{
+              currentUser, isDriver, isAdmin, isDispatcher, isMobile,
+              deliveries, patients, stores, drivers, appUsers, deliveriesWithStopOrder,
+              selectedDate, isAllDriversMode, isSnapshotModeActive,
+              mapViewPhase, isMapViewLocked, setIsMapViewLocked, setMapViewPhase,
+              setShouldFitBounds, setMapCenter, setMapZoom, getMapPadding,
+              mapLockTimeoutRef, mapLockExpiresAtRef,
+              stopCardsContainerRef, horizontalStopCardsRef, retractClustersRef,
+              selectedCardId, handleCardClick,
+              immersiveHidden,
+              handleEditDelivery, handleEditPatient, handleDeleteDelivery,
+              handleRestartDelivery, handleStatusUpdate, handleNotesUpdate,
+              handleCODUpdate, handleCreateReturn, handleStartDelivery,
+              refreshUser
+            }}
             deliveriesWithStopOrder={deliveriesWithStopOrder}
             drivers={drivers}
             stores={stores}
@@ -345,21 +360,6 @@ export default function DashboardView({
             stopCardsBaseHeight={stopCardsBaseHeight}
             immersiveHidden={immersiveHidden}
             refreshData={refreshData}
-          />
-          <StopCardsSection
-            currentUser={currentUser} isDriver={isDriver} isAdmin={isAdmin} isDispatcher={isDispatcher} isMobile={isMobile}
-            deliveries={deliveries} patients={patients} stores={stores} drivers={drivers} deliveriesWithStopOrder={deliveriesWithStopOrder}
-            selectedDate={selectedDate} isAllDriversMode={isAllDriversMode} isSnapshotModeActive={isSnapshotModeActive}
-            mapViewPhase={mapViewPhase} isMapViewLocked={isMapViewLocked} setIsMapViewLocked={setIsMapViewLocked} setMapViewPhase={setMapViewPhase}
-            setShouldFitBounds={setShouldFitBounds} setMapCenter={setMapCenter} setMapZoom={setMapZoom} getMapPadding={getMapPadding}
-            mapLockTimeoutRef={mapLockTimeoutRef} mapLockExpiresAtRef={mapLockExpiresAtRef}
-            stopCardsContainerRef={stopCardsContainerRef} horizontalStopCardsRef={horizontalStopCardsRef} retractClustersRef={retractClustersRef}
-            selectedCardId={selectedCardId} handleCardClick={handleCardClick}
-            immersiveHidden={immersiveHidden}
-            handleEditDelivery={handleEditDelivery} handleEditPatient={handleEditPatient} handleDeleteDelivery={handleDeleteDelivery}
-            handleRestartDelivery={handleRestartDelivery} handleStatusUpdate={handleStatusUpdate} handleNotesUpdate={handleNotesUpdate}
-            handleCODUpdate={handleCODUpdate} handleCreateReturn={handleCreateReturn} handleStartDelivery={handleStartDelivery}
-            refreshUser={refreshUser}
           />
         </div>
 
