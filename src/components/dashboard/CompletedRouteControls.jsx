@@ -24,7 +24,7 @@ export default function CompletedRouteControls({
   if (!isRouteComplete) return null;
 
   return (
-    <div className="absolute top-3 right-3 z-[700] pointer-events-auto">
+    <div className="absolute top-3 right-3 z-[480] pointer-events-auto">
       <div
         className="rounded-lg border shadow-md overflow-hidden"
         style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}
