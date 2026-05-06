@@ -8,6 +8,7 @@ const INACTIVE_STATUSES = ['pending', 'completed', 'failed', 'cancelled'];
 const APP_TIMEZONE = 'America/Edmonton';
 const ETA_DRIFT_THRESHOLD_MINUTES = 5;
 const MIN_DISTANCE_TRAVELED_METERS = 100;
+const LAST_FINISHED_STOP_PROXIMITY_METERS = 500;
 
 function toNumber(value) {
   const num = Number(value);
@@ -56,23 +57,47 @@ function extractTimeFromDateTime(value) {
   return match ? match[1] : null;
 }
 
-function buildEtaBaseDate(deliveryDate, finishedDeliveries) {
+function buildEtaBaseDate({ deliveryDate, finishedDeliveries, currentLocation, patientMap, storeMap }) {
   const now = getEdmontonNowParts();
+  const [nowYear, nowMonth, nowDay] = now.date.split('-').map(Number);
+  const [nowHours, nowMinutes] = now.time.split(':').map(Number);
+  const nowDate = new Date(nowYear, (nowMonth || 1) - 1, nowDay || 1, nowHours || 0, nowMinutes || 0, 0, 0);
   const routeIsPastDate = deliveryDate < now.date;
   const routeIsLateToday = deliveryDate === now.date && (etaToMinutes(now.time) ?? 0) >= (21 * 60);
   const shouldUseFinishedStopTime = routeIsPastDate || routeIsLateToday;
 
   if (!shouldUseFinishedStopTime) {
-    const [year, month, day] = now.date.split('-').map(Number);
-    const [hours, minutes] = now.time.split(':').map(Number);
-    return new Date(year, (month || 1) - 1, day || 1, hours || 0, minutes || 0, 0, 0);
+    return nowDate;
   }
 
   const latestFinished = [...(finishedDeliveries || [])]
     .filter((delivery) => delivery?.actual_delivery_time)
     .sort((a, b) => new Date(b.actual_delivery_time).getTime() - new Date(a.actual_delivery_time).getTime())[0];
 
-  const baseTime = extractTimeFromDateTime(latestFinished?.actual_delivery_time) || '00:00';
+  if (!latestFinished) {
+    return nowDate;
+  }
+
+  const lastFinishedWaypoint = getWaypointForDelivery(latestFinished, patientMap, storeMap);
+  if (
+    currentLocation?.latitude != null &&
+    currentLocation?.longitude != null &&
+    lastFinishedWaypoint?.latitude != null &&
+    lastFinishedWaypoint?.longitude != null
+  ) {
+    const distanceFromLastFinishedStop = calculateDistanceInMeters(
+      currentLocation.latitude,
+      currentLocation.longitude,
+      lastFinishedWaypoint.latitude,
+      lastFinishedWaypoint.longitude
+    );
+
+    if (distanceFromLastFinishedStop > LAST_FINISHED_STOP_PROXIMITY_METERS) {
+      return nowDate;
+    }
+  }
+
+  const baseTime = extractTimeFromDateTime(latestFinished.actual_delivery_time) || now.time;
   const [hours, minutes] = baseTime.split(':').map(Number);
   const [year, month, day] = String(deliveryDate).split('-').map(Number);
   return new Date(year, (month || 1) - 1, day || 1, hours || 0, minutes || 0, 0, 0);
@@ -193,8 +218,8 @@ async function processDriver(base44, appUser, deliveryDate) {
     return { skipped: true, reason: 'no_active_live_stops', driver_id: appUser.user_id };
   }
 
-  const patientIds = [...new Set(activeDeliveries.map((delivery) => delivery.patient_id).filter(Boolean))];
-  const storeIds = [...new Set(activeDeliveries.map((delivery) => delivery.store_id).filter(Boolean))];
+  const patientIds = [...new Set((allDeliveries || []).map((delivery) => delivery.patient_id).filter(Boolean))];
+  const storeIds = [...new Set((allDeliveries || []).map((delivery) => delivery.store_id).filter(Boolean))];
 
   const [patients, stores] = await Promise.all([
     patientIds.length ? base44.asServiceRole.entities.Patient.filter({ id: { $in: patientIds } }, '-updated_date', patientIds.length) : [],
@@ -231,7 +256,13 @@ async function processDriver(base44, appUser, deliveryDate) {
 
   const etaUpdates = [];
   let cumulativeSeconds = 0;
-  const baseNow = buildEtaBaseDate(deliveryDate, finishedDeliveries);
+  const baseNow = buildEtaBaseDate({
+    deliveryDate,
+    finishedDeliveries,
+    currentLocation: { latitude: currentLat, longitude: currentLon },
+    patientMap,
+    storeMap,
+  });
 
   for (let i = 0; i < deliveriesToProject.length; i += 1) {
     const delivery = deliveriesToProject[i];
