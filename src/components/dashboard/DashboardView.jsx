@@ -5,8 +5,7 @@ import { isAppOwner } from '@/components/utils/userRoles';
 import SnapshotTimeline from "@/components/snapshot/SnapshotTimeline";
 import DashboardStatsPanel from "@/features/dashboard/components/DashboardStatsPanel";
 import DashboardMapSection from "@/features/dashboard/components/DashboardMapSection";
-import StopCardsSection from "@/components/dashboard/StopCardsSection";
-import DashboardBulkEditControls from "@/components/dashboard/DashboardBulkEditControls";
+import DashboardBulkEditShell from "@/components/dashboard/DashboardBulkEditShell";
 import ApiUsageBadge from "@/components/dashboard/ApiUsageBadge";
 import FABControls from "@/components/dashboard/FABControls";
 import DashboardDialogs from "@/components/dashboard/DashboardDialogs";
@@ -335,18 +334,7 @@ export default function DashboardView({
             pointerEvents: immersiveHidden ? 'none' : 'auto'
           }}
         >
-          <DashboardBulkEditControls
-            deliveriesWithStopOrder={deliveriesWithStopOrder}
-            drivers={drivers}
-            stores={stores}
-            allDeliveries={deliveries}
-            currentUser={currentUser}
-            isMobile={isMobile}
-            stopCardsBaseHeight={stopCardsBaseHeight}
-            immersiveHidden={immersiveHidden}
-            refreshData={refreshData}
-          />
-          <StopCardsSection
+          <DashboardBulkEditShell
             currentUser={currentUser} isDriver={isDriver} isAdmin={isAdmin} isDispatcher={isDispatcher} isMobile={isMobile}
             deliveries={deliveries} patients={patients} stores={stores} drivers={drivers} deliveriesWithStopOrder={deliveriesWithStopOrder}
             selectedDate={selectedDate} isAllDriversMode={isAllDriversMode} isSnapshotModeActive={isSnapshotModeActive}
@@ -360,6 +348,9 @@ export default function DashboardView({
             handleRestartDelivery={handleRestartDelivery} handleStatusUpdate={handleStatusUpdate} handleNotesUpdate={handleNotesUpdate}
             handleCODUpdate={handleCODUpdate} handleCreateReturn={handleCreateReturn} handleStartDelivery={handleStartDelivery}
             refreshUser={refreshUser}
+            appUsers={appUsers}
+            stopCardsBaseHeight={stopCardsBaseHeight}
+            refreshData={refreshData}
           />
         </div>
 

@@ -16,7 +16,7 @@ export default function StopCardsSection({
   handleEditDelivery, handleEditPatient, handleDeleteDelivery,
   handleRestartDelivery, handleStatusUpdate, handleNotesUpdate,
   handleCODUpdate, handleCreateReturn, handleStartDelivery,
-  refreshUser
+  refreshUser, bulkSelectionEnabled = false, selectedDeliveryIds = {}, onSelectionChange = () => {}
 }) {
 
   return (
@@ -92,10 +92,10 @@ export default function StopCardsSection({
           drivers={drivers}
           patients={patients}
           currentUser={currentUser}
-          onSelectionChange={() => {}}
-          selectedDeliveryIds={{}}
+          onSelectionChange={onSelectionChange}
+          selectedDeliveryIds={selectedDeliveryIds}
           stopOrder={{}}
-          bulkSelectionEnabled={false}
+          bulkSelectionEnabled={bulkSelectionEnabled}
           showDriverName={isAllDriversMode}
           getDriverColor={getDriverColor}
           onEdit={handleEditDelivery}
