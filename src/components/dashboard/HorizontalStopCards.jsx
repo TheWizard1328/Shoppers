@@ -682,9 +682,11 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
 
         // const cardSelectedDeliveries = selectedDeliveryIds[card.id] || [];
 
-        const fanStyle = desktopFanLayout?.[sortedPickupCards.findIndex((item) => item?.id === card.id)];
+        const cardIndex = sortedPickupCards.findIndex((item) => item?.id === card.id);
+        const fanStyle = desktopFanLayout?.[cardIndex];
         const isRailCentered = !isDesktopFanLayout || card.id === sortedPickupCards[centeredCardIndex]?.id;
         const isInRightDeck = stackedCardIds.has(card.id);
+        const sequentialCardZIndex = 200 + cardIndex;
 
         return (
           <div
@@ -698,7 +700,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
               scrollSnapAlign: isMobile ? 'center' : 'none',
               scrollSnapStop: isMobile ? 'always' : 'normal',
               marginLeft: isInRightDeck ? '-290px' : undefined,
-              zIndex: isInRightDeck ? 280 : isSelected ? 270 : undefined
+              zIndex: sequentialCardZIndex
             }}
             data-is-next-delivery={card.isNextDelivery ? "true" : undefined}>
             <StopCard
