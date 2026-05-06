@@ -1807,13 +1807,13 @@ async function handleSyncOnlineSquareEntities(base44, payload) {
     }
   };
 
+  await paginatedDeleteAll(base44.asServiceRole.entities.SquareCatalogItems, 50);
   if (cleanCatalog.length > 0) {
-    await paginatedDeleteAll(base44.asServiceRole.entities.SquareCatalogItems, 50);
     await bulkCreateInChunks(base44.asServiceRole.entities.SquareCatalogItems, cleanCatalog);
   }
 
+  await paginatedDeleteAll(base44.asServiceRole.entities.SquareTransaction, 50);
   if (cleanTransactions.length > 0) {
-    await paginatedDeleteAll(base44.asServiceRole.entities.SquareTransaction, 50);
     await bulkCreateInChunks(base44.asServiceRole.entities.SquareTransaction, cleanTransactions);
   }
 

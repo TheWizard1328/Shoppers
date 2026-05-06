@@ -978,7 +978,6 @@ export default function SquareManagement() {
   const reconciliationRows = useMemo(() => {
     return filteredDeliveryRows
       .filter((deliveryRow) => deliveryRow.locationId && deliveryRow.locationId !== '--')
-      .filter((deliveryRow) => !deliveryRow.rawDelivery?.square_catalog_uploaded)
       .filter((deliveryRow) => !catalogItems.some((item) => item?.delivery_id === deliveryRow.rawDelivery?.id))
       .filter((deliveryRow) => !hasMatchingSquareTransaction(deliveryRow.rawDelivery, deliveryRow.locationId, filteredTransactionRows))
       .map((deliveryRow) => {
