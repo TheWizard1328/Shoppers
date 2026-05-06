@@ -723,10 +723,13 @@ export default function SquareManagement() {
   }, [currentAppUser, currentUser]);
 
   const storesWithSquareLocationIds = useMemo(() => stores.filter((store) => {
-    if (!store?.id || !store?.square_location_config_id) return false;
-    const config = locationConfigs.find((locationConfig) => locationConfig?.id === store.square_location_config_id);
-    return Boolean(config?.square_location_id);
-  }), [stores, locationConfigs]);
+    if (!store?.id) return false;
+    if (store?.square_location_config_id) {
+      const config = locationConfigs.find((locationConfig) => locationConfig?.id === store.square_location_config_id);
+      return Boolean(config?.square_location_id);
+    }
+    return allTransactions.some((transaction) => transaction?.store_id === store.id && transaction?.location_id);
+  }), [stores, locationConfigs, allTransactions]);
 
   const availableStoresForFilter = useMemo(() => {
     const cityFilteredStores = activeCityIds.length > 0
