@@ -15,7 +15,7 @@ import {
 // Props:
 // - currentUser: object (used by parent to gate rendering)
 // - stopCardsHeight: number (px) to position the badge just above stop cards
-export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRoutes = true, showBreadcrumbs = false, showCompletedRouteControls = false, selectedDate = null, selectedDriverIds = [], selectedPolylineOption = 'polylines', onPolylineOptionChange }) {
+export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRoutes = true, showBreadcrumbs = false, showCompletedRouteControls = false, selectedDate = null, selectedDriverIds = [], selectedPolylineOption = 'polylines', onPolylineOptionChange, children = null }) {
   const [googleCount, setGoogleCount] = useState(null);
   const [hereRoutingCount, setHereRoutingCount] = useState(null);
   const [hereTileCount, setHereTileCount] = useState(null);
@@ -118,41 +118,46 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
 
   if (!isOwner) return null;
 
+  const counterButton = (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip open={isTooltipOpen} onOpenChange={handleTooltipOpenChange}>
+        <TooltipTrigger asChild>
+          <button
+            type="button" className="px-1 text-xs font-medium rounded-md border shadow-sm"
+            onTouchStart={showApiTooltipForTouch}
+            onClick={showApiTooltipForTouch}
+            style={{ background: "color-mix(in srgb, var(--bg-white) 55%, transparent)", borderColor: "var(--border-slate-200)", color: "var(--text-slate-600)" }}>
+            🛣️ {googleCount ?? "..."} / {hereRoutingCount ?? "..."} / {hereTileCount ?? "..."}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent
+          side="top"
+          className="max-w-[280px] p-3 z-[10000]"
+          style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+          <p className="font-semibold text-sm mb-1" style={{ color: 'var(--text-slate-900)' }}>
+            Active Maps API Key
+          </p>
+          <p className="text-xs leading-relaxed mb-2" style={{ color: 'var(--text-slate-600)' }}>
+            {selectedApiKey}
+          </p>
+          <div className="space-y-1 text-xs" style={{ color: 'var(--text-slate-700)' }}>
+            <div>Google API: {googleCount ?? '...'}</div>
+            <div>HERE Routing API: {hereRoutingCount ?? '...'}</div>
+            <div>HERE Map Tile API: {hereTileCount ?? '...'}</div>
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+
   return (
     <>
-      <div className="absolute left-6 z-[100] pointer-events-auto" style={{ bottom: `${Math.max(effectiveStopCardsHeight + 10, fabBottomOffset)}px` }}>
-        <TooltipProvider delayDuration={200}>
-          <Tooltip open={isTooltipOpen} onOpenChange={handleTooltipOpenChange}>
-            <TooltipTrigger asChild>
-              <button
-                type="button" className="px-1 text-xs font-medium rounded-md border shadow-sm"
-                onTouchStart={showApiTooltipForTouch}
-                onClick={showApiTooltipForTouch}
-                style={{ background: "color-mix(in srgb, var(--bg-white) 55%, transparent)", borderColor: "var(--border-slate-200)", color: "var(--text-slate-600)" }}>
-                
-                🛣️ {googleCount ?? "..."} / {hereRoutingCount ?? "..."} / {hereTileCount ?? "..."}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent
-              side="top"
-              className="max-w-[280px] p-3 z-[10000]"
-              style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-              
-              <p className="font-semibold text-sm mb-1" style={{ color: 'var(--text-slate-900)' }}>
-                Active Maps API Key
-              </p>
-              <p className="text-xs leading-relaxed mb-2" style={{ color: 'var(--text-slate-600)' }}>
-                {selectedApiKey}
-              </p>
-              <div className="space-y-1 text-xs" style={{ color: 'var(--text-slate-700)' }}>
-                <div>Google API: {googleCount ?? '...'}</div>
-                <div>HERE Routing API: {hereRoutingCount ?? '...'}</div>
-                <div>HERE Map Tile API: {hereTileCount ?? '...'}</div>
-              </div>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      </div>
+      {!children && (
+        <div className="absolute left-6 z-[100] pointer-events-auto" style={{ bottom: `${Math.max(effectiveStopCardsHeight + 10, fabBottomOffset)}px` }}>
+          {counterButton}
+        </div>
+      )}
+      {children || counterButton}
       {showCompletedRouteControls &&
       <div className="absolute top-4 right-4 z-[180] pointer-events-auto">
           <div className="px-2 py-2 rounded-xl border shadow-lg space-y-1" style={{ background: 'transparent', borderColor: 'var(--border-slate-200)' }}>

@@ -379,11 +379,9 @@ export default function DashboardView({
           onCheckedChange={(checked) => setShowStopCardCheckboxes(!!checked)}
           stopCardsHeight={immersiveHidden ? 0 : stopCardsBaseHeight}
           immersiveHidden={immersiveHidden}
-        />
-        <ApiUsageBadge
-          currentUser={currentUser}
-          stopCardsHeight={immersiveHidden ? 0 : stopCardsBaseHeight}
-        />
+        >
+          <ApiUsageBadge currentUser={currentUser} stopCardsHeight={immersiveHidden ? 0 : stopCardsBaseHeight} />
+        </StopCardCheckboxToggle>
       </div>
 
       {isAppOwner(currentUser) && (isDriver || isDispatcher) &&
