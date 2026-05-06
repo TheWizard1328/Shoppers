@@ -7,6 +7,7 @@ const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
 const ACTIVE_STATUSES = ['in_transit', 'en_route'];
 const TIME_ZONE = 'America/Edmonton';
 const AUTOMATION_DEDUPE_WINDOW_MS = 10000;
+const LAST_FINISHED_STOP_PROXIMITY_KM = 0.5;
 const WEEKDAY_CODES = ['su', 'mo', 'tu', 'we', 'th', 'fr', 'sa'];
 
 const getLatestFinishedDelivery = (deliveries) => [...(deliveries || [])]
@@ -469,9 +470,22 @@ Deno.serve(async (req) => {
     const routeHasStarted = completedDeliveries.length > 0 || !!previousStopBeforeNext;
     const shouldLockExplicitNextStop = !!explicitNextDelivery;
 
+    const driverGpsPosition = driverAppUser.current_latitude != null && driverAppUser.current_longitude != null
+      ? { lat: Number(driverAppUser.current_latitude), lng: Number(driverAppUser.current_longitude) }
+      : null;
+
     if (routeHasStarted && latestFinishedCoords) {
-      currentPosition = latestFinishedCoords;
-      locationSource = 'last_finished_stop';
+      const distanceFromLastFinishedStop = driverGpsPosition
+        ? calculateCrowFliesDistance(driverGpsPosition.lat, driverGpsPosition.lng, latestFinishedCoords.lat, latestFinishedCoords.lng)
+        : null;
+
+      if (distanceFromLastFinishedStop != null && distanceFromLastFinishedStop > LAST_FINISHED_STOP_PROXIMITY_KM) {
+        currentPosition = driverGpsPosition;
+        locationSource = 'driver_gps_away_from_last_finished_stop';
+      } else {
+        currentPosition = latestFinishedCoords;
+        locationSource = 'last_finished_stop';
+      }
     }
 
     if (!currentPosition && previousStopCoords) {
@@ -484,8 +498,8 @@ Deno.serve(async (req) => {
       locationSource = 'next_delivery_stop';
     }
 
-    if (!routeHasStarted && !currentPosition && driverAppUser.current_latitude != null && driverAppUser.current_longitude != null) {
-      currentPosition = { lat: Number(driverAppUser.current_latitude), lng: Number(driverAppUser.current_longitude) };
+    if (!routeHasStarted && !currentPosition && driverGpsPosition) {
+      currentPosition = driverGpsPosition;
       locationSource = 'driver_gps';
     }
 
