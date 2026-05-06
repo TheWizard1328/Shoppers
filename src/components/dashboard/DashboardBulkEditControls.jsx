@@ -1,0 +1,122 @@
+import React, { useCallback, useMemo, useState } from "react";
+import { PencilLine, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import BulkEditStopsPanel from "@/components/deliveries/BulkEditStopsPanel";
+import { updateDeliveryLocal } from "@/components/utils/offlineMutations";
+import { invalidate } from "@/components/utils/dataManager";
+
+export default function DashboardBulkEditControls({
+  deliveriesWithStopOrder = [],
+  drivers = [],
+  stores = [],
+  allDeliveries = [],
+  currentUser,
+  isMobile = false,
+  stopCardsBaseHeight = 0,
+  immersiveHidden = false,
+  refreshData,
+}) {
+  const [selectedDeliveryIds, setSelectedDeliveryIds] = useState({});
+  const [showBulkEditPanel, setShowBulkEditPanel] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const selectedDeliveries = useMemo(() => {
+    const ids = Object.keys(selectedDeliveryIds).filter((id) => selectedDeliveryIds[id]);
+    if (ids.length === 0) return [];
+    const idSet = new Set(ids);
+    return deliveriesWithStopOrder.filter((delivery) => delivery?.id && idSet.has(delivery.id));
+  }, [deliveriesWithStopOrder, selectedDeliveryIds]);
+
+  const selectedCount = selectedDeliveries.length;
+
+  const handleSelectionChange = useCallback((deliveryId, selected) => {
+    setSelectedDeliveryIds((current) => {
+      const next = { ...current };
+      if (selected) next[deliveryId] = true;
+      else delete next[deliveryId];
+      return next;
+    });
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedDeliveryIds({});
+    setShowBulkEditPanel(false);
+  }, []);
+
+  const handleApply = useCallback(async (values) => {
+    if (selectedDeliveries.length === 0) return;
+    setIsSaving(true);
+
+    try {
+      const sharedUpdates = {};
+      if (values.driverChoice !== "unchanged") sharedUpdates.driver_id = values.driverChoice === "unassigned" ? "" : values.driverChoice;
+      if (values.delivery_date) sharedUpdates.delivery_date = values.delivery_date;
+      if (values.travelModeChoice !== "mixed") sharedUpdates.transport_mode = values.travelModeChoice;
+      if (values.delivery_time_start !== "") sharedUpdates.delivery_time_start = values.delivery_time_start;
+      if (values.delivery_time_end !== "") sharedUpdates.delivery_time_end = values.delivery_time_end;
+      if (values.ampmChoice !== "unchanged") sharedUpdates.ampm_deliveries = values.ampmChoice;
+      if (values.puid !== "") sharedUpdates.puid = values.puid;
+      if (values.storeChoice !== "unchanged") {
+        const [storeId] = String(values.storeChoice).split("::");
+        sharedUpdates.store_id = storeId;
+      }
+
+      await Promise.all(selectedDeliveries.map((delivery) => {
+        const payload = { ...sharedUpdates };
+        if (values.statusChoice !== "unchanged") {
+          payload.status = values.statusChoice === "in_transit_or_en_route"
+            ? (!delivery?.patient_id ? "en_route" : "in_transit")
+            : values.statusChoice;
+        }
+        return updateDeliveryLocal(delivery.id, payload, { skipSmartRefresh: true });
+      }));
+
+      invalidate("Delivery");
+      await refreshData?.();
+      clearSelection();
+    } finally {
+      setIsSaving(false);
+    }
+  }, [selectedDeliveries, refreshData, clearSelection]);
+
+  if (immersiveHidden) {
+    return null;
+  }
+
+  return (
+    <>
+      {selectedCount > 0 && (
+        <div
+          className="absolute left-1/2 z-[240] flex -translate-x-1/2 items-center gap-2 rounded-full border bg-white/95 px-3 py-2 shadow-xl backdrop-blur-sm"
+          style={{ bottom: `${(stopCardsBaseHeight || 0) + 16}px` }}
+        >
+          <span className="text-sm font-medium text-slate-900">{selectedCount} selected</span>
+          <Button size="sm" onClick={() => setShowBulkEditPanel(true)} className="gap-2">
+            <PencilLine className="h-4 w-4" />
+            Edit
+          </Button>
+          <Button size="icon" variant="ghost" onClick={clearSelection}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
+      <div className="hidden">
+        {selectedDeliveries.length}
+      </div>
+      <BulkEditStopsPanel
+        open={showBulkEditPanel}
+        onOpenChange={setShowBulkEditPanel}
+        isMobile={isMobile}
+        selectedCount={selectedCount}
+        selectedDeliveries={selectedDeliveries}
+        drivers={drivers}
+        stores={stores}
+        allDeliveries={allDeliveries}
+        currentUser={currentUser}
+        onApply={handleApply}
+        isSaving={isSaving}
+      />
+    </>
+  );
+}

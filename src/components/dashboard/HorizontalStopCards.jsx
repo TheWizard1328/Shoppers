@@ -18,6 +18,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     onSelectionChange,
     selectedDeliveryIds = {},
     stopOrder = {},
+    bulkSelectionEnabled = false,
     showDriverName = false, // Accept new prop
     getDriverColor, // Accept new prop
     // NEW: Action handlers
@@ -700,6 +701,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
               onSelectionChange={onSelectionChange}
               selectedDeliveryIds={cardSelectedDeliveries}
               stopOrder={stopOrder}
+              bulkSelectionEnabled={bulkSelectionEnabled}
               showDriverName={showDriverName}
               getDriverColor={getDriverColor}
               onEdit={onEdit}

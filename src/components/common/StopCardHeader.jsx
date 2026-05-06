@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import SpecialSymbolsBadges from "../utils/SpecialSymbolsBadges";
 import { getDriverDisplayName } from "../utils/driverUtils";
 import { calculateDeliveryPay, formatPay } from "../utils/payCalculator";
@@ -66,7 +67,10 @@ export default function StopCardHeader({
   driverBadgeTextColor,
   currentUser,
   appUsers = [],
-  isReturnDelivery
+  isReturnDelivery,
+  bulkSelectionEnabled = false,
+  onSelectionChange,
+  isSelected = false
 }) {
   const [, setEtaTrendVersion] = React.useState(0);
   React.useEffect(() => {
@@ -148,6 +152,16 @@ export default function StopCardHeader({
     <>
       {/* Left badges column */}
       <div className="mt-0 mb-1 my-0.5 py-0.5 flex flex-col items-center gap-1.0 min-w-[50px]">
+        {bulkSelectionEnabled && (
+          <div className="mt-1 flex h-6 items-center justify-center">
+            <Checkbox
+              checked={isSelected}
+              onClick={(event) => event.stopPropagation()}
+              onCheckedChange={(checked) => onSelectionChange?.(delivery.id, !!checked)}
+              aria-label="Select stop"
+            />
+          </div>
+        )}
         <Badge
           variant="secondary"
           className="bg-secondary text-white mt-1 px-2 py-0.5 text-sm font-bold rounded-full inline-flex items-center border transition-colors w-[40px] justify-center"

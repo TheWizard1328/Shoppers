@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { flushSync } from "react-dom";
 import HorizontalStopCards from "@/components/dashboard/HorizontalStopCards";
 import { getDriverColor } from "@/components/dashboard/DeliveryMap";
 import { createStopCardsScrollHandler } from "@/components/dashboard/StopCardsScrollHandler";
@@ -93,9 +92,10 @@ export default function StopCardsSection({
           drivers={drivers}
           patients={patients}
           currentUser={currentUser}
-          onSelectionChange={() => flushSync(() => {})}
+          onSelectionChange={() => {}}
           selectedDeliveryIds={{}}
           stopOrder={{}}
+          bulkSelectionEnabled={false}
           showDriverName={isAllDriversMode}
           getDriverColor={getDriverColor}
           onEdit={handleEditDelivery}
