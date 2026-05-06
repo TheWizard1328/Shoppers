@@ -112,16 +112,31 @@ Deno.serve(async (req) => {
 
     console.log(`🔄 [handleStartDelivery] Route serialized for stop ${deliveryId} before optimization`);
 
+    const optimizationResponse = await base44.asServiceRole.functions.invoke('optimizeRemainingStops', {
+      driverId,
+      deliveryDate,
+      currentLocalTime: normalizedTime,
+      triggerSource: 'start_button',
+      bypassDriverStatus: true
+    });
+
+    const optimizationData = optimizationResponse?.data || optimizationResponse || {};
+
+    if (optimizationData?.shouldRefreshPolylines) {
+      await base44.asServiceRole.functions.invoke('regenerateType1Polyline', {
+        driverId,
+        deliveryDate,
+        routeChangeSource: 'start_button'
+      });
+    }
+
     return Response.json({
       success: true,
       newNextDeliveryId: deliveryId,
       oldNextDeliveryId: previousNextDelivery?.id || null,
       selectedStopOrder: reorderedRoute.findIndex((d) => d?.id === deliveryId) + 1,
-      routeChanged: updatesToPersist.length > 0,
-      optimization: {
-        skipped: true,
-        reason: 'start_button_serialized_route_before_optimization'
-      }
+      routeChanged: Boolean(updatesToPersist.length > 0 || optimizationData?.routeChanged),
+      optimization: optimizationData
     });
 
   } catch (error) {
