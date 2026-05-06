@@ -722,21 +722,23 @@ export default function SquareManagement() {
     return source?.city_id ? [source.city_id] : [];
   }, [currentAppUser, currentUser]);
 
-  const availableStoresForFilter = useMemo(() => {
-    const cityFilteredStores = activeCityIds.length > 0 ? stores.filter((store) => activeCityIds.includes(store?.city_id)) : stores;
-    return [...cityFilteredStores].sort((a, b) => (a?.sort_order ?? Infinity) - (b?.sort_order ?? Infinity));
-  }, [stores, activeCityIds]);
-
-  const visibleStoreIds = useMemo(() => {
-    const scopedStores = selectedStoreFilter && selectedStoreFilter !== 'all' ? availableStoresForFilter.filter((store) => store?.id === selectedStoreFilter) : availableStoresForFilter;
-    return new Set(scopedStores.map((store) => store?.id).filter(Boolean));
-  }, [availableStoresForFilter, selectedStoreFilter]);
-
   const storesWithSquareLocationIds = useMemo(() => stores.filter((store) => {
     if (!store?.id || !store?.square_location_config_id) return false;
     const config = locationConfigs.find((locationConfig) => locationConfig?.id === store.square_location_config_id);
     return Boolean(config?.square_location_id);
   }), [stores, locationConfigs]);
+
+  const availableStoresForFilter = useMemo(() => {
+    const cityFilteredStores = activeCityIds.length > 0
+      ? storesWithSquareLocationIds.filter((store) => activeCityIds.includes(store?.city_id))
+      : storesWithSquareLocationIds;
+    return [...cityFilteredStores].sort((a, b) => (a?.sort_order ?? Infinity) - (b?.sort_order ?? Infinity));
+  }, [storesWithSquareLocationIds, activeCityIds]);
+
+  const visibleStoreIds = useMemo(() => {
+    const scopedStores = selectedStoreFilter && selectedStoreFilter !== 'all' ? availableStoresForFilter.filter((store) => store?.id === selectedStoreFilter) : availableStoresForFilter;
+    return new Set(scopedStores.map((store) => store?.id).filter(Boolean));
+  }, [availableStoresForFilter, selectedStoreFilter]);
 
 
   const visibleLocationIds = useMemo(() => new Set(
@@ -781,10 +783,7 @@ export default function SquareManagement() {
       const config = locationConfigs.find((c) => c?.id === store?.square_location_config_id);
       const linkedCatalog = catalogItems.find((item) => item?.delivery_id === delivery.id);
       // Fallback: if config join fails, infer location_id from a matching transaction for this store
-      const fallbackLocationId = !config?.square_location_id
-        ? (allTransactions.find((t) => t?.store_id === delivery.store_id && t?.location_id)?.location_id || null)
-        : null;
-      const resolvedLocationId = config?.square_location_id || fallbackLocationId;
+      const resolvedLocationId = config?.square_location_id || null;
       const hasMatch = resolvedLocationId ? hasMatchingSquareTransaction(delivery, resolvedLocationId) : false;
       const collectionType = Array.isArray(delivery?.cod_payments) && delivery.cod_payments.length > 0 ?
       Array.from(new Set(delivery.cod_payments.map((payment) => payment?.type).filter(Boolean))).join(', ') :
@@ -843,8 +842,7 @@ export default function SquareManagement() {
       const config = locationConfigs.find((c) => c?.square_location_id === transaction.location_id);
       const matchedDelivery = findMatchingDeliveryForTransaction(transaction, transaction.store_id || null);
       const matchedStoreId = transaction.store_id || matchedDelivery?.store_id || stores.find((s) => s?.square_location_config_id === config?.id)?.id || null;
-      const storeMatch = matchedStoreId ? visibleStoreIds.has(matchedStoreId) : visibleLocationIds.has(transaction.location_id);
-      if (!storeMatch) return false;
+      if (!matchedStoreId || !visibleStoreIds.has(matchedStoreId)) return false;
 
       if (selectedDriverFilter && selectedDriverFilter !== 'all') {
         if (selectedDriverUserIds.size === 0) return false;
