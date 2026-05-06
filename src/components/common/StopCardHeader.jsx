@@ -158,6 +158,7 @@ export default function StopCardHeader({
           style={{ backgroundColor: storeColor || "#10B981", color: "white" }}>
           {bulkSelectionEnabled && (
             <div
+              data-stopcard-checkbox="true"
               className="-m-1 flex h-7 w-7 items-center justify-center rounded-full"
               onClick={(event) => event.stopPropagation()}
               onPointerDown={(event) => event.stopPropagation()}
