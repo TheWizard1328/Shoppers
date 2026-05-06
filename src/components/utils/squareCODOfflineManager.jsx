@@ -1,6 +1,6 @@
 import { offlineDB } from './offlineDatabase';
 
-const DEFAULT_LOOKBACK_DAYS = 60;
+const DEFAULT_LOOKBACK_DAYS = 90;
 
 const getLookbackDays = () => DEFAULT_LOOKBACK_DAYS;
 const SQUARE_COD_STORES = {
