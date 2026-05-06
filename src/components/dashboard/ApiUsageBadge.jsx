@@ -118,22 +118,22 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
 
   if (!isOwner) return null;
 
-  const counterButton = (
-    <TooltipProvider delayDuration={200}>
+  const counterButton =
+  <TooltipProvider delayDuration={200}>
       <Tooltip open={isTooltipOpen} onOpenChange={handleTooltipOpenChange}>
         <TooltipTrigger asChild>
           <button
-            type="button" className="px-1 text-xs font-medium rounded-md border shadow-sm"
-            onTouchStart={showApiTooltipForTouch}
-            onClick={showApiTooltipForTouch}
-            style={{ background: "color-mix(in srgb, var(--bg-white) 55%, transparent)", borderColor: "var(--border-slate-200)", color: "var(--text-slate-600)" }}>
+          type="button" className="px-1 text-xs font-medium rounded-md border shadow-sm bg-[hsl(var(--background))]"
+          onTouchStart={showApiTooltipForTouch}
+          onClick={showApiTooltipForTouch}
+          style={{ background: "color-mix(in srgb, var(--bg-white) 55%, transparent)", borderColor: "var(--border-slate-200)", color: "var(--text-slate-600)" }}>
             🛣️ {googleCount ?? "..."} / {hereRoutingCount ?? "..."} / {hereTileCount ?? "..."}
           </button>
         </TooltipTrigger>
         <TooltipContent
-          side="top"
-          className="max-w-[280px] p-3 z-[10000]"
-          style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+        side="top"
+        className="max-w-[280px] p-3 z-[10000]"
+        style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
           <p className="font-semibold text-sm mb-1" style={{ color: 'var(--text-slate-900)' }}>
             Active Maps API Key
           </p>
@@ -147,8 +147,8 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
           </div>
         </TooltipContent>
       </Tooltip>
-    </TooltipProvider>
-  );
+    </TooltipProvider>;
+
 
   return (
     <>
