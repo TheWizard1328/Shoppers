@@ -663,7 +663,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
           return 0;
         });
 
-        const cardSelectedDeliveries = selectedDeliveryIds[card.id] || [];
+        // const cardSelectedDeliveries = selectedDeliveryIds[card.id] || [];
 
         const fanStyle = desktopFanLayout?.[sortedPickupCards.findIndex((item) => item?.id === card.id)];
         const isRailCentered = !isDesktopFanLayout || card.id === sortedPickupCards[centeredCardIndex]?.id;
@@ -699,7 +699,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
               isProjected={isProjected}
               pendingPickups={projectedDeliveriesForCard}
               onSelectionChange={onSelectionChange}
-              selectedDeliveryIds={cardSelectedDeliveries}
+              selectedDeliveryIds={selectedDeliveryIds}
               stopOrder={stopOrder}
               bulkSelectionEnabled={bulkSelectionEnabled}
               showDriverName={showDriverName}
