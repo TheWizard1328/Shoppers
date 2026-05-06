@@ -679,7 +679,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
         const cardIndex = sortedPickupCards.findIndex((item) => item?.id === card.id);
         const isRailCentered = !isDesktopFanLayout || card.id === sortedPickupCards[centeredCardIndex]?.id;
         const isInRightDeck = hasBulkSelection && rightDeckStartIndex >= 0 && cardIndex > rightDeckStartIndex;
-        const deckOffset = isInRightDeck ? Math.min(cardIndex - rightDeckStartIndex, 6) : 0;
+        const deckOffset = isInRightDeck ? cardIndex - rightDeckStartIndex : 0;
 
         return (
           <div
@@ -693,8 +693,8 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
               scrollSnapAlign: isMobile ? 'center' : 'none',
               scrollSnapStop: isMobile ? 'always' : 'normal',
               marginLeft: isInRightDeck ? '-250px' : undefined,
-              transform: isInRightDeck ? `translateX(${deckOffset * 8}px) translateY(${deckOffset * 2}px)` : undefined,
-              zIndex: isInRightDeck ? 40 + deckOffset : undefined
+              transform: isInRightDeck ? 'translateX(0) translateY(0)' : undefined,
+              zIndex: isInRightDeck ? 200 + deckOffset : undefined
             }}
             data-is-next-delivery={card.isNextDelivery ? "true" : undefined}>
             <StopCard
