@@ -265,7 +265,7 @@ export default function SquareManagement() {
       try {
         const codResponse = await base44.functions.invoke('squareGetCODData', {
           forceDeliveryRefresh: true,
-          daysBack: 90
+          daysBack: Number(selectedDaysRange || 90)
         });
         const codData = codResponse?.data || codResponse || {};
         const catalogRecords = codData.catalogRecords || [];
@@ -274,17 +274,22 @@ export default function SquareManagement() {
           ? codData.deliveries.map(({ delivery_route_breadcrumbs, encoded_polyline, proof_photo_urls, signature_image_url, ...rest }) => rest)
           : [];
 
-        if (strippedDeliveries.length > 0) {
-          await offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, strippedDeliveries);
-        }
+        await offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, strippedDeliveries);
         await offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_CATALOG_ITEMS, catalogRecords);
         await offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_TRANSACTIONS, transactionRecords);
+
+        setDeliveries([...(strippedDeliveries || [])]);
+        setCatalogItems([...(catalogRecords || [])]);
+        setAllTransactions([...(transactionRecords || [])]);
+        setSoldCatalogItems([...(transactionRecords || []).filter((tx) => ['completed', 'refunded'].includes(tx.status))]);
       } catch (err) {
         transactionError = err;
       }
 
       // 6) Update app DB + UI even if fetch fails
-      await refreshUiFromOfflineOnly();
+      if (transactionError) {
+        await refreshUiFromOfflineOnly();
+      }
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
       window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
 
