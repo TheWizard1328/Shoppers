@@ -70,7 +70,8 @@ export default function StopCardHeader({
   isReturnDelivery,
   bulkSelectionEnabled = false,
   onSelectionChange,
-  isSelected = false
+  isSelected = false,
+  selectedDeliveryIds = {}
 }) {
   const [, setEtaTrendVersion] = React.useState(0);
   React.useEffect(() => {
@@ -166,7 +167,7 @@ export default function StopCardHeader({
               onTouchStart={(event) => event.stopPropagation()}
             >
               <Checkbox
-                checked={isSelected}
+                checked={!!selectedDeliveryIds[delivery?.id]}
                 onClick={(event) => event.stopPropagation()}
                 onPointerDown={(event) => event.stopPropagation()}
                 onMouseDown={(event) => event.stopPropagation()}

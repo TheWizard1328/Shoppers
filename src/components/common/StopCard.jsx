@@ -80,7 +80,7 @@ const buildGoogleMapsCoordinateUrl = (latitude, longitude) => {
   return `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
 };
 
-export default function StopCard({ delivery, store, driver, patients = [], currentUser, showDriverName = false, onStatusUpdate, onNotesUpdate, onEdit, onDelete, onRestart, allDeliveries = [], selectedDate, onEditPatient, drivers = [], onDriverChange, canEdit = false, getDriverColor, onClick, isSelected, pendingPickups = [], onSelectionChange, onCODUpdate, stores = [], onCreateReturn, onStartDelivery, onDriverStatusChange, appUsers = [], showDragHandle = false, dragHandleProps, compact = false, isRailCentered = true, bulkSelectionEnabled = false }) {
+export default function StopCard({ delivery, store, driver, patients = [], currentUser, showDriverName = false, onStatusUpdate, onNotesUpdate, onEdit, onDelete, onRestart, allDeliveries = [], selectedDate, onEditPatient, drivers = [], onDriverChange, canEdit = false, getDriverColor, onClick, isSelected, pendingPickups = [], onSelectionChange, selectedDeliveryIds = {}, onCODUpdate, stores = [], onCreateReturn, onStartDelivery, onDriverStatusChange, appUsers = [], showDragHandle = false, dragHandleProps, compact = false, isRailCentered = true, bulkSelectionEnabled = false }) {
   const isNextDelivery = delivery?.isNextDelivery || false;
   const [, setRangeRefreshTick] = useState(0);
   const [notesInput, setNotesInput] = useState(delivery?.delivery_notes || "No driver notes");
@@ -617,7 +617,8 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
               isReturnDelivery={false}
               bulkSelectionEnabled={bulkSelectionEnabled}
               onSelectionChange={onSelectionChange}
-              isSelected={isSelected} />
+              isSelected={isSelected}
+              selectedDeliveryIds={selectedDeliveryIds} />
             
           </div>
 
