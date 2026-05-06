@@ -73,13 +73,13 @@ export default function DashboardBulkEditControls({
     }
   }, [selectedDeliveries, refreshData, clearSelection]);
 
-  if (immersiveHidden) {
+  if (immersiveHidden && selectedCount === 0) {
     return null;
   }
 
   return (
     <>
-      {selectedCount > 0 && (
+      {!immersiveHidden && selectedCount > 0 && (
         <div
           className="absolute left-1/2 z-[240] flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-card/95 px-3 py-2 shadow-xl backdrop-blur-sm"
           style={{ bottom: `${(stopCardsBaseHeight || 0) + 16}px` }}
