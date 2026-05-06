@@ -328,9 +328,16 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     [selectedDeliveryIds]
   );
   const hasBulkSelection = bulkSelectionEnabled && selectedIds.length > 0;
-  const rightDeckStartIndex = React.useMemo(() => {
-    if (!hasBulkSelection) return -1;
-    return sortedPickupCards.findIndex((card) => selectedIds.includes(card?.id));
+  const stackedCardIds = React.useMemo(() => {
+    if (!hasBulkSelection) return new Set();
+    const selectedSet = new Set(selectedIds);
+    const nextIds = new Set();
+    sortedPickupCards.forEach((card, index) => {
+      if (!card?.id || !selectedSet.has(card.id)) return;
+      const nextCard = sortedPickupCards[index + 1];
+      if (nextCard?.id) nextIds.add(nextCard.id);
+    });
+    return nextIds;
   }, [hasBulkSelection, sortedPickupCards, selectedIds]);
 
   React.useEffect(() => {
@@ -676,10 +683,8 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
         // const cardSelectedDeliveries = selectedDeliveryIds[card.id] || [];
 
         const fanStyle = desktopFanLayout?.[sortedPickupCards.findIndex((item) => item?.id === card.id)];
-        const cardIndex = sortedPickupCards.findIndex((item) => item?.id === card.id);
         const isRailCentered = !isDesktopFanLayout || card.id === sortedPickupCards[centeredCardIndex]?.id;
-        const isInRightDeck = hasBulkSelection && rightDeckStartIndex >= 0 && cardIndex > rightDeckStartIndex;
-        const deckOffset = isInRightDeck ? cardIndex - rightDeckStartIndex : 0;
+        const isInRightDeck = stackedCardIds.has(card.id);
 
         return (
           <div
@@ -693,8 +698,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
               scrollSnapAlign: isMobile ? 'center' : 'none',
               scrollSnapStop: isMobile ? 'always' : 'normal',
               marginLeft: isInRightDeck ? '-250px' : undefined,
-              transform: isInRightDeck ? 'translateX(0) translateY(0)' : undefined,
-              zIndex: isInRightDeck ? 200 + deckOffset : undefined
+              zIndex: isInRightDeck ? 220 : undefined
             }}
             data-is-next-delivery={card.isNextDelivery ? "true" : undefined}>
             <StopCard
