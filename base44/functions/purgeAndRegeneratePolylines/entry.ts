@@ -960,10 +960,7 @@ Deno.serve(async (req) => {
             new Date(stop?.actual_delivery_time || stop?.arrival_time || stop?.updated_date || stop?.created_date || Date.now()).getTime()
           );
           const explicitMeta = explicitStopMetaById.get(stop?.id) || null;
-          const rawTransportMode = explicitMeta?.finished_leg_transport_mode || stop?.finished_leg_transport_mode || '';
-          const normalizedTransportMode = ['driving', 'cycling', 'pedestrian'].includes(String(rawTransportMode).toLowerCase())
-            ? String(rawTransportMode).toLowerCase()
-            : 'driving';
+          const normalizedTransportMode = resolveStopTravelMode(stop, explicitMeta, driverAppUser, 'finished_leg_transport_mode');
           finishedSegmentSpecs.push({
             stop,
             from,
@@ -980,21 +977,27 @@ Deno.serve(async (req) => {
 
       const finishedDirectionsByStopId = new Map();
       if (routeSource === 'polylines' && finishedSegmentSpecs.length > 0) {
-        const normalizedFinishedSpecs = finishedSegmentSpecs.map((segment) => ({
-          from: segment.from,
-          to: segment.to,
-          transportMode: getNormalizedTravelMode(segment.transportMode, 'driving')
-        }));
-        const primaryTransportMode = normalizedFinishedSpecs[0]?.transportMode || 'driving';
-        const groupedFinishedRoute = await getMultiSegmentDirections(
-          base44,
-          normalizedFinishedSpecs.map((segment) => ({ from: segment.from, to: segment.to })),
-          primaryTransportMode
-        );
-        apiCallsMade += 1;
-        finishedSegmentSpecs.forEach((segment, index) => {
-          finishedDirectionsByStopId.set(segment.stop.id, groupedFinishedRoute[index] || null);
-        });
+        const groupedByMode = [];
+        let currentGroup = [finishedSegmentSpecs[0]];
+        for (let index = 1; index < finishedSegmentSpecs.length; index += 1) {
+          const prev = finishedSegmentSpecs[index - 1];
+          const curr = finishedSegmentSpecs[index];
+          if (getNormalizedTravelMode(prev.transportMode) === getNormalizedTravelMode(curr.transportMode)) currentGroup.push(curr);
+          else {
+            groupedByMode.push(currentGroup);
+            currentGroup = [curr];
+          }
+        }
+        if (currentGroup.length > 0) groupedByMode.push(currentGroup);
+
+        for (const group of groupedByMode) {
+          const mode = getNormalizedTravelMode(group[0]?.transportMode, 'driving');
+          const groupedFinishedRoute = await getMultiSegmentDirections(base44, group.map((segment) => ({ from: segment.from, to: segment.to })), mode);
+          apiCallsMade += 1;
+          group.forEach((segment, index) => {
+            finishedDirectionsByStopId.set(segment.stop.id, groupedFinishedRoute[index] || null);
+          });
+        }
       }
 
       finishedSegmentSpecs.forEach((segment) => {
@@ -1066,7 +1069,9 @@ Deno.serve(async (req) => {
         const useDriverLocationAsOrigin = !explicitStopOrderIds.length && !useLastFinishedOrigin && !explicitResolvedOrigin && scope === 'active_only' && firstActive && isToday && isValidCoordinatePair(currentLat, currentLon);
 
         if (useDriverLocationAsOrigin && !originFromFinishedStop) {
-          pushSegment({ lat: currentLat, lon: currentLon }, firstActive);
+          const firstStop = activeStops.find((stop) => stop.isNextDelivery === true) || activeStops[0];
+          const firstMeta = explicitStopMetaById.get(firstStop?.id) || null;
+          pushSegment({ lat: currentLat, lon: currentLon }, firstActive, false, resolveStopTravelMode(firstStop, firstMeta, driverAppUser, 'transport_mode'));
         }
 
         for (let index = 0; index < activeStops.length; index += 1) {
@@ -1081,25 +1086,28 @@ Deno.serve(async (req) => {
               || (!routeAlreadyStarted && hasHomeCoords ? { lat: homeLat, lon: homeLon } : null);
           const to = getLatLon(stop);
           const stopMeta = explicitStopMetaById.get(stop?.id) || null;
-          const transportMode = getNormalizedTravelMode(
-            stopMeta?.finished_leg_transport_mode || stopMeta?.transport_mode || stop?.transport_mode || driverAppUser?.preferred_travel_mode || 'driving',
-            'driving'
-          );
+          const transportMode = resolveStopTravelMode(stop, stopMeta, driverAppUser, 'transport_mode');
           pushSegment(from, to, !!explicitStopOrderIds.length, transportMode);
         }
 
         const lastActive = getLatLon(activeStops[activeStops.length - 1]);
 
         if ((lockHomeDestination || explicitOrderedStopsOnly) && lastActive && hasHomeCoords) {
-          pushSegment(lastActive, { lat: homeLat, lon: homeLon }, true);
+          const lastStop = activeStops[activeStops.length - 1];
+          const lastMeta = explicitStopMetaById.get(lastStop?.id) || null;
+          pushSegment(lastActive, { lat: homeLat, lon: homeLon }, true, resolveStopTravelMode(lastStop, lastMeta, driverAppUser, 'transport_mode'));
         } else if (!explicitStopOrderIds.length) {
           const shouldAddHomeStartLeg = hasHomeCoords && firstActive && !originFromFinishedStop;
           if (shouldAddHomeStartLeg) {
-            pushSegment({ lat: homeLat, lon: homeLon }, firstActive, true);
+            const firstStop = activeStops.find((stop) => stop.isNextDelivery === true) || activeStops[0];
+            const firstMeta = explicitStopMetaById.get(firstStop?.id) || null;
+            pushSegment({ lat: homeLat, lon: homeLon }, firstActive, true, resolveStopTravelMode(firstStop, firstMeta, driverAppUser, 'transport_mode'));
           }
 
           if (hasHomeCoords && lastActive) {
-            pushSegment(lastActive, { lat: homeLat, lon: homeLon }, true);
+            const lastStop = activeStops[activeStops.length - 1];
+            const lastMeta = explicitStopMetaById.get(lastStop?.id) || null;
+            pushSegment(lastActive, { lat: homeLat, lon: homeLon }, true, resolveStopTravelMode(lastStop, lastMeta, driverAppUser, 'transport_mode'));
           }
         }
 
