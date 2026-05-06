@@ -981,22 +981,64 @@ export default function SquareManagement() {
   }, [catalogItems, locationConfigs, stores, visibleLocationIds, driverScopedLocationIds, deletingId, lookbackStart, visibleSquareLocationConfigIds]);
 
   const reconciliationRows = useMemo(() => {
-    return filteredDeliveryRows
-      .filter((deliveryRow) => deliveryRow.locationId && deliveryRow.locationId !== '--')
-      .filter((deliveryRow) => !catalogItems.some((item) => item?.delivery_id === deliveryRow.rawDelivery?.id))
-      .filter((deliveryRow) => !hasMatchingSquareTransaction(deliveryRow.rawDelivery, deliveryRow.locationId, allTransactions))
-      .map((deliveryRow) => {
-        const delivery = deliveryRow.rawDelivery;
+    const rows = (deliveries || [])
+      .filter((delivery) => {
+        if (!delivery) return false;
+        if (delivery.status === 'failed') return false;
+        if (Number(delivery.cod_total_amount_required || 0) <= 0) return false;
+
+        const store = stores.find((candidateStore) => candidateStore?.id === delivery.store_id);
+        if (!store?.square_location_config_id || !visibleSquareLocationConfigIds.has(store.square_location_config_id)) return false;
+
+        const deliveryDate = delivery.delivery_date ? new Date(`${String(delivery.delivery_date).slice(0, 10)}T00:00:00`) : null;
+        if (!(deliveryDate instanceof Date) || Number.isNaN(deliveryDate.getTime()) || deliveryDate < lookbackStart) return false;
+
+        if (selectedDriverFilter !== 'all') {
+          if (selectedDriverUserIds.size === 0) return false;
+          if (!selectedDriverUserIds.has(delivery.driver_id)) return false;
+        }
+
+        const config = locationConfigs.find((candidateConfig) => candidateConfig?.id === store?.square_location_config_id);
+        const resolvedLocationId = config?.square_location_id || null;
+        if (!resolvedLocationId) return false;
+
+        return !hasMatchingSquareTransaction(delivery, resolvedLocationId, allTransactions);
+      })
+      .sort((a, b) => String(b.delivery_date || '').localeCompare(String(a.delivery_date || '')))
+      .map((delivery) => {
         const patient = patients.find((p) => p?.id === delivery?.patient_id || p?.patient_id === delivery?.patient_id);
         const store = stores.find((s) => s?.id === delivery?.store_id);
+        const config = locationConfigs.find((candidateConfig) => candidateConfig?.id === store?.square_location_config_id);
+        const resolvedLocationId = config?.square_location_id || '--';
 
         return {
-          ...deliveryRow,
+          id: delivery.id,
+          key: `${delivery.id || 'delivery'}|${resolvedLocationId}|${delivery.delivery_date || 'no-date'}`,
+          rawDelivery: delivery,
+          amountSet: getDeliveryPaymentAmountSet(delivery),
+          rawStoreId: delivery.store_id || null,
           itemName: formatItemNameForDisplay(delivery?.delivery_date, store?.abbreviation, patient?.full_name),
+          amount: Number(delivery.cod_total_amount_required || 0),
+          storeName: store?.name || 'Unknown',
+          locationId: resolvedLocationId,
+          catalogId: '--',
+          deliveryDate: delivery.delivery_date,
+          collectionType: Array.isArray(delivery?.cod_payments) && delivery.cod_payments.length > 0
+            ? Array.from(new Set(delivery.cod_payments.map((payment) => payment?.type).filter(Boolean))).join(', ')
+            : null,
+          subtext: delivery.driver_name || null,
           actions: <Button variant="secondary" size="sm" className="border border-red-300 bg-red-100 text-red-800 hover:bg-red-100">Unmatched</Button>
         };
       });
-  }, [filteredDeliveryRows, hasMatchingSquareTransaction, patients, stores, catalogItems, allTransactions, formatItemNameForDisplay]);
+
+    const seenRowKeys = new Set();
+    return rows.filter((row) => {
+      const rowKey = row.key || row.id;
+      if (seenRowKeys.has(rowKey)) return false;
+      seenRowKeys.add(rowKey);
+      return true;
+    });
+  }, [deliveries, stores, visibleSquareLocationConfigIds, lookbackStart, selectedDriverFilter, selectedDriverUserIds, locationConfigs, allTransactions, hasMatchingSquareTransaction, patients, formatItemNameForDisplay]);
 
   const codDeliveriesCount = useMemo(() => deliveries.filter((delivery) => {
     if (!delivery || Number(delivery.cod_total_amount_required || 0) <= 0) return false;
