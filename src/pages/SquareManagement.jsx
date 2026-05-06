@@ -158,7 +158,7 @@ export default function SquareManagement() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const startDate = new Date(today);
-    startDate.setDate(today.getDate() - 60);
+    startDate.setDate(today.getDate() - 90);
     return {
       startDateStr: getLocalDateString(startDate),
       endDateStr: getLocalDateString(today)
