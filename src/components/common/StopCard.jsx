@@ -319,10 +319,9 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
 
   const canRetry = useMemo(() => {
     if (!delivery || delivery.status !== 'failed' || isPickup || !patient) return true;
-    if (hasFutureReturn) return false;
-    const hasLaterDelivery = allDeliveries.some((d) => d && d.id !== delivery.id && d.delivery_date === delivery.delivery_date && d.patient_id === delivery.patient_id && (d.stop_order || 0) > (delivery.stop_order || 0));
-    return !hasLaterDelivery;
-  }, [delivery, allDeliveries, patient, isPickup, hasFutureReturn]);
+    if (hasFutureReturn || hasFutureRetry || hasCompletedDelivery) return false;
+    return true;
+  }, [delivery, patient, isPickup, hasFutureReturn, hasFutureRetry, hasCompletedDelivery]);
 
   const isAssignedDriverOrAppOwner = useMemo(() => {
     if (!currentUser || !delivery) return false;
