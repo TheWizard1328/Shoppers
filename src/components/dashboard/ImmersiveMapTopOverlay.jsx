@@ -33,8 +33,8 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
 
   return (
     <div className="absolute left-2 right-2 z-[700] pointer-events-none" style={{ top: `${Math.max(8, topOffset + 8)}px` }}>
-      <div className="rounded-2xl border border-slate-900/10 bg-slate-950/55 px-2.5 py-1.5 shadow-md backdrop-blur-md">
-        <div className="flex items-center justify-between gap-2 text-white">
+      <div className="rounded-2xl border border-white/60 bg-white/78 px-2.5 py-1.5 shadow-md backdrop-blur-md dark:border-slate-800/70 dark:bg-slate-950/55">
+        <div className="flex items-center justify-between gap-2 text-slate-900 dark:text-white">
           <div className="flex min-w-0 items-center gap-1.5">
             <Badge
               variant="secondary"
@@ -43,7 +43,7 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
             >
               {formatStopOrder(delivery?.display_stop_order || delivery?.stop_order)}
             </Badge>
-            <div className="min-w-0 truncate text-sm font-semibold text-white drop-shadow-sm">
+            <div className="min-w-0 truncate text-sm font-semibold text-slate-900 dark:text-white">
               {finalDisplayName}
             </div>
           </div>
@@ -57,7 +57,7 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
           </Badge>
         </div>
 
-        <div className="mt-1 flex items-center justify-between gap-2 text-white">
+        <div className="mt-1 flex items-center justify-between gap-2 text-slate-800 dark:text-white">
           <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
             {batchTracking && (
               <Badge
@@ -71,7 +71,7 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
             <div className="flex shrink-0 items-center">
               <SpecialSymbolsBadges delivery={delivery} patient={patient} isPickup={isPickup} size="card" />
             </div>
-            <div className="min-w-0 truncate text-xs font-medium text-white drop-shadow-sm">
+            <div className="min-w-0 truncate text-xs font-medium text-slate-800 dark:text-white">
               {patient?.address || store?.address || '--'}
             </div>
           </div>
