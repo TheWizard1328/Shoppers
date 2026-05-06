@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { PencilLine, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import BulkEditStopsPanel from "@/components/deliveries/BulkEditStopsPanel";
@@ -15,18 +15,33 @@ export default function DashboardBulkEditControls({
   stopCardsBaseHeight = 0,
   immersiveHidden = false,
   refreshData,
-  selectedDeliveries = [],
-  onClearSelection = () => {},
 }) {
+  const [selectedDeliveryIds, setSelectedDeliveryIds] = useState({});
   const [showBulkEditPanel, setShowBulkEditPanel] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  const selectedDeliveries = useMemo(() => {
+    const ids = Object.keys(selectedDeliveryIds).filter((id) => selectedDeliveryIds[id]);
+    if (ids.length === 0) return [];
+    const idSet = new Set(ids);
+    return deliveriesWithStopOrder.filter((delivery) => delivery?.id && idSet.has(delivery.id));
+  }, [deliveriesWithStopOrder, selectedDeliveryIds]);
+
   const selectedCount = selectedDeliveries.length;
 
+  const handleSelectionChange = useCallback((deliveryId, selected) => {
+    setSelectedDeliveryIds((current) => {
+      const next = { ...current };
+      if (selected) next[deliveryId] = true;
+      else delete next[deliveryId];
+      return next;
+    });
+  }, []);
+
   const clearSelection = useCallback(() => {
-    onClearSelection();
+    setSelectedDeliveryIds({});
     setShowBulkEditPanel(false);
-  }, [onClearSelection]);
+  }, []);
 
   const handleApply = useCallback(async (values) => {
     if (selectedDeliveries.length === 0) return;
@@ -86,6 +101,9 @@ export default function DashboardBulkEditControls({
         </div>
       )}
 
+      <div className="hidden">
+        {selectedDeliveries.length}
+      </div>
       <BulkEditStopsPanel
         open={showBulkEditPanel}
         onOpenChange={setShowBulkEditPanel}
