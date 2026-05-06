@@ -126,7 +126,7 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
           type="button" className="px-1 text-xs font-medium rounded-md border shadow-sm bg-transparent"
           onTouchStart={showApiTooltipForTouch}
           onClick={showApiTooltipForTouch}
-          style={{ background: "color-mix(in srgb, var(--bg-white) 55%, transparent)", borderColor: "var(--border-slate-200)", color: "var(--text-slate-600)" }}>
+          style={{ background: "transparent", borderColor: "var(--border-slate-200)", color: "var(--text-slate-600)" }}>
             🛣️ {googleCount ?? "..."} / {hereRoutingCount ?? "..."} / {hereTileCount ?? "..."}
           </button>
         </TooltipTrigger>
