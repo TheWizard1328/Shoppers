@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import SpecialSymbolsBadges from "../utils/SpecialSymbolsBadges";
+import { getCurrentEtaForDelivery, primeEtaTrendBus } from "../utils/etaTrendBus";
 
 function formatBatchTracking(delivery, store) {
   if (!delivery?.tracking_number || !store?.abbreviation) return null;
@@ -28,8 +29,16 @@ function formatEta(value) {
 }
 
 export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPickup, storeColor, finalDisplayName, topOffset = 0, remainingDistanceKm = null }) {
+  React.useEffect(() => {
+    if (delivery) primeEtaTrendBus([delivery]);
+  }, [delivery]);
+
   if (!delivery) return null;
   const batchTracking = formatBatchTracking(delivery, store);
+  const liveEta = getCurrentEtaForDelivery(
+    delivery?.id,
+    delivery?.delivery_time_eta || (isPickup ? delivery?.delivery_time_start : null) || delivery?.delivery_time_start || "--:--"
+  );
 
   return (
     <div className="absolute left-2 right-2 z-[700] pointer-events-none" style={{ top: `${Math.max(8, topOffset + 8)}px` }}>
@@ -52,7 +61,7 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
             className="h-6 shrink-0 rounded-full border-0 px-2 py-0 text-xs font-bold text-white"
             style={{ backgroundColor: `${storeColor}`, color: "white" }}
           >
-            {formatEta(delivery?.delivery_time_eta || delivery?.delivery_time_start)}
+            {formatEta(liveEta)}
           </Badge>
         </div>
 
