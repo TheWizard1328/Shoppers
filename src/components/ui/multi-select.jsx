@@ -12,12 +12,17 @@ const getMobileOverlayBounds = () => {
 
   const mobileHeader = document.querySelector('[data-mobile-header]');
   const mobileBottomNav = document.querySelector('[data-mobile-bottom-nav]');
-  const headerBottom = mobileHeader?.getBoundingClientRect?.().bottom || 0;
-  const bottomNavTop = mobileBottomNav?.getBoundingClientRect?.().top || window.innerHeight;
-  const availableHeight = Math.max(220, Math.floor(bottomNavTop - headerBottom - 16));
+  const headerHeight = mobileHeader?.offsetHeight || 0;
+  const bottomNavHeight = mobileBottomNav?.offsetHeight || 0;
   const isMobileLike = window.innerWidth < 768 || !!mobileHeader;
+  const availableHeight = Math.max(220, Math.floor(window.innerHeight - headerHeight - bottomNavHeight - 8));
 
-  return { maxHeight: availableHeight, isMobileLike };
+  return {
+    maxHeight: availableHeight,
+    isMobileLike,
+    topOffset: headerHeight,
+    bottomOffset: bottomNavHeight
+  };
 };
 
 export const MultiSelect = React.forwardRef((props, ref) => {
@@ -114,7 +119,11 @@ export const MultiSelect = React.forwardRef((props, ref) => {
               className="w-[--radix-popover-trigger-width] p-0 z-[10003] overflow-hidden"
               align="start"
               sideOffset={4}
-              style={overlayBounds.isMobileLike ? { maxHeight: `${overlayBounds.maxHeight}px` } : undefined}>
+              style={overlayBounds.isMobileLike ? {
+                maxHeight: `${overlayBounds.maxHeight}px`,
+                top: `${overlayBounds.topOffset || 0}px`,
+                bottom: `${overlayBounds.bottomOffset || 0}px`
+              } : undefined}>
                 <Command className="overflow-hidden">
                     <CommandList className="max-h-full overflow-y-auto overscroll-contain" style={overlayBounds.isMobileLike ? { maxHeight: `${overlayBounds.maxHeight}px` } : { maxHeight: '20rem' }}>
                         <CommandEmpty>No results found.</CommandEmpty>
