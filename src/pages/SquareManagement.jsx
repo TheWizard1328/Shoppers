@@ -722,16 +722,10 @@ export default function SquareManagement() {
     return source?.city_id ? [source.city_id] : [];
   }, [currentAppUser, currentUser]);
 
-  const squareLocationConfigIds = useMemo(() => new Set(
-    locationConfigs
-      .filter((locationConfig) => Boolean(locationConfig?.id && locationConfig?.square_location_id))
-      .map((locationConfig) => locationConfig.id)
-  ), [locationConfigs]);
-
   const storesWithSquareLocationIds = useMemo(() => stores.filter((store) => {
-    if (!store?.id || !store?.square_location_config_id) return false;
-    return squareLocationConfigIds.has(store.square_location_config_id);
-  }), [stores, squareLocationConfigIds]);
+    if (!store?.id) return false;
+    return Boolean(store?.square_location_config_id);
+  }), [stores]);
 
   const availableStoresForFilter = useMemo(() => {
     const cityFilteredStores = activeCityIds.length > 0
