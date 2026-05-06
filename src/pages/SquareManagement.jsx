@@ -722,16 +722,16 @@ export default function SquareManagement() {
     return source?.city_id ? [source.city_id] : [];
   }, [currentAppUser, currentUser]);
 
+  const squareLocationConfigIds = useMemo(() => new Set(
+    locationConfigs
+      .filter((locationConfig) => Boolean(locationConfig?.id && locationConfig?.square_location_id))
+      .map((locationConfig) => locationConfig.id)
+  ), [locationConfigs]);
+
   const storesWithSquareLocationIds = useMemo(() => stores.filter((store) => {
-    if (!store?.id) return false;
-    if (store?.square_location_config_id) {
-      const config = locationConfigs.find((locationConfig) => locationConfig?.id === store.square_location_config_id);
-      if (config?.square_location_id) return true;
-    }
-    return deliveries.some((delivery) => delivery?.store_id === store.id && Number(delivery?.cod_total_amount_required || 0) > 0)
-      || catalogItems.some((item) => item?.store_id === store.id && item?.location_id)
-      || allTransactions.some((transaction) => transaction?.store_id === store.id && transaction?.location_id);
-  }), [stores, locationConfigs, deliveries, catalogItems, allTransactions]);
+    if (!store?.id || !store?.square_location_config_id) return false;
+    return squareLocationConfigIds.has(store.square_location_config_id);
+  }), [stores, squareLocationConfigIds]);
 
   const availableStoresForFilter = useMemo(() => {
     const cityFilteredStores = activeCityIds.length > 0
