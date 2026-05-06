@@ -3,8 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
-import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerOverlay } from "@/components/ui/drawer";
+import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetOverlay } from "@/components/ui/sheet";
 import { getPickupStopIdForDelivery } from "@/components/utils/ampmUtils";
 import { userHasRole } from "@/components/utils/userRoles";
 import { X, Car, Bike } from "lucide-react";
@@ -367,6 +367,7 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
+        <DrawerOverlay className="z-[490] bg-black/70" />
         <DrawerContent
           className="z-[500] max-h-[calc(100vh-var(--bottom-nav-height)-0.75rem)]"
           style={{
@@ -388,6 +389,7 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetOverlay className="z-[490] bg-black/70" />
       <SheetContent side="right" className="z-[500] w-full p-0 sm:max-w-xl" style={{ background: "var(--bg-white)" }}>
         <SheetHeader className="border-b px-6 py-4" style={{ borderColor: "var(--border-slate-200)" }}>
           <SheetTitle style={{ color: "var(--text-slate-900)" }}>Bulk Edit Stops</SheetTitle>
