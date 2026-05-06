@@ -603,6 +603,7 @@ export default function SquareManagement() {
     const deliveryAmountCents = Math.round(Number(delivery?.cod_total_amount_required || 0) * 100);
     const deliveryDate = delivery?.delivery_date ? format(new Date(`${delivery.delivery_date}T00:00:00`), 'MM/dd') : null;
     const storeAbbreviation = String(store?.abbreviation || '').trim().toLowerCase();
+    const normalizedLocationId = String(locationId || '').trim();
 
     return (transactionsPool || []).some((transactionLike) => {
       const transaction = transactionLike?.rawTransaction || transactionLike;
@@ -610,27 +611,24 @@ export default function SquareManagement() {
       if (!transaction.square_payment_id) return false;
       if (transaction.type !== 'collection') return false;
       if (!['completed', 'refunded'].includes(transaction.status)) return false;
-      if (transaction.delivery_id && transaction.delivery_id === delivery.id) return true;
 
       const transactionAmountCents = Math.round(Number(transaction.amount || 0) * 100);
       if (transactionAmountCents !== deliveryAmountCents) return false;
 
-      const transactionName = String(transaction.item_name || '').trim();
-      if (!transactionName || !patientNamesMatch(patientName, transactionName)) return false;
+      const searchableText = String(transaction.item_name || transaction.raw_square_data?.note || transaction.raw_square_data?.notes || '').trim();
+      if (!searchableText || !patientNamesMatch(patientName, searchableText)) return false;
 
-      const parsed = parseSquareItemName(transactionName);
+      const parsed = parseSquareItemName(String(transaction.item_name || '').trim());
       const transactionDate = parsed?.deliveryDate ? format(new Date(`${parsed.deliveryDate}T00:00:00`), 'MM/dd') : null;
       const transactionStoreAbbreviation = String(parsed?.storeAbbr || '').trim().toLowerCase();
+      const transactionLocationId = String(transaction.location_id || '').trim();
 
       const dateMatches = !!deliveryDate && !!transactionDate && deliveryDate === transactionDate;
-      const storeMatches = !!storeAbbreviation && !!transactionStoreAbbreviation && storeAbbreviation === transactionStoreAbbreviation;
+      const abbreviationMatches = !!storeAbbreviation && !!transactionStoreAbbreviation && storeAbbreviation === transactionStoreAbbreviation;
+      const locationMatches = !!normalizedLocationId && !!transactionLocationId && normalizedLocationId === transactionLocationId;
+      const storeMatches = abbreviationMatches || locationMatches;
 
-      if (dateMatches && storeMatches) return true;
-      if (dateMatches || storeMatches) return true;
-      // Neither date nor store could confirm the pairing — not a match.
-      // Previously `return true` here caused every delivery to appear matched,
-      // emptying the Reconciliation tab entirely.
-      return false;
+      return dateMatches && storeMatches;
     });
   }, [allTransactions, patients, stores]);
 
