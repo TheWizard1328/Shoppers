@@ -746,15 +746,19 @@ export default function SquareManagement() {
   }, [availableStoresForFilter, selectedStoreFilter]);
 
 
+  const visibleSquareLocationConfigIds = useMemo(() => new Set(
+    storesWithSquareLocationIds
+      .filter((store) => visibleStoreIds.has(store?.id))
+      .map((store) => store?.square_location_config_id)
+      .filter(Boolean)
+  ), [storesWithSquareLocationIds, visibleStoreIds]);
+
   const visibleLocationIds = useMemo(() => new Set(
-    storesWithSquareLocationIds.
-    filter((store) => visibleStoreIds.has(store?.id)).
-    map((store) => {
-      const config = locationConfigs.find((locationConfig) => locationConfig?.id === store.square_location_config_id);
-      return config?.square_location_id;
-    }).
-    filter(Boolean)
-  ), [storesWithSquareLocationIds, locationConfigs, visibleStoreIds]);
+    locationConfigs
+      .filter((locationConfig) => visibleSquareLocationConfigIds.has(locationConfig?.id))
+      .map((locationConfig) => locationConfig?.square_location_id)
+      .filter(Boolean)
+  ), [locationConfigs, visibleSquareLocationConfigIds]);
 
   const driverScopedLocationIds = useMemo(() => {
     if (currentUser && isAppOwner(currentUser)) {
@@ -774,7 +778,8 @@ export default function SquareManagement() {
       if (!delivery) return false;
       if (delivery.status === 'failed') return false;
       if (Number(delivery.cod_total_amount_required || 0) <= 0) return false;
-      if (!visibleStoreIds.has(delivery.store_id)) return false;
+      const store = stores.find((candidateStore) => candidateStore?.id === delivery.store_id);
+      if (!store?.square_location_config_id || !visibleSquareLocationConfigIds.has(store.square_location_config_id)) return false;
       const deliveryDate = delivery.delivery_date ? new Date(`${String(delivery.delivery_date).slice(0, 10)}T00:00:00`) : null;
       if (!(deliveryDate instanceof Date) || Number.isNaN(deliveryDate.getTime()) || deliveryDate < lookbackStart) return false;
       if (selectedDriverFilter === 'all') return true;
@@ -821,7 +826,7 @@ export default function SquareManagement() {
       seenRowKeys.add(rowKey);
       return true;
     });
-  }, [deliveries, visibleStoreIds, lookbackStart, selectedDriverFilter, selectedDriverUserIds, patients, stores, locationConfigs, catalogItems, allTransactions]);
+  }, [deliveries, lookbackStart, selectedDriverFilter, selectedDriverUserIds, patients, stores, locationConfigs, catalogItems, allTransactions, visibleSquareLocationConfigIds]);
 
   const isCardSaleTransaction = useCallback((transaction) => {
     if (!transaction || isTransferTransaction(transaction)) return false;
@@ -846,8 +851,11 @@ export default function SquareManagement() {
 
       const config = locationConfigs.find((c) => c?.square_location_id === transaction.location_id);
       const matchedDelivery = findMatchingDeliveryForTransaction(transaction, transaction.store_id || null);
-      const matchedStoreId = transaction.store_id || matchedDelivery?.store_id || stores.find((s) => s?.square_location_config_id === config?.id)?.id || null;
-      if (!matchedStoreId || !visibleStoreIds.has(matchedStoreId)) return false;
+      const matchedStore = stores.find((s) => s?.id === transaction.store_id)
+        || (matchedDelivery ? stores.find((s) => s?.id === matchedDelivery.store_id) : null)
+        || stores.find((s) => s?.square_location_config_id === config?.id)
+        || null;
+      if (!matchedStore?.square_location_config_id || !visibleSquareLocationConfigIds.has(matchedStore.square_location_config_id)) return false;
 
       if (selectedDriverFilter && selectedDriverFilter !== 'all') {
         if (selectedDriverUserIds.size === 0) return false;
@@ -910,14 +918,17 @@ export default function SquareManagement() {
       seenRowKeys.add(rowKey);
       return true;
     });
-  }, [allTransactions, lookbackStart, visibleStoreIds, visibleLocationIds, selectedDriverFilter, selectedDriverUserIds, locationConfigs, stores, drivers, getTransactionSearchNames, getTransactionFilterDate, getTransactionEffectiveDateString, findMatchingDeliveryForTransaction]);
+  }, [allTransactions, lookbackStart, visibleLocationIds, selectedDriverFilter, selectedDriverUserIds, locationConfigs, stores, drivers, getTransactionSearchNames, getTransactionFilterDate, getTransactionEffectiveDateString, findMatchingDeliveryForTransaction, visibleSquareLocationConfigIds]);
 
   const filteredCatalogRows = useMemo(() => {
     const rows = (catalogItems || []).
     filter((item) => {
       if (driverScopedLocationIds && item.location_id && !driverScopedLocationIds.has(item.location_id)) return false;
       if (visibleLocationIds.size > 0 && item.location_id && !visibleLocationIds.has(item.location_id)) return false;
-      if (visibleStoreIds.size > 0 && item.store_id && !visibleStoreIds.has(item.store_id)) return false;
+      const store = stores.find((candidateStore) => candidateStore?.id === item.store_id)
+        || stores.find((candidateStore) => candidateStore?.square_location_config_id && locationConfigs.find((config) => config?.id === candidateStore.square_location_config_id)?.square_location_id === item.location_id)
+        || null;
+      if (!store?.square_location_config_id || !visibleSquareLocationConfigIds.has(store.square_location_config_id)) return false;
       const itemDateValue = item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate;
       if (itemDateValue) {
         const itemDate = new Date(`${String(itemDateValue).slice(0, 10)}T00:00:00`);
@@ -967,7 +978,7 @@ export default function SquareManagement() {
       seenRowKeys.add(rowKey);
       return true;
     });
-  }, [catalogItems, locationConfigs, stores, visibleStoreIds, visibleLocationIds, driverScopedLocationIds, deletingId, lookbackStart]);
+  }, [catalogItems, locationConfigs, stores, visibleLocationIds, driverScopedLocationIds, deletingId, lookbackStart, visibleSquareLocationConfigIds]);
 
   const reconciliationRows = useMemo(() => {
     return filteredDeliveryRows
@@ -990,11 +1001,12 @@ export default function SquareManagement() {
 
   const codDeliveriesCount = useMemo(() => deliveries.filter((delivery) => {
     if (!delivery || Number(delivery.cod_total_amount_required || 0) <= 0) return false;
-    if (!visibleStoreIds.has(delivery.store_id)) return false;
+    const store = stores.find((candidateStore) => candidateStore?.id === delivery.store_id);
+    if (!store?.square_location_config_id || !visibleSquareLocationConfigIds.has(store.square_location_config_id)) return false;
     if (selectedDriverFilter === 'all') return true;
     if (selectedDriverUserIds.size === 0) return false;
     return selectedDriverUserIds.has(delivery.driver_id);
-  }).length, [deliveries, selectedDriverFilter, selectedDriverUserIds, visibleStoreIds]);
+  }).length, [deliveries, selectedDriverFilter, selectedDriverUserIds, stores, visibleSquareLocationConfigIds]);
 
   const collectedCodTypeBreakdown = useMemo(() => {
     const counts = { Cash: 0, Debit: 0, Credit: 0, Check: 0, Other: 0 };
