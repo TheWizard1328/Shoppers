@@ -249,18 +249,14 @@ export default function SquareManagement() {
       // 2) Refresh UI immediately without clearing totals
       setIsLoading(false);
 
-      // Step 3 — REMOVE THIS entirely from syncFromSquare:
-      // let catalogError = null;
-      // try {
-      //   await refreshOfflineSquareFromOnlineEntities();  ← DELETE
-      // } catch (err) {
-      //   catalogError = err;
-      // }
+      // 3+4) REMOVED: pre-loading from Base44 entities before the Square API call
+      //      was causing stale catalog data to survive a sync when the API returns
+      //      0 items — the old entity records would re-populate the offline DB and
+      //      immediately overwrite the empty result. The Square API response in step 5
+      //      is the authoritative source; let it write directly without interference.
 
-      // Step 4 — REMOVE THIS too (it loads stale data from Step 3):
-      // await refreshUiFromOfflineOnly();  ← DELETE
-
-      // 5) Pull latest Square catalog + transactions from API into offline cache only
+      // 5) Pull latest Square catalog + transactions from Square API
+      let catalogError = null;
       let transactionError = null;
       try {
         const codResponse = await base44.functions.invoke('squareGetCODData', {
@@ -286,10 +282,12 @@ export default function SquareManagement() {
         transactionError = err;
       }
 
-      // Step 6 — only fall back to offline if the API call truly errored, 
-      // but DON'T call refreshOfflineSquareFromOnlineEntities again
-      if (transactionError) {
-        await loadSquareViewFromOffline(); // read what's in offline DB now (already cleared)
+      // 6) If the Square API call failed, reflect whatever is now in the offline DB.
+      //    Do NOT call refreshOfflineSquareFromOnlineEntities here — that would
+      //    restore stale catalog records from Base44 entities, undoing the clear.
+      if (transactionError || catalogError) {
+        await loadSquareViewFromOffline();
+        await loadSyncStatus();
       }
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
       window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
@@ -627,10 +625,12 @@ export default function SquareManagement() {
       const dateMatches = !!deliveryDate && !!transactionDate && deliveryDate === transactionDate;
       const storeMatches = !!storeAbbreviation && !!transactionStoreAbbreviation && storeAbbreviation === transactionStoreAbbreviation;
 
-      // In hasMatchingSquareTransaction, change the last line:
       if (dateMatches && storeMatches) return true;
       if (dateMatches || storeMatches) return true;
-      return false;  // ← WAS: return true — this was matching everything
+      // Neither date nor store could confirm the pairing — not a match.
+      // Previously `return true` here caused every delivery to appear matched,
+      // emptying the Reconciliation tab entirely.
+      return false;
     });
   }, [allTransactions, patients, stores]);
 
@@ -998,7 +998,7 @@ export default function SquareManagement() {
           actions: <Button variant="secondary" size="sm" className="border border-red-300 bg-red-100 text-red-800 hover:bg-red-100">Unmatched</Button>
         };
       });
-  }, [filteredDeliveryRows, hasMatchingSquareTransaction, patients, stores, catalogItems, formatItemNameForDisplay]); // , filteredTransactionRows
+  }, [filteredDeliveryRows, hasMatchingSquareTransaction, patients, stores, catalogItems, allTransactions, formatItemNameForDisplay]);
 
   const codDeliveriesCount = useMemo(() => deliveries.filter((delivery) => {
     if (!delivery || Number(delivery.cod_total_amount_required || 0) <= 0) return false;
