@@ -8,7 +8,6 @@ const INACTIVE_STATUSES = ['pending', 'completed', 'failed', 'cancelled'];
 const APP_TIMEZONE = 'America/Edmonton';
 const ETA_DRIFT_THRESHOLD_MINUTES = 5;
 const MIN_DISTANCE_TRAVELED_METERS = 100;
-const LAST_FINISHED_STOP_PROXIMITY_METERS = 500;
 
 function toNumber(value) {
   const num = Number(value);
@@ -57,7 +56,7 @@ function extractTimeFromDateTime(value) {
   return match ? match[1] : null;
 }
 
-function buildEtaBaseDate({ deliveryDate, finishedDeliveries, currentLocation, patientMap, storeMap }) {
+function buildEtaBaseDate({ deliveryDate, finishedDeliveries, patientMap, storeMap }) {
   const now = getEdmontonNowParts();
   const [nowYear, nowMonth, nowDay] = now.date.split('-').map(Number);
   const [nowHours, nowMinutes] = now.time.split(':').map(Number);
@@ -76,25 +75,6 @@ function buildEtaBaseDate({ deliveryDate, finishedDeliveries, currentLocation, p
 
   if (!latestFinished) {
     return nowDate;
-  }
-
-  const lastFinishedWaypoint = getWaypointForDelivery(latestFinished, patientMap, storeMap);
-  if (
-    currentLocation?.latitude != null &&
-    currentLocation?.longitude != null &&
-    lastFinishedWaypoint?.latitude != null &&
-    lastFinishedWaypoint?.longitude != null
-  ) {
-    const distanceFromLastFinishedStop = calculateDistanceInMeters(
-      currentLocation.latitude,
-      currentLocation.longitude,
-      lastFinishedWaypoint.latitude,
-      lastFinishedWaypoint.longitude
-    );
-
-    if (distanceFromLastFinishedStop > LAST_FINISHED_STOP_PROXIMITY_METERS) {
-      return nowDate;
-    }
   }
 
   const baseTime = extractTimeFromDateTime(latestFinished.actual_delivery_time) || now.time;
@@ -259,7 +239,6 @@ async function processDriver(base44, appUser, deliveryDate) {
   const baseNow = buildEtaBaseDate({
     deliveryDate,
     finishedDeliveries,
-    currentLocation: { latitude: currentLat, longitude: currentLon },
     patientMap,
     storeMap,
   });
