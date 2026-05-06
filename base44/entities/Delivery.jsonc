@@ -241,11 +241,5 @@
   "required": [
     "delivery_date"
   ],
-  "rls": {
-    "delete": {
-      "user_condition": {
-        "role": "admin"
-      }
-    }
-  }
+  "rls": {}
 }
