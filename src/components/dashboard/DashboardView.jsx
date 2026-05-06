@@ -391,7 +391,13 @@ export default function DashboardView({
 
         <StopCardCheckboxToggle
           checked={showStopCardCheckboxes}
-          onCheckedChange={(checked) => setShowStopCardCheckboxes(!!checked)}
+          onCheckedChange={(checked) => {
+            const nextChecked = !!checked;
+            setShowStopCardCheckboxes(nextChecked);
+            if (!nextChecked) {
+              setSelectedDeliveryIds({});
+            }
+          }}
           stopCardsHeight={immersiveHidden ? 0 : stopCardsBaseHeight}
           immersiveHidden={immersiveHidden}
         >
