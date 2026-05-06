@@ -3,8 +3,8 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 const SQUARE_BASE_URL = 'https://connect.squareup.com';
 const SQUARE_VERSION = '2025-01-23';
-const CATALOG_LOOKBACK_DAYS = 60;
-const TRANSACTION_RETENTION_DAYS = 60;
+const CATALOG_LOOKBACK_DAYS = 90;
+const TRANSACTION_RETENTION_DAYS = 90;
 const MATCH_DATE_OFFSET_DAYS = 2;
 const SQUARE_API_MAX_RETRIES = 3;
 const SQUARE_RETRY_BASE_DELAY_MS = 400;
@@ -239,8 +239,8 @@ function isRecentCatalogItemName(itemName) {
 // Paginated delete-all: loops until no records remain.
 // A single .list(N) call can miss records when N < total count,
 // causing stale rows to survive the "clear before sync" step.
-function getLookbackStartAt() {
-  return new Date(Date.now() - CATALOG_LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString();
+function getLookbackStartAt(daysBack = CATALOG_LOOKBACK_DAYS) {
+  return new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000).toISOString();
 }
 
 function getTransactionRetentionStartMs() {
@@ -1286,7 +1286,7 @@ async function handleGetCodData(base44, payload = {}) {
   );
 
   const liveCatalogItems = await listActiveCatalogItems(accessToken, { monitor, queue }).catch(() => []);
-  const completedOrders = await listOrders(locationIds, getLookbackStartAt(), accessToken, MAX_TRANSACTION_ORDERS, ['COMPLETED', 'OPEN'], { monitor, queue }).catch(() => []);
+  const completedOrders = await listOrders(locationIds, getLookbackStartAt(daysBack), accessToken, MAX_TRANSACTION_ORDERS, ['COMPLETED', 'OPEN'], { monitor, queue }).catch(() => []);
   const paidOrderItems = flattenOrderItems(completedOrders).filter((item) => {
     const paymentTime = new Date(item?.payment_date || item?.order_created_at || 0).getTime();
     return Number.isFinite(paymentTime) && paymentTime >= transactionRetentionStartMs;
