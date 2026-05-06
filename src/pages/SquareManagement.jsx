@@ -249,16 +249,16 @@ export default function SquareManagement() {
       // 2) Refresh UI immediately without clearing totals
       setIsLoading(false);
 
-      // 3) Pull what already exists in online Square entities into offline DB only
-      let catalogError = null;
-      try {
-        await refreshOfflineSquareFromOnlineEntities();
-      } catch (err) {
-        catalogError = err;
-      }
+      // Step 3 — REMOVE THIS entirely from syncFromSquare:
+      // let catalogError = null;
+      // try {
+      //   await refreshOfflineSquareFromOnlineEntities();  ← DELETE
+      // } catch (err) {
+      //   catalogError = err;
+      // }
 
-      // 4) Refresh UI after offline DB sync
-      await refreshUiFromOfflineOnly();
+      // Step 4 — REMOVE THIS too (it loads stale data from Step 3):
+      // await refreshUiFromOfflineOnly();  ← DELETE
 
       // 5) Pull latest Square catalog + transactions from API into offline cache only
       let transactionError = null;
@@ -286,9 +286,10 @@ export default function SquareManagement() {
         transactionError = err;
       }
 
-      // 6) Update app DB + UI even if fetch fails
+      // Step 6 — only fall back to offline if the API call truly errored, 
+      // but DON'T call refreshOfflineSquareFromOnlineEntities again
       if (transactionError) {
-        await refreshUiFromOfflineOnly();
+        await loadSquareViewFromOffline(); // read what's in offline DB now (already cleared)
       }
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
       window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
