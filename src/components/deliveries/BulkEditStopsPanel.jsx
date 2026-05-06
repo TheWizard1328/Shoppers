@@ -388,7 +388,7 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="z-99999 w-full p-0 sm:max-w-xl" style={{ background: "var(--bg-white)" }}>
+      <SheetContent side="right" className="w-full p-0 sm:max-w-xl" style={{ background: "var(--bg-white)" }}>
         <SheetHeader className="border-b px-6 py-4" style={{ borderColor: "var(--border-slate-200)" }}>
           <SheetTitle style={{ color: "var(--text-slate-900)" }}>Bulk Edit Stops</SheetTitle>
           <SheetDescription style={{ color: "var(--text-slate-500)" }}>
