@@ -641,8 +641,17 @@ export default function useStopCardActions(params) {
                 ? refreshedDeliveries.deliveries
                 : null;
             if (Array.isArray(refreshedList) && refreshedList.length > 0) {
+              await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', delivery.delivery_date, refreshedList);
               updateDeliveriesLocally?.(refreshedList, true);
               window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, fullReplacement: true, freshDeliveries: refreshedList } }));
+              Promise.resolve().then(async () => {
+                try {
+                  const { broadcastMutation } = await import('../utils/realtimeSync');
+                  await Promise.all(refreshedList.map((item) => broadcastMutation('Delivery', 'update', item.id, item)));
+                } catch (broadcastError) {
+                  console.warn('⚠️ [Start] delivery broadcast failed:', broadcastError?.message || broadcastError);
+                }
+              });
             } else {
               window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: false, fullReplacement: true } }));
             }
@@ -651,7 +660,7 @@ export default function useStopCardActions(params) {
             if (polylineResponse) {
               window.dispatchEvent(new CustomEvent('polylineUpdated', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, source: 'start_button' } }));
               window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'start_button', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
-              window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startPolylinesUpdated', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, freshDeliveries: refreshedList || undefined } }));
+              window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startPolylinesUpdated', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, fullReplacement: true, freshDeliveries: refreshedList || undefined } }));
             }
             fabControlEvents.reactivatePhaseTwoIfAvailable();
           } catch (optErr) {
