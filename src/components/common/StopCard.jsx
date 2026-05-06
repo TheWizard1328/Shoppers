@@ -323,6 +323,53 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     return true;
   }, [delivery, patient, isPickup, hasFutureReturn, hasFutureRetry, hasCompletedDelivery]);
 
+  useEffect(() => {
+    if (delivery?.status !== 'failed' || isPickup) return;
+    console.log('[StopCard Retry Flags]', {
+      stopId: delivery?.stop_id,
+      stopOrder: delivery?.stop_order,
+      patientName: patient?.full_name || delivery?.patient_name,
+      deliveryId: delivery?.id,
+      deliveryDate: delivery?.delivery_date,
+      isRetrying,
+      isProcessingBackground,
+      notCanRetry: !canRetry,
+      hasFutureRetry,
+      hasCompletedDelivery,
+      isFailing
+    });
+    console.log('[StopCard Return Flags]', {
+      stopId: delivery?.stop_id,
+      stopOrder: delivery?.stop_order,
+      patientName: patient?.full_name || delivery?.patient_name,
+      deliveryId: delivery?.id,
+      deliveryDate: delivery?.delivery_date,
+      isPreparingReturn,
+      isCreatingReturn,
+      hasFutureReturn,
+      hasCompletedDelivery,
+      isFailing
+    });
+  }, [
+    delivery?.status,
+    delivery?.stop_id,
+    delivery?.stop_order,
+    delivery?.patient_name,
+    delivery?.id,
+    delivery?.delivery_date,
+    patient?.full_name,
+    isPickup,
+    isRetrying,
+    isProcessingBackground,
+    canRetry,
+    hasFutureRetry,
+    hasCompletedDelivery,
+    isFailing,
+    isPreparingReturn,
+    isCreatingReturn,
+    hasFutureReturn
+  ]);
+
   const isAssignedDriverOrAppOwner = useMemo(() => {
     if (!currentUser || !delivery) return false;
     if (isAppOwner(currentUser)) return true;
