@@ -400,9 +400,11 @@ export default function DashboardView({
           }}
           stopCardsHeight={immersiveHidden ? 0 : stopCardsBaseHeight}
           immersiveHidden={immersiveHidden}
-        >
+        />
+
+        <div className="absolute right-4 z-[220]" style={{ bottom: `${(immersiveHidden ? 0 : stopCardsBaseHeight) + 16}px` }}>
           <ApiUsageBadge currentUser={currentUser} stopCardsHeight={immersiveHidden ? 0 : stopCardsBaseHeight} />
-        </StopCardCheckboxToggle>
+        </div>
       </div>
 
       {isAppOwner(currentUser) && (isDriver || isDispatcher) &&
