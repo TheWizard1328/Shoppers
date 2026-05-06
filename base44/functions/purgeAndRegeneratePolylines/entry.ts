@@ -1243,7 +1243,8 @@ Deno.serve(async (req) => {
             completedRouteHomeSegment.push({
               from: { lat: homeLat, lon: homeLon },
               to: firstFinishedCoords,
-              force: true
+              force: true,
+              transportMode: getNormalizedTravelMode(firstFinishedStop?.finished_leg_transport_mode || firstFinishedStop?.transport_mode || driverAppUser?.preferred_travel_mode, 'driving')
             });
           }
         }
@@ -1254,7 +1255,8 @@ Deno.serve(async (req) => {
             completedRouteHomeSegment.push({
               from: latestFinishedCoords,
               to: { lat: homeLat, lon: homeLon },
-              force: true
+              force: true,
+              transportMode: getNormalizedTravelMode(latestFinishedStop?.finished_leg_transport_mode || latestFinishedStop?.transport_mode || driverAppUser?.preferred_travel_mode, 'driving')
             });
           }
         }
@@ -1280,11 +1282,43 @@ Deno.serve(async (req) => {
           segmentsToKeep.add(cachedSegment.id);
         });
 
-        const uncachedDirections = await getMultiSegmentDirections(base44, uncachedSegments);
-        if (uncachedSegments.length > 0) apiCallsMade += 1;
+        const uncachedDirectionsBySegmentKey = new Map();
+        const completedSegmentGroups = [];
+        if (uncachedSegments.length > 0) {
+          let currentGroup = [uncachedSegments[0]];
+          for (let index = 1; index < uncachedSegments.length; index += 1) {
+            const previous = uncachedSegments[index - 1];
+            const current = uncachedSegments[index];
+            const sameMode = getNormalizedTravelMode(previous?.transportMode, 'driving') === getNormalizedTravelMode(current?.transportMode, 'driving');
+            const isContinuous = samePoint(previous?.to, current?.from);
+            if (sameMode && isContinuous) {
+              currentGroup.push(current);
+            } else {
+              completedSegmentGroups.push(currentGroup);
+              currentGroup = [current];
+            }
+          }
+          if (currentGroup.length > 0) completedSegmentGroups.push(currentGroup);
+        }
 
-        uncachedSegments.forEach((spec, index) => {
-          const directions = uncachedDirections[index];
+        for (const group of completedSegmentGroups) {
+          const primaryTransportMode = getNormalizedTravelMode(group[0]?.transportMode, 'driving');
+          const groupedDirections = await getMultiSegmentDirections(
+            base44,
+            group.map((spec) => ({ from: spec.from, to: spec.to })),
+            primaryTransportMode
+          );
+          apiCallsMade += 1;
+          group.forEach((spec, index) => {
+            uncachedDirectionsBySegmentKey.set(
+              makeSegmentKey(driverId, deliveryDate, spec.from, spec.to),
+              groupedDirections[index] || null
+            );
+          });
+        }
+
+        uncachedSegments.forEach((spec) => {
+          const directions = uncachedDirectionsBySegmentKey.get(makeSegmentKey(driverId, deliveryDate, spec.from, spec.to));
           const matchingStop = deliveries.find((stop) => {
             const stopCoords = getLatLon(stop);
             return stop?.id && stopCoords && samePoint({ lat: stopCoords.lat, lon: stopCoords.lon }, spec.to);
@@ -1292,7 +1326,7 @@ Deno.serve(async (req) => {
           if (matchingStop?.id) {
             createdSegments.push({
               id: matchingStop.id,
-              transport_mode: 'driving',
+              transport_mode: getNormalizedTravelMode(spec.transportMode, 'driving'),
               encoded_polyline: directions?.encoded_polyline || encodeGooglePolyline([[spec.from.lat, spec.from.lon], [spec.to.lat, spec.to.lon]]),
               segment_origin_lat: round5(spec.from.lat),
               segment_origin_lon: round5(spec.from.lon),
