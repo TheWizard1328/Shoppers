@@ -49,7 +49,7 @@ export default function SquareManagement() {
   const [patients, setPatients] = useState([]);
   const [selectedDriverFilter, setSelectedDriverFilter] = useState('all');
   const [selectedStoreFilter, setSelectedStoreFilter] = useState('all');
-  const [selectedDaysRange, setSelectedDaysRange] = useState(() => localStorage.getItem('square_cod_days_range') || '7');
+  const [selectedDaysRange, setSelectedDaysRange] = useState(() => localStorage.getItem('square_cod_days_range') || '90');
   const [isUpdatingReconciliationCatalog, setIsUpdatingReconciliationCatalog] = useState(false);
   const [hasInitialLoadCompleted, setHasInitialLoadCompleted] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState(null);
@@ -264,7 +264,8 @@ export default function SquareManagement() {
       let transactionError = null;
       try {
         const codResponse = await base44.functions.invoke('squareGetCODData', {
-          forceDeliveryRefresh: true
+          forceDeliveryRefresh: true,
+          daysBack: 90
         });
         const codData = codResponse?.data || codResponse || {};
         const catalogRecords = codData.catalogRecords || [];
