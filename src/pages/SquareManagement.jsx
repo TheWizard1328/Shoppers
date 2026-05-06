@@ -789,7 +789,7 @@ export default function SquareManagement() {
       const linkedCatalog = catalogItems.find((item) => item?.delivery_id === delivery.id);
       // Fallback: if config join fails, infer location_id from a matching transaction for this store
       const resolvedLocationId = config?.square_location_id || null;
-      const hasMatch = resolvedLocationId ? hasMatchingSquareTransaction(delivery, resolvedLocationId) : false;
+      const hasMatch = resolvedLocationId ? hasMatchingSquareTransaction(delivery, resolvedLocationId, allTransactions) : false;
       const collectionType = Array.isArray(delivery?.cod_payments) && delivery.cod_payments.length > 0 ?
       Array.from(new Set(delivery.cod_payments.map((payment) => payment?.type).filter(Boolean))).join(', ') :
       null;
@@ -979,7 +979,7 @@ export default function SquareManagement() {
     return filteredDeliveryRows
       .filter((deliveryRow) => deliveryRow.locationId && deliveryRow.locationId !== '--')
       .filter((deliveryRow) => !catalogItems.some((item) => item?.delivery_id === deliveryRow.rawDelivery?.id))
-      .filter((deliveryRow) => !hasMatchingSquareTransaction(deliveryRow.rawDelivery, deliveryRow.locationId, filteredTransactionRows))
+      .filter((deliveryRow) => !hasMatchingSquareTransaction(deliveryRow.rawDelivery, deliveryRow.locationId, allTransactions))
       .map((deliveryRow) => {
         const delivery = deliveryRow.rawDelivery;
         const patient = patients.find((p) => p?.id === delivery?.patient_id || p?.patient_id === delivery?.patient_id);
