@@ -77,20 +77,53 @@ export const AppDataProvider = ({ children, value }) => {
         const offlineDeliveries = selectedDate
           ? await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDate)
           : await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-        const nonSelectedDateDeliveries = (deliveriesRef.current || []).filter((item) => item?.delivery_date !== selectedDate);
-        nextDeliveries = Array.isArray(offlineDeliveries)
-          ? [...nonSelectedDateDeliveries, ...offlineDeliveries]
-          : nonSelectedDateDeliveries;
+        const currentDeliveries = deliveriesRef.current || [];
+        const deleteSet = new Set(deliveryDeletes);
+        const currentById = new Map(currentDeliveries.filter(Boolean).map((item) => [item.id, item]));
+        const selectedDateFromCurrent = currentDeliveries.filter((item) => item?.delivery_date === selectedDate);
+        const selectedDateById = new Map(selectedDateFromCurrent.filter(Boolean).map((item) => [item.id, item]));
+        (Array.isArray(offlineDeliveries) ? offlineDeliveries : []).forEach((item) => {
+          if (item?.id) selectedDateById.set(item.id, item);
+        });
+        deliveryUpserts.forEach((item) => {
+          if (item?.id) selectedDateById.set(item.id, item);
+        });
+        deleteSet.forEach((id) => {
+          selectedDateById.delete(id);
+          currentById.delete(id);
+        });
+        selectedDateById.forEach((item, id) => currentById.set(id, item));
+        nextDeliveries = Array.from(currentById.values());
       }
 
       if (patientsChanged) {
         const offlinePatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
-        nextPatients = Array.isArray(offlinePatients) ? offlinePatients : [];
+        const currentPatients = patientsRef.current || [];
+        const deleteSet = new Set(patientDeletes);
+        const patientById = new Map(currentPatients.filter(Boolean).map((item) => [item.id, item]));
+        (Array.isArray(offlinePatients) ? offlinePatients : []).forEach((item) => {
+          if (item?.id) patientById.set(item.id, item);
+        });
+        patientUpserts.forEach((item) => {
+          if (item?.id) patientById.set(item.id, item);
+        });
+        deleteSet.forEach((id) => patientById.delete(id));
+        nextPatients = Array.from(patientById.values());
       }
 
       if (appUsersChanged) {
         const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-        nextAppUsers = Array.isArray(offlineAppUsers) ? offlineAppUsers : [];
+        const currentAppUsers = appUsersRef.current || [];
+        const deleteSet = new Set(appUserDeletes);
+        const appUserById = new Map(currentAppUsers.filter(Boolean).map((item) => [item.id, item]));
+        (Array.isArray(offlineAppUsers) ? offlineAppUsers : []).forEach((item) => {
+          if (item?.id) appUserById.set(item.id, item);
+        });
+        appUserUpserts.forEach((item) => {
+          if (item?.id) appUserById.set(item.id, item);
+        });
+        deleteSet.forEach((id) => appUserById.delete(id));
+        nextAppUsers = Array.from(appUserById.values());
       }
     } catch (error) {
       console.warn('[AppDataContext] Realtime offline sync batch failed:', error.message);
