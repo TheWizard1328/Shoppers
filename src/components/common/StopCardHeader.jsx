@@ -151,23 +151,24 @@ export default function StopCardHeader({
   return (
     <>
       {/* Left badges column */}
-      <div className="mt-0 mb-1 my-0.5 py-0.5 flex flex-col items-center gap-1.0 min-w-[56px]">
-        <div
-          className="mt-1 flex h-9 min-w-[46px] items-center justify-center rounded-full px-2"
-          style={{ backgroundColor: storeColor || "#10B981", color: "white" }}
-        >
-          {bulkSelectionEnabled ? (
+      <div className="mt-0 mb-1 my-0.5 py-0.5 flex flex-col items-center gap-1.0 min-w-[50px]">
+        {bulkSelectionEnabled && (
+          <div className="mt-1 flex h-6 items-center justify-center">
             <Checkbox
               checked={isSelected}
               onClick={(event) => event.stopPropagation()}
               onCheckedChange={(checked) => onSelectionChange?.(delivery.id, !!checked)}
               aria-label="Select stop"
-              className="border-white data-[state=checked]:bg-white data-[state=checked]:text-slate-900"
             />
-          ) : (
-            <span className="text-sm font-bold">#{delivery?.display_stop_order || delivery?.stop_order || 0}</span>
-          )}
-        </div>
+          </div>
+        )}
+        <Badge
+          variant="secondary"
+          className="bg-secondary text-white mt-1 px-2 py-0.5 text-sm font-bold rounded-full inline-flex items-center border transition-colors w-[40px] justify-center"
+          style={{ backgroundColor: storeColor || "#10B981", color: "white" }}>
+
+          #{delivery?.display_stop_order || delivery?.stop_order || 0}
+        </Badge>
 
         {isPickup && pendingPickups && pendingPickups.length > 0 &&
         <Badge

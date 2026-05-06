@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { format } from 'date-fns';
-import DashboardBulkEditControls from "@/components/dashboard/DashboardBulkEditControls";
 import { base44 } from "@/api/base44Client";
 import { isAppOwner } from '@/components/utils/userRoles';
 import SnapshotTimeline from "@/components/snapshot/SnapshotTimeline";
 import DashboardStatsPanel from "@/features/dashboard/components/DashboardStatsPanel";
 import DashboardMapSection from "@/features/dashboard/components/DashboardMapSection";
 import StopCardsSection from "@/components/dashboard/StopCardsSection";
+import DashboardBulkEditControls from "@/components/dashboard/DashboardBulkEditControls";
 import ApiUsageBadge from "@/components/dashboard/ApiUsageBadge";
 import FABControls from "@/components/dashboard/FABControls";
 import DashboardDialogs from "@/components/dashboard/DashboardDialogs";
@@ -200,18 +200,6 @@ export default function DashboardView({
     ? `${immersiveOverlayStore?.name || 'Store'} Pickup`
     : immersiveOverlayPatient?.full_name || immersiveOverlayDelivery?.patient_name || 'Next stop';
 
-  const bulkEditState = DashboardBulkEditControls({
-    deliveriesWithStopOrder,
-    drivers,
-    stores,
-    allDeliveries: deliveries,
-    currentUser,
-    isMobile,
-    stopCardsBaseHeight,
-    immersiveHidden,
-    refreshData,
-  });
-
   const immersiveOverlayRemainingDistanceKm = useMemo(() => {
     if (!immersiveOverlayDelivery || !selectedDriverId || selectedDriverId === 'all') return null;
 
@@ -347,7 +335,17 @@ export default function DashboardView({
             pointerEvents: immersiveHidden ? 'none' : 'auto'
           }}
         >
-          {bulkEditState.bulkEditOverlay}
+          <DashboardBulkEditControls
+            deliveriesWithStopOrder={deliveriesWithStopOrder}
+            drivers={drivers}
+            stores={stores}
+            allDeliveries={deliveries}
+            currentUser={currentUser}
+            isMobile={isMobile}
+            stopCardsBaseHeight={stopCardsBaseHeight}
+            immersiveHidden={immersiveHidden}
+            refreshData={refreshData}
+          />
           <StopCardsSection
             currentUser={currentUser} isDriver={isDriver} isAdmin={isAdmin} isDispatcher={isDispatcher} isMobile={isMobile}
             deliveries={deliveries} patients={patients} stores={stores} drivers={drivers} deliveriesWithStopOrder={deliveriesWithStopOrder}
@@ -357,9 +355,6 @@ export default function DashboardView({
             mapLockTimeoutRef={mapLockTimeoutRef} mapLockExpiresAtRef={mapLockExpiresAtRef}
             stopCardsContainerRef={stopCardsContainerRef} horizontalStopCardsRef={horizontalStopCardsRef} retractClustersRef={retractClustersRef}
             selectedCardId={selectedCardId} handleCardClick={handleCardClick}
-            bulkSelectionEnabled={true}
-            selectedDeliveryIds={bulkEditState.selectedDeliveryIds}
-            onSelectionChange={bulkEditState.handleSelectionChange}
             immersiveHidden={immersiveHidden}
             handleEditDelivery={handleEditDelivery} handleEditPatient={handleEditPatient} handleDeleteDelivery={handleDeleteDelivery}
             handleRestartDelivery={handleRestartDelivery} handleStatusUpdate={handleStatusUpdate} handleNotesUpdate={handleNotesUpdate}

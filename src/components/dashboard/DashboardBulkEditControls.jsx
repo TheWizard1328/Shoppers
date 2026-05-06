@@ -83,16 +83,8 @@ export default function DashboardBulkEditControls({
     return null;
   }
 
-  return {
-    selectedDeliveryIds,
-    selectedDeliveries,
-    selectedCount,
-    showBulkEditPanel,
-    setShowBulkEditPanel,
-    handleSelectionChange,
-    clearSelection,
-    bulkEditOverlay: (
-      <>
+  return (
+    <>
       {selectedCount > 0 && (
         <div
           className="absolute left-1/2 z-[240] flex -translate-x-1/2 items-center gap-2 rounded-full border bg-white/95 px-3 py-2 shadow-xl backdrop-blur-sm"
@@ -126,6 +118,5 @@ export default function DashboardBulkEditControls({
         isSaving={isSaving}
       />
     </>
-    )
-  };
+  );
 }
