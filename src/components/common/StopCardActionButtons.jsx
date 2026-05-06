@@ -55,7 +55,7 @@ export default function StopCardActionButtons(props) {
 
   if (delivery.status === 'failed' && !isPickup) {
     return (
-      <div className="flex items-center gap-2 w-full relative z-20">
+      <div className="flex items-center gap-2 w-full relative z-[80] pointer-events-auto">
         {onStatusUpdate && (
           <Button
             data-stopcard-action="retry"
@@ -73,7 +73,7 @@ export default function StopCardActionButtons(props) {
           {isPreparingReturn ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <Undo2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
           Return
         </Button>
-        <div className="flex items-center ml-auto">
+        <div className="flex items-center ml-auto relative z-[90] pointer-events-auto">
           {onRestart && ['completed', 'failed', 'cancelled'].includes(delivery.status) && !routeCompleted && !isPastDeliveryDate && (
             <Button
               data-stopcard-action="restart"
