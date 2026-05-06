@@ -283,22 +283,39 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
 
   const { hasFutureRetry, hasFutureReturn, hasCompletedDelivery } = useMemo(() => {
     if (delivery.status !== 'failed' || isPickup || !patient) return { hasFutureRetry: false, hasFutureReturn: false, hasCompletedDelivery: false };
+
     const failedDate = String(delivery.delivery_date || '');
     const failedDateValue = Number(failedDate.replace(/-/g, ''));
     const toDateValue = failedDateValue + 7;
+    const returnPatientName = `${String(store?.name || '').replace(/-/g, ' ')} Return`;
+    const returnPatientRecord = patients.find((p) => p && p.full_name === returnPatientName && p.store_id === delivery.store_id);
+
     let futureRetryExists = false;
+    let futureReturnExists = false;
     let completedDeliveryExists = false;
+
     for (const d of allDeliveries) {
       if (!d || d.id === delivery.id || !d.delivery_date) continue;
+
       const dDateValue = Number(String(d.delivery_date).replace(/-/g, ''));
       if (dDateValue >= failedDateValue && dDateValue < toDateValue) {
         if (d.patient_id === delivery.patient_id && d.stop_id === delivery.stop_id && d.status !== 'failed') futureRetryExists = true;
+        if (
+          returnPatientRecord &&
+          d.store_id === delivery.store_id &&
+          d.patient_id === returnPatientRecord.id &&
+          !FINISHED_STATUSES.includes(d.status)
+        ) {
+          futureReturnExists = true;
+        }
         if (d.delivery_date === delivery.delivery_date && d.patient_id === delivery.patient_id && d.status === 'completed') completedDeliveryExists = true;
       }
-      if (futureRetryExists && completedDeliveryExists) break;
+
+      if (futureRetryExists && futureReturnExists && completedDeliveryExists) break;
     }
-    return { hasFutureRetry: futureRetryExists, hasFutureReturn: false, hasCompletedDelivery: completedDeliveryExists };
-  }, [delivery, allDeliveries, patient, isPickup]);
+
+    return { hasFutureRetry: futureRetryExists, hasFutureReturn: futureReturnExists, hasCompletedDelivery: completedDeliveryExists };
+  }, [delivery, allDeliveries, patient, isPickup, patients, store]);
 
   const canRetry = useMemo(() => {
     if (!delivery || delivery.status !== 'failed' || isPickup || !patient) return true;
