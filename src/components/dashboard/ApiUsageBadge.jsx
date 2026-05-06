@@ -123,7 +123,7 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
       <Tooltip open={isTooltipOpen} onOpenChange={handleTooltipOpenChange}>
         <TooltipTrigger asChild>
           <button
-          type="button" className="px-1 text-xs font-medium rounded-md border shadow-sm bg-[hsl(var(--background))]"
+          type="button" className="px-1 text-xs font-medium rounded-md border shadow-sm bg-transparent"
           onTouchStart={showApiTooltipForTouch}
           onClick={showApiTooltipForTouch}
           style={{ background: "color-mix(in srgb, var(--bg-white) 55%, transparent)", borderColor: "var(--border-slate-200)", color: "var(--text-slate-600)" }}>
