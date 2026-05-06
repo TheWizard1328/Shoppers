@@ -37,8 +37,8 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
         <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 text-slate-900 dark:text-white">
           <Badge
             variant="secondary"
-            className="h-6 min-w-[2.25rem] justify-center rounded-full border border-white/40 bg-transparent px-2 py-0 text-xs font-bold text-white"
-            style={{ color: "white" }}
+            className="h-6 min-w-[2.25rem] justify-center rounded-full border-0 px-2 py-0 text-xs font-bold text-white"
+            style={{ backgroundColor: storeColor || "#10B981", color: "white" }}
           >
             {formatStopOrder(delivery?.display_stop_order || delivery?.stop_order)}
           </Badge>
@@ -49,8 +49,8 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
 
           <Badge
             variant="secondary"
-            className="h-6 shrink-0 rounded-full border border-white/40 bg-transparent px-2 py-0 text-xs font-bold text-white"
-            style={{ color: "white" }}
+            className="h-6 shrink-0 rounded-full border-0 px-2 py-0 text-xs font-bold text-white"
+            style={{ backgroundColor: `${storeColor}`, color: "white" }}
           >
             {formatEta(delivery?.delivery_time_eta || delivery?.delivery_time_start)}
           </Badge>
@@ -61,8 +61,8 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
             {batchTracking && (
               <Badge
                 variant="secondary"
-                className="h-5 shrink-0 rounded-full border border-white/40 bg-transparent px-2 py-0 text-[11px] font-bold text-white"
-                style={{ color: "white" }}
+                className="h-5 shrink-0 rounded-full border-0 px-2 py-0 text-[11px] font-bold text-white"
+                style={{ backgroundColor: `${storeColor}`, color: "white" }}
               >
                 {batchTracking}
               </Badge>
@@ -78,8 +78,8 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
 
           <Badge
             variant="secondary"
-            className="h-5 shrink-0 rounded-full border border-white/40 bg-transparent px-2 py-0 text-[11px] font-bold text-white"
-            style={{ color: "white" }}
+            className="h-5 shrink-0 rounded-full border-0 px-2 py-0 text-[11px] font-bold text-white"
+            style={{ backgroundColor: `${storeColor}`, color: "white" }}
           >
             {formatDistance(remainingDistanceKm)}
           </Badge>
