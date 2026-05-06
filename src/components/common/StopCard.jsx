@@ -308,7 +308,12 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
         ) {
           futureReturnExists = true;
         }
-        if (d.delivery_date === delivery.delivery_date && d.patient_id === delivery.patient_id && d.status === 'completed') completedDeliveryExists = true;
+        if (
+          d.delivery_date === delivery.delivery_date &&
+          d.driver_id === delivery.driver_id &&
+          d.patient_id === delivery.patient_id &&
+          d.status === 'completed'
+        ) completedDeliveryExists = true;
       }
 
       if (futureRetryExists && futureReturnExists && completedDeliveryExists) break;
