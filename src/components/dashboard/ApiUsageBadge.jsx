@@ -152,12 +152,7 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
 
   return (
     <>
-      {!children && (
-        <div className="absolute left-6 z-[100] pointer-events-auto" style={{ bottom: `${Math.max(effectiveStopCardsHeight + 10, fabBottomOffset)}px` }}>
-          {counterButton}
-        </div>
-      )}
-      {children || counterButton}
+      {children}
       {showCompletedRouteControls &&
       <div className="absolute top-4 right-4 z-[180] pointer-events-auto">
           <div className="px-2 py-2 rounded-xl border shadow-lg space-y-1" style={{ background: 'transparent', borderColor: 'var(--border-slate-200)' }}>
