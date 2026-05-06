@@ -2,13 +2,10 @@ import React, { useCallback, useMemo, useState } from "react";
 import { PencilLine, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import BulkEditStopsPanel from "@/components/deliveries/BulkEditStopsPanel";
-import StopCardsSection from "@/components/dashboard/StopCardsSection";
 import { updateDeliveryLocal } from "@/components/utils/offlineMutations";
 import { invalidate } from "@/components/utils/dataManager";
 
 export default function DashboardBulkEditControls({
-  stopCardsProps,
-
   deliveriesWithStopOrder = [],
   drivers = [],
   stores = [],
@@ -88,13 +85,6 @@ export default function DashboardBulkEditControls({
 
   return (
     <>
-      <StopCardsSection
-        {...stopCardsProps}
-        bulkSelectionEnabled={true}
-        selectedDeliveryIds={selectedDeliveryIds}
-        onSelectionChange={handleSelectionChange}
-      />
-
       {selectedCount > 0 && (
         <div
           className="absolute left-1/2 z-[240] flex -translate-x-1/2 items-center gap-2 rounded-full border bg-white/95 px-3 py-2 shadow-xl backdrop-blur-sm"
