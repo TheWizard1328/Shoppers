@@ -33,7 +33,7 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
 
   return (
     <div className="absolute left-2 right-2 z-[700] pointer-events-none" style={{ top: `${Math.max(8, topOffset + 8)}px` }}>
-      <div className="rounded-2xl border border-white/60 bg-white/10 px-2.5 py-1.5 shadow-md backdrop-blur-md dark:border-slate-800/70 dark:bg-slate-950/10" style={{ backgroundColor: 'rgba(255, 255, 255, 0.9)' }}>
+      <div className="rounded-2xl border border-white/60 bg-transparent px-2.5 py-1.5 shadow-md backdrop-blur-md dark:border-slate-800/70 dark:bg-transparent">
         <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 text-slate-900 dark:text-white">
           <Badge
             variant="secondary"
