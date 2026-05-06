@@ -601,7 +601,7 @@ export default function SquareManagement() {
     const patientName = patient?.full_name || '';
     const store = stores.find((s) => s?.id === delivery?.store_id);
     const deliveryAmountCents = Math.round(Number(delivery?.cod_total_amount_required || 0) * 100);
-    const deliveryDate = delivery?.delivery_date ? format(new Date(`${delivery.delivery_date}T00:00:00`), 'MM/dd') : null;
+    const deliveryDateString = delivery?.delivery_date ? String(delivery.delivery_date).slice(0, 10) : null;
     const storeAbbreviation = String(store?.abbreviation || '').trim().toLowerCase();
     const normalizedLocationId = String(locationId || '').trim();
 
@@ -619,18 +619,23 @@ export default function SquareManagement() {
       if (!searchableText || !patientNamesMatch(patientName, searchableText)) return false;
 
       const parsed = parseSquareItemName(String(transaction.item_name || '').trim());
-      const transactionDate = parsed?.deliveryDate ? format(new Date(`${parsed.deliveryDate}T00:00:00`), 'MM/dd') : null;
+      const parsedTransactionDateString = parsed?.deliveryDate || null;
+      const transactionCreatedDate = getTransactionCreatedDate(transaction);
+      const transactionCreatedDateString = transactionCreatedDate ? format(transactionCreatedDate, 'yyyy-MM-dd') : null;
+      const transactionDateString = parsedTransactionDateString || transactionCreatedDateString;
       const transactionStoreAbbreviation = String(parsed?.storeAbbr || '').trim().toLowerCase();
       const transactionLocationId = String(transaction.location_id || '').trim();
 
-      const dateMatches = !!deliveryDate && !!transactionDate && deliveryDate === transactionDate;
-      const abbreviationMatches = !!storeAbbreviation && !!transactionStoreAbbreviation && storeAbbreviation === transactionStoreAbbreviation;
+      const dateMatches = !!deliveryDateString && !!transactionDateString && deliveryDateString === transactionDateString;
+      const abbreviationMatches = !!storeAbbreviation && (
+        (!!transactionStoreAbbreviation && storeAbbreviation === transactionStoreAbbreviation) ||
+        searchableText.toLowerCase().includes(storeAbbreviation)
+      );
       const locationMatches = !!normalizedLocationId && !!transactionLocationId && normalizedLocationId === transactionLocationId;
-      const storeMatches = abbreviationMatches || locationMatches;
 
-      return dateMatches && storeMatches;
+      return dateMatches || locationMatches || abbreviationMatches;
     });
-  }, [allTransactions, patients, stores]);
+  }, [allTransactions, patients, stores, getTransactionCreatedDate]);
 
   const confirmDelete = async () => {
     if (!itemToDelete) return;
