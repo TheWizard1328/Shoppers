@@ -5,11 +5,41 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Badge } from "@/components/ui/badge";
 import { X, Check, ChevronDown } from "lucide-react";
 
+const getMobileOverlayBounds = () => {
+  if (typeof window === 'undefined') {
+    return { maxHeight: 320, isMobileLike: false };
+  }
+
+  const mobileHeader = document.querySelector('[data-mobile-header]');
+  const mobileBottomNav = document.querySelector('[data-mobile-bottom-nav]');
+  const headerBottom = mobileHeader?.getBoundingClientRect?.().bottom || 0;
+  const bottomNavTop = mobileBottomNav?.getBoundingClientRect?.().top || window.innerHeight;
+  const availableHeight = Math.max(220, Math.floor(bottomNavTop - headerBottom - 16));
+  const isMobileLike = window.innerWidth < 768 || !!mobileHeader;
+
+  return { maxHeight: availableHeight, isMobileLike };
+};
+
 export const MultiSelect = React.forwardRef((props, ref) => {
   const { options = [], value: propValue = [], onChange, placeholder = "Select...", className, id, ...rest } = props;
   const [open, setOpen] = React.useState(false);
+  const [overlayBounds, setOverlayBounds] = React.useState(() => getMobileOverlayBounds());
   // Ensure value is always an array to prevent rendering errors
   const value = Array.isArray(propValue) ? propValue : [];
+
+  React.useEffect(() => {
+    if (!open) return;
+
+    const updateBounds = () => setOverlayBounds(getMobileOverlayBounds());
+    updateBounds();
+    window.addEventListener('resize', updateBounds);
+    window.addEventListener('orientationchange', updateBounds);
+
+    return () => {
+      window.removeEventListener('resize', updateBounds);
+      window.removeEventListener('orientationchange', updateBounds);
+    };
+  }, [open]);
 
   const handleSelect = (selectedValue) => {
     const newValue = value.includes(selectedValue) ?
@@ -80,9 +110,13 @@ export const MultiSelect = React.forwardRef((props, ref) => {
                     <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
                 </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[--radix-popover-trigger-width] p-0 z-[10003]">
-                <Command>
-                    <CommandList>
+            <PopoverContent
+              className="w-[--radix-popover-trigger-width] p-0 z-[10003] overflow-hidden"
+              align="start"
+              sideOffset={4}
+              style={overlayBounds.isMobileLike ? { maxHeight: `${overlayBounds.maxHeight}px` } : undefined}>
+                <Command className="overflow-hidden">
+                    <CommandList className="max-h-full overflow-y-auto overscroll-contain" style={overlayBounds.isMobileLike ? { maxHeight: `${overlayBounds.maxHeight}px` } : { maxHeight: '20rem' }}>
                         <CommandEmpty>No results found.</CommandEmpty>
                         <CommandGroup>
                             {(options || []).map((option) => {
