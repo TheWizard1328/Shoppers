@@ -387,23 +387,6 @@ class LocationTracker {
         if (this.isPrimaryDevice && movedEnough && enoughTimePassed) {
           this.lastEtaRefreshPosition = { latitude, longitude };
           this.lastEtaRefreshAt = now;
-          base44.functions.invoke('refreshDriverEtasOnLocationUpdate', {
-            driverId: this.currentUser.id,
-            deliveryDate: this.currentDeliveryDate,
-            isPrimaryDevice: this.isPrimaryDevice,
-            routeChangeSource: 'poll',
-            data: {
-              ...updatedAppUser,
-              previous_latitude: previousEtaPosition?.latitude ?? null,
-              previous_longitude: previousEtaPosition?.longitude ?? null
-            },
-            old_data: previousEtaPosition ? {
-              current_latitude: previousEtaPosition.latitude,
-              current_longitude: previousEtaPosition.longitude
-            } : null
-          }).catch((etaError) => {
-            console.warn('⚠️ [LocationTracker] ETA refresh skipped:', etaError?.message || etaError);
-          });
         }
 
         const previousPolylinePosition = this.lastPolylineRefreshPosition;
