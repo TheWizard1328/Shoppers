@@ -381,6 +381,13 @@ function groupModeOverrideRanges(stops, getMode) {
   return groups;
 }
 
+function resolveStopTravelMode(stop, explicitMeta, driverAppUser, finishedField = 'transport_mode') {
+  const explicitMode = explicitMeta?.transport_mode || explicitMeta?.[finishedField];
+  const stopMode = stop?.[finishedField] || stop?.transport_mode;
+  const driverMode = driverAppUser?.preferred_travel_mode;
+  return getNormalizedTravelMode(explicitMode || stopMode || driverMode, 'driving');
+}
+
 
 async function bulkUpdateDeliveries(base44, deliveries, updatesById) {
   if (!(updatesById instanceof Map) || updatesById.size === 0) {
