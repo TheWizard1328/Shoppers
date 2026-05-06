@@ -4,6 +4,11 @@ import { CheckCircle, Clock, Loader2, RotateCcw, Undo2 } from "lucide-react";
 import StopCardPOD from "./StopCardPOD";
 import StopCardFooterMenu from "./StopCardFooterMenu";
 
+const stopCardButtonPress = (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+};
+
 export default function StopCardActionButtons(props) {
   const {
     delivery,
@@ -54,6 +59,9 @@ export default function StopCardActionButtons(props) {
           <Button
             data-stopcard-action="retry"
             type="button"
+            onPointerDown={stopCardButtonPress}
+            onMouseDown={stopCardButtonPress}
+            onTouchStart={stopCardButtonPress}
             onClick={handleRetryDelivery}
             size="sm"
             className="bg-blue-600 hover:bg-blue-700 h-10 !text-white text-sm flex-1 relative z-30 pointer-events-auto"
@@ -72,6 +80,9 @@ export default function StopCardActionButtons(props) {
             <Button
               data-stopcard-action="restart"
               type="button"
+              onPointerDown={stopCardButtonPress}
+              onMouseDown={stopCardButtonPress}
+              onTouchStart={stopCardButtonPress}
               onClick={async (e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -129,6 +140,9 @@ export default function StopCardActionButtons(props) {
           <Button
             data-stopcard-action="restart"
             type="button"
+            onPointerDown={stopCardButtonPress}
+            onMouseDown={stopCardButtonPress}
+            onTouchStart={stopCardButtonPress}
             onClick={async (e) => {
               e.preventDefault();
               e.stopPropagation();
