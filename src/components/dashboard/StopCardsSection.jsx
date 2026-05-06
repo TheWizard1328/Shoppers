@@ -16,7 +16,9 @@ export default function StopCardsSection({
   handleEditDelivery, handleEditPatient, handleDeleteDelivery,
   handleRestartDelivery, handleStatusUpdate, handleNotesUpdate,
   handleCODUpdate, handleCreateReturn, handleStartDelivery,
-  refreshUser, showStopCardCheckboxes = false
+  refreshUser, showStopCardCheckboxes = false,
+  selectedDeliveryIds = {},
+  onSelectionChange
 }) {
 
   return (
@@ -92,8 +94,8 @@ export default function StopCardsSection({
           drivers={drivers}
           patients={patients}
           currentUser={currentUser}
-          onSelectionChange={() => {}}
-          selectedDeliveryIds={{}}
+          onSelectionChange={onSelectionChange}
+          selectedDeliveryIds={selectedDeliveryIds}
           stopOrder={{}}
           bulkSelectionEnabled={showStopCardCheckboxes}
           showDriverName={isAllDriversMode}

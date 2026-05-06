@@ -15,8 +15,9 @@ export default function DashboardBulkEditControls({
   stopCardsBaseHeight = 0,
   immersiveHidden = false,
   refreshData,
+  selectedDeliveryIds = {},
+  onSelectionChange,
 }) {
-  const [selectedDeliveryIds, setSelectedDeliveryIds] = useState({});
   const [showBulkEditPanel, setShowBulkEditPanel] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -29,19 +30,12 @@ export default function DashboardBulkEditControls({
 
   const selectedCount = selectedDeliveries.length;
 
-  const handleSelectionChange = useCallback((deliveryId, selected) => {
-    setSelectedDeliveryIds((current) => {
-      const next = { ...current };
-      if (selected) next[deliveryId] = true;
-      else delete next[deliveryId];
-      return next;
-    });
-  }, []);
-
   const clearSelection = useCallback(() => {
-    setSelectedDeliveryIds({});
+    Object.keys(selectedDeliveryIds).forEach((deliveryId) => {
+      onSelectionChange?.(deliveryId, false);
+    });
     setShowBulkEditPanel(false);
-  }, []);
+  }, [onSelectionChange, selectedDeliveryIds]);
 
   const handleApply = useCallback(async (values) => {
     if (selectedDeliveries.length === 0) return;

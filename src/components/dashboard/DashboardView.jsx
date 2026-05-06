@@ -88,7 +88,18 @@ export default function DashboardView({
   const [finalizedDutyTime, setFinalizedDutyTime] = useState(null);
   const [immersiveLiveDriverLocation, setImmersiveLiveDriverLocation] = useState(null);
   const [showStopCardCheckboxes, setShowStopCardCheckboxes] = useState(false);
+  const [selectedDeliveryIds, setSelectedDeliveryIds] = useState({});
   const initialFabRetriggeredRef = useRef(false);
+
+  const handleStopCardSelectionChange = (deliveryId, selected) => {
+    setSelectedDeliveryIds((current) => {
+      const next = { ...current };
+      if (!deliveryId) return next;
+      if (selected) next[deliveryId] = true;
+      else delete next[deliveryId];
+      return next;
+    });
+  };
   useEffect(() => {
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
     const hasDeliveriesForDate = Array.isArray(deliveries) && deliveries.some(d => d && d.delivery_date === dateStr);
@@ -347,6 +358,8 @@ export default function DashboardView({
             stopCardsBaseHeight={stopCardsBaseHeight}
             immersiveHidden={immersiveHidden}
             refreshData={refreshData}
+            selectedDeliveryIds={selectedDeliveryIds}
+            onSelectionChange={handleStopCardSelectionChange}
           />
           <StopCardsSection
             currentUser={currentUser} isDriver={isDriver} isAdmin={isAdmin} isDispatcher={isDispatcher} isMobile={isMobile}
@@ -363,6 +376,8 @@ export default function DashboardView({
             handleCODUpdate={handleCODUpdate} handleCreateReturn={handleCreateReturn} handleStartDelivery={handleStartDelivery}
             refreshUser={refreshUser}
             showStopCardCheckboxes={showStopCardCheckboxes}
+            selectedDeliveryIds={selectedDeliveryIds}
+            onSelectionChange={handleStopCardSelectionChange}
           />
         </div>
 
