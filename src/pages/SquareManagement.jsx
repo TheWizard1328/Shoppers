@@ -726,10 +726,12 @@ export default function SquareManagement() {
     if (!store?.id) return false;
     if (store?.square_location_config_id) {
       const config = locationConfigs.find((locationConfig) => locationConfig?.id === store.square_location_config_id);
-      return Boolean(config?.square_location_id);
+      if (config?.square_location_id) return true;
     }
-    return allTransactions.some((transaction) => transaction?.store_id === store.id && transaction?.location_id);
-  }), [stores, locationConfigs, allTransactions]);
+    return deliveries.some((delivery) => delivery?.store_id === store.id && Number(delivery?.cod_total_amount_required || 0) > 0)
+      || catalogItems.some((item) => item?.store_id === store.id && item?.location_id)
+      || allTransactions.some((transaction) => transaction?.store_id === store.id && transaction?.location_id);
+  }), [stores, locationConfigs, deliveries, catalogItems, allTransactions]);
 
   const availableStoresForFilter = useMemo(() => {
     const cityFilteredStores = activeCityIds.length > 0
