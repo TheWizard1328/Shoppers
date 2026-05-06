@@ -436,12 +436,12 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
   const cardZIndex = isMobileCard
     ? isExpanded
       ? 320
-      : isBulkSelected
-        ? 230
-        : isHovered && !isRailCentered
-          ? 260
-          : isRailCentered
-            ? 250
+      : isHovered && !isRailCentered
+        ? 260
+        : isRailCentered
+          ? 250
+          : isBulkSelected
+            ? 230
             : 220
     : isExpanded
       ? 70
