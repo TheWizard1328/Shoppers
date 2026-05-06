@@ -697,7 +697,7 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
               overflow: 'visible',
               scrollSnapAlign: isMobile ? 'center' : 'none',
               scrollSnapStop: isMobile ? 'always' : 'normal',
-              marginLeft: isInRightDeck ? '-250px' : undefined,
+              marginLeft: isInRightDeck ? '-375px' : undefined,
               zIndex: isInRightDeck ? 220 : undefined
             }}
             data-is-next-delivery={card.isNextDelivery ? "true" : undefined}>
