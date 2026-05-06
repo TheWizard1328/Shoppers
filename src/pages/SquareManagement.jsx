@@ -713,7 +713,7 @@ export default function SquareManagement() {
   const lookbackStart = useMemo(() => {
     const date = new Date();
     date.setHours(0, 0, 0, 0);
-    date.setDate(date.getDate() - Number(selectedDaysRange || 60));
+    date.setDate(date.getDate() - Number(selectedDaysRange || 90));
     return date;
   }, [selectedDaysRange]);
 
