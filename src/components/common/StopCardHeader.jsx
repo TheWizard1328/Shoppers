@@ -152,11 +152,14 @@ export default function StopCardHeader({
     <>
       {/* Left badges column */}
       <div className="mt-0 mb-1 my-0.5 py-0.5 flex flex-col items-center gap-1.0 min-w-[50px]">
-        <div className="mt-1 flex items-center gap-1">
+        <Badge
+          variant="secondary"
+          className={`bg-secondary text-white mt-1 px-2 py-0.5 text-sm font-bold rounded-full inline-flex items-center border transition-colors justify-center ${bulkSelectionEnabled ? 'gap-1 min-w-[58px]' : 'w-[40px]'}`}
+          style={{ backgroundColor: storeColor || "#10B981", color: "white" }}>
           {bulkSelectionEnabled && (
             <div
               data-stopcard-checkbox="true"
-              className="flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-sm"
+              className="-m-1 flex h-7 w-7 items-center justify-center rounded-full"
               onClick={(event) => event.stopPropagation()}
               onPointerDown={(event) => event.stopPropagation()}
               onMouseDown={(event) => event.stopPropagation()}
@@ -170,17 +173,12 @@ export default function StopCardHeader({
                 onTouchStart={(event) => event.stopPropagation()}
                 onCheckedChange={(checked) => onSelectionChange?.(delivery.id, !!checked)}
                 aria-label="Select stop"
-                className="pointer-events-auto h-5 w-5 border-slate-300 bg-white data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+                className="h-5 w-5 border-white bg-white/90 data-[state=checked]:bg-white data-[state=checked]:text-slate-900"
               />
             </div>
           )}
-          <Badge
-            variant="secondary"
-            className="bg-secondary text-white px-2 py-0.5 text-sm font-bold rounded-full inline-flex items-center border transition-colors justify-center min-w-[40px]"
-            style={{ backgroundColor: storeColor || "#10B981", color: "white" }}>
-            <span>#{delivery?.display_stop_order || delivery?.stop_order || 0}</span>
-          </Badge>
-        </div>
+          <span className="pointer-events-none">#{delivery?.display_stop_order || delivery?.stop_order || 0}</span>
+        </Badge>
 
         {isPickup && pendingPickups && pendingPickups.length > 0 &&
         <Badge
