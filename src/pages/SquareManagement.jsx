@@ -627,9 +627,10 @@ export default function SquareManagement() {
       const dateMatches = !!deliveryDate && !!transactionDate && deliveryDate === transactionDate;
       const storeMatches = !!storeAbbreviation && !!transactionStoreAbbreviation && storeAbbreviation === transactionStoreAbbreviation;
 
+      // In hasMatchingSquareTransaction, change the last line:
       if (dateMatches && storeMatches) return true;
       if (dateMatches || storeMatches) return true;
-      return true;
+      return false;  // ← WAS: return true — this was matching everything
     });
   }, [allTransactions, patients, stores]);
 
