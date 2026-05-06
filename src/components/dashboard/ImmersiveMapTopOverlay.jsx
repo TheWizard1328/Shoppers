@@ -34,18 +34,17 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
   return (
     <div className="absolute left-2 right-2 z-[700] pointer-events-none" style={{ top: `${Math.max(8, topOffset + 8)}px` }}>
       <div className="rounded-2xl border border-white/60 bg-white/78 px-2.5 py-1.5 shadow-md backdrop-blur-md dark:border-slate-800/70 dark:bg-slate-950/55">
-        <div className="flex items-center justify-between gap-2 text-slate-900 dark:text-white">
-          <div className="flex min-w-0 items-center gap-1.5">
-            <Badge
-              variant="secondary"
-              className="h-6 min-w-[2.25rem] justify-center rounded-full border-0 px-2 py-0 text-xs font-bold text-white"
-              style={{ backgroundColor: storeColor || "#10B981", color: "white" }}
-            >
-              {formatStopOrder(delivery?.display_stop_order || delivery?.stop_order)}
-            </Badge>
-            <div className="min-w-0 truncate text-sm font-semibold text-slate-900 dark:text-white">
-              {finalDisplayName}
-            </div>
+        <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 text-slate-900 dark:text-white">
+          <Badge
+            variant="secondary"
+            className="h-6 min-w-[2.25rem] justify-center rounded-full border-0 px-2 py-0 text-xs font-bold text-white"
+            style={{ backgroundColor: storeColor || "#10B981", color: "white" }}
+          >
+            {formatStopOrder(delivery?.display_stop_order || delivery?.stop_order)}
+          </Badge>
+
+          <div className="min-w-0 truncate text-center text-sm font-semibold text-slate-900 dark:text-white">
+            {finalDisplayName}
           </div>
 
           <Badge
@@ -53,12 +52,12 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
             className="h-6 shrink-0 rounded-full border-0 px-2 py-0 text-xs font-bold text-white"
             style={{ backgroundColor: `${storeColor}`, color: "white" }}
           >
-            ETA {formatEta(delivery?.delivery_time_eta || delivery?.delivery_time_start)}
+            {formatEta(delivery?.delivery_time_eta || delivery?.delivery_time_start)}
           </Badge>
         </div>
 
-        <div className="mt-1 flex items-center justify-between gap-2 text-slate-800 dark:text-white">
-          <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
+        <div className="mt-1 grid grid-cols-[auto_1fr_auto] items-center gap-2 text-slate-800 dark:text-white">
+          <div className="flex items-center gap-1.5 overflow-hidden">
             {batchTracking && (
               <Badge
                 variant="secondary"
@@ -71,9 +70,10 @@ export default function ImmersiveMapTopOverlay({ delivery, store, patient, isPic
             <div className="flex shrink-0 items-center">
               <SpecialSymbolsBadges delivery={delivery} patient={patient} isPickup={isPickup} size="card" />
             </div>
-            <div className="min-w-0 truncate text-xs font-medium text-slate-800 dark:text-white">
-              {patient?.address || store?.address || '--'}
-            </div>
+          </div>
+
+          <div className="min-w-0 truncate text-center text-xs font-medium text-slate-800 dark:text-white">
+            {patient?.address || store?.address || '--'}
           </div>
 
           <Badge
