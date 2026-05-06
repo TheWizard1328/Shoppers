@@ -998,7 +998,7 @@ export default function SquareManagement() {
           actions: <Button variant="secondary" size="sm" className="border border-red-300 bg-red-100 text-red-800 hover:bg-red-100">Unmatched</Button>
         };
       });
-  }, [filteredDeliveryRows, filteredTransactionRows, hasMatchingSquareTransaction, patients, stores, catalogItems, formatItemNameForDisplay]);
+  }, [filteredDeliveryRows, hasMatchingSquareTransaction, patients, stores, catalogItems, formatItemNameForDisplay]); // , filteredTransactionRows
 
   const codDeliveriesCount = useMemo(() => deliveries.filter((delivery) => {
     if (!delivery || Number(delivery.cod_total_amount_required || 0) <= 0) return false;
