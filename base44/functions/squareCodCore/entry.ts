@@ -1262,7 +1262,7 @@ async function handleGetCodData(base44, payload = {}) {
 
   const endDate = new Date();
   const startDate = new Date();
-  startDate.setDate(startDate.getDate() - TRANSACTION_RETENTION_DAYS);
+  startDate.setDate(startDate.getDate() - daysBack);
   const startDateStr = formatLocalDate(startDate);
   const endDateStr = formatLocalDate(endDate);
 
@@ -1414,6 +1414,7 @@ async function handleGetCodData(base44, payload = {}) {
     deliverySyncWindow: {
       startDate: startDateStr,
       endDate: endDateStr,
+      daysBack,
       refreshedAt: refreshDeliveries ? new Date().toISOString() : null,
     },
     catalogRecords,
