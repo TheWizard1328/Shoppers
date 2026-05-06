@@ -8,6 +8,7 @@ import DashboardMapSection from "@/features/dashboard/components/DashboardMapSec
 import StopCardsSection from "@/components/dashboard/StopCardsSection";
 import DashboardBulkEditControls from "@/components/dashboard/DashboardBulkEditControls";
 import ApiUsageBadge from "@/components/dashboard/ApiUsageBadge";
+import StopCardCheckboxToggle from "@/components/dashboard/StopCardCheckboxToggle";
 import FABControls from "@/components/dashboard/FABControls";
 import DashboardDialogs from "@/components/dashboard/DashboardDialogs";
 
@@ -86,6 +87,7 @@ export default function DashboardView({
   const initialDataReadyRef = useRef(null);
   const [finalizedDutyTime, setFinalizedDutyTime] = useState(null);
   const [immersiveLiveDriverLocation, setImmersiveLiveDriverLocation] = useState(null);
+  const [showStopCardCheckboxes, setShowStopCardCheckboxes] = useState(false);
   const initialFabRetriggeredRef = useRef(false);
   useEffect(() => {
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
@@ -360,6 +362,7 @@ export default function DashboardView({
             handleRestartDelivery={handleRestartDelivery} handleStatusUpdate={handleStatusUpdate} handleNotesUpdate={handleNotesUpdate}
             handleCODUpdate={handleCODUpdate} handleCreateReturn={handleCreateReturn} handleStartDelivery={handleStartDelivery}
             refreshUser={refreshUser}
+            showStopCardCheckboxes={showStopCardCheckboxes}
           />
         </div>
 
@@ -371,6 +374,12 @@ export default function DashboardView({
           </div>
         )}
 
+        <StopCardCheckboxToggle
+          checked={showStopCardCheckboxes}
+          onCheckedChange={(checked) => setShowStopCardCheckboxes(!!checked)}
+          stopCardsHeight={immersiveHidden ? 0 : stopCardsBaseHeight}
+          immersiveHidden={immersiveHidden}
+        />
         <ApiUsageBadge
           currentUser={currentUser}
           stopCardsHeight={immersiveHidden ? 0 : stopCardsBaseHeight}
