@@ -651,13 +651,13 @@ export default function Layout({ children, currentPageName }) {
 
     // Listen for delivery updates from DeliveryForm and trigger refresh
     const handleDeliveriesUpdated = async (event) => {
-      const { deliveryId, driverId, deliveryDate, triggeredBy, freshDeliveries, preserveLocalState } = event.detail || {};
-      // Skip full reload for events that already contain fresh data or explicitly preserve local state
+      const { deliveryId, driverId, deliveryDate, triggeredBy, freshDeliveries, preserveLocalState, deletedIds, deletedId } = event.detail || {};
       const skipReloadTriggers = ['batchSaveImmediate', 'driver_location_update', 'driverLocationUpdate', 'pullToSyncDataReady', 'pullToSyncComplete', 'initialDataReady'];
       if (preserveLocalState || skipReloadTriggers.includes(triggeredBy)) {
-        if (freshDeliveries?.length > 0) {
-          setDeliveries((prev) => {const map = new Map(prev.map((d) => [d?.id, d]).filter(([id]) => !!id));freshDeliveries.forEach((d) => {if (d?.id) map.set(d.id, d);});return Array.from(map.values());});
-        }
+        // CRITICAL: Always remove deleted IDs even when preserving local state (cross-device realtime deletes)
+        const idsToRemove = new Set([...(deletedIds || []), ...(deletedId ? [deletedId] : [])]);
+        if (idsToRemove.size > 0) setDeliveries((prev) => prev.filter((d) => !idsToRemove.has(d?.id)));
+        if (freshDeliveries?.length > 0) setDeliveries((prev) => {const map = new Map(prev.filter((d) => !idsToRemove.has(d?.id)).map((d) => [d?.id, d]).filter(([id]) => !!id));freshDeliveries.forEach((d) => {if (d?.id && !idsToRemove.has(d.id)) map.set(d.id, d);});return Array.from(map.values());});
         return;
       }
       console.log(`🔄 [Layout] Delivery updated event: ${deliveryId} (${triggeredBy})`);
