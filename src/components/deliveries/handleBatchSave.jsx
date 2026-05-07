@@ -275,7 +275,11 @@ export async function handleBatchSave({
           .filter((pickup) => pickup?.id || pickup?.stop_id)
           .map((pickup) => [pickup.id || pickup.stop_id, pickup])
       ).values());
-      routeStructureChanged = routeStructureChanged || newPickupsCreated;
+      
+      // Only consider it a route structure change if new in_transit stops are being added
+      // Pure "pending" transitions don't require route optimization
+      const hasNewInTransitStops = newDeliveries.some((d) => d?.status === 'in_transit');
+      routeStructureChanged = routeStructureChanged || newPickupsCreated || hasNewInTransitStops;
 
       const ensuredPickupByKey = new Map(
         ensuredPickupRecords
