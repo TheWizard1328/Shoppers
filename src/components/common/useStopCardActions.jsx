@@ -779,13 +779,27 @@ export default function useStopCardActions(params) {
         const actedOnNextDelivery = delivery?.isNextDelivery === true;
         await setAndCenterNextDelivery({ driverDeliveries: routeDeliveries, targetDeliveryId: nextStop?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true, persistToBackend: true });
         if (actedOnNextDelivery && shouldRecalculateCompletionEtas && remainingEtaDeliveries.length > 0) {
+          // Calculate updated ETAs for remaining stops based on device current time and estimated_duration_minutes
+          const currentLocalTime = getCurrentLocalTime?.() || localNowParts?.time || getCurrentLocalTimeString();
+          const updatedRemainingWithEtas = remainingEtaDeliveries.map((stop, index) => {
+            const travelMinutes = index === 0 ? 0 : (remainingEtaDeliveries[index - 1]?.estimated_duration_minutes || 0);
+            const accumulatedMinutes = remainingEtaDeliveries.slice(0, index).reduce((sum, s) => sum + (s?.estimated_duration_minutes || 0), travelMinutes);
+            const [hours, minutes] = currentLocalTime.split(':').map(Number);
+            const currentTotalMinutes = hours * 60 + minutes;
+            const newEtaMinutes = currentTotalMinutes + accumulatedMinutes;
+            const newEtaHours = Math.floor((newEtaMinutes % 1440) / 60);
+            const newEtaMins = newEtaMinutes % 60;
+            const newEta = `${String(newEtaHours).padStart(2, '0')}:${String(newEtaMins).padStart(2, '0')}`;
+            return { ...stop, delivery_time_eta: newEta };
+          });
+
           await refreshDriverRoute({
             driverId: delivery.driver_id,
             deliveryDate: delivery.delivery_date,
             forceRefreshDriverDeliveries,
             triggeredBy: 'completeEtaRefresh',
             etaPayload: {
-              deliveries: remainingEtaDeliveries,
+              deliveries: updatedRemainingWithEtas,
               lastStopCompletionTime: completionUpdate.actual_delivery_time,
               lastStopServiceTime: delivery.extra_time || 0
             }
@@ -917,13 +931,27 @@ export default function useStopCardActions(params) {
         const incompleteDeliveries = driverDeliveries.filter((d) => d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending').sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
         await setAndCenterNextDelivery({ driverDeliveries, targetDeliveryId: incompleteDeliveries[0]?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true, persistToBackend: true });
         if (actedOnNextDelivery && shouldRecalculateFailureEtas && remainingEtaDeliveries.length > 0) {
+          // Calculate updated ETAs for remaining stops based on device current time and estimated_duration_minutes
+          const currentLocalTime = getCurrentLocalTime?.() || localNowParts?.time || getCurrentLocalTimeString();
+          const updatedRemainingWithEtas = remainingEtaDeliveries.map((stop, index) => {
+            const travelMinutes = index === 0 ? 0 : (remainingEtaDeliveries[index - 1]?.estimated_duration_minutes || 0);
+            const accumulatedMinutes = remainingEtaDeliveries.slice(0, index).reduce((sum, s) => sum + (s?.estimated_duration_minutes || 0), travelMinutes);
+            const [hours, minutes] = currentLocalTime.split(':').map(Number);
+            const currentTotalMinutes = hours * 60 + minutes;
+            const newEtaMinutes = currentTotalMinutes + accumulatedMinutes;
+            const newEtaHours = Math.floor((newEtaMinutes % 1440) / 60);
+            const newEtaMins = newEtaMinutes % 60;
+            const newEta = `${String(newEtaHours).padStart(2, '0')}:${String(newEtaMins).padStart(2, '0')}`;
+            return { ...stop, delivery_time_eta: newEta };
+          });
+
           await refreshDriverRoute({
             driverId: delivery.driver_id,
             deliveryDate: delivery.delivery_date,
             forceRefreshDriverDeliveries,
             triggeredBy: 'failureEtaRefresh',
             etaPayload: {
-              deliveries: remainingEtaDeliveries,
+              deliveries: updatedRemainingWithEtas,
               lastStopCompletionTime: criticalUpdate.actual_delivery_time,
               lastStopServiceTime: delivery.extra_time || 0
             }
