@@ -23,16 +23,28 @@ export function getLocalDeliveryPredictions({ currentUser, stores, patients, all
 
   if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
     storeIdsToPredict = currentUser.store_ids || [];
-  } else if (userHasRole(currentUser, 'admin')) {
-    storeIdsToPredict = currentUser.store_ids?.length > 0 ? currentUser.store_ids : (stores || []).map((store) => store.id);
-  } else if (userHasRole(currentUser, 'driver')) {
-    storeIdsToPredict = (stores || []).filter((store) => {
-      const isSaturday = dayOfWeek === 6;
-      const isSunday = dayOfWeek === 0;
+  } else if (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) {
+    // CRITICAL: Always base projections on the ACTIVE USER's own store assignments,
+    // never on the selected driver. Check store slot assignments first (driver role),
+    // then fall back to explicit store_ids, then all stores (admin only).
+    const isSaturday = dayOfWeek === 6;
+    const isSunday = dayOfWeek === 0;
+    const slotStoreIds = (stores || []).filter((store) => {
       return isSaturday && (store.saturday_am_driver_id === currentUser.id || store.saturday_pm_driver_id === currentUser.id) ||
         isSunday && (store.sunday_am_driver_id === currentUser.id || store.sunday_pm_driver_id === currentUser.id) ||
         !isSaturday && !isSunday && (store.weekday_am_driver_id === currentUser.id || store.weekday_pm_driver_id === currentUser.id);
     }).map((store) => store.id);
+
+    if (slotStoreIds.length > 0) {
+      // Active user is assigned to specific store slots for this day — use those
+      storeIdsToPredict = slotStoreIds;
+    } else if (currentUser.store_ids?.length > 0) {
+      // Fall back to explicit store_ids on the user record
+      storeIdsToPredict = currentUser.store_ids;
+    } else if (userHasRole(currentUser, 'admin')) {
+      // Admin with no specific assignments — show all stores
+      storeIdsToPredict = (stores || []).map((store) => store.id);
+    }
   }
 
   if (storeIdsToPredict.length === 0 && !userHasRole(currentUser, 'admin')) return [];
