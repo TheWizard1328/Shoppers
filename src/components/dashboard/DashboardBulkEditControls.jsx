@@ -42,10 +42,9 @@ export default function DashboardBulkEditControls({
 
   const selectedCount = selectedDeliveries.length;
 
-  // Count how many of the selected stops are "pending" (not yet completed/failed/cancelled)
-  const pendingCount = useMemo(() => {
-    return selectedDeliveries.filter((d) => d?.patient_id && d?.status === "pending").length;
-  }, [selectedDeliveries]);
+  const pickupCount = useMemo(() => selectedDeliveries.filter((d) => !d?.patient_id).length, [selectedDeliveries]);
+  const deliveryCount = useMemo(() => selectedDeliveries.filter((d) => !!d?.patient_id).length, [selectedDeliveries]);
+  const pendingDeliveryCount = useMemo(() => selectedDeliveries.filter((d) => d?.patient_id && d?.status === "pending").length, [selectedDeliveries]);
 
   const clearSelection = useCallback(() => {
     Object.keys(selectedDeliveryIds).forEach((deliveryId) => {
@@ -160,12 +159,23 @@ export default function DashboardBulkEditControls({
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm text-muted-foreground">
-                <p>
-                  This will permanently delete <strong>{selectedCount} stop{selectedCount !== 1 ? "s" : ""}</strong> from both local and server records. This cannot be undone.
-                </p>
-                {pendingCount > 0 && (
+                <p>This will permanently delete the following from both local and server records. This cannot be undone.</p>
+                <ul className="list-disc pl-4 space-y-1">
+                  {pickupCount > 0 && (
+                    <li>
+                      <strong>{pickupCount} pickup{pickupCount !== 1 ? "s" : ""}</strong>
+                      {pendingDeliveryCount > 0 && (
+                        <span className="text-amber-700 dark:text-amber-400"> (with {pendingDeliveryCount} pending deliver{pendingDeliveryCount !== 1 ? "ies" : "y"})</span>
+                      )}
+                    </li>
+                  )}
+                  {deliveryCount > 0 && (
+                    <li><strong>{deliveryCount} deliver{deliveryCount !== 1 ? "ies" : "y"}</strong></li>
+                  )}
+                </ul>
+                {pendingDeliveryCount > 0 && (
                   <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300">
-                    <strong>⚠ Warning:</strong> {pendingCount} of the selected stop{pendingCount !== 1 ? "s are" : " is"} still pending and will also be deleted.
+                    <strong>⚠ Warning:</strong> {pendingDeliveryCount} pending deliver{pendingDeliveryCount !== 1 ? "ies" : "y"} will also be deleted.
                   </div>
                 )}
               </div>
