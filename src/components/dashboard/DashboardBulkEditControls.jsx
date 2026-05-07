@@ -44,8 +44,7 @@ export default function DashboardBulkEditControls({
 
   // Count how many of the selected stops are "pending" (not yet completed/failed/cancelled)
   const pendingCount = useMemo(() => {
-    const nonTerminal = ["pending", "in_transit", "en_route"];
-    return selectedDeliveries.filter((d) => nonTerminal.includes(d?.status)).length;
+    return selectedDeliveries.filter((d) => d?.status === "pending").length;
   }, [selectedDeliveries]);
 
   const clearSelection = useCallback(() => {
