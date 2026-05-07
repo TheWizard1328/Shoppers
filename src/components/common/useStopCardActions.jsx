@@ -599,14 +599,29 @@ export default function useStopCardActions(params) {
             bypassDriverStatus: true
           }).catch(() => null);
           const optimizeData = optimizeResponse?.data || optimizeResponse || null;
+
+          // Fetch fresh deliveries IMMEDIATELY after optimization (before polyline regen) to capture stop_order changes
+          const refreshedImmediately = await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+          const refreshedListImmediate = Array.isArray(refreshedImmediately)
+            ? refreshedImmediately
+            : Array.isArray(refreshedImmediately?.deliveries)
+              ? refreshedImmediately.deliveries
+              : null;
+
+          if (Array.isArray(refreshedListImmediate) && refreshedListImmediate.length > 0) {
+            await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', delivery.delivery_date, refreshedListImmediate);
+            updateDeliveriesLocally?.(refreshedListImmediate, true);
+          }
+
           await base44.functions.invoke('recalculateTrackingNumbers', {
             driverId: delivery.driver_id,
             deliveryDate: delivery.delivery_date
           }).catch(() => null);
+
           if (optimizeData?.success && Array.isArray(optimizeData.optimizedRoute) && optimizeData.optimizedRoute.length > 0) {
             window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: delivery.driver_id, updates: optimizeData.optimizedRoute.map((stop) => ({ deliveryId: stop.deliveryId || stop.delivery_id, newEta: stop.newETA || stop.eta })).filter((stop) => stop.deliveryId && stop.newEta) } }));
           }
-          await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+
           const polylineResponse = await base44.functions.invoke('purgeAndRegeneratePolylines', {
             driverId: delivery.driver_id,
             deliveryDate: delivery.delivery_date,
@@ -634,6 +649,7 @@ export default function useStopCardActions(params) {
             bypassPolylineDelete: true,
             reuseProvidedPolylines: true
           }).catch(() => null);
+
           const refreshedDeliveries = await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
           const refreshedList = Array.isArray(refreshedDeliveries)
             ? refreshedDeliveries
