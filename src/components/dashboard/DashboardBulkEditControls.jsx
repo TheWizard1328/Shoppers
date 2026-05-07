@@ -189,7 +189,7 @@ export default function DashboardBulkEditControls({
           className="absolute left-1/2 z-[240] flex -translate-x-1/2 items-center rounded-full border border-border bg-card/95 shadow-xl backdrop-blur-sm px-2 py-1 gap-1"
           style={{ bottom: `${(stopCardsBaseHeight || 0) + 16}px` }}
         >
-          <span className="text-sm font-medium text-foreground px-1">{selectedCount} Stops</span>
+          <span className="text-sm font-medium text-foreground px-1">{totalDeleteCount} Stops</span>
           <Button size="sm" onClick={() => setShowBulkEditPanel(true)} className="gap-2" disabled={isSaving || isDeleting}>
             <PencilLine className="h-4 w-4" />
             Edit
