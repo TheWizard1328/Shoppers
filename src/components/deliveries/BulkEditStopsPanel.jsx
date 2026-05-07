@@ -289,7 +289,7 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
         </div>
 
         {shouldShowTimeWindows && (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label style={{ color: "var(--text-slate-900)" }}>Time Window Start</Label>
               <TimeField
