@@ -102,7 +102,10 @@ export async function runAcceptAllBatchPipeline({
       ...(staged || {}),
       ...(Number.isFinite(Number(stop.stop_order)) ? { stop_order: Number(stop.stop_order), display_stop_order: Number(stop.stop_order) } : {}),
       ...(stop.newETA || stop.eta ? { delivery_time_eta: stop.newETA || stop.eta } : {}),
-      ...(typeof stop.travel_dist === 'number' ? { travel_dist: stop.travel_dist } : {})
+      ...(typeof stop.travel_dist === 'number' ? { travel_dist: stop.travel_dist } : {}),
+      ...(typeof stop.encoded_polyline === 'string' ? { encoded_polyline: stop.encoded_polyline } : {}),
+      ...(typeof stop.estimated_distance_km === 'number' ? { estimated_distance_km: stop.estimated_distance_km } : {}),
+      ...(typeof stop.estimated_duration_minutes === 'number' ? { estimated_duration_minutes: stop.estimated_duration_minutes } : {})
     });
   });
 
