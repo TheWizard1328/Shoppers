@@ -84,18 +84,12 @@ Deno.serve(async (req) => {
           display_stop_order: nextOrder,
           isNextDelivery: isTargetDelivery
         };
-        if (isTargetDelivery) {
-          payload.delivery_time_start = normalizedTime;
-        }
         return { delivery, payload };
       })
       .filter(({ delivery, payload }) => {
-        const currentStart = normalizeLocalTimeString(delivery?.delivery_time_start) || delivery?.delivery_time_start || null;
-        const nextStart = payload.delivery_time_start || null;
         return Number(delivery?.stop_order || 0) !== Number(payload.stop_order)
           || Number(delivery?.display_stop_order || 0) !== Number(payload.display_stop_order)
-          || Boolean(delivery?.isNextDelivery) !== Boolean(payload.isNextDelivery)
-          || currentStart !== nextStart;
+          || Boolean(delivery?.isNextDelivery) !== Boolean(payload.isNextDelivery);
       });
 
     await Promise.all(
