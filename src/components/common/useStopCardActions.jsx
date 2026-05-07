@@ -794,8 +794,8 @@ export default function useStopCardActions(params) {
         if (!nextStop) {
           fabControlEvents.notifyDoneButtonClicked();
           window.dispatchEvent(new CustomEvent('showRouteSummary', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
-          // Only update driver status if they're currently on duty
-          if (currentUser?.driver_status === 'on_duty') {
+          // Only update driver status if they're not on duty (off_duty or on_break)
+          if (currentUser?.driver_status !== 'on_duty') {
             try { await setDriverStatus({ newStatus: 'off_duty' }); locationTracker.stopTracking(); } catch {}
             if (onDriverStatusChange) onDriverStatusChange('off_duty');
           }
@@ -905,7 +905,8 @@ export default function useStopCardActions(params) {
         if (incompleteAfterThis.length === 0) {
           fabControlEvents.notifyDoneButtonClicked();
           window.dispatchEvent(new CustomEvent('showRouteSummary', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
-          if (currentUser?.id) {
+          // Only update driver status if they're not on duty (off_duty or on_break)
+          if (currentUser?.id && currentUser?.driver_status !== 'on_duty') {
             await setDriverStatus({ newStatus: 'off_duty' });
             locationTracker.stopTracking();
             if (onDriverStatusChange) onDriverStatusChange('off_duty');
