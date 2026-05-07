@@ -111,7 +111,8 @@ Deno.serve(async (req) => {
       deliveryDate,
       currentLocalTime: normalizedTime,
       triggerSource: 'start_button',
-      bypassDriverStatus: true
+      bypassDriverStatus: true,
+      firstStopId: deliveryId
     });
 
     const optimizationData = optimizationResponse?.data || optimizationResponse || {};
