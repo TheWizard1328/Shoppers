@@ -44,7 +44,7 @@ export default function DashboardBulkEditControls({
 
   // Count how many of the selected stops are "pending" (not yet completed/failed/cancelled)
   const pendingCount = useMemo(() => {
-    return selectedDeliveries.filter((d) => d?.status === "pending").length;
+    return selectedDeliveries.filter((d) => d?.patient_id && d?.status === "pending").length;
   }, [selectedDeliveries]);
 
   const clearSelection = useCallback(() => {
