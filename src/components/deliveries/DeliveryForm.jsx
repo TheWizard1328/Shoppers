@@ -1526,7 +1526,8 @@ export default function DeliveryForm({
         delivery, formData, selectedPatient, currentUser, oldDriver, newDriver, driverChanged,
         isCurrentUserDriver:userHasRole(currentUser,'driver'), statusChangedToCompletion,
         actualDeliveryTimeChanged, timeWindowChanged, travelModeChanged, t:dataToSave.actual_delivery_time, allDeliveries,
-        isPickupMode, updateDeliveryLocal, dateChanged
+        isPickupMode, updateDeliveryLocal, dateChanged,
+        skipRouteOptimization: Boolean(delivery?.isNextDelivery && ['completed', 'failed', 'cancelled'].includes(formData.status))
       });
       return true;
     } catch (error) {

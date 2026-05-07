@@ -526,19 +526,21 @@ export async function syncNextDeliveryFlagsLocally({ driverDeliveries = [], next
   return changedDeliveries;
 }
 
-export async function refreshDriverRoute({ driverId, deliveryDate, forceRefreshDriverDeliveries, triggeredBy, actualDeliveryTime = null }) {
+export async function refreshDriverRoute({ driverId, deliveryDate, forceRefreshDriverDeliveries, triggeredBy, actualDeliveryTime = null, etaPayload = null }) {
   invalidate("Delivery");
   await forceRefreshDriverDeliveries(driverId, deliveryDate);
 
-  if (actualDeliveryTime && shouldRefreshEtasForCompletionDrift({
+  const shouldRunEtaRefresh = !!etaPayload || (actualDeliveryTime && shouldRefreshEtasForCompletionDrift({
     driverId,
     deliveryDate,
     actualDeliveryTime,
     now: new Date()
-  })) {
+  }));
+
+  if (shouldRunEtaRefresh) {
     const now = new Date();
     const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    await base44.functions.invoke('calculateRealTimeETA', {
+    await base44.functions.invoke('calculateRealTimeETA', etaPayload || {
       driverId,
       deliveryDate,
       currentLocalTime

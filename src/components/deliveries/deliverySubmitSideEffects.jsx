@@ -36,7 +36,8 @@ export async function runDeliverySubmitSideEffects({
   allDeliveries,
   isPickupMode,
   updateDeliveryLocal,
-  dateChanged
+  dateChanged,
+  skipRouteOptimization = false
 }) {
   if (driverChanged && oldDriver && newDriver && currentUser && isCurrentUserDriver) {
     const patientName = delivery.patient_name || selectedPatient?.full_name || 'Unknown';
@@ -85,6 +86,14 @@ export async function runDeliverySubmitSideEffects({
           });
         } catch (error) {
           console.warn('[DeliveryForm] setNextDeliveryFlag failed:', error?.message);
+        }
+
+        if (delivery.isNextDelivery && skipRouteOptimization) {
+          await base44.functions.invoke('calculateRealTimeETA', {
+            deliveries: incompleteDeliveries,
+            lastStopCompletionTime: t,
+            lastStopServiceTime: delivery.extra_time || 0
+          }).catch(() => null);
         }
       }
 
