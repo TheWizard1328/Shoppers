@@ -671,18 +671,17 @@ export default function Layout({ children, currentPageName }) {
     };
     window.addEventListener('deliveriesUpdated', handleDeliveriesUpdated);
 
-    // CRITICAL: Listen for driver location updates
-    const handleDriverLocationUpdated = async (event) => {
-      const todayStr = format(new Date(), 'yyyy-MM-dd');
-      const selectedDateStr = globalFilters.getSelectedDate() || todayStr;
-      if (currentPageName !== 'Dashboard' || selectedDateStr !== todayStr) return;
-
-      const singleUpdate = event?.detail?.singleUpdate;
-      const roles = singleUpdate?.app_roles || [];
-      if (!singleUpdate?.user_id || !roles.includes('driver') || singleUpdate?.driver_status !== 'on_duty' || singleUpdate.current_latitude == null || singleUpdate.current_longitude == null) return;
-      await updatePolylineOnRefresh(singleUpdate.user_id, todayStr, { lat: Number(singleUpdate.current_latitude), lon: Number(singleUpdate.current_longitude) });
-    };
-    window.addEventListener('driverLocationsUpdated', handleDriverLocationUpdated);
+    // DISABLED: Location-based polyline regeneration - prevents unnecessary HERE API calls
+    // const handleDriverLocationUpdated = async (event) => {
+    //   const todayStr = format(new Date(), 'yyyy-MM-dd');
+    //   const selectedDateStr = globalFilters.getSelectedDate() || todayStr;
+    //   if (currentPageName !== 'Dashboard' || selectedDateStr !== todayStr) return;
+    //   const singleUpdate = event?.detail?.singleUpdate;
+    //   const roles = singleUpdate?.app_roles || [];
+    //   if (!singleUpdate?.user_id || !roles.includes('driver') || singleUpdate?.driver_status !== 'on_duty' || singleUpdate.current_latitude == null || singleUpdate.current_longitude == null) return;
+    //   await updatePolylineOnRefresh(singleUpdate.user_id, todayStr, { lat: Number(singleUpdate.current_latitude), lon: Number(singleUpdate.current_longitude) });
+    // };
+    // window.addEventListener('driverLocationsUpdated', handleDriverLocationUpdated);
 
     // AUTO-RECOVERY: Listen for force refresh after connection recovery
     const handleForceDataRefresh = async () => {
@@ -766,7 +765,7 @@ export default function Layout({ children, currentPageName }) {
       window.removeEventListener('deliveriesImported', handleDeliveriesImported);
       window.removeEventListener('offlineDeliveriesDeleted', handleOfflineDeliveriesDeleted);
       window.removeEventListener('deliveriesUpdated', handleDeliveriesUpdated);
-      window.removeEventListener('driverLocationsUpdated', handleDriverLocationUpdated);
+      // window.removeEventListener('driverLocationsUpdated', handleDriverLocationUpdated);
       window.removeEventListener('dataConflictsDetected', handleConflict);
       window.removeEventListener('forceDataRefresh', handleForceDataRefresh);
       window.removeEventListener('openMessaging', handleOpenMessaging);window.removeEventListener('openMessagingPanel', handleOpenMessagingPanel);
