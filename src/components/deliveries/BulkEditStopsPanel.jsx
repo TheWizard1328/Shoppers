@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle, DrawerOverlay } from "@/components/ui/drawer";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetOverlay } from "@/components/ui/sheet";
+
 import { getPickupStopIdForDelivery } from "@/components/utils/ampmUtils";
 import { userHasRole } from "@/components/utils/userRoles";
 import { X, Car, Bike } from "lucide-react";
@@ -410,17 +410,28 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetOverlay className="z-[490] bg-black/70" />
-      <SheetContent side="right" className="z-[500] w-full p-0 sm:max-w-sm" style={{ background: "var(--bg-white)" }}>
-        <SheetHeader className="border-b px-6 py-4" style={{ borderColor: "var(--border-slate-200)" }}>
-          <SheetTitle style={{ color: "var(--text-slate-900)" }}>Bulk Edit Stops</SheetTitle>
-          <SheetDescription style={{ color: "var(--text-slate-500)" }}>
+    <div
+      className={`fixed inset-0 z-[490] flex items-center justify-center ${open ? '' : 'pointer-events-none opacity-0'}`}
+      style={{ transition: 'opacity 0.2s' }}
+    >
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/70"
+        onClick={() => onOpenChange(false)}
+      />
+      {/* Panel */}
+      <div
+        className="relative z-[500] flex max-h-[90vh] w-auto min-w-[380px] max-w-[520px] flex-col rounded-xl shadow-2xl"
+        style={{ background: "var(--bg-white)" }}
+      >
+        <div className="border-b px-6 py-4" style={{ borderColor: "var(--border-slate-200)" }}>
+          <h2 className="text-lg font-semibold" style={{ color: "var(--text-slate-900)" }}>Bulk Edit Stops</h2>
+          <p className="text-sm mt-0.5" style={{ color: "var(--text-slate-500)" }}>
             Update the basic route info for the selected stops.
-          </SheetDescription>
-        </SheetHeader>
-        <div className="h-[calc(100%-88px)]">{content}</div>
-      </SheetContent>
-    </Sheet>
+          </p>
+        </div>
+        <div className="flex-1 overflow-y-auto">{content}</div>
+      </div>
+    </div>
   );
 }
