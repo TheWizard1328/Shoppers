@@ -10,7 +10,7 @@ export default function StopCardCheckboxToggle({
 }) {
   return (
     <div
-      className="absolute z-[221] pointer-events-auto flex items-center gap-2 bg-transparent"
+      className="absolute z-[100] pointer-events-auto flex items-center gap-2 bg-transparent"
       style={{ left: "0.75rem", bottom: `${Math.max((stopCardsHeight || 0) + 16, 16)}px` }}
     >
       {!immersiveHidden && (
