@@ -153,7 +153,7 @@ export default function DashboardBulkEditControls({
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent className="z-[50100]">
+        <AlertDialogContent className="z-[99999]" style={{ zIndex: 99999 }}>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2 text-destructive">
               <AlertTriangle className="h-5 w-5" />
