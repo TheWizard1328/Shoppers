@@ -1,8 +1,8 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { PencilLine, X } from "lucide-react";
+import { PencilLine, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import BulkEditStopsPanel from "@/components/deliveries/BulkEditStopsPanel";
-import { updateDeliveryLocal } from "@/components/utils/offlineMutations";
+import { updateDeliveryLocal, deleteDeliveryLocal } from "@/components/utils/offlineMutations";
 import { invalidate } from "@/components/utils/dataManager";
 
 export default function DashboardBulkEditControls({
@@ -20,6 +20,7 @@ export default function DashboardBulkEditControls({
 }) {
   const [showBulkEditPanel, setShowBulkEditPanel] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const selectedDeliveries = useMemo(() => {
     const ids = Object.keys(selectedDeliveryIds).filter((id) => selectedDeliveryIds[id]);
@@ -90,6 +91,20 @@ export default function DashboardBulkEditControls({
     }
   }, [selectedDeliveries, refreshData, clearSelection]);
 
+  const handleDelete = useCallback(async () => {
+    if (selectedDeliveries.length === 0) return;
+    if (!window.confirm(`Delete ${selectedCount} stop${selectedCount !== 1 ? 's' : ''}? This cannot be undone.`)) return;
+    setIsDeleting(true);
+    try {
+      await Promise.all(selectedDeliveries.map((delivery) => deleteDeliveryLocal(delivery.id)));
+      invalidate("Delivery");
+      await refreshData?.();
+      clearSelection();
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [selectedDeliveries, selectedCount, refreshData, clearSelection]);
+
   if (immersiveHidden && selectedCount === 0) {
     return null;
   }
@@ -101,12 +116,15 @@ export default function DashboardBulkEditControls({
           className="absolute left-1/2 z-[240] flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-card/95 px-3 py-2 shadow-xl backdrop-blur-sm"
           style={{ bottom: `${(stopCardsBaseHeight || 0) + 16}px` }}
         >
-          <span className="text-sm font-medium text-foreground">{selectedCount} selected</span>
-          <Button size="sm" onClick={() => setShowBulkEditPanel(true)} className="gap-2">
+          <span className="text-sm font-medium text-foreground">{selectedCount} Stops</span>
+          <Button size="sm" onClick={() => setShowBulkEditPanel(true)} className="gap-2" disabled={isSaving || isDeleting}>
             <PencilLine className="h-4 w-4" />
             Edit
           </Button>
-          <Button size="icon" variant="ghost" onClick={clearSelection}>
+          <Button size="icon" variant="ghost" onClick={handleDelete} disabled={isDeleting} className="text-destructive hover:text-destructive hover:bg-destructive/10">
+            <Trash2 className="h-4 w-4" />
+          </Button>
+          <Button size="icon" variant="ghost" onClick={clearSelection} disabled={isDeleting}>
             <X className="h-4 w-4" />
           </Button>
         </div>
