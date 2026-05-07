@@ -594,6 +594,18 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}>
       
+      {/* Bulk-select overlay: covers entire card when multi-select mode is active */}
+      {bulkSelectionEnabled && (
+        <div
+          className="absolute inset-0 z-[400] cursor-pointer rounded-xl"
+          style={{ WebkitTapHighlightColor: 'transparent' }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelectionChange?.(delivery.id, !isBulkSelected);
+          }}
+        />
+      )}
+
       <Card
         data-route-completed-condensed={showCompletedRouteCenteredCondensed ? "true" : "false"} className="bg-card text-card-foreground rounded-xl border shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 overflow-hidden min-h-0 h-auto self-start min-w-[350px] max-w-[350px] border-blue-500"
 
