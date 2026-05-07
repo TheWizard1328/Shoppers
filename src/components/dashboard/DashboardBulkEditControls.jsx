@@ -14,6 +14,7 @@ import {
 import BulkEditStopsPanel from "@/components/deliveries/BulkEditStopsPanel";
 import { updateDeliveryLocal, deleteDeliveryLocal } from "@/components/utils/offlineMutations";
 import { invalidate } from "@/components/utils/dataManager";
+import { base44 } from "@/api/base44Client";
 
 export default function DashboardBulkEditControls({
   deliveriesWithStopOrder = [],
@@ -127,7 +128,7 @@ export default function DashboardBulkEditControls({
     setShowDeleteDialog(false);
     setIsDeleting(true);
     try {
-      // Also delete linked pending deliveries attached to any pickups being deleted
+      // Collect all IDs to delete: selected + linked pending deliveries from deleted pickups
       const deletedPickupStopIds = new Set(
         selectedDeliveries.filter((d) => !d?.patient_id && d?.stop_id).map((d) => d.stop_id)
       );
@@ -139,17 +140,41 @@ export default function DashboardBulkEditControls({
             !selectedDeliveryIds[d.id]
           )
         : [];
-      await Promise.all([
-        ...selectedDeliveries.map((delivery) => deleteDeliveryLocal(delivery.id)),
-        ...linkedPendingDeliveries.map((delivery) => deleteDeliveryLocal(delivery.id)),
-      ]);
+      const allToDelete = [...selectedDeliveries, ...linkedPendingDeliveries];
+      const allDeletedIds = allToDelete.map((d) => d.id);
+
+      // 1. Immediately remove from local UI on this device
+      window.dispatchEvent(new CustomEvent("offlineDeliveriesDeleted", {
+        detail: { deletedIds: allDeletedIds }
+      }));
+
+      // 2. Delete from offline DB + backend for each record
+      await Promise.all(allToDelete.map((delivery) => deleteDeliveryLocal(delivery.id)));
+
+      // 3. Broadcast batch_delete so other devices' realtime sync removes them too
+      window.dispatchEvent(new CustomEvent("deliveriesUpdated", {
+        detail: {
+          triggeredBy: "bulkDelete",
+          deletedIds: allDeletedIds,
+          freshDeliveries: [],
+          preserveLocalState: false,
+        }
+      }));
+
+      // 4. Force all devices to reconcile by invalidating server-side cache
       invalidate("Delivery");
+      try {
+        await base44.functions.invoke("forceDriverSyncRefresh", {
+          deletedDeliveryIds: allDeletedIds,
+        });
+      } catch (_) { /* non-critical */ }
+
       await refreshData?.();
       clearSelection();
     } finally {
       setIsDeleting(false);
     }
-  }, [selectedDeliveries, refreshData, clearSelection]);
+  }, [selectedDeliveries, allDeliveries, selectedDeliveryIds, refreshData, clearSelection]);
 
   if (immersiveHidden && selectedCount === 0) {
     return null;
