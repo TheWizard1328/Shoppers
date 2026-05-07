@@ -169,8 +169,8 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="col-span-1 space-y-2">
+        <div className="grid grid-cols-[1fr_1fr_auto] gap-4 items-end">
+          <div className="space-y-2">
             <Label style={{ color: "var(--text-slate-900)" }}>Assigned Driver</Label>
             <Select
               value={values.driverChoice}
@@ -191,7 +191,7 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
             </Select>
           </div>
 
-          <div className="col-span-1 space-y-2">
+          <div className="space-y-2">
             <Label style={{ color: "var(--text-slate-900)" }}>Delivery Date</Label>
             <Input
               type="date"
@@ -202,7 +202,7 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
           </div>
 
           {isDriver && (
-            <div className="col-span-2 space-y-2 sm:col-span-1 sm:w-fit">
+            <div className="space-y-2">
               <Label style={{ color: "var(--text-slate-900)" }}>Travel Mode</Label>
               <TravelModeButtons
                 value={values.travelModeChoice || 'driving'}
