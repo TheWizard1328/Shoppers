@@ -782,15 +782,18 @@ export default function useStopCardActions(params) {
           // Calculate updated ETAs for remaining stops based on device current time and estimated_duration_minutes
           const currentLocalTime = getCurrentLocalTime?.() || localNowParts?.time || getCurrentLocalTimeString();
           const [hours, minutes] = currentLocalTime.split(':').map(Number);
-          const currentTotalMinutes = hours * 60 + minutes;
+          let currentEtaMinutes = hours * 60 + minutes;
           const updatedRemainingWithEtas = remainingEtaDeliveries.map((stop, index) => {
             const isFirstStop = index === 0;
-            const bonusMinutes = isFirstStop ? 5 : 0;
-            const travelMinutes = index === 0 ? 0 : (remainingEtaDeliveries[index - 1]?.estimated_duration_minutes || 0);
-            const accumulatedMinutes = remainingEtaDeliveries.slice(0, index).reduce((sum, s) => sum + (s?.estimated_duration_minutes || 0), travelMinutes) + bonusMinutes;
-            const newEtaMinutes = currentTotalMinutes + accumulatedMinutes;
-            const newEtaHours = Math.floor((newEtaMinutes % 1440) / 60);
-            const newEtaMins = newEtaMinutes % 60;
+            if (isFirstStop) {
+              // First remaining stop gets 5 minute bonus from current time
+              currentEtaMinutes = currentEtaMinutes + 5;
+            } else {
+              // Subsequent stops cascade from previous stop's ETA + that stop's estimated duration
+              currentEtaMinutes = currentEtaMinutes + (remainingEtaDeliveries[index - 1]?.estimated_duration_minutes || 0);
+            }
+            const newEtaHours = Math.floor((currentEtaMinutes % 1440) / 60);
+            const newEtaMins = currentEtaMinutes % 60;
             const newEta = `${String(newEtaHours).padStart(2, '0')}:${String(newEtaMins).padStart(2, '0')}`;
             return { ...stop, delivery_time_eta: newEta };
           });
@@ -954,15 +957,18 @@ export default function useStopCardActions(params) {
           // Calculate updated ETAs for remaining stops based on device current time and estimated_duration_minutes
           const currentLocalTime = getCurrentLocalTime?.() || localNowParts?.time || getCurrentLocalTimeString();
           const [hours, minutes] = currentLocalTime.split(':').map(Number);
-          const currentTotalMinutes = hours * 60 + minutes;
+          let currentEtaMinutes = hours * 60 + minutes;
           const updatedRemainingWithEtas = remainingEtaDeliveries.map((stop, index) => {
             const isFirstStop = index === 0;
-            const bonusMinutes = isFirstStop ? 5 : 0;
-            const travelMinutes = index === 0 ? 0 : (remainingEtaDeliveries[index - 1]?.estimated_duration_minutes || 0);
-            const accumulatedMinutes = remainingEtaDeliveries.slice(0, index).reduce((sum, s) => sum + (s?.estimated_duration_minutes || 0), travelMinutes) + bonusMinutes;
-            const newEtaMinutes = currentTotalMinutes + accumulatedMinutes;
-            const newEtaHours = Math.floor((newEtaMinutes % 1440) / 60);
-            const newEtaMins = newEtaMinutes % 60;
+            if (isFirstStop) {
+              // First remaining stop gets 5 minute bonus from current time
+              currentEtaMinutes = currentEtaMinutes + 5;
+            } else {
+              // Subsequent stops cascade from previous stop's ETA + that stop's estimated duration
+              currentEtaMinutes = currentEtaMinutes + (remainingEtaDeliveries[index - 1]?.estimated_duration_minutes || 0);
+            }
+            const newEtaHours = Math.floor((currentEtaMinutes % 1440) / 60);
+            const newEtaMins = currentEtaMinutes % 60;
             const newEta = `${String(newEtaHours).padStart(2, '0')}:${String(newEtaMins).padStart(2, '0')}`;
             return { ...stop, delivery_time_eta: newEta };
           });
