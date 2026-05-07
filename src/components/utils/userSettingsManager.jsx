@@ -96,6 +96,8 @@ const GLOBAL_SETTINGS = [
 
 // CRITICAL: These settings are NEVER synced across devices
 // Each device maintains its own values for these
+// NOTE: selected_date and selected_driver_id are intentionally EXCLUDED here —
+// they are managed exclusively by globalFilters.js via localStorage.
 const DEVICE_SPECIFIC_SETTINGS = [
   'fab_map_cycle_phase',
   'sidebar_width',
@@ -104,8 +106,6 @@ const DEVICE_SPECIFIC_SETTINGS = [
   'admin_utilities_year',
   'admin_utilities_month',
   'admin_utilities_driver',
-  'selected_date',
-  'selected_driver_id',
   'show_all_driver_markers',
   'show_breadcrumbs',
   'location_tracking_enabled'
@@ -264,18 +264,20 @@ export async function loadUserSettings(userId) {
       const deviceProfile = userSettingsRecord.device_settings_profiles?.[deviceIdentifier] || {};
       const globalSettings = userSettingsRecord.global_settings || {};
       
+      // CRITICAL: Do NOT load selected_date or selected_driver_id from UserSettings.
+      // These are managed exclusively by globalFilters.js via localStorage.
       cachedSettings = {
         ...DEFAULT_SETTINGS,
         ...globalSettings,
         ...deviceProfile,
-        selected_date: deviceProfile.selected_date || null,
-        selected_driver_id: deviceProfile.selected_driver_id || 'all',
         show_all_driver_markers: deviceProfile.show_all_driver_markers ?? false,
         show_breadcrumbs: deviceProfile.show_breadcrumbs ?? false,
         location_tracking_enabled: deviceProfile.location_tracking_enabled ?? true,
         device_identifier: deviceIdentifier,
         device_type: deviceType
       };
+      delete cachedSettings.selected_date;
+      delete cachedSettings.selected_driver_id;
       
       cachedGlobalSettings = globalSettings;
       currentUserId = userId;
