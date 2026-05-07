@@ -193,7 +193,7 @@ export default function DashboardBulkEditControls({
                       <p>{pendingDeliveryCount} selected deliver{pendingDeliveryCount !== 1 ? "ies are" : "y is"} still pending and will be deleted.</p>
                     )}
                     {linkedPendingCount > 0 && (
-                      <p>{linkedPendingCount} pending deliver{linkedPendingCount !== 1 ? "ies are" : "y is"} linked to the pickup{pickupCount !== 1 ? "s" : ""} being deleted and will be left without a pickup.</p>
+                      <p>{linkedPendingCount} pending deliver{linkedPendingCount !== 1 ? "ies are" : "y is"} linked to the pickup{pickupCount !== 1 ? "s" : ""} being deleted and will be deleted as well.</p>
                     )}
                   </div>
                 )}
