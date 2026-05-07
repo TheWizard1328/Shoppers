@@ -1,10 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
-import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { RefreshCw } from 'lucide-react';
 import { offlineDB } from '@/components/utils/offlineDatabase';
 import { base44 } from '@/api/base44Client';
-import { performPrioritySyncBeforeRefresh } from '@/components/utils/offlineSync';
+import { manualSyncSelected } from '@/components/utils/offlineSync';
 import calculateRealTimeETA from '@/functions/calculateRealTimeETA';
 
 import { format } from 'date-fns';
@@ -112,34 +111,24 @@ export default function PullToSync({
       }
 
       window.dispatchEvent(new CustomEvent('pullToSyncStarted', { detail: { suppressIncrementalUi: true } }));
-
-      // Priority sync: only current date deliveries for city stores + patients for those deliveries only
-      const syncResult = await performPrioritySyncBeforeRefresh(selectedDateStr, currentCityId, null, true);
+      const syncResult = await manualSyncSelected(selectedDateStr, currentCityId);
       if (syncResult?.error) {
         throw new Error(syncResult.error);
       }
 
-      // Read back what was synced from offline DB
-      const allOfflineStores = await offlineDB.getAll(offlineDB.STORES.STORES);
-      const freshStores = allOfflineStores || [];
-      const cityStoreIds = new Set(
-        currentCityId
-          ? freshStores.filter((s) => s?.city_id === currentCityId).map((s) => s.id)
-          : freshStores.map((s) => s.id)
-      );
+      const freshDeliveries = Array.isArray(syncResult?.deliveries) ? syncResult.deliveries : [];
+      const freshPatients = Array.isArray(syncResult?.patients) ? syncResult.patients : [];
+      const freshAppUsers = Array.isArray(syncResult?.appUsers) ? syncResult.appUsers : [];
+      const freshCities = Array.isArray(syncResult?.cities) ? syncResult.cities : [];
+      const freshStores = Array.isArray(syncResult?.stores) ? syncResult.stores : [];
 
       const offlineDeliveriesRaw = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
       const offlineDeliveries = Array.isArray(offlineDeliveriesRaw)
-        ? offlineDeliveriesRaw.filter((d) => !currentCityId || cityStoreIds.has(d?.store_id))
+        ? offlineDeliveriesRaw.filter((delivery) => !currentCityId || freshStores.some((store) => store?.id === delivery?.store_id && store?.city_id === currentCityId))
         : [];
 
-      const freshDeliveries = offlineDeliveries;
-      const freshPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
-      const allOfflineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-      const freshCities = await offlineDB.getAll(offlineDB.STORES.CITIES);
-
-      const safeAppUsers = Array.isArray(allOfflineAppUsers)
-        ? allOfflineAppUsers.filter((u) => u?.user_id && u.user_id !== 'undefined' && u?.user_name && u.user_name !== 'undefined')
+      const safeAppUsers = Array.isArray(freshAppUsers)
+        ? freshAppUsers.filter((u) => u?.user_id && u.user_id !== 'undefined' && u?.user_name && u.user_name !== 'undefined')
         : [];
 
       // Dispatch one final UI update with the full synced dataset.
@@ -179,7 +168,7 @@ export default function PullToSync({
 
       if (!silent) {
         toast.success('Data synced', {
-          description: `${freshDeliveries?.length || 0} deliveries synced for ${selectedDateStr}`
+          description: `${freshDeliveries?.length || 0} deliveries updated after purge + resync`
         });
       }
 
