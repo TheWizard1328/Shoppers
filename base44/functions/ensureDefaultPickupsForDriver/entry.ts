@@ -247,6 +247,41 @@ Deno.serve(async (req) => {
       }
     }
 
+    // CRITICAL: Sort newly ensured pickups by delivery_time_start before stop_order is assigned
+    // so that recalculateTrackingNumbers assigns TR#s in time-window order.
+    const timeToMinutes = (t) => {
+      if (!t || typeof t !== 'string') return 9999;
+      const parts = t.split(':');
+      return parseInt(parts[0], 10) * 60 + parseInt(parts[1] || '0', 10);
+    };
+
+    const sortedNewPickups = [...ensuredPickups]
+      .filter((p) => p && p.id)
+      .sort((a, b) => timeToMinutes(a.delivery_time_start) - timeToMinutes(b.delivery_time_start));
+
+    if (sortedNewPickups.length > 0) {
+      // Get all existing deliveries to find max stop_order for the driver/date
+      const existingForDriver = await base44.asServiceRole.entities.Delivery.filter({
+        driver_id: driverId,
+        delivery_date: deliveryDate,
+      }, 'stop_order', 50000);
+
+      const existingPickupIds = new Set(sortedNewPickups.map((p) => p.id));
+      const otherDeliveries = (existingForDriver || []).filter((d) => !existingPickupIds.has(d?.id));
+      let nextStopOrder = otherDeliveries.length > 0
+        ? Math.max(...otherDeliveries.map((d) => d?.stop_order || 0)) + 1
+        : 1;
+
+      // Assign stop_order to pickups in time-start order
+      await Promise.all(sortedNewPickups.map((pickup, idx) => {
+        const stopOrder = nextStopOrder + idx;
+        return base44.asServiceRole.entities.Delivery.update(pickup.id, { stop_order: stopOrder }).catch((error) => {
+          if (!isNotFoundError(error)) throw error;
+          return null;
+        });
+      }));
+    }
+
     await base44.functions.invoke('optimizeRemainingStops', {
       driverId,
       deliveryDate,
