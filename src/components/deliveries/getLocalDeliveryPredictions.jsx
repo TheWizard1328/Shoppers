@@ -21,12 +21,14 @@ export function getLocalDeliveryPredictions({ currentUser, stores, patients, all
 
   let storeIdsToPredict = [];
 
-  if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
+  if (userHasRole(currentUser, 'admin')) {
+    // Admins see ALL stores — projections cover every driver/store for the selected date/city.
+    // The form's driver filter will narrow down from there.
+    storeIdsToPredict = (stores || []).map((store) => store.id);
+  } else if (userHasRole(currentUser, 'dispatcher')) {
     storeIdsToPredict = currentUser.store_ids || [];
-  } else if (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) {
-    // CRITICAL: Always base projections on the ACTIVE USER's own store assignments,
-    // never on the selected driver. Check store slot assignments first (driver role),
-    // then fall back to explicit store_ids, then all stores (admin only).
+  } else if (userHasRole(currentUser, 'driver')) {
+    // Drivers only see their own assigned store slots for the day.
     const isSaturday = dayOfWeek === 6;
     const isSunday = dayOfWeek === 0;
     const slotStoreIds = (stores || []).filter((store) => {
@@ -34,17 +36,7 @@ export function getLocalDeliveryPredictions({ currentUser, stores, patients, all
         isSunday && (store.sunday_am_driver_id === currentUser.id || store.sunday_pm_driver_id === currentUser.id) ||
         !isSaturday && !isSunday && (store.weekday_am_driver_id === currentUser.id || store.weekday_pm_driver_id === currentUser.id);
     }).map((store) => store.id);
-
-    if (slotStoreIds.length > 0) {
-      // Active user is assigned to specific store slots for this day — use those
-      storeIdsToPredict = slotStoreIds;
-    } else if (currentUser.store_ids?.length > 0) {
-      // Fall back to explicit store_ids on the user record
-      storeIdsToPredict = currentUser.store_ids;
-    } else if (userHasRole(currentUser, 'admin')) {
-      // Admin with no specific assignments — show all stores
-      storeIdsToPredict = (stores || []).map((store) => store.id);
-    }
+    storeIdsToPredict = slotStoreIds.length > 0 ? slotStoreIds : (currentUser.store_ids || []);
   }
 
   if (storeIdsToPredict.length === 0 && !userHasRole(currentUser, 'admin')) return [];
