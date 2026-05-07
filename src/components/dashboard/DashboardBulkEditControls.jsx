@@ -44,7 +44,23 @@ export default function DashboardBulkEditControls({
 
   const pickupCount = useMemo(() => selectedDeliveries.filter((d) => !d?.patient_id).length, [selectedDeliveries]);
   const deliveryCount = useMemo(() => selectedDeliveries.filter((d) => !!d?.patient_id).length, [selectedDeliveries]);
+
+  // Pending deliveries directly selected
   const pendingDeliveryCount = useMemo(() => selectedDeliveries.filter((d) => d?.patient_id && d?.status === "pending").length, [selectedDeliveries]);
+
+  // Pending deliveries in the full route that are linked to one of the pickups being deleted (but not themselves selected)
+  const linkedPendingCount = useMemo(() => {
+    const deletedPickupStopIds = new Set(
+      selectedDeliveries.filter((d) => !d?.patient_id && d?.stop_id).map((d) => d.stop_id)
+    );
+    if (deletedPickupStopIds.size === 0) return 0;
+    return allDeliveries.filter((d) =>
+      d?.patient_id &&
+      d?.status === "pending" &&
+      d?.puid && deletedPickupStopIds.has(d.puid) &&
+      !selectedDeliveryIds[d.id]
+    ).length;
+  }, [selectedDeliveries, allDeliveries, selectedDeliveryIds]);
 
   const clearSelection = useCallback(() => {
     Object.keys(selectedDeliveryIds).forEach((deliveryId) => {
@@ -164,18 +180,21 @@ export default function DashboardBulkEditControls({
                   {pickupCount > 0 && (
                     <li>
                       <strong>{pickupCount} pickup{pickupCount !== 1 ? "s" : ""}</strong>
-                      {pendingDeliveryCount > 0 && (
-                        <span className="text-amber-700 dark:text-amber-400"> (with {pendingDeliveryCount} pending deliver{pendingDeliveryCount !== 1 ? "ies" : "y"})</span>
-                      )}
                     </li>
                   )}
                   {deliveryCount > 0 && (
                     <li><strong>{deliveryCount} deliver{deliveryCount !== 1 ? "ies" : "y"}</strong></li>
                   )}
                 </ul>
-                {pendingDeliveryCount > 0 && (
-                  <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300">
-                    <strong>⚠ Warning:</strong> {pendingDeliveryCount} pending deliver{pendingDeliveryCount !== 1 ? "ies" : "y"} will also be deleted.
+                {(pendingDeliveryCount > 0 || linkedPendingCount > 0) && (
+                  <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300 space-y-1">
+                    <p><strong>⚠ Warning:</strong></p>
+                    {pendingDeliveryCount > 0 && (
+                      <p>{pendingDeliveryCount} selected deliver{pendingDeliveryCount !== 1 ? "ies are" : "y is"} still pending and will be deleted.</p>
+                    )}
+                    {linkedPendingCount > 0 && (
+                      <p>{linkedPendingCount} pending deliver{linkedPendingCount !== 1 ? "ies are" : "y is"} linked to the pickup{pickupCount !== 1 ? "s" : ""} being deleted and will be left without a pickup.</p>
+                    )}
                   </div>
                 )}
               </div>
