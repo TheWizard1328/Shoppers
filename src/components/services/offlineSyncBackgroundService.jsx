@@ -47,10 +47,12 @@ export const createOfflineSyncBackgroundService = ({
 
       const selectedDateFilter = { delivery_date: selectedDateStr, ...(storeIds && storeIds.length > 0 ? { store_id: { $in: storeIds } } : {}) };
       const selectedDateDeliveries = await Delivery.filter(selectedDateFilter, '-updated_date', 5000);
-      if (selectedDateDeliveries && selectedDateDeliveries.length > 0) {
-        await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr, selectedDateDeliveries);
-        invalidateEntityCache('Delivery');
+      // CRITICAL: Always replace the offline DB for this date scope, even when server returns 0 records.
+      // An empty result IS authoritative — it means all local records for this date should be removed.
+      await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr, selectedDateDeliveries || []);
+      invalidateEntityCache('Delivery');
 
+      if (selectedDateDeliveries && selectedDateDeliveries.length > 0) {
         const selectedDatePatientIds = Array.from(new Set(selectedDateDeliveries.filter((delivery) => delivery?.patient_id).map((delivery) => delivery.patient_id)));
         if (selectedDatePatientIds.length > 0) {
           await syncPatientsByIds(selectedDatePatientIds);
@@ -74,10 +76,9 @@ export const createOfflineSyncBackgroundService = ({
         }
 
         const deliveries = await Delivery.filter(deliveryFilter, '-updated_date', 500);
-        if (deliveries.length > 0) {
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
-          invalidateEntityCache('Delivery');
-        }
+        // CRITICAL: Always replace local records for this historical date — empty = 0 stops on server
+        await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', deliveryDateToSync, deliveries || []);
+        invalidateEntityCache('Delivery');
 
         await offlineDB.updateSyncMetadata('Delivery', null, new Date().toISOString());
         const nextMeta = await getHistoricalSyncMeta();

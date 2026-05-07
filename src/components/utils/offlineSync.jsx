@@ -224,11 +224,9 @@ export const loadAndCacheDeliveriesForDate = async (dateStr) => {
   
   try {
     const deliveries = await Delivery.filter({ delivery_date: dateStr });
-    
-    if (deliveries.length > 0) {
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
-    }
-    
+    // CRITICAL: Always replace local records for this date — empty = 0 stops on server
+    await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', dateStr, deliveries || []);
+    invalidateEntityCache('Delivery');
     return deliveries;
   } catch (error) {
     return [];
@@ -352,7 +350,9 @@ export const forceSyncAll = async () => {
 
     notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 40 });
     const deliveries = await Delivery.filter({ delivery_date: selectedDateStr });
-    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+    // CRITICAL: Replace (not merge) local records for today — empty result means 0 stops
+    await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr, deliveries || []);
+    invalidateEntityCache('Delivery');
     notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 50, count: deliveries.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
@@ -427,6 +427,8 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null)
       deliveryFilter.store_id = { $in: cityStoreIds };
     }
     const deliveries = await Delivery.filter(deliveryFilter, '-updated_date', 5000);
+    // CRITICAL: Always purge ALL local records for this date/city scope, then re-save server results.
+    // An empty server result IS authoritative — stale local records must be removed.
     const offlineDeliveriesForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
     const deliveryIdsToDelete = (offlineDeliveriesForDate || [])
       .filter((delivery) => !selectedCityId || cityStoreIds.includes(delivery?.store_id))
@@ -437,6 +439,14 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null)
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
     }
     invalidateEntityCache('Delivery');
+    // Dispatch UI update so the dashboard removes purged records immediately
+    if (deliveryIdsToDelete.length > 0) {
+      const serverIds = new Set((deliveries || []).map((d) => d?.id).filter(Boolean));
+      const purgedIds = deliveryIdsToDelete.filter((id) => !serverIds.has(id));
+      if (purgedIds.length > 0) {
+        window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', { detail: { deletedIds: purgedIds } }));
+      }
+    }
     notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 50, count: deliveries.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 

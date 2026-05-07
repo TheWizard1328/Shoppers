@@ -131,7 +131,9 @@ export default function PullToSync({
         ? freshAppUsers.filter((u) => u?.user_id && u.user_id !== 'undefined' && u?.user_name && u.user_name !== 'undefined')
         : [];
 
-      // Dispatch one final UI update with the full synced dataset
+      // Dispatch one final UI update with the full synced dataset.
+      // CRITICAL: preserveLocalState must be FALSE so that a server-authoritative empty result
+      // (e.g. all stops deleted on another device) clears the local UI instead of being ignored.
       window.dispatchEvent(new CustomEvent('pullToSyncDataReady', {
         detail: { 
           deliveryDate: selectedDateStr,
@@ -142,7 +144,7 @@ export default function PullToSync({
           patients: freshPatients,
           triggeredBy: 'pullToSyncDataReady',
           batchedUiUpdate: true,
-          preserveLocalState: true,
+          preserveLocalState: false,
           syncRunId
         }
       }));

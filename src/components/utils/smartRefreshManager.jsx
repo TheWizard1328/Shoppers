@@ -658,8 +658,15 @@ class LightweightRefreshManager {
       // Do not pull server reconcile data here because it can reintroduce older route state
       // over the current offline route for the selected day.
       
-      // CRITICAL: Never let partial/empty delivery refreshes clear a populated dashboard
-      if (Array.isArray(updates.deliveries) && Array.isArray(currentData?.deliveries) && currentData.deliveries.length > 0 && updates.deliveries.length === 0) {
+      // CRITICAL: Only block empty delivery updates when NOT explicitly marked as an authoritative full-replacement.
+      // An authoritative sync (isFullReplacementDeliveries=true) means the server returned 0 and local must match.
+      if (
+        Array.isArray(updates.deliveries) &&
+        updates.deliveries.length === 0 &&
+        !updates.isFullReplacementDeliveries &&
+        Array.isArray(currentData?.deliveries) &&
+        currentData.deliveries.length > 0
+      ) {
         delete updates.deliveries;
         delete updates.isFullReplacementDeliveries;
       }
