@@ -184,6 +184,31 @@ export default function StopCardCODCollection({
                   throw new Error('This delivery no longer exists. Please refresh the page.');
                 }
 
+                // Process Square based on current COD collection type
+                const hasCashCheck = codPayments.some(p => p.type === 'Cash' || p.type === 'Check');
+                const hasDebitCredit = codPayments.some(p => p.type === 'Debit' || p.type === 'Credit');
+                const totalAmount = codPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+
+                if (hasCashCheck && totalAmount > 0) {
+                  // Recreate catalog item for Cash/Check
+                  const store = allDeliveries?.find(d => d?.id === delivery.id)?.store_id 
+                    ? await base44.entities.Store.filter({ id: delivery.store_id })
+                    : null;
+                  await base44.functions.invoke('squareCreateCodItem', {
+                    deliveryId: delivery.id,
+                    patientName: delivery.patient_name,
+                    storeAbbreviation: store?.[0]?.abbreviation || '',
+                    codAmount: totalAmount,
+                    deliveryDate: delivery.delivery_date,
+                    storeId: delivery.store_id
+                  }).catch(() => null);
+                } else if (hasDebitCredit && totalAmount > 0) {
+                  // Delete catalog item for Debit/Credit
+                  await base44.functions.invoke('squareDeleteCodItem', {
+                    deliveryId: delivery.id
+                  }).catch(() => null);
+                }
+
                 if (isAlreadyCompleted) {
                   await onCODUpdate(delivery.id, codPayments, true);
                   setShowCODCollection(false);
