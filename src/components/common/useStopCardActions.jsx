@@ -762,25 +762,9 @@ export default function useStopCardActions(params) {
           .filter((d) => d && d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending')
           .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
         await appendBoundaryBreadcrumbPoints({ driverId: delivery.driver_id, delivery, allDeliveries, patients, stores, appUsers, terminalStatus: 'completed', completedAt: completionUpdate.actual_delivery_time });
-        // Handle COD based on current collection type
-        if (!isPickup && Number(delivery?.cod_total_amount_required || 0) > 0) {
-          if (shouldDeleteSquareCodBeforeComplete) {
-            // Payment type is Debit/Credit - delete catalog item
-            await deleteCODWithTimeout(delivery.id, 'Deleted after card COD completion');
-          } else {
-            // Payment type is Cash/Check - recreate catalog item if needed
-            const completionCodHasCashCheck = completionCodPayments.some(p => ['Cash', 'Check'].includes(p?.type));
-            if (completionCodHasCashCheck) {
-              await base44.functions.invoke('squareCreateCodItem', { 
-                deliveryId: delivery.id, 
-                patientName: patient?.full_name || delivery.patient_name || 'Patient', 
-                storeAbbreviation: store?.abbreviation || '', 
-                codAmount: delivery.cod_total_amount_required, 
-                deliveryDate: delivery.delivery_date, 
-                storeId: delivery.store_id 
-              }).then(() => null).catch(() => null);
-            }
-          }
+        // Only handle COD deletion if delivery has COD amount
+        if (shouldDeleteSquareCodBeforeComplete) {
+          await deleteCODWithTimeout(delivery.id, 'Deleted after card COD completion');
         }
         if (isExpanded) await collapseDriverStopCards();
         await Promise.all([updateDeliveryLocal(delivery.id, completionUpdate, { skipSmartRefresh: true })]);
