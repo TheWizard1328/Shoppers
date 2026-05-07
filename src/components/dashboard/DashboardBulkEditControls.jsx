@@ -121,11 +121,28 @@ export default function DashboardBulkEditControls({
     }
   }, [selectedDeliveries, refreshData, clearSelection]);
 
+  const totalDeleteCount = selectedCount + linkedPendingCount;
+
   const handleDeleteConfirmed = useCallback(async () => {
     setShowDeleteDialog(false);
     setIsDeleting(true);
     try {
-      await Promise.all(selectedDeliveries.map((delivery) => deleteDeliveryLocal(delivery.id)));
+      // Also delete linked pending deliveries attached to any pickups being deleted
+      const deletedPickupStopIds = new Set(
+        selectedDeliveries.filter((d) => !d?.patient_id && d?.stop_id).map((d) => d.stop_id)
+      );
+      const linkedPendingDeliveries = deletedPickupStopIds.size > 0
+        ? allDeliveries.filter((d) =>
+            d?.patient_id &&
+            d?.status === "pending" &&
+            d?.puid && deletedPickupStopIds.has(d.puid) &&
+            !selectedDeliveryIds[d.id]
+          )
+        : [];
+      await Promise.all([
+        ...selectedDeliveries.map((delivery) => deleteDeliveryLocal(delivery.id)),
+        ...linkedPendingDeliveries.map((delivery) => deleteDeliveryLocal(delivery.id)),
+      ]);
       invalidate("Delivery");
       await refreshData?.();
       clearSelection();
@@ -151,13 +168,14 @@ export default function DashboardBulkEditControls({
             Edit
           </Button>
           <Button
-            size="icon"
+            size="sm"
             variant="ghost"
             onClick={() => setShowDeleteDialog(true)}
             disabled={isDeleting}
-            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+            className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1"
           >
             <Trash2 className="h-4 w-4" />
+            {totalDeleteCount}
           </Button>
           <Button size="icon" variant="ghost" onClick={clearSelection} disabled={isDeleting}>
             <X className="h-4 w-4" />
@@ -171,7 +189,7 @@ export default function DashboardBulkEditControls({
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2 text-destructive">
               <AlertTriangle className="h-5 w-5" />
-              Delete {selectedCount} Stop{selectedCount !== 1 ? "s" : ""}?
+              Delete {totalDeleteCount} Stop{totalDeleteCount !== 1 ? "s" : ""}?
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm text-muted-foreground">
@@ -206,7 +224,7 @@ export default function DashboardBulkEditControls({
               onClick={handleDeleteConfirmed}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Delete {selectedCount} Stop{selectedCount !== 1 ? "s" : ""}
+              Delete {totalDeleteCount} Stop{totalDeleteCount !== 1 ? "s" : ""}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
