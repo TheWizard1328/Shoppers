@@ -17,33 +17,7 @@ function generateDeliveryId() {
   return `DID-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 }
 
-function parseTrackingNumber(value) {
-  if (value === null || value === undefined) return null;
-  const match = String(value).match(/\d+/);
-  if (!match) return null;
-  const parsed = parseInt(match[0], 10);
-  return Number.isNaN(parsed) ? null : parsed;
-}
 
-function getNextPickupTrackingNumber(pickups = []) {
-  const usedTrackingNumbers = [...new Set(
-    pickups
-      .map((pickup) => parseTrackingNumber(pickup?.tracking_number))
-      .filter((value) => value !== null && value >= 0 && value % 20 === 0)
-  )].sort((a, b) => a - b);
-
-  let expectedTrackingNumber = 0;
-  for (const trackingNumber of usedTrackingNumbers) {
-    if (trackingNumber > expectedTrackingNumber) {
-      break;
-    }
-    if (trackingNumber === expectedTrackingNumber) {
-      expectedTrackingNumber += 20;
-    }
-  }
-
-  return String(expectedTrackingNumber).padStart(2, '0');
-}
 
 function getDriverStoreFields(deliveryDate) {
   const dayOfWeek = new Date(`${deliveryDate}T00:00:00`).getDay();
@@ -73,12 +47,14 @@ async function loadAssignedStores(base44, deliveryDate, driverId, driverUserId =
   // Match against both AppUser.id (new) and platform user_id (legacy) to support both
   const driverIdsToMatch = [driverId, driverUserId].filter(Boolean);
 
-  return (stores || []).filter((store) => {
-    if (!store?.id) return false;
-    const amMatch = store?.[fields.amEnabled] === true && driverIdsToMatch.includes(store?.[fields.am]);
-    const pmMatch = store?.[fields.pmEnabled] === true && driverIdsToMatch.includes(store?.[fields.pm]);
-    return amMatch || pmMatch;
-  });
+  return (stores || [])
+    .filter((store) => {
+      if (!store?.id) return false;
+      const amMatch = store?.[fields.amEnabled] === true && driverIdsToMatch.includes(store?.[fields.am]);
+      const pmMatch = store?.[fields.pmEnabled] === true && driverIdsToMatch.includes(store?.[fields.pm]);
+      return amMatch || pmMatch;
+    })
+    .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
 }
 
 function getAssignedSlotsForStore(store, deliveryDate, driverId, driverUserId = null) {
@@ -149,11 +125,6 @@ async function ensurePickup(base44, { store, deliveryDate, driverId, driverName,
     driver_id: driverId,
   }, '-created_date', 50);
 
-  const routeDeliveries = await base44.asServiceRole.entities.Delivery.filter({
-    delivery_date: deliveryDate,
-    driver_id: driverId,
-  }, '-created_date', 200);
-
   const pickups = (existingStoreDeliveries || []).filter((item) => !item?.patient_id);
   const reusablePickup = findReusablePickup(pickups, slot);
   if (reusablePickup) {
@@ -186,7 +157,6 @@ async function ensurePickup(base44, { store, deliveryDate, driverId, driverName,
     status: 'en_route',
     delivery_time_start: times.start || fallbackTimes.start,
     delivery_time_end: times.end || fallbackTimes.end,
-    tracking_number: getNextPickupTrackingNumber((routeDeliveries || []).filter((item) => !item?.patient_id)),
   });
 
   return await normalizePickupPuid(createdPickup);
