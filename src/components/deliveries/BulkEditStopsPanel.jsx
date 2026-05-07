@@ -16,24 +16,24 @@ const getStoreSlotOptions = (store, deliveryDate, driverId = null) => {
 
   const day = new Date(`${deliveryDate}T00:00:00`).getDay();
   const slotConfigs = day === 0 ? [
-    { slot: "AM", enabled: !!store.sunday_am_enabled, slotDriverId: store.sunday_am_driver_id },
-    { slot: "PM", enabled: !!store.sunday_pm_enabled, slotDriverId: store.sunday_pm_driver_id },
-  ] : day === 6 ? [
-    { slot: "AM", enabled: !!store.saturday_am_enabled, slotDriverId: store.saturday_am_driver_id },
-    { slot: "PM", enabled: !!store.saturday_pm_enabled, slotDriverId: store.saturday_pm_driver_id },
-  ] : [
-    { slot: "AM", enabled: !!store.weekday_am_enabled, slotDriverId: store.weekday_am_driver_id },
-    { slot: "PM", enabled: !!store.weekday_pm_enabled, slotDriverId: store.weekday_pm_driver_id },
-  ];
+  { slot: "AM", enabled: !!store.sunday_am_enabled, slotDriverId: store.sunday_am_driver_id },
+  { slot: "PM", enabled: !!store.sunday_pm_enabled, slotDriverId: store.sunday_pm_driver_id }] :
+  day === 6 ? [
+  { slot: "AM", enabled: !!store.saturday_am_enabled, slotDriverId: store.saturday_am_driver_id },
+  { slot: "PM", enabled: !!store.saturday_pm_enabled, slotDriverId: store.saturday_pm_driver_id }] :
+  [
+  { slot: "AM", enabled: !!store.weekday_am_enabled, slotDriverId: store.weekday_am_driver_id },
+  { slot: "PM", enabled: !!store.weekday_pm_enabled, slotDriverId: store.weekday_pm_driver_id }];
 
-  return slotConfigs
-    .filter(({ enabled, slotDriverId }) => enabled && (!driverId || !slotDriverId || String(slotDriverId) === String(driverId)))
-    .map(({ slot }) => ({
-      value: `${store.id}::${slot}`,
-      storeId: store.id,
-      slot,
-      label: `${store.name} [${slot}]`
-    }));
+
+  return slotConfigs.
+  filter(({ enabled, slotDriverId }) => enabled && (!driverId || !slotDriverId || String(slotDriverId) === String(driverId))).
+  map(({ slot }) => ({
+    value: `${store.id}::${slot}`,
+    storeId: store.id,
+    slot,
+    label: `${store.name} [${slot}]`
+  }));
 };
 
 function TimeField({ value, onChange, onClear, disabled, style }) {
@@ -45,27 +45,27 @@ function TimeField({ value, onChange, onClear, disabled, style }) {
         onChange={onChange}
         disabled={disabled}
         className="pr-10"
-        style={style}
-      />
-      {value && !disabled && (
-        <button
-          type="button"
-          onClick={onClear}
-          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-1 text-slate-500 hover:text-slate-900"
-          aria-label="Clear time"
-        >
+        style={style} />
+      
+      {value && !disabled &&
+      <button
+        type="button"
+        onClick={onClear}
+        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-1 text-slate-500 hover:text-slate-900"
+        aria-label="Clear time">
+        
           <X className="w-4 h-4" />
         </button>
-      )}
-    </div>
-  );
+      }
+    </div>);
+
 }
 
 function TravelModeButtons({ value, onChange, disabled, isMixed = false }) {
   const options = [
-    { value: 'driving', label: 'Driving', icon: Car },
-    { value: 'cycling', label: 'Cycling', icon: Bike }
-  ];
+  { value: 'driving', label: 'Driving', icon: Car },
+  { value: 'cycling', label: 'Cycling', icon: Bike }];
+
 
   return (
     <div className="flex flex-row gap-2 shrink-0">
@@ -82,14 +82,14 @@ function TravelModeButtons({ value, onChange, disabled, isMixed = false }) {
             aria-label={option.label}
             onClick={() => onChange(option.value)}
             disabled={disabled}
-            className={`h-9 w-9 rounded-full border transition-all flex items-center justify-center ${isActive ? 'bg-emerald-600 border-emerald-600 text-white' : isGrayMixed ? 'bg-slate-200 border-slate-300 text-slate-500' : 'bg-white text-slate-700'}`}
-          >
+            className={`h-9 w-9 rounded-full border transition-all flex items-center justify-center ${isActive ? 'bg-emerald-600 border-emerald-600 text-white' : isGrayMixed ? 'bg-slate-200 border-slate-300 text-slate-500' : 'bg-white text-slate-700'}`}>
+            
             <Icon className="w-4 h-4" />
-          </button>
-        );
+          </button>);
+
       })}
-    </div>
-  );
+    </div>);
+
 }
 
 function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, currentUser, values, setValues, onApply, onCancel, isSaving, initialValues, hasMixedPuids }) {
@@ -157,9 +157,9 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
         if (!hasChanges || isSaving) return;
         onApply(values);
       }}
-      className="flex h-full flex-col"
-    >
-      <div className="flex-1 space-y-4 overflow-y-auto px-4 pb-4">
+      className="flex h-full flex-col">
+      
+      <div className="flex-1 overflow-y-auto px-4 space-y-2 pb-2">
         <div className="rounded-lg border p-3" style={{ background: "var(--bg-slate-50)", borderColor: "var(--border-slate-200)" }}>
           <p className="text-sm font-medium" style={{ color: "var(--text-slate-900)" }}>
             {selectedCount} stop{selectedCount === 1 ? "" : "s"} selected
@@ -174,19 +174,19 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
             <Label style={{ color: "var(--text-slate-900)" }}>Assigned Driver</Label>
             <Select
               value={values.driverChoice}
-              onValueChange={(value) => setValues((current) => ({ ...current, driverChoice: value }))}
-            >
+              onValueChange={(value) => setValues((current) => ({ ...current, driverChoice: value }))}>
+              
               <SelectTrigger style={getFieldStyle('driverChoice')}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="z-[50060]">
                 <SelectItem value="unchanged">Keep current</SelectItem>
                 <SelectItem value="unassigned">Unassigned</SelectItem>
-                {drivers.map((driver) => (
-                  <SelectItem key={driver.id} value={driver.id}>
+                {drivers.map((driver) =>
+                <SelectItem key={driver.id} value={driver.id}>
                     {driver.user_name || driver.full_name}
                   </SelectItem>
-                ))}
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -197,21 +197,21 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
               type="date"
               value={values.delivery_date}
               onChange={(event) => setValues((current) => ({ ...current, delivery_date: event.target.value }))}
-              style={getFieldStyle('delivery_date')}
-            />
+              style={getFieldStyle('delivery_date')} />
+            
           </div>
 
-          {isDriver && (
-            <div className="space-y-2">
+          {isDriver &&
+          <div className="space-y-2">
               <Label style={{ color: "var(--text-slate-900)" }}>Travel Mode</Label>
               <TravelModeButtons
-                value={values.travelModeChoice || 'driving'}
-                isMixed={isMixedTravelMode}
-                onChange={(mode) => setValues((current) => ({ ...current, travelModeChoice: mode }))}
-                disabled={isSaving}
-              />
+              value={values.travelModeChoice || 'driving'}
+              isMixed={isMixedTravelMode}
+              onChange={(mode) => setValues((current) => ({ ...current, travelModeChoice: mode }))}
+              disabled={isSaving} />
+            
             </div>
-          )}
+          }
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -219,8 +219,8 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
             <Label style={{ color: "var(--text-slate-900)" }}>Status</Label>
             <Select
               value={values.statusChoice}
-              onValueChange={(value) => setValues((current) => ({ ...current, statusChoice: value }))}
-            >
+              onValueChange={(value) => setValues((current) => ({ ...current, statusChoice: value }))}>
+              
               <SelectTrigger style={getFieldStyle('statusChoice')}>
                 <SelectValue />
               </SelectTrigger>
@@ -240,18 +240,18 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
             <Select
               value={values.storeChoice}
               onValueChange={(value) => setValues((current) => ({ ...current, storeChoice: value }))}
-              disabled={pickupFieldsDisabled || pickupOptions.length === 0}
-            >
+              disabled={pickupFieldsDisabled || pickupOptions.length === 0}>
+              
               <SelectTrigger style={getFieldStyle('storeChoice')}>
                 <SelectValue placeholder={hasMixedPuids ? "Mixed — disabled" : pickupOptions.length === 0 ? "No store slots available" : "Select store [AM/PM]"} />
               </SelectTrigger>
               <SelectContent className="z-[50060]">
                 <SelectItem value="unchanged">Keep current</SelectItem>
-                {pickupOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
+                {pickupOptions.map((option) =>
+                <SelectItem key={option.value} value={option.value}>
                     {option.label}
                   </SelectItem>
-                ))}
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -261,8 +261,8 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
             <Select
               value={values.ampmChoice}
               onValueChange={(value) => setValues((current) => ({ ...current, ampmChoice: value }))}
-              disabled={pickupFieldsDisabled}
-            >
+              disabled={pickupFieldsDisabled}>
+              
               <SelectTrigger style={getFieldStyle('ampmChoice')}>
                 <SelectValue />
               </SelectTrigger>
@@ -274,47 +274,47 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
             </Select>
           </div>
 
-          {isAdmin && (
-            <div className="space-y-2">
+          {isAdmin &&
+          <div className="space-y-2">
               <Label style={{ color: "var(--text-slate-900)" }}>PUID</Label>
               <Input
-                value={values.puid}
-                onChange={(event) => setValues((current) => ({ ...current, puid: event.target.value }))}
-                disabled={pickupFieldsDisabled}
-                style={getFieldStyle('puid')}
-                placeholder={hasMixedPuids ? "Mixed — disabled" : ""}
-              />
+              value={values.puid}
+              onChange={(event) => setValues((current) => ({ ...current, puid: event.target.value }))}
+              disabled={pickupFieldsDisabled}
+              style={getFieldStyle('puid')}
+              placeholder={hasMixedPuids ? "Mixed — disabled" : ""} />
+            
             </div>
-          )}
+          }
         </div>
 
-        {shouldShowTimeWindows && (
-          <div className="grid grid-cols-2 gap-4">
+        {shouldShowTimeWindows &&
+        <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label style={{ color: "var(--text-slate-900)" }}>Time Window Start</Label>
               <TimeField
-                value={values.delivery_time_start}
-                onChange={(event) => setValues((current) => ({ ...current, delivery_time_start: event.target.value }))}
-                onClear={() => setValues((current) => ({ ...current, delivery_time_start: '' }))}
-                disabled={isSaving}
-                style={getFieldStyle('delivery_time_start')}
-              />
+              value={values.delivery_time_start}
+              onChange={(event) => setValues((current) => ({ ...current, delivery_time_start: event.target.value }))}
+              onClear={() => setValues((current) => ({ ...current, delivery_time_start: '' }))}
+              disabled={isSaving}
+              style={getFieldStyle('delivery_time_start')} />
+            
             </div>
             <div className="space-y-2">
               <Label style={{ color: "var(--text-slate-900)" }}>Time Window End</Label>
               <TimeField
-                value={values.delivery_time_end}
-                onChange={(event) => setValues((current) => ({ ...current, delivery_time_end: event.target.value }))}
-                onClear={() => setValues((current) => ({ ...current, delivery_time_end: '' }))}
-                disabled={isSaving}
-                style={getFieldStyle('delivery_time_end')}
-              />
+              value={values.delivery_time_end}
+              onChange={(event) => setValues((current) => ({ ...current, delivery_time_end: event.target.value }))}
+              onClear={() => setValues((current) => ({ ...current, delivery_time_end: '' }))}
+              disabled={isSaving}
+              style={getFieldStyle('delivery_time_end')} />
+            
             </div>
           </div>
-        )}
+        }
       </div>
 
-      <div className="border-t px-4 py-4" style={{ borderColor: "var(--border-slate-200)" }}>
+      <div className="border-t px-4 py-2" style={{ borderColor: "var(--border-slate-200)" }}>
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button type="button" variant="outline" onClick={onCancel} disabled={isSaving}>
             Cancel
@@ -324,8 +324,8 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
           </Button>
         </div>
       </div>
-    </form>
-  );
+    </form>);
+
 }
 
 const getSharedValue = (items, getter, fallback = "") => {
@@ -370,7 +370,7 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
     statusChoice: hasTerminalStatus ? "unchanged" : getSharedValue(selectedDeliveries, (delivery) => delivery?.status, "unchanged"),
     storeChoice: "unchanged",
     ampmChoice: getSharedValue(selectedDeliveries, (delivery) => delivery?.ampm_deliveries, "unchanged"),
-    puid: hasMixedPuids ? "" : getSharedValue(selectedDeliveries, (delivery) => delivery?.puid, ""),
+    puid: hasMixedPuids ? "" : getSharedValue(selectedDeliveries, (delivery) => delivery?.puid, "")
   }), [selectedDeliveries, hasMixedPuids, hasTerminalStatus]);
 
   const [values, setValues] = useState(initialValues);
@@ -379,25 +379,25 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
     setValues(initialValues);
   }, [initialValues, open]);
 
-  const content = (
-    <BulkEditStopsForm
-      selectedCount={selectedCount}
-      drivers={drivers}
-      stores={stores}
-      allDeliveries={allDeliveries}
-      currentUser={currentUser}
-      values={values}
-      setValues={setValues}
-      initialValues={initialValues}
-      isSaving={isSaving}
-      hasMixedPuids={hasMixedPuids}
-      onCancel={() => onOpenChange(false)}
-      onApply={async (nextValues) => {
-        await onApply(nextValues, initialValues);
-        onOpenChange(false);
-      }}
-    />
-  );
+  const content =
+  <BulkEditStopsForm
+    selectedCount={selectedCount}
+    drivers={drivers}
+    stores={stores}
+    allDeliveries={allDeliveries}
+    currentUser={currentUser}
+    values={values}
+    setValues={setValues}
+    initialValues={initialValues}
+    isSaving={isSaving}
+    hasMixedPuids={hasMixedPuids}
+    onCancel={() => onOpenChange(false)}
+    onApply={async (nextValues) => {
+      await onApply(nextValues, initialValues);
+      onOpenChange(false);
+    }} />;
+
+
 
   if (isMobile) {
     return (
@@ -407,9 +407,9 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
           className="z-[500] max-h-[calc(100vh-var(--bottom-nav-height)-0.75rem)]"
           style={{
             background: "var(--bg-white)",
-            bottom: "var(--bottom-nav-height)",
-          }}
-        >
+            bottom: "var(--bottom-nav-height)"
+          }}>
+          
           <DrawerHeader>
             <DrawerTitle style={{ color: "var(--text-slate-900)" }}>Bulk Edit Stops</DrawerTitle>
             <DrawerDescription style={{ color: "var(--text-slate-500)" }}>
@@ -418,26 +418,26 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
           </DrawerHeader>
           {content}
         </DrawerContent>
-      </Drawer>
-    );
+      </Drawer>);
+
   }
 
   return (
     <div
       className={`fixed inset-0 z-[490] flex items-center justify-center ${open ? '' : 'pointer-events-none opacity-0'}`}
-      style={{ transition: 'opacity 0.2s', left: sidebarWidth }}
-    >
+      style={{ transition: 'opacity 0.2s', left: sidebarWidth }}>
+      
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/70"
-        onClick={() => onOpenChange(false)}
-      />
+        onClick={() => onOpenChange(false)} />
+      
       {/* Panel */}
       <div
         className="relative z-[500] flex max-h-[90vh] w-auto min-w-[380px] max-w-[520px] flex-col rounded-xl shadow-2xl"
-        style={{ background: "var(--bg-white)" }}
-      >
-        <div className="border-b px-6 py-4" style={{ borderColor: "var(--border-slate-200)" }}>
+        style={{ background: "var(--bg-white)" }}>
+        
+        <div className="border-b px-6 py-2" style={{ borderColor: "var(--border-slate-200)" }}>
           <h2 className="text-lg font-semibold" style={{ color: "var(--text-slate-900)" }}>Bulk Edit Stops</h2>
           <p className="text-sm mt-0.5" style={{ color: "var(--text-slate-500)" }}>
             Update the basic route info for the selected stops.
@@ -445,6 +445,6 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
         </div>
         <div className="flex-1 overflow-y-auto">{content}</div>
       </div>
-    </div>
-  );
+    </div>);
+
 }
