@@ -3,11 +3,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerOverlay } from "@/components/ui/drawer";
-import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetOverlay } from "@/components/ui/sheet";
+import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle, DrawerOverlay } from "@/components/ui/drawer";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetOverlay } from "@/components/ui/sheet";
 import { getPickupStopIdForDelivery } from "@/components/utils/ampmUtils";
 import { userHasRole } from "@/components/utils/userRoles";
 import { X, Car, Bike } from "lucide-react";
+
+const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled'];
 
 const getStoreSlotOptions = (store, deliveryDate, driverId = null) => {
   if (!store || !deliveryDate) return [];
@@ -90,13 +92,16 @@ function TravelModeButtons({ value, onChange, disabled, isMixed = false }) {
   );
 }
 
-function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, currentUser, values, setValues, onApply, onCancel, isSaving, initialValues }) {
+function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, currentUser, values, setValues, onApply, onCancel, isSaving, initialValues, hasMixedPuids }) {
   const isAdmin = userHasRole(currentUser, "admin");
   const isDriver = userHasRole(currentUser, "driver");
   const isMixedTravelMode = initialValues.travelModeChoice === "mixed" && values.travelModeChoice === "mixed";
   const effectiveDriverId = values.driverChoice !== "unchanged" && values.driverChoice !== "unassigned" ? values.driverChoice : null;
   const changedFieldStyle = { background: '#fef3c7', borderColor: '#f59e0b' };
   const getFieldStyle = (fieldName) => values[fieldName] !== initialValues[fieldName] ? changedFieldStyle : undefined;
+
+  // Disable pickup-related fields if stops have mixed PUIDs
+  const pickupFieldsDisabled = isSaving || hasMixedPuids;
 
   const allowedStores = useMemo(() => {
     if (isAdmin) return stores || [];
@@ -105,12 +110,12 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
   }, [currentUser, isAdmin, stores]);
 
   const pickupOptions = useMemo(() => {
-    if (!values.delivery_date) return [];
+    if (!values.delivery_date || hasMixedPuids) return [];
     return allowedStores.flatMap((store) => getStoreSlotOptions(store, values.delivery_date, effectiveDriverId));
-  }, [allowedStores, effectiveDriverId, values.delivery_date]);
+  }, [allowedStores, effectiveDriverId, values.delivery_date, hasMixedPuids]);
 
   useEffect(() => {
-    if (values.storeChoice === "unchanged") return;
+    if (hasMixedPuids || values.storeChoice === "unchanged") return;
 
     if (pickupOptions.length === 1 && values.storeChoice !== pickupOptions[0].value) {
       setValues((current) => ({ ...current, storeChoice: pickupOptions[0].value }));
@@ -120,10 +125,10 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
     if (pickupOptions.length > 0 && !pickupOptions.some((option) => option.value === values.storeChoice)) {
       setValues((current) => ({ ...current, storeChoice: "unchanged", puid: isAdmin ? "" : current.puid }));
     }
-  }, [isAdmin, pickupOptions, setValues, values.storeChoice]);
+  }, [isAdmin, pickupOptions, setValues, values.storeChoice, hasMixedPuids]);
 
   useEffect(() => {
-    if (!values.delivery_date || values.storeChoice === "unchanged") return;
+    if (hasMixedPuids || !values.delivery_date || values.storeChoice === "unchanged") return;
     const selectedPickupOption = pickupOptions.find((option) => option.value === values.storeChoice);
     if (!selectedPickupOption) return;
 
@@ -137,7 +142,7 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
     if (values.puid !== nextPuid) {
       setValues((current) => ({ ...current, puid: nextPuid }));
     }
-  }, [allDeliveries, pickupOptions, setValues, values.delivery_date, values.puid, values.storeChoice]);
+  }, [allDeliveries, pickupOptions, setValues, values.delivery_date, values.puid, values.storeChoice, hasMixedPuids]);
 
   const hasChanges = useMemo(() => {
     return Object.keys(initialValues).some((key) => values[key] !== initialValues[key]);
@@ -223,21 +228,22 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
                 <SelectItem value="unchanged">Keep current</SelectItem>
                 <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="in_transit_or_en_route">In Transit / En Route</SelectItem>
-                <SelectItem value="completed">Complete</SelectItem>
-                <SelectItem value="failed">Failed</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           <div className="space-y-2">
-            <Label style={{ color: "var(--text-slate-900)" }}>Pickup Location</Label>
+            <Label style={{ color: "var(--text-slate-900)" }}>
+              Pickup Location
+              {hasMixedPuids && <span className="ml-1 text-xs text-amber-600">(mixed)</span>}
+            </Label>
             <Select
               value={values.storeChoice}
               onValueChange={(value) => setValues((current) => ({ ...current, storeChoice: value }))}
-              disabled={isSaving || pickupOptions.length === 0}
+              disabled={pickupFieldsDisabled || pickupOptions.length === 0}
             >
               <SelectTrigger style={getFieldStyle('storeChoice')}>
-                <SelectValue placeholder={pickupOptions.length === 0 ? "No store slots available" : "Select store [AM/PM]"} />
+                <SelectValue placeholder={hasMixedPuids ? "Mixed — disabled" : pickupOptions.length === 0 ? "No store slots available" : "Select store [AM/PM]"} />
               </SelectTrigger>
               <SelectContent className="z-[50060]">
                 <SelectItem value="unchanged">Keep current</SelectItem>
@@ -255,6 +261,7 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
             <Select
               value={values.ampmChoice}
               onValueChange={(value) => setValues((current) => ({ ...current, ampmChoice: value }))}
+              disabled={pickupFieldsDisabled}
             >
               <SelectTrigger style={getFieldStyle('ampmChoice')}>
                 <SelectValue />
@@ -273,8 +280,9 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
               <Input
                 value={values.puid}
                 onChange={(event) => setValues((current) => ({ ...current, puid: event.target.value }))}
-                disabled={isSaving}
+                disabled={pickupFieldsDisabled}
                 style={getFieldStyle('puid')}
+                placeholder={hasMixedPuids ? "Mixed — disabled" : ""}
               />
             </div>
           )}
@@ -327,17 +335,30 @@ const getSharedValue = (items, getter, fallback = "") => {
 };
 
 export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selectedCount, selectedDeliveries = [], drivers, stores = [], allDeliveries = [], currentUser, onApply, isSaving }) {
+  // Detect mixed PUIDs — if not all selected stops share the same PUID, disable pickup-related fields
+  const hasMixedPuids = useMemo(() => {
+    const puids = selectedDeliveries.map((d) => d?.puid || "").filter(Boolean);
+    if (puids.length === 0) return false;
+    return new Set(puids).size > 1;
+  }, [selectedDeliveries]);
+
+  // If any selected delivery has a terminal status, force statusChoice to "unchanged"
+  const hasTerminalStatus = useMemo(() => {
+    return selectedDeliveries.some((d) => TERMINAL_STATUSES.includes(d?.status));
+  }, [selectedDeliveries]);
+
   const initialValues = useMemo(() => ({
     delivery_date: getSharedValue(selectedDeliveries, (delivery) => delivery?.delivery_date, ""),
     driverChoice: getSharedValue(selectedDeliveries, (delivery) => delivery?.driver_id, "unchanged"),
     travelModeChoice: getSharedValue(selectedDeliveries, (delivery) => delivery?.transport_mode ?? delivery?.finished_leg_transport_mode, "mixed"),
     delivery_time_start: getSharedValue(selectedDeliveries, (delivery) => delivery?.delivery_time_start, ""),
     delivery_time_end: getSharedValue(selectedDeliveries, (delivery) => delivery?.delivery_time_end, ""),
-    statusChoice: getSharedValue(selectedDeliveries, (delivery) => delivery?.status, "unchanged"),
+    // Auto-select "unchanged" if any terminal status is present
+    statusChoice: hasTerminalStatus ? "unchanged" : getSharedValue(selectedDeliveries, (delivery) => delivery?.status, "unchanged"),
     storeChoice: "unchanged",
     ampmChoice: getSharedValue(selectedDeliveries, (delivery) => delivery?.ampm_deliveries, "unchanged"),
-    puid: getSharedValue(selectedDeliveries, (delivery) => delivery?.puid, ""),
-  }), [selectedDeliveries]);
+    puid: hasMixedPuids ? "" : getSharedValue(selectedDeliveries, (delivery) => delivery?.puid, ""),
+  }), [selectedDeliveries, hasMixedPuids, hasTerminalStatus]);
 
   const [values, setValues] = useState(initialValues);
 
@@ -356,9 +377,10 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
       setValues={setValues}
       initialValues={initialValues}
       isSaving={isSaving}
+      hasMixedPuids={hasMixedPuids}
       onCancel={() => onOpenChange(false)}
       onApply={async (nextValues) => {
-        await onApply(nextValues);
+        await onApply(nextValues, initialValues);
         onOpenChange(false);
       }}
     />
@@ -390,7 +412,7 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetOverlay className="z-[490] bg-black/70" />
-      <SheetContent side="right" className="z-[500] w-full p-0 sm:max-w-xl" style={{ background: "var(--bg-white)" }}>
+      <SheetContent side="right" className="z-[500] w-full p-0 sm:max-w-sm" style={{ background: "var(--bg-white)" }}>
         <SheetHeader className="border-b px-6 py-4" style={{ borderColor: "var(--border-slate-200)" }}>
           <SheetTitle style={{ color: "var(--text-slate-900)" }}>Bulk Edit Stops</SheetTitle>
           <SheetDescription style={{ color: "var(--text-slate-500)" }}>

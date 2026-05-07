@@ -37,27 +37,44 @@ export default function DashboardBulkEditControls({
     setShowBulkEditPanel(false);
   }, [onSelectionChange, selectedDeliveryIds]);
 
-  const handleApply = useCallback(async (values) => {
+  // initialValues is passed from BulkEditStopsPanel via onApply so we can diff against it
+  const handleApply = useCallback(async (values, initialValues) => {
     if (selectedDeliveries.length === 0) return;
     setIsSaving(true);
 
     try {
       const sharedUpdates = {};
-      if (values.driverChoice !== "unchanged") sharedUpdates.driver_id = values.driverChoice === "unassigned" ? "" : values.driverChoice;
-      if (values.delivery_date) sharedUpdates.delivery_date = values.delivery_date;
-      if (values.travelModeChoice !== "mixed") sharedUpdates.transport_mode = values.travelModeChoice;
-      if (values.delivery_time_start !== "") sharedUpdates.delivery_time_start = values.delivery_time_start;
-      if (values.delivery_time_end !== "") sharedUpdates.delivery_time_end = values.delivery_time_end;
-      if (values.ampmChoice !== "unchanged") sharedUpdates.ampm_deliveries = values.ampmChoice;
-      if (values.puid !== "") sharedUpdates.puid = values.puid;
-      if (values.storeChoice !== "unchanged") {
+
+      // Only include a field if its value changed from the initial value
+      if (values.driverChoice !== initialValues.driverChoice) {
+        sharedUpdates.driver_id = values.driverChoice === "unassigned" ? "" : values.driverChoice;
+      }
+      if (values.delivery_date !== initialValues.delivery_date) {
+        sharedUpdates.delivery_date = values.delivery_date;
+      }
+      if (values.travelModeChoice !== initialValues.travelModeChoice && values.travelModeChoice !== "mixed") {
+        sharedUpdates.transport_mode = values.travelModeChoice;
+      }
+      if (values.delivery_time_start !== initialValues.delivery_time_start) {
+        sharedUpdates.delivery_time_start = values.delivery_time_start;
+      }
+      if (values.delivery_time_end !== initialValues.delivery_time_end) {
+        sharedUpdates.delivery_time_end = values.delivery_time_end;
+      }
+      if (values.ampmChoice !== initialValues.ampmChoice && values.ampmChoice !== "unchanged") {
+        sharedUpdates.ampm_deliveries = values.ampmChoice;
+      }
+      if (values.puid !== initialValues.puid) {
+        sharedUpdates.puid = values.puid;
+      }
+      if (values.storeChoice !== initialValues.storeChoice && values.storeChoice !== "unchanged") {
         const [storeId] = String(values.storeChoice).split("::");
         sharedUpdates.store_id = storeId;
       }
 
       await Promise.all(selectedDeliveries.map((delivery) => {
         const payload = { ...sharedUpdates };
-        if (values.statusChoice !== "unchanged") {
+        if (values.statusChoice !== "unchanged" && values.statusChoice !== initialValues.statusChoice) {
           payload.status = values.statusChoice === "in_transit_or_en_route"
             ? (!delivery?.patient_id ? "en_route" : "in_transit")
             : values.statusChoice;
