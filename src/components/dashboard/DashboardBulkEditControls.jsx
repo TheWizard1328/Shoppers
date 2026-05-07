@@ -16,7 +16,7 @@ export default function DashboardBulkEditControls({
   immersiveHidden = false,
   refreshData,
   selectedDeliveryIds = {},
-  onSelectionChange,
+  onSelectionChange
 }) {
   const [showBulkEditPanel, setShowBulkEditPanel] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -76,9 +76,9 @@ export default function DashboardBulkEditControls({
       await Promise.all(selectedDeliveries.map((delivery) => {
         const payload = { ...sharedUpdates };
         if (values.statusChoice !== "unchanged" && values.statusChoice !== initialValues.statusChoice) {
-          payload.status = values.statusChoice === "in_transit_or_en_route"
-            ? (!delivery?.patient_id ? "en_route" : "in_transit")
-            : values.statusChoice;
+          payload.status = values.statusChoice === "in_transit_or_en_route" ?
+          !delivery?.patient_id ? "en_route" : "in_transit" :
+          values.statusChoice;
         }
         return updateDeliveryLocal(delivery.id, payload, { skipSmartRefresh: true });
       }));
@@ -111,11 +111,11 @@ export default function DashboardBulkEditControls({
 
   return (
     <>
-      {!immersiveHidden && selectedCount > 0 && (
-        <div
-          className="absolute left-1/2 z-[240] flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-card/95 px-3 py-2 shadow-xl backdrop-blur-sm"
-          style={{ bottom: `${(stopCardsBaseHeight || 0) + 16}px` }}
-        >
+      {!immersiveHidden && selectedCount > 0 &&
+      <div
+        className="absolute left-1/2 z-[240] flex -translate-x-1/2 items-center rounded-full border border-border bg-card/95 shadow-xl backdrop-blur-sm px-2 py-1 gap-1"
+        style={{ bottom: `${(stopCardsBaseHeight || 0) + 16}px` }}>
+        
           <span className="text-sm font-medium text-foreground">{selectedCount} Stops</span>
           <Button size="sm" onClick={() => setShowBulkEditPanel(true)} className="gap-2" disabled={isSaving || isDeleting}>
             <PencilLine className="h-4 w-4" />
@@ -128,7 +128,7 @@ export default function DashboardBulkEditControls({
             <X className="h-4 w-4" />
           </Button>
         </div>
-      )}
+      }
 
       <div className="hidden">
         {selectedDeliveries.length}
@@ -144,8 +144,8 @@ export default function DashboardBulkEditControls({
         allDeliveries={allDeliveries}
         currentUser={currentUser}
         onApply={handleApply}
-        isSaving={isSaving}
-      />
-    </>
-  );
+        isSaving={isSaving} />
+      
+    </>);
+
 }
