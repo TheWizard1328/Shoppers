@@ -142,7 +142,11 @@ Deno.serve(async (req) => {
 
     const stores = await base44.asServiceRole.entities.Store.filter({ id: storeId });
     const store = stores[0];
-    const driverAppUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
+    // driverId from the frontend is the AppUser.id, not AppUser.user_id — filter by id first, fallback to user_id
+    let driverAppUsers = await base44.asServiceRole.entities.AppUser.filter({ id: driverId });
+    if (!driverAppUsers?.length) {
+      driverAppUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
+    }
     const driverName = driverAppUsers?.[0]?.user_name || driverAppUsers?.[0]?.full_name || '';
     const creatorAppUsers = user?.id ? await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }) : [];
     const creatorAppUserId = creatorAppUsers?.[0]?.id || '';
