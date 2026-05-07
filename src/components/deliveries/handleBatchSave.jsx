@@ -348,7 +348,7 @@ export async function handleBatchSave({
         }
 
         if (refreshDriverId && refreshDeliveryDate) {
-          if (hasInTransitTransition) {
+          if (hasInTransitTransition && newPickupsCreated) {
             await recalculateAndUpdateStopOrders(refreshDriverId, refreshDeliveryDate, true);
           }
 
