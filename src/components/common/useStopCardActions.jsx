@@ -708,7 +708,10 @@ export default function useStopCardActions(params) {
           toast.error('This delivery has been deleted. Please refresh the page.');
           return;
         }
-        await ensureDriverOnline();
+        // Only ensure driver is online if not already on duty
+        if (currentUser?.driver_status !== 'on_duty') {
+          await ensureDriverOnline();
+        }
         await syncDriverLocationToStop({ currentUser, delivery, patient, store, targetDriverId: delivery.driver_id });
         const autoCODPayment = !isPickup && hasCODRequired && codPayments.length === 0 && onCODUpdate ? [{ type: 'Cash', amount: codTotalRequired }] : null;
         if (autoCODPayment) setCodPayments(autoCODPayment);
@@ -718,8 +721,9 @@ export default function useStopCardActions(params) {
           await appendBoundaryBreadcrumbPoints({ driverId: delivery.driver_id, delivery, allDeliveries, patients, stores, appUsers, terminalStatus: 'completed', completedAt: delivery.actual_delivery_time || delivery.arrival_time || new Date().toISOString() });
           pendingBreadcrumbsString = await getPendingBreadcrumbsForDelivery({ driverUserId: delivery.driver_id, deliveryId: delivery.id, stopOrder: delivery.stop_order, appUsers });
         } catch {}
+        // Only execute accept all stops if this is a pickup and has pending deliveries to process
         const hasPendingPickupTransitions = isPickup && pendingPickups && pendingPickups.some((p) => p.status === 'pending');
-        if (hasPendingPickupTransitions) {
+        if (isPickup && hasPendingPickupTransitions) {
           await executeAcceptAllStops();
           await waitForRouteTransitionSettle(pendingPickups?.length || 0);
         }
@@ -741,7 +745,10 @@ export default function useStopCardActions(params) {
           .filter((d) => d && d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending')
           .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
         await appendBoundaryBreadcrumbPoints({ driverId: delivery.driver_id, delivery, allDeliveries, patients, stores, appUsers, terminalStatus: 'completed', completedAt: completionUpdate.actual_delivery_time });
-        if (shouldDeleteSquareCodBeforeComplete) await deleteCODWithTimeout(delivery.id, 'Deleted after card COD completion');
+        // Only handle COD deletion if delivery has COD amount
+        if (shouldDeleteSquareCodBeforeComplete) {
+          await deleteCODWithTimeout(delivery.id, 'Deleted after card COD completion');
+        }
         if (isExpanded) await collapseDriverStopCards();
         await Promise.all([updateDeliveryLocal(delivery.id, completionUpdate, { skipSmartRefresh: true })]);
         if (patient?.id) {
@@ -787,12 +794,16 @@ export default function useStopCardActions(params) {
         if (!nextStop) {
           fabControlEvents.notifyDoneButtonClicked();
           window.dispatchEvent(new CustomEvent('showRouteSummary', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
-          try { await setDriverStatus({ newStatus: 'off_duty' }); locationTracker.stopTracking(); } catch {}
-          if (onDriverStatusChange) onDriverStatusChange('off_duty');
+          // Only update driver status if they're currently on duty
+          if (currentUser?.driver_status === 'on_duty') {
+            try { await setDriverStatus({ newStatus: 'off_duty' }); locationTracker.stopTracking(); } catch {}
+            if (onDriverStatusChange) onDriverStatusChange('off_duty');
+          }
         }
         fabControlEvents.notifyPhaseTwoCompleteRecenter();
         fabControlEvents.reactivateFAB(true, { suppressIfPhase1: true, reason: 'stop_status_change' });
-        if (!isPickup && patient?.id) {
+        // Only sync patient last delivery date if this is a delivery (not a pickup) and has COD
+        if (!isPickup && patient?.id && Number(delivery?.cod_total_amount_required || 0) > 0) {
           await base44.functions.invoke('syncPatientLastDeliveryDate', {
             data: { ...delivery, ...completionUpdate, patient_id: patient.id },
             old_data: { status: delivery.status },
