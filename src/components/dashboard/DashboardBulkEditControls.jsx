@@ -1,6 +1,16 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { PencilLine, Trash2, X } from "lucide-react";
+import { PencilLine, Trash2, X, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import BulkEditStopsPanel from "@/components/deliveries/BulkEditStopsPanel";
 import { updateDeliveryLocal, deleteDeliveryLocal } from "@/components/utils/offlineMutations";
 import { invalidate } from "@/components/utils/dataManager";
@@ -16,11 +26,12 @@ export default function DashboardBulkEditControls({
   immersiveHidden = false,
   refreshData,
   selectedDeliveryIds = {},
-  onSelectionChange
+  onSelectionChange,
 }) {
   const [showBulkEditPanel, setShowBulkEditPanel] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const selectedDeliveries = useMemo(() => {
     const ids = Object.keys(selectedDeliveryIds).filter((id) => selectedDeliveryIds[id]);
@@ -30,6 +41,12 @@ export default function DashboardBulkEditControls({
   }, [deliveriesWithStopOrder, selectedDeliveryIds]);
 
   const selectedCount = selectedDeliveries.length;
+
+  // Count how many of the selected stops are "pending" (not yet completed/failed/cancelled)
+  const pendingCount = useMemo(() => {
+    const nonTerminal = ["pending", "in_transit", "en_route"];
+    return selectedDeliveries.filter((d) => nonTerminal.includes(d?.status)).length;
+  }, [selectedDeliveries]);
 
   const clearSelection = useCallback(() => {
     Object.keys(selectedDeliveryIds).forEach((deliveryId) => {
@@ -46,7 +63,6 @@ export default function DashboardBulkEditControls({
     try {
       const sharedUpdates = {};
 
-      // Only include a field if its value changed from the initial value
       if (values.driverChoice !== initialValues.driverChoice) {
         sharedUpdates.driver_id = values.driverChoice === "unassigned" ? "" : values.driverChoice;
       }
@@ -76,9 +92,9 @@ export default function DashboardBulkEditControls({
       await Promise.all(selectedDeliveries.map((delivery) => {
         const payload = { ...sharedUpdates };
         if (values.statusChoice !== "unchanged" && values.statusChoice !== initialValues.statusChoice) {
-          payload.status = values.statusChoice === "in_transit_or_en_route" ?
-          !delivery?.patient_id ? "en_route" : "in_transit" :
-          values.statusChoice;
+          payload.status = values.statusChoice === "in_transit_or_en_route"
+            ? (!delivery?.patient_id ? "en_route" : "in_transit")
+            : values.statusChoice;
         }
         return updateDeliveryLocal(delivery.id, payload, { skipSmartRefresh: true });
       }));
@@ -91,9 +107,8 @@ export default function DashboardBulkEditControls({
     }
   }, [selectedDeliveries, refreshData, clearSelection]);
 
-  const handleDelete = useCallback(async () => {
-    if (selectedDeliveries.length === 0) return;
-    if (!window.confirm(`Delete ${selectedCount} stop${selectedCount !== 1 ? 's' : ''}? This cannot be undone.`)) return;
+  const handleDeleteConfirmed = useCallback(async () => {
+    setShowDeleteDialog(false);
     setIsDeleting(true);
     try {
       await Promise.all(selectedDeliveries.map((delivery) => deleteDeliveryLocal(delivery.id)));
@@ -103,7 +118,7 @@ export default function DashboardBulkEditControls({
     } finally {
       setIsDeleting(false);
     }
-  }, [selectedDeliveries, selectedCount, refreshData, clearSelection]);
+  }, [selectedDeliveries, refreshData, clearSelection]);
 
   if (immersiveHidden && selectedCount === 0) {
     return null;
@@ -111,28 +126,66 @@ export default function DashboardBulkEditControls({
 
   return (
     <>
-      {!immersiveHidden && selectedCount > 0 &&
-      <div
-        className="absolute left-1/2 z-[240] flex -translate-x-1/2 items-center rounded-full border border-border bg-card/95 shadow-xl backdrop-blur-sm px-2 py-1 gap-1"
-        style={{ bottom: `${(stopCardsBaseHeight || 0) + 16}px` }}>
-        
-          <span className="text-sm font-medium text-foreground">{selectedCount} Stops</span>
+      {!immersiveHidden && selectedCount > 0 && (
+        <div
+          className="absolute left-1/2 z-[240] flex -translate-x-1/2 items-center rounded-full border border-border bg-card/95 shadow-xl backdrop-blur-sm px-2 py-1 gap-1"
+          style={{ bottom: `${(stopCardsBaseHeight || 0) + 16}px` }}
+        >
+          <span className="text-sm font-medium text-foreground px-1">{selectedCount} Stops</span>
           <Button size="sm" onClick={() => setShowBulkEditPanel(true)} className="gap-2" disabled={isSaving || isDeleting}>
             <PencilLine className="h-4 w-4" />
             Edit
           </Button>
-          <Button size="icon" variant="ghost" onClick={handleDelete} disabled={isDeleting} className="text-destructive hover:text-destructive hover:bg-destructive/10">
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => setShowDeleteDialog(true)}
+            disabled={isDeleting}
+            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+          >
             <Trash2 className="h-4 w-4" />
           </Button>
           <Button size="icon" variant="ghost" onClick={clearSelection} disabled={isDeleting}>
             <X className="h-4 w-4" />
           </Button>
         </div>
-      }
+      )}
 
-      <div className="hidden">
-        {selectedDeliveries.length}
-      </div>
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent className="z-[50100]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Delete {selectedCount} Stop{selectedCount !== 1 ? "s" : ""}?
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  This will permanently delete <strong>{selectedCount} stop{selectedCount !== 1 ? "s" : ""}</strong> from both local and server records. This cannot be undone.
+                </p>
+                {pendingCount > 0 && (
+                  <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                    <strong>⚠ Warning:</strong> {pendingCount} of the selected stop{pendingCount !== 1 ? "s are" : " is"} still pending and will also be deleted.
+                  </div>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirmed}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete {selectedCount} Stop{selectedCount !== 1 ? "s" : ""}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <div className="hidden">{selectedDeliveries.length}</div>
+
       <BulkEditStopsPanel
         open={showBulkEditPanel}
         onOpenChange={setShowBulkEditPanel}
@@ -144,8 +197,8 @@ export default function DashboardBulkEditControls({
         allDeliveries={allDeliveries}
         currentUser={currentUser}
         onApply={handleApply}
-        isSaving={isSaving} />
-      
-    </>);
-
+        isSaving={isSaving}
+      />
+    </>
+  );
 }
