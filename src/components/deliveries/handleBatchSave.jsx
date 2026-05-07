@@ -61,6 +61,7 @@ export async function handleBatchSave({
    const routeDeliveryDate = formData.delivery_date || stagedDeliveries.find((delivery) => delivery?.delivery_date)?.delivery_date || format(new Date(), 'yyyy-MM-dd');
    let routeStructureChanged = false;
    let hasInTransitTransition = false;
+   let newPickupsCreated = false;
 
   console.log('[AddToRoute] handleBatchSave:start', {
     openMode: formData?.openMode,
@@ -222,7 +223,8 @@ export async function handleBatchSave({
       });
 
       creatorFlowEnsuredPickups = normalizedDefaultPickups;
-      if (normalizedDefaultPickups.length > 0) {
+      let newPickupsCreated = normalizedDefaultPickups.length > 0;
+      if (newPickupsCreated) {
         routeStructureChanged = true;
       }
 
@@ -261,6 +263,9 @@ export async function handleBatchSave({
         return ensureResultsByKey.get(key) || null;
       });
 
+      const ensuredPickupsCreated = ensuredPickups.some((result) => result?.data?.pickup);
+      newPickupsCreated = newPickupsCreated || ensuredPickupsCreated;
+      
       ensuredPickupRecords = Array.from(new Map(
         [
           ...normalizedDefaultPickups,
@@ -270,7 +275,7 @@ export async function handleBatchSave({
           .filter((pickup) => pickup?.id || pickup?.stop_id)
           .map((pickup) => [pickup.id || pickup.stop_id, pickup])
       ).values());
-      routeStructureChanged = routeStructureChanged || ensuredPickupRecords.length > 0;
+      routeStructureChanged = routeStructureChanged || newPickupsCreated;
 
       const ensuredPickupByKey = new Map(
         ensuredPickupRecords
@@ -339,7 +344,7 @@ export async function handleBatchSave({
         }
 
         if (refreshDriverId && refreshDeliveryDate) {
-          if (hasInTransitTransition) {
+          if (hasInTransitTransition && newPickupsCreated) {
             await recalculateAndUpdateStopOrders(refreshDriverId, refreshDeliveryDate, true);
           }
 
