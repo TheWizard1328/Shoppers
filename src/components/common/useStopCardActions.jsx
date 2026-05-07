@@ -854,6 +854,29 @@ export default function useStopCardActions(params) {
             if (onDriverStatusChange) onDriverStatusChange('off_duty');
           }
         }
+
+        // Process Square COD based on current payment type selection
+        if (!isPickup && Number(delivery?.cod_total_amount_required || 0) > 0 && completionCodPayments.length > 0) {
+          const hasCashOrCheck = completionCodPayments.some(p => p.type === 'Cash' || p.type === 'Check');
+          const hasDebitOrCredit = completionCodPayments.some(p => p.type === 'Debit' || p.type === 'Credit');
+
+          if (hasCashOrCheck) {
+            // Ensure catalog item exists for Cash/Check payments
+            const resolvedStore = store || stores.find((s) => s && s.id === delivery?.store_id);
+            base44.functions.invoke('squareCreateCodItem', {
+              deliveryId: delivery.id,
+              patientName: patient?.full_name || delivery.patient_name || 'Patient',
+              storeAbbreviation: resolvedStore?.abbreviation || '',
+              codAmount: delivery.cod_total_amount_required,
+              deliveryDate: delivery.delivery_date,
+              storeId: delivery.store_id
+            }).catch(() => null);
+          } else if (hasDebitOrCredit) {
+            // Delete catalog item for Debit/Credit payments
+            base44.functions.invoke('squareDeleteCodItem', { deliveryId: delivery.id }).catch(() => null);
+          }
+        }
+
         fabControlEvents.notifyPhaseTwoCompleteRecenter();
         fabControlEvents.reactivateFAB(true, { suppressIfPhase1: true, reason: 'stop_status_change' });
         // Only sync patient last delivery date if this is a delivery (not a pickup) and has COD
