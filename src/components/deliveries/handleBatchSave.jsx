@@ -338,7 +338,7 @@ export async function handleBatchSave({
 
         if (refreshDriverId && refreshDeliveryDate) {
           if (routeStructureChanged) {
-            await recalculateAndUpdateStopOrders(refreshDriverId, refreshDeliveryDate);
+            await recalculateAndUpdateStopOrders(refreshDriverId, refreshDeliveryDate, true);
           }
 
           await base44.functions.invoke('recalculateTrackingNumbers', {
