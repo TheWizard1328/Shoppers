@@ -8,6 +8,7 @@ import { isAppOwner } from "@/components/utils/userRoles";
 import { pauseOfflineMutations, resumeOfflineMutations } from "@/components/utils/offlineMutations";
 import { pauseOfflineSync, resumeOfflineSync } from "@/components/utils/offlineSync";
 import { isMobileDevice } from "@/components/utils/deviceUtils";
+import { getOrFetchHereApiKey } from "@/components/utils/hereApiKeyStore";
 
 export default function RouteActionButtons({
   currentUser,
@@ -58,11 +59,13 @@ export default function RouteActionButtons({
             const deliveryDate = format(selectedDate, "yyyy-MM-dd");
             const now = new Date();
             const currentLocalTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+            const hereApiKey = await getOrFetchHereApiKey();
             const response = await base44.functions.invoke("optimizeRemainingStops", {
               driverId: selectedDriverId,
               deliveryDate,
               currentLocalTime,
-              deviceTime: now.toISOString()
+              deviceTime: now.toISOString(),
+              hereApiKey
             });
             const data = response?.data || response;
             if (data?.success) {

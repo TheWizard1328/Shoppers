@@ -7,6 +7,7 @@ import { subscribeToRealtime } from './realtimeSync';
 import { ensurePolylineSubscription } from './hereRouting';
 import ImmediateNextDeliveryController from './ImmediateNextDeliveryController';
 import { globalFilters } from './globalFilters';
+import { seedHereApiKey, initHereApiKey } from './hereApiKeyStore';
 
 const AppDataContext = createContext(null);
 
@@ -391,6 +392,13 @@ export const AppDataProvider = ({ children, value }) => {
   useEffect(() => {
     if (!value.currentUser) return;
     ensurePolylineSubscription();
+    // Seed HERE API key from manifest data (window.__hereApiKey) or fetch it
+    const manifestKey = typeof window !== 'undefined' ? window.__hereApiKey : null;
+    if (manifestKey) {
+      seedHereApiKey(manifestKey);
+    } else {
+      initHereApiKey().catch(() => {});
+    }
   }, [value.currentUser?.id]);
 
   // CRITICAL: Set up city-filtered real-time subscriptions

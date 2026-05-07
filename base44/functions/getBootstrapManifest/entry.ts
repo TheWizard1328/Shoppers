@@ -29,6 +29,16 @@ Deno.serve(async (req) => {
 
     const refreshConfig = appSettings?.[0]?.setting_value || {};
 
+    // Resolve HERE API key once during bootstrap to avoid repeated AppSettings queries
+    const SECRET_NAME_MAP = {
+      HERE_API_KEY: 'HERE_API_KEY',
+      Here_API_Key_2: 'Here_API_Key_2',
+      Here_API_Key_3: 'Here_API_Key_3'
+    };
+    const selectedSecretName = refreshConfig.selected_api_key || 'HERE_API_KEY';
+    const resolvedSecretName = SECRET_NAME_MAP[selectedSecretName] || 'HERE_API_KEY';
+    const hereApiKey = Deno.env.get(resolvedSecretName) || null;
+
     return Response.json({
       success: true,
       deviceRegistered: (devices || []).length > 0,
@@ -39,6 +49,7 @@ Deno.serve(async (req) => {
         smartRefreshEnabled: refreshConfig.smartRefreshEnabled !== false,
         adminImportEnabled: refreshConfig.adminImportEnabled === true,
         appVersion: refreshConfig.appVersion || null,
+        hereApiKey,
       },
     });
   } catch (error) {

@@ -19,6 +19,7 @@ import { triggerSquareCodUpsert } from '../utils/directDeliverySideEffects';
 import { runAcceptAllBatchPipeline } from '../utils/acceptAllBatchPipeline';
 import { runWithDeliveryActionLock } from '../utils/deliveryActionLock';
 import { pauseOfflineSync, resumeOfflineSync } from '../utils/offlineSync';
+import { getOrFetchHereApiKey } from '../utils/hereApiKeyStore';
 import { notifyDriverAcceptedAll, notifyDispatcherAssignedAll, notifyDriverStarted, notifyDriverCompleted, notifyDriverFailed, notifyDriverRetry, notifyDriverReturn } from "../utils/deliveryMessaging";
 
 const START_ACTION_NAME = 'start_delivery';
@@ -590,13 +591,15 @@ export default function useStopCardActions(params) {
         if (!delivery?.id || !delivery?.driver_id || !delivery?.delivery_date) return;
         try {
           await base44.functions.invoke('handleStartDelivery', { deliveryId: delivery.id, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime });
+          const hereApiKey = await getOrFetchHereApiKey();
           const optimizeResponse = await base44.functions.invoke('optimizeRemainingStops', {
             driverId: delivery.driver_id,
             deliveryDate: delivery.delivery_date,
             currentLocalTime,
             deviceTime: new Date().toISOString(),
             forceFullRemainingRouteOptimization: true,
-            bypassDriverStatus: true
+            bypassDriverStatus: true,
+            hereApiKey
           }).catch(() => null);
           const optimizeData = optimizeResponse?.data || optimizeResponse || null;
 

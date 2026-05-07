@@ -3,6 +3,7 @@ import { invalidate } from "../utils/dataManager";
 import { offlineDB } from '../utils/offlineDatabase';
 import { encodeGooglePolyline, getHereEncodedPolyline } from "../utils/hereRouting";
 import { shouldRunRouteDeviationCheck, shouldRefreshEtasForCompletionDrift, markEtaRefreshRun } from "../utils/etaRefreshRules";
+import { getOrFetchHereApiKey } from "../utils/hereApiKeyStore";
 
 export function getCurrentLocalTimeString(date = new Date()) {
   return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
@@ -624,9 +625,11 @@ export async function optimizeRouteAndApplyNextDelivery({
     };
 
     if (runOptimization) {
+      const hereApiKey = await getOrFetchHereApiKey();
       const optimizeResponse = await base44.functions.invoke('optimizeRemainingStops', {
         driverId,
-        deliveryDate
+        deliveryDate,
+        hereApiKey
       }).catch(() => null);
       optimizeData = optimizeResponse?.data || optimizeResponse || optimizeData;
     }
