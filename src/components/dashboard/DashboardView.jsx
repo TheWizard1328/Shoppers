@@ -360,6 +360,10 @@ export default function DashboardView({
             refreshData={refreshData}
             selectedDeliveryIds={selectedDeliveryIds}
             onSelectionChange={handleStopCardSelectionChange}
+            onBulkDeleteComplete={() => {
+              setShowStopCardCheckboxes(false);
+              setSelectedDeliveryIds({});
+            }}
           />
           <StopCardsSection
             currentUser={currentUser} isDriver={isDriver} isAdmin={isAdmin} isDispatcher={isDispatcher} isMobile={isMobile}

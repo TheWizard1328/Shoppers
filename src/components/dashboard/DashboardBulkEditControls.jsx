@@ -28,6 +28,7 @@ export default function DashboardBulkEditControls({
   refreshData,
   selectedDeliveryIds = {},
   onSelectionChange,
+  onBulkDeleteComplete,
 }) {
   const [showBulkEditPanel, setShowBulkEditPanel] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -171,10 +172,11 @@ export default function DashboardBulkEditControls({
 
       await refreshData?.();
       clearSelection();
+      onBulkDeleteComplete?.();
     } finally {
       setIsDeleting(false);
     }
-  }, [selectedDeliveries, allDeliveries, selectedDeliveryIds, refreshData, clearSelection]);
+  }, [selectedDeliveries, allDeliveries, selectedDeliveryIds, refreshData, clearSelection, onBulkDeleteComplete]);
 
   if (immersiveHidden && selectedCount === 0) {
     return null;
