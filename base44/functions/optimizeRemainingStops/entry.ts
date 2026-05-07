@@ -352,8 +352,11 @@ Deno.serve(async (req) => {
 
     console.log(`🔄 [optimizeRemainingStops] Optimizing remaining stops for driver ${driverId} on ${deliveryDate}`);
 
-    const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
-    const driverAppUser = appUsers?.[0];
+    // Resolve AppUser: try AppUser.id first (new standard), fallback to user_id (legacy)
+    let driverAppUser = (await base44.asServiceRole.entities.AppUser.filter({ id: driverId }, '-created_date', 1))?.[0] || null;
+    if (!driverAppUser) {
+      driverAppUser = (await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId }, '-created_date', 1))?.[0] || null;
+    }
     if (!driverAppUser) {
       return Response.json({
         success: true,

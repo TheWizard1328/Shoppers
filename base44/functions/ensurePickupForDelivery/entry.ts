@@ -148,9 +148,11 @@ Deno.serve(async (req) => {
       driverAppUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
     }
     const driverName = driverAppUsers?.[0]?.user_name || driverAppUsers?.[0]?.full_name || '';
-    const creatorAppUsers = user?.id ? await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }) : [];
-    const creatorAppUserId = creatorAppUsers?.[0]?.id || '';
-    const dispatcherId = user?.id || null;
+    // Resolve creator: always use AppUser.id for created_by_app_user_id and dispatcher_id
+    const creatorAppUsers = user?.id ? await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }, '-created_date', 1) : [];
+    const creatorAppUser = creatorAppUsers?.[0] || null;
+    const creatorAppUserId = creatorAppUser?.id || '';
+    const dispatcherId = creatorAppUser?.id || user?.id || null;
     const specialStoreNames = ['Lakeland Ridge', 'Sherwood Pk Mall', 'WestPark', 'SouthPoint'];
 
     if (store && specialStoreNames.includes(store.name)) {

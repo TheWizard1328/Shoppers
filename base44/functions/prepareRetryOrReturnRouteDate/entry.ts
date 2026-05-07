@@ -22,7 +22,11 @@ function isDriverAssignedToSlot(store, driverAppUser, slotPrefix) {
   if (!store?.[enabledField]) return false;
   const idField = `${slotPrefix}_driver_id`;
   const legacyField = `${slotPrefix}_driver`;
-  if (store?.[idField] && driverAppUser?.user_id) return store[idField] === driverAppUser.user_id;
+  if (store?.[idField] && driverAppUser) {
+    // Match against AppUser.id (new) OR user_id (legacy) for backward compatibility
+    if (store[idField] === driverAppUser.id) return true;
+    if (driverAppUser.user_id && store[idField] === driverAppUser.user_id) return true;
+  }
   if (store?.[legacyField] && driverAppUser?.user_name) return String(store[legacyField]).trim().toLowerCase() === String(driverAppUser.user_name).trim().toLowerCase();
   return false;
 }
@@ -82,7 +86,13 @@ Deno.serve(async (req) => {
     const effectiveDate = todayDate > deliveryDate ? todayDate : deliveryDate;
 
     let dateDeliveries = await base44.asServiceRole.entities.Delivery.filter({ driver_id: driverId, delivery_date: effectiveDate }, 'stop_order', 50000);
-    const driverAppUser = (await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId }, undefined, 1))?.[0];
+    // Resolve AppUser: try AppUser.id first (new standard), fallback to user_id (legacy)
+    let driverAppUser = (await base44.asServiceRole.entities.AppUser.filter({ id: driverId }, '-created_date', 1))?.[0] || null;
+    if (!driverAppUser) {
+      driverAppUser = (await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId }, '-created_date', 1))?.[0] || null;
+    }
+    // Resolve creator AppUser for created_by_app_user_id
+    const creatorAppUser = (await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }, '-created_date', 1))?.[0] || null;
     const stores = await base44.asServiceRole.entities.Store.list(undefined, 50000);
     const targetStore = (stores || []).find((store) => store?.id === targetStoreId);
     const requestedSlot = ampmDeliveries === 'PM' ? 'PM' : 'AM';
@@ -105,8 +115,9 @@ Deno.serve(async (req) => {
           const stopId = generateShortStopId();
           const createdPickup = await base44.asServiceRole.entities.Delivery.create({
             store_id: store.id,
-            driver_id: driverId,
+            driver_id: driverAppUser?.id || driverId,
             driver_name: driverAppUser?.user_name || '',
+            created_by_app_user_id: creatorAppUser?.id || '',
             delivery_date: effectiveDate,
             delivery_time_start: times.start,
             delivery_time_end: times.end,

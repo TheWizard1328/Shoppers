@@ -70,6 +70,7 @@ function getDriverStoreFields(deliveryDate) {
 async function loadAssignedStores(base44, deliveryDate, driverId, driverUserId = null) {
   const fields = getDriverStoreFields(deliveryDate);
   const stores = await base44.asServiceRole.entities.Store.list('-created_date', 200);
+  // Match against both AppUser.id (new) and platform user_id (legacy) to support both
   const driverIdsToMatch = [driverId, driverUserId].filter(Boolean);
 
   return (stores || []).filter((store) => {
@@ -210,9 +211,11 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Missing driverId or deliveryDate' }, { status: 400 });
     }
 
+    // Resolve creator: always use AppUser.id for created_by_app_user_id and dispatcher_id
     const creatorAppUsers = user?.id ? await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }, '-created_date', 1) : [];
-    const creatorAppUserId = creatorAppUsers?.[0]?.id || '';
-    const dispatcherId = user.id;
+    const creatorAppUser = creatorAppUsers?.[0] || null;
+    const creatorAppUserId = creatorAppUser?.id || '';
+    const dispatcherId = creatorAppUser?.id || user.id;
 
     const driverAppUsers = await base44.asServiceRole.entities.AppUser.filter({ id: driverId }, '-created_date', 1);
     const driverAppUser = driverAppUsers?.[0] || null;
