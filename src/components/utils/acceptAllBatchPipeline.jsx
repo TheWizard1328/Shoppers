@@ -43,8 +43,7 @@ export async function runAcceptAllBatchPipeline({
         ...item,
         status: 'in_transit',
         isNextDelivery: false,
-        delivery_time_start: transitionedStopStartTime,
-        ampm_deliveries: item.ampm_deliveries || triggerDelivery.ampm_deliveries || (transitionedStopStartTime >= '15:00' ? 'PM' : 'AM'),
+        ampm_deliveries: item.ampm_deliveries || triggerDelivery.ampm_deliveries || (pickupStartTime >= '15:00' ? 'PM' : 'AM'),
         ...(item.active === false ? { active: true } : {})
       };
     }
