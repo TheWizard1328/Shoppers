@@ -332,6 +332,43 @@ export async function handleBatchSave({
         });
         if (squarePromises.length > 0) await Promise.allSettled(squarePromises);
 
+        // Handle COD payment type changes: delete for Debit/Credit, recreate for Cash/Check
+        const squarePaymentChangePromises = deliveriesToUpdate.map(updated => {
+          const original = allDeliveries?.find(d => d?.id === updated?.id);
+          if (!original || !updated) return null;
+
+          const originalAmount = original.cod_total_amount_required || 0;
+          const updatedAmount = updated.cod_total_amount_required || 0;
+          const originalPayments = original.cod_payments || [];
+          const updatedPayments = updated.cod_payments || [];
+
+          const originalHasDebitCredit = originalPayments.some(p => p.type === 'Debit' || p.type === 'Credit');
+          const updatedHasDebitCredit = updatedPayments.some(p => p.type === 'Debit' || p.type === 'Credit');
+          const updatedHasCashCheck = updatedPayments.some(p => p.type === 'Cash' || p.type === 'Check');
+
+          // Delete catalog item if payment changed to Debit/Credit
+          if (!originalHasDebitCredit && updatedHasDebitCredit && updatedAmount > 0) {
+            return base44.functions.invoke('squareDeleteCodItem', { deliveryId: updated.id }).then(() => null).catch(() => null);
+          }
+
+          // Recreate catalog item if payment changed to Cash/Check and amount > 0
+          if (!updatedHasDebitCredit && updatedHasCashCheck && updatedAmount > 0) {
+            const store = stores?.find(s => s && s.id === updated.store_id);
+            return base44.functions.invoke('squareCreateCodItem', { 
+              deliveryId: updated.id, 
+              patientName: updated.patient_name, 
+              storeAbbreviation: store?.abbreviation || '', 
+              codAmount: updatedAmount, 
+              deliveryDate: updated.delivery_date, 
+              storeId: updated.store_id 
+            }).then(() => null).catch(() => null);
+          }
+
+          return null;
+        }).filter(Boolean);
+
+        if (squarePaymentChangePromises.length > 0) await Promise.allSettled(squarePaymentChangePromises);
+
         await restartBatchSmartRefresh(() => setBatchFormSaving(false));
 
         const hasOnlyPendingOrStagedChanges = [...deliveriesReadyForDB, ...existingDeliveriesWithTRs]
