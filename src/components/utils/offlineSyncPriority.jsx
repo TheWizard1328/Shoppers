@@ -229,16 +229,6 @@ export const createOfflineSyncPriorityHelpers = ({
           }
         }
 
-        if (cityStoreIds.length > 0) {
-          const cityPatients = await Patient.filter({ store_id: { $in: cityStoreIds } }, '-updated_date', 5000);
-          if (cityPatients?.length) {
-            await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, cityPatients);
-            invalidateEntityCache('Patient');
-            const patientMap = new Map([...patients, ...cityPatients].filter(Boolean).map((patient) => [patient.id, patient]));
-            patients = Array.from(patientMap.values());
-          }
-        }
-
         await offlineDB.updateSyncStatus('Patient', { recordCount: patients.length, status: 'synced', lastSync: new Date().toISOString() });
       }
 
