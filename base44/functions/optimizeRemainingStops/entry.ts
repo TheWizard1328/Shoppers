@@ -1,4 +1,4 @@
-// Redeployed on 2026-04-09
+// Redeployed on 2026-05-07
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
@@ -160,6 +160,32 @@ const getLegTravelMinutes = ({ stop, leg, segmentPolyline, fallbackMinutes = 5 }
   }
 
   return fallbackMinutes;
+};
+
+// Call HERE Routing API for a single segment: origin -> destination
+// Returns { durationMinutes, distanceKm } or null on failure
+const getHereSegmentDuration = async (origin, destination, hereApiKey, hereTransportMode) => {
+  if (!origin || !destination) return null;
+  try {
+    const params = new URLSearchParams({
+      transportMode: hereTransportMode === 'bicycle' ? 'bicycle' : hereTransportMode === 'pedestrian' ? 'pedestrian' : 'car',
+      origin: `${origin.lat},${origin.lng}`,
+      destination: `${destination.lat},${destination.lng}`,
+      return: 'summary',
+      apiKey: hereApiKey
+    });
+    const resp = await fetch(`https://router.hereapi.com/v8/routes?${params.toString()}`, { signal: AbortSignal.timeout(8000) });
+    if (!resp.ok) return null;
+    const data = await resp.json().catch(() => null);
+    const summary = data?.routes?.[0]?.sections?.[0]?.summary;
+    if (!summary) return null;
+    return {
+      durationMinutes: Math.ceil(Number(summary.duration || 0) / 60),
+      distanceKm: Number((Number(summary.length || 0) / 1000).toFixed(3))
+    };
+  } catch {
+    return null;
+  }
 };
 
 const extractOptimizationContext = (body = {}) => {
@@ -365,10 +391,6 @@ Deno.serve(async (req) => {
       return Response.json({ error: `${activeApiKeyName} secret is not set` }, { status: 500 });
     }
 
-    if (!driverAppUser) {
-      return Response.json({ error: 'Driver not found' }, { status: 404 });
-    }
-
     const allDeliveries = await base44.asServiceRole.entities.Delivery.filter({
       driver_id: driverId,
       delivery_date: deliveryDate
@@ -514,7 +536,18 @@ Deno.serve(async (req) => {
       }, { status: 404 });
     }
 
+    // --- Logical segment origin for isNextDelivery stop ---
+    // estimated_duration_minutes / estimated_distance_km for the isNextDelivery stop must
+    // reflect the segment from the previous finished stop (or home), NOT the driver's live GPS.
+    // ETA is still calculated from driver's live GPS + current time.
+    const logicalSegmentOrigin = latestFinishedCoords
+      || (driverAppUser.home_latitude != null && driverAppUser.home_longitude != null
+        ? { lat: Number(driverAppUser.home_latitude), lng: Number(driverAppUser.home_longitude) }
+        : null)
+      || currentPosition;
+
     console.log(`📍 [optimizeRemainingStops] Starting from: ${locationSource} (${currentPosition.lat}, ${currentPosition.lng})`);
+    console.log(`📐 [optimizeRemainingStops] Logical segment origin (for estimated_duration/distance of isNextDelivery): (${logicalSegmentOrigin?.lat}, ${logicalSegmentOrigin?.lng})`);
     console.log(`🎯 [optimizeRemainingStops] Active next stop: ${explicitNextDelivery?.id || 'none'}`);
     console.log(`🏁 [optimizeRemainingStops] Home remains locked as final destination${driverAppUser.home_latitude != null && driverAppUser.home_longitude != null ? '' : ' (not set)'}`);
 
@@ -545,6 +578,29 @@ Deno.serve(async (req) => {
     const resolvedHomePosition = driverAppUser.home_latitude != null && driverAppUser.home_longitude != null
       ? { lat: Number(driverAppUser.home_latitude), lng: Number(driverAppUser.home_longitude) }
       : null;
+
+    // For the isNextDelivery stop: separately calculate segment from logical origin
+    // (previous finished stop or home) to the isNextDelivery stop coords
+    let nextStopLogicalSegment = null; // { durationMinutes, distanceKm }
+    if (lockedNextStop && logicalSegmentOrigin && explicitNextCoords) {
+      const samePoint = Math.abs(logicalSegmentOrigin.lat - currentPosition.lat) < 0.0001 &&
+                        Math.abs(logicalSegmentOrigin.lng - currentPosition.lng) < 0.0001;
+      if (!samePoint) {
+        // logicalSegmentOrigin differs from live GPS — fetch the logical segment
+        nextStopLogicalSegment = await getHereSegmentDuration(
+          logicalSegmentOrigin,
+          explicitNextCoords,
+          hereApiKey,
+          hereTransportMode
+        );
+        attemptedHereCalls += 1;
+        if (nextStopLogicalSegment) {
+          console.log(`📐 [optimizeRemainingStops] Logical segment for isNextDelivery: ${nextStopLogicalSegment.durationMinutes} min, ${nextStopLogicalSegment.distanceKm} km`);
+        }
+      } else {
+        console.log(`📐 [optimizeRemainingStops] Logical origin == live GPS — skipping separate logical segment call`);
+      }
+    }
 
     const executeHereSequence = async (includeTimeWindows) => {
       const sequenceStart = routeOriginStop
@@ -629,6 +685,7 @@ Deno.serve(async (req) => {
         const interconnectionByToWaypoint = new Map(interconnections.map((item) => [item.toWaypoint, item]));
         directionsLegs = routeStops.map((stop, index) => {
           if (index === 0) {
+            // index 0 is the locked isNextDelivery stop — use driver's live GPS distance for ETA calc leg
             const distKm = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, stop.lat, stop.lng);
             return { duration: Math.ceil((distKm / 40) * 60 * 60 * 1.3), distance: distKm * 1000 };
           }
@@ -716,6 +773,8 @@ Deno.serve(async (req) => {
         console.log(`  ✅ [optimizeRemainingStops] ${stop.delivery.patient_name || 'Pickup'} - ETA: ${eta}`);
       }
     } else {
+      // ETA calculation uses driver's live position (currentPosition) for the first leg
+      // so directionsLegs[0] already reflects driver GPS -> isNextDelivery stop travel time
       let cumulativeTime = currentMinutes;
 
       for (let i = 0; i < routeStops.length; i++) {
@@ -801,6 +860,18 @@ Deno.serve(async (req) => {
       const segmentPolyline = segmentPolylines.find((segment) => segment.deliveryId === stop.id) || null;
       const resolvedTransportMode = String(stop?.transport_mode || preferredTravelMode || 'driving').toLowerCase();
       const safeTransportMode = ['driving', 'cycling', 'pedestrian'].includes(resolvedTransportMode) ? resolvedTransportMode : 'driving';
+
+      // For the isNextDelivery stop (i === 0 and lockedNextStop exists):
+      // - delivery_time_eta: already based on driver's live GPS (currentMinutes = now, directionsLegs[0] from GPS)
+      // - estimated_duration_minutes / estimated_distance_km: use logical segment (prev finished stop -> isNextDelivery)
+      const isNextStop = stop.id === nextStopId && i === 0 && !!lockedNextStop;
+      const logicalDurationMinutes = isNextStop && nextStopLogicalSegment
+        ? nextStopLogicalSegment.durationMinutes
+        : (typeof segmentPolyline?.estimatedDurationMinutes === 'number' ? segmentPolyline.estimatedDurationMinutes : null);
+      const logicalDistanceKm = isNextStop && nextStopLogicalSegment
+        ? nextStopLogicalSegment.distanceKm
+        : (typeof segmentPolyline?.estimatedDistanceKm === 'number' ? segmentPolyline.estimatedDistanceKm : null);
+
       const updateData = {
         stop_order: newOrder,
         display_stop_order: newOrder,
@@ -810,11 +881,11 @@ Deno.serve(async (req) => {
         travel_dist: Number(directionsLegs[i]?.distance)
           ? Number((Number(directionsLegs[i].distance) / 1000).toFixed(3))
           : null,
+        ...(logicalDurationMinutes != null ? { estimated_duration_minutes: logicalDurationMinutes } : {}),
+        ...(logicalDistanceKm != null ? { estimated_distance_km: logicalDistanceKm } : {}),
         ...(segmentPolyline?.encodedPolyline ? {
           encoded_polyline: segmentPolyline.encodedPolyline,
-          transport_mode: safeTransportMode,
-          estimated_distance_km: typeof segmentPolyline.estimatedDistanceKm === 'number' ? segmentPolyline.estimatedDistanceKm : null,
-          estimated_duration_minutes: typeof segmentPolyline.estimatedDurationMinutes === 'number' ? segmentPolyline.estimatedDurationMinutes : null
+          transport_mode: safeTransportMode
         } : {})
       };
 
@@ -830,7 +901,8 @@ Deno.serve(async (req) => {
       finalDeliveryWriteBatch.push({
         id: stop.id,
         data: updateData,
-        label: stop.patient_name || 'Pickup'
+        label: stop.patient_name || 'Pickup',
+        isNextStop
       });
     }
 
@@ -843,9 +915,8 @@ Deno.serve(async (req) => {
       )
     );
 
-
-    finalDeliveryWriteBatch.forEach(({ data, label }) => {
-      console.log(`  🔢 [optimizeRemainingStops] Stop #${data.stop_order}: ${label}${data.delivery_time_start ? ` (start: ${data.delivery_time_start})` : ''}`);
+    finalDeliveryWriteBatch.forEach(({ data, label, isNextStop }) => {
+      console.log(`  🔢 [optimizeRemainingStops] Stop #${data.stop_order}: ${label}${isNextStop ? ' [isNextDelivery - logical segment used for estimated_duration/distance]' : ''}${data.delivery_time_start ? ` (start: ${data.delivery_time_start})` : ''}`);
     });
 
     const shouldRefreshPolylines = activeStops.length > 0;
@@ -877,8 +948,8 @@ Deno.serve(async (req) => {
         isNextDelivery: stop.id === nextStopId,
         transport_mode: stop.transport_mode || preferredTravelMode,
         encoded_polyline: segmentPolylines[index]?.encodedPolyline || null,
-        estimated_distance_km: typeof segmentPolylines[index]?.estimatedDistanceKm === 'number' ? segmentPolylines[index].estimatedDistanceKm : null,
-        estimated_duration_minutes: typeof segmentPolylines[index]?.estimatedDurationMinutes === 'number' ? segmentPolylines[index].estimatedDurationMinutes : null,
+        estimated_distance_km: finalDeliveryWriteBatch[index]?.data?.estimated_distance_km ?? null,
+        estimated_duration_minutes: finalDeliveryWriteBatch[index]?.data?.estimated_duration_minutes ?? null,
         travel_dist: Number(directionsLegs[index]?.distance)
           ? Number((Number(directionsLegs[index].distance) / 1000).toFixed(3))
           : null
