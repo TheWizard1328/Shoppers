@@ -58,8 +58,9 @@ export async function handleBatchSave({
   })) return;
 
   const routeDriverId = formData.driver_id || stagedDeliveries.find((delivery) => delivery?.driver_id)?.driver_id || '';
-  const routeDeliveryDate = formData.delivery_date || stagedDeliveries.find((delivery) => delivery?.delivery_date)?.delivery_date || format(new Date(), 'yyyy-MM-dd');
-  let routeStructureChanged = false;
+   const routeDeliveryDate = formData.delivery_date || stagedDeliveries.find((delivery) => delivery?.delivery_date)?.delivery_date || format(new Date(), 'yyyy-MM-dd');
+   let routeStructureChanged = false;
+   let hasInTransitTransition = false;
 
   console.log('[AddToRoute] handleBatchSave:start', {
     openMode: formData?.openMode,
@@ -147,8 +148,9 @@ export async function handleBatchSave({
       const patientDeliveriesReadyForDB = deliveriesReadyForDB.filter((delivery) => !!delivery?.patient_id);
 
       let ensuredPickupRecords = pickupRecordsFromStage;
-      let stagedDeliveriesWithResolvedIds = patientDeliveriesReadyForDB;
-      routeStructureChanged = newDeliveries.length > 0;
+       let stagedDeliveriesWithResolvedIds = patientDeliveriesReadyForDB;
+       routeStructureChanged = newDeliveries.length > 0;
+       hasInTransitTransition = newDeliveries.some((d) => d?.status === 'in_transit');
 
       const patientDeliveriesNeedingPickupEnsure = patientDeliveriesReadyForDB;
 
@@ -337,7 +339,7 @@ export async function handleBatchSave({
         }
 
         if (refreshDriverId && refreshDeliveryDate) {
-          if (routeStructureChanged) {
+          if (hasInTransitTransition) {
             await recalculateAndUpdateStopOrders(refreshDriverId, refreshDeliveryDate, true);
           }
 
