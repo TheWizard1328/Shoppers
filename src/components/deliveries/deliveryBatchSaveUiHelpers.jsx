@@ -120,6 +120,17 @@ export const runCreateBatchRefresh = async ({ refreshDriverId, refreshDeliveryDa
     invalidate('Delivery');
     invalidateDeliveriesForDate(refreshDeliveryDate);
 
+    // CRITICAL: Broadcast deliveriesUpdated so all devices/components receive the new deliveries
+    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+      detail: {
+        deliveryDate: refreshDeliveryDate,
+        driverId: refreshDriverId,
+        triggeredBy: 'batchSaveCreate',
+        immediate: true
+      }
+    }));
+    window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+
     const { fabControlEvents } = await import('../utils/fabControlEvents');
     fabControlEvents.notifyDataReady();
     fabControlEvents.notifyDoneButtonClicked();
