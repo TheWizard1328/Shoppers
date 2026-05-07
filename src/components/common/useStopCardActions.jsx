@@ -793,6 +793,24 @@ export default function useStopCardActions(params) {
             return { ...stop, delivery_time_eta: newEta };
           });
 
+          // Persist updated ETAs to database and broadcast to other devices
+          await Promise.all(updatedRemainingWithEtas.map((stop) => {
+            return Promise.all([
+              updateDeliveryLocal(stop.id, { delivery_time_eta: stop.delivery_time_eta }, { skipSmartRefresh: true }),
+              base44.entities.Delivery.update(stop.id, { delivery_time_eta: stop.delivery_time_eta }).catch(() => null)
+            ]);
+          }));
+
+          // Broadcast mutations for real-time updates on other devices
+          Promise.resolve().then(async () => {
+            try {
+              const { broadcastMutation } = await import('../utils/realtimeSync');
+              await Promise.all(updatedRemainingWithEtas.map((item) => broadcastMutation('Delivery', 'update', item.id, { delivery_time_eta: item.delivery_time_eta })));
+            } catch (broadcastError) {
+              console.warn('⚠️ [Complete ETA] broadcast failed:', broadcastError?.message || broadcastError);
+            }
+          });
+
           await refreshDriverRoute({
             driverId: delivery.driver_id,
             deliveryDate: delivery.delivery_date,
@@ -943,6 +961,24 @@ export default function useStopCardActions(params) {
             const newEtaMins = newEtaMinutes % 60;
             const newEta = `${String(newEtaHours).padStart(2, '0')}:${String(newEtaMins).padStart(2, '0')}`;
             return { ...stop, delivery_time_eta: newEta };
+          });
+
+          // Persist updated ETAs to database and broadcast to other devices
+          await Promise.all(updatedRemainingWithEtas.map((stop) => {
+            return Promise.all([
+              updateDeliveryLocal(stop.id, { delivery_time_eta: stop.delivery_time_eta }, { skipSmartRefresh: true }),
+              base44.entities.Delivery.update(stop.id, { delivery_time_eta: stop.delivery_time_eta }).catch(() => null)
+            ]);
+          }));
+
+          // Broadcast mutations for real-time updates on other devices
+          Promise.resolve().then(async () => {
+            try {
+              const { broadcastMutation } = await import('../utils/realtimeSync');
+              await Promise.all(updatedRemainingWithEtas.map((item) => broadcastMutation('Delivery', 'update', item.id, { delivery_time_eta: item.delivery_time_eta })));
+            } catch (broadcastError) {
+              console.warn('⚠️ [Failure ETA] broadcast failed:', broadcastError?.message || broadcastError);
+            }
           });
 
           await refreshDriverRoute({
