@@ -335,6 +335,19 @@ const getSharedValue = (items, getter, fallback = "") => {
 };
 
 export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selectedCount, selectedDeliveries = [], drivers, stores = [], allDeliveries = [], currentUser, onApply, isSaving }) {
+  // Read the sidebar width directly from the DOM so the modal centers over the map area only
+  const [sidebarWidth, setSidebarWidth] = useState(0);
+  useEffect(() => {
+    const measure = () => {
+      const sidebar = document.querySelector('.app-sidebar');
+      setSidebarWidth(sidebar ? sidebar.getBoundingClientRect().width : 0);
+    };
+    measure();
+    // Re-measure on open (sidebar might have changed)
+    if (open) measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [open]);
   // Detect mixed PUIDs — if not all selected stops share the same PUID, disable pickup-related fields
   const hasMixedPuids = useMemo(() => {
     const puids = selectedDeliveries.map((d) => d?.puid || "").filter(Boolean);
@@ -412,7 +425,7 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
   return (
     <div
       className={`fixed inset-0 z-[490] flex items-center justify-center ${open ? '' : 'pointer-events-none opacity-0'}`}
-      style={{ transition: 'opacity 0.2s' }}
+      style={{ transition: 'opacity 0.2s', left: sidebarWidth }}
     >
       {/* Backdrop */}
       <div
