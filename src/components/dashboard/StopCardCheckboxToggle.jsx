@@ -5,13 +5,15 @@ export default function StopCardCheckboxToggle({
   checked = false,
   onCheckedChange,
   stopCardsHeight = 0,
+  hasVisibleCards = false,
   immersiveHidden = false,
   children = null
 }) {
+  const bottomPixels = ((hasVisibleCards && !immersiveHidden) ? stopCardsHeight : 0) + 10;
   return (
     <div
       className="absolute z-[100] pointer-events-auto flex items-center gap-2 bg-transparent"
-      style={{ left: "0.75rem", bottom: `${Math.max((stopCardsHeight || 0) + 16, 16)}px` }}
+      style={{ left: "0.75rem", bottom: `${bottomPixels}px` }}
     >
       {!immersiveHidden && (
         <label className="flex items-center cursor-pointer">
