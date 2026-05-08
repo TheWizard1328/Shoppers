@@ -75,15 +75,20 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
   useEffect(() => {
     if (!currentUser || !isOwner) return;
     fetchCounts();
-    const delayedInitialFetch = setTimeout(fetchCounts, 12000);
-    const interval = setInterval(fetchCounts, 120000);
-    const handleRealtimeApiLog = () => fetchCounts();
+    const interval = setInterval(fetchCounts, 300000); // every 5 minutes
+
+    // Debounced realtime listener — wait 30s after last log before refetching
+    let debounceTimer = null;
+    const handleRealtimeApiLog = () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(fetchCounts, 30000);
+    };
 
     window.addEventListener('realtimeUpdate_GoogleAPILog', handleRealtimeApiLog);
 
     return () => {
-      clearTimeout(delayedInitialFetch);
       clearInterval(interval);
+      clearTimeout(debounceTimer);
       window.removeEventListener('realtimeUpdate_GoogleAPILog', handleRealtimeApiLog);
     };
   }, [currentUser, isOwner]);
