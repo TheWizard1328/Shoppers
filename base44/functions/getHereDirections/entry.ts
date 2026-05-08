@@ -327,17 +327,11 @@ const buildRoutingSections = async ({ hereApiKey, orderedStops, originLat, origi
 
     let encodedPolyline = null;
     let decodedCoords = null;
-    console.log('[getHereDirections] Raw HERE flexible polyline received:', {
-      sectionIndex: index,
-      rawPolyline: routeSection?.polyline,
-      rawLength: routeSection?.polyline?.length,
-      fromLat: fromPoint.lat,
-      fromLng: fromPoint.lng,
-      toLat: toPoint.lat,
-      toLng: toPoint.lng,
-      transportMode: normalizedTransportMode
-    });
-    if (typeof routeSection?.polyline === 'string' && routeSection.polyline) {
+
+    // Skip polyline processing for zero-distance legs (from === to)
+    const isZeroDistanceLeg = fromPoint.lat === toPoint.lat && fromPoint.lng === toPoint.lng;
+
+    if (!isZeroDistanceLeg && typeof routeSection?.polyline === 'string' && routeSection.polyline) {
       decodedCoords = decodeHereFlexiblePolyline(routeSection.polyline);
       if (decodedCoords.length > 1) {
         encodedPolyline = encodeGooglePolyline(decodedCoords);
@@ -347,12 +341,10 @@ const buildRoutingSections = async ({ hereApiKey, orderedStops, originLat, origi
           sectionIndex: index,
           rawLength: routeSection.polyline.length,
           decodedLength: decodedCoords.length,
-          rawStart: routeSection.polyline.slice(0, 32),
-          rawEnd: routeSection.polyline.slice(-32),
-          fullRawPolyline: routeSection.polyline
+          rawPolyline: routeSection.polyline
         });
       }
-    } else if (typeof routeSection?.encoded_polyline === 'string' && routeSection.encoded_polyline) {
+    } else if (!isZeroDistanceLeg && typeof routeSection?.encoded_polyline === 'string' && routeSection.encoded_polyline) {
       decodedCoords = decodeGooglePolyline(routeSection.encoded_polyline);
       if (decodedCoords.length > 1) {
         encodedPolyline = routeSection.encoded_polyline;
