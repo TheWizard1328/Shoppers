@@ -288,10 +288,29 @@ const decodeHereFlexiblePolyline = (encoded) => {
 };
 
 const buildRoutingSections = async ({ hereApiKey, orderedStops, originLat, originLng, destinationLat, destinationLng, normalizedTransportMode }) => {
+  // When called from getHereDirections with skipSequenceApi=true, orderedStops already
+  // includes the destination as its last element (because sequenceStops = allStops.slice(1)
+  // which contains all waypoints + destination).  If we blindly append the destination
+  // again we get:  [origin, ...stops, dest, dest]  — destination is doubled in orderedPoints
+  // AND sent as both a via waypoint AND as the destination parameter to HERE Router.
+  // HERE either collapses the last section (returning it without a polyline) or returns an
+  // extra zero-length section that shifts section→segment alignment, causing the last real
+  // leg to get a straight-line fallback.
+  // Strip the trailing duplicate: if the last stop is at the same coords as the destination,
+  // it is already the destination — don't append a second copy.
+  const round5Local = (v) => Number(Number(v).toFixed(5));
+  const lastStop = orderedStops[orderedStops.length - 1];
+  const lastIsDest = lastStop
+    && round5Local(lastStop.lat) === round5Local(destinationLat)
+    && round5Local(lastStop.lng) === round5Local(destinationLng);
+  // Stops that are truly intermediate via points (everything except the destination if it's
+  // already included as the final stop).
+  const viaStops = lastIsDest ? orderedStops.slice(0, -1) : orderedStops;
+
   const orderedPoints = [
     { lat: originLat, lng: originLng },
     ...orderedStops.map((stop) => ({ lat: stop.lat, lng: stop.lng })),
-    { lat: destinationLat, lng: destinationLng }
+    ...(lastIsDest ? [] : [{ lat: destinationLat, lng: destinationLng }])
   ].filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng));
 
   if (orderedPoints.length < 2) return { sections: [], combinedEncodedPolyline: null, combinedCoordinates: null };
@@ -309,7 +328,9 @@ const buildRoutingSections = async ({ hereApiKey, orderedStops, originLat, origi
   params.set('destination', `${destinationLat},${destinationLng}`);
   params.set('return', 'polyline,summary');
 
-  orderedStops.forEach((stop) => {
+  // HERE Router v8: default 'via' is already a stop-over (passThrough=false by default),
+  // which guarantees a section boundary at every waypoint. No extra parameter needed.
+  viaStops.forEach((stop) => {
     params.append('via', `${stop.lat},${stop.lng}`);
   });
 
@@ -318,37 +339,151 @@ const buildRoutingSections = async ({ hereApiKey, orderedStops, originLat, origi
     headers: { accept: 'application/json' }
   });
   const routeData = await routeResp.json().catch(() => null);
-  const routeSections = Array.isArray(routeData?.routes?.[0]?.sections) ? routeData.routes[0].sections : [];
+  const hereRouteStatus = routeResp.status;
+  const hereRoutesArray = routeData?.routes;
+  const routeSections = Array.isArray(hereRoutesArray?.[0]?.sections) ? hereRoutesArray[0].sections : [];
+
+  // Diagnostic logging: surface HERE API failures so they appear in function logs
+  if (!routeResp.ok || !Array.isArray(hereRoutesArray) || hereRoutesArray.length === 0 || routeSections.length === 0) {
+    console.warn('[getHereDirections] HERE Router returned no usable sections', {
+      httpStatus: hereRouteStatus,
+      routesCount: Array.isArray(hereRoutesArray) ? hereRoutesArray.length : 'non-array',
+      sectionsCount: routeSections.length,
+      expectedSections: orderedPoints.length > 1 ? orderedPoints.length - 1 : 0,
+      viaCount: viaStops.length,
+      transportMode: normalizedTransportMode,
+      routeDataNotice: routeData?.notices ?? routeData?.title ?? routeData?.status ?? null,
+      hereErrorCode: routeData?.code ?? null,
+    });
+  }
+
+  // When HERE returns 0 sections for a multi-via call, attempt individual single-leg
+  // calls as a recovery so we still get real road polylines instead of crow-flies lines.
+  // This costs more HERE API calls but is only triggered on failure, not the happy path.
+  let individualLegSections = null;
+  if (routeSections.length === 0 && orderedPoints.length >= 2 && viaStops.length > 0) {
+    console.info('[getHereDirections] HERE multi-via call returned 0 sections — attempting individual leg fallback', {
+      legCount: orderedPoints.length - 1,
+      transportMode: normalizedTransportMode,
+    });
+    try {
+      const legPromises = orderedPoints.slice(0, -1).map(async (fromPt, legIdx) => {
+        const toPt = orderedPoints[legIdx + 1];
+        const legParams = new URLSearchParams();
+        legParams.set('apiKey', hereApiKey);
+        legParams.set('transportMode', normalizedTransportMode === 'cycling' ? 'bicycle' : normalizedTransportMode === 'pedestrian' ? 'pedestrian' : 'car');
+        legParams.set('origin', `${fromPt.lat},${fromPt.lng}`);
+        legParams.set('destination', `${toPt.lat},${toPt.lng}`);
+        legParams.set('return', 'polyline,summary');
+        const legResp = await fetch(`https://router.hereapi.com/v8/routes?${legParams.toString()}`, {
+          signal: AbortSignal.timeout(10000),
+          headers: { accept: 'application/json' }
+        });
+        const legData = await legResp.json().catch(() => null);
+        const legSection = Array.isArray(legData?.routes?.[0]?.sections) ? legData.routes[0].sections[0] : null;
+        if (!legSection) {
+          console.warn('[getHereDirections] individual leg fallback also failed', { legIdx, httpStatus: legResp.status });
+        }
+        return legSection || null;
+      });
+      // Run all leg calls concurrently (up to HERE rate limits)
+      individualLegSections = await Promise.all(legPromises);
+      const successCount = individualLegSections.filter(Boolean).length;
+      console.info('[getHereDirections] individual leg fallback complete', {
+        legCount: legPromises.length,
+        successCount,
+        transportMode: normalizedTransportMode,
+      });
+    } catch (legErr) {
+      console.warn('[getHereDirections] individual leg fallback threw', legErr?.message || legErr);
+      individualLegSections = null;
+    }
+  }
+
+  // Use individual leg sections as the primary source when the multi-via call failed
+  const effectiveRouteSections = (routeSections.length > 0)
+    ? routeSections
+    : (Array.isArray(individualLegSections) ? individualLegSections.filter(Boolean) : []);
+
+  // Pre-decode every HERE section polyline so we can do coordinate-based matching below.
+  // HERE may return fewer sections than expected when consecutive vias are very close
+  // together or snap to the same road node. Coordinate matching is immune to count mismatches.
+  const decodedRouteSections = effectiveRouteSections.map((rs, rsIdx) => {
+    let coords = null;
+    if (typeof rs?.polyline === 'string' && rs.polyline) {
+      const decoded = decodeHereFlexiblePolyline(rs.polyline);
+      if (decoded.length > 1) coords = decoded;
+    }
+    if (!coords && typeof rs?.encoded_polyline === 'string' && rs.encoded_polyline) {
+      const decoded = decodeGooglePolyline(rs.encoded_polyline);
+      if (decoded.length > 1) coords = decoded;
+    }
+    return {
+      rawSection: rs,
+      coords,
+      startLat: coords ? coords[0][0] : null,
+      startLng: coords ? coords[0][1] : null,
+      endLat: coords ? coords[coords.length - 1][0] : null,
+      endLng: coords ? coords[coords.length - 1][1] : null,
+      used: false,
+      rsIdx
+    };
+  });
+
+  // Coordinate-based section matcher.
+  // Finds the unused decodedRouteSection whose start is nearest to fromPoint and
+  // whose end is nearest to toPoint.  Returns null if nothing is within threshold.
+  const MATCH_THRESHOLD_DEG = 0.001; // ~111 m — generous but safe
+  const findMatchingSection = (fromPoint, toPoint) => {
+    let best = null;
+    let bestScore = Infinity;
+    for (const drs of decodedRouteSections) {
+      if (drs.used || drs.coords == null) continue;
+      const startDist = Math.abs(drs.startLat - fromPoint.lat) + Math.abs(drs.startLng - fromPoint.lng);
+      const endDist = Math.abs(drs.endLat - toPoint.lat) + Math.abs(drs.endLng - toPoint.lng);
+      const score = startDist + endDist;
+      if (startDist < MATCH_THRESHOLD_DEG && endDist < MATCH_THRESHOLD_DEG && score < bestScore) {
+        best = drs;
+        bestScore = score;
+      }
+    }
+    if (best) best.used = true;
+    return best ? best : null;
+  };
 
   const decodedSectionCoordinates = [];
   const sections = orderedPoints.slice(0, -1).map((fromPoint, index) => {
     const toPoint = orderedPoints[index + 1];
-    const routeSection = routeSections[index] || null;
 
     let encodedPolyline = null;
     let decodedCoords = null;
+    let matchedSection = null;
 
     // Skip polyline processing for zero-distance legs (from === to)
     const isZeroDistanceLeg = fromPoint.lat === toPoint.lat && fromPoint.lng === toPoint.lng;
 
-    if (!isZeroDistanceLeg && typeof routeSection?.polyline === 'string' && routeSection.polyline) {
-      decodedCoords = decodeHereFlexiblePolyline(routeSection.polyline);
-      if (decodedCoords.length > 1) {
-        encodedPolyline = encodeGooglePolyline(decodedCoords);
-        decodedSectionCoordinates.push(decodedCoords);
-      } else {
-        console.warn('[getHereDirections] HERE section polyline decoded incompletely', {
-          sectionIndex: index,
-          rawLength: routeSection.polyline.length,
-          decodedLength: decodedCoords.length,
-          rawPolyline: routeSection.polyline
-        });
-      }
-    } else if (!isZeroDistanceLeg && typeof routeSection?.encoded_polyline === 'string' && routeSection.encoded_polyline) {
-      decodedCoords = decodeGooglePolyline(routeSection.encoded_polyline);
-      if (decodedCoords.length > 1) {
-        encodedPolyline = routeSection.encoded_polyline;
-        decodedSectionCoordinates.push(decodedCoords);
+    if (!isZeroDistanceLeg) {
+      // Try coordinate-based match first; fall back to positional index as secondary.
+      const coordMatch = findMatchingSection(fromPoint, toPoint);
+      const positionalFallback = decodedRouteSections[index] || null;
+      const candidate = coordMatch || (positionalFallback && !positionalFallback.used ? positionalFallback : null);
+      if (candidate) {
+        if (candidate !== coordMatch && positionalFallback) positionalFallback.used = true;
+        matchedSection = candidate.rawSection;
+        decodedCoords = candidate.coords;
+        if (decodedCoords && decodedCoords.length > 1) {
+          encodedPolyline = encodeGooglePolyline(decodedCoords);
+          decodedSectionCoordinates.push(decodedCoords);
+        } else {
+          // Section exists but polyline didn't decode — warn and fall through to straight-line
+          console.warn('[getHereDirections] HERE section polyline decoded incompletely', {
+            sectionIndex: index,
+            rawLength: matchedSection?.polyline?.length ?? 0,
+            decodedLength: decodedCoords?.length ?? 0,
+          });
+          matchedSection = candidate.rawSection;
+          decodedCoords = null;
+        }
       }
     }
 
@@ -362,11 +497,12 @@ const buildRoutingSections = async ({ hereApiKey, orderedStops, originLat, origi
       decodedSectionCoordinates.push(fallbackCoords);
     }
 
+    const rs = matchedSection;
     return {
-      polyline: routeSection?.polyline || null,
+      polyline: rs?.polyline || null,
       encoded_polyline: encodedPolyline,
-      estimated_distance_km: Number.isFinite(Number(routeSection?.summary?.length)) ? Math.round((Number(routeSection.summary.length) / 1000) * 10) / 10 : Math.round(fallbackDistanceKm * 10) / 10,
-      estimated_duration_minutes: Number.isFinite(Number(routeSection?.summary?.duration)) ? Math.round(Number(routeSection.summary.duration) / 60) : Math.round((fallbackDistanceKm / 40) * 60),
+      estimated_distance_km: Number.isFinite(Number(rs?.summary?.length)) ? Math.round((Number(rs.summary.length) / 1000) * 10) / 10 : Math.round(fallbackDistanceKm * 10) / 10,
+      estimated_duration_minutes: Number.isFinite(Number(rs?.summary?.duration)) ? Math.round(Number(rs.summary.duration) / 60) : Math.round((fallbackDistanceKm / 40) * 60),
       coordinates: decodedCoords?.length > 1
         ? decodedCoords.map(([lat, lng]) => ({ lat, lng }))
         : [fromPoint, toPoint]
