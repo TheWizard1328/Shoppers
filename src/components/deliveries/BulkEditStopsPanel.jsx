@@ -201,17 +201,14 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
             
           </div>
 
-          {isDriver &&
           <div className="space-y-2">
-              <Label style={{ color: "var(--text-slate-900)" }}>Travel Mode</Label>
-              <TravelModeButtons
+            <Label style={{ color: "var(--text-slate-900)" }}>Travel Mode</Label>
+            <TravelModeButtons
               value={values.travelModeChoice || 'driving'}
               isMixed={isMixedTravelMode}
               onChange={(mode) => setValues((current) => ({ ...current, travelModeChoice: mode }))}
               disabled={isSaving} />
-            
-            </div>
-          }
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
