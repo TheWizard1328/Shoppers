@@ -144,11 +144,10 @@ export default function ResetPolylinesButton({
               throw new Error('No route stops found for this driver and date');
             }
 
-            const hasActiveStops = orderedDeliveries.some((delivery) => ["in_transit", "en_route"].includes(String(delivery?.status || "")));
             const response = await base44.functions.invoke('purgeAndRegeneratePolylines', {
               driverId,
               deliveryDate: selectedDate,
-              scope: hasActiveStops ? 'all' : 'completed_only',
+              scope: 'all',
               reason: 'manual',
               routeSource: 'polylines',
               bypassDriverStatus: true,
