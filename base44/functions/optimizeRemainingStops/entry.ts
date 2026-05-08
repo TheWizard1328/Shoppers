@@ -553,35 +553,61 @@ Deno.serve(async (req) => {
       // The destination is the driver's home (if set) or the last waypoint.
       // All stopsToSequence are waypoints in between.
       // -------------------------------------------------------------------
-      const originForDirections = routeOriginStop
-        ? { lat: routeOriginStop.lat, lng: routeOriginStop.lng }
-        : currentPosition;
+      // CRITICAL: The origin is always currentPosition (last completed stop / driver GPS).
+      // When routeOriginStop (the isNextDelivery stop) exists, it is included as the FIRST
+      // waypoint so that sections[0] = currentPosition -> routeOriginStop (the Type1 blue leg).
+      // The remaining stopsToSequence follow as additional waypoints and get sequenced by HERE.
+      // This ensures each stop's encoded_polyline = the leg ARRIVING at that stop.
+      const originForDirections = currentPosition;
 
-      const waypointsForDirections = stopsToSequence.map(s => ({ lat: s.lat, lng: s.lng }));
+      const allWaypointsForDirections = routeOriginStop
+        ? [{ lat: routeOriginStop.lat, lng: routeOriginStop.lng }, ...stopsToSequence.map(s => ({ lat: s.lat, lng: s.lng }))]
+        : stopsToSequence.map(s => ({ lat: s.lat, lng: s.lng }));
 
-      const routeContextForDirections = stopsToSequence.map(s => ({
-        id: s.delivery.stop_id || s.delivery.delivery_id || s.delivery.id,
-        stop_id: s.delivery.stop_id,
-        delivery_id: s.delivery.delivery_id,
-        time_window_start: s.windowStart,
-        time_window_end: s.windowEnd,
-      }));
+      const allRouteContextForDirections = routeOriginStop
+        ? [
+            {
+              id: routeOriginStop.delivery.stop_id || routeOriginStop.delivery.delivery_id || routeOriginStop.delivery.id,
+              stop_id: routeOriginStop.delivery.stop_id,
+              delivery_id: routeOriginStop.delivery.delivery_id,
+              time_window_start: routeOriginStop.windowStart,
+              time_window_end: routeOriginStop.windowEnd,
+            },
+            ...stopsToSequence.map(s => ({
+              id: s.delivery.stop_id || s.delivery.delivery_id || s.delivery.id,
+              stop_id: s.delivery.stop_id,
+              delivery_id: s.delivery.delivery_id,
+              time_window_start: s.windowStart,
+              time_window_end: s.windowEnd,
+            }))
+          ]
+        : stopsToSequence.map(s => ({
+            id: s.delivery.stop_id || s.delivery.delivery_id || s.delivery.id,
+            stop_id: s.delivery.stop_id,
+            delivery_id: s.delivery.delivery_id,
+            time_window_start: s.windowStart,
+            time_window_end: s.windowEnd,
+          }));
 
-      // Destination: home if available, otherwise last waypoint (getHereDirections handles this)
-      const destinationForDirections = resolvedHomePosition || stopsToSequence[stopsToSequence.length - 1];
+      // Destination: home if available, otherwise last waypoint
+      const lastWaypoint = allWaypointsForDirections[allWaypointsForDirections.length - 1];
+      const destinationForDirections = resolvedHomePosition || lastWaypoint || originForDirections;
 
       let hereDirectionsResult = null;
       try {
         const hereResp = await base44.asServiceRole.functions.invoke('getHereDirections', {
           origin: originForDirections,
           destination: destinationForDirections,
-          waypoints: waypointsForDirections,
-          routeContext: routeContextForDirections,
+          waypoints: allWaypointsForDirections,
+          routeContext: allRouteContextForDirections,
           transportMode: preferredTravelMode,
           deliveryDate,
           departureTime: currentLocalTime || formatMinutesToTime(currentMinutes),
           caller: 'optimizeRemainingStops',
-          // Use sequence API for ordering, then get detailed polylines
+          // When routeOriginStop is locked as first waypoint, preserve its position and
+          // only sequence the remaining stops. We achieve this by locking all waypoints
+          // (skipSequenceApi=false, preserveWaypointOrder=false) but routeOriginStop is
+          // always first in the waypoint list — HERE will sequence from it.
           preserveWaypointOrder: false,
           skipSequenceApi: false,
         });
@@ -607,16 +633,19 @@ Deno.serve(async (req) => {
       const sections = Array.isArray(hereDirectionsResult?.sections) ? hereDirectionsResult.sections : [];
 
       if (optimizedWaypointIds && optimizedWaypointIds.length > 0 && sections.length > 0) {
-        // Build stop lookup by the ID used as waypoint key
+        // Build stop lookup from ALL waypoints (routeOriginStop + stopsToSequence)
+        const allSequencedStops = routeOriginStop ? [routeOriginStop, ...stopsToSequence] : stopsToSequence;
         const stopLookupById = new Map(
-          stopsToSequence.map(s => [s.delivery.stop_id || s.delivery.delivery_id || s.delivery.id, s])
+          allSequencedStops.map(s => [s.delivery.stop_id || s.delivery.delivery_id || s.delivery.id, s])
         );
 
         const orderedSequencedStops = optimizedWaypointIds
           .map(waypointId => stopLookupById.get(waypointId) || null)
           .filter(Boolean);
 
-        routeStops = [...routeStops, ...orderedSequencedStops];
+        // routeStops is now the full ordered list from HERE (routeOriginStop will be first
+        // since it was passed as the first waypoint and gets sections[0])
+        routeStops = orderedSequencedStops;
 
         // Build directionsLegs from sections (one section per leg)
         // sections[0] = origin -> first waypoint
@@ -637,8 +666,28 @@ Deno.serve(async (req) => {
         });
 
         // Build segmentPolylines aligned to routeStops.
-        // Pending stops are included in sequencing for correct ETA chaining,
-        // but do NOT get a stored polyline (they haven't been picked up yet).
+        // 
+        // IMPORTANT: sections[] from getHereDirections are indexed as:
+        //   sections[0] = originForDirections -> orderedSequencedStops[0]  (first sequenced stop)
+        //   sections[1] = orderedSequencedStops[0] -> orderedSequencedStops[1]
+        //   etc.
+        //
+        // routeStops[] is:
+        //   routeStops[0] = routeOriginStop (the isNextDelivery stop, if locked)
+        //   routeStops[1] = orderedSequencedStops[0]
+        //   routeStops[2] = orderedSequencedStops[1]
+        //   etc.
+        //
+        // When routeOriginStop exists, originForDirections = currentPosition (last completed coords),
+        // so sections[0] = last-completed -> routeOriginStop = the Type1 blue leg.
+        // sections[0] belongs on routeStops[0] (the isNextDelivery stop). ✅
+        // sections[1] belongs on routeStops[1] (first sequenced stop after next). ✅
+        //
+        // When no routeOriginStop, routeStops = orderedSequencedStops directly,
+        // and sections[i] belongs on routeStops[i]. ✅
+        //
+        // So the mapping is always: sections[i] -> routeStops[i].
+        // Pending stops get no polyline.
         segmentPolylines = routeStops.map((stop, index) => {
           const section = sections[index] || null;
           const isPending = pendingDeliveryIds.has(stop.delivery.id);
@@ -658,7 +707,7 @@ Deno.serve(async (req) => {
       } else {
         // Fallback: crow-flies ordering
         console.log('⚠️ [optimizeRemainingStops] HERE sequencing failed or returned no sections - using crow-flies fallback');
-        const allStopsForFallback = [...routeStops, ...stopsToSequence];
+        const allStopsForFallback = routeOriginStop ? [routeOriginStop, ...stopsToSequence] : [...stopsToSequence];
         allStopsForFallback.sort((a, b) => {
           const distA = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, a.lat, a.lng);
           const distB = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, b.lat, b.lng);
