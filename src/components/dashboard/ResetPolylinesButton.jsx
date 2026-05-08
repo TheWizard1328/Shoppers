@@ -140,16 +140,16 @@ export default function ResetPolylinesButton({
 
             const hasActiveStops = orderedDeliveries.some((delivery) => ["in_transit", "en_route"].includes(String(delivery?.status || "")));
             // Pre-clear existing polylines so bulkUpdateDeliveries change-detection doesn't skip identical values
-            await Promise.all(
-              orderedDeliveries.map((delivery) =>
-                base44.entities.Delivery.update(delivery.id, {
-                  encoded_polyline: null,
-                  finished_leg_encoded_polyline: null,
-                  estimated_distance_km: null,
-                  estimated_duration_minutes: null
-                })
-              )
-            );
+            // await Promise.all(
+            //   orderedDeliveries.map((delivery) =>
+            //     base44.entities.Delivery.update(delivery.id, {
+            //       encoded_polyline: null,
+            //       finished_leg_encoded_polyline: null,
+            //       estimated_distance_km: null,
+            //       estimated_duration_minutes: null
+            //     })
+            //   )
+            // );
 
             const response = await base44.functions.invoke('purgeAndRegeneratePolylines', {
               driverId,
