@@ -74,21 +74,25 @@ export default function ApiUsageBadge({ currentUser, stopCardsHeight = 0, showRo
 
   useEffect(() => {
     if (!currentUser || !isOwner) return;
-    fetchCounts();
-    const interval = setInterval(fetchCounts, 300000); // every 5 minutes
 
-    // Debounced realtime listener — wait 30s after last log before refetching
-    let debounceTimer = null;
-    const handleRealtimeApiLog = () => {
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(fetchCounts, 30000);
+    // One initial fetch on load
+    fetchCounts();
+
+    // WebSocket-driven incremental update — just increment the HERE routing count
+    // without making another API call
+    const handleRealtimeApiLog = (event) => {
+      const log = event?.detail?.data;
+      if (!log) return;
+      const category = getApiLogCategory(log);
+      const count = Number(log?.metadata?.call_count ?? 1);
+      if (category === 'google') setGoogleCount((prev) => (prev ?? 0) + count);
+      else if (category === 'here_routing') setHereRoutingCount((prev) => (prev ?? 0) + count);
+      else if (category === 'here_tiles') setHereTileCount((prev) => (prev ?? 0) + count);
     };
 
     window.addEventListener('realtimeUpdate_GoogleAPILog', handleRealtimeApiLog);
 
     return () => {
-      clearInterval(interval);
-      clearTimeout(debounceTimer);
       window.removeEventListener('realtimeUpdate_GoogleAPILog', handleRealtimeApiLog);
     };
   }, [currentUser, isOwner]);
