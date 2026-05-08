@@ -119,13 +119,8 @@ export default function DashboardBulkEditControls({
         }
       }
 
-      // Travel mode (only if changed and not mixed/unchanged)
-      if (
-        values.travelModeChoice &&
-        values.travelModeChoice !== "mixed" &&
-        values.travelModeChoice !== "unchanged" &&
-        values.travelModeChoice !== initialValues.travelModeChoice
-      ) {
+      // Travel mode — apply whenever the user has explicitly selected a mode (not mixed)
+      if (values.travelModeChoice && values.travelModeChoice !== "mixed") {
         sharedUpdates.transport_mode = values.travelModeChoice;
         sharedUpdates.finished_leg_transport_mode = values.travelModeChoice;
       }
