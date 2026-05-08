@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import BulkEditStopsPanel from "@/components/deliveries/BulkEditStopsPanel";
 import { updateDeliveryLocal, deleteDeliveryLocal } from "@/components/utils/offlineMutations";
+import { getDriverNameForStorage } from "@/components/utils/driverUtils";
 import { invalidate } from "@/components/utils/dataManager";
 import { base44 } from "@/api/base44Client";
 
@@ -77,41 +78,75 @@ export default function DashboardBulkEditControls({
     setIsSaving(true);
 
     try {
+      // Build shared updates — only include fields that actually changed
       const sharedUpdates = {};
 
-      if (values.driverChoice !== initialValues.driverChoice) {
-        sharedUpdates.driver_id = values.driverChoice === "unassigned" ? "" : values.driverChoice;
-      }
-      if (values.delivery_date !== initialValues.delivery_date) {
+      // Delivery date
+      if (values.delivery_date && values.delivery_date !== initialValues.delivery_date) {
         sharedUpdates.delivery_date = values.delivery_date;
       }
-      if (values.travelModeChoice !== initialValues.travelModeChoice && values.travelModeChoice !== "mixed") {
-        sharedUpdates.transport_mode = values.travelModeChoice;
-      }
+
+      // Time windows (allow clearing to null)
       if (values.delivery_time_start !== initialValues.delivery_time_start) {
-        sharedUpdates.delivery_time_start = values.delivery_time_start;
+        sharedUpdates.delivery_time_start = values.delivery_time_start || null;
       }
       if (values.delivery_time_end !== initialValues.delivery_time_end) {
-        sharedUpdates.delivery_time_end = values.delivery_time_end;
+        sharedUpdates.delivery_time_end = values.delivery_time_end || null;
       }
+
+      // Driver
+      if (values.driverChoice !== initialValues.driverChoice) {
+        if (values.driverChoice === "unassigned") {
+          sharedUpdates.driver_id = null;
+          sharedUpdates.driver_name = "";
+        } else if (values.driverChoice !== "unchanged") {
+          const selectedDriver = drivers.find((d) => d.id === values.driverChoice);
+          if (selectedDriver) {
+            sharedUpdates.driver_id = selectedDriver.id;
+            sharedUpdates.driver_name = getDriverNameForStorage(selectedDriver);
+          }
+        }
+      }
+
+      // Travel mode (only if changed and not mixed)
+      if (values.travelModeChoice !== initialValues.travelModeChoice && values.travelModeChoice !== "mixed") {
+        sharedUpdates.transport_mode = values.travelModeChoice;
+        sharedUpdates.finished_leg_transport_mode = values.travelModeChoice;
+      }
+
+      // AM/PM (only if changed and not "unchanged")
       if (values.ampmChoice !== initialValues.ampmChoice && values.ampmChoice !== "unchanged") {
         sharedUpdates.ampm_deliveries = values.ampmChoice;
       }
-      if (values.puid !== initialValues.puid) {
-        sharedUpdates.puid = values.puid;
-      }
-      if (values.storeChoice !== initialValues.storeChoice && values.storeChoice !== "unchanged") {
-        const [storeId] = String(values.storeChoice).split("::");
-        sharedUpdates.store_id = storeId;
+
+      // Store/slot (parse storeId and slot from "storeId::slot" format)
+      if (values.storeChoice !== "unchanged") {
+        const [storeId, slot] = String(values.storeChoice).split("::");
+        if (storeId) {
+          sharedUpdates.store_id = storeId;
+          if (slot) sharedUpdates.ampm_deliveries = slot;
+        }
       }
 
+      // Apply per-delivery updates
       await Promise.all(selectedDeliveries.map((delivery) => {
         const payload = { ...sharedUpdates };
+
+        // Status is per-delivery (pickup vs delivery determines en_route vs in_transit)
         if (values.statusChoice !== "unchanged" && values.statusChoice !== initialValues.statusChoice) {
           payload.status = values.statusChoice === "in_transit_or_en_route"
             ? (!delivery?.patient_id ? "en_route" : "in_transit")
             : values.statusChoice;
         }
+
+        // PUID: only apply if admin changed it (and storeChoice is not overriding)
+        if (values.puid !== initialValues.puid && values.storeChoice === "unchanged") {
+          payload.puid = values.puid || null;
+        }
+
+        // Skip this delivery if there's nothing to change
+        if (Object.keys(payload).length === 0) return Promise.resolve();
+
         return updateDeliveryLocal(delivery.id, payload, { skipSmartRefresh: true });
       }));
 
@@ -121,7 +156,7 @@ export default function DashboardBulkEditControls({
     } finally {
       setIsSaving(false);
     }
-  }, [selectedDeliveries, refreshData, clearSelection]);
+  }, [selectedDeliveries, drivers, refreshData, clearSelection]);
 
   const totalDeleteCount = selectedCount + linkedPendingCount;
 

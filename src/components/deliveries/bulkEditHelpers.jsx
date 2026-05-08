@@ -5,29 +5,45 @@ import { getPickupStopIdForDelivery } from "../utils/ampmUtils";
 import { userHasRole } from "../utils/userRoles";
 import { invalidate } from "../utils/dataManager";
 
-export function buildBulkEditBaseUpdates({ values, currentUser, bulkEditableDrivers }) {
+export function buildBulkEditBaseUpdates({ values, initialValues, currentUser, bulkEditableDrivers }) {
   const baseUpdates = {};
 
-  if (values.delivery_date) baseUpdates.delivery_date = values.delivery_date;
-  if (values.delivery_time_start) baseUpdates.delivery_time_start = values.delivery_time_start;
-  if (values.delivery_time_end) {
-    baseUpdates.delivery_time_end = values.delivery_time_end;
-  } else if (values.delivery_time_end === "") {
-    baseUpdates.delivery_time_end = null;
+  // Only apply delivery_date if it was changed and is non-empty
+  if (values.delivery_date && values.delivery_date !== initialValues?.delivery_date) {
+    baseUpdates.delivery_date = values.delivery_date;
   }
 
-  if (values.driverChoice === "unassigned") {
-    baseUpdates.driver_id = null;
-    baseUpdates.driver_name = "";
-  } else if (values.driverChoice !== "unchanged") {
-    const selectedDriver = bulkEditableDrivers.find((driver) => driver.id === values.driverChoice);
-    if (selectedDriver) {
-      baseUpdates.driver_id = selectedDriver.id;
-      baseUpdates.driver_name = getDriverNameForStorage(selectedDriver);
+  // Only apply time window start if it was changed
+  if (values.delivery_time_start !== initialValues?.delivery_time_start) {
+    baseUpdates.delivery_time_start = values.delivery_time_start || null;
+  }
+
+  // Only apply time window end if it was changed
+  if (values.delivery_time_end !== initialValues?.delivery_time_end) {
+    baseUpdates.delivery_time_end = values.delivery_time_end || null;
+  }
+
+  // Only apply driver if it was changed
+  if (values.driverChoice !== initialValues?.driverChoice) {
+    if (values.driverChoice === "unassigned") {
+      baseUpdates.driver_id = null;
+      baseUpdates.driver_name = "";
+    } else if (values.driverChoice !== "unchanged") {
+      const selectedDriver = bulkEditableDrivers.find((driver) => driver.id === values.driverChoice);
+      if (selectedDriver) {
+        baseUpdates.driver_id = selectedDriver.id;
+        baseUpdates.driver_name = getDriverNameForStorage(selectedDriver);
+      }
     }
   }
 
-  if (userHasRole(currentUser, "driver") && values.travelModeChoice) {
+  // Only apply travel mode if it was changed and is not "mixed"
+  if (
+    userHasRole(currentUser, "driver") &&
+    values.travelModeChoice &&
+    values.travelModeChoice !== "mixed" &&
+    values.travelModeChoice !== initialValues?.travelModeChoice
+  ) {
     baseUpdates.transport_mode = values.travelModeChoice;
     baseUpdates.finished_leg_transport_mode = values.travelModeChoice;
   }
@@ -128,6 +144,7 @@ export async function finalizeBulkEdit({ setSelectedBulkDeliveryIds, setBulkEdit
 
 export async function applyBulkEditStops({
   values,
+  initialValues,
   currentUser,
   deliveries,
   allDeliveries,
@@ -137,7 +154,7 @@ export async function applyBulkEditStops({
   setBulkEditMode,
   setIsBulkUpdating
 }) {
-  const baseUpdates = buildBulkEditBaseUpdates({ values, currentUser, bulkEditableDrivers });
+  const baseUpdates = buildBulkEditBaseUpdates({ values, initialValues, currentUser, bulkEditableDrivers });
 
   if (!selectedBulkDeliveryIds.length) {
     return Promise.resolve();
