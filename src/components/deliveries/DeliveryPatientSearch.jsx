@@ -177,7 +177,7 @@ export default function DeliveryPatientSearch({
               setIsPatientFormOpen(true);
               onCreatePatient((newPatient) => {
                 setIsPatientFormOpen(false);
-                onPatientSelect(newPatient, true);
+                onPatientSelect(newPatient, false);
               }, null);
             }}>
             
