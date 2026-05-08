@@ -6,7 +6,7 @@ const isRateLimitError = (error) => error?.status === 429 || error?.response?.st
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
 const ACTIVE_STATUSES = ['in_transit', 'en_route'];
 const TIME_ZONE = 'America/Edmonton';
-const AUTOMATION_DEDUPE_WINDOW_MS = 10000;
+const AUTOMATION_DEDUPE_WINDOW_MS = 60000;
 const LAST_FINISHED_STOP_PROXIMITY_KM = 0.25;
 const WEEKDAY_CODES = ['su', 'mo', 'tu', 'we', 'th', 'fr', 'sa'];
 
