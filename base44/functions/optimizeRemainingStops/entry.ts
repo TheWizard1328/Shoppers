@@ -386,20 +386,9 @@ Deno.serve(async (req) => {
         ? 'pedestrian'
         : 'car';
 
-    // Resolve HERE API key: prefer body param, then active key from AppSettings, then fallback env
-    let hereApiKey = body?.hereApiKey || null;
+    const hereApiKey = Deno.env.get('HERE_API_KEY');
     if (!hereApiKey) {
-      try {
-        const appSettings = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }, '-updated_date', 1);
-        const activeKeyName = appSettings?.[0]?.setting_value?.selected_api_key || 'HERE_API_KEY';
-        hereApiKey = Deno.env.get(activeKeyName) || Deno.env.get('HERE_API_KEY');
-      } catch {
-        hereApiKey = Deno.env.get('HERE_API_KEY');
-      }
-    }
-
-    if (!hereApiKey) {
-      return Response.json({ error: 'HERE API key not configured' }, { status: 500 });
+      return Response.json({ error: 'HERE_API_KEY secret is not set' }, { status: 500 });
     }
 
     const allDeliveries = await base44.asServiceRole.entities.Delivery.filter({

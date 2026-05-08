@@ -575,13 +575,9 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Missing origin or destination' }, { status: 400 });
     }
 
-    const appSettings = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }, '-updated_date', 1);
-    const activeApiKeyName = appSettings?.[0]?.setting_value?.selected_api_key || 'HERE_API_KEY';
-    const hereApiKey = activeApiKeyName.startsWith('HERE') || activeApiKeyName.startsWith('Here')
-      ? Deno.env.get(activeApiKeyName)
-      : Deno.env.get('HERE_API_KEY');
+    const hereApiKey = Deno.env.get('HERE_API_KEY');
     if (!hereApiKey) {
-      return Response.json({ error: `${activeApiKeyName} secret is not set` }, { status: 500 });
+      return Response.json({ error: 'HERE_API_KEY secret is not set' }, { status: 500 });
     }
 
     const dateStr = String(body?.deliveryDate || body?.date || new Date().toISOString().slice(0, 10));
