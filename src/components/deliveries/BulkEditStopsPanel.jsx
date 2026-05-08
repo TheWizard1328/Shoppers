@@ -261,7 +261,7 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
             <Select
               value={values.ampmChoice}
               onValueChange={(value) => setValues((current) => ({ ...current, ampmChoice: value }))}
-              disabled={pickupFieldsDisabled}>
+              disabled={isSaving}>
               
               <SelectTrigger style={getFieldStyle('ampmChoice')}>
                 <SelectValue />
