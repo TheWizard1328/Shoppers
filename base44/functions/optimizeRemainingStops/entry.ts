@@ -276,6 +276,8 @@ Deno.serve(async (req) => {
       triggerSource = 'manual'
     } = context;
 
+    const firstStopId = body?.firstStopId || null;
+
     if (!driverId || !deliveryDate) {
       return Response.json({
         error: 'Missing required parameters: driverId, deliveryDate'
@@ -384,11 +386,20 @@ Deno.serve(async (req) => {
         ? 'pedestrian'
         : 'car';
 
-    // API key is now passed as a parameter from the frontend
-    const hereApiKey = body?.hereApiKey || Deno.env.get('HERE_API_KEY');
+    // Resolve HERE API key: prefer body param, then active key from AppSettings, then fallback env
+    let hereApiKey = body?.hereApiKey || null;
+    if (!hereApiKey) {
+      try {
+        const appSettings = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }, '-updated_date', 1);
+        const activeKeyName = appSettings?.[0]?.setting_value?.selected_api_key || 'HERE_API_KEY';
+        hereApiKey = Deno.env.get(activeKeyName) || Deno.env.get('HERE_API_KEY');
+      } catch {
+        hereApiKey = Deno.env.get('HERE_API_KEY');
+      }
+    }
 
     if (!hereApiKey) {
-      return Response.json({ error: 'HERE API key not provided' }, { status: 400 });
+      return Response.json({ error: 'HERE API key not configured' }, { status: 500 });
     }
 
     const allDeliveries = await base44.asServiceRole.entities.Delivery.filter({
@@ -479,7 +490,9 @@ Deno.serve(async (req) => {
     let currentPosition;
     let locationSource;
 
-    const explicitNextDelivery = incompleteDeliveries.find((delivery) => delivery?.isNextDelivery === true) || null;
+    const explicitNextDelivery = (firstStopId ? incompleteDeliveries.find((d) => d?.id === firstStopId) : null)
+      || incompleteDeliveries.find((delivery) => delivery?.isNextDelivery === true)
+      || null;
     const explicitNextCoords = explicitNextDelivery ? getDeliveryCoords(explicitNextDelivery, patientMap, storeMap) : null;
     const latestFinishedCoords = latestFinishedDelivery ? getDeliveryCoords(latestFinishedDelivery, patientMap, storeMap) : null;
     const previousStopBeforeNext = explicitNextDelivery
