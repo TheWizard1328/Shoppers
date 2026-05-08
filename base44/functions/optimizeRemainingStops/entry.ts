@@ -881,7 +881,7 @@ Deno.serve(async (req) => {
     );
 
     finalDeliveryWriteBatch.forEach(({ data, label }) => {
-      console.log(`  🔢 [optimizeRemainingStops] Stop #${data.stop_order}: ${label}${data.encoded_polyline ? ' [polyline saved]' : ' [no polyline]'}${data.delivery_time_start ? ` (start: ${data.delivery_time_start})` : ''}`);
+      console.log(`  🔢 [optimizeRemainingStops] Stop #${data.stop_order}: ${label} | ETA: ${data.delivery_time_eta || 'none'}${data.encoded_polyline ? ' [polyline saved]' : ' [no polyline]'}${data.delivery_time_start ? ` (start: ${data.delivery_time_start})` : ''}`);
     });
 
     const shouldRefreshPolylines = activeStops.length > 0;
