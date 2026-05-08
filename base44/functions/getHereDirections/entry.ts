@@ -338,7 +338,8 @@ const buildRoutingSections = async ({ hereApiKey, orderedStops, originLat, origi
           rawLength: routeSection.polyline.length,
           decodedLength: decodedCoords.length,
           rawStart: routeSection.polyline.slice(0, 32),
-          rawEnd: routeSection.polyline.slice(-32)
+          rawEnd: routeSection.polyline.slice(-32),
+          fullRawPolyline: routeSection.polyline
         });
       }
     } else if (typeof routeSection?.encoded_polyline === 'string' && routeSection.encoded_polyline) {
