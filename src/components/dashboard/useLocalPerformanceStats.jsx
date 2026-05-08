@@ -120,16 +120,32 @@ export function useLocalPerformanceStats({
         return isCompletedStop(delivery) || isFailedStop(delivery) || isReturnStop(delivery);
       });
 
+      // Active (isNextDelivery) delivery - use estimated_distance_km as a non-accumulating
+      // estimate so we never double-count GPS increments written by liveDistanceTracker.
+      const activeDelivery = driverDeliveries.find((d) => d?.isNextDelivery === true && !finishedStatuses.includes(d.status));
+
       finishedDeliveries.forEach((delivery) => {
-        if (typeof delivery?.travel_dist === "number") {
-          totalKm += delivery.travel_dist;
-          return;
-        }
-        const patient = delivery?.patient_id ? patientMap.get(delivery.patient_id) : null;
-        if (typeof patient?.distance_from_store === "number") {
-          totalKm += patient.distance_from_store;
-        }
+        // For completed stops, prefer estimated_distance_km (set by the route optimiser)
+        // over travel_dist which may have been partially overwritten by GPS tracking.
+        // Fall back to travel_dist → patient distance_from_store in that order.
+        const distToUse =
+          typeof delivery?.estimated_distance_km === "number" ? delivery.estimated_distance_km
+          : typeof delivery?.travel_dist === "number" ? delivery.travel_dist
+          : (() => {
+              const patient = delivery?.patient_id ? patientMap.get(delivery.patient_id) : null;
+              return typeof patient?.distance_from_store === "number" ? patient.distance_from_store : 0;
+            })();
+        totalKm += distToUse;
       });
+
+      // Add the active leg as its route estimate (not the live GPS value).
+      if (activeDelivery) {
+        const activeLegKm =
+          typeof activeDelivery.estimated_distance_km === "number" ? activeDelivery.estimated_distance_km
+          : typeof activeDelivery.travel_dist === "number" ? activeDelivery.travel_dist
+          : 0;
+        totalKm += activeLegKm;
+      }
 
       const finishedStopsWithTimes = driverDeliveries
         .filter((delivery) => delivery?.actual_delivery_time)
