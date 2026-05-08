@@ -74,13 +74,7 @@ export default function ResetPolylinesButton({
         await new Promise(resolve => setTimeout(resolve, 300));
       }
 
-      // 2. Clear cached polylines only when regenerating polylines
-      if (selectedPolylineOption === 'polylines') {
-        await clearPolylineCache();
-        window.dispatchEvent(new CustomEvent("polylineCacheCleared", {
-          detail: { driverIds, deliveryDate: selectedDate, triggeredBy: "resetPolylines" }
-        }));
-      }
+      // Polyline cache clearing intentionally skipped
 
       // 3. Update the polylines/breadcrumbs (per driver) sequentially
       for (const driverId of driverIds) {
