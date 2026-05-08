@@ -232,78 +232,62 @@ const optimizeStoreRoute = (stops, storeLocation, pickupTime, startLocation = nu
       const travelTime = estimateTravelTime(distanceToStop, minutesToTime(currentTime));
       const arrivalTime = currentTime + travelTime;
       
-      // PRIMARY SCORE: Distance (heavily weighted)
-      // Lower distance = higher score
-      const distanceScore = Math.max(0, 200 - distanceToStop * 20);
-      
-      // SECONDARY SCORE: Time window compliance
-      // Time windows should guide ordering but NOT override distance for same-window stops
-      let timeWindowScore = 0;
       const isPickup = !stop.patient_id;
-      
-      if (stop.time_window_start && stop.time_window_end) {
-        const windowStart = timeToMinutes(stop.time_window_start);
-        const windowEnd = timeToMinutes(stop.time_window_end);
-        
-        // Pickups: Time windows are CRITICAL - must arrive within window
+
+      // Get the effective time window for this stop
+      const windowStartStr = stop.time_window_start || (isPickup ? stop.delivery_time_start : null);
+      const windowEndStr = stop.time_window_end || (isPickup ? stop.delivery_time_end : null);
+      const windowStart = windowStartStr ? timeToMinutes(windowStartStr) : null;
+      const windowEnd = windowEndStr ? timeToMinutes(windowEndStr) : null;
+
+      // TIME WINDOW SCORE: PRIMARY for pickups, significant for deliveries
+      // Time windows DOMINATE distance. A stop due soon always beats a closer stop due later.
+      let timeWindowScore = 0;
+
+      if (windowStart !== null && windowEnd !== null) {
         if (isPickup) {
           if (arrivalTime > windowEnd) {
-            // Heavy penalty for arriving after the pickup window ends
-            timeWindowScore = -1000;
-          } else if (arrivalTime < windowStart - 15) {
-            // Small penalty for arriving very early
-            timeWindowScore = -30;
+            // Already missed - massive penalty
+            timeWindowScore = -5000 - (arrivalTime - windowEnd) * 10;
           } else {
-            // Bonus for being on time
-            timeWindowScore = 100;
+            // Urgency bonus: the closer the window start is to now, the higher the score
+            // This ensures pickups are sorted primarily by their time slot
+            const urgency = Math.max(0, 2000 - windowStart * 2);
+            timeWindowScore = urgency + (arrivalTime <= windowEnd ? 500 : 0);
           }
         } else {
-          // Deliveries: Time windows matter but distance is primary
-          // KEY FIX: Don't give bonus based on window start time - that was causing late windows to get deprioritized incorrectly
-          
-          if (arrivalTime >= windowStart && arrivalTime <= windowEnd) {
-            // Perfect - within the acceptable window
-            timeWindowScore = 50;
-          } else if (arrivalTime < windowStart) {
-            // Arriving early is fine - no penalty for being early to a delivery
-            // The customer prefers early over late
-            timeWindowScore = 30;
-          } else {
-            // Arriving after windowEnd - this is truly late
-            // Heavy penalty that increases as we get further past the end time
+          // Deliveries: heavily reward being on time, penalize lateness
+          if (arrivalTime > windowEnd) {
             const lateness = arrivalTime - windowEnd;
-            timeWindowScore = -200 - (lateness * 3);
+            timeWindowScore = -500 - (lateness * 5);
+          } else if (arrivalTime >= windowStart) {
+            timeWindowScore = 200;
+          } else {
+            // Early arrival is fine
+            timeWindowScore = 100;
           }
         }
       } else if (isPickup) {
-        // Pickups without explicit time windows - check delivery_time_start/end
-        if (stop.delivery_time_start && stop.delivery_time_end) {
-          const windowStart = timeToMinutes(stop.delivery_time_start);
-          const windowEnd = timeToMinutes(stop.delivery_time_end);
-          
-          if (arrivalTime > windowEnd) {
-            timeWindowScore = -1000; // Must not miss pickup window
-          } else if (arrivalTime >= windowStart) {
-            timeWindowScore = 100; // On time
-          } else {
-            timeWindowScore = 50; // Early is okay
-          }
+        // Pickup with no window - mild urgency by delivery_time_start
+        const pickupStart = stop.delivery_time_start ? timeToMinutes(stop.delivery_time_start) : null;
+        if (pickupStart !== null) {
+          timeWindowScore = Math.max(0, 1000 - pickupStart * 1.5);
         }
       }
+
+      // DISTANCE SCORE: Secondary — proximity matters but yields to time windows
+      const distanceScore = Math.max(0, 100 - distanceToStop * 10);
       
       // LOOKAHEAD SCORE: How does this choice position us for remaining stops?
       let lookaheadScore = 0;
       if (remainingCentroid && remaining.length > 1) {
-        // Calculate distance from this stop to the centroid of remaining stops
         const distanceToCentroid = calculateDistance(
           stop.latitude,
           stop.longitude,
           remainingCentroid.lat,
           remainingCentroid.lon
         );
-        
-        // Prefer stops that keep us closer to the remaining cluster
-        lookaheadScore = Math.max(0, 100 - distanceToCentroid * 15);
+        lookaheadScore = Math.max(0, 50 - distanceToCentroid * 8);
       }
       
       // HOME DESTINATION SCORE: Progressively increase weight as we near the end
@@ -315,44 +299,29 @@ const optimizeStoreRoute = (stops, storeLocation, pickupTime, startLocation = nu
           driverHome.lat,
           driverHome.lon
         );
-        
-        // Progressive weight: more important as we get closer to the end
         const remainingFraction = remaining.length / stops.length;
-        const homeWeight = Math.max(0, (1 - remainingFraction) * 150); // Scale up to 150 points
-        
-        homeScore = Math.max(0, homeWeight - distanceToHomeFromStop * 10);
-        
-        if (remaining.length <= 5) {
-          console.log(`    🏠 Home consideration for "${stop.patient_id ? 'delivery' : 'pickup'}" (${remaining.length} left): distance=${distanceToHomeFromStop.toFixed(2)}km, score=${homeScore.toFixed(1)}`);
-        }
+        const homeWeight = Math.max(0, (1 - remainingFraction) * 80);
+        homeScore = Math.max(0, homeWeight - distanceToHomeFromStop * 5);
       }
       
       // BACKTRACKING PENALTY: Penalize stops that take us backwards
       let backtrackPenalty = 0;
       if (driverHome && remaining.length > 2) {
         const currentDistanceToHome = calculateDistance(
-          currentLocation.lat,
-          currentLocation.lon,
-          driverHome.lat,
-          driverHome.lon
+          currentLocation.lat, currentLocation.lon,
+          driverHome.lat, driverHome.lon
         );
-        
         const newDistanceToHome = calculateDistance(
-          stop.latitude,
-          stop.longitude,
-          driverHome.lat,
-          driverHome.lon
+          stop.latitude, stop.longitude,
+          driverHome.lat, driverHome.lon
         );
-        
-        // If this stop takes us further from home when we're past halfway, penalize it
         if (remaining.length < stops.length * 0.6 && newDistanceToHome > currentDistanceToHome) {
-          backtrackPenalty = -(newDistanceToHome - currentDistanceToHome) * 15;
-          console.log(`    ⚠️ Backtrack penalty for "${stop.patient_id ? 'delivery' : 'pickup'}": ${backtrackPenalty.toFixed(1)} (moving away from home)`);
+          backtrackPenalty = -(newDistanceToHome - currentDistanceToHome) * 8;
         }
       }
       
-      // COMBINED SCORE: Distance is king, with lookahead, time windows, and home proximity as modifiers
-      const score = distanceScore + timeWindowScore + lookaheadScore + homeScore + backtrackPenalty;
+      // COMBINED SCORE: Time windows dominate, distance is secondary
+      const score = timeWindowScore + distanceScore + lookaheadScore + homeScore + backtrackPenalty;
       
       if (score > bestScore) {
         bestScore = score;
@@ -444,88 +413,29 @@ const optimizeStoreRoute = (stops, storeLocation, pickupTime, startLocation = nu
 };
 
 /**
- * Try different pickup starting points and return the best route
+ * Run a single global optimization pass over all pickups + deliveries.
+ * Pickups are ordered by their time window (ascending) so time windows govern sequence.
  */
 const findBestPickupOrder = (pickups, deliveries, stores, patients, startLocation, startTime, driverHome) => {
-  if (pickups.length <= 1) {
-    const firstPickupStore = stores.find(storeItem => storeItem && storeItem.id === pickups[0]?.store_id);
-    const fallbackStoreLocation = { lat: firstPickupStore?.latitude, lon: firstPickupStore?.longitude };
-    
-    return optimizeStoreRoute(
-      [...pickups, ...deliveries],
-      startLocation || fallbackStoreLocation,
-      pickups[0]?.delivery_time_start || '10:00',
-      startLocation,
-      startTime,
-      driverHome,
-      patients
-    );
-  }
-  
-  console.log(`  🔄 Testing ${pickups.length} different pickup starting points for shortest route...`);
-  
-  let bestRoute = null;
-  let bestDistance = Infinity;
-  
-  // Try each pickup as the starting point
-  for (let i = 0; i < pickups.length; i++) {
-    const currentAttemptPickups = [pickups[i], ...pickups.filter((_, idx) => idx !== i)];
-    const allStopsForAttempt = [...currentAttemptPickups, ...deliveries];
-    
-    const firstPickupInAttempt = currentAttemptPickups[0];
-    const pickupStore = stores.find(storeItem => storeItem && storeItem.id === firstPickupInAttempt.store_id);
-    
-    const route = optimizeStoreRoute(
-      allStopsForAttempt,
-      { lat: pickupStore?.latitude, lon: pickupStore?.longitude },
-      firstPickupInAttempt.delivery_time_start || '10:00',
-      startLocation,
-      startTime,
-      driverHome,
-      patients
-    );
-    
-    // Calculate total distance including return to home
-    const stats = calculateRouteStats(route, stores, patients);
-    let totalDistance = stats.totalDistance;
-    
-    if (driverHome && route.length > 0) {
-      const lastStop = route[route.length - 1];
-      if (lastStop && lastStop.latitude && lastStop.longitude) {
-        totalDistance += calculateDistance(
-          lastStop.latitude,
-          lastStop.longitude,
-          driverHome.lat,
-          driverHome.lon
-        );
-      }
-    }
-    
-    // Only log if this is a new best route
-    if (totalDistance < bestDistance) {
-      console.log('');
-      console.log(`    ✨ NEW BEST ROUTE FOUND - Pickup order ${i + 1}:`);
-      console.log(`       Starting pickup: ${pickupStore?.name}`);
-      console.log(`       Total distance: ${totalDistance.toFixed(2)} km`);
-      console.log(`       Total time: ${stats.totalTime} minutes`);
-      console.log(`       Stop sequence:`);
-      route.forEach((routeStop, idx) => {
-        if (!routeStop) return; // CRITICAL FIX
-        const stopPatient = patients.find(patientItem => patientItem && patientItem.id === routeStop.patient_id);
-        const stopStore = stores.find(storeItem => storeItem && storeItem.id === routeStop.store_id);
-        const stopName = routeStop.patient_id ? stopPatient?.full_name : `${stopStore?.name} Pickup`;
-        const eta = routeStop.estimated_arrival || routeStop.delivery_time_start || 'N/A';
-        console.log(`         ${idx + 1}. ${stopName} - ETA: ${eta}`);
-      });
-      
-      bestDistance = totalDistance;
-      bestRoute = route;
-    }
-  }
-  
-  console.log('');
-  console.log(`  ✅ Best pickup order selected - Total distance: ${bestDistance.toFixed(2)}km`);
-  return bestRoute;
+  // Sort pickups by their scheduled time window (ascending) — time windows are primary
+  const sortedPickups = [...pickups].sort((a, b) => {
+    const timeA = timeToMinutes(a?.delivery_time_start || a?.time_window_start || '00:00');
+    const timeB = timeToMinutes(b?.delivery_time_start || b?.time_window_start || '00:00');
+    return timeA - timeB;
+  });
+
+  const firstPickup = sortedPickups[0];
+  const firstStore = stores.find(s => s && s.id === firstPickup?.store_id);
+
+  return optimizeStoreRoute(
+    [...sortedPickups, ...deliveries],
+    { lat: firstStore?.latitude, lon: firstStore?.longitude },
+    firstPickup?.delivery_time_start || '10:00',
+    startLocation,
+    startTime,
+    driverHome,
+    patients
+  );
 };
 
 /**
