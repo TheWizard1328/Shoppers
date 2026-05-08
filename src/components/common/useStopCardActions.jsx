@@ -801,13 +801,12 @@ export default function useStopCardActions(params) {
           const [hours, minutes] = currentLocalTime.split(':').map(Number);
           let currentEtaMinutes = hours * 60 + minutes;
           const updatedRemainingWithEtas = remainingEtaDeliveries.map((stop, index) => {
-            const isFirstStop = index === 0;
-            if (isFirstStop) {
-              // First remaining stop gets 5 minute bonus from current time
-              currentEtaMinutes = currentEtaMinutes + 5;
+            if (index === 0) {
+              // First remaining stop: use its stored estimated_duration_minutes from the completed stop
+              currentEtaMinutes = currentEtaMinutes + (stop.estimated_duration_minutes || 5);
             } else {
               // Subsequent stops cascade from previous stop's ETA + that stop's estimated duration
-              currentEtaMinutes = currentEtaMinutes + (remainingEtaDeliveries[index - 1]?.estimated_duration_minutes || 0);
+              currentEtaMinutes = currentEtaMinutes + (remainingEtaDeliveries[index - 1]?.estimated_duration_minutes || 5);
             }
             const newEtaHours = Math.floor((currentEtaMinutes % 1440) / 60);
             const newEtaMins = currentEtaMinutes % 60;
@@ -837,12 +836,7 @@ export default function useStopCardActions(params) {
             driverId: delivery.driver_id,
             deliveryDate: delivery.delivery_date,
             forceRefreshDriverDeliveries,
-            triggeredBy: 'completeEtaRefresh',
-            etaPayload: {
-              deliveries: updatedRemainingWithEtas,
-              lastStopCompletionTime: completionUpdate.actual_delivery_time,
-              lastStopServiceTime: delivery.extra_time || 0
-            }
+            triggeredBy: 'completeEtaRefresh'
           });
         }
         if (!nextStop) {
@@ -976,13 +970,12 @@ export default function useStopCardActions(params) {
           const [hours, minutes] = currentLocalTime.split(':').map(Number);
           let currentEtaMinutes = hours * 60 + minutes;
           const updatedRemainingWithEtas = remainingEtaDeliveries.map((stop, index) => {
-            const isFirstStop = index === 0;
-            if (isFirstStop) {
-              // First remaining stop gets 5 minute bonus from current time
-              currentEtaMinutes = currentEtaMinutes + 5;
+            if (index === 0) {
+              // First remaining stop: use its stored estimated_duration_minutes from the failed stop
+              currentEtaMinutes = currentEtaMinutes + (stop.estimated_duration_minutes || 5);
             } else {
               // Subsequent stops cascade from previous stop's ETA + that stop's estimated duration
-              currentEtaMinutes = currentEtaMinutes + (remainingEtaDeliveries[index - 1]?.estimated_duration_minutes || 0);
+              currentEtaMinutes = currentEtaMinutes + (remainingEtaDeliveries[index - 1]?.estimated_duration_minutes || 5);
             }
             const newEtaHours = Math.floor((currentEtaMinutes % 1440) / 60);
             const newEtaMins = currentEtaMinutes % 60;
@@ -1012,12 +1005,7 @@ export default function useStopCardActions(params) {
             driverId: delivery.driver_id,
             deliveryDate: delivery.delivery_date,
             forceRefreshDriverDeliveries,
-            triggeredBy: 'failureEtaRefresh',
-            etaPayload: {
-              deliveries: updatedRemainingWithEtas,
-              lastStopCompletionTime: criticalUpdate.actual_delivery_time,
-              lastStopServiceTime: delivery.extra_time || 0
-            }
+            triggeredBy: 'failureEtaRefresh'
           });
         }
         Promise.resolve().then(() => params.scheduleCompletionSideEffects({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, nextDeliveryId: incompleteDeliveries[0]?.id || null, lastCompletedDeliveryId: delivery.id, setOffDuty: incompleteDeliveries.length === 0, appUserId: currentDriverAppUser?.id || null, skipRouteOptimization: true, skipNextLegPolylineRefresh: true }).catch(() => {}));
