@@ -327,6 +327,16 @@ const buildRoutingSections = async ({ hereApiKey, orderedStops, originLat, origi
 
     let encodedPolyline = null;
     let decodedCoords = null;
+    console.log('[getHereDirections] Raw HERE flexible polyline received:', {
+      sectionIndex: index,
+      rawPolyline: routeSection?.polyline,
+      rawLength: routeSection?.polyline?.length,
+      fromLat: fromPoint.lat,
+      fromLng: fromPoint.lng,
+      toLat: toPoint.lat,
+      toLng: toPoint.lng,
+      transportMode: normalizedTransportMode
+    });
     if (typeof routeSection?.polyline === 'string' && routeSection.polyline) {
       decodedCoords = decodeHereFlexiblePolyline(routeSection.polyline);
       if (decodedCoords.length > 1) {
