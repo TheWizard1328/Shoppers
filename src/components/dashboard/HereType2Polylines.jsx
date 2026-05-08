@@ -160,9 +160,11 @@ export default function HereType2Polylines({
   const lines = [];
 
   // Safety: if HERE/entity/offline caches miss, still render dashed straight segments
+  // NOTE: Type1 already draws the first active leg (current position → stops[0]) in blue.
+  // Type2 draws the remaining legs starting from stops[1] → stops[2], etc.
   driverIncomplete.forEach((stops, driverId) => {
     const totalLegs = Math.max(0, stops.length - 1);
-    for (let i = 0; i < stops.length - 1; i++) {
+    for (let i = 1; i < stops.length - 1; i++) {
       const a = stops[i];
       const b = stops[i + 1];
       const coords = typeof b?.encoded_polyline === 'string' && b.encoded_polyline.trim()
@@ -176,8 +178,8 @@ export default function HereType2Polylines({
           pathOptions={{
             ...getDriverRouteStyle(driverId, coords ? (() => {
               if (totalLegs <= 1) return 0.85;
-              const t = i / (totalLegs - 1);
-              const start = 0.95, end = 0.25;
+              const t = (i - 1) / Math.max(1, totalLegs - 2);
+              const start = 0.85, end = 0.25;
               return Math.max(end, start + (end - start) * t);
             })() : 0.35),
             dashArray: coords ? getDriverRouteStyle(driverId).dashArray : '6,6'
