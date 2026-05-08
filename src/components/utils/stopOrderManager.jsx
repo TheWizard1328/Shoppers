@@ -14,23 +14,15 @@ import { updateDeliveryLocal } from './entityMutations';
 export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate, skipPolylineRegeneration = false) => {
   const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
   
-  // Fetch fresh data from backend to ensure accuracy; fallback to offline DB on network error
+  // Read from offline DB first to avoid unnecessary network calls
   const driverDeliveries = await (async () => {
     try {
-      return await base44.entities.Delivery.filter({
-        driver_id: driverId,
-        delivery_date: deliveryDate
-      });
+      const { offlineDB } = await import('./offlineDatabase');
+      const all = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+      return (all || []).filter(d => d?.driver_id === driverId && d?.delivery_date === deliveryDate);
     } catch (err) {
-      console.warn('[StopOrderManager] Network error fetching deliveries, falling back to offline DB:', err?.message || err);
-      try {
-        const { offlineDB } = await import('./offlineDatabase');
-        const all = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-        return (all || []).filter(d => d?.driver_id === driverId && d?.delivery_date === deliveryDate);
-      } catch (offlineErr) {
-        console.warn('[StopOrderManager] Offline fallback failed:', offlineErr?.message || offlineErr);
-        return [];
-      }
+      console.warn('[StopOrderManager] Offline DB read failed:', err?.message || err);
+      return [];
     }
   })();
 
