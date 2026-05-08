@@ -802,8 +802,8 @@ export default function useStopCardActions(params) {
           let currentEtaMinutes = hours * 60 + minutes;
           const updatedRemainingWithEtas = remainingEtaDeliveries.map((stop, index) => {
             if (index === 0) {
-              // First remaining stop: use its stored estimated_duration_minutes from the completed stop
-              currentEtaMinutes = currentEtaMinutes + (stop.estimated_duration_minutes || 5);
+              // First remaining stop (isNextDelivery): apply 5-min buffer + its own travel duration
+              currentEtaMinutes = currentEtaMinutes + 5 + (stop.estimated_duration_minutes || 5);
             } else {
               // Subsequent stops cascade from previous stop's ETA + that stop's estimated duration
               currentEtaMinutes = currentEtaMinutes + (remainingEtaDeliveries[index - 1]?.estimated_duration_minutes || 5);
@@ -971,8 +971,8 @@ export default function useStopCardActions(params) {
           let currentEtaMinutes = hours * 60 + minutes;
           const updatedRemainingWithEtas = remainingEtaDeliveries.map((stop, index) => {
             if (index === 0) {
-              // First remaining stop: use its stored estimated_duration_minutes from the failed stop
-              currentEtaMinutes = currentEtaMinutes + (stop.estimated_duration_minutes || 5);
+              // First remaining stop (isNextDelivery): apply 5-min buffer + its own travel duration
+              currentEtaMinutes = currentEtaMinutes + 5 + (stop.estimated_duration_minutes || 5);
             } else {
               // Subsequent stops cascade from previous stop's ETA + that stop's estimated duration
               currentEtaMinutes = currentEtaMinutes + (remainingEtaDeliveries[index - 1]?.estimated_duration_minutes || 5);
