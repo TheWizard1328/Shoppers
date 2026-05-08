@@ -839,6 +839,7 @@ Deno.serve(async (req) => {
       const resolvedTransportMode = String(stop?.transport_mode || preferredTravelMode || 'driving').toLowerCase();
       const safeTransportMode = ['driving', 'cycling', 'pedestrian'].includes(resolvedTransportMode) ? resolvedTransportMode : 'driving';
 
+      const isPendingStop = pendingDeliveryIds.has(stop.id);
       const updateData = {
         stop_order: newOrder,
         display_stop_order: newOrder,
@@ -848,11 +849,10 @@ Deno.serve(async (req) => {
         travel_dist: Number(directionsLegs[i]?.distance)
           ? Number((Number(directionsLegs[i].distance) / 1000).toFixed(3))
           : null,
-        ...(typeof segmentPolyline?.estimatedDurationMinutes === 'number' ? { estimated_duration_minutes: segmentPolyline.estimatedDurationMinutes } : {}),
-        ...(typeof segmentPolyline?.estimatedDistanceKm === 'number' ? { estimated_distance_km: segmentPolyline.estimatedDistanceKm } : {}),
-        ...(segmentPolyline?.encodedPolyline ? {
-          encoded_polyline: segmentPolyline.encodedPolyline,
-        } : {})
+        // Pending stops never get a polyline — clear any stale one
+        encoded_polyline: isPendingStop ? null : (segmentPolyline?.encodedPolyline || null),
+        ...(typeof segmentPolyline?.estimatedDurationMinutes === 'number' && !isPendingStop ? { estimated_duration_minutes: segmentPolyline.estimatedDurationMinutes } : {}),
+        ...(typeof segmentPolyline?.estimatedDistanceKm === 'number' && !isPendingStop ? { estimated_distance_km: segmentPolyline.estimatedDistanceKm } : {}),
       };
 
       if (pendingStartTime) {
