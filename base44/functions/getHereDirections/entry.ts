@@ -353,6 +353,15 @@ const buildRoutingSections = async ({ hereApiKey, orderedStops, originLat, origi
     }
 
     const fallbackDistanceKm = calculateCrowFliesDistance(fromPoint.lat, fromPoint.lng, toPoint.lat, toPoint.lng);
+
+    // If no polyline from HERE, generate a straight-line fallback using the actual from/to coords
+    if (!encodedPolyline && !isZeroDistanceLeg) {
+      const fallbackCoords = [[fromPoint.lat, fromPoint.lng], [toPoint.lat, toPoint.lng]];
+      encodedPolyline = encodeGooglePolyline(fallbackCoords);
+      decodedCoords = fallbackCoords;
+      decodedSectionCoordinates.push(fallbackCoords);
+    }
+
     return {
       polyline: routeSection?.polyline || null,
       encoded_polyline: encodedPolyline,
