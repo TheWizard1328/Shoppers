@@ -357,53 +357,10 @@ const buildRoutingSections = async ({ hereApiKey, orderedStops, originLat, origi
     });
   }
 
-  // When HERE returns 0 sections for a multi-via call, attempt individual single-leg
-  // calls as a recovery so we still get real road polylines instead of crow-flies lines.
-  // This costs more HERE API calls but is only triggered on failure, not the happy path.
-  let individualLegSections = null;
-  if (routeSections.length === 0 && orderedPoints.length >= 2 && viaStops.length > 0) {
-    console.info('[getHereDirections] HERE multi-via call returned 0 sections — attempting individual leg fallback', {
-      legCount: orderedPoints.length - 1,
-      transportMode: normalizedTransportMode,
-    });
-    try {
-      const legPromises = orderedPoints.slice(0, -1).map(async (fromPt, legIdx) => {
-        const toPt = orderedPoints[legIdx + 1];
-        const legParams = new URLSearchParams();
-        legParams.set('apiKey', hereApiKey);
-        legParams.set('transportMode', normalizedTransportMode === 'cycling' ? 'bicycle' : normalizedTransportMode === 'pedestrian' ? 'pedestrian' : 'car');
-        legParams.set('origin', `${fromPt.lat},${fromPt.lng}`);
-        legParams.set('destination', `${toPt.lat},${toPt.lng}`);
-        legParams.set('return', 'polyline,summary');
-        const legResp = await fetch(`https://router.hereapi.com/v8/routes?${legParams.toString()}`, {
-          signal: AbortSignal.timeout(10000),
-          headers: { accept: 'application/json' }
-        });
-        const legData = await legResp.json().catch(() => null);
-        const legSection = Array.isArray(legData?.routes?.[0]?.sections) ? legData.routes[0].sections[0] : null;
-        if (!legSection) {
-          console.warn('[getHereDirections] individual leg fallback also failed', { legIdx, httpStatus: legResp.status });
-        }
-        return legSection || null;
-      });
-      // Run all leg calls concurrently (up to HERE rate limits)
-      individualLegSections = await Promise.all(legPromises);
-      const successCount = individualLegSections.filter(Boolean).length;
-      console.info('[getHereDirections] individual leg fallback complete', {
-        legCount: legPromises.length,
-        successCount,
-        transportMode: normalizedTransportMode,
-      });
-    } catch (legErr) {
-      console.warn('[getHereDirections] individual leg fallback threw', legErr?.message || legErr);
-      individualLegSections = null;
-    }
-  }
-
-  // Use individual leg sections as the primary source when the multi-via call failed
-  const effectiveRouteSections = (routeSections.length > 0)
-    ? routeSections
-    : (Array.isArray(individualLegSections) ? individualLegSections.filter(Boolean) : []);
+  // If multi-via call returned 0 sections, use crow-flies fallback immediately.
+  // Do NOT attempt per-leg individual calls here — that causes 15-20 API hits per optimization.
+  // Instead, bad segments are retried individually AFTER section matching below.
+  const effectiveRouteSections = routeSections;
 
   // Pre-decode every HERE section polyline so we can do coordinate-based matching below.
   // HERE may return fewer sections than expected when consecutive vias are very close
@@ -473,7 +430,6 @@ const buildRoutingSections = async ({ hereApiKey, orderedStops, originLat, origi
         decodedCoords = candidate.coords;
         if (decodedCoords && decodedCoords.length > 1) {
           encodedPolyline = encodeGooglePolyline(decodedCoords);
-          decodedSectionCoordinates.push(decodedCoords);
         } else {
           // Section exists but polyline didn't decode — warn and fall through to straight-line
           console.warn('[getHereDirections] HERE section polyline decoded incompletely', {
@@ -489,15 +445,27 @@ const buildRoutingSections = async ({ hereApiKey, orderedStops, originLat, origi
 
     const fallbackDistanceKm = calculateCrowFliesDistance(fromPoint.lat, fromPoint.lng, toPoint.lat, toPoint.lng);
 
-    // If no polyline from HERE, generate a straight-line fallback using the actual from/to coords
+    // If no polyline from HERE, mark this segment for targeted retry
+    // (handled below after the map — crow-flies used only if retry also fails)
     if (!encodedPolyline && !isZeroDistanceLeg) {
-      const fallbackCoords = [[fromPoint.lat, fromPoint.lng], [toPoint.lat, toPoint.lng]];
-      encodedPolyline = encodeGooglePolyline(fallbackCoords);
-      decodedCoords = fallbackCoords;
-      decodedSectionCoordinates.push(fallbackCoords);
+      // placeholder — will be filled in by targeted retry pass
+      return {
+        _needsRetry: true,
+        _fromPoint: fromPoint,
+        _toPoint: toPoint,
+        polyline: null,
+        encoded_polyline: null,
+        estimated_distance_km: Number.isFinite(Number(matchedSection?.summary?.length)) ? Math.round((Number(matchedSection.summary.length) / 1000) * 10) / 10 : Math.round(fallbackDistanceKm * 10) / 10,
+        estimated_duration_minutes: Number.isFinite(Number(matchedSection?.summary?.duration)) ? Math.round(Number(matchedSection.summary.duration) / 60) : Math.round((fallbackDistanceKm / 40) * 60),
+        coordinates: [fromPoint, toPoint]
+      };
     }
 
     const rs = matchedSection;
+    // Push valid decoded coords into combined accumulator
+    if (decodedCoords && decodedCoords.length > 1) {
+      decodedSectionCoordinates.push(decodedCoords);
+    }
     return {
       polyline: rs?.polyline || null,
       encoded_polyline: encodedPolyline,
@@ -508,6 +476,62 @@ const buildRoutingSections = async ({ hereApiKey, orderedStops, originLat, origi
         : [fromPoint, toPoint]
     };
   });
+
+  // Targeted retry: only call HERE individually for segments that got no valid polyline.
+  // This is far cheaper than retrying all legs — typically 0-1 retries per route.
+  const transportModeParam = normalizedTransportMode === 'cycling' ? 'bicycle' : normalizedTransportMode === 'pedestrian' ? 'pedestrian' : 'car';
+  for (let i = 0; i < sections.length; i++) {
+    const seg = sections[i];
+    if (!seg._needsRetry) continue;
+
+    let retried = false;
+    try {
+      const legParams = new URLSearchParams();
+      legParams.set('apiKey', hereApiKey);
+      legParams.set('transportMode', transportModeParam);
+      legParams.set('origin', `${seg._fromPoint.lat},${seg._fromPoint.lng}`);
+      legParams.set('destination', `${seg._toPoint.lat},${seg._toPoint.lng}`);
+      legParams.set('return', 'polyline,summary');
+      const legResp = await fetch(`https://router.hereapi.com/v8/routes?${legParams.toString()}`, {
+        signal: AbortSignal.timeout(8000),
+        headers: { accept: 'application/json' }
+      });
+      const legData = await legResp.json().catch(() => null);
+      const legSection = Array.isArray(legData?.routes?.[0]?.sections) ? legData.routes[0].sections[0] : null;
+      if (legSection?.polyline) {
+        const decoded = decodeHereFlexiblePolyline(legSection.polyline);
+        if (decoded.length > 1) {
+          const ep = encodeGooglePolyline(decoded);
+          decodedSectionCoordinates.push(decoded);
+          sections[i] = {
+            polyline: legSection.polyline,
+            encoded_polyline: ep,
+            estimated_distance_km: Number.isFinite(Number(legSection?.summary?.length)) ? Math.round((Number(legSection.summary.length) / 1000) * 10) / 10 : seg.estimated_distance_km,
+            estimated_duration_minutes: Number.isFinite(Number(legSection?.summary?.duration)) ? Math.round(Number(legSection.summary.duration) / 60) : seg.estimated_duration_minutes,
+            coordinates: decoded.map(([lat, lng]) => ({ lat, lng }))
+          };
+          retried = true;
+          console.info(`[getHereDirections] Targeted retry succeeded for segment ${i}`);
+        }
+      }
+    } catch (retryErr) {
+      console.warn(`[getHereDirections] Targeted retry failed for segment ${i}:`, retryErr?.message);
+    }
+
+    // If retry also failed, fall back to crow-flies straight line
+    if (!retried) {
+      const fallbackCoords = [[seg._fromPoint.lat, seg._fromPoint.lng], [seg._toPoint.lat, seg._toPoint.lng]];
+      const ep = encodeGooglePolyline(fallbackCoords);
+      decodedSectionCoordinates.push(fallbackCoords);
+      sections[i] = {
+        ...seg,
+        encoded_polyline: ep,
+        coordinates: [seg._fromPoint, seg._toPoint],
+        _needsRetry: false
+      };
+      console.info(`[getHereDirections] Segment ${i} fell back to crow-flies`);
+    }
+  }
 
   const combinedCoordinates = decodedSectionCoordinates.reduce((acc, coords) => {
     if (!Array.isArray(coords) || coords.length === 0) return acc;
