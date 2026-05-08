@@ -16,6 +16,7 @@ import { updateDeliveryLocal, deleteDeliveryLocal } from "@/components/utils/off
 import { getDriverNameForStorage } from "@/components/utils/driverUtils";
 import { invalidate } from "@/components/utils/dataManager";
 import { base44 } from "@/api/base44Client";
+import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
 
 export default function DashboardBulkEditControls({
   deliveriesWithStopOrder = [],
@@ -32,6 +33,16 @@ export default function DashboardBulkEditControls({
   onBulkDeleteComplete,
 }) {
   const [showBulkEditPanel, setShowBulkEditPanel] = useState(false);
+
+  const openBulkEditPanel = useCallback(() => {
+    smartRefreshManager.pause();
+    setShowBulkEditPanel(true);
+  }, []);
+
+  const closeBulkEditPanel = useCallback((open) => {
+    if (!open) smartRefreshManager.resume();
+    setShowBulkEditPanel(open);
+  }, []);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -108,8 +119,13 @@ export default function DashboardBulkEditControls({
         }
       }
 
-      // Travel mode (only if changed and not mixed)
-      if (values.travelModeChoice !== initialValues.travelModeChoice && values.travelModeChoice !== "mixed") {
+      // Travel mode (only if changed and not mixed/unchanged)
+      if (
+        values.travelModeChoice &&
+        values.travelModeChoice !== "mixed" &&
+        values.travelModeChoice !== "unchanged" &&
+        values.travelModeChoice !== initialValues.travelModeChoice
+      ) {
         sharedUpdates.transport_mode = values.travelModeChoice;
         sharedUpdates.finished_leg_transport_mode = values.travelModeChoice;
       }
@@ -155,6 +171,7 @@ export default function DashboardBulkEditControls({
       clearSelection();
     } finally {
       setIsSaving(false);
+      smartRefreshManager.resume();
     }
   }, [selectedDeliveries, drivers, refreshData, clearSelection]);
 
@@ -225,7 +242,7 @@ export default function DashboardBulkEditControls({
           style={{ bottom: `${(stopCardsBaseHeight || 0) + 16}px` }}
         >
           <span className="text-sm font-medium text-foreground px-1">{totalDeleteCount} Stops</span>
-          <Button size="sm" onClick={() => setShowBulkEditPanel(true)} className="gap-2" disabled={isSaving || isDeleting}>
+          <Button size="sm" onClick={openBulkEditPanel} className="gap-2" disabled={isSaving || isDeleting}>
             <PencilLine className="h-4 w-4" />
             Edit
           </Button>
@@ -296,7 +313,7 @@ export default function DashboardBulkEditControls({
 
       <BulkEditStopsPanel
         open={showBulkEditPanel}
-        onOpenChange={setShowBulkEditPanel}
+        onOpenChange={closeBulkEditPanel}
         isMobile={isMobile}
         selectedCount={selectedCount}
         selectedDeliveries={selectedDeliveries}
