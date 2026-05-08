@@ -922,6 +922,9 @@ Deno.serve(async (req) => {
 
     const finishedStops = orderedDeliveries.filter((delivery) => FINISHED_STATUSES.has(delivery.status));
     const latestFinishedStop = finishedStops[finishedStops.length - 1] || null;
+    // CRITICAL: Pending stops must be completely excluded from polyline generation.
+    // They are not active, not finished, and must not be used as origins for subsequent stops.
+    const pendingStops = orderedDeliveries.filter((delivery) => delivery.status === 'pending');
     const activeStops = orderedDeliveries.filter((delivery) => ACTIVE_STATUSES.has(delivery.status));
 
     let apiCallsMade = 0;
@@ -1235,6 +1238,26 @@ Deno.serve(async (req) => {
             estimated_duration_minutes: null
           });
         });
+
+        // CRITICAL: Always clear polylines from pending stops — they must never have
+        // a polyline (their coords must not be used as origins for subsequent stops).
+        const pendingStopIds = new Set(pendingStops.map((stop) => stop?.id).filter(Boolean));
+        pendingStops.forEach((stop) => {
+          if (!stop?.id) return;
+          deliveryUpdatesById.set(stop.id, {
+            encoded_polyline: null,
+            transport_mode: null,
+            segment_origin_lat: null,
+            segment_origin_lon: null,
+            segment_dest_lat: null,
+            segment_dest_lon: null,
+            estimated_distance_km: null,
+            estimated_duration_minutes: null
+          });
+        });
+        if (pendingStops.length > 0) {
+          console.log(`# [purgeAndRegeneratePolylines] Cleared polylines from ${pendingStops.length} pending stop(s) | driver=${driverDisplayName} | date=${deliveryDate}`);
+        }
 
         if (deliveryUpdatesById.size > 0) {
           console.log(`# [purgeAndRegeneratePolylines] BEFORE active bulkUpdateDeliveries | driver=${driverDisplayName} | date=${deliveryDate} | totalStops=${deliveries?.length || 0} | updateCount=${deliveryUpdatesById.size}`);
