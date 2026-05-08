@@ -9,13 +9,9 @@ const SECRET_NAME_MAP = {
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
 
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+    // Use service role to read settings — avoids hammering /User/me which causes 429s
+    const settings = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
     const settingValue = settings?.[0]?.setting_value || {};
     const selectedSecretName = settingValue.selected_api_key || settingValue.selected_here_api_key || 'HERE_API_KEY';
     const resolvedSecretName = SECRET_NAME_MAP[selectedSecretName] || 'HERE_API_KEY';

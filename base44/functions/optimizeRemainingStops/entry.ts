@@ -521,6 +521,9 @@ Deno.serve(async (req) => {
       ? orderedOptimizationStops.filter((stop) => stop.delivery.id !== routeOriginStop.delivery.id)
       : orderedOptimizationStops;
 
+    // Track which stops are pending — they participate in sequencing but get no polyline
+    const pendingDeliveryIds = new Set(pendingRouteDeliveries.map(d => d.id));
+
     console.log(`\n🎯 [optimizeRemainingStops] Optimizing remaining route: ${optimizationStops.length} stops`);
 
     let attemptedHereCalls = 0;
@@ -633,15 +636,16 @@ Deno.serve(async (req) => {
           return { duration: Math.ceil((distKm / 40) * 3600 * 1.3), distance: distKm * 1000 };
         });
 
-        // Build segmentPolylines aligned to routeStops
-        // CRITICAL: sections are indexed as legs from the origin.
-        // routeStops[0] = lockedNextStop (if any) or first sequenced stop — corresponds to sections[0]
-        // routeStops[1] corresponds to sections[1], etc.
+        // Build segmentPolylines aligned to routeStops.
+        // Pending stops are included in sequencing for correct ETA chaining,
+        // but do NOT get a stored polyline (they haven't been picked up yet).
         segmentPolylines = routeStops.map((stop, index) => {
           const section = sections[index] || null;
+          const isPending = pendingDeliveryIds.has(stop.delivery.id);
           return {
             deliveryId: stop.delivery.id,
-            encodedPolyline: section?.encoded_polyline || null,
+            // Never store a polyline for pending stops
+            encodedPolyline: isPending ? null : (section?.encoded_polyline || null),
             estimatedDistanceKm: section?.estimated_distance_km ?? null,
             estimatedDurationMinutes: section?.estimated_duration_minutes ?? null,
           };
