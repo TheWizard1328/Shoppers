@@ -42,7 +42,11 @@ const FALLBACK_ALLOWED_FIELDS = new Set([
   'isNextDelivery',
   'ampm_deliveries',
   'delivery_route_breadcrumbs',
-  'finished_leg_encoded_polyline',
+  'encoded_polyline',
+  'transport_mode',
+  'finished_leg_transport_mode',
+  'estimated_distance_km',
+  'estimated_duration_minutes',
   'PolylineUpdated'
 ]);
 
