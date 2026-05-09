@@ -349,6 +349,9 @@ Deno.serve(async (req) => {
       });
     }
     const preferredTravelMode = String(driverAppUser?.preferred_travel_mode || 'driving').toLowerCase();
+    // For route optimization sequencing, always use driving so HERE can find the globally
+    // optimal stop order. Cycling-mode stops get their own polyline pass afterwards.
+    const routingTravelMode = 'driving';
 
     const allDeliveries = await base44.asServiceRole.entities.Delivery.filter({
       driver_id: driverId,
@@ -600,7 +603,7 @@ Deno.serve(async (req) => {
           destination: destinationForDirections,
           waypoints: allWaypointsForDirections,
           routeContext: allRouteContextForDirections,
-          transportMode: preferredTravelMode,
+          transportMode: routingTravelMode,
           deliveryDate,
           departureTime: currentLocalTime || formatMinutesToTime(currentMinutes),
           caller: 'optimizeRemainingStops',
@@ -869,6 +872,65 @@ Deno.serve(async (req) => {
         data: updateData,
         label: stop.patient_name || 'Pickup',
       });
+    }
+
+    // -------------------------------------------------------------------
+    // Cycling polyline override pass
+    // For any stop whose transport_mode is 'cycling', re-fetch the polyline
+    // using cycling mode and patch the write batch entry before saving.
+    // We do this AFTER the driving-mode route has been fully sequenced so
+    // the stop order is already optimal.
+    // -------------------------------------------------------------------
+    const cyclingBatchItems = finalDeliveryWriteBatch.filter(
+      ({ data }) => data.transport_mode === 'cycling' && !pendingDeliveryIds.has(data.id ?? '')
+    );
+
+    if (cyclingBatchItems.length > 0) {
+      console.log(`🚴 [optimizeRemainingStops] Fetching cycling polylines for ${cyclingBatchItems.length} stop(s)...`);
+
+      await Promise.all(cyclingBatchItems.map(async (batchItem) => {
+        // Find the stop's position in routeStops to determine its origin point
+        const stopIndex = routeStops.findIndex((s) => s.delivery.id === batchItem.id);
+        if (stopIndex < 0) return;
+
+        const fromPos = stopIndex === 0
+          ? currentPosition
+          : { lat: routeStops[stopIndex - 1].lat, lng: routeStops[stopIndex - 1].lng };
+        const toStop = routeStops[stopIndex];
+
+        try {
+          const cycleResp = await base44.asServiceRole.functions.invoke('getHereDirections', {
+            origin: fromPos,
+            destination: { lat: toStop.lat, lng: toStop.lng },
+            waypoints: [],
+            routeContext: [],
+            transportMode: 'cycling',
+            deliveryDate,
+            departureTime: currentLocalTime || formatMinutesToTime(currentMinutes),
+            caller: 'optimizeRemainingStops:cyclingOverride',
+            preserveWaypointOrder: true,
+            skipSequenceApi: true,
+          });
+
+          const cycleResult = cycleResp?.data || cycleResp || null;
+          const cycleSection = Array.isArray(cycleResult?.sections) ? cycleResult.sections[0] : null;
+
+          if (cycleSection?.encoded_polyline) {
+            batchItem.data.encoded_polyline = cycleSection.encoded_polyline;
+            if (typeof cycleSection.estimated_distance_km === 'number') {
+              batchItem.data.estimated_distance_km = cycleSection.estimated_distance_km;
+            }
+            if (typeof cycleSection.estimated_duration_minutes === 'number') {
+              batchItem.data.estimated_duration_minutes = cycleSection.estimated_duration_minutes;
+            }
+            console.log(`  🚴 Cycling polyline updated for stop ${batchItem.id} (${batchItem.label})`);
+          } else {
+            console.warn(`  ⚠️ No cycling polyline returned for stop ${batchItem.id} - keeping driving polyline`);
+          }
+        } catch (cycleErr) {
+          console.warn(`  ⚠️ Cycling polyline fetch failed for stop ${batchItem.id}:`, cycleErr?.message);
+        }
+      }));
     }
 
     await Promise.all(
