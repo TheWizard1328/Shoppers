@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 
-const MIN_DRIVER_MOVE_METERS = 50;
+const MIN_DRIVER_MOVE_METERS = 0; // 50
 const toRadians = (value) => (value * Math.PI) / 180;
 const getDistanceMeters = (lat1, lon1, lat2, lon2) => {
   if (![lat1, lon1, lat2, lon2].every(Number.isFinite)) return Infinity;
