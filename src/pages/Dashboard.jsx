@@ -612,19 +612,11 @@ function Dashboard() {
         }
 
         // Fall back to smart default based on role and store assignments
-        if (!driverToSelect) {
-          if (userHasRole(currentUser, 'dispatcher')) {
-            driverToSelect = 'all';
-          } else if (userHasRole(currentUser, 'admin')) {
-            // Admins - use saved or default
-            driverToSelect = settings.selected_driver_id || 'all';
-          } else {
-            // Other roles - use saved or default
-            driverToSelect = settings.selected_driver_id || 'all';
-          }
+        // DISPATCHER: skip — unified initial driver selection useEffect handles this correctly based on actual deliveries.
+        if (!driverToSelect && !userHasRole(currentUser, 'dispatcher')) {
+          driverToSelect = userHasRole(currentUser, 'admin') ? (settings.selected_driver_id || 'all') : (settings.selected_driver_id || 'all');
         }
-        if (currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher') || !selectedDriverId || selectedDriverId === 'all') {setSelectedDriverId(driverToSelect);}
-        if (currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher') || !selectedDriverId || selectedDriverId === 'all') globalFilters.setSelectedDriverId(driverToSelect);
+        if (driverToSelect && (currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher') || !selectedDriverId || selectedDriverId === 'all')) {setSelectedDriverId(driverToSelect);globalFilters.setSelectedDriverId(driverToSelect);}
 
       } catch (error) {
         console.error('❌ [Dashboard] Error loading user settings:', error);
