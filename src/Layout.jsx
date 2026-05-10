@@ -75,7 +75,7 @@ import AppLoadingScreen from './components/layout/AppLoadingScreen';
 import SidebarDivider from './components/layout/SidebarDivider';
 import SidebarSectionLabel from './components/layout/SidebarSectionLabel';
 import getAdminNavigationItems from './components/layout/getAdminNavigationItems';
-import { getLayoutStyles } from './components/layout/layoutStyles';
+import { getLayoutStyles } from './components/layout/layoutStyles';import { useWakeLockAndVisibility } from './components/layout/useWakeLockAndVisibility';
 
 // App version will be loaded from AppSettings
 const DEFAULT_APP_VERSION = 'v1.0.0';
@@ -671,17 +671,16 @@ export default function Layout({ children, currentPageName }) {
     };
     window.addEventListener('deliveriesUpdated', handleDeliveriesUpdated);
 
-    // DISABLED: Location-based polyline regeneration - prevents unnecessary HERE API calls
-    // const handleDriverLocationUpdated = async (event) => {
-    //   const todayStr = format(new Date(), 'yyyy-MM-dd');
-    //   const selectedDateStr = globalFilters.getSelectedDate() || todayStr;
-    //   if (currentPageName !== 'Dashboard' || selectedDateStr !== todayStr) return;
-    //   const singleUpdate = event?.detail?.singleUpdate;
-    //   const roles = singleUpdate?.app_roles || [];
-    //   if (!singleUpdate?.user_id || !roles.includes('driver') || singleUpdate?.driver_status !== 'on_duty' || singleUpdate.current_latitude == null || singleUpdate.current_longitude == null) return;
-    //   await updatePolylineOnRefresh(singleUpdate.user_id, todayStr, { lat: Number(singleUpdate.current_latitude), lon: Number(singleUpdate.current_longitude) });
-    // };
-    // window.addEventListener('driverLocationsUpdated', handleDriverLocationUpdated);
+    // CRITICAL: Update patients/stores/appUsers in UI immediately when pullToSync completes
+    const handlePullToSyncDataReady = (event) => {
+      const { patients: freshPatients, stores: freshStores, appUsers: freshAppUsers } = event.detail || {};
+      if (freshPatients && freshPatients.length > 0) setPatients(freshPatients);
+      if (freshStores && freshStores.length > 0) setStores(freshStores);
+      if (freshAppUsers && freshAppUsers.length > 0) {
+        setAppUsers((prev) => { const m = new Map(prev.map((u) => [u.id, u])); freshAppUsers.forEach((u) => { if (u?.id) m.set(u.id, u); }); return Array.from(m.values()); });
+      }
+    };
+    window.addEventListener('pullToSyncDataReady', handlePullToSyncDataReady);
 
     // AUTO-RECOVERY: Listen for force refresh after connection recovery
     const handleForceDataRefresh = async () => {
@@ -768,6 +767,7 @@ export default function Layout({ children, currentPageName }) {
       // window.removeEventListener('driverLocationsUpdated', handleDriverLocationUpdated);
       window.removeEventListener('dataConflictsDetected', handleConflict);
       window.removeEventListener('forceDataRefresh', handleForceDataRefresh);
+      window.removeEventListener('pullToSyncDataReady', handlePullToSyncDataReady);
       window.removeEventListener('openMessaging', handleOpenMessaging);window.removeEventListener('openMessagingPanel', handleOpenMessagingPanel);
     };
   }, [currentUser, currentPageName]);
@@ -908,118 +908,7 @@ export default function Layout({ children, currentPageName }) {
 
   // CRITICAL: Background sync moved to useEffect with proper dependencies
 
-  // Track when app loses focus to trigger refresh if a cycle was missed
-  const appFocusLostAtRef = useRef(null);
-  const SMART_REFRESH_CYCLE = 15000; // 15 seconds in milliseconds
-
-  // Wake Lock API and visibility change handler
-  useEffect(() => {
-    let batteryRef = null;
-
-    // Wake Lock API - keep screen on when app is focused (battery-aware)
-    const requestWakeLock = async () => {
-      if ('wakeLock' in navigator && document.visibilityState === 'visible') {
-        try {
-          // Check battery status before requesting wake lock
-          if ('getBattery' in navigator) {
-            const battery = await navigator.getBattery();
-            const batteryLevel = battery.level * 100;
-
-            // Don't request wake lock if battery < 25% and not charging
-            if (batteryLevel < 25 && !battery.charging) {
-              console.log('⚡ [Wake Lock] Battery low (<25%) and not charging - wake lock disabled');
-              return;
-            }
-          }
-
-          wakeLockRef.current = await navigator.wakeLock.request('screen');
-          wakeLockRef.current.addEventListener('release', () => {});
-        } catch (err) {}
-      }
-    };
-
-    const releaseWakeLock = () => {
-      if (wakeLockRef.current) {
-        wakeLockRef.current.release();
-        wakeLockRef.current = null;
-      }
-    };
-
-    // Monitor battery changes and release wake lock if needed
-    const setupBatteryMonitoring = async () => {
-      if ('getBattery' in navigator) {
-        try {
-          batteryRef = await navigator.getBattery();
-
-          const checkBatteryAndWakeLock = () => {
-            const batteryLevel = batteryRef.level * 100;
-            if (batteryLevel < 25 && !batteryRef.charging && wakeLockRef.current) {
-              console.log('⚡ [Wake Lock] Battery dropped below 25% and not charging - releasing wake lock');
-              releaseWakeLock();
-            } else if ((batteryLevel >= 25 || batteryRef.charging) && !wakeLockRef.current && document.visibilityState === 'visible') {
-              console.log('⚡ [Wake Lock] Battery sufficient or charging - re-acquiring wake lock');
-              requestWakeLock();
-            }
-          };
-
-          batteryRef.addEventListener('levelchange', checkBatteryAndWakeLock);
-          batteryRef.addEventListener('chargingchange', checkBatteryAndWakeLock);
-        } catch (err) {}
-      }
-    };
-
-    // Initialize battery monitoring
-    setupBatteryMonitoring();
-
-    const handleVisibilityChange = async () => {
-      if (document.visibilityState === 'visible') {
-        await requestWakeLock();
-
-        // CRITICAL: Check if smart refresh cycle was missed while app was hidden
-        if (appFocusLostAtRef.current) {
-          const hiddenDuration = Date.now() - appFocusLostAtRef.current;
-          appFocusLostAtRef.current = null;
-
-          // If app was hidden longer than a smart refresh cycle, trigger refresh immediately
-          if (hiddenDuration >= SMART_REFRESH_CYCLE) {
-            console.log(`🔄 [Focus Recovery] App was hidden for ${hiddenDuration}ms (${(hiddenDuration / 1000).toFixed(1)}s) - triggering smart refresh and background sync`);
-
-            if (currentPageName === 'Dashboard' && initialGlobalFiltersSet && currentUser && dataLoaded && !isFormOverlayOpen) {
-              // Reset smart refresh timers to force immediate refresh
-              smartRefreshManager.lastRefreshTimes = {
-                driverLocation: 0,
-                activeDeliveries: 0,
-                todayDeliveries: 0,
-                appUsers: 0,
-                patients: 0,
-                stores: 0
-              };
-
-              // Trigger background sync for any missed mutations
-              const selectedDateStr = globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd');
-              const cityStoreIds = stores.map((s) => s?.id).filter(Boolean);
-              performBackgroundSync(selectedDateStr, cityStoreIds).catch(() => {});
-            }
-          }
-        }
-      } else {
-        // Record timestamp when app loses focus
-        appFocusLostAtRef.current = Date.now();
-        releaseWakeLock();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    if (document.visibilityState === 'visible') {
-      requestWakeLock();
-    }
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      releaseWakeLock();
-    };
-  }, [initialGlobalFiltersSet, currentUser, dataLoaded, isFormOverlayOpen, stores]);
+  useWakeLockAndVisibility({ currentPageName, initialGlobalFiltersSet, currentUser, dataLoaded, isFormOverlayOpen, stores });
 
   // CRITICAL: Rapid reload from offline DB when page changes
   useEffect(() => {
@@ -1250,11 +1139,8 @@ export default function Layout({ children, currentPageName }) {
     } catch (error) {
       console.warn('⚠️ [Layout] Full data reload failed - preserving current dashboard data:', error?.message || error);
       setDataLoaded(true);
-    } finally {
-      triggerFullDataLoad.isRunning = false;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser, isFormOverlayOpen]);
+    } finally { triggerFullDataLoad.isRunning = false; }
+  }, [currentUser, isFormOverlayOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   triggerFullDataLoadRef.current = triggerFullDataLoad;
 
@@ -1397,45 +1283,6 @@ export default function Layout({ children, currentPageName }) {
     }));
   }, [stores, patients, currentUser]);
 
-  const handleDeviceSelected = async (deviceData) => {
-    if (!currentUser) return;
-
-    try {
-      setIsSettingUpDevice(true);
-
-      const deviceIdentifier = getDeviceIdentifier();
-      const deviceType = getDeviceType();
-
-      // Create the device record
-      const newDevice = await base44.entities.UserDevice.create({
-        user_id: currentUser.id,
-        device_identifier: deviceIdentifier,
-        device_name: deviceData.device_name,
-        device_type: deviceType,
-        device_info: deviceData.device_info,
-        last_active_at: new Date().toISOString(),
-        status: 'active'
-      });
-
-      console.log('✅ [Layout] Device registered:', newDevice);
-
-      // CRITICAL: Cache device registration in localStorage (persists across refreshes)
-      localStorage.setItem(`rxdeliver_device_registered_${deviceIdentifier}`, 'true');
-
-      // Close modal and continue with initialization
-      setShowDeviceSelectionModal(false);
-      setDeviceRegistered(true);
-      setIsSettingUpDevice(false);
-
-      // Reload to complete initialization with registered device
-      window.location.reload();
-    } catch (error) {
-      console.error('❌ [Layout] Failed to register device:', error);
-      setIsSettingUpDevice(false);
-      alert('Failed to register device. Please try again.');
-    }
-  };
-
   const getLatestDateWithDeliveries = useCallback((driverId = null) => {
     let relevantDeliveries = filteredDeliveries.filter((delivery) => delivery);
     if (driverId) {
@@ -1457,8 +1304,6 @@ export default function Layout({ children, currentPageName }) {
 
   const patientStoreData = getPatientStoreData();
 
-  // Route counts - fetched from server-side stats function
-  const [routeCounts, setRouteCounts] = useState({ monthly: '...', yearly: '...' });
   const [entityCounts, setEntityCounts] = useState({ patients: '...', companies: '...', cities: '...', stores: '...', users: '...' });
 
   // REMOVED: Backend stats polling for sidebar - now using local data only
@@ -1473,18 +1318,6 @@ export default function Layout({ children, currentPageName }) {
       users: users.length
     });
   }, [currentUser, dataLoaded, patients.length, cities.length, stores.length, users.length]);
-
-  const statsCardPositioning = useMemo(() => {
-    const ratio = screenWidth / cardWidth;
-
-    if (ratio < 2) {
-      return 'absolute top-2 left-1/2 -translate-x-1/2 z-[20]';
-    } else {
-      return 'absolute top-2 right-2 z-[20]';
-    }
-  }, [screenWidth, cardWidth]);
-
-  const todayInProgressTotal = filteredDeliveries.filter((delivery) => delivery && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd') && delivery.status === 'in_transit').length;
 
   // Calculate online user counts
   const onlineCounts = useMemo(() => {
@@ -1647,8 +1480,6 @@ export default function Layout({ children, currentPageName }) {
 
     return dates;
   }, [deliveries]);
-
-  const showWatermark = currentUser && isAppOwner(currentUser);
 
   return (
     <AppErrorBoundary>
