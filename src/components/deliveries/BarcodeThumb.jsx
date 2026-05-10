@@ -7,7 +7,8 @@ export default function BarcodeThumb({ value, height = 40, className = "w-full h
   useEffect(() => {
     if (!svgRef.current || !value) return;
     try {
-      JsBarcode(svgRef.current, String(value), {
+      const barcodeValue = String(value).slice(0, 8);
+      JsBarcode(svgRef.current, barcodeValue, {
         format: 'CODE128',
         lineColor: '#111827',
         width: 1.5,
