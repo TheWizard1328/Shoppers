@@ -54,7 +54,12 @@ export default function HereType2Polylines({
   const driverSortOrderMap = useMemo(() => {
     const map = new Map();
     (driverRoutes || []).forEach((r) => {
-      if (r?.driverId) map.set(r.driverId, r.sort_order ?? r.sortOrder);
+      if (!r?.driverId) return;
+      // Use sort_order only if it's a real value (not the 9999 sentinel)
+      const so = r.sort_order ?? r.sortOrder;
+      if (so != null && Number.isFinite(Number(so)) && Number(so) !== 9999) {
+        map.set(r.driverId, Number(so));
+      }
     });
     return map;
   }, [driverRoutes]);

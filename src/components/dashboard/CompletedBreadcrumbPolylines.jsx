@@ -208,7 +208,10 @@ export default function CompletedBreadcrumbPolylines({
     return (driverRoutes || []).flatMap((route) => {
       if (!route?.driverId) return [];
 
-      const color = getType3PolylineColor(route.driverId, route.sort_order ?? route.sortOrder);
+      const rawSortOrder = route.sort_order ?? route.sortOrder;
+      const safeSortOrder = (rawSortOrder != null && Number.isFinite(Number(rawSortOrder)) && Number(rawSortOrder) !== 9999)
+        ? Number(rawSortOrder) : undefined;
+      const color = getType3PolylineColor(route.driverId, safeSortOrder);
 
       const stops = [
         ...pickupMarkers.filter((pickup) => pickup && pickup.driver_id === route.driverId),
