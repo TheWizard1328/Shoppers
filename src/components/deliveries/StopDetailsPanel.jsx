@@ -989,10 +989,9 @@ export default function StopDetailsPanel({
               }
               {delivery?.barcode_values?.length > 0 &&
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-medium" style={{ color: 'var(--text-slate-500)' }}>Rx</p>
-                  <p className="text-xs font-medium" style={{ color: 'var(--text-slate-500)' }}>({delivery.barcode_values.length})</p>
-                </div>
+                <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-slate-500)' }}>
+                  Rx ({delivery.barcode_values.length})
+                </p>
                 <div className="flex flex-col gap-2">
                   {delivery.barcode_values.map((val, idx) =>
                   <div key={`rx-${idx}`} className="border rounded-md p-2 cursor-pointer transition-colors"
