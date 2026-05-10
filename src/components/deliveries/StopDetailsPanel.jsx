@@ -524,11 +524,6 @@ export default function StopDetailsPanel({
         {/* Patient Info Card */}
         <Card className="relative" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--text-slate-700)' }}>
-              <User className="w-4 h-4" />
-              {isPickup ? 'Store Pickup' : 'Patient Information'}
-              {!isPickup && <SpecialSymbolsBadges delivery={delivery} patient={patient} isPickup={false} size="sm" />}
-            </CardTitle>
             {/* Patient Name */}
             <div>
               <p className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>
