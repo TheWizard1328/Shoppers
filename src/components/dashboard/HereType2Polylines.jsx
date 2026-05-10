@@ -51,19 +51,28 @@ export default function HereType2Polylines({
     return coordinates;
   };
 
-    const getDriverMode = (driverId) => normalizeTravelMode(localDriverTravelModes[driverId] ?? driverTravelModes[driverId]);
-    const getDriverRouteStyle = (driverId, opacityOverride) => {
-      const mode = getDriverMode(driverId);
-      const isCycling = mode === 'cycling';
-      const base = getTravelModeLineStyle(mode, getPolylineColorForDriver(driverId));
-      return {
-        ...base,
-        color: isCycling ? '#16A34A' : base.color,
-        opacity: opacityOverride ?? base.opacity,
-        lineJoin: 'round',
-        lineCap: 'round'
-      };
+  const driverSortOrderMap = useMemo(() => {
+    const map = new Map();
+    (driverRoutes || []).forEach((r) => {
+      if (r?.driverId) map.set(r.driverId, r.sort_order ?? r.sortOrder);
+    });
+    return map;
+  }, [driverRoutes]);
+
+  const getDriverMode = (driverId) => normalizeTravelMode(localDriverTravelModes[driverId] ?? driverTravelModes[driverId]);
+  const getDriverRouteStyle = (driverId, opacityOverride) => {
+    const mode = getDriverMode(driverId);
+    const isCycling = mode === 'cycling';
+    const sortOrder = driverSortOrderMap.get(driverId);
+    const base = getTravelModeLineStyle(mode, getPolylineColorForDriver(driverId, sortOrder));
+    return {
+      ...base,
+      color: isCycling ? '#16A34A' : base.color,
+      opacity: opacityOverride ?? base.opacity,
+      lineJoin: 'round',
+      lineCap: 'round'
     };
+  };
 
   // Build per-driver incomplete stop sequences starting from next stop
   const driverIncomplete = useMemo(() => {
