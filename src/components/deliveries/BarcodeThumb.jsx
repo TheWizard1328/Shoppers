@@ -17,7 +17,7 @@ export default function BarcodeThumb({ value, height = 40, className = "w-full h
         margin: 0,
       });
     } catch {}
-  }, [value, height]);
+  }, [value, height, isRx]);
 
   return <svg ref={svgRef} className={className} aria-hidden="true" />;
 }

@@ -463,7 +463,7 @@ export default function SmartBarcodeScanner({
           className="relative w-full max-w-3xl rounded-xl border bg-card p-4 shadow-2xl"
           style={{ borderColor: 'var(--border-slate-200)' }}
           onClick={(e) => e.stopPropagation()}>
-            <LargeBarcodePreview value={selectedBarcode} onClose={() => setSelectedBarcode(null)} />
+            <LargeBarcodePreview value={selectedBarcode} onClose={() => setSelectedBarcode(null)} isRx={rxBarcodeValues.includes(selectedBarcode)} />
           </div>
         </div>
       }
