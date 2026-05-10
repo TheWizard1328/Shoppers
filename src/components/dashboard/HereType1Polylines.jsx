@@ -3,6 +3,40 @@ import { Polyline } from "react-leaflet";
 import { getTravelModeLineStyle, normalizeTravelMode } from "./travelModeHelpers";
 import RouteDirectionDecorator from "./RouteDirectionDecorator";
 
+// High-visibility, contrasting polyline colors — no shades of blue
+const POLYLINE_COLORS = [
+  '#E11D48', // Rose
+  '#16A34A', // Green
+  '#EA580C', // Orange
+  '#7C3AED', // Violet
+  '#0F766E', // Teal
+  '#DB2777', // Pink
+  '#65A30D', // Lime
+  '#9333EA', // Purple
+  '#B45309', // Amber Brown
+  '#DC2626', // Red
+  '#059669', // Emerald
+  '#C2410C', // Burnt Orange
+  '#6D28D9', // Deep Violet
+  '#047857', // Dark Emerald
+  '#BE123C', // Crimson
+];
+
+const driverColorCache = new Map();
+const getPolylineColorForDriver = (driverId) => {
+  if (!driverId) return POLYLINE_COLORS[0];
+  if (driverColorCache.has(driverId)) return driverColorCache.get(driverId);
+  // Stable hash so same driver always gets same color
+  let hash = 0;
+  for (let i = 0; i < driverId.length; i++) {
+    hash = ((hash << 5) - hash) + driverId.charCodeAt(i);
+    hash = hash | 0;
+  }
+  const color = POLYLINE_COLORS[Math.abs(hash) % POLYLINE_COLORS.length];
+  driverColorCache.set(driverId, color);
+  return color;
+};
+
 const FINISHED = ["completed", "failed", "cancelled", "returned"];
 
 // Helper: visible fallback even when stops share same coordinates or coords are strings
@@ -117,15 +151,16 @@ export default function HereType1Polylines({
   /* always render polylines on any date; previously gated by current date */
 
   const lines = [];
-  const getType1PolylineColor = () => '#2563EB';
+  const getType1PolylineColor = (driverId) => getPolylineColorForDriver(driverId);
   const getDriverMode = (driverId) => normalizeTravelMode(localDriverTravelModes[driverId] ?? driverTravelModes[driverId]);
   const isCurrentLeg = (stop) => stop?.isNextDelivery === true;
   const getDriverRouteStyle = (driverId, opacityOverride) => {
     const mode = getDriverMode(driverId);
-    const base = getTravelModeLineStyle(mode, getType1PolylineColor(driverId));
+    const color = getType1PolylineColor(driverId);
+    const base = getTravelModeLineStyle(mode, color);
     return {
       ...base,
-      color: getType1PolylineColor(),
+      color,
       opacity: opacityOverride ?? 0.95,
       lineJoin: 'round',
       lineCap: 'round'
@@ -167,7 +202,7 @@ export default function HereType1Polylines({
               }}
               pane="routeBasePane"
             />,
-            <RouteDirectionDecorator key={`type1-pre-home-arrow-${driverId}-${getDriverMode(driverId)}`} positions={segmentPositions} color={getType1PolylineColor()} />
+            <RouteDirectionDecorator key={`type1-pre-home-arrow-${driverId}-${getDriverMode(driverId)}`} positions={segmentPositions} color={getType1PolylineColor(driverId)} />
           );
         }
       }
@@ -235,7 +270,7 @@ export default function HereType1Polylines({
       <RouteDirectionDecorator
         key={`type1-active-arrow-${driverId}-${currentStop.id}`}
         positions={coords}
-        color={getType1PolylineColor()}
+        color={getType1PolylineColor(driverId)}
       />
     );
   });
