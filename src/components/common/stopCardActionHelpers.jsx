@@ -347,12 +347,14 @@ export function buildRetryDelivery(delivery, nextTrackingNumber, deliveryDate = 
     delivery_date: effectiveDeliveryDate,
     status: "in_transit",
     tracking_number: String(nextTrackingNumber),
-    delivery_notes: "[Redelivered]",
+    delivery_notes: "[Retried]",
     actual_delivery_time: null,
     isNextDelivery: false,
     signature_image_url: null,
     proof_photo_urls: [],
     cod_payments: [],
+    transport_mode: "driving",
+    PolylineUpdated: false,
     finished_leg_encoded_polyline: null
   };
 
