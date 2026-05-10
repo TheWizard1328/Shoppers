@@ -1254,10 +1254,29 @@ async function handleGetCodData(base44, payload = {}) {
   const startDateStr = formatLocalDate(startDate);
   const endDateStr = formatLocalDate(endDate);
 
+  // Build store eligibility: store must have a Square location AND delivery_date must be
+  // on or after the earliest app_fee_history effective_date where pays_app_fees === true.
+  const storeSquareEligibility = new Map();
+  for (const store of safeStores) {
+    const config = activeConfigById.get(store?.square_location_config_id);
+    if (!config?.square_location_id) continue;
+    const feeHistory = Array.isArray(store.app_fee_history) ? store.app_fee_history : [];
+    const activeFeeEntries = feeHistory
+      .filter((e) => e?.pays_app_fees === true && e?.effective_date)
+      .sort((a, b) => String(a.effective_date).localeCompare(String(b.effective_date)));
+    storeSquareEligibility.set(store.id, activeFeeEntries.length > 0 ? activeFeeEntries[0].effective_date : null);
+  }
+
   let safeDeliveries = [];
   if (refreshDeliveries) {
     const deliveriesResult = await base44.asServiceRole.entities.Delivery.filter({ delivery_date: { $gte: startDateStr, $lte: endDateStr } }, '-updated_date', 5000).catch(() => []);
-    safeDeliveries = (Array.isArray(deliveriesResult) ? deliveriesResult : []).map(unwrapEntityRecord).filter(Boolean);
+    const allDeliveries = (Array.isArray(deliveriesResult) ? deliveriesResult : []).map(unwrapEntityRecord).filter(Boolean);
+    safeDeliveries = allDeliveries.filter((delivery) => {
+      if (!storeSquareEligibility.has(delivery?.store_id)) return false;
+      const earliestFeeDate = storeSquareEligibility.get(delivery.store_id);
+      if (earliestFeeDate && delivery.delivery_date < earliestFeeDate) return false;
+      return true;
+    });
   }
 
   const deliveryMatchSignatures = new Set(
