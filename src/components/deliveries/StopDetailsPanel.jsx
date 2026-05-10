@@ -581,7 +581,7 @@ export default function StopDetailsPanel({
             patient ?
             <div className="flex gap-4">
               {/* LEFT column: address, phone, COD, preferences */}
-              <div className="flex-1 min-w-0 space-y-3">
+              <div className="w-[60%] min-w-0 space-y-3">
                 {/* Address with unit number */}
                 {patient.address &&
                 <div className="flex items-start gap-2">
@@ -701,7 +701,7 @@ export default function StopDetailsPanel({
 
               {/* RIGHT column: Patient Notes + Driver Notes */}
               {(patient.notes || delivery.delivery_notes) &&
-              <div className="w-40 flex-shrink-0 space-y-3">
+              <div className="w-[40%] flex-shrink-0 space-y-3">
                 {patient.notes &&
                 <div>
                   <p className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
