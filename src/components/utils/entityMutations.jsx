@@ -580,8 +580,16 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
       console.log('☁️ [EntityMutations] Backend updated for:', deliveryId);
       
       // STEP 3: Update IndexedDB with backend response (authoritative version)
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [backendDelivery]);
-      await refreshOfflineEntitySnapshots('Delivery', backendDelivery);
+      // CRITICAL: Preserve polyline fields that may not be returned in partial update responses
+      const existingForMerge = deliveries.find(d => d.id === deliveryId);
+      const deliveryToStore = existingForMerge ? {
+        ...backendDelivery,
+        encoded_polyline: backendDelivery.encoded_polyline ?? existingForMerge.encoded_polyline,
+        estimated_distance_km: backendDelivery.estimated_distance_km ?? existingForMerge.estimated_distance_km,
+        estimated_duration_minutes: backendDelivery.estimated_duration_minutes ?? existingForMerge.estimated_duration_minutes
+      } : backendDelivery;
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [deliveryToStore]);
+      await refreshOfflineEntitySnapshots('Delivery', deliveryToStore);
       
       // STEP 4: CRITICAL - Update cache directly to prevent UI flickering
       const { updateCache } = await import('./dataManager');
