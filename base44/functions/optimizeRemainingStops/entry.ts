@@ -805,7 +805,8 @@ Deno.serve(async (req) => {
     console.log('🏠 [optimizeRemainingStops] Final-route distance to home penalty applied:', addRouteToHomePenalty(routeStops, resolvedHomePosition).toFixed(2), 'km');
     const finalDeliveryWriteBatch = [];
     const finalizedById = new Map(activeStops.map((stop) => [stop.id, stop]));
-    const nextStopId = explicitNextDelivery?.id || activeStops[0]?.id || null;
+    // CRITICAL: Lock the explicit isNextDelivery stop — do NOT override it with activeStops[0]
+    const nextStopId = explicitNextDelivery?.id || null;
 
     const resolvePendingStartTime = (stop) => {
       if (stop.status !== 'pending') return undefined;
