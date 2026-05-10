@@ -1,13 +1,13 @@
 import React, { useEffect, useRef } from 'react';
 import JsBarcode from 'jsbarcode';
 
-export default function BarcodeThumb({ value, height = 40, className = "w-full h-10" }) {
+export default function BarcodeThumb({ value, height = 40, className = "w-full h-10", isRx = false }) {
   const svgRef = useRef(null);
 
   useEffect(() => {
     if (!svgRef.current || !value) return;
     try {
-      const barcodeValue = String(value).slice(0, 8);
+      const barcodeValue = isRx ? String(value).slice(0, 8) : String(value);
       JsBarcode(svgRef.current, barcodeValue, {
         format: 'CODE128',
         lineColor: '#111827',

@@ -31,7 +31,7 @@ const classifyBarcode = (value) => {
   return 'receipt';
 };
 
-function BarcodeColumn({ title, values, onRemove, onSelectBarcode, countColor, singleVisible = false }) {
+function BarcodeColumn({ title, values, onRemove, onSelectBarcode, countColor, singleVisible = false, isRx = false }) {
   return (
     <div className="bg-card my-1.5 p-2 rounded-md space-y-2 border border-border dark:bg-slate-900/40 dark:border-slate-700">
       <div className="flex items-center justify-between">
@@ -60,7 +60,7 @@ function BarcodeColumn({ title, values, onRemove, onSelectBarcode, countColor, s
 
               onClick={() => onSelectBarcode(val)}
               title={val}>
-              <BarcodeThumb value={val} />
+              <BarcodeThumb value={val} isRx={isRx} />
               <button
                 type="button"
                 className="absolute -top-1 -right-1 h-5 w-5 min-h-5 min-w-5 rounded-full bg-red-600 text-white flex items-center justify-center p-0 leading-none"
@@ -450,7 +450,8 @@ export default function SmartBarcodeScanner({
             onSelectBarcode(val);
           }}
           countColor="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200"
-          singleVisible={isMobile} />
+          singleVisible={isMobile}
+          isRx={true} />
         
       </div>
 
