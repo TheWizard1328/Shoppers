@@ -430,7 +430,7 @@ export default function DeliveryFormView({
         ref={formRef}
         initial={{ opacity: 0, scale: useMobileLayout && isMobileDevice ? 1 : 0.95 }}
         animate={{ opacity: 1, y: 0 }}
-        className={`w-full ${useMobileLayout && isMobileDevice ? 'h-full max-h-full overflow-hidden' : shouldUseCompactPickupEditHeight ? 'max-w-[468px] h-auto max-h-[95vh]' : isPickupMode ? 'max-w-[520px] h-[400px] max-h-[400px]' : !delivery ? 'max-w-[65.625rem] h-[95vh] max-h-[95vh]' : !isAppOwner(currentUser) ? 'max-w-[50rem] h-auto max-h-[95vh]' : 'max-w-[50rem] h-[95vh] max-h-[95vh]'} flex`}
+        className={`w-full ${useMobileLayout && isMobileDevice ? 'h-full max-h-full overflow-hidden' : shouldUseCompactPickupEditHeight ? 'max-w-[468px] h-auto max-h-[95vh]' : isPickupMode ? 'max-w-[520px] h-[400px] max-h-[400px]' : !delivery ? 'max-w-[65.625rem] h-[95vh] max-h-[95vh]' : 'max-w-[50rem] h-auto max-h-[95vh]'} flex`}
         style={useMobileLayout && isMobileDevice ? { height: '100%', maxHeight: '100%' } : undefined}>
         <Card
           onKeyDown={handleGlobalKeyDown}
@@ -484,7 +484,7 @@ export default function DeliveryFormView({
             </div>
           }
 
-          <CardContent className={`p-3 relative ${useMobileLayout ? 'flex-1 overflow-y-auto overflow-x-hidden min-h-0' : shouldUseCompactPickupEditHeight ? 'overflow-visible' : delivery && !isAppOwner(currentUser) ? 'overflow-visible' : 'flex-1 overflow-hidden'}`}>
+          <CardContent className={`p-3 relative ${useMobileLayout ? 'flex-1 overflow-y-auto overflow-x-hidden min-h-0' : shouldUseCompactPickupEditHeight ? 'overflow-visible' : delivery ? 'overflow-y-auto overflow-x-hidden' : 'flex-1 overflow-hidden'}`}>
             <div className={`h-full min-h-0 grid gap-3 ${!delivery && !useMobileLayout && !isPickupMode ? 'grid-cols-[minmax(0,1fr)_300px]' : 'grid-cols-1'}`}>
               <div className={`min-h-0 flex flex-col gap-3 ${useMobileLayout ? 'overflow-visible' : 'overflow-hidden'}`}>
 
@@ -718,8 +718,8 @@ export default function DeliveryFormView({
                 })}
 
               {/* Main scrollable body */}
-              <div className="flex gap-3 w-full flex-1 min-h-0 overflow-hidden items-stretch " style={!delivery && !useMobileLayout && !isPickupMode ? { height: '100%' } : undefined}>
-                <div className={`flex flex-col gap-3 min-w-0 flex-1 min-h-0 overflow-y-auto pr-1 ${isFormDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
+              <div className={`flex gap-3 w-full items-stretch ${!delivery && !useMobileLayout && !isPickupMode ? 'flex-1 min-h-0 overflow-hidden' : ''}`} style={!delivery && !useMobileLayout && !isPickupMode ? { height: '100%' } : undefined}>
+                <div className={`flex flex-col gap-3 min-w-0 flex-1 ${delivery && !useMobileLayout ? '' : 'min-h-0 overflow-y-auto'} pr-1 ${isFormDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
 
                   {!isPickupMode ?
                     <div className={`${useMobileLayout ? 'space-y-2' : 'grid grid-cols-[minmax(0,1.7fr)_minmax(16rem,0.7fr)] gap-3 min-h-0 items-start'}`}>
