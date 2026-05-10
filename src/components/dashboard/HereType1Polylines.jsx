@@ -151,12 +151,13 @@ export default function HereType1Polylines({
   /* always render polylines on any date; previously gated by current date */
 
   const lines = [];
+  const CURRENT_LEG_COLOR = '#2563EB'; // Blue — always used for the active/current leg
   const getType1PolylineColor = (driverId) => getPolylineColorForDriver(driverId);
   const getDriverMode = (driverId) => normalizeTravelMode(localDriverTravelModes[driverId] ?? driverTravelModes[driverId]);
   const isCurrentLeg = (stop) => stop?.isNextDelivery === true;
-  const getDriverRouteStyle = (driverId, opacityOverride) => {
+  const getDriverRouteStyle = (driverId, opacityOverride, forCurrentLeg = false) => {
     const mode = getDriverMode(driverId);
-    const color = getType1PolylineColor(driverId);
+    const color = forCurrentLeg ? CURRENT_LEG_COLOR : getType1PolylineColor(driverId);
     const base = getTravelModeLineStyle(mode, color);
     return {
       ...base,
@@ -262,15 +263,15 @@ export default function HereType1Polylines({
         key={`type1-active-line-${driverId}-${currentStop.id}`}
         positions={coords}
         pathOptions={{
-          ...getDriverRouteStyle(driverId, shouldUseFallback ? 0.75 : 0.95),
-          dashArray: shouldUseFallback ? '8,8' : getDriverRouteStyle(driverId, 0.95).dashArray
+          ...getDriverRouteStyle(driverId, shouldUseFallback ? 0.75 : 0.95, true),
+          dashArray: shouldUseFallback ? '8,8' : getDriverRouteStyle(driverId, 0.95, true).dashArray
         }}
         pane="routeBasePane"
       />,
       <RouteDirectionDecorator
         key={`type1-active-arrow-${driverId}-${currentStop.id}`}
         positions={coords}
-        color={getType1PolylineColor(driverId)}
+        color={CURRENT_LEG_COLOR}
       />
     );
   });
