@@ -2491,26 +2491,16 @@ function Dashboard() {
 
     let selection = 'all';
 
-    // Admin + Driver: saved -> own -> all
-    if (isAdmin && isDriverRole) {
-      if (hasSaved) selection = saved;else
-      if (driverExists(currentUser.id)) selection = currentUser.id;else
-      selection = 'all';
-    }
-    // Pure Driver (not admin/dispatcher): always own
-    else if (isDriverRole && !isAdmin && !isDispatcherRole) {
-      selection = driverExists(currentUser.id) ? currentUser.id : 'all';
-    }
-    // Dispatcher (admin or not): always all drivers on load/refresh
+    if (isAdmin && isDriverRole) { if (hasSaved) selection = saved; else if (driverExists(currentUser.id)) selection = currentUser.id; else selection = 'all'; }
+    else if (isDriverRole && !isAdmin && !isDispatcherRole) { selection = driverExists(currentUser.id) ? currentUser.id : 'all'; }
     else if (isDispatcherRole) {
-      selection = 'all';
+      const _si=(currentUser?.store_ids||[]).map(String),_ds=format(selectedDate,'yyyy-MM-dd');
+      const _dws=[...new Set((deliveries||[]).filter((d)=>d&&d.delivery_date===_ds&&_si.includes(String(d.store_id))).map((d)=>d.driver_id).filter(Boolean))];
+      const _ids=new Set();(stores||[]).filter((s)=>s&&_si.includes(String(s.id))).forEach((s)=>{if(isSat){if(s.saturday_am_driver_id)_ids.add(s.saturday_am_driver_id);if(s.saturday_pm_driver_id)_ids.add(s.saturday_pm_driver_id);}else if(isSun){if(s.sunday_am_driver_id)_ids.add(s.sunday_am_driver_id);if(s.sunday_pm_driver_id)_ids.add(s.sunday_pm_driver_id);}else{if(s.weekday_am_driver_id)_ids.add(s.weekday_am_driver_id);if(s.weekday_pm_driver_id)_ids.add(s.weekday_pm_driver_id);}});
+      if(_dws.length===1)selection=_dws[0];else if(_dws.length>1){const _m=_dws.filter((id)=>_ids.has(id));selection=_m.length===1?_m[0]:'all';}else{const _da=[..._ids].filter(driverExists);selection=_da.length===1?_da[0]:'';}
     }
-    // Admin only (not driver): saved -> all
-    else if (isAdmin) {
-      selection = hasSaved ? saved : 'all';
-    } else {
-      selection = 'all';
-    }
+    else if (isAdmin) { selection = hasSaved ? saved : 'all'; }
+    else { selection = 'all'; }
 
     setSelectedDriverId(selection);
     globalFilters.setSelectedDriverId(selection);
