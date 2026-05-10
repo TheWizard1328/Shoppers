@@ -151,16 +151,15 @@ export default function HereType1Polylines({
   /* always render polylines on any date; previously gated by current date */
 
   const lines = [];
-  const getType1PolylineColor = (driverId) => getPolylineColorForDriver(driverId);
+  const CURRENT_LEG_COLOR = '#2563EB'; // Blue — always used for Type 1 legs
   const getDriverMode = (driverId) => normalizeTravelMode(localDriverTravelModes[driverId] ?? driverTravelModes[driverId]);
   const isCurrentLeg = (stop) => stop?.isNextDelivery === true;
   const getDriverRouteStyle = (driverId, opacityOverride) => {
     const mode = getDriverMode(driverId);
-    const color = getType1PolylineColor(driverId);
-    const base = getTravelModeLineStyle(mode, color);
+    const base = getTravelModeLineStyle(mode, CURRENT_LEG_COLOR);
     return {
       ...base,
-      color,
+      color: CURRENT_LEG_COLOR,
       opacity: opacityOverride ?? 0.95,
       lineJoin: 'round',
       lineCap: 'round'
@@ -202,7 +201,7 @@ export default function HereType1Polylines({
               }}
               pane="routeBasePane"
             />,
-            <RouteDirectionDecorator key={`type1-pre-home-arrow-${driverId}-${getDriverMode(driverId)}`} positions={segmentPositions} color={getType1PolylineColor(driverId)} />
+            <RouteDirectionDecorator key={`type1-pre-home-arrow-${driverId}-${getDriverMode(driverId)}`} positions={segmentPositions} color={CURRENT_LEG_COLOR} />
           );
         }
       }
@@ -270,7 +269,7 @@ export default function HereType1Polylines({
       <RouteDirectionDecorator
         key={`type1-active-arrow-${driverId}-${currentStop.id}`}
         positions={coords}
-        color={getType1PolylineColor(driverId)}
+        color={CURRENT_LEG_COLOR}
       />
     );
   });
