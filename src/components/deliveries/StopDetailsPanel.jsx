@@ -803,179 +803,148 @@ export default function StopDetailsPanel({
           </CardContent>
         </Card>
 
-        {/* Barcode Thumbnails */}
-        {(delivery?.receipt_barcode_values?.length > 0 || delivery?.barcode_values?.length > 0) &&
-        <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+        {/* POD + Barcodes side by side */}
+        {(canViewProofOfDelivery || delivery?.receipt_barcode_values?.length > 0 || delivery?.barcode_values?.length > 0) &&
+        <div className="flex gap-2 items-start">
+
+          {/* Proof of Delivery - LEFT */}
+          {canViewProofOfDelivery &&
+          <Card className="flex-1 min-w-0" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--text-slate-700)' }}>
+                <Image className="w-4 h-4" />
+                Proof of Delivery
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {/* Signature */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
+                    <FileSignature className="w-3 h-3" /> Signature
+                  </p>
+                  {!isCompleted &&
+                  <div className="flex gap-1">
+                    <Button onClick={() => setShowSignatureCapture(true)} disabled={isUpdating}
+                      className={`text-xs whitespace-nowrap h-7 px-2 ${hasSignature ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
+                      style={!hasSignature ? { background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)', border: '1px solid var(--border-slate-300)' } : {}}
+                      size="sm">
+                      <FileSignature className="w-3 h-3 mr-1" />
+                      {hasSignature ? 'Re-Capture' : 'Capture'}
+                    </Button>
+                    {hasSignature &&
+                    <Button onClick={clearSignature} disabled={isUpdating} variant="outline" size="sm" className="h-7 px-2 text-xs"
+                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' }}>
+                      <RotateCcw className="w-3 h-3" />
+                    </Button>
+                    }
+                  </div>
+                  }
+                </div>
+                {delivery.signature_image_url ?
+                <div className="border rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
+                  style={{ borderColor: 'var(--border-slate-200)' }}
+                  onClick={() => setViewingImage({ url: delivery.signature_image_url, title: 'Customer Signature' })}>
+                  <img src={delivery.signature_image_url} alt="Customer Signature"
+                    className="w-full h-auto max-h-24 object-contain" style={{ background: 'var(--bg-white)' }} />
+                </div> :
+                delivery.signature_needed ?
+                <div className="text-center py-3 border rounded-lg" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
+                  <FileSignature className="w-6 h-6 mx-auto mb-1 opacity-30" style={{ color: 'var(--text-slate-400)' }} />
+                  <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>Not captured yet</p>
+                </div> :
+                <div className="text-center py-3 border rounded-lg border-dashed" style={{ borderColor: 'var(--border-slate-200)' }}>
+                  <p className="text-xs" style={{ color: 'var(--text-slate-400)' }}>No signature</p>
+                </div>
+                }
+              </div>
+
+              {/* Proof Photos */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
+                    <Image className="w-3 h-3" /> Photos {delivery.proof_photo_urls?.length > 0 ? `(${delivery.proof_photo_urls.length})` : ''}
+                  </p>
+                  {!isCompleted &&
+                  <Button onClick={() => setShowPhotoCapture(true)} disabled={isUpdating}
+                    className={`text-xs whitespace-nowrap h-7 px-2 ${hasPhotos ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
+                    style={!hasPhotos ? { background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)', border: '1px solid var(--border-slate-300)' } : {}}
+                    size="sm">
+                    <Camera className="w-3 h-3 mr-1" />
+                    {hasPhotos ? 'Add' : 'Capture'}
+                  </Button>
+                  }
+                </div>
+                {delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ?
+                <div className="grid grid-cols-2 gap-1">
+                  {delivery.proof_photo_urls.map((url, index) =>
+                  <div key={index} className="relative border rounded-lg overflow-hidden group" style={{ borderColor: 'var(--border-slate-200)' }}>
+                    <img src={url} alt={`Proof photo ${index + 1}`}
+                      className="w-full h-20 object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                      onClick={() => setViewingImage({ url, title: `Proof Photo ${index + 1}` })} />
+                    <button onClick={(e) => {e.stopPropagation();deletePhoto(index);}} disabled={isUpdating}
+                      className="absolute top-1 right-1 rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                      style={{ background: '#dc2626', color: '#ffffff' }}>
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                  )}
+                </div> :
+                <div className="text-center py-3 border rounded-lg border-dashed" style={{ borderColor: 'var(--border-slate-200)' }}>
+                  <p className="text-xs" style={{ color: 'var(--text-slate-400)' }}>No photos</p>
+                </div>
+                }
+              </div>
+            </CardContent>
+          </Card>
+          }
+
+          {/* Barcodes - RIGHT */}
+          {(delivery?.receipt_barcode_values?.length > 0 || delivery?.barcode_values?.length > 0) &&
+          <Card className="flex-1 min-w-0" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold" style={{ color: 'var(--text-slate-700)' }}>
                 Barcodes
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3">
               {delivery?.receipt_barcode_values?.length > 0 &&
-            <div>
-                  <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-slate-500)' }}>
-                    Receipt Barcodes ({delivery.receipt_barcode_values.length})
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {delivery.receipt_barcode_values.map((val, idx) =>
-                <div
-                  key={`rb-${idx}`}
-                  className="border rounded-md p-2 cursor-pointer transition-colors"
-                  style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}
-                  onClick={() => setBarcodePreview({ value: val, isRx: false })}>
-                  
-                        <BarcodeThumb value={val} />
-                      </div>
-                )}
+              <div>
+                <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-slate-500)' }}>
+                  Receipt ({delivery.receipt_barcode_values.length})
+                </p>
+                <div className="flex flex-col gap-2">
+                  {delivery.receipt_barcode_values.map((val, idx) =>
+                  <div key={`rb-${idx}`} className="border rounded-md p-2 cursor-pointer transition-colors"
+                    style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}
+                    onClick={() => setBarcodePreview({ value: val, isRx: false })}>
+                    <BarcodeThumb value={val} />
                   </div>
+                  )}
                 </div>
-            }
+              </div>
+              }
               {delivery?.barcode_values?.length > 0 &&
-            <div>
-                  <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-slate-500)' }}>
-                    Rx Barcodes ({delivery.barcode_values.length})
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {delivery.barcode_values.map((val, idx) =>
-                <div
-                  key={`rx-${idx}`}
-                  className="border rounded-md p-2 cursor-pointer transition-colors"
-                  style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}
-                  onClick={() => setBarcodePreview({ value: val, isRx: true })}>
-                  
-                        <BarcodeThumb value={val} isRx={true} />
-                        <p className="mt-1 text-[11px] text-center text-slate-500 font-mono font-semibold">{String(val).slice(0, 8)}</p>
-                      </div>
-                )}
+              <div>
+                <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-slate-500)' }}>
+                  Rx ({delivery.barcode_values.length})
+                </p>
+                <div className="flex flex-col gap-2">
+                  {delivery.barcode_values.map((val, idx) =>
+                  <div key={`rx-${idx}`} className="border rounded-md p-2 cursor-pointer transition-colors"
+                    style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}
+                    onClick={() => setBarcodePreview({ value: val, isRx: true })}>
+                    <BarcodeThumb value={val} isRx={true} />
+                    <p className="mt-1 text-[11px] text-center text-slate-500 font-mono font-semibold">{String(val).slice(0, 8)}</p>
                   </div>
+                  )}
                 </div>
-            }
+              </div>
+              }
             </CardContent>
           </Card>
-        }
-
-        {/* Images & Signatures Card */}
-        {canViewProofOfDelivery &&
-        <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--text-slate-700)' }}>
-              <Image className="w-4 h-4" />
-              Proof of Delivery
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Signature */}
-             <div className="flex items-center justify-between">
-               <div className="flex-1">
-                 {delivery.signature_image_url ?
-                <div>
-                     <p className="text-xs font-medium mb-2 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
-                       <FileSignature className="w-3 h-3" /> Signature
-                     </p>
-                     <div
-                    className="border rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
-                    style={{ borderColor: 'var(--border-slate-200)' }}
-                    onClick={() => setViewingImage({ url: delivery.signature_image_url, title: 'Customer Signature' })}>
-                    
-                       <img
-                      src={delivery.signature_image_url}
-                      alt="Customer Signature"
-                      className="w-full h-auto max-h-32 object-contain"
-                      style={{ background: 'var(--bg-white)' }} />
-                    
-                     </div>
-                   </div> :
-                delivery.signature_needed ?
-                <div className="text-center py-4 border rounded-lg" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
-                     <FileSignature className="w-8 h-8 mx-auto mb-2 opacity-30" style={{ color: 'var(--text-slate-400)' }} />
-                     <p className="text-sm" style={{ color: 'var(--text-slate-500)' }}>Signature required but not captured yet</p>
-                   </div> :
-                null}
-               </div>
-               {!isCompleted &&
-              <div className="ml-3 flex flex-col gap-2">
-                   <Button
-                  onClick={() => setShowSignatureCapture(true)}
-                  disabled={isUpdating}
-                  className={`text-xs whitespace-nowrap ${hasSignature ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
-                  style={!hasSignature ? { background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)', border: '1px solid var(--border-slate-300)' } : {}}
-                  size="sm">
-                  
-                     <FileSignature className="w-3 h-3 mr-1" />
-                     {hasSignature ? 'Re-Capture' : 'Capture'}
-                   </Button>
-                   {hasSignature &&
-                <Button
-                  onClick={clearSignature}
-                  disabled={isUpdating}
-                  variant="outline"
-                  className="text-xs whitespace-nowrap"
-                  style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' }}
-                  size="sm">
-                  
-                       <RotateCcw className="w-3 h-3 mr-1" />
-                       Clear
-                     </Button>
-                }
-                 </div>
-              }
-             </div>
-
-            {/* Proof Photos */}
-             <div className="flex items-start justify-between">
-               <div className="flex-1">
-                 {delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ?
-                <div>
-                     <p className="text-xs font-medium mb-2 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
-                       <Image className="w-3 h-3" /> Proof Photos ({delivery.proof_photo_urls.length})
-                     </p>
-                     <div className="grid grid-cols-2 gap-2">
-                       {delivery.proof_photo_urls.map((url, index) =>
-                    <div key={index} className="relative border rounded-lg overflow-hidden group" style={{ borderColor: 'var(--border-slate-200)' }}>
-                           <img
-                        src={url}
-                        alt={`Proof photo ${index + 1}`}
-                        className="w-full h-24 object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                        onClick={() => setViewingImage({ url, title: `Proof Photo ${index + 1}` })} />
-                      
-                           <button
-                        onClick={(e) => {e.stopPropagation();deletePhoto(index);}}
-                        disabled={isUpdating}
-                        className="absolute top-1 right-1 rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
-                        style={{ background: '#dc2626', color: '#ffffff' }}>
-                        
-                             <X className="w-3 h-3" />
-                           </button>
-                         </div>
-                    )}
-                     </div>
-                   </div> :
-                null}
-               </div>
-               {!isCompleted &&
-              <Button
-                onClick={() => setShowPhotoCapture(true)}
-                disabled={isUpdating}
-                className={`text-xs whitespace-nowrap ml-3 ${hasPhotos ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
-                style={!hasPhotos ? { background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)', border: '1px solid var(--border-slate-300)' } : {}}
-                size="sm">
-                
-                   <Camera className="w-3 h-3 mr-1" />
-                   {hasPhotos ? 'Add Photo' : 'Capture'}
-                 </Button>
-              }
-             </div>
-
-            {/* Empty state if no images or signatures */}
-            {!delivery.signature_image_url && !delivery.signature_needed && (!delivery.proof_photo_urls || delivery.proof_photo_urls.length === 0) &&
-            <div className="text-center py-6" style={{ color: 'var(--text-slate-400)' }}>
-                <Image className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                <p className="text-sm">No proof of delivery images</p>
-              </div>
-            }
-          </CardContent>
-        </Card>
+          }
+        </div>
         }
       </div>
 
