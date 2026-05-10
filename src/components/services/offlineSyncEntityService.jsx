@@ -90,7 +90,25 @@ export const createOfflineSyncEntityService = ({
       if (records.length > 0) {
         const storeName = getOfflineStoreName(offlineDB, entityName);
         if (storeName) {
-          await offlineDB.bulkSave(storeName, records);
+          // CRITICAL: Merge incoming records with existing ones to preserve polylines and other fields
+          if (entityName === 'Delivery') {
+            const existingRecords = await offlineDB.getAll(storeName);
+            const existingMap = new Map(existingRecords.map(r => [r?.id, r]));
+            const mergedRecords = records.map(incoming => {
+              const existing = existingMap.get(incoming.id);
+              if (!existing) return incoming;
+              // Merge: keep incoming values but preserve polyline, estimated_* if missing in incoming
+              return {
+                ...incoming,
+                encoded_polyline: incoming.encoded_polyline ?? existing.encoded_polyline,
+                estimated_distance_km: incoming.estimated_distance_km ?? existing.estimated_distance_km,
+                estimated_duration_minutes: incoming.estimated_duration_minutes ?? existing.estimated_duration_minutes
+              };
+            });
+            await offlineDB.bulkSave(storeName, mergedRecords);
+          } else {
+            await offlineDB.bulkSave(storeName, records);
+          }
         }
       }
 
