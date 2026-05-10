@@ -5,13 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { 
-  User, 
-  Phone, 
-  MapPin, 
-  Clock, 
-  Package, 
-  Building2, 
+import {
+  User,
+  Phone,
+  MapPin,
+  Clock,
+  Package,
+  Building2,
   StickyNote,
   CheckCircle,
   XCircle,
@@ -30,8 +30,8 @@ import {
   Image,
   FileSignature,
   Camera,
-  X
-} from "lucide-react";
+  X } from
+"lucide-react";
 import { format } from "date-fns";
 import { formatPhoneNumber } from "../utils/phoneFormatter";
 import { isAppOwner } from "../utils/userRoles";
@@ -60,10 +60,10 @@ const statusConfig = {
   projected: { color: 'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-800/60 dark:text-gray-200 dark:border-gray-600', label: 'Projected', icon: Clock }
 };
 
-export default function StopDetailsPanel({ 
-  delivery, 
-  patient, 
-  store, 
+export default function StopDetailsPanel({
+  delivery,
+  patient,
+  store,
   driver,
   currentUser,
   onClose,
@@ -104,8 +104,8 @@ export default function StopDetailsPanel({
         <Package className="w-16 h-16 mb-4 opacity-30" style={{ color: 'var(--text-slate-400)' }} />
         <p className="text-lg font-medium" style={{ color: 'var(--text-slate-500)' }}>Select a stop to view details</p>
         <p className="text-sm mt-1" style={{ color: 'var(--text-slate-400)' }}>Click on a stop card to see patient and delivery information</p>
-      </div>
-    );
+      </div>);
+
   }
 
   const handleSignatureSave = async (blob) => {
@@ -114,7 +114,7 @@ export default function StopDetailsPanel({
       const file = new File([blob], 'signature.png', { type: 'image/png' });
       const uploadResponse = await base44.integrations.Core.UploadFile({ file });
       const fileUrl = uploadResponse?.file_url || uploadResponse?.data?.file_url;
-      
+
       if (fileUrl) {
         await persistDeliveryProof(delivery.id, {
           signature_image_url: fileUrl
@@ -132,7 +132,7 @@ export default function StopDetailsPanel({
     try {
       setIsUpdating(true);
       const uploadedUrls = [];
-      
+
       for (const blob of photoBlobs) {
         const file = new File([blob], `proof-${Date.now()}.jpg`, { type: 'image/jpeg' });
         const uploadResponse = await base44.integrations.Core.UploadFile({ file });
@@ -141,7 +141,7 @@ export default function StopDetailsPanel({
           uploadedUrls.push(fileUrl);
         }
       }
-      
+
       if (uploadedUrls.length > 0) {
         const existingUrls = delivery.proof_photo_urls || [];
         await persistDeliveryProof(delivery.id, {
@@ -198,11 +198,11 @@ export default function StopDetailsPanel({
   const canViewProofOfDelivery = !isDispatcherUser;
   const canEditTimeWindows = isDispatcherUser && delivery?.status === 'pending';
   const canEditCodInCurrentState = !!currentUser && !!patient && (
-    (isDispatcherUser && delivery?.status === 'pending') ||
-    ((isDriverUser || isAdminUser) && ['pending', 'in_transit'].includes(delivery?.status))
-  );
-  const canManageStop = currentUser &&
-    (isAdminUser || (currentUser.app_roles?.includes('driver') && !isRouteCompleted(delivery, allDeliveries)));
+  isDispatcherUser && delivery?.status === 'pending' ||
+  (isDriverUser || isAdminUser) && ['pending', 'in_transit'].includes(delivery?.status));
+
+  const canManageStop = currentUser && (
+  isAdminUser || currentUser.app_roles?.includes('driver') && !isRouteCompleted(delivery, allDeliveries));
 
   const activeStatuses = ['in_transit', 'en_route'];
   const completionStatuses = ['completed', 'failed', 'cancelled'];
@@ -398,51 +398,51 @@ export default function StopDetailsPanel({
           <h2 className="text-lg font-bold flex-shrink-0" style={{ color: 'var(--text-slate-900)' }}>Stop Details</h2>
           <div className="flex-1" />
           <div className="flex items-center gap-2 flex-wrap justify-end">
-            {store?.abbreviation && (
-              <Badge 
-                variant="outline" 
-                className="rounded-full"
-                style={{ borderColor: store.color || 'var(--border-slate-300)', color: store.color || 'var(--text-slate-600)', background: 'var(--bg-white)' }}
-              >
+            {store?.abbreviation &&
+            <Badge
+              variant="outline"
+              className="rounded-full"
+              style={{ borderColor: store.color || 'var(--border-slate-300)', color: store.color || 'var(--text-slate-600)', background: 'var(--bg-white)' }}>
+              
                 {store.abbreviation}
               </Badge>
-            )}
-            {delivery.stop_order && (
-              <Badge variant="outline" className="rounded-full" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+            }
+            {delivery.stop_order &&
+            <Badge variant="outline" className="rounded-full" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
                 Stop# {String(delivery.stop_order).padStart(2, '0')}
               </Badge>
-            )}
-            {delivery.tracking_number && (
-              <Badge variant="secondary" className="font-mono rounded-full" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
+            }
+            {delivery.tracking_number &&
+            <Badge variant="secondary" className="font-mono rounded-full" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
                 TR# {String(delivery.tracking_number).padStart(2, '0')}
               </Badge>
-            )}
-            {delivery.ampm_deliveries && (
-              <Badge variant="outline" className="rounded-full" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+            }
+            {delivery.ampm_deliveries &&
+            <Badge variant="outline" className="rounded-full" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
                 {delivery.ampm_deliveries}
               </Badge>
-            )}
-            {delivery.actual_delivery_time && (
-              <Badge variant="secondary" className="font-mono rounded-full" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
+            }
+            {delivery.actual_delivery_time &&
+            <Badge variant="secondary" className="font-mono rounded-full" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
                 <Clock className="w-3 h-3 mr-1" />
                 {format(new Date(delivery.actual_delivery_time), 'h:mm a')}
               </Badge>
-            )}
-            {isAppOwner(currentUser) && delivery.puid && (
-              <Badge variant="outline" className="font-mono rounded-full" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+            }
+            {isAppOwner(currentUser) && delivery.puid &&
+            <Badge variant="outline" className="font-mono rounded-full" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
                 PUID {delivery.puid}
               </Badge>
-            )}
-            {isAppOwner(currentUser) && delivery.stop_id && (
-              <Badge variant="outline" className="font-mono rounded-full" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+            }
+            {isAppOwner(currentUser) && delivery.stop_id &&
+            <Badge variant="outline" className="font-mono rounded-full" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
                 SID {delivery.stop_id}
               </Badge>
-            )}
-            {isAppOwner(currentUser) && patient?.patient_id && (
-              <Badge variant="outline" className="font-mono rounded-full" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+            }
+            {isAppOwner(currentUser) && patient?.patient_id &&
+            <Badge variant="outline" className="font-mono rounded-full" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
                 PID {patient.patient_id}
               </Badge>
-            )}
+            }
             <Badge className={`border rounded-full ${status.color}`} style={{ background: undefined, color: undefined }}>
               <StatusIcon className="w-3 h-3 mr-1" />
               {status.label}
@@ -452,7 +452,7 @@ export default function StopDetailsPanel({
       </div>
 
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto px-4 pt-4 pb-2 space-y-4">
+      <div className="flex-1 overflow-y-auto space-y-4 px-3">
         {/* Patient Info Card */}
         <Card className="relative" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
           <CardHeader className="pb-2">
@@ -463,49 +463,49 @@ export default function StopDetailsPanel({
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {isPickup ? (
-              <>
+            {isPickup ?
+            <>
                 <div>
                   <p className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>
                     {store?.name || 'Store Pickup'}
                   </p>
                 </div>
-                {store?.address && (
-                  <div className="flex items-start gap-2">
+                {store?.address &&
+              <div className="flex items-start gap-2">
                     <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: 'var(--text-slate-400)' }} />
                     <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>{store.address}</p>
                   </div>
-                )}
-                {store?.phone && (
-                  <div className="flex items-center gap-2">
+              }
+                {store?.phone &&
+              <div className="flex items-center gap-2">
                     <Phone className="w-4 h-4" style={{ color: 'var(--text-slate-400)' }} />
                     <a href={`tel:${store.phone}`} className="text-sm hover:underline" style={{ color: 'var(--text-slate-700)' }}>
                       {formatPhoneNumber(store.phone)}
                     </a>
                   </div>
-                )}
-              </>
-            ) : patient ? (
-              <>
+              }
+              </> :
+            patient ?
+            <>
                 {/* Address with unit number */}
-                {patient.address && (
-                  <div className="flex items-start gap-2">
+                {patient.address &&
+              <div className="flex items-start gap-2">
                     <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: 'var(--text-slate-400)' }} />
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>{patient.address}</p>
-                        {patient.unit_number && (
-                          <Badge variant="secondary" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>Unit {patient.unit_number}</Badge>
-                        )}
+                        {patient.unit_number &&
+                    <Badge variant="secondary" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>Unit {patient.unit_number}</Badge>
+                    }
                       </div>
-                      {patient.distance_from_store && (
-                        <p className="text-xs mt-0.5" style={{ color: 'var(--text-slate-400)' }}>
+                      {patient.distance_from_store &&
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-slate-400)' }}>
                           {patient.distance_from_store.toFixed(1)} km from store
                         </p>
-                      )}
+                  }
                     </div>
                   </div>
-                )}
+              }
 
                 {/* Patient Name */}
                 <div>
@@ -514,130 +514,130 @@ export default function StopDetailsPanel({
                   </p>
                 </div>
 
-                {patient.phone && (
-                  <div className="flex items-center gap-2">
+                {patient.phone &&
+              <div className="flex items-center gap-2">
                     <Phone className="w-4 h-4" style={{ color: 'var(--text-slate-400)' }} />
                     <a href={`tel:${patient.phone}`} className="text-sm hover:underline" style={{ color: 'var(--text-slate-700)' }}>
                       {formatPhoneNumber(patient.phone)}
                     </a>
                   </div>
-                )}
+              }
 
-                {patient.phone_secondary && (
-                  <div className="flex items-center gap-2">
+                {patient.phone_secondary &&
+              <div className="flex items-center gap-2">
                     <Phone className="w-4 h-4" style={{ color: 'var(--text-slate-400)' }} />
                     <a href={`tel:${patient.phone_secondary}`} className="text-sm hover:underline" style={{ color: 'var(--text-slate-700)' }}>
                       {formatPhoneNumber(patient.phone_secondary)} (Alt)
                     </a>
                   </div>
-                )}
+              }
 
                 {/* COD Information */}
-                {(delivery.cod_total_amount_required > 0 || (delivery.cod_payments && delivery.cod_payments.length > 0) || canEditCodInCurrentState) && (
-                  <div className="pt-2 border-t space-y-2" style={{ borderColor: 'var(--border-slate-100)' }}>
+                {(delivery.cod_total_amount_required > 0 || delivery.cod_payments && delivery.cod_payments.length > 0 || canEditCodInCurrentState) &&
+              <div className="pt-2 border-t space-y-2" style={{ borderColor: 'var(--border-slate-100)' }}>
                     <p className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
                       <DollarSign className="w-3 h-3" /> COD Payment
                     </p>
-                    {canEditCodInCurrentState ? (
-                      <div className="flex flex-col gap-2">
+                    {canEditCodInCurrentState ?
+                <div className="flex flex-col gap-2">
                         <div className="flex items-end gap-2">
                           <div className="flex-1">
                             <Label className="text-xs font-semibold" style={{ color: 'var(--text-slate-700)' }}>
                               Amount to collect
                             </Label>
                             <Input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={codAmountRequired}
-                              onChange={(e) => setCodAmountRequired(e.target.value === '' ? '' : Number(e.target.value))}
-                              disabled={isUpdating}
-                              className="h-9 mt-1"
-                            />
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={codAmountRequired}
+                        onChange={(e) => setCodAmountRequired(e.target.value === '' ? '' : Number(e.target.value))}
+                        disabled={isUpdating}
+                        className="h-9 mt-1" />
+                      
                           </div>
                           <Button onClick={handleSaveCodAmount} disabled={isUpdating || !hasCodChanges} size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 px-3 whitespace-nowrap">
                             Save
                           </Button>
-                          {canDeleteCodInCurrentState && (
-                            <Button onClick={handleDeleteCodAmount} disabled={isUpdating || Number(delivery?.cod_total_amount_required || 0) <= 0} variant="outline" size="sm" className="h-9 px-3 whitespace-nowrap text-red-600 border-red-300">
+                          {canDeleteCodInCurrentState &&
+                    <Button onClick={handleDeleteCodAmount} disabled={isUpdating || Number(delivery?.cod_total_amount_required || 0) <= 0} variant="outline" size="sm" className="h-9 px-3 whitespace-nowrap text-red-600 border-red-300">
                               Delete
                             </Button>
-                          )}
+                    }
                         </div>
-                      </div>
-                    ) : delivery.cod_total_amount_required > 0 ? (
-                      <p className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>
+                      </div> :
+                delivery.cod_total_amount_required > 0 ?
+                <p className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>
                         Required: ${delivery.cod_total_amount_required.toFixed(2)}
-                      </p>
-                    ) : null}
-                    {delivery.cod_payments && delivery.cod_payments.length > 0 && (
-                      <div className="mt-1 space-y-1">
-                        {delivery.cod_payments.map((payment, idx) => (
-                          <p key={idx} className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
+                      </p> :
+                null}
+                    {delivery.cod_payments && delivery.cod_payments.length > 0 &&
+                <div className="mt-1 space-y-1">
+                        {delivery.cod_payments.map((payment, idx) =>
+                  <p key={idx} className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
                             {payment.type}: ${payment.amount.toFixed(2)}
                           </p>
-                        ))}
+                  )}
                       </div>
-                    )}
+                }
                   </div>
-                )}
+              }
 
                 {/* Patient Preferences */}
                 <div className="flex flex-wrap gap-2 pt-2">
-                  {patient.mailbox_ok && (
-                    <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+                  {patient.mailbox_ok &&
+                <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
                       <Mail className="w-3 h-3 mr-1" /> Mailbox OK
                     </Badge>
-                  )}
-                  {patient.call_upon_arrival && (
-                    <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+                }
+                  {patient.call_upon_arrival &&
+                <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
                       <Phone className="w-3 h-3 mr-1" /> Call on Arrival
                     </Badge>
-                  )}
-                  {patient.ring_bell && !patient.dont_ring_bell && (
-                    <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+                }
+                  {patient.ring_bell && !patient.dont_ring_bell &&
+                <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
                       <Bell className="w-3 h-3 mr-1" /> Ring Bell
                     </Badge>
-                  )}
-                  {patient.dont_ring_bell && (
-                    <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: '#ea580c', borderColor: '#fdba74' }}>
+                }
+                  {patient.dont_ring_bell &&
+                <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: '#ea580c', borderColor: '#fdba74' }}>
                       <BellOff className="w-3 h-3 mr-1" /> Don't Ring
                     </Badge>
-                  )}
-                  {patient.back_door && (
-                    <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+                }
+                  {patient.back_door &&
+                <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
                       <Home className="w-3 h-3 mr-1" /> Back Door
                     </Badge>
-                  )}
+                }
                 </div>
 
                 {/* Patient Notes - only show if notes exist */}
-                {patient.notes && (
-                  <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-100)' }}>
+                {patient.notes &&
+              <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-100)' }}>
                     <p className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
                       <StickyNote className="w-3 h-3" /> Patient Notes
                     </p>
                     <p className="text-sm" style={{ color: 'var(--text-slate-700)' }}>{patient.notes}</p>
                   </div>
-                )}
+              }
 
                 {/* Driver Notes - only show if notes exist */}
-                {delivery.delivery_notes && (
-                  <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-100)' }}>
+                {delivery.delivery_notes &&
+              <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-100)' }}>
                     <p className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
                       <StickyNote className="w-3 h-3" /> Driver Notes
                     </p>
                     <p className="text-sm" style={{ color: 'var(--text-slate-700)' }}>{delivery.delivery_notes}</p>
                   </div>
-                )}
-              </>
-            ) : (
-              <p className="text-sm" style={{ color: 'var(--text-slate-500)' }}>Patient information not available</p>
-            )}
+              }
+              </> :
+
+            <p className="text-sm" style={{ color: 'var(--text-slate-500)' }}>Patient information not available</p>
+            }
 
             {/* Status & Timing */}
-            {canEdit && typeof onStatusUpdate === 'function' && (
-              <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-100)' }}>
+            {canEdit && typeof onStatusUpdate === 'function' &&
+            <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-100)' }}>
                 <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-slate-500)' }}>
                   Status & Timing
                 </p>
@@ -652,38 +652,38 @@ export default function StopDetailsPanel({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="z-[10030]">
-                        {isPickup ? (
-                          <>
+                        {isPickup ?
+                      <>
                             <SelectItem value="en_route">En Route</SelectItem>
                             <SelectItem value="completed">Completed</SelectItem>
                             <SelectItem value="cancelled">Cancelled</SelectItem>
-                          </>
-                        ) : (
-                          <>
+                          </> :
+
+                      <>
                             <SelectItem value="pending">Pending</SelectItem>
                             <SelectItem value="in_transit">In Transit</SelectItem>
                             <SelectItem value="completed">Completed</SelectItem>
                             <SelectItem value="failed">Failed</SelectItem>
                             <SelectItem value="cancelled">Cancelled</SelectItem>
                           </>
-                        )}
+                      }
                       </SelectContent>
                     </Select>
                   </div>
 
-                  {showTimeWindowEditors && (
-                    <>
+                  {showTimeWindowEditors &&
+                <>
                       <div className="min-w-0 w-full space-y-1">
                         <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                           Start
                         </Label>
                         <div className="relative">
                           <Input type="time" value={deliveryTimeStart} onChange={(e) => setDeliveryTimeStart(e.target.value)} onKeyDown={handleTimeFieldKeyDown} disabled={isUpdating} className={`h-9 text-sm ${showDesktopClearButtons ? 'pr-8 stop-details-time-input-desktop' : ''}`} />
-                          {showDesktopClearButtons && deliveryTimeStart && (
-                            <button type="button" onClick={() => setDeliveryTimeStart('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" disabled={isUpdating}>
+                          {showDesktopClearButtons && deliveryTimeStart &&
+                      <button type="button" onClick={() => setDeliveryTimeStart('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" disabled={isUpdating}>
                               <X className="w-4 h-4" />
                             </button>
-                          )}
+                      }
                         </div>
                       </div>
                       <div className="min-w-0 w-full space-y-1">
@@ -692,29 +692,29 @@ export default function StopDetailsPanel({
                         </Label>
                         <div className="relative">
                           <Input type="time" value={deliveryTimeEnd} onChange={(e) => setDeliveryTimeEnd(e.target.value)} onKeyDown={handleTimeFieldKeyDown} disabled={isUpdating} className={`h-9 text-sm ${showDesktopClearButtons ? 'pr-8 stop-details-time-input-desktop' : ''}`} />
-                          {showDesktopClearButtons && deliveryTimeEnd && (
-                            <button type="button" onClick={() => setDeliveryTimeEnd('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" disabled={isUpdating}>
+                          {showDesktopClearButtons && deliveryTimeEnd &&
+                      <button type="button" onClick={() => setDeliveryTimeEnd('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" disabled={isUpdating}>
                               <X className="w-4 h-4" />
                             </button>
-                          )}
+                      }
                         </div>
                       </div>
                     </>
-                  )}
+                }
 
-                  {isCompletionEditStatus && (
-                    <>
+                  {isCompletionEditStatus &&
+                <>
                       <div className="min-w-0 w-full space-y-1">
                         <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                           Completion
                         </Label>
                         <div className="relative">
                         <Input ref={completionTimeRef} type="time" value={completionTime} onChange={(e) => setCompletionTime(e.target.value)} onKeyDown={handleTimeFieldKeyDown} disabled={isUpdating} className={`h-9 text-sm ${showDesktopClearButtons ? 'pr-8 stop-details-time-input-desktop' : ''}`} />
-                        {showDesktopClearButtons && completionTime && (
-                          <button type="button" onClick={() => setCompletionTime('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" disabled={isUpdating}>
+                        {showDesktopClearButtons && completionTime &&
+                      <button type="button" onClick={() => setCompletionTime('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" disabled={isUpdating}>
                             <X className="w-4 h-4" />
                           </button>
-                        )}
+                      }
                       </div>
                       </div>
                       <div className="min-w-0 w-full space-y-1 opacity-0 pointer-events-none" aria-hidden="true">
@@ -722,10 +722,10 @@ export default function StopDetailsPanel({
                         <Input type="time" value="" readOnly className="h-9 text-sm" />
                       </div>
                     </>
-                  )}
+                }
 
-                  {!(showTimeWindowEditors || isCompletionEditStatus) && (
-                    <>
+                  {!(showTimeWindowEditors || isCompletionEditStatus) &&
+                <>
                       <div className="min-w-0 w-full space-y-1 opacity-0 pointer-events-none" aria-hidden="true">
                         <Label className="text-sm font-semibold">Start</Label>
                         <Input type="time" value="" readOnly className="h-9 text-sm" />
@@ -735,128 +735,128 @@ export default function StopDetailsPanel({
                         <Input type="time" value="" readOnly className="h-9 text-sm" />
                       </div>
                     </>
-                  )}
+                }
 
                   <Button onClick={handleApplyStatusTiming} disabled={isUpdating || !hasStatusTimingChanges} size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 px-3 whitespace-nowrap">
                     Apply
                   </Button>
                 </div>
               </div>
-            )}
+            }
             
             {/* Edit/Delete Buttons */}
-            {canManageStop && (
-              <div className="absolute top-4 right-4 flex flex-col items-end gap-2">
+            {canManageStop &&
+            <div className="absolute top-4 right-4 flex flex-col items-end gap-2">
                 <div className="flex gap-2">
-                  <Button 
-                    onClick={() => onEdit(delivery)}
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                  >
+                  <Button
+                  onClick={() => onEdit(delivery)}
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8">
+                  
                     <Pencil className="w-4 h-4" style={{ color: 'var(--text-slate-500)' }} />
                   </Button>
-                  <Button 
-                    onClick={() => {
-                      if (confirm('Are you sure you want to delete this delivery?')) {
-                        if (typeof onDelete === 'function') {
-                          onDelete(delivery.id);
-                        } else {
-                          console.warn('[StopDetailsPanel] onDelete not provided');
-                        }
+                  <Button
+                  onClick={() => {
+                    if (confirm('Are you sure you want to delete this delivery?')) {
+                      if (typeof onDelete === 'function') {
+                        onDelete(delivery.id);
+                      } else {
+                        console.warn('[StopDetailsPanel] onDelete not provided');
                       }
-                    }}
-                    disabled={typeof onDelete !== 'function'}
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    style={{ color: '#dc2626' }}
-                  >
+                    }
+                  }}
+                  disabled={typeof onDelete !== 'function'}
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  style={{ color: '#dc2626' }}>
+                  
                     <Trash2 className="w-4 h-4 text-red-600" />
                   </Button>
                 </div>
-                {currentUser?.app_roles?.includes('driver') && !isCompleted && (
-                  <div className="flex gap-2">
-                    <Button 
-                      onClick={() => onStatusUpdate(delivery.id, 'completed')}
-                      className="bg-emerald-600 hover:bg-emerald-700 h-8 w-8 p-0"
-                      size="icon"
-                      title="Complete"
-                      aria-label="Complete delivery"
-                    >
+                {currentUser?.app_roles?.includes('driver') && !isCompleted &&
+              <div className="flex gap-2">
+                    <Button
+                  onClick={() => onStatusUpdate(delivery.id, 'completed')}
+                  className="bg-emerald-600 hover:bg-emerald-700 h-8 w-8 p-0"
+                  size="icon"
+                  title="Complete"
+                  aria-label="Complete delivery">
+                  
                       <CheckCircle className="w-4 h-4" />
                     </Button>
-                    <Button 
-                      onClick={() => onStatusUpdate(delivery.id, 'failed')}
-                      variant="destructive"
-                      className="h-8 w-8 p-0"
-                      size="icon"
-                      title="Failed"
-                      aria-label="Mark delivery failed"
-                    >
+                    <Button
+                  onClick={() => onStatusUpdate(delivery.id, 'failed')}
+                  variant="destructive"
+                  className="h-8 w-8 p-0"
+                  size="icon"
+                  title="Failed"
+                  aria-label="Mark delivery failed">
+                  
                       <XCircle className="w-4 h-4" />
                     </Button>
                   </div>
-                )}
+              }
               </div>
-            )}
+            }
           </CardContent>
         </Card>
 
         {/* Barcode Thumbnails */}
-        {(delivery?.receipt_barcode_values?.length > 0 || delivery?.barcode_values?.length > 0) && (
-          <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+        {(delivery?.receipt_barcode_values?.length > 0 || delivery?.barcode_values?.length > 0) &&
+        <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold" style={{ color: 'var(--text-slate-700)' }}>
                 Barcodes
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {delivery?.receipt_barcode_values?.length > 0 && (
-                <div>
+              {delivery?.receipt_barcode_values?.length > 0 &&
+            <div>
                   <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-slate-500)' }}>
                     Receipt Barcodes ({delivery.receipt_barcode_values.length})
                   </p>
                   <div className="grid grid-cols-2 gap-2">
-                    {delivery.receipt_barcode_values.map((val, idx) => (
-                      <div
-                        key={`rb-${idx}`}
-                        className="border rounded-md p-2 cursor-pointer transition-colors"
-                        style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}
-                        onClick={() => setBarcodePreview({ value: val, isRx: false })}
-                      >
+                    {delivery.receipt_barcode_values.map((val, idx) =>
+                <div
+                  key={`rb-${idx}`}
+                  className="border rounded-md p-2 cursor-pointer transition-colors"
+                  style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}
+                  onClick={() => setBarcodePreview({ value: val, isRx: false })}>
+                  
                         <BarcodeThumb value={val} />
                       </div>
-                    ))}
+                )}
                   </div>
                 </div>
-              )}
-              {delivery?.barcode_values?.length > 0 && (
-                <div>
+            }
+              {delivery?.barcode_values?.length > 0 &&
+            <div>
                   <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-slate-500)' }}>
                     Rx Barcodes ({delivery.barcode_values.length})
                   </p>
                   <div className="grid grid-cols-2 gap-2">
-                    {delivery.barcode_values.map((val, idx) => (
-                      <div
-                        key={`rx-${idx}`}
-                        className="border rounded-md p-2 cursor-pointer transition-colors"
-                        style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}
-                        onClick={() => setBarcodePreview({ value: val, isRx: true })}
-                      >
+                    {delivery.barcode_values.map((val, idx) =>
+                <div
+                  key={`rx-${idx}`}
+                  className="border rounded-md p-2 cursor-pointer transition-colors"
+                  style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}
+                  onClick={() => setBarcodePreview({ value: val, isRx: true })}>
+                  
                         <BarcodeThumb value={val} isRx={true} />
                         <p className="mt-1 text-[11px] text-center text-slate-500 font-mono font-semibold">{String(val).slice(0, 8)}</p>
                       </div>
-                    ))}
+                )}
                   </div>
                 </div>
-              )}
+            }
             </CardContent>
           </Card>
-        )}
+        }
 
         {/* Images & Signatures Card */}
-        {canViewProofOfDelivery && (
+        {canViewProofOfDelivery &&
         <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--text-slate-700)' }}>
@@ -868,161 +868,161 @@ export default function StopDetailsPanel({
             {/* Signature */}
              <div className="flex items-center justify-between">
                <div className="flex-1">
-                 {delivery.signature_image_url ? (
-                   <div>
+                 {delivery.signature_image_url ?
+                <div>
                      <p className="text-xs font-medium mb-2 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
                        <FileSignature className="w-3 h-3" /> Signature
                      </p>
                      <div
-                       className="border rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
-                       style={{ borderColor: 'var(--border-slate-200)' }}
-                       onClick={() => setViewingImage({ url: delivery.signature_image_url, title: 'Customer Signature' })}
-                     >
-                       <img 
-                         src={delivery.signature_image_url} 
-                         alt="Customer Signature" 
-                         className="w-full h-auto max-h-32 object-contain"
-                         style={{ background: 'var(--bg-white)' }}
-                       />
+                    className="border rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
+                    style={{ borderColor: 'var(--border-slate-200)' }}
+                    onClick={() => setViewingImage({ url: delivery.signature_image_url, title: 'Customer Signature' })}>
+                    
+                       <img
+                      src={delivery.signature_image_url}
+                      alt="Customer Signature"
+                      className="w-full h-auto max-h-32 object-contain"
+                      style={{ background: 'var(--bg-white)' }} />
+                    
                      </div>
-                   </div>
-                 ) : delivery.signature_needed ? (
-                   <div className="text-center py-4 border rounded-lg" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
+                   </div> :
+                delivery.signature_needed ?
+                <div className="text-center py-4 border rounded-lg" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
                      <FileSignature className="w-8 h-8 mx-auto mb-2 opacity-30" style={{ color: 'var(--text-slate-400)' }} />
                      <p className="text-sm" style={{ color: 'var(--text-slate-500)' }}>Signature required but not captured yet</p>
-                   </div>
-                 ) : null}
+                   </div> :
+                null}
                </div>
-               {!isCompleted && (
-                 <div className="ml-3 flex flex-col gap-2">
+               {!isCompleted &&
+              <div className="ml-3 flex flex-col gap-2">
                    <Button
-                     onClick={() => setShowSignatureCapture(true)}
-                     disabled={isUpdating}
-                     className={`text-xs whitespace-nowrap ${hasSignature ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
-                     style={!hasSignature ? { background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)', border: '1px solid var(--border-slate-300)' } : {}}
-                     size="sm"
-                   >
+                  onClick={() => setShowSignatureCapture(true)}
+                  disabled={isUpdating}
+                  className={`text-xs whitespace-nowrap ${hasSignature ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
+                  style={!hasSignature ? { background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)', border: '1px solid var(--border-slate-300)' } : {}}
+                  size="sm">
+                  
                      <FileSignature className="w-3 h-3 mr-1" />
                      {hasSignature ? 'Re-Capture' : 'Capture'}
                    </Button>
-                   {hasSignature && (
-                     <Button
-                       onClick={clearSignature}
-                       disabled={isUpdating}
-                       variant="outline"
-                       className="text-xs whitespace-nowrap"
-                       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' }}
-                       size="sm"
-                     >
+                   {hasSignature &&
+                <Button
+                  onClick={clearSignature}
+                  disabled={isUpdating}
+                  variant="outline"
+                  className="text-xs whitespace-nowrap"
+                  style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' }}
+                  size="sm">
+                  
                        <RotateCcw className="w-3 h-3 mr-1" />
                        Clear
                      </Button>
-                   )}
+                }
                  </div>
-               )}
+              }
              </div>
 
             {/* Proof Photos */}
              <div className="flex items-start justify-between">
                <div className="flex-1">
-                 {delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ? (
-                   <div>
+                 {delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ?
+                <div>
                      <p className="text-xs font-medium mb-2 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
                        <Image className="w-3 h-3" /> Proof Photos ({delivery.proof_photo_urls.length})
                      </p>
                      <div className="grid grid-cols-2 gap-2">
-                       {delivery.proof_photo_urls.map((url, index) => (
-                         <div key={index} className="relative border rounded-lg overflow-hidden group" style={{ borderColor: 'var(--border-slate-200)' }}>
-                           <img 
-                             src={url} 
-                             alt={`Proof photo ${index + 1}`} 
-                             className="w-full h-24 object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                             onClick={() => setViewingImage({ url, title: `Proof Photo ${index + 1}` })}
-                           />
+                       {delivery.proof_photo_urls.map((url, index) =>
+                    <div key={index} className="relative border rounded-lg overflow-hidden group" style={{ borderColor: 'var(--border-slate-200)' }}>
+                           <img
+                        src={url}
+                        alt={`Proof photo ${index + 1}`}
+                        className="w-full h-24 object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                        onClick={() => setViewingImage({ url, title: `Proof Photo ${index + 1}` })} />
+                      
                            <button
-                             onClick={(e) => { e.stopPropagation(); deletePhoto(index); }}
-                             disabled={isUpdating}
-                             className="absolute top-1 right-1 rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
-                            style={{ background: '#dc2626', color: '#ffffff' }}
-                           >
+                        onClick={(e) => {e.stopPropagation();deletePhoto(index);}}
+                        disabled={isUpdating}
+                        className="absolute top-1 right-1 rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                        style={{ background: '#dc2626', color: '#ffffff' }}>
+                        
                              <X className="w-3 h-3" />
                            </button>
                          </div>
-                       ))}
+                    )}
                      </div>
-                   </div>
-                 ) : null}
+                   </div> :
+                null}
                </div>
-               {!isCompleted && (
-                 <Button
-                   onClick={() => setShowPhotoCapture(true)}
-                   disabled={isUpdating}
-                   className={`text-xs whitespace-nowrap ml-3 ${hasPhotos ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
-                   style={!hasPhotos ? { background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)', border: '1px solid var(--border-slate-300)' } : {}}
-                   size="sm"
-                 >
+               {!isCompleted &&
+              <Button
+                onClick={() => setShowPhotoCapture(true)}
+                disabled={isUpdating}
+                className={`text-xs whitespace-nowrap ml-3 ${hasPhotos ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
+                style={!hasPhotos ? { background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)', border: '1px solid var(--border-slate-300)' } : {}}
+                size="sm">
+                
                    <Camera className="w-3 h-3 mr-1" />
                    {hasPhotos ? 'Add Photo' : 'Capture'}
                  </Button>
-               )}
+              }
              </div>
 
             {/* Empty state if no images or signatures */}
-            {!delivery.signature_image_url && !delivery.signature_needed && (!delivery.proof_photo_urls || delivery.proof_photo_urls.length === 0) && (
-              <div className="text-center py-6" style={{ color: 'var(--text-slate-400)' }}>
+            {!delivery.signature_image_url && !delivery.signature_needed && (!delivery.proof_photo_urls || delivery.proof_photo_urls.length === 0) &&
+            <div className="text-center py-6" style={{ color: 'var(--text-slate-400)' }}>
                 <Image className="w-10 h-10 mx-auto mb-2 opacity-30" />
                 <p className="text-sm">No proof of delivery images</p>
               </div>
-            )}
+            }
           </CardContent>
         </Card>
-        )}
+        }
       </div>
 
       {/* Action Buttons - Drivers */}
-      {currentUser?.app_roles?.includes('driver') && ['completed', 'failed', 'cancelled'].includes(delivery.status) && onRestart && (
-        <div className="flex-shrink-0 p-4 border-t" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+      {currentUser?.app_roles?.includes('driver') && ['completed', 'failed', 'cancelled'].includes(delivery.status) && onRestart &&
+      <div className="flex-shrink-0 p-4 border-t" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
           <div className="flex gap-2">
             <Button
-              onClick={() => onRestart(delivery.id)}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-              disabled={isUpdating}
-            >
+            onClick={() => onRestart(delivery.id)}
+            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+            disabled={isUpdating}>
+            
               <RotateCcw className="w-4 h-4 mr-2" />
               Restart
             </Button>
           </div>
         </div>
-      )}
-
-      {showSignatureCapture && (
-        <SignatureCapture
-          onSave={handleSignatureSave}
-          onCancel={() => setShowSignatureCapture(false)}
-          customerName={patient?.full_name || delivery.patient_name}
-          isSaved={hasSignature}
-        />
-      )}
-
-      {showPhotoCapture && (
-        <PhotoCapture
-          onSave={handlePhotosSave}
-          onCancel={() => setShowPhotoCapture(false)}
-          maxPhotos={3}
-        />
-      )}
-
-      {viewingImage && (
-        <ImageViewer
-          imageUrl={viewingImage.url}
-          title={viewingImage.title}
-          onClose={() => setViewingImage(null)}
-        />
-      )}
-
-      {barcodePreview && (
-        <BarcodeOverlay value={barcodePreview.value} isRx={barcodePreview.isRx} onClose={() => setBarcodePreview(null)} />
-      )}
-      </div>
-      );
       }
+
+      {showSignatureCapture &&
+      <SignatureCapture
+        onSave={handleSignatureSave}
+        onCancel={() => setShowSignatureCapture(false)}
+        customerName={patient?.full_name || delivery.patient_name}
+        isSaved={hasSignature} />
+
+      }
+
+      {showPhotoCapture &&
+      <PhotoCapture
+        onSave={handlePhotosSave}
+        onCancel={() => setShowPhotoCapture(false)}
+        maxPhotos={3} />
+
+      }
+
+      {viewingImage &&
+      <ImageViewer
+        imageUrl={viewingImage.url}
+        title={viewingImage.title}
+        onClose={() => setViewingImage(null)} />
+
+      }
+
+      {barcodePreview &&
+      <BarcodeOverlay value={barcodePreview.value} isRx={barcodePreview.isRx} onClose={() => setBarcodePreview(null)} />
+      }
+      </div>);
+
+}
