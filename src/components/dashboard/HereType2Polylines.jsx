@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Polyline } from "react-leaflet";
 import { getTravelModeLineStyle, normalizeTravelMode } from "./travelModeHelpers";
 import RouteDirectionDecorator from "./RouteDirectionDecorator";
+import { getPolylineColorForDriver } from "../utils/polylineColors";
 
 const FINISHED = ["completed", "failed", "cancelled"];
 
@@ -50,27 +51,11 @@ export default function HereType2Polylines({
     return coordinates;
   };
 
-    // Use the same color palette and hash as Type1 for consistency
-    const TYPE2_COLORS = [
-      '#E11D48', '#16A34A', '#EA580C', '#7C3AED', '#0F766E',
-      '#DB2777', '#65A30D', '#9333EA', '#B45309', '#DC2626',
-      '#059669', '#C2410C', '#6D28D9', '#047857', '#BE123C',
-    ];
-    const getType2PolylineColor = (driverId) => {
-      if (!driverId) return TYPE2_COLORS[0];
-      let hash = 0;
-      const str = String(driverId);
-      for (let i = 0; i < str.length; i++) {
-        hash = ((hash << 5) - hash) + str.charCodeAt(i);
-        hash = hash | 0;
-      }
-      return TYPE2_COLORS[Math.abs(hash) % TYPE2_COLORS.length];
-    };
     const getDriverMode = (driverId) => normalizeTravelMode(localDriverTravelModes[driverId] ?? driverTravelModes[driverId]);
     const getDriverRouteStyle = (driverId, opacityOverride) => {
       const mode = getDriverMode(driverId);
       const isCycling = mode === 'cycling';
-      const base = getTravelModeLineStyle(mode, getType2PolylineColor(driverId));
+      const base = getTravelModeLineStyle(mode, getPolylineColorForDriver(driverId));
       return {
         ...base,
         color: isCycling ? '#16A34A' : base.color,
