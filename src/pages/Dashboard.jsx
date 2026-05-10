@@ -661,10 +661,10 @@ function Dashboard() {
       return true;
     });
 
-    // DISPATCHER: When viewing "All Drivers" or blank selection, only show deliveries for dispatcher's stores
+    // DISPATCHER (all-drivers): show ALL stops for drivers who have any stop in the dispatcher's stores
     if (isDispatcher && !isAdmin && (selectedDriverId === 'all' || selectedDriverId === '')) {
-      const dispatcherStoreIds = currentUser?.store_ids || [];
-      result = result.filter((d) => d && dispatcherStoreIds.includes(d.store_id));
+      const _ds = new Set(currentUser?.store_ids || []);
+      result = result.filter((d) => d && new Set(result.filter((x) => x && _ds.has(x.store_id)).map((x) => x.driver_id).filter(Boolean)).has(d.driver_id));
     }
 
     return result;
