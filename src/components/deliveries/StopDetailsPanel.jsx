@@ -391,61 +391,63 @@ export default function StopDetailsPanel({
       `}</style>
       {/* Header */}
       <div className="flex-shrink-0 border-b px-4 py-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-        {/* Row 1: Back arrow + title */}
-        <div className="flex items-center gap-2 mb-2">
-          <Button variant="ghost" size="icon" onClick={onClose} className="flex-shrink-0 -ml-2">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" onClick={onClose} className="flex-shrink-0">
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <h2 className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>Stop Details</h2>
-        </div>
-        {/* Row 2+: Badges wrapping neatly */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {store?.abbreviation &&
-          <Badge variant="outline" className="rounded-full"
-            style={{ borderColor: store.color || 'var(--border-slate-300)', color: store.color || 'var(--text-slate-600)', background: 'var(--bg-white)' }}>
-            {store.abbreviation}
-          </Badge>
-          }
-          {delivery.stop_order &&
-          <Badge variant="outline" className="rounded-full" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
-            Stop# {String(delivery.stop_order).padStart(2, '0')}
-          </Badge>
-          }
-          {delivery.tracking_number &&
-          <Badge variant="secondary" className="font-mono rounded-full" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
-            TR# {String(delivery.tracking_number).padStart(2, '0')}
-          </Badge>
-          }
-          {delivery.ampm_deliveries &&
-          <Badge variant="outline" className="rounded-full" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
-            {delivery.ampm_deliveries}
-          </Badge>
-          }
-          {delivery.actual_delivery_time &&
-          <Badge variant="secondary" className="font-mono rounded-full" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
-            <Clock className="w-3 h-3 mr-1" />
-            {format(new Date(delivery.actual_delivery_time), 'h:mm a')}
-          </Badge>
-          }
-          {isAppOwner(currentUser) && delivery.puid &&
-          <Badge variant="outline" className="font-mono rounded-full" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
-            PUID {delivery.puid}
-          </Badge>
-          }
-          {isAppOwner(currentUser) && delivery.stop_id &&
-          <Badge variant="outline" className="font-mono rounded-full" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
-            SID {delivery.stop_id}
-          </Badge>
-          }
-          {isAppOwner(currentUser) && patient?.patient_id &&
-          <Badge variant="outline" className="font-mono rounded-full" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
-            PID {patient.patient_id}
-          </Badge>
-          }
-          <Badge className={`border rounded-full ${status.color}`} style={{ background: undefined, color: undefined }}>
-            <StatusIcon className="w-3 h-3 mr-1" />
-            {status.label}
-          </Badge>
+          <h2 className="text-lg font-bold flex-shrink-0" style={{ color: 'var(--text-slate-900)' }}>Stop Details</h2>
+          <div className="flex-1" />
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            {store?.abbreviation &&
+            <Badge
+              variant="outline"
+              className="rounded-full"
+              style={{ borderColor: store.color || 'var(--border-slate-300)', color: store.color || 'var(--text-slate-600)', background: 'var(--bg-white)' }}>
+              
+                {store.abbreviation}
+              </Badge>
+            }
+            {delivery.stop_order &&
+            <Badge variant="outline" className="rounded-full" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+                Stop# {String(delivery.stop_order).padStart(2, '0')}
+              </Badge>
+            }
+            {delivery.tracking_number &&
+            <Badge variant="secondary" className="font-mono rounded-full" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
+                TR# {String(delivery.tracking_number).padStart(2, '0')}
+              </Badge>
+            }
+            {delivery.ampm_deliveries &&
+            <Badge variant="outline" className="rounded-full" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+                {delivery.ampm_deliveries}
+              </Badge>
+            }
+            {delivery.actual_delivery_time &&
+            <Badge variant="secondary" className="font-mono rounded-full" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
+                <Clock className="w-3 h-3 mr-1" />
+                {format(new Date(delivery.actual_delivery_time), 'h:mm a')}
+              </Badge>
+            }
+            {isAppOwner(currentUser) && delivery.puid &&
+            <Badge variant="outline" className="font-mono rounded-full" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+                PUID {delivery.puid}
+              </Badge>
+            }
+            {isAppOwner(currentUser) && delivery.stop_id &&
+            <Badge variant="outline" className="font-mono rounded-full" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+                SID {delivery.stop_id}
+              </Badge>
+            }
+            {isAppOwner(currentUser) && patient?.patient_id &&
+            <Badge variant="outline" className="font-mono rounded-full" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+                PID {patient.patient_id}
+              </Badge>
+            }
+            <Badge className={`border rounded-full ${status.color}`} style={{ background: undefined, color: undefined }}>
+              <StatusIcon className="w-3 h-3 mr-1" />
+              {status.label}
+            </Badge>
+          </div>
         </div>
       </div>
 
