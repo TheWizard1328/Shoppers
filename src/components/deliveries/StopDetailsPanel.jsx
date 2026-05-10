@@ -522,15 +522,38 @@ export default function StopDetailsPanel({
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto space-y-4 py-2 px-2">
         {/* Patient Info Card */}
-        <Card className="relative" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+        <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
           <CardHeader className="pb-2">
-            {/* Patient Name */}
-            <div>
+            <div className="flex items-center justify-between gap-2">
+              {/* Patient Name */}
               <p className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>
                 {patient.full_name || delivery.patient_name || 'Unknown Patient'}
               </p>
+              {/* Edit/Delete Buttons inline with name */}
+              {canManageStop &&
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <Button onClick={() => onEdit(delivery)} variant="ghost" size="icon" className="h-8 w-8">
+                  <Pencil className="w-4 h-4" style={{ color: 'var(--text-slate-500)' }} />
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (confirm('Are you sure you want to delete this delivery?')) {
+                      if (typeof onDelete === 'function') {
+                        onDelete(delivery.id);
+                      } else {
+                        console.warn('[StopDetailsPanel] onDelete not provided');
+                      }
+                    }
+                  }}
+                  disabled={typeof onDelete !== 'function'}
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8">
+                  <Trash2 className="w-4 h-4 text-red-600" />
+                </Button>
+              </div>
+              }
             </div>
-
           </CardHeader>
           <CardContent className="space-y-3">
             {isPickup ?
@@ -556,144 +579,148 @@ export default function StopDetailsPanel({
               }
               </> :
             patient ?
-            <>
+            <div className="flex gap-4">
+              {/* LEFT column: address, phone, COD, preferences */}
+              <div className="flex-1 min-w-0 space-y-3">
                 {/* Address with unit number */}
                 {patient.address &&
-              <div className="flex items-start gap-2">
-                    <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: 'var(--text-slate-400)' }} />
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>{patient.address}</p>
-                        {patient.unit_number &&
-                    <Badge variant="secondary" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>Unit {patient.unit_number}</Badge>
-                    }
-                      </div>
-                      {patient.distance_from_store &&
-                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-slate-400)' }}>
-                          {patient.distance_from_store.toFixed(1)} km from store
-                        </p>
-                  }
+                <div className="flex items-start gap-2">
+                  <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: 'var(--text-slate-400)' }} />
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>{patient.address}</p>
+                      {patient.unit_number &&
+                      <Badge variant="secondary" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>Unit {patient.unit_number}</Badge>
+                      }
                     </div>
+                    {patient.distance_from_store &&
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-slate-400)' }}>
+                      {patient.distance_from_store.toFixed(1)} km from store
+                    </p>
+                    }
                   </div>
-              }
+                </div>
+                }
 
                 {patient.phone &&
-              <div className="flex items-center gap-2">
-                    <Phone className="w-4 h-4" style={{ color: 'var(--text-slate-400)' }} />
-                    <a href={`tel:${patient.phone}`} className="text-sm hover:underline" style={{ color: 'var(--text-slate-700)' }}>
-                      {formatPhoneNumber(patient.phone)}
-                    </a>
-                  </div>
-              }
+                <div className="flex items-center gap-2">
+                  <Phone className="w-4 h-4" style={{ color: 'var(--text-slate-400)' }} />
+                  <a href={`tel:${patient.phone}`} className="text-sm hover:underline" style={{ color: 'var(--text-slate-700)' }}>
+                    {formatPhoneNumber(patient.phone)}
+                  </a>
+                </div>
+                }
 
                 {patient.phone_secondary &&
-              <div className="flex items-center gap-2">
-                    <Phone className="w-4 h-4" style={{ color: 'var(--text-slate-400)' }} />
-                    <a href={`tel:${patient.phone_secondary}`} className="text-sm hover:underline" style={{ color: 'var(--text-slate-700)' }}>
-                      {formatPhoneNumber(patient.phone_secondary)} (Alt)
-                    </a>
-                  </div>
-              }
+                <div className="flex items-center gap-2">
+                  <Phone className="w-4 h-4" style={{ color: 'var(--text-slate-400)' }} />
+                  <a href={`tel:${patient.phone_secondary}`} className="text-sm hover:underline" style={{ color: 'var(--text-slate-700)' }}>
+                    {formatPhoneNumber(patient.phone_secondary)} (Alt)
+                  </a>
+                </div>
+                }
 
                 {/* COD Information */}
                 {(delivery.cod_total_amount_required > 0 || delivery.cod_payments && delivery.cod_payments.length > 0 || canEditCodInCurrentState) &&
-              <div className="pt-2 border-t space-y-2" style={{ borderColor: 'var(--border-slate-100)' }}>
-                    <p className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
-                      <DollarSign className="w-3 h-3" /> COD Payment
-                    </p>
-                    {canEditCodInCurrentState ?
-                <div className="flex flex-col gap-2">
-                        <div className="flex items-end gap-2">
-                          <div className="flex-1">
-                            <Label className="text-xs font-semibold" style={{ color: 'var(--text-slate-700)' }}>
-                              Amount to collect
-                            </Label>
-                            <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={codAmountRequired}
-                        onChange={(e) => setCodAmountRequired(e.target.value === '' ? '' : Number(e.target.value))}
-                        disabled={isUpdating}
-                        className="h-9 mt-1" />
-                      
-                          </div>
-                          <Button onClick={handleSaveCodAmount} disabled={isUpdating || !hasCodChanges} size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 px-3 whitespace-nowrap">
-                            Save
-                          </Button>
-                          {canDeleteCodInCurrentState &&
-                    <Button onClick={handleDeleteCodAmount} disabled={isUpdating || Number(delivery?.cod_total_amount_required || 0) <= 0} variant="outline" size="sm" className="h-9 px-3 whitespace-nowrap text-red-600 border-red-300">
-                              Delete
-                            </Button>
-                    }
-                        </div>
-                      </div> :
-                delivery.cod_total_amount_required > 0 ?
-                <p className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>
-                        Required: ${delivery.cod_total_amount_required.toFixed(2)}
-                      </p> :
-                null}
-                    {delivery.cod_payments && delivery.cod_payments.length > 0 &&
-                <div className="mt-1 space-y-1">
-                        {delivery.cod_payments.map((payment, idx) =>
-                  <p key={idx} className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
-                            {payment.type}: ${payment.amount.toFixed(2)}
-                          </p>
-                  )}
+                <div className="pt-2 border-t space-y-2" style={{ borderColor: 'var(--border-slate-100)' }}>
+                  <p className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
+                    <DollarSign className="w-3 h-3" /> COD Payment
+                  </p>
+                  {canEditCodInCurrentState ?
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-end gap-2">
+                      <div className="flex-1">
+                        <Label className="text-xs font-semibold" style={{ color: 'var(--text-slate-700)' }}>
+                          Amount to collect
+                        </Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={codAmountRequired}
+                          onChange={(e) => setCodAmountRequired(e.target.value === '' ? '' : Number(e.target.value))}
+                          disabled={isUpdating}
+                          className="h-9 mt-1" />
                       </div>
-                }
+                      <Button onClick={handleSaveCodAmount} disabled={isUpdating || !hasCodChanges} size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 px-3 whitespace-nowrap">
+                        Save
+                      </Button>
+                      {canDeleteCodInCurrentState &&
+                      <Button onClick={handleDeleteCodAmount} disabled={isUpdating || Number(delivery?.cod_total_amount_required || 0) <= 0} variant="outline" size="sm" className="h-9 px-3 whitespace-nowrap text-red-600 border-red-300">
+                        Delete
+                      </Button>
+                      }
+                    </div>
+                  </div> :
+                  delivery.cod_total_amount_required > 0 ?
+                  <p className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>
+                    Required: ${delivery.cod_total_amount_required.toFixed(2)}
+                  </p> :
+                  null}
+                  {delivery.cod_payments && delivery.cod_payments.length > 0 &&
+                  <div className="mt-1 space-y-1">
+                    {delivery.cod_payments.map((payment, idx) =>
+                    <p key={idx} className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
+                      {payment.type}: ${payment.amount.toFixed(2)}
+                    </p>
+                    )}
                   </div>
-              }
+                  }
+                </div>
+                }
 
                 {/* Patient Preferences */}
                 <div className="flex flex-wrap gap-2 pt-2">
                   {patient.mailbox_ok &&
-                <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
-                      <Mail className="w-3 h-3 mr-1" /> Mailbox OK
-                    </Badge>
-                }
+                  <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+                    <Mail className="w-3 h-3 mr-1" /> Mailbox OK
+                  </Badge>
+                  }
                   {patient.call_upon_arrival &&
-                <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
-                      <Phone className="w-3 h-3 mr-1" /> Call on Arrival
-                    </Badge>
-                }
+                  <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+                    <Phone className="w-3 h-3 mr-1" /> Call on Arrival
+                  </Badge>
+                  }
                   {patient.ring_bell && !patient.dont_ring_bell &&
-                <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
-                      <Bell className="w-3 h-3 mr-1" /> Ring Bell
-                    </Badge>
-                }
+                  <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+                    <Bell className="w-3 h-3 mr-1" /> Ring Bell
+                  </Badge>
+                  }
                   {patient.dont_ring_bell &&
-                <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: '#ea580c', borderColor: '#fdba74' }}>
-                      <BellOff className="w-3 h-3 mr-1" /> Don't Ring
-                    </Badge>
-                }
+                  <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: '#ea580c', borderColor: '#fdba74' }}>
+                    <BellOff className="w-3 h-3 mr-1" /> Don't Ring
+                  </Badge>
+                  }
                   {patient.back_door &&
-                <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
-                      <Home className="w-3 h-3 mr-1" /> Back Door
-                    </Badge>
-                }
+                  <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
+                    <Home className="w-3 h-3 mr-1" /> Back Door
+                  </Badge>
+                  }
                 </div>
+              </div>
 
-                {/* Patient Notes - only show if notes exist */}
+              {/* RIGHT column: Patient Notes + Driver Notes */}
+              {(patient.notes || delivery.delivery_notes) &&
+              <div className="w-40 flex-shrink-0 space-y-3">
                 {patient.notes &&
-              <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-100)' }}>
-                    <p className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
-                      <StickyNote className="w-3 h-3" /> Patient Notes
-                    </p>
-                    <p className="text-sm" style={{ color: 'var(--text-slate-700)' }}>{patient.notes}</p>
-                  </div>
-              }
-
-                {/* Driver Notes - only show if notes exist */}
+                <div>
+                  <p className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
+                    <StickyNote className="w-3 h-3" /> Patient Notes
+                  </p>
+                  <p className="text-sm" style={{ color: 'var(--text-slate-700)' }}>{patient.notes}</p>
+                </div>
+                }
                 {delivery.delivery_notes &&
-              <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-100)' }}>
-                    <p className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
-                      <StickyNote className="w-3 h-3" /> Driver Notes
-                    </p>
-                    <p className="text-sm" style={{ color: 'var(--text-slate-700)' }}>{delivery.delivery_notes}</p>
-                  </div>
+                <div>
+                  <p className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
+                    <StickyNote className="w-3 h-3" /> Driver Notes
+                  </p>
+                  <p className="text-sm" style={{ color: 'var(--text-slate-700)' }}>{delivery.delivery_notes}</p>
+                </div>
+                }
+              </div>
               }
-              </> :
+            </div> :
 
             <p className="text-sm" style={{ color: 'var(--text-slate-500)' }}>Patient information not available</p>
             }
@@ -807,61 +834,27 @@ export default function StopDetailsPanel({
               </div>
             }
             
-            {/* Edit/Delete Buttons */}
-            {canManageStop &&
-            <div className="absolute top-4 right-4 flex flex-col items-end gap-2">
-                <div className="flex gap-2">
-                  <Button
-                  onClick={() => onEdit(delivery)}
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8">
-                  
-                    <Pencil className="w-4 h-4" style={{ color: 'var(--text-slate-500)' }} />
-                  </Button>
-                  <Button
-                  onClick={() => {
-                    if (confirm('Are you sure you want to delete this delivery?')) {
-                      if (typeof onDelete === 'function') {
-                        onDelete(delivery.id);
-                      } else {
-                        console.warn('[StopDetailsPanel] onDelete not provided');
-                      }
-                    }
-                  }}
-                  disabled={typeof onDelete !== 'function'}
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  style={{ color: '#dc2626' }}>
-                  
-                    <Trash2 className="w-4 h-4 text-red-600" />
-                  </Button>
-                </div>
-                {currentUser?.app_roles?.includes('driver') && !isCompleted &&
-              <div className="flex gap-2">
-                    <Button
-                  onClick={() => onStatusUpdate(delivery.id, 'completed')}
-                  className="bg-emerald-600 hover:bg-emerald-700 h-8 w-8 p-0"
-                  size="icon"
-                  title="Complete"
-                  aria-label="Complete delivery">
-                  
-                      <CheckCircle className="w-4 h-4" />
-                    </Button>
-                    <Button
-                  onClick={() => onStatusUpdate(delivery.id, 'failed')}
-                  variant="destructive"
-                  className="h-8 w-8 p-0"
-                  size="icon"
-                  title="Failed"
-                  aria-label="Mark delivery failed">
-                  
-                      <XCircle className="w-4 h-4" />
-                    </Button>
-                  </div>
-              }
-              </div>
+            {/* Quick complete/fail buttons for drivers */}
+            {canManageStop && currentUser?.app_roles?.includes('driver') && !isCompleted &&
+            <div className="flex gap-2 pt-2">
+              <Button
+                onClick={() => onStatusUpdate(delivery.id, 'completed')}
+                className="bg-emerald-600 hover:bg-emerald-700 h-8 w-8 p-0"
+                size="icon"
+                title="Complete"
+                aria-label="Complete delivery">
+                <CheckCircle className="w-4 h-4" />
+              </Button>
+              <Button
+                onClick={() => onStatusUpdate(delivery.id, 'failed')}
+                variant="destructive"
+                className="h-8 w-8 p-0"
+                size="icon"
+                title="Failed"
+                aria-label="Mark delivery failed">
+                <XCircle className="w-4 h-4" />
+              </Button>
+            </div>
             }
           </CardContent>
         </Card>
