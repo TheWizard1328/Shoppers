@@ -826,7 +826,6 @@ export default function StopDetailsPanel({
                         onClick={() => setBarcodePreview({ value: val, isRx: false })}
                       >
                         <BarcodeThumb value={val} />
-                        <p className="mt-1 text-[11px] text-center text-slate-500 break-all">{val}</p>
                       </div>
                     ))}
                   </div>
