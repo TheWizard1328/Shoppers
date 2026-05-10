@@ -966,9 +966,14 @@ export default function StopDetailsPanel({
           {(delivery?.receipt_barcode_values?.length > 0 || delivery?.barcode_values?.length > 0) &&
           <Card className="flex-1 min-w-0" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold" style={{ color: 'var(--text-slate-700)' }}>
-                Barcodes
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-semibold" style={{ color: 'var(--text-slate-700)' }}>
+                  Barcodes
+                </CardTitle>
+                {delivery?.barcode_values?.length > 0 &&
+                  <span className="text-xs font-medium" style={{ color: 'var(--text-slate-500)' }}>Rx ({delivery.barcode_values.length})</span>
+                }
+              </div>
             </CardHeader>
             <CardContent className="space-y-3">
               {delivery?.receipt_barcode_values?.length > 0 &&
@@ -989,10 +994,6 @@ export default function StopDetailsPanel({
               }
               {delivery?.barcode_values?.length > 0 &&
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-medium" style={{ color: 'var(--text-slate-500)' }}>Rx</p>
-                  <p className="text-xs font-medium" style={{ color: 'var(--text-slate-500)' }}>{delivery.barcode_values.length}</p>
-                </div>
                 <div className="flex flex-col gap-2">
                   {delivery.barcode_values.map((val, idx) =>
                   <div key={`rx-${idx}`} className="border rounded-md p-2 cursor-pointer transition-colors"
