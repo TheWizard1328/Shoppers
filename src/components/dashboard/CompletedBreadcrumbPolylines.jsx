@@ -199,7 +199,7 @@ export default function CompletedBreadcrumbPolylines({
         encodedPolyline: (typeof stop.finished_leg_encoded_polyline === "string" && stop.finished_leg_encoded_polyline.trim().length > 0
           ? stop.finished_leg_encoded_polyline.trim()
           : stop.encoded_polyline.trim()),
-        opacity: highlightedDeliveryId && stop.id === highlightedDeliveryId ? 0.85 : (selectedDriverId && selectedDriverId !== "all" ? 0.7 : 0.35)
+        opacity: highlightedDeliveryId && stop.id === highlightedDeliveryId ? 0.85 : (selectedDriverId && selectedDriverId !== "all" ? 0.7 : 0.6)
       };
     });
   }, [pickupMarkers, deliveryMarkers, isAllDriversMode, selectedDriverId, highlightedDeliveryId]);
@@ -245,7 +245,7 @@ export default function CompletedBreadcrumbPolylines({
           ? 0.7
           : highlightedDeliveryId && (fromStop.id === highlightedDeliveryId || toStop.id === highlightedDeliveryId)
             ? 0.85
-            : 0.2;
+            : 0.55;
 
         const start = { latitude: Number(fromStop.latitude), longitude: Number(fromStop.longitude) };
         const end = { latitude: Number(toStop.latitude), longitude: Number(toStop.longitude) };
@@ -289,7 +289,7 @@ export default function CompletedBreadcrumbPolylines({
             sortOrder: route.sort_order ?? route.sortOrder,
             color: color || "#607D8B",
             shadeRatio: 0.55,
-            opacity: selectedDriverId && selectedDriverId !== "all" && route.driverId === selectedDriverId ? 0.7 : 0.35,
+            opacity: selectedDriverId && selectedDriverId !== "all" && route.driverId === selectedDriverId ? 0.7 : 0.55,
             fallbackDashArray: "6, 6",
             deliveryDate: lastStop.delivery_date,
             start: { latitude: Number(lastStop.latitude), longitude: Number(lastStop.longitude) },
