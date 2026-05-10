@@ -241,7 +241,7 @@ export default function HereType1Polylines({
     );
   });
 
-  // Render the next incomplete leg (after current) in a lighter blue (faded) so driver can preview upcoming stop
+  // Render remaining incomplete legs (after current) in driver's color
   driverStops.forEach((stops, driverId) => {
     if (!showAll && selectedDriverId && selectedDriverId !== 'all' && driverId !== selectedDriverId) return;
 
@@ -250,53 +250,57 @@ export default function HereType1Polylines({
     
     const currentIndex = orderedStops.findIndex((stop) => stop?.isNextDelivery === true);
     
-    // If there's a next stop after current, render its leg
+    // Render all stops AFTER the current isNextDelivery in driver's color
     if (currentIndex >= 0 && currentIndex < orderedStops.length - 1) {
-      const currentStop = orderedStops[currentIndex];
-      const nextStop = orderedStops[currentIndex + 1];
-      
-      if (!nextStop) return;
+      for (let i = currentIndex + 1; i < orderedStops.length; i++) {
+        const prevStop = orderedStops[i - 1];
+        const stop = orderedStops[i];
+        
+        if (!stop) continue;
 
-      const origin = { latitude: Number(currentStop.latitude), longitude: Number(currentStop.longitude) };
-      const destination = { latitude: Number(nextStop.latitude), longitude: Number(nextStop.longitude) };
-      const key = `next-upcoming-${driverId}-${nextStop.id}`;
+        const origin = { latitude: Number(prevStop.latitude), longitude: Number(prevStop.longitude) };
+        const destination = { latitude: Number(stop.latitude), longitude: Number(stop.longitude) };
+        const driverColor = getPolylineColorForDriver(driverId, stop.driver?.sort_order);
+        const key = `remaining-${driverId}-${stop.id}`;
 
-      let coords = null;
-      let shouldUseFallback = false;
-      if (typeof nextStop?.encoded_polyline === 'string' && nextStop.encoded_polyline.trim()) {
-        try {
-          coords = decodePolyline(nextStop.encoded_polyline);
-        } catch (_) {}
+        let coords = null;
+        let shouldUseFallback = false;
+        if (typeof stop?.encoded_polyline === 'string' && stop.encoded_polyline.trim()) {
+          try {
+            coords = decodePolyline(stop.encoded_polyline);
+          } catch (_) {}
+        }
+
+        if ((!coords || coords.length < 2) && Number.isFinite(origin.latitude) && Number.isFinite(origin.longitude) && Number.isFinite(destination.latitude) && Number.isFinite(destination.longitude)) {
+          coords = makeFallback(origin, destination);
+          shouldUseFallback = true;
+        }
+
+        if (!coords || coords.length < 2 || seenKeys.has(key)) continue;
+        seenKeys.add(key);
+
+        const mode = getDriverMode(driverId);
+        const driverStyle = getTravelModeLineStyle(mode, driverColor);
+        lines.push(
+          <Polyline
+            key={`type1-remaining-line-${driverId}-${stop.id}`}
+            positions={coords}
+            pathOptions={{
+              ...driverStyle,
+              color: driverColor,
+              opacity: shouldUseFallback ? 0.6 : 0.75,
+              lineJoin: 'round',
+              lineCap: 'round'
+            }}
+            pane="routeBasePane"
+          />,
+          <RouteDirectionDecorator
+            key={`type1-remaining-arrow-${driverId}-${stop.id}`}
+            positions={coords}
+            color={driverColor}
+          />
+        );
       }
-
-      const hasStoredRoute = typeof nextStop?.encoded_polyline === 'string' && nextStop.encoded_polyline.trim().length > 0;
-      const hasRouteMetrics = Number(nextStop?.estimated_distance_km || 0) > 0 || Number(nextStop?.estimated_duration_minutes || 0) > 0;
-
-      if ((!coords || coords.length < 2) && !hasStoredRoute && !hasRouteMetrics && Number.isFinite(origin.latitude) && Number.isFinite(origin.longitude) && Number.isFinite(destination.latitude) && Number.isFinite(destination.longitude)) {
-        coords = makeFallback(origin, destination);
-        shouldUseFallback = true;
-      }
-
-      if (!coords || coords.length < 2 || seenKeys.has(key)) return;
-      seenKeys.add(key);
-
-      // CRITICAL: Render next leg with faded blue (lower opacity) so it's visible but not as prominent as current
-      lines.push(
-        <Polyline
-          key={`type1-next-line-${driverId}-${nextStop.id}`}
-          positions={coords}
-          pathOptions={{
-            ...getDriverRouteStyle(driverId, shouldUseFallback ? 0.35 : 0.55),
-            dashArray: shouldUseFallback ? '8,8' : getDriverRouteStyle(driverId, 0.55).dashArray
-          }}
-          pane="routeBasePane"
-        />,
-        <RouteDirectionDecorator
-          key={`type1-next-arrow-${driverId}-${nextStop.id}`}
-          positions={coords}
-          color={CURRENT_LEG_COLOR}
-        />
-      );
     }
   });
 
