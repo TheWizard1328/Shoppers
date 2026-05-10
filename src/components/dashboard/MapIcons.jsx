@@ -81,7 +81,8 @@ export const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = fal
     ? statusColor
     : outerRingColor;
 
-  const markerOpacity = isHighlightedFinished ? 0.85 : isFaded ? 0.5 : isOtherDriver ? 0.75 : 1;
+  // CRITICAL: Placeholder markers (isOtherDriver) stay fully opaque when route is complete to remain visible
+  const markerOpacity = isHighlightedFinished ? 0.85 : isFaded ? 0.5 : 1;
 
   const icon = L.divIcon({
     html: `
