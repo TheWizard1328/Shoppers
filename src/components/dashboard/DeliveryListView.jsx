@@ -243,10 +243,9 @@ const DeliveryRow = memo(({
         <img
           src={delivery.signature_image_url}
           alt="Signature"
-          className="w-8 h-8 rounded-sm object-cover border cursor-zoom-in"
+          className="w-20 h-7 rounded-sm object-cover border cursor-zoom-in"
           style={{ borderColor: 'var(--border-slate-200)' }}
           onClick={(e) => {e.stopPropagation();onOpenMedia({ type: 'image', src: delivery.signature_image_url, title: 'Signature' });}} /> :
-
 
         <div className="w-20 h-7 rounded-sm border flex items-center justify-center text-slate-400" style={{ borderColor: 'var(--border-slate-200)' }}>—</div>
         }
