@@ -434,7 +434,7 @@ export default function DeliveryFormView({
         style={useMobileLayout && isMobileDevice ? { height: '100%', maxHeight: '100%' } : undefined}>
         <Card
           onKeyDown={handleGlobalKeyDown}
-          className={`border-0 flex flex-col w-full ${useMobileLayout && isMobileDevice ? 'h-full' : 'rounded-xl shadow-xl'}`}
+          className={`border-0 flex flex-col w-full ${useMobileLayout && isMobileDevice ? 'h-full' : 'rounded-xl shadow-xl overflow-hidden'}`}
           style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
           
           {/* Header */}
@@ -485,8 +485,8 @@ export default function DeliveryFormView({
           }
 
           <CardContent className={`p-3 relative ${useMobileLayout ? 'flex-1 overflow-y-auto overflow-x-hidden min-h-0' : shouldUseCompactPickupEditHeight ? 'overflow-visible' : delivery ? 'overflow-y-auto overflow-x-hidden' : 'flex-1 overflow-hidden'}`}>
-            <div className={`h-full min-h-0 grid gap-3 ${!delivery && !useMobileLayout && !isPickupMode ? 'grid-cols-[minmax(0,1fr)_300px]' : 'grid-cols-1'}`}>
-              <div className={`min-h-0 flex flex-col gap-3 ${useMobileLayout ? 'overflow-visible' : 'overflow-hidden'}`}>
+            <div className={`${!delivery && !useMobileLayout && !isPickupMode ? 'h-full min-h-0 grid-cols-[minmax(0,1fr)_300px]' : 'grid-cols-1'} grid gap-3`}>
+              <div className={`flex flex-col gap-3 ${useMobileLayout || delivery ? 'overflow-visible' : 'min-h-0 overflow-hidden'}`}>
 
               {/* Pickup mode: Row 1 = Location + Date + Driver */}
               {isPickupMode && !delivery &&
