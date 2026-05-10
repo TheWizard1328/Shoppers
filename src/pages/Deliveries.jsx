@@ -685,17 +685,17 @@ export default function DeliveriesPage() {
   useEffect(() => {
     const unsubD = base44.entities.Delivery.subscribe((event) => {
       if (!isMounted.current) return;
-      if (event.type === 'create') setAllDeliveries((prev) => prev.some((d) => d?.id === event.id) ? prev : [...prev, event.data]);
-      else if (event.type === 'update') setAllDeliveries((prev) => prev.map((d) => d?.id === event.id ? { ...d, ...event.data } : d));
-      else if (event.type === 'delete') setAllDeliveries((prev) => prev.filter((d) => d?.id !== event.id));
+      if (event.type === 'create') setAllDeliveries((prev) => prev.some((d) => d?.id === event.id) ? prev : [...prev, event.data]);else
+      if (event.type === 'update') setAllDeliveries((prev) => prev.map((d) => d?.id === event.id ? { ...d, ...event.data } : d));else
+      if (event.type === 'delete') setAllDeliveries((prev) => prev.filter((d) => d?.id !== event.id));
     });
     const unsubP = base44.entities.Patient.subscribe((event) => {
       if (!isMounted.current) return;
-      if (event.type === 'create') setAllPatients((prev) => prev.some((p) => p?.id === event.id) ? prev : [...prev, event.data]);
-      else if (event.type === 'update') setAllPatients((prev) => prev.map((p) => p?.id === event.id ? { ...p, ...event.data } : p));
-      else if (event.type === 'delete') setAllPatients((prev) => prev.filter((p) => p?.id !== event.id));
+      if (event.type === 'create') setAllPatients((prev) => prev.some((p) => p?.id === event.id) ? prev : [...prev, event.data]);else
+      if (event.type === 'update') setAllPatients((prev) => prev.map((p) => p?.id === event.id ? { ...p, ...event.data } : p));else
+      if (event.type === 'delete') setAllPatients((prev) => prev.filter((p) => p?.id !== event.id));
     });
-    return () => { unsubD(); unsubP(); };
+    return () => {unsubD();unsubP();};
   }, []);
 
   // Fetch fresh AppUser data periodically for accurate driver_status
@@ -974,7 +974,7 @@ export default function DeliveriesPage() {
   }, [location.search, location.pathname, navigate]);
 
 
-  const handleStatusChange = useCallback((value) => { setStatusFilter(value); const params = new URLSearchParams(location.search); if (!value || value === 'all') params.delete('status'); else params.set('status', value); navigate(`${location.pathname}?${params.toString()}`, { replace: true }); }, [location.search, location.pathname, navigate]);
+  const handleStatusChange = useCallback((value) => {setStatusFilter(value);const params = new URLSearchParams(location.search);if (!value || value === 'all') params.delete('status');else params.set('status', value);navigate(`${location.pathname}?${params.toString()}`, { replace: true });}, [location.search, location.pathname, navigate]);
 
   const effectiveDeliveries = useMemo(() => {
     if (!currentUser || !allDeliveries || !Array.isArray(allDeliveries)) return [];
@@ -3182,7 +3182,7 @@ export default function DeliveriesPage() {
         }
       </div>
 
-      <div className="hidden lg:block px-6 py-4 flex-shrink-0 z-20" style={{ borderBottom: '1px solid var(--border-slate-200)', background: 'var(--bg-white)' }}>
+      <div className="hidden lg:block flex-shrink-0 z-20 px-4 py-2" style={{ borderBottom: '1px solid var(--border-slate-200)', background: 'var(--bg-white)' }}>
         {isDriverOverviewMode ?
         <div className="flex items-center gap-3">
           <SmartRefreshIndicator inline={true} />
@@ -3205,8 +3205,8 @@ export default function DeliveriesPage() {
           handleStoreChange={handleStoreChange}
           routeScopedStoreOptions={routeScopedStoreOptions}
           statusFilter={statusFilter}
-          handleStatusChange={handleStatusChange}
-        />
+          handleStatusChange={handleStatusChange} />
+
         }
       </div>
 
@@ -3527,36 +3527,36 @@ export default function DeliveriesPage() {
               <Card className="backdrop-blur-sm md:hidden flex-shrink-0 m-4 mb-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                 <CardContent className="p-4">
                   <DriverOverviewMobileToolbar
-                    currentUser={currentUser}
-                    cities={cities}
-                    searchTerm={searchTerm}
-                    onSearchChange={setSearchTerm}
-                    selectedCityId={selectedCityId}
-                    onCityChange={(value) => {
-                      setSelectedCityId(value);
-                      updateUrl({ city: value });
-                    }}
-                    selectedOverviewYear={selectedOverviewYear}
-                    onOverviewYearChange={(year) => {
-                      yearManuallySelected.current = true;
-                      setSelectedOverviewYear(year);
-                      const params = new URLSearchParams(location.search);
-                      if (year === 'all') {
-                        params.set('overviewYear', 'all');
-                      } else {
-                        params.set('overviewYear', year);
-                      }
-                      navigate(`${location.pathname}?${params.toString()}`, { replace: true });
-                    }}
-                    availableOverviewYears={availableOverviewYears}
-                    canAddDelivery={userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')}
-                    onAddDelivery={() => {
-                      setEditingDelivery(null);
-                      setShowDeliveryForm(true);
-                    }}
-                    canImport={canAccessImports(currentUser) && !isMobile}
-                    onImportRoute={handleOpenRouteImport}
-                  />
+                  currentUser={currentUser}
+                  cities={cities}
+                  searchTerm={searchTerm}
+                  onSearchChange={setSearchTerm}
+                  selectedCityId={selectedCityId}
+                  onCityChange={(value) => {
+                    setSelectedCityId(value);
+                    updateUrl({ city: value });
+                  }}
+                  selectedOverviewYear={selectedOverviewYear}
+                  onOverviewYearChange={(year) => {
+                    yearManuallySelected.current = true;
+                    setSelectedOverviewYear(year);
+                    const params = new URLSearchParams(location.search);
+                    if (year === 'all') {
+                      params.set('overviewYear', 'all');
+                    } else {
+                      params.set('overviewYear', year);
+                    }
+                    navigate(`${location.pathname}?${params.toString()}`, { replace: true });
+                  }}
+                  availableOverviewYears={availableOverviewYears}
+                  canAddDelivery={userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')}
+                  onAddDelivery={() => {
+                    setEditingDelivery(null);
+                    setShowDeliveryForm(true);
+                  }}
+                  canImport={canAccessImports(currentUser) && !isMobile}
+                  onImportRoute={handleOpenRouteImport} />
+                
                 </CardContent>
               </Card>
 

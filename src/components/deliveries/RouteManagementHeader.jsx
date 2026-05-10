@@ -67,40 +67,40 @@ export function RouteManagementStopDetailsOverlay({
         exit={{ opacity: 0 }}
         transition={{ duration: 0.2 }}
         className={`${isMobile ? 'fixed' : 'absolute'} inset-0 bg-black/50 z-[200]`}
-        onClick={onClose}
-      />
+        onClick={onClose} />
+      
 
-      {isMobile ? (
-        <motion.div
-          initial={{ y: "100%" }}
-          animate={{ y: 0 }}
-          exit={{ y: "100%" }}
-          transition={{ type: "spring", stiffness: 300, damping: 30 }}
-          className="fixed left-0 right-0 z-[201] overflow-hidden rounded-t-2xl"
-          style={{ background: 'var(--bg-white)', bottom: 'var(--bottom-nav-height, 88px)', maxHeight: 'calc(100dvh - var(--mobile-header-height, 64px) - var(--bottom-nav-height, 88px) - 8px)' }}
-          onClick={(e) => e.stopPropagation()}
-        >
+      {isMobile ?
+      <motion.div
+        initial={{ y: "100%" }}
+        animate={{ y: 0 }}
+        exit={{ y: "100%" }}
+        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        className="fixed left-0 right-0 z-[201] overflow-hidden rounded-t-2xl"
+        style={{ background: 'var(--bg-white)', bottom: 'var(--bottom-nav-height, 88px)', maxHeight: 'calc(100dvh - var(--mobile-header-height, 64px) - var(--bottom-nav-height, 88px) - 8px)' }}
+        onClick={(e) => e.stopPropagation()}>
+        
           <div className="overflow-y-auto" style={{ maxHeight: 'calc(100dvh - var(--mobile-header-height, 64px) - var(--bottom-nav-height, 88px) - 8px)' }}>
             <StopDetailsPanel {...panelProps} />
           </div>
-        </motion.div>
-      ) : (
-        <motion.div
-          initial={{ x: "100%" }}
-          animate={{ x: 0 }}
-          exit={{ x: "100%" }}
-          transition={{ type: "spring", stiffness: 300, damping: 30 }}
-          className="absolute right-0 w-[560px] shadow-xl z-[201] overflow-hidden"
-          style={{ background: 'var(--bg-white)', top: 'var(--driver-info-offset, 88px)', height: 'calc(100% - var(--driver-info-offset, 88px))' }}
-          onClick={(e) => e.stopPropagation()}
-        >
+        </motion.div> :
+
+      <motion.div
+        initial={{ x: "100%" }}
+        animate={{ x: 0 }}
+        exit={{ x: "100%" }}
+        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        className="absolute right-0 w-[560px] shadow-xl z-[201] overflow-hidden"
+        style={{ background: 'var(--bg-white)', top: 'var(--driver-info-offset, 88px)', height: 'calc(100% - var(--driver-info-offset, 88px))' }}
+        onClick={(e) => e.stopPropagation()}>
+        
           <div className="h-full overflow-y-auto">
             <StopDetailsPanel {...panelProps} />
           </div>
         </motion.div>
-      )}
-    </>
-  );
+      }
+    </>);
+
 }
 
 export default function RouteManagementHeader({
@@ -120,7 +120,7 @@ export default function RouteManagementHeader({
 }) {
   return (
     <>
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-2">
         <div>
           <h1 className="text-3xl font-bold flex items-baseline gap-3" style={{ color: 'var(--text-slate-900)' }}>
             <SmartRefreshIndicator inline={true} />
@@ -135,8 +135,8 @@ export default function RouteManagementHeader({
             currentUser={currentUser}
             driverFilter={driverFilter}
             selectedDate={selectedDate}
-            driverFilteredDeliveries={driverFilteredDeliveries}
-          />
+            driverFilteredDeliveries={driverFilteredDeliveries} />
+          
         </div>
       </div>
       <div className="flex items-center gap-3">
@@ -148,17 +148,17 @@ export default function RouteManagementHeader({
           <SelectTrigger className="w-[140px] bg-white border-slate-300"><SelectValue placeholder="Select driver" /></SelectTrigger>
           <SelectContent><SelectItem value="all">All Drivers</SelectItem>{driverFilterOptions.map((driver) => <SelectItem key={driver.id} value={driver.id}>{driver.label}</SelectItem>)}</SelectContent>
         </Select>
-        {!userHasRole(currentUser, 'dispatcher') && (
-          <Select value={storeFilter} onValueChange={handleStoreChange}>
+        {!userHasRole(currentUser, 'dispatcher') &&
+        <Select value={storeFilter} onValueChange={handleStoreChange}>
             <SelectTrigger className="w-[160px] bg-white border-slate-300 text-slate-900 font-medium"><SelectValue placeholder="Store" /></SelectTrigger>
             <SelectContent><SelectItem value="all">All Stores</SelectItem>{routeScopedStoreOptions.map((store) => <SelectItem key={store.id} value={store.id}>{store.label}</SelectItem>)}</SelectContent>
           </Select>
-        )}
+        }
         <Select value={statusFilter} onValueChange={handleStatusChange}>
           <SelectTrigger className="w-36 bg-white border-slate-300 text-slate-900 font-medium"><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent><SelectItem value="all">All Status</SelectItem><SelectItem value="pending">Pending</SelectItem><SelectItem value="Ready For Pickup">Ready For Pickup</SelectItem><SelectItem value="picked_up">Picked Up</SelectItem><SelectItem value="in_transit">In Transit</SelectItem><SelectItem value="completed">Completed</SelectItem><SelectItem value="failed">Failed</SelectItem><SelectItem value="returned">Returned</SelectItem><SelectItem value="cancelled">Cancelled</SelectItem></SelectContent>
         </Select>
       </div>
-    </>
-  );
+    </>);
+
 }
