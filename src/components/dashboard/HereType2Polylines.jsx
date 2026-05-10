@@ -98,7 +98,7 @@ export default function HereType2Polylines({
     });
 
     grouped.forEach((stops, driverId) => {
-      const incomplete = stops.filter((s) => s.status === "in_transit" || s.status === "en_route" || s.status === "pending");
+      const incomplete = stops.filter((s) => s.status === "in_transit" || s.status === "en_route");
       if (incomplete.length === 0) return;
       incomplete.sort((a, b) => {
         const stopOrderA = Number(a?.stop_order);
@@ -169,8 +169,7 @@ export default function HereType2Polylines({
   // Type2 draws the remaining legs starting from stops[1] → stops[2], etc.
   driverIncomplete.forEach((stops, driverId) => {
     const totalLegs = Math.max(0, stops.length - 1);
-    // Draw all legs from stop[0]→stop[1] onward (Type1 draws current location → stop[0])
-    for (let i = 0; i < stops.length - 1; i++) {
+    for (let i = 1; i < stops.length - 1; i++) {
       const a = stops[i];
       const b = stops[i + 1];
       const coords = typeof b?.encoded_polyline === 'string' && b.encoded_polyline.trim()
@@ -184,7 +183,7 @@ export default function HereType2Polylines({
           pathOptions={{
             ...getDriverRouteStyle(driverId, coords ? (() => {
               if (totalLegs <= 1) return 0.85;
-              const t = i / Math.max(1, totalLegs - 1);
+              const t = (i - 1) / Math.max(1, totalLegs - 2);
               const start = 0.85, end = 0.25;
               return Math.max(end, start + (end - start) * t);
             })() : 0.35),
