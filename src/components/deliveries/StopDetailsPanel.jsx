@@ -390,7 +390,7 @@ export default function StopDetailsPanel({
         }
       `}</style>
       {/* Header */}
-      <div className="flex-shrink-0 p-4 border-b" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+      <div className="flex-shrink-0 border-b px-4 py-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon" onClick={onClose} className="flex-shrink-0">
             <ArrowLeft className="w-5 h-5" />
