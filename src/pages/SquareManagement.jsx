@@ -992,13 +992,6 @@ export default function SquareManagement() {
     });
   }, [catalogItems, locationConfigs, stores, visibleLocationIds, driverScopedLocationIds, deletingId, lookbackStart, visibleSquareLocationConfigIds]);
 
-  const reconciliationLookbackStart = useMemo(() => {
-    const date = new Date();
-    date.setHours(0, 0, 0, 0);
-    date.setDate(date.getDate() - 90);
-    return date;
-  }, []);
-
   const reconciliationRows = useMemo(() => {
     const rows = (deliveries || [])
       .filter((delivery) => {
@@ -1010,7 +1003,7 @@ export default function SquareManagement() {
         if (!store?.square_location_config_id || !visibleSquareLocationConfigIds.has(store.square_location_config_id)) return false;
 
         const deliveryDate = delivery.delivery_date ? new Date(`${String(delivery.delivery_date).slice(0, 10)}T00:00:00`) : null;
-        if (!(deliveryDate instanceof Date) || Number.isNaN(deliveryDate.getTime()) || deliveryDate < reconciliationLookbackStart) return false;
+        if (!(deliveryDate instanceof Date) || Number.isNaN(deliveryDate.getTime()) || deliveryDate < lookbackStart) return false;
 
         if (selectedDriverFilter !== 'all') {
           if (selectedDriverUserIds.size === 0) return false;
@@ -1057,7 +1050,7 @@ export default function SquareManagement() {
       seenRowKeys.add(rowKey);
       return true;
     });
-  }, [deliveries, stores, visibleSquareLocationConfigIds, reconciliationLookbackStart, selectedDriverFilter, selectedDriverUserIds, locationConfigs, allTransactions, hasMatchingSquareTransaction, patients, formatItemNameForDisplay]);
+  }, [deliveries, stores, visibleSquareLocationConfigIds, lookbackStart, selectedDriverFilter, selectedDriverUserIds, locationConfigs, allTransactions, hasMatchingSquareTransaction, patients, formatItemNameForDisplay]);
 
   const codDeliveriesCount = useMemo(() => deliveries.filter((delivery) => {
     if (!delivery || Number(delivery.cod_total_amount_required || 0) <= 0) return false;
