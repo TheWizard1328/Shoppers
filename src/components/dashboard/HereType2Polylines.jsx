@@ -53,16 +53,24 @@ export default function HereType2Polylines({
 
   const driverSortOrderMap = useMemo(() => {
     const map = new Map();
+    // Prefer stop markers — they carry driver.sort_order directly from AppUser
+    [...deliveryMarkers, ...pickupMarkers].forEach((stop) => {
+      if (!stop?.driver_id || map.has(stop.driver_id)) return;
+      const so = stop.driver?.sort_order;
+      if (so != null && Number.isFinite(Number(so)) && Number(so) !== 9999) {
+        map.set(stop.driver_id, Number(so));
+      }
+    });
+    // Fall back to driverRoutes if stop markers don't have it
     (driverRoutes || []).forEach((r) => {
-      if (!r?.driverId) return;
-      // Use sort_order only if it's a real value (not the 9999 sentinel)
+      if (!r?.driverId || map.has(r.driverId)) return;
       const so = r.sort_order ?? r.sortOrder;
       if (so != null && Number.isFinite(Number(so)) && Number(so) !== 9999) {
         map.set(r.driverId, Number(so));
       }
     });
     return map;
-  }, [driverRoutes]);
+  }, [deliveryMarkers, pickupMarkers, driverRoutes]);
 
   const getDriverMode = (driverId) => normalizeTravelMode(localDriverTravelModes[driverId] ?? driverTravelModes[driverId]);
   const getDriverRouteStyle = (driverId, opacityOverride) => {

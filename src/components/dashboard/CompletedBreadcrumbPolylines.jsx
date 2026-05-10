@@ -187,16 +187,21 @@ export default function CompletedBreadcrumbPolylines({
       })
       .filter((stop) => isAllDriversMode || selectedDriverId === "all" || stop.driver_id === selectedDriverId);
 
-    return allFinishedStops.map((stop) => ({
-      finishedLegTransportMode: normalizeTravelMode(stop.finished_leg_transport_mode || stop.transport_mode),
-      id: `stored-${stop.id}`,
-      stopId: stop.id,
-      driverId: stop.driver_id,
-      encodedPolyline: (typeof stop.finished_leg_encoded_polyline === "string" && stop.finished_leg_encoded_polyline.trim().length > 0
-        ? stop.finished_leg_encoded_polyline.trim()
-        : stop.encoded_polyline.trim()),
-      opacity: highlightedDeliveryId && stop.id === highlightedDeliveryId ? 0.85 : (selectedDriverId && selectedDriverId !== "all" ? 0.7 : 0.35)
-    }));
+    return allFinishedStops.map((stop) => {
+      const so = stop.driver?.sort_order;
+      const safeSo = (so != null && Number.isFinite(Number(so)) && Number(so) !== 9999) ? Number(so) : undefined;
+      return {
+        finishedLegTransportMode: normalizeTravelMode(stop.finished_leg_transport_mode || stop.transport_mode),
+        id: `stored-${stop.id}`,
+        stopId: stop.id,
+        driverId: stop.driver_id,
+        sortOrder: safeSo,
+        encodedPolyline: (typeof stop.finished_leg_encoded_polyline === "string" && stop.finished_leg_encoded_polyline.trim().length > 0
+          ? stop.finished_leg_encoded_polyline.trim()
+          : stop.encoded_polyline.trim()),
+        opacity: highlightedDeliveryId && stop.id === highlightedDeliveryId ? 0.85 : (selectedDriverId && selectedDriverId !== "all" ? 0.7 : 0.35)
+      };
+    });
   }, [pickupMarkers, deliveryMarkers, isAllDriversMode, selectedDriverId, highlightedDeliveryId]);
 
   const storedFinishedStopIds = useMemo(() => new Set(storedFinishedSegments.map((segment) => segment.stopId)), [storedFinishedSegments]);
@@ -208,7 +213,13 @@ export default function CompletedBreadcrumbPolylines({
     return (driverRoutes || []).flatMap((route) => {
       if (!route?.driverId) return [];
 
-      const rawSortOrder = route.sort_order ?? route.sortOrder;
+      // Derive sort_order from the stops themselves (most reliable source)
+      const routeStops = [
+        ...pickupMarkers.filter((p) => p?.driver_id === route.driverId),
+        ...deliveryMarkers.filter((d) => d?.driver_id === route.driverId),
+      ];
+      const stopDerivedSortOrder = routeStops.find((s) => s?.driver?.sort_order != null)?.driver?.sort_order;
+      const rawSortOrder = stopDerivedSortOrder ?? route.sort_order ?? route.sortOrder;
       const safeSortOrder = (rawSortOrder != null && Number.isFinite(Number(rawSortOrder)) && Number(rawSortOrder) !== 9999)
         ? Number(rawSortOrder) : undefined;
       const color = getType3PolylineColor(route.driverId, safeSortOrder);
