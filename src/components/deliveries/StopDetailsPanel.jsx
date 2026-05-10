@@ -529,6 +529,13 @@ export default function StopDetailsPanel({
               {isPickup ? 'Store Pickup' : 'Patient Information'}
               {!isPickup && <SpecialSymbolsBadges delivery={delivery} patient={patient} isPickup={false} size="sm" />}
             </CardTitle>
+            {/* Patient Name */}
+            <div>
+              <p className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>
+                {patient.full_name || delivery.patient_name || 'Unknown Patient'}
+              </p>
+            </div>
+
           </CardHeader>
           <CardContent className="space-y-3">
             {isPickup ?
@@ -574,13 +581,6 @@ export default function StopDetailsPanel({
                     </div>
                   </div>
               }
-
-                {/* Patient Name */}
-                <div>
-                  <p className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>
-                    {patient.full_name || delivery.patient_name || 'Unknown Patient'}
-                  </p>
-                </div>
 
                 {patient.phone &&
               <div className="flex items-center gap-2">
