@@ -317,7 +317,7 @@ export default function DeliveryMarkers({
                   </>
                 );
               })() : (
-                <MarkerInfoBalloon delivery={delivery} store={delivery.store} patient={delivery.patient} driver={delivery.driver} />
+                <MarkerInfoBalloon delivery={delivery} store={delivery.store} patient={null} driver={delivery.driver} />
               )}
             </div>
           </Popup>
