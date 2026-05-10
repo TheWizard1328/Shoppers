@@ -67,7 +67,8 @@ export default function DeliveryMarkers({
     const isSelectedRouteComplete = isSelectedDriverMarker && !routeHasIncompleteStops;
     const isRouteInProgress = isSelectedDriverMarker && routeHasIncompleteStops;
     const isUserHoveringFaded = fadedMarkerHighlights.has(delivery.id);
-    const isDeliveryFaded = isFinishedForFade && !isHighlighted && !isSelectedDriverMarker;
+    // CRITICAL: isOtherDriver markers never fade (always visible even when route is complete)
+    const isDeliveryFaded = isFinishedForFade && !isHighlighted && !isSelectedDriverMarker && !delivery.isOtherDriver;
     const isDeliveryInProgressFade = isFinishedForFade && isSelectedDriverMarker && !isSelectedRouteComplete && isRouteInProgress;
     const isDeliveryHighlightedFinished = (isDeliveryFaded || isDeliveryInProgressFade) && (isHighlighted || isUserHoveringFaded);
 
@@ -100,8 +101,8 @@ export default function DeliveryMarkers({
 
     const handlers = delivery.isOtherDriver ? {
       click: (e) => { L.DomEvent.stopPropagation(e); if (isDeliveryFaded) setFadedMarkerHighlights(prev => new Set([...prev, delivery.id])); handleMarkerClickForFanning(delivery, 'delivery'); },
-      mouseover: (e) => { if (isDeliveryFaded || isDeliveryInProgressFade) setFadedMarkerHighlights(prev => new Set([...prev, delivery.id])); },
-      mouseout: (e) => { setFadedMarkerHighlights(prev => { const n = new Set(prev); n.delete(delivery.id); return n; }); }
+      mouseover: (e) => { e.target.openPopup(); if (isDeliveryFaded || isDeliveryInProgressFade) setFadedMarkerHighlights(prev => new Set([...prev, delivery.id])); },
+      mouseout: (e) => { e.target.closePopup(); setFadedMarkerHighlights(prev => { const n = new Set(prev); n.delete(delivery.id); return n; }); }
     } : delivery.useSimpleCircle ? {
       click: (e) => { L.DomEvent.stopPropagation(e); if (isDeliveryInProgressFade) setFadedMarkerHighlights(prev => new Set([...prev, delivery.id])); handleMarkerClickForFanning(delivery, 'delivery'); },
       mouseover: (e) => { if (isDeliveryInProgressFade) setFadedMarkerHighlights(prev => new Set([...prev, delivery.id])); },
