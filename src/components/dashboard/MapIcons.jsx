@@ -243,7 +243,7 @@ export const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = fa
   if (isMobile) baseSize *= 1.25;
   
   const size = isActive ? baseSize * 1.15 : baseSize;
-  const numberColor = shouldShowNextYellow ? '#000000' : ((status === 'failed' || status === 'cancelled') ? 'white' : (FINISHED_STATUSES.includes(status) ? 'black' : getContrastColor(statusColor)));
+  const numberColor = shouldShowNextYellow ? '#000000' : (status === 'completed' ? 'white' : 'black');
   const deliveryOpacity = isHighlightedFinished ? 0.85 : isFaded ? 0.5 : isOtherDriver ? 0.75 : 1;
 
   return L.divIcon({
