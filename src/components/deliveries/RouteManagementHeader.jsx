@@ -90,8 +90,8 @@ export function RouteManagementStopDetailsOverlay({
         animate={{ x: 0 }}
         exit={{ x: "100%" }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        className="absolute right-0 w-[560px] shadow-xl z-[201] overflow-hidden"
-        style={{ background: 'var(--bg-white)', top: 'var(--driver-info-offset, 88px)', height: 'calc(100% - var(--driver-info-offset, 88px))' }}
+        className="absolute right-0 top-0 bottom-0 w-[560px] shadow-xl z-[201] overflow-hidden"
+        style={{ background: 'var(--bg-white)' }}
         onClick={(e) => e.stopPropagation()}>
         
           <div className="h-full overflow-y-auto">
