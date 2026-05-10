@@ -42,8 +42,20 @@ export default function MarkerInfoBalloon({
     ? delivery?.actual_delivery_time ? new Date(delivery.actual_delivery_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : null
     : delivery?.delivery_time_eta ? delivery.delivery_time_eta : null;
 
-  // CRITICAL: For placeholder markers (other store deliveries), show store name + "Delivery"
-  const patientLabel = isPickup ? 'Store Pickup' : (!patient ? `$Delivery` : (patient.full_name || 'Patient'));
+  // CRITICAL: For placeholder markers (other store deliveries), show store name + "Delivery" + inter-store info
+  const getPlaceholderLabel = () => {
+    if (isPickup) return 'Store Pickup';
+    if (patient) return patient.full_name || 'Patient';
+    
+    const storeName = store?.name || 'Store';
+    const hasInterStore = delivery?.puid || delivery?.interstore_dropoff_store_id;
+    
+    if (hasInterStore) {
+      return `${storeName} Delivery (Inter-Store)`;
+    }
+    return `${storeName} Delivery`;
+  };
+  const patientLabel = getPlaceholderLabel();
   const wrapperClass = compact ? 'space-y-1' : 'space-y-1.5';
 
   return (
