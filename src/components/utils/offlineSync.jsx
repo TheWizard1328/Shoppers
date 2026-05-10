@@ -426,9 +426,24 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null)
     if (cityStoreIds.length > 0) {
       deliveryFilter.store_id = { $in: cityStoreIds };
     }
+    // STEP 1: Fetch deliveries from server (don't save to offline DB yet)
     const deliveries = await Delivery.filter(deliveryFilter, '-updated_date', 5000);
-    // CRITICAL: Always purge ALL local records for this date/city scope, then re-save server results.
-    // An empty server result IS authoritative — stale local records must be removed.
+    notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 40, count: deliveries.length });
+    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+
+    // STEP 2: Sync patients FIRST using the delivery patient IDs we just fetched
+    notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 50 });
+    const patientIds = Array.from(new Set((deliveries || []).filter(d => d && d.patient_id).map(d => d.patient_id)));
+    const { totalPatients, freshPatients = [] } = await syncPatientsByIds(patientIds);
+    if (freshPatients.length > 0) {
+      await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
+    }
+    invalidateEntityCache('Patient');
+    notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 65, count: totalPatients });
+    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+
+    // STEP 3: Now save deliveries to offline DB (patients are already up-to-date)
+    notifySyncStatus({ status: 'syncing', entity: 'Deliveries (saving)', progress: 70 });
     const offlineDeliveriesForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
     const deliveryIdsToDelete = (offlineDeliveriesForDate || [])
       .filter((delivery) => !selectedCityId || cityStoreIds.includes(delivery?.store_id))
@@ -447,17 +462,7 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null)
         window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', { detail: { deletedIds: purgedIds } }));
       }
     }
-    notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 50, count: deliveries.length });
-    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
-
-    notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 60 });
-    const patientIds = Array.from(new Set((deliveries || []).filter(d => d && d.patient_id).map(d => d.patient_id)));
-    const { totalPatients, freshPatients = [] } = await syncPatientsByIds(patientIds);
-    if (freshPatients.length > 0) {
-      await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
-    }
-    invalidateEntityCache('Patient');
-    notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 75, count: totalPatients });
+    notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 80, count: deliveries.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
     notifySyncStatus({ status: 'syncing', entity: 'Companies', progress: 94 });

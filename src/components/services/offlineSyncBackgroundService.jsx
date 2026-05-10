@@ -52,10 +52,13 @@ export const createOfflineSyncBackgroundService = ({
       await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr, selectedDateDeliveries || []);
       invalidateEntityCache('Delivery');
 
+      // CRITICAL: Sync patients for selected date BEFORE marking deliveries as complete
+      // This ensures patient data is fresh before deliveries are read from the offline DB
       if (selectedDateDeliveries && selectedDateDeliveries.length > 0) {
         const selectedDatePatientIds = Array.from(new Set(selectedDateDeliveries.filter((delivery) => delivery?.patient_id).map((delivery) => delivery.patient_id)));
         if (selectedDatePatientIds.length > 0) {
           await syncPatientsByIds(selectedDatePatientIds);
+          invalidateEntityCache('Patient');
         }
       }
 
@@ -66,7 +69,8 @@ export const createOfflineSyncBackgroundService = ({
         const deliveryDateToSync = await getNextDeliveryDateToSync();
         if (!deliveryDateToSync || deliveryDateToSync === selectedDateStr) {
           notifySyncStatus({ status: 'complete', skippedHistorical: true });
-          window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
+          // CRITICAL: Do NOT fire offlineSyncComplete for historical background phases —
+          // Layout's handler calls invalidate+getData which overwrites the user's active UI state.
           return { success: true, skippedHistorical: true };
         }
 
@@ -88,7 +92,8 @@ export const createOfflineSyncBackgroundService = ({
         }
 
         notifySyncStatus({ status: 'complete', phase: 'deliveries', date: deliveryDateToSync });
-        window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
+        // CRITICAL: Do NOT fire offlineSyncComplete for historical background phases —
+        // Layout's handler calls invalidate+getData which overwrites the user's active UI state.
         return { success: true, phase: 'deliveries', date: deliveryDateToSync };
       }
 
@@ -103,7 +108,8 @@ export const createOfflineSyncBackgroundService = ({
       }
 
       notifySyncStatus({ status: 'complete', phase: 'patients' });
-      window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
+      // CRITICAL: Do NOT fire offlineSyncComplete for historical background phases —
+      // Layout's handler calls invalidate+getData which overwrites the user's active UI state.
       return { success: true, phase: 'patients', ...patientSyncResult };
     } catch (error) {
       notifySyncStatus({ status: 'error', error: error.message });
