@@ -8,9 +8,19 @@ import RouteDirectionDecorator from "./RouteDirectionDecorator";
 const FINISHED = ["completed", "failed", "cancelled"];
 const NON_BLUE_DRIVER_COLORS = ['#7C3AED', '#9333EA', '#DC2626', '#EA580C', '#16A34A', '#65A30D', '#CA8A04', '#C2410C', '#BE123C', '#7E22CE'];
 
+const type3ColorCache = new Map();
 const getType3PolylineColor = (driverId) => {
-  const hashSeed = String(driverId || 'driver').split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  return NON_BLUE_DRIVER_COLORS[hashSeed % NON_BLUE_DRIVER_COLORS.length];
+  if (!driverId) return NON_BLUE_DRIVER_COLORS[0];
+  if (type3ColorCache.has(driverId)) return type3ColorCache.get(driverId);
+  let hash = 0;
+  const str = String(driverId);
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash = hash | 0;
+  }
+  const color = NON_BLUE_DRIVER_COLORS[Math.abs(hash) % NON_BLUE_DRIVER_COLORS.length];
+  type3ColorCache.set(driverId, color);
+  return color;
 };
 const hexToRgb = (hex) => {
   const normalized = String(hex || '').replace('#', '');
