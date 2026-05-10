@@ -2538,9 +2538,7 @@ function Dashboard() {
   }, [stopCardsBaseHeight, deliveriesWithStopOrder.length, cardsReadyForFAB, isAllDriversMode, isDispatcher]);
 
   const handleDateChange = async (date) => {
-    // CRITICAL: Pause smart refresh immediately
     setIsEntityUpdating(true);setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current = null;setAreCardsVisible(false);setCurrentToNextPolyline(null);setDriverRoutes([]);
-    // Reset route summary tracking when date changes
     hasShownSummaryRef.current.clear();
 
     setSelectedDate(date);
@@ -2550,13 +2548,8 @@ function Dashboard() {
     const dateStr = format(date, 'yyyy-MM-dd');
 
     try {
-      // STEP 1: Clear pending updates for clean slate
       smartRefreshManager.clearPendingUpdates();
-
-      // STEP 2: Load ALL drivers for the selected date so dashboard state stays complete
       const priorityDeliveries = await loadPriorityDeliveriesForSelection(dateStr, 'all', true);
-
-      // STEP 3: Update UI immediately with merge-safe date data
       if (updateDeliveriesLocally) {
         updateDeliveriesLocally([...(deliveries || []).filter((d) => d && d.delivery_date !== dateStr), ...priorityDeliveries], true);
 
@@ -2568,53 +2561,17 @@ function Dashboard() {
         });
       }
 
-      // STEP 4: CRITICAL - Load fresh appUsers and process through poller
       let freshAppUsers = appUsers;
+      try { const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS); if (offlineAppUsers?.length > 0) freshAppUsers = offlineAppUsers; } catch {}
+      const appUsersToProcess = freshAppUsers?.length > 0 ? freshAppUsers : appUsers;
 
-      // Try to load from offline DB first, fallback to current appUsers if empty
-      try {
-        const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-        if (offlineAppUsers && offlineAppUsers.length > 0) {
-          freshAppUsers = offlineAppUsers;
-        }
-      } catch (dbError) {
-        console.warn('⚠️ [Date Change] Failed to load appUsers from offline DB, using context:', dbError.message);
+      if (appUsersToProcess?.length > 0) {
+        driverLocationPoller.processLocationData(currentUser, priorityDeliveries, drivers, stores, appUsersToProcess, new Date(dateStr + 'T00:00:00'), true, 'Dashboard', showAllDriverMarkers || selectedDriverId === 'all');
+        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: appUsersToProcess, forceAll: true } }));
       }
 
-      // CRITICAL: Use fresh appUsers from offline DB, fallback to context, but ALWAYS pass valid data
-      const appUsersToProcess = freshAppUsers && freshAppUsers.length > 0 ? freshAppUsers : appUsers;
-
-      if (appUsersToProcess && appUsersToProcess.length > 0) {
-        driverLocationPoller.processLocationData(
-          currentUser,
-          priorityDeliveries,
-          drivers,
-          stores,
-          appUsersToProcess,
-          new Date(dateStr + 'T00:00:00'),
-          true,
-          'Dashboard',
-          showAllDriverMarkers || selectedDriverId === 'all'
-        );
-
-        // Dispatch location update event
-        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-          detail: { appUsers: appUsersToProcess, forceAll: true }
-        }));
-      } else {
-        console.warn('⚠️ [Date Change] No appUsers available from offline DB or context - skipping location processing');
-      }
-
-      // STEP 5: Dispatch event to force map and stop cards to re-render
-      // CRITICAL: NO route optimization on date change
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-        detail: { deliveryDate: dateStr, triggeredBy: 'dateChange', preserveLocalState: true, freshDeliveries: priorityDeliveries }
-      }));
-
-      // CRITICAL: Force stats refresh immediately after date change
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryDate: dateStr, triggeredBy: 'dateChange', preserveLocalState: true, freshDeliveries: priorityDeliveries } }));
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-
-      // STEP 6: Wait a bit longer so markers are actually rendered before FAB/map trigger
       await new Promise((resolve) => setTimeout(resolve, 650));
 
       setIsMapViewLocked(mapViewPhase !== 1);
@@ -2630,12 +2587,8 @@ function Dashboard() {
 
       centerNextDeliveryCard(deliveriesWithStopOrder);
       fabControlEvents.notifyDataReady();
-
-      // STEP 7: Resume UI after FAB/map trigger is scheduled from fresh data
+      if (isDispatcher && !isAdmin) { const _si=(currentUser?.store_ids||[]).map(String),_dws=[...new Set(priorityDeliveries.filter((d)=>d&&_si.includes(String(d.store_id))).map((d)=>d.driver_id).filter(Boolean))]; let _aid='all'; if(_dws.length===1){_aid=_dws[0];}else if(_dws.length>1){const _di=new Date(dateStr+'T00:00:00').getDay(),_ids=new Set();(stores||[]).filter((s)=>s&&_si.includes(String(s.id))).forEach((s)=>{const sat=_di===6,sun=_di===0;if(sat){if(s.saturday_am_driver_id)_ids.add(s.saturday_am_driver_id);if(s.saturday_pm_driver_id)_ids.add(s.saturday_pm_driver_id);}else if(sun){if(s.sunday_am_driver_id)_ids.add(s.sunday_am_driver_id);if(s.sunday_pm_driver_id)_ids.add(s.sunday_pm_driver_id);}else{if(s.weekday_am_driver_id)_ids.add(s.weekday_am_driver_id);if(s.weekday_pm_driver_id)_ids.add(s.weekday_pm_driver_id);}});const _m=_dws.filter((id)=>_ids.has(id));_aid=_m.length===1?_m[0]:'all';} setSelectedDriverId(_aid);globalFilters.setSelectedDriverId(_aid); }
       setIsEntityUpdating(false);
-
-      // STEP 8: No background loads needed - we already loaded all drivers' deliveries
-
     } catch (error) {
       console.error('❌ [Dashboard] Date change failed:', error);
       setIsEntityUpdating(false);
@@ -2993,10 +2946,6 @@ function Dashboard() {
         } else {
           return isDriverAssignedToSlot(store, 'weekday_am') || isDriverAssignedToSlot(store, 'weekday_pm');
         }
-      });
-
-      assignedStores.forEach((store, idx) => {
-        if (!store) return; // Defensive check
       });
 
       const stopsToProcess = [];
