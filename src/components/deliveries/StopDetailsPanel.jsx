@@ -195,7 +195,8 @@ export default function StopDetailsPanel({
   const isDriverUser = currentUser?.app_roles?.includes('driver');
   const isAdminUser = currentUser?.app_roles?.includes('admin') || currentUser?.role === 'admin';
   const canEdit = currentUser && (isDriverUser || isAdminUser || isDispatcherUser);
-  const canViewProofOfDelivery = !isDispatcherUser;
+  const canViewProofOfDelivery = true;
+  const canEditProofOfDelivery = !isDispatcherUser;
   const canEditTimeWindows = isDispatcherUser && delivery?.status === 'pending';
   const canEditCodInCurrentState = !!currentUser && !!patient && (
   isDispatcherUser && delivery?.status === 'pending' ||
@@ -890,7 +891,7 @@ export default function StopDetailsPanel({
                   <p className="text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
                     <FileSignature className="w-3 h-3" /> Signature
                   </p>
-                  {!isCompleted &&
+                  {!isCompleted && canEditProofOfDelivery &&
                   <div className="flex gap-1">
                     <Button onClick={() => setShowSignatureCapture(true)} disabled={isUpdating}
                       className={`text-xs whitespace-nowrap h-7 px-2 ${hasSignature ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
@@ -932,7 +933,7 @@ export default function StopDetailsPanel({
                   <p className="text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
                     <Image className="w-3 h-3" /> Photos {delivery.proof_photo_urls?.length > 0 ? `(${delivery.proof_photo_urls.length})` : ''}
                   </p>
-                  {!isCompleted &&
+                  {!isCompleted && canEditProofOfDelivery &&
                   <Button onClick={() => setShowPhotoCapture(true)} disabled={isUpdating}
                     className={`text-xs whitespace-nowrap h-7 px-2 ${hasPhotos ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
                     style={!hasPhotos ? { background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)', border: '1px solid var(--border-slate-300)' } : {}}
