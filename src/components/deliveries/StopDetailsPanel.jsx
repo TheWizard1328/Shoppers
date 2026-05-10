@@ -823,7 +823,7 @@ export default function StopDetailsPanel({
                         key={`rb-${idx}`}
                         className="border rounded-md p-2 cursor-pointer transition-colors"
                         style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}
-                        onClick={() => setBarcodePreview(val)}
+                        onClick={() => setBarcodePreview({ value: val, isRx: false })}
                       >
                         <BarcodeThumb value={val} />
                         <p className="mt-1 text-[11px] text-center text-slate-500 break-all">{val}</p>
@@ -843,10 +843,10 @@ export default function StopDetailsPanel({
                         key={`rx-${idx}`}
                         className="border rounded-md p-2 cursor-pointer transition-colors"
                         style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}
-                        onClick={() => setBarcodePreview(val)}
+                        onClick={() => setBarcodePreview({ value: val, isRx: true })}
                       >
-                        <BarcodeThumb value={val} />
-                        <p className="mt-1 text-[11px] text-center text-slate-500 break-all">{val}</p>
+                        <BarcodeThumb value={val} isRx={true} />
+                        <p className="mt-1 text-[11px] text-center text-slate-500 font-mono font-semibold">{String(val).slice(0, 8)}</p>
                       </div>
                     ))}
                   </div>
@@ -1022,7 +1022,7 @@ export default function StopDetailsPanel({
       )}
 
       {barcodePreview && (
-        <BarcodeOverlay value={barcodePreview} onClose={() => setBarcodePreview(null)} />
+        <BarcodeOverlay value={barcodePreview.value} isRx={barcodePreview.isRx} onClose={() => setBarcodePreview(null)} />
       )}
       </div>
       );
