@@ -3,7 +3,6 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 const SQUARE_BASE_URL = 'https://connect.squareup.com';
 const SQUARE_VERSION = '2025-01-23';
-const CATALOG_LOOKBACK_DAYS = 90;
 const TRANSACTION_RETENTION_DAYS = 90;
 const MATCH_DATE_OFFSET_DAYS = 2;
 const SQUARE_API_MAX_RETRIES = 3;
@@ -225,21 +224,10 @@ function buildLocationDateAmountSignatureCandidates(locationId, dateValue, amoun
   return Array.from(new Set(signatures));
 }
 
-function isRecentDelivery(deliveryDate) {
-  const deliveryTime = parseDateValue(deliveryDate)?.getTime();
-  const cutoff = Date.now() - CATALOG_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
-  return Number.isFinite(deliveryTime) && deliveryTime >= cutoff;
-}
-
-function isRecentCatalogItemName(itemName) {
-  const itemTime = parseDateValue(itemName)?.getTime();
-  const cutoff = Date.now() - CATALOG_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
-  return Number.isFinite(itemTime) && itemTime >= cutoff;
-}
 // Paginated delete-all: loops until no records remain.
 // A single .list(N) call can miss records when N < total count,
 // causing stale rows to survive the "clear before sync" step.
-function getLookbackStartAt(daysBack = CATALOG_LOOKBACK_DAYS) {
+function getLookbackStartAt(daysBack) {
   return new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000).toISOString();
 }
 
@@ -1233,7 +1221,7 @@ async function handleGetCodData(base44, payload = {}) {
   const queue = createSquareRequestQueue(monitor);
   await monitor.start({ action: 'getCodData' });
   const requestedDaysBack = Number(payload?.daysBack || TRANSACTION_RETENTION_DAYS);
-  const daysBack = Number.isFinite(requestedDaysBack) && requestedDaysBack > 0 ? requestedDaysBack : CATALOG_LOOKBACK_DAYS;
+  const daysBack = Number.isFinite(requestedDaysBack) && requestedDaysBack > 0 ? requestedDaysBack : TRANSACTION_RETENTION_DAYS;
   const transactionRetentionStartMs = Date.now() - daysBack * 24 * 60 * 60 * 1000;
   const refreshDeliveries = shouldRefreshDeliveries(payload?.lastDeliverySyncAt, payload?.forceDeliveryRefresh === true);
 
@@ -1476,17 +1464,17 @@ async function handleSyncCatalogItems(base44) {
     (stores || []).map((store) => activeConfigById.get(store?.square_location_config_id)?.square_location_id).filter(Boolean)
   ));
   const transactionRetentionStartMs = getTransactionRetentionStartMs();
-  const recentCodDeliveries = (deliveries || []).filter((delivery) => isRecentDelivery(delivery?.delivery_date) && Number(delivery?.cod_total_amount_required || 0) > 0);
+  const allCodDeliveries = (deliveries || []).filter((delivery) => Number(delivery?.cod_total_amount_required || 0) > 0);
 
-  const { patientById, patientByPid } = await buildPatientMaps(base44, recentCodDeliveries);
-  const lookbackStartAt = getLookbackStartAt();
+  const { patientById, patientByPid } = await buildPatientMaps(base44, allCodDeliveries);
+  const ordersLookbackStartAt = getLookbackStartAt(TRANSACTION_RETENTION_DAYS);
   const [allCatalogItems, completedOrders] = await Promise.all([
     listActiveCatalogItems(accessToken),
-    listOrders(allSquareLocationIds, lookbackStartAt, accessToken, MAX_TRANSACTION_ORDERS, ['COMPLETED', 'OPEN']),
+    listOrders(allSquareLocationIds, ordersLookbackStartAt, accessToken, MAX_TRANSACTION_ORDERS, ['COMPLETED', 'OPEN']),
   ]);
 
-  const recentCatalogItems = (allCatalogItems || []).filter((item) => isRecentCatalogItemName(item?.item_data?.name));
-  const paidOrderItems = flattenOrderItems(completedOrders).filter((item) => isRecentCatalogItemName(item?.item_name));
+  const recentCatalogItems = allCatalogItems || [];
+  const paidOrderItems = flattenOrderItems(completedOrders);
   const recentSquareTransactions = (squareTransactions || []).filter((transaction) => {
     const transactionTime = new Date(transaction?.created_date || transaction?.updated_date || 0).getTime();
     return Number.isFinite(transactionTime) && transactionTime >= transactionRetentionStartMs;
@@ -1596,7 +1584,7 @@ async function handleSyncCatalogItems(base44) {
     }
   }
 
-  for (const delivery of recentCodDeliveries) {
+  for (const delivery of allCodDeliveries) {
     const store = storeById.get(delivery.store_id);
     const activeConfig = store?.square_location_config_id ? activeConfigById.get(store.square_location_config_id) : null;
     const resolvedPatient = await resolveDeliveryPatient(base44, delivery, patientById, patientByPid);
@@ -1738,7 +1726,7 @@ async function handleSyncCatalogItems(base44) {
 
   return {
     success: true,
-    scanned_deliveries: recentCodDeliveries.length,
+    scanned_deliveries: allCodDeliveries.length,
     catalog_items_seen: recentCatalogItems.length,
     paid_order_items_seen: paidOrderItems.length,
     deleted_catalog_items: deleteResult.deleted.length + extraDeleteResult.deleted.length,
