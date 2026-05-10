@@ -7,8 +7,8 @@ import { getPolylineColorForDriver } from "../utils/polylineColors";
 
 const FINISHED = ["completed", "failed", "cancelled"];
 
-// Alias for readability within this component
-const getType3PolylineColor = getPolylineColorForDriver;
+// Alias for readability within this component — forwards driverId + sortOrder
+const getType3PolylineColor = (driverId, sortOrder) => getPolylineColorForDriver(driverId, sortOrder);
 const hexToRgb = (hex) => {
   const normalized = String(hex || '').replace('#', '');
   if (normalized.length !== 6) return null;
@@ -34,15 +34,15 @@ const mixWithWhite = (hex, ratio) => {
   });
 };
 
-const getRouteShadeColor = (driverId, shadeRatio = 0) => {
-  const baseColor = getType3PolylineColor(driverId);
+const getRouteShadeColor = (driverId, shadeRatio = 0, sortOrder) => {
+  const baseColor = getType3PolylineColor(driverId, sortOrder);
   return mixWithWhite(baseColor, shadeRatio);
 };
 
-const getFinishedLegRouteStyle = (driverId, deliveryTravelMode, opacityOverride, shadeRatio = 0) => {
+const getFinishedLegRouteStyle = (driverId, deliveryTravelMode, opacityOverride, shadeRatio = 0, sortOrder) => {
   const mode = normalizeTravelMode(deliveryTravelMode || 'driving');
   const isCycling = mode === 'cycling';
-  const shadedColor = isCycling ? mixWithWhite('#16A34A', shadeRatio) : getRouteShadeColor(driverId, shadeRatio);
+  const shadedColor = isCycling ? mixWithWhite('#16A34A', shadeRatio) : getRouteShadeColor(driverId, shadeRatio, sortOrder);
   const base = getTravelModeLineStyle(mode, shadedColor);
   return {
     ...base,
@@ -208,7 +208,7 @@ export default function CompletedBreadcrumbPolylines({
     return (driverRoutes || []).flatMap((route) => {
       if (!route?.driverId) return [];
 
-      const color = getType3PolylineColor(route.driverId);
+      const color = getType3PolylineColor(route.driverId, route.sort_order ?? route.sortOrder);
 
       const stops = [
         ...pickupMarkers.filter((pickup) => pickup && pickup.driver_id === route.driverId),
@@ -245,6 +245,7 @@ export default function CompletedBreadcrumbPolylines({
         return {
           id: `${route.driverId}-${index}`,
           driverId: route.driverId,
+          sortOrder: route.sort_order ?? route.sortOrder,
           color: color || "#607D8B",
           shadeRatio,
           opacity,
@@ -271,6 +272,7 @@ export default function CompletedBreadcrumbPolylines({
         ? {
             id: `${route.driverId}-home-final`,
             driverId: route.driverId,
+            sortOrder: route.sort_order ?? route.sortOrder,
             color: color || "#607D8B",
             shadeRatio: 0.55,
             opacity: selectedDriverId && selectedDriverId !== "all" && route.driverId === selectedDriverId ? 0.7 : 0.35,
@@ -397,13 +399,13 @@ export default function CompletedBreadcrumbPolylines({
         <Polyline
           key={`stored-finished-${segment.id}-${polylineRenderKey}-${highlightedDeliveryId || "none"}`}
           positions={coords}
-          pathOptions={getFinishedLegRouteStyle(segment.driverId, segment.finishedLegTransportMode, Math.max(segment.opacity, 0.35), 0)}
+          pathOptions={getFinishedLegRouteStyle(segment.driverId, segment.finishedLegTransportMode, Math.max(segment.opacity, 0.35), 0, segment.sortOrder)}
           pane="completedBreadcrumbPane"
         />,
         <RouteDirectionDecorator
           key={`stored-finished-arrow-${segment.id}-${polylineRenderKey}-${highlightedDeliveryId || "none"}`}
           positions={coords}
-          color={getRouteShadeColor(segment.driverId, 0)}
+          color={getRouteShadeColor(segment.driverId, 0, segment.sortOrder)}
         />
       ]
     );
@@ -425,7 +427,7 @@ export default function CompletedBreadcrumbPolylines({
           key={`completed-stored-${segment.id}-${polylineRenderKey}-${highlightedDeliveryId || "none"}`}
           positions={coords}
           pathOptions={{
-            ...getFinishedLegRouteStyle(segment.driverId, segment.finishedLegTransportMode, Math.max(segment.opacity, 0.35), segment.shadeRatio ?? 0),
+            ...getFinishedLegRouteStyle(segment.driverId, segment.finishedLegTransportMode, Math.max(segment.opacity, 0.35), segment.shadeRatio ?? 0, segment.sortOrder),
             dashArray: segment.isHomeFinalSegment ? '6 6' : undefined
           }}
           pane="completedBreadcrumbPane"
@@ -433,7 +435,7 @@ export default function CompletedBreadcrumbPolylines({
         <RouteDirectionDecorator
           key={`completed-stored-arrow-${segment.id}-${polylineRenderKey}-${highlightedDeliveryId || "none"}`}
           positions={coords}
-          color={getRouteShadeColor(segment.driverId, 0)}
+          color={getRouteShadeColor(segment.driverId, 0, segment.sortOrder)}
         />
       );
       return;
@@ -455,13 +457,13 @@ export default function CompletedBreadcrumbPolylines({
           <Polyline
             key={`completed-breadcrumb-line-${leg.id}-${polylineRenderKey}`}
             positions={positions}
-            pathOptions={getFinishedLegRouteStyle(segment.driverId, segment.finishedLegTransportMode, Math.max(segment.opacity, 0.35), leg.shadeRatio ?? 0)}
+            pathOptions={getFinishedLegRouteStyle(segment.driverId, segment.finishedLegTransportMode, Math.max(segment.opacity, 0.35), leg.shadeRatio ?? 0, segment.sortOrder)}
             pane="completedBreadcrumbPane"
           />,
           <RouteDirectionDecorator
             key={`completed-breadcrumb-arrow-${leg.id}-${polylineRenderKey}`}
             positions={positions}
-            color={getRouteShadeColor(segment.driverId, leg.shadeRatio ?? 0)}
+            color={getRouteShadeColor(segment.driverId, leg.shadeRatio ?? 0, segment.sortOrder)}
           />
         );
       });

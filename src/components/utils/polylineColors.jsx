@@ -19,11 +19,19 @@ export const POLYLINE_COLORS = [
   '#BE123C', // Crimson
 ];
 
-// Stable hash so the same driver always gets the same color
+// sortOrder-based color assignment — drivers are colored by their sort_order position in the list.
+// Falls back to string hash if sort_order is not available.
 const driverColorCache = new Map();
 
-export const getPolylineColorForDriver = (driverId) => {
+export const getPolylineColorForDriver = (driverId, sortOrder) => {
   if (!driverId) return POLYLINE_COLORS[0];
+
+  // Use sort_order directly as the palette index when available (1-based → 0-based)
+  if (sortOrder != null && Number.isFinite(Number(sortOrder))) {
+    return POLYLINE_COLORS[(Number(sortOrder) - 1) % POLYLINE_COLORS.length];
+  }
+
+  // Fallback: stable string hash (used by Type1/Type2 where sort_order isn't passed)
   if (driverColorCache.has(driverId)) return driverColorCache.get(driverId);
   let hash = 0;
   const str = String(driverId);
