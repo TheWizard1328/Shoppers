@@ -70,23 +70,19 @@ export default function QuickRouteAdjustments({
                       <div
                         ref={provided.innerRef}
                         {...provided.draggableProps}
-                        className="flex items-center gap-2 p-2 rounded-lg border transition-shadow"
+                        {...provided.dragHandleProps}
+                        className="flex items-center gap-2 p-2 rounded-lg border cursor-grab active:cursor-grabbing"
                         style={{
+                          ...provided.draggableProps.style,
                           background: snapshot.isDragging
                             ? 'var(--bg-slate-100)'
                             : isNext ? 'rgba(16,185,129,0.1)' : 'var(--bg-white)',
                           borderColor: isNext ? '#6ee7b7' : 'var(--border-slate-200)',
-                          boxShadow: snapshot.isDragging ? '0 4px 16px rgba(0,0,0,0.15)' : undefined,
-                          ...provided.draggableProps.style,
+                          boxShadow: snapshot.isDragging ? '0 4px 16px rgba(0,0,0,0.18)' : undefined,
+                          userSelect: 'none',
                         }}
                       >
-                        <div
-                          {...provided.dragHandleProps}
-                          className="flex-shrink-0 cursor-grab active:cursor-grabbing p-1 rounded"
-                          style={{ color: 'var(--text-slate-400)' }}
-                        >
-                          <GripVertical className="w-4 h-4" />
-                        </div>
+                        <GripVertical className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--text-slate-400)' }} />
 
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
