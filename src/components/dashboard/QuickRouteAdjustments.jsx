@@ -5,26 +5,15 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { GripVertical } from 'lucide-react';
 
-// Renders the dragging clone into document.body to escape dialog transform context
-const PortalAwareDraggable = ({ provided, snapshot, children }) => {
-  const child = (
-    <div
-      ref={provided.innerRef}
-      {...provided.draggableProps}
-      {...provided.dragHandleProps}
-      style={{
-        ...provided.draggableProps.style,
-        ...(snapshot.isDragging ? { zIndex: 99999, pointerEvents: 'none' } : {}),
-      }}
-    >
-      {children}
-    </div>
-  );
-
-  if (snapshot.isDragging) {
-    return createPortal(child, document.body);
+// Portal element mounted once at body level to avoid remounting during drag
+let portalEl = null;
+const getPortalEl = () => {
+  if (!portalEl) {
+    portalEl = document.createElement('div');
+    portalEl.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:99999;';
+    document.body.appendChild(portalEl);
   }
-  return child;
+  return portalEl;
 };
 
 export default function QuickRouteAdjustments({
@@ -89,17 +78,22 @@ export default function QuickRouteAdjustments({
                 const isNext = delivery.isNextDelivery === true;
                 return (
                   <Draggable key={delivery.id} draggableId={delivery.id} index={index}>
-                    {(provided, snapshot) => (
-                      <PortalAwareDraggable provided={provided} snapshot={snapshot}>
+                    {(provided, snapshot) => {
+                      const card = (
                         <div
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                          {...provided.dragHandleProps}
                           className="flex items-center gap-2 p-2 rounded-lg border cursor-grab active:cursor-grabbing"
                           style={{
+                            ...provided.draggableProps.style,
                             background: snapshot.isDragging
                               ? 'var(--bg-slate-100)'
                               : isNext ? 'rgba(16,185,129,0.1)' : 'var(--bg-white)',
                             borderColor: isNext ? '#6ee7b7' : 'var(--border-slate-200)',
                             boxShadow: snapshot.isDragging ? '0 8px 24px rgba(0,0,0,0.35)' : undefined,
                             userSelect: 'none',
+                            pointerEvents: 'auto',
                           }}
                         >
                           <GripVertical className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--text-slate-400)' }} />
@@ -112,8 +106,9 @@ export default function QuickRouteAdjustments({
                             <span className="text-xs capitalize" style={{ color: 'var(--text-slate-500)' }}>{delivery.status.replace('_', ' ')}</span>
                           </div>
                         </div>
-                      </PortalAwareDraggable>
-                    )}
+                      );
+                      return snapshot.isDragging ? createPortal(card, getPortalEl()) : card;
+                    }}
                   </Draggable>
                 );
               })}
