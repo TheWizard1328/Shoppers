@@ -185,11 +185,13 @@ export default function FABControls({
     const unsubscribe = fabControlEvents.subscribe((event) => {
       if (event?.type !== 'IMMERSIVE_MODE_TOGGLED') return;
       if (mapViewPhase !== 2 && mapViewPhase !== 3) return;
+      // Re-assert the lock so phases 2/3 stay locked after immersive mode transitions
+      setIsMapViewLocked(true);
       setMapViewTrigger((prev) => prev + 1);
     });
 
     return unsubscribe;
-  }, [mapViewPhase, setMapViewTrigger]);
+  }, [mapViewPhase, setMapViewTrigger, setIsMapViewLocked]);
 
   useEffect(() => {
     const handleTrigger = () => {
