@@ -21,9 +21,8 @@ export default function QuickRouteAdjustments({
   const [, setEtaTrendVersion] = useState(0);
 
   // Get incomplete deliveries sorted by stop order (includes pending, in_transit, en_route)
-  const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
   const incompleteDeliveries = deliveries
-    .filter(d => d && !finishedStatuses.includes(d.status) && d.driver_id === currentUser?.id)
+    .filter(d => d && (d.status === 'in_transit' || d.status === 'en_route'))
     .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
   const handleMoveUp = async (delivery, index) => {
