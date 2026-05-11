@@ -868,12 +868,18 @@ export default function DeliveryForm({
 
     setEditingStagedId(staged._tempId);
 
+    const stagedPatient = staged.patient_id ? patients?.find((p) => p && p.id === staged.patient_id) : null;
     let formDataToSet = {
       ...staged,
       puid: staged.puid || '',
       driver_id: staged.driver_id || '', driver_name: staged.driver_name || '',
-      patient_phone: staged.patient_phone || patients?.find((p) => p && p.id === staged.patient_id)?.phone || '', unit_number: staged.unit_number || patients?.find((p) => p && p.id === staged.patient_id)?.unit_number || '', delivery_instructions: staged.delivery_instructions || patients?.find((p) => p && p.id === staged.patient_id)?.notes || '',
-      cod_total_amount_required: staged.cod_total_amount_required > 0 ? staged.cod_total_amount_required * 100 : 0
+      patient_phone: staged.patient_phone || stagedPatient?.phone || '', unit_number: staged.unit_number || stagedPatient?.unit_number || '', delivery_instructions: staged.delivery_instructions || stagedPatient?.notes || '',
+      cod_total_amount_required: staged.cod_total_amount_required > 0 ? staged.cod_total_amount_required * 100 : 0,
+      // CRITICAL: Patient time windows always take priority when editing a staged/pending delivery
+      delivery_time_start: stagedPatient?.time_window_start || staged.delivery_time_start || '',
+      delivery_time_end: stagedPatient?.time_window_end || staged.delivery_time_end || '',
+      time_window_start: stagedPatient?.time_window_start || staged.time_window_start || '',
+      time_window_end: stagedPatient?.time_window_end || staged.time_window_end || '',
     };
 
     // CRITICAL: If it's a patient delivery with PUID, find parent pickup to get correct store_id AND AM/PM slot
@@ -1231,7 +1237,13 @@ export default function DeliveryForm({
       focusRef: patientSearchInputRef,
       setNewPatientMode
     });
-  }, [stagedDeliveries, shouldAutoFocusFields]);
+    // CRITICAL: Reset driver filter to "all" for dispatchers and admins when clearing the form
+    if (currentUser && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher'))) {
+      import('../utils/globalFilters').then(({ globalFilters }) => {
+        globalFilters.setSelectedDriverId('all');
+      }).catch(() => {});
+    }
+  }, [stagedDeliveries, shouldAutoFocusFields, currentUser]);
 
   const handleBatchSave = useCallback(async () => {
     const shouldCreateImmediateStagedDelivery = shouldUseImmediateAddToRouteStage({

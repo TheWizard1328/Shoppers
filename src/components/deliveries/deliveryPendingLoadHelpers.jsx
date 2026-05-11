@@ -75,6 +75,11 @@ export const mapPendingDeliveriesToStaged = ({
     cod_payments: delivery.cod_payments || [],
     ampm_deliveries: timeSlot,
     puid: puid || '',
-    paid_km_override: delivery.paid_km_override ?? distanceFromStore ?? null
+    paid_km_override: delivery.paid_km_override ?? distanceFromStore ?? null,
+    // CRITICAL: Patient time windows always take priority over stored delivery time windows
+    delivery_time_start: patient?.time_window_start || delivery.delivery_time_start || '',
+    delivery_time_end: patient?.time_window_end || delivery.delivery_time_end || '',
+    time_window_start: patient?.time_window_start || delivery.time_window_start || '',
+    time_window_end: patient?.time_window_end || delivery.time_window_end || '',
   };
 }).filter(Boolean);
