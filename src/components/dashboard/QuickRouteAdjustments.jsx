@@ -72,7 +72,7 @@ export default function QuickRouteAdjustments({
 
   return (
     <div className="flex flex-col gap-3">
-      <DragDropContext onDragEnd={handleDragEnd} onDragStart={() => {}}>
+      <DragDropContext onDragEnd={handleDragEnd}>
 
         <Droppable droppableId="route-stops">
           {(provided) =>
