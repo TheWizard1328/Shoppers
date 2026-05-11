@@ -535,9 +535,21 @@ Deno.serve(async (req) => {
       .map((delivery) => stops.find((item) => item.delivery.id === delivery.id) || null)
       .filter(Boolean);
 
+    // CRITICAL: Pre-sort stops by delivery_time_start window before optimization.
+    // This gives HERE a chronologically-sensible initial ordering as input hint,
+    // which helps it respect time windows correctly during sequencing.
+    const sortStopsByWindow = (stopsArr) =>
+      stopsArr.slice().sort((a, b) => {
+        const aMin = parseTimeToMinutes(a.windowStart || a.delivery?.delivery_time_start);
+        const bMin = parseTimeToMinutes(b.windowStart || b.delivery?.delivery_time_start);
+        const aVal = Number.isFinite(aMin) ? aMin : 99999;
+        const bVal = Number.isFinite(bMin) ? bMin : 99999;
+        return aVal - bVal;
+      });
+
     const orderedOptimizationStops = preserveExistingOrder
       ? optimizationStops.slice().sort((a, b) => (Number(a.delivery?.stop_order) || 99999) - (Number(b.delivery?.stop_order) || 99999))
-      : optimizationStops;
+      : sortStopsByWindow(optimizationStops);
 
     const nextDeliveryStop = orderedOptimizationStops.find((stop) => stop.delivery.isNextDelivery === true) || null;
     const lockedNextStop = !preserveExistingOrder && shouldLockExplicitNextStop && nextDeliveryStop ? nextDeliveryStop : null;
@@ -839,47 +851,53 @@ Deno.serve(async (req) => {
     // CRITICAL: Lock the explicit isNextDelivery stop — do NOT override it with activeStops[0]
     const nextStopId = explicitNextDelivery?.id || null;
 
-    const resolvePendingStartTime = (stop) => {
-      if (stop.status !== 'pending') return undefined;
+    // Returns { startTime, eta } for pending stops linked to a pickup.
+    // The ETA for any pending delivery = its pickup's ETA + 5 min (pickup service time).
+    const resolvePendingTimes = (stop) => {
+      if (stop.status !== 'pending') return null;
 
       if (!stop.patient_id) {
-        // Pickup: keep its existing delivery_time_start (it's the hard window)
-        return stop.delivery_time_start || stop.delivery_time_eta;
+        // Pickup: keep its existing delivery_time_start as both start and ETA
+        const t = stop.delivery_time_start || stop.delivery_time_eta;
+        return t ? { startTime: t, eta: t } : null;
       }
 
-      if (!stop.puid) return undefined;
+      if (!stop.puid) return null;
 
       const pickup = activeStops.find((candidate) => !candidate.patient_id && candidate.stop_id === stop.puid)
         || allDeliveries.find((candidate) => !candidate.patient_id && candidate.stop_id === stop.puid);
 
-      if (!pickup) return undefined;
+      if (!pickup) return null;
 
       const pickupState = finalizedById.get(pickup.id) || pickup;
-      const pickupETA = pickupState.delivery_time_eta;
-      const pickupStartTime = pickupState.delivery_time_start;
-
-      let baseMinutes = parseTimeToMinutes(pickupETA);
-      if (!Number.isFinite(baseMinutes)) {
-        baseMinutes = parseTimeToMinutes(pickupStartTime);
+      // Use the pickup's finalized ETA, falling back to its delivery_time_start
+      let pickupEtaMinutes = parseTimeToMinutes(pickupState.delivery_time_eta);
+      if (!Number.isFinite(pickupEtaMinutes)) {
+        pickupEtaMinutes = parseTimeToMinutes(pickupState.delivery_time_start);
       }
+      if (!Number.isFinite(pickupEtaMinutes)) return null;
 
-      if (!Number.isFinite(baseMinutes)) return undefined;
-      return formatMinutesToTime(baseMinutes + (pickupState.extra_time || 5));
+      const serviceMinutes = pickupState.extra_time || 5;
+      const resolvedTime = formatMinutesToTime(pickupEtaMinutes + serviceMinutes);
+      return { startTime: resolvedTime, eta: resolvedTime };
     };
 
     for (let i = 0; i < activeStops.length; i++) {
       const stop = activeStops[i];
       const newOrder = preserveExistingOrder ? Number(stop.stop_order || i + 1) : startingOrder + i + 1;
-      const pendingStartTime = resolvePendingStartTime(stop);
+      const pendingTimes = resolvePendingTimes(stop);
       const segmentPolyline = segmentPolylineByDeliveryId.get(stop.id) || null;
       const resolvedTransportMode = String(stop?.transport_mode || preferredTravelMode || 'driving').toLowerCase();
       const safeTransportMode = ['driving', 'cycling', 'pedestrian'].includes(resolvedTransportMode) ? resolvedTransportMode : 'driving';
 
       const isPendingStop = pendingDeliveryIds.has(stop.id);
+      // CRITICAL: Pending stops linked to a pickup get their ETA overridden to pickup ETA + 5 min
+      const resolvedEta = (isPendingStop && pendingTimes?.eta) ? pendingTimes.eta : stop.delivery_time_eta;
+
       const updateData = {
         stop_order: newOrder,
         display_stop_order: newOrder,
-        delivery_time_eta: stop.delivery_time_eta,
+        delivery_time_eta: resolvedEta,
         isNextDelivery: stop.id === nextStopId,
         transport_mode: safeTransportMode,
         travel_dist: Number(directionsLegs[i]?.distance)
@@ -891,10 +909,12 @@ Deno.serve(async (req) => {
         ...(typeof segmentPolyline?.estimatedDistanceKm === 'number' && !isPendingStop ? { estimated_distance_km: segmentPolyline.estimatedDistanceKm } : {}),
       };
 
-      if (pendingStartTime) {
-        updateData.delivery_time_start = pendingStartTime;
-        stop.delivery_time_start = pendingStartTime;
+      if (pendingTimes?.startTime) {
+        updateData.delivery_time_start = pendingTimes.startTime;
+        stop.delivery_time_start = pendingTimes.startTime;
       }
+      // Sync the ETA back onto the stop object so the response reflects the override
+      stop.delivery_time_eta = resolvedEta;
 
       stop.stop_order = newOrder;
       stop.display_stop_order = newOrder;
