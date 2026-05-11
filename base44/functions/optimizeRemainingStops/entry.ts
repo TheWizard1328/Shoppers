@@ -68,11 +68,13 @@ const formatMinutesToTime = (minutes) => {
 };
 
 const getEffectiveWindowStart = (delivery, patient = null) => {
-  return delivery?.time_window_start || patient?.time_window_start || delivery?.delivery_time_start || null;
+  // Patient time windows always take priority over delivery-level windows
+  return patient?.time_window_start || delivery?.delivery_time_start || delivery?.time_window_start || null;
 };
 
 const getEffectiveWindowEnd = (delivery, patient = null) => {
-  return delivery?.time_window_end || patient?.time_window_end || delivery?.delivery_time_end || null;
+  // Patient time windows always take priority over delivery-level windows
+  return patient?.time_window_end || delivery?.delivery_time_end || delivery?.time_window_end || null;
 };
 
 const isLateWindowStop = (windowStart, currentMinutes) => {
@@ -972,12 +974,20 @@ Deno.serve(async (req) => {
       // CRITICAL: Pending stops linked to a pickup get their ETA overridden to pickup ETA + 5 min
       const resolvedEta = (isPendingStop && pendingTimes?.eta) ? pendingTimes.eta : stop.delivery_time_eta;
 
+      // CRITICAL: If patient has time windows, write them back to the delivery record
+      // so the stored delivery_time_start/end always reflects the patient's schedule.
+      const stopObj = routeStops.find(s => s.delivery.id === stop.id);
+      const patientWindowStart = stopObj?.windowStart && stopObj?.delivery?.patient_id ? stopObj.windowStart : null;
+      const patientWindowEnd = stopObj?.windowEnd && stopObj?.delivery?.patient_id ? stopObj.windowEnd : null;
+
       const updateData = {
         stop_order: newOrder,
         display_stop_order: newOrder,
         delivery_time_eta: resolvedEta,
         isNextDelivery: stop.id === nextStopId,
         transport_mode: safeTransportMode,
+        ...(patientWindowStart ? { delivery_time_start: patientWindowStart } : {}),
+        ...(patientWindowEnd ? { delivery_time_end: patientWindowEnd } : {}),
         travel_dist: Number(directionsLegs[i]?.distance)
           ? Number((Number(directionsLegs[i].distance) / 1000).toFixed(3))
           : null,
