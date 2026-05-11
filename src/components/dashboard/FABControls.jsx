@@ -275,16 +275,23 @@ export default function FABControls({
                 const response = await base44.functions.invoke('optimizeRemainingStops', { driverId: targetDriverId, deliveryDate, currentLocalTime: localTime, deviceTime: now.toISOString(), bypassDriverStatus: true });
                 const data = response?.data || response;
                 if (data?.success) {
-                  await base44.functions.invoke('purgeAndRegeneratePolylines', {
-                    driverId: targetDriverId,
-                    deliveryDate,
-                    scope: 'active_only',
-                    reason: 'manual',
-                    sourcePage: 'Dashboard',
-                    bypassDriverStatus: true,
-                    bypassPolylineDelete: false,
-                    reuseProvidedPolylines: false
-                  }).catch(() => null);
+                  // CRITICAL: optimizeRemainingStops already writes correct polylines directly
+                  // to each delivery via HERE API. Calling purgeAndRegeneratePolylines after would
+                  // overwrite them with independently-computed segments using wrong origins.
+                  // Only call purgeAndRegeneratePolylines as fallback if no polylines came back.
+                  const fabOptHasPolylines = Array.isArray(data?.optimizedRoute) && data.optimizedRoute.some((stop) => stop.encoded_polyline);
+                  if (!fabOptHasPolylines) {
+                    await base44.functions.invoke('purgeAndRegeneratePolylines', {
+                      driverId: targetDriverId,
+                      deliveryDate,
+                      scope: 'active_only',
+                      reason: 'manual',
+                      sourcePage: 'Dashboard',
+                      bypassDriverStatus: true,
+                      bypassPolylineDelete: false,
+                      reuseProvidedPolylines: false
+                    }).catch(() => null);
+                  }
                   setOptimizationMessage(`Route optimized! ${data.optimizedCount} stops updated and polylines refreshed.`);
                   invalidateDeliveriesForDate(deliveryDate);
                   const refreshTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error('Refresh timeout')), 8000));
