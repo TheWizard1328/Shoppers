@@ -62,6 +62,9 @@ export const buildPatientStagedDelivery = ({
   ...formData,
   time_window_start: formData.time_window_start || patient?.time_window_start || '',
   time_window_end: formData.time_window_end || patient?.time_window_end || '',
+  // CRITICAL: Patient time windows override delivery time windows
+  delivery_time_start: patient?.time_window_start || formData.delivery_time_start || '',
+  delivery_time_end: patient?.time_window_end || formData.delivery_time_end || '',
   cod_total_amount_required: codAmount,
   puid: puid || '',
   ampm_deliveries: timeSlot,

@@ -60,6 +60,9 @@ export const buildSelectedPatientFormData = ({
   unit_number: patient.unit_number || '',
   time_window_start: patient.time_window_start || patient.time_window_end ? patient.time_window_start || '' : '',
   time_window_end: patient.time_window_start || patient.time_window_end ? patient.time_window_end || '' : '',
+  // CRITICAL: Patient time windows override delivery time windows
+  delivery_time_start: patient.time_window_start || formData.delivery_time_start || '',
+  delivery_time_end: patient.time_window_end || formData.delivery_time_end || '',
   mailbox_ok: patient.mailbox_ok || false,
   call_upon_arrival: patient.call_upon_arrival || false,
   ring_bell: patient.ring_bell || false,
