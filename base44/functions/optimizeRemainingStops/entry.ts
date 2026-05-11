@@ -588,9 +588,10 @@ Deno.serve(async (req) => {
       console.log(`⏰ [optimizeRemainingStops] Using current-time departureTime=${resolvedDepartureTime}`);
     }
 
-    // When the departure is window-based, also reset cumulativeTime to start from the
-    // earliest window so ETAs are calculated from the right baseline, not "now".
-    const etaBaseMinutes = useWindowBasedDeparture && Number.isFinite(earliestWindowMinutes)
+    // CRITICAL: For future dates, ALWAYS base ETAs from the earliest window start,
+    // regardless of useWindowBasedDeparture. This prevents ETAs from being anchored
+    // to the current wall-clock time of optimization for routes that haven't started.
+    const etaBaseMinutes = (isFutureDate || useWindowBasedDeparture) && Number.isFinite(earliestWindowMinutes)
       ? earliestWindowMinutes
       : currentMinutes;
 
@@ -771,6 +772,10 @@ Deno.serve(async (req) => {
         console.log(`  ✅ [optimizeRemainingStops] ${stop.delivery.patient_name || 'Pickup'} - ETA: ${eta}`);
       }
     } else {
+      // CRITICAL: For future dates or window-based departures, always start ETA accumulation
+      // from etaBaseMinutes (the earliest window start), NOT from currentMinutes.
+      // This ensures all stops get ETAs projected from the correct route start time,
+      // not from the wall-clock time of optimization.
       let cumulativeTime = etaBaseMinutes;
 
       for (let i = 0; i < routeStops.length; i++) {
@@ -778,17 +783,19 @@ Deno.serve(async (req) => {
         const segmentPolyline = segmentPolylineByDeliveryId.get(stop.delivery.id) || null;
         const isLockedStartedStop = i === 0 && !!lockedNextStop;
         if (!isLockedStartedStop) {
-          const travelMinutes = getLegTravelMinutes({ stop, leg: directionsLegs[i], segmentPolyline });
+          const travelMinutes = getLegTravelMinutes({ stop, leg: directionsLegs[i], segmentPolyline, fallbackMinutes: 10 });
           cumulativeTime += travelMinutes;
         }
 
-        // CRITICAL: Snap to the stop's effective earliest time (windowStart or delivery_time_start)
+        // CRITICAL: Snap UP to the stop's own window start if we'd arrive too early.
+        // This ensures time-windowed stops never get an ETA before their window opens.
         cumulativeTime = snapToWindowStart(cumulativeTime, stop);
 
         const eta = formatMinutesToTime(cumulativeTime);
         stageEtaMap.set(stop.delivery.id, eta);
+        // Advance by service time at this stop before calculating the next leg
         cumulativeTime += stop.delivery.extra_time || (stop.isPickup ? 15 : 5);
-        console.log(`  ✅ [optimizeRemainingStops] ${stop.delivery.patient_name || 'Pickup'} - ETA: ${eta}`);
+        console.log(`  ✅ [optimizeRemainingStops] ${stop.delivery.patient_name || 'Pickup'} - ETA: ${eta} (base=${formatMinutesToTime(etaBaseMinutes)}, isFuture=${isFutureDate})`);
       }
     }
 
