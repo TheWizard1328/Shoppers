@@ -97,13 +97,11 @@ export default function QuickRouteAdjustments({
                           }}
                         >
                           <GripVertical className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--text-slate-400)' }} />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-bold" style={{ color: 'var(--text-slate-500)' }}>#{index + 1}</span>
-                              <span className="text-sm font-medium truncate" style={{ color: 'var(--text-slate-900)' }}>{getStopName(delivery)}</span>
-                              {isNext && <Badge className="bg-emerald-500 text-white text-[9px] px-1.5">NEXT</Badge>}
-                            </div>
-                            <span className="text-xs capitalize" style={{ color: 'var(--text-slate-500)' }}>{delivery.status.replace('_', ' ')}</span>
+                          <div className="flex-1 min-w-0 flex items-center gap-2">
+                            <span className="text-xs font-bold flex-shrink-0" style={{ color: 'var(--text-slate-400)' }}>#{delivery.stop_order || '?'}</span>
+                            <span className="text-sm font-medium truncate flex-1" style={{ color: 'var(--text-slate-900)' }}>{getStopName(delivery)}</span>
+                            {isNext && <Badge className="bg-emerald-500 text-white text-[9px] px-1.5 flex-shrink-0">NEXT</Badge>}
+                            <span className="text-xs font-bold flex-shrink-0 ml-auto" style={{ color: 'var(--text-slate-700)' }}>→#{index + 1}</span>
                           </div>
                         </div>
                       );
