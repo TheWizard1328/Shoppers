@@ -389,36 +389,12 @@ class LocationTracker {
           this.lastEtaRefreshAt = now;
         }
 
-        const previousPolylinePosition = this.lastPolylineRefreshPosition;
-        const distanceSincePolylineRefresh = previousPolylinePosition
-          ? this.calculateDistanceInMeters(
-              previousPolylinePosition.latitude,
-              previousPolylinePosition.longitude,
-              latitude,
-              longitude
-            )
-          : Infinity;
-        const enoughTimeForPolyline = now - this.lastPolylineRefreshAt >= this.minTimeBetweenPolylineRefresh;
-        const movedEnoughForPolyline = !previousPolylinePosition || distanceSincePolylineRefresh >= this.minPolylineRefreshDistance;
-        const canRefreshPolylineFromThisDevice = this.isPrimaryDevice || this.allowNonPrimaryPolylineRefresh === true;
-
-        if (movedEnoughForPolyline && enoughTimeForPolyline && canRefreshPolylineFromThisDevice) {
-          this.lastPolylineRefreshPosition = { latitude, longitude };
-          this.lastPolylineRefreshAt = now;
-          base44.functions.invoke('regenerateType1Polyline', {
-            driverId: this.currentUser.id,
-            deliveryDate: this.currentDeliveryDate,
-            currentLocation: {
-              lat: latitude,
-              lon: longitude
-            },
-            isPrimaryDevice: this.isPrimaryDevice,
-            allowNonPrimaryPolylineRefresh: this.allowNonPrimaryPolylineRefresh,
-            routeChangeSource: this.allowNonPrimaryPolylineRefresh ? 'accept_all' : 'poll'
-          }).catch((polylineError) => {
-            console.warn('⚠️ [LocationTracker] Polyline refresh skipped:', polylineError?.message || polylineError);
-          });
-        }
+        // CRITICAL: Polyline updates are NEVER triggered by passive location changes.
+        // Route lines are only updated on explicit user actions:
+        //   - Manual route optimization FAB click
+        //   - Assign All / Accept All button
+        //   - Stop deleted or added with in_transit status
+        //   - Pickup added
       }
 
       console.log(`✅✅✅ [LocationTracker] UPLOAD COMPLETE - Next in ${this.updateInterval/1000}s`);

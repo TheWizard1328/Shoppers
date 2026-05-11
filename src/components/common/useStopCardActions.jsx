@@ -592,17 +592,16 @@ export default function useStopCardActions(params) {
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true, freshDeliveries: startedChangedDeliveries } }));
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
 
-        // Final step: Route optimization and polyline regeneration
+        // CRITICAL: All stop_order + isNextDelivery changes are already persisted to backend
+        // above (lines with base44.entities.Delivery.update). Now call handleStartDelivery to
+        // confirm the backend has the authoritative order, then fetch fresh data and finally
+        // trigger the manual FAB optimization so polylines update only on that explicit action.
         if (!delivery?.id || !delivery?.driver_id || !delivery?.delivery_date) return;
         try {
+          // Step 1: Confirm backend persistence of start state
           await base44.functions.invoke('handleStartDelivery', { deliveryId: delivery.id, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime });
-          
-          // Trigger manual route optimization FAB instead of direct API call
-          window.dispatchEvent(new CustomEvent('triggerManualRouteOptimization'));
-          const optimizeResponse = null;
-          const optimizeData = optimizeResponse?.data || optimizeResponse || null;
 
-          // Fetch fresh deliveries IMMEDIATELY after optimization (before polyline regen) to capture stop_order changes
+          // Step 2: Fetch fresh deliveries from backend to capture any server-side corrections
           const refreshedImmediately = await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
           const refreshedListImmediate = Array.isArray(refreshedImmediately)
             ? refreshedImmediately
@@ -620,58 +619,13 @@ export default function useStopCardActions(params) {
             deliveryDate: delivery.delivery_date
           }).catch(() => null);
 
-          if (optimizeData?.success && Array.isArray(optimizeData.optimizedRoute) && optimizeData.optimizedRoute.length > 0) {
-            window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: delivery.driver_id, updates: optimizeData.optimizedRoute.map((stop) => ({ deliveryId: stop.deliveryId || stop.delivery_id, newEta: stop.newETA || stop.eta })).filter((stop) => stop.deliveryId && stop.newEta) } }));
-          }
-
-          // CRITICAL: optimizeRemainingStops already writes correct polylines (including Type 1
-          // home→firstStop) directly to each delivery's encoded_polyline field via HERE API.
-          // Calling purgeAndRegeneratePolylines afterwards overwrites those with independently
-          // generated segments that may produce wrong origins (e.g. home→pending stop).
-          // Skip purgeAndRegeneratePolylines entirely when optimization returned valid polylines.
-          const optimizeHasPolylines = Array.isArray(optimizeData?.optimizedRoute) && optimizeData.optimizedRoute.some((stop) => stop.encoded_polyline);
-          const polylineResponse = optimizeHasPolylines ? { skipped: true, reason: 'polylines_from_optimize' } : await base44.functions.invoke('purgeAndRegeneratePolylines', {
-            driverId: delivery.driver_id,
-            deliveryDate: delivery.delivery_date,
-            scope: 'active_only',
-            reason: optimizeData?.routeChanged ? 'route_reordered' : 'manual',
-            sourcePage: 'Dashboard',
-            bypassDriverStatus: true,
-            routeStopOrder: Array.isArray(optimizeData?.optimizedRoute)
-              ? optimizeData.optimizedRoute.map((stop) => stop.deliveryId || stop.delivery_id).filter(Boolean)
-              : [],
-            orderedStopsWithTransportMode: Array.isArray(optimizeData?.optimizedRoute)
-              ? optimizeData.optimizedRoute.map((stop) => ({
-                  deliveryId: stop.deliveryId || stop.delivery_id,
-                  transport_mode: stop.transport_mode || stop.finished_leg_transport_mode || currentPreferredTravelMode,
-                  finished_leg_transport_mode: stop.finished_leg_transport_mode || stop.transport_mode || currentPreferredTravelMode,
-                  encoded_polyline: stop.encoded_polyline || null,
-                  estimated_distance_km: stop.estimated_distance_km ?? null,
-                  estimated_duration_minutes: stop.estimated_duration_minutes ?? null
-                })).filter((stop) => stop.deliveryId)
-              : [],
-            explicitOrderedStopsOnly: true,
-            explicitRouteOrigin: 'last_finished_stop',
-            explicitRouteDestination: 'home',
-            bypassPolylineUpdated: true,
-            bypassPolylineDelete: true,
-            reuseProvidedPolylines: true
-          }).catch(() => null);
-
-          const refreshedDeliveries = await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-          const refreshedList = Array.isArray(refreshedDeliveries)
-            ? refreshedDeliveries
-            : Array.isArray(refreshedDeliveries?.deliveries)
-              ? refreshedDeliveries.deliveries
-              : null;
-          if (Array.isArray(refreshedList) && refreshedList.length > 0) {
-            await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', delivery.delivery_date, refreshedList);
-            updateDeliveriesLocally?.(refreshedList, true);
-            window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, fullReplacement: true, freshDeliveries: refreshedList } }));
+          // Step 3: Broadcast updated delivery state to other devices
+          if (Array.isArray(refreshedListImmediate) && refreshedListImmediate.length > 0) {
+            window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, fullReplacement: true, freshDeliveries: refreshedListImmediate } }));
             Promise.resolve().then(async () => {
               try {
                 const { broadcastMutation } = await import('../utils/realtimeSync');
-                await Promise.all(refreshedList.map((item) => broadcastMutation('Delivery', 'update', item.id, item)));
+                await Promise.all(refreshedListImmediate.map((item) => broadcastMutation('Delivery', 'update', item.id, item)));
               } catch (broadcastError) {
                 console.warn('⚠️ [Start] delivery broadcast failed:', broadcastError?.message || broadcastError);
               }
@@ -679,13 +633,14 @@ export default function useStopCardActions(params) {
           } else {
             window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: false, fullReplacement: true } }));
           }
+
           window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
           window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers, triggeredBy: 'startOptimized' } }));
-          if (polylineResponse) {
-            window.dispatchEvent(new CustomEvent('polylineUpdated', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, source: 'start_button' } }));
-            window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'start_button', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
-            window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startPolylinesUpdated', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, fullReplacement: true, freshDeliveries: refreshedList || undefined } }));
-          }
+
+          // Step 4: NOW trigger the manual FAB optimization — all backend data is confirmed persisted
+          // Polyline updates happen only here, never from passive location changes
+          window.dispatchEvent(new CustomEvent('triggerManualRouteOptimization'));
+
           fabControlEvents.reactivatePhaseTwoIfAvailable();
 
           // Notify driver after optimization is complete
