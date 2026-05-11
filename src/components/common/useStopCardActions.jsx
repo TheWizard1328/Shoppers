@@ -596,16 +596,10 @@ export default function useStopCardActions(params) {
         if (!delivery?.id || !delivery?.driver_id || !delivery?.delivery_date) return;
         try {
           await base44.functions.invoke('handleStartDelivery', { deliveryId: delivery.id, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime });
-          const hereApiKey = await getOrFetchHereApiKey();
-          const optimizeResponse = await base44.functions.invoke('optimizeRemainingStops', {
-            driverId: delivery.driver_id,
-            deliveryDate: delivery.delivery_date,
-            currentLocalTime,
-            deviceTime: new Date().toISOString(),
-            forceFullRemainingRouteOptimization: true,
-            bypassDriverStatus: true,
-            hereApiKey
-          }).catch(() => null);
+          
+          // Trigger manual route optimization FAB instead of direct API call
+          window.dispatchEvent(new CustomEvent('triggerManualRouteOptimization'));
+          const optimizeResponse = null;
           const optimizeData = optimizeResponse?.data || optimizeResponse || null;
 
           // Fetch fresh deliveries IMMEDIATELY after optimization (before polyline regen) to capture stop_order changes

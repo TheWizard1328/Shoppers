@@ -106,16 +106,6 @@ Deno.serve(async (req) => {
 
     console.log(`🔄 [handleStartDelivery] Route serialized for stop ${deliveryId}`);
 
-    // Trigger route optimization (non-blocking)
-    base44.asServiceRole.functions.invoke('optimizeRemainingStops', {
-      driverId,
-      deliveryDate,
-      currentLocalTime: normalizedTime,
-      bypassDriverStatus: true
-    }).catch((err) => {
-      console.warn('⚠️ [handleStartDelivery] Optimization deferred:', err?.message);
-    });
-
     return Response.json({
       success: true,
       newNextDeliveryId: deliveryId,
