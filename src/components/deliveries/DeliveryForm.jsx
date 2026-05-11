@@ -335,8 +335,9 @@ export default function DeliveryForm({
       setFormData({
         patient_id: delivery.patient_id || "",
         delivery_date: delivery.delivery_date || format(new Date(), 'yyyy-MM-dd'),
-        delivery_time_start: delivery.delivery_time_start || "",
-        delivery_time_end: delivery.delivery_time_end || "",
+        // CRITICAL: Patient time windows always take priority over stored delivery time windows
+        delivery_time_start: patient?.time_window_start || delivery.delivery_time_start || "",
+        delivery_time_end: patient?.time_window_end || delivery.delivery_time_end || "",
         arrival_time: delivery.arrival_time && !Number.isNaN(new Date(delivery.arrival_time).getTime()) ? format(new Date(delivery.arrival_time), 'HH:mm') : "",
         time_window_start: patient?.time_window_start || delivery.time_window_start || "",
         time_window_end: patient?.time_window_end || delivery.time_window_end || "",

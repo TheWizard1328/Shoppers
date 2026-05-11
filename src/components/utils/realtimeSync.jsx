@@ -494,6 +494,12 @@ export const connect = () => {
           ring_bell: data.dont_ring_bell ? false : (typeof data.ring_bell === 'boolean' ? data.ring_bell : true),
           dont_ring_bell: !!data.dont_ring_bell,
           back_door: !!data.back_door,
+          // CRITICAL: Propagate patient time windows to related deliveries so they are
+          // never cleared on receiving devices when a Patient update cascades locally.
+          ...(data.time_window_start !== undefined ? { delivery_time_start: data.time_window_start || '' } : {}),
+          ...(data.time_window_end !== undefined ? { delivery_time_end: data.time_window_end || '' } : {}),
+          ...(data.time_window_start !== undefined ? { time_window_start: data.time_window_start || '' } : {}),
+          ...(data.time_window_end !== undefined ? { time_window_end: data.time_window_end || '' } : {}),
         };
 
         const { offlineDB } = await import('./offlineDatabase');
