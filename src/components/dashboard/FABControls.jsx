@@ -191,6 +191,15 @@ export default function FABControls({
     return unsubscribe;
   }, [mapViewPhase, setMapViewTrigger]);
 
+  useEffect(() => {
+    const handleTrigger = () => {
+      const btn = document.querySelector('[title="Re-optimize entire route using Google Maps"]');
+      if (btn) btn.click();
+    };
+    window.addEventListener('triggerManualRouteOptimization', handleTrigger);
+    return () => window.removeEventListener('triggerManualRouteOptimization', handleTrigger);
+  }, []);
+
   return (
     <>
       <MapViewCycleFAB currentUser={currentUser} filteredDeliveries={filteredDeliveries} onClick={() => {

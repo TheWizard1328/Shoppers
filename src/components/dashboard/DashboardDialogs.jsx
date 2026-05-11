@@ -1,5 +1,6 @@
 import { AnimatePresence } from "framer-motion";
 import { Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import DeliveryForm from "@/components/deliveries/DeliveryForm";
@@ -81,6 +82,13 @@ export default function DashboardDialogs({
           {deliveriesWithStopOrder.filter(d => d && (d.status === 'in_transit' || d.status === 'en_route')).length === 0
             ? <p className="text-sm text-slate-500 py-4">No active stops to adjust</p>
             : <QuickRouteAdjustments deliveries={deliveriesWithStopOrder} currentUser={currentUser} patients={patients} stores={stores} onReorder={handleQuickReorder} onAddDelay={handleAddDelay} />}
+          <div className="flex gap-2 pt-2 border-t border-slate-200 mt-2">
+            <Button variant="outline" className="flex-1" onClick={() => setShowQuickAdjustments(false)}>Cancel</Button>
+            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => {
+              setShowQuickAdjustments(false);
+              window.dispatchEvent(new CustomEvent('triggerManualRouteOptimization'));
+            }}>Reoptimize</Button>
+          </div>
         </DialogContent>
       </Dialog>}
 
