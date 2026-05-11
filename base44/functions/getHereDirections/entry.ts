@@ -82,6 +82,13 @@ const parseTimeToMinutes = (timeStr) => {
   return (hours * 60) + minutes;
 };
 
+const formatMinutesToTime = (minutes) => {
+  if (!Number.isFinite(minutes)) return null;
+  const h = Math.floor(minutes / 60) % 24;
+  const m = minutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+};
+
 const normalizeTimeString = (timeStr, fallback = '00:00:00') => {
   if (!timeStr || typeof timeStr !== 'string') return fallback;
   const parts = timeStr.split(':');
