@@ -730,12 +730,14 @@ Deno.serve(async (req) => {
           return { duration: Math.ceil((distKm / 40) * 3600 * 1.3), distance: distKm * 1000 };
         });
 
-        segmentPolylines = routeStops.map((stop, index) => {
+        // CRITICAL: Only create polylines for non-pending stops BEFORE they're sorted to the end.
+        // Map sections 1:1 to the HERE-sequenced stops, but exclude pending stops entirely.
+        const activeStopsFromHere = routeStops.filter(s => !pendingDeliveryIds.has(s.delivery.id));
+        segmentPolylines = activeStopsFromHere.map((stop, index) => {
           const section = sections[index] || null;
-          const isPending = pendingDeliveryIds.has(stop.delivery.id);
           return {
             deliveryId: stop.delivery.id,
-            encodedPolyline: isPending ? null : (section?.encoded_polyline || null),
+            encodedPolyline: section?.encoded_polyline || null,
             estimatedDistanceKm: section?.estimated_distance_km ?? null,
             estimatedDurationMinutes: section?.estimated_duration_minutes ?? null,
           };
