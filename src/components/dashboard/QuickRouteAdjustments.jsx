@@ -12,7 +12,10 @@ const PortalAwareDraggable = ({ provided, snapshot, children }) => {
       ref={provided.innerRef}
       {...provided.draggableProps}
       {...provided.dragHandleProps}
-      style={provided.draggableProps.style}
+      style={{
+        ...provided.draggableProps.style,
+        ...(snapshot.isDragging ? { zIndex: 99999, pointerEvents: 'none' } : {}),
+      }}
     >
       {children}
     </div>
