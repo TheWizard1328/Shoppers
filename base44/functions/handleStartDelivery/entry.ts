@@ -106,9 +106,15 @@ Deno.serve(async (req) => {
 
     console.log(`🔄 [handleStartDelivery] Route serialized for stop ${deliveryId}`);
 
-    // Don't call optimizeRemainingStops here — it causes cascading 400 errors
-    // The start action is just for marking the delivery as next and toggling driver to on_duty
-    // Optimization will happen naturally via automations or other triggers
+    // Trigger route optimization (non-blocking)
+    base44.asServiceRole.functions.invoke('optimizeRemainingStops', {
+      driverId,
+      deliveryDate,
+      currentLocalTime: normalizedTime,
+      bypassDriverStatus: true
+    }).catch((err) => {
+      console.warn('⚠️ [handleStartDelivery] Optimization deferred:', err?.message);
+    });
 
     return Response.json({
       success: true,
