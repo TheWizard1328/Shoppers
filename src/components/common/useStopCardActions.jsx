@@ -612,6 +612,15 @@ export default function useStopCardActions(params) {
           if (Array.isArray(refreshedListImmediate) && refreshedListImmediate.length > 0) {
             await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', delivery.delivery_date, refreshedListImmediate);
             updateDeliveriesLocally?.(refreshedListImmediate, true);
+            
+            // CRITICAL: Verify the started stop has isNextDelivery flag before optimization
+            // Ensure the correct stop is locked when optimization runs
+            const startedStopFromRefresh = refreshedListImmediate.find((d) => d?.id === delivery.id);
+            if (startedStopFromRefresh && !startedStopFromRefresh.isNextDelivery) {
+              // Backend didn't set flag (shouldn't happen, but fix it now before optimization)
+              console.warn('⚠️ [Start] isNextDelivery not set on started stop - correcting before optimization');
+              await base44.entities.Delivery.update(delivery.id, { isNextDelivery: true }).catch(() => null);
+            }
           }
 
           await base44.functions.invoke('recalculateTrackingNumbers', {
