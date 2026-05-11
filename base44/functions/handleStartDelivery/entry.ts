@@ -104,34 +104,18 @@ Deno.serve(async (req) => {
       )
     );
 
-    console.log(`🔄 [handleStartDelivery] Route serialized for stop ${deliveryId} before optimization`);
+    console.log(`🔄 [handleStartDelivery] Route serialized for stop ${deliveryId}`);
 
-    const optimizationResponse = await base44.asServiceRole.functions.invoke('optimizeRemainingStops', {
-      driverId,
-      deliveryDate,
-      currentLocalTime: normalizedTime,
-      triggerSource: 'start_button',
-      bypassDriverStatus: true,
-      firstStopId: deliveryId
-    });
-
-    const optimizationData = optimizationResponse?.data || optimizationResponse || {};
-
-    if (optimizationData?.shouldRefreshPolylines) {
-      await base44.asServiceRole.functions.invoke('regenerateType1Polyline', {
-        driverId,
-        deliveryDate,
-        routeChangeSource: 'start_button'
-      });
-    }
+    // Don't call optimizeRemainingStops here — it causes cascading 400 errors
+    // The start action is just for marking the delivery as next and toggling driver to on_duty
+    // Optimization will happen naturally via automations or other triggers
 
     return Response.json({
       success: true,
       newNextDeliveryId: deliveryId,
       oldNextDeliveryId: previousNextDelivery?.id || null,
       selectedStopOrder: reorderedRoute.findIndex((d) => d?.id === deliveryId) + 1,
-      routeChanged: Boolean(updatesToPersist.length > 0 || optimizationData?.routeChanged),
-      optimization: optimizationData
+      routeChanged: Boolean(updatesToPersist.length > 0)
     });
 
   } catch (error) {
