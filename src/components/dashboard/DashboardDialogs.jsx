@@ -78,7 +78,7 @@ export default function DashboardDialogs({
       {isDriver && <Dialog open={showQuickAdjustments} onOpenChange={setShowQuickAdjustments}>
         <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto z-[10001]">
           <DialogHeader><DialogTitle>Quick Route Adjustments</DialogTitle></DialogHeader>
-          {deliveriesWithStopOrder.filter(d => d && !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(d.status) && d.driver_id === currentUser?.id).length === 0
+          {deliveriesWithStopOrder.filter(d => d && !['completed', 'failed', 'cancelled', 'returned'].includes(d.status) && d.driver_id === currentUser?.id).length === 0
             ? <p className="text-sm text-slate-500 py-4">No active stops to adjust</p>
             : <QuickRouteAdjustments deliveries={deliveriesWithStopOrder} currentUser={currentUser} patients={patients} stores={stores} onReorder={handleQuickReorder} onAddDelay={handleAddDelay} />}
         </DialogContent>
