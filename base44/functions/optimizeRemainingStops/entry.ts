@@ -551,22 +551,18 @@ Deno.serve(async (req) => {
       ? optimizationStops.slice().sort((a, b) => (Number(a.delivery?.stop_order) || 99999) - (Number(b.delivery?.stop_order) || 99999))
       : sortStopsByWindow(optimizationStops);
 
-    // CRITICAL: Pending stops are excluded from HERE sequencing and appended at the end.
-    // They have no polyline and their ETA is derived from their assigned pickup.
+    // Track which stops are pending — they participate in HERE sequencing but get sorted
+    // to the end of the route afterward and never receive a polyline.
     const pendingDeliveryIds = new Set(pendingRouteDeliveries.map(d => d.id));
 
-    // Split into sequenceable (active + non-pending) and pending-only groups
-    const sequenceableStops = orderedOptimizationStops.filter(s => !pendingDeliveryIds.has(s.delivery.id));
-    const pendingStopsTrailing = orderedOptimizationStops.filter(s => pendingDeliveryIds.has(s.delivery.id));
-
-    const nextDeliveryStop = sequenceableStops.find((stop) => stop.delivery.isNextDelivery === true) || null;
+    const nextDeliveryStop = orderedOptimizationStops.find((stop) => stop.delivery.isNextDelivery === true) || null;
     const lockedNextStop = !preserveExistingOrder && shouldLockExplicitNextStop && nextDeliveryStop ? nextDeliveryStop : null;
     const routeOriginStop = lockedNextStop || null;
     const stopsToSequence = routeOriginStop
-      ? sequenceableStops.filter((stop) => stop.delivery.id !== routeOriginStop.delivery.id)
-      : sequenceableStops;
+      ? orderedOptimizationStops.filter((stop) => stop.delivery.id !== routeOriginStop.delivery.id)
+      : orderedOptimizationStops;
 
-    console.log(`📋 [optimizeRemainingStops] ${sequenceableStops.length} sequenceable stops, ${pendingStopsTrailing.length} pending stops (will be appended at end)`);
+    console.log(`📋 [optimizeRemainingStops] ${orderedOptimizationStops.length} stops total, ${pendingDeliveryIds.size} pending (will be sorted to end after HERE sequencing)`);
 
     console.log(`\n🎯 [optimizeRemainingStops] Optimizing remaining route: ${optimizationStops.length} stops`);
 
@@ -591,8 +587,7 @@ Deno.serve(async (req) => {
     // In all three cases, use the earliest windowStart across all stops as the
     // departureTime so HERE correctly respects time windows during sequencing.
     // -------------------------------------------------------------------
-    // Use only sequenceable (non-pending) stops for earliest window calculation
-    const allStopsForDeparture = routeOriginStop ? [routeOriginStop, ...stopsToSequence] : sequenceableStops;
+    const allStopsForDeparture = routeOriginStop ? [routeOriginStop, ...stopsToSequence] : stopsToSequence;
     const earliestWindowMinutes = allStopsForDeparture.reduce((earliest, s) => {
       const wm = parseTimeToMinutes(s.windowStart || s.delivery?.delivery_time_start);
       return Number.isFinite(wm) && wm < earliest ? wm : earliest;
@@ -767,21 +762,28 @@ Deno.serve(async (req) => {
       }
     }
 
-    // CRITICAL: Append pending stops at the end of the route (after all sequenced stops).
-    // They never get polylines and their ETAs are derived from their assigned pickup.
-    if (pendingStopsTrailing.length > 0) {
-      routeStops = [...routeStops, ...pendingStopsTrailing];
-      // Add crow-flies placeholder legs for pending stops so index alignment holds
-      for (const stop of pendingStopsTrailing) {
-        const prevPos = routeStops.length > 1
-          ? { lat: routeStops[routeStops.indexOf(stop) - 1]?.lat, lng: routeStops[routeStops.indexOf(stop) - 1]?.lng }
-          : currentPosition;
-        const distKm = (prevPos && Number.isFinite(prevPos.lat))
-          ? calculateCrowFliesDistance(prevPos.lat, prevPos.lng, stop.lat, stop.lng)
-          : 0;
-        directionsLegs.push({ duration: 0, distance: distKm * 1000 });
+    // CRITICAL: After HERE sequencing, sort pending stops to the end of the route.
+    // They were included in HERE optimization so they influence the overall route shape,
+    // but they must appear last since they have no polyline and their ETAs come from their pickup.
+    if (pendingDeliveryIds.size > 0 && routeStops.length > 0) {
+      const nonPending = routeStops.filter(s => !pendingDeliveryIds.has(s.delivery.id));
+      const pendingAtEnd = routeStops.filter(s => pendingDeliveryIds.has(s.delivery.id));
+      if (pendingAtEnd.length > 0) {
+        const reordered = [...nonPending, ...pendingAtEnd];
+        // Rebuild directionsLegs to match the new order (crow-flies for pending legs)
+        const newLegs = reordered.map((stop, index) => {
+          if (!pendingDeliveryIds.has(stop.delivery.id)) {
+            // Keep the original leg from HERE for non-pending stops
+            const origIdx = routeStops.findIndex(s => s.delivery.id === stop.delivery.id);
+            return directionsLegs[origIdx] || { duration: 0, distance: 0 };
+          }
+          // Pending stop: placeholder leg (no travel time — ETA derived from pickup)
+          return { duration: 0, distance: 0 };
+        });
+        routeStops = reordered;
+        directionsLegs = newLegs;
+        console.log(`📌 [optimizeRemainingStops] Sorted ${pendingAtEnd.length} pending stop(s) to end of route`);
       }
-      console.log(`📌 [optimizeRemainingStops] Appended ${pendingStopsTrailing.length} pending stops at end of route`);
     }
 
     // -------------------------------------------------------------------
