@@ -335,6 +335,9 @@ Deno.serve(async (req) => {
     const todayStr = getEdmontonTodayDateString();
     const isFutureDate = String(deliveryDate) > todayStr;
 
+    // isFutureRoute = true for future dates OR today but earliest window >1hr from now.
+    // Computed after stops are built (see below where earliestWindowMinutes is resolved).
+
     console.log(`🔄 [optimizeRemainingStops] Optimizing remaining stops for driver ${driverId} on ${deliveryDate} (today=${todayStr}, isFuture=${isFutureDate})`);
 
     // Resolve AppUser: try AppUser.id first (new standard), fallback to user_id (legacy)
@@ -575,25 +578,30 @@ Deno.serve(async (req) => {
       return Number.isFinite(wm) && wm < earliest ? wm : earliest;
     }, Infinity);
 
-    const useWindowBasedDeparture = isFutureDate
-      || (driverIsOffDuty) // off-duty means not actively driving — treat like pre-route planning
+    // isFutureRoute: future date OR today but earliest window start is >1hr from now.
+    // This is the canonical flag for "route hasn't started yet, use window-based ETAs".
+    const isFutureRoute = isFutureDate
       || (Number.isFinite(earliestWindowMinutes) && (earliestWindowMinutes - currentMinutes) > 60);
+
+    const useWindowBasedDeparture = isFutureRoute
+      || driverIsOffDuty; // off-duty = pre-route planning mode
 
     let resolvedDepartureTime;
     if (useWindowBasedDeparture && Number.isFinite(earliestWindowMinutes)) {
       resolvedDepartureTime = formatMinutesToTime(earliestWindowMinutes);
-      console.log(`⏰ [optimizeRemainingStops] Using window-based departureTime=${resolvedDepartureTime} (isFuture=${isFutureDate}, offDuty=${driverIsOffDuty})`);
+      console.log(`⏰ [optimizeRemainingStops] Using window-based departureTime=${resolvedDepartureTime} (isFutureRoute=${isFutureRoute}, offDuty=${driverIsOffDuty})`);
     } else {
       resolvedDepartureTime = currentLocalTime || formatMinutesToTime(currentMinutes);
       console.log(`⏰ [optimizeRemainingStops] Using current-time departureTime=${resolvedDepartureTime}`);
     }
 
-    // CRITICAL: For future dates, ALWAYS base ETAs from the earliest window start,
-    // regardless of useWindowBasedDeparture. This prevents ETAs from being anchored
-    // to the current wall-clock time of optimization for routes that haven't started.
-    const etaBaseMinutes = (isFutureDate || useWindowBasedDeparture) && Number.isFinite(earliestWindowMinutes)
+    // CRITICAL: For future routes, ALWAYS base ETAs from the earliest window start.
+    // This prevents ETAs being anchored to the wall-clock time of optimization.
+    const etaBaseMinutes = useWindowBasedDeparture && Number.isFinite(earliestWindowMinutes)
       ? earliestWindowMinutes
       : currentMinutes;
+
+    console.log(`📅 [optimizeRemainingStops] isFutureDate=${isFutureDate}, isFutureRoute=${isFutureRoute}, etaBase=${formatMinutesToTime(etaBaseMinutes)}, currentTime=${formatMinutesToTime(currentMinutes)}, earliestWindow=${Number.isFinite(earliestWindowMinutes) ? formatMinutesToTime(earliestWindowMinutes) : 'none'}`);
 
     if (preserveExistingOrder) {
       // Just refresh ETAs using existing order, no HERE call needed
@@ -787,9 +795,9 @@ Deno.serve(async (req) => {
           cumulativeTime += travelMinutes;
         }
 
-        // CRITICAL: Pickups on future dates always get an ETA exactly equal to their
+        // CRITICAL: Pickups on future routes always get an ETA exactly equal to their
         // delivery_time_start — no travel-time drift allowed for scheduled pickups.
-        if (stop.isPickup && isFutureDate) {
+        if (stop.isPickup && isFutureRoute) {
           const pickupStartMinutes = parseTimeToMinutes(stop.delivery?.delivery_time_start || stop.windowStart);
           if (Number.isFinite(pickupStartMinutes)) {
             cumulativeTime = pickupStartMinutes;
@@ -803,7 +811,7 @@ Deno.serve(async (req) => {
         stageEtaMap.set(stop.delivery.id, eta);
         // Advance by service time at this stop before calculating the next leg
         cumulativeTime += stop.delivery.extra_time || (stop.isPickup ? 15 : 5);
-        console.log(`  ✅ [optimizeRemainingStops] ${stop.delivery.patient_name || 'Pickup'} - ETA: ${eta} (base=${formatMinutesToTime(etaBaseMinutes)}, isFuture=${isFutureDate})`);
+        console.log(`  ✅ [optimizeRemainingStops] ${stop.delivery.patient_name || 'Pickup'} - ETA: ${eta} (base=${formatMinutesToTime(etaBaseMinutes)}, isFutureRoute=${isFutureRoute})`);
       }
     }
 
