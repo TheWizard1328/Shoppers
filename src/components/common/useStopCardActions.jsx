@@ -247,7 +247,12 @@ export default function useStopCardActions(params) {
         window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: delivery.driver_id, updates: optimizeData.optimizedRoute.map((stop) => ({ deliveryId: stop.deliveryId || stop.delivery_id, newEta: stop.newETA || stop.eta })).filter((stop) => stop.deliveryId && stop.newEta) } }));
       }
 
-      const polylineResponse = await base44.functions.invoke('purgeAndRegeneratePolylines', {
+      // CRITICAL: optimizeRemainingStops already writes correct polylines directly to each
+      // delivery via HERE API. Calling purgeAndRegeneratePolylines overwrites them with
+      // independently-generated segments using wrong origins (e.g. home→pending stop).
+      // Skip it entirely when optimization provided valid polylines.
+      const acceptAllHasPolylines = Array.isArray(optimizeData?.optimizedRoute) && optimizeData.optimizedRoute.some((stop) => stop.encoded_polyline);
+      const polylineResponse = acceptAllHasPolylines ? { skipped: true, reason: 'polylines_from_optimize' } : await base44.functions.invoke('purgeAndRegeneratePolylines', {
         driverId: delivery.driver_id,
         deliveryDate: delivery.delivery_date,
         scope: 'active_only',
