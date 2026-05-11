@@ -431,8 +431,10 @@ Deno.serve(async (req) => {
     const stops = optimizableDeliveries.map(delivery => {
       const coords = getDeliveryCoords(delivery, patientMap, storeMap);
       const patient = delivery.patient_id ? patientMap.get(delivery.patient_id) : null;
-      let windowStart = getEffectiveWindowStart(delivery, patient);
-      let windowEnd = getEffectiveWindowEnd(delivery, patient);
+      // CRITICAL: If patient has time windows, always use them over delivery-level windows.
+      // This ensures patient-specific schedules are respected during optimization.
+      let windowStart = (patient?.time_window_start) || delivery.delivery_time_start || delivery.time_window_start || null;
+      let windowEnd = (patient?.time_window_end) || delivery.delivery_time_end || delivery.time_window_end || null;
 
       if (delivery.patient_id && delivery.puid && pickupWindowByStopId.has(delivery.puid)) {
         const pickupWindow = pickupWindowByStopId.get(delivery.puid);
@@ -785,6 +787,30 @@ Deno.serve(async (req) => {
         }
       }
       routeStops = corrected;
+    }
+
+    // CRITICAL: Re-sort routeStops by their effective window start time after HERE sequencing.
+    // HERE optimizes for distance and may still misequence stops when time windows are sparse.
+    // Sorting by window start ensures chronological ordering is always enforced before polyline
+    // generation and ETA calculation. Preserve relative order for stops without a window.
+    if (!preserveExistingOrder && routeStops.length > 1) {
+      // Stable sort: stops without a window sort after stops with one
+      routeStops.sort((a, b) => {
+        const aMin = parseTimeToMinutes(a.windowStart || a.delivery?.delivery_time_start);
+        const bMin = parseTimeToMinutes(b.windowStart || b.delivery?.delivery_time_start);
+        const aVal = Number.isFinite(aMin) ? aMin : 99999;
+        const bVal = Number.isFinite(bMin) ? bMin : 99999;
+        return aVal - bVal;
+      });
+      // Rebuild directionsLegs with crow-flies for the new order
+      directionsLegs = routeStops.map((stop, index) => {
+        const prevPos = index === 0 ? currentPosition : { lat: routeStops[index - 1].lat, lng: routeStops[index - 1].lng };
+        const distKm = calculateCrowFliesDistance(prevPos.lat, prevPos.lng, stop.lat, stop.lng);
+        return { duration: Math.ceil((distKm / 40) * 3600 * 1.3), distance: distKm * 1000 };
+      });
+      // Re-align segmentPolylines to the new order — polylines are keyed by deliveryId so
+      // the map lookup in the write batch still works correctly; legs are rebuilt above.
+      console.log(`🔃 [optimizeRemainingStops] Re-sorted ${routeStops.length} stops by window start after HERE sequencing`);
     }
 
     // CRITICAL: After HERE sequencing, sort pending stops to the end of the route.
