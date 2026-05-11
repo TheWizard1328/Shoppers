@@ -94,7 +94,7 @@ export default function SettingsMenu({
       <DemoModeDialog open={showDemoModeDialog} onOpenChange={setShowDemoModeDialog} />
     <DropdownMenuContent 
       align="end" 
-      className="w-60 z-[10002]" 
+      className="w-60 z-[99999]" 
       style={{ 
         background: 'var(--bg-white)', 
         borderColor: '#ffffff', 
