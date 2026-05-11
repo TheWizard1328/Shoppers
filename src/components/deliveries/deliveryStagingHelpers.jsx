@@ -30,6 +30,7 @@ export const buildPickupStagedDelivery = ({ formData, codAmount, store, timeSlot
     unit_number: '',
     cod_total_amount_required: codAmount,
     delivery_date: formData.delivery_date,
+    delivery_id: `DID-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
     driver_id: formData.driver_id,
     driver_name: formData.driver_name,
     store_id: store.id,

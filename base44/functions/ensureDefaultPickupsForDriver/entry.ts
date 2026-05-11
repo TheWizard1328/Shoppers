@@ -187,7 +187,10 @@ Deno.serve(async (req) => {
     const creatorAppUserId = creatorAppUser?.id || '';
     const dispatcherId = creatorAppUser?.id || user.id;
 
-    const driverAppUsers = await base44.asServiceRole.entities.AppUser.filter({ id: driverId }, '-created_date', 1);
+    let driverAppUsers = await base44.asServiceRole.entities.AppUser.filter({ id: driverId }, '-created_date', 1);
+    if (!driverAppUsers?.length) {
+      driverAppUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId }, '-created_date', 1);
+    }
     const driverAppUser = driverAppUsers?.[0] || null;
     const driverUserId = driverAppUser?.user_id || null;
     const assignedStores = await loadAssignedStores(base44, deliveryDate, driverId, driverUserId);
@@ -195,6 +198,7 @@ Deno.serve(async (req) => {
     const filteredStores = assignedStores || [];
 
     const driverName = driverAppUser?.user_name || driverAppUser?.full_name || '';
+    console.log(`[ensureDefaultPickups] driverId=${driverId} driverAppUser=${JSON.stringify(driverAppUser)} driverName="${driverName}"`);
     const ensuredPickups = [];
 
     for (const store of filteredStores) {
