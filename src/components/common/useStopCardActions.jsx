@@ -612,17 +612,8 @@ export default function useStopCardActions(params) {
           if (Array.isArray(refreshedListImmediate) && refreshedListImmediate.length > 0) {
             // CRITICAL: Save to offline DB only (don't update UI yet)
             // The optimizer will run next and update the backend + broadcast its own optimized result
-            // If we update the UI here with pre-optimization order, something will revert it back
+            // If we update the UI here with pre-optimization order, the reversion issue occurs
             await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', delivery.delivery_date, refreshedListImmediate);
-
-            // CRITICAL: Verify the started stop has isNextDelivery flag before optimization
-            // Ensure the correct stop is locked when optimization runs
-            const startedStopFromRefresh = refreshedListImmediate.find((d) => d?.id === delivery.id);
-            if (startedStopFromRefresh && !startedStopFromRefresh.isNextDelivery) {
-              // Backend didn't set flag (shouldn't happen, but fix it now before optimization)
-              console.warn('⚠️ [Start] isNextDelivery not set on started stop - correcting before optimization');
-              await base44.entities.Delivery.update(delivery.id, { isNextDelivery: true }).catch(() => null);
-            }
           }
 
           await base44.functions.invoke('recalculateTrackingNumbers', {
@@ -651,9 +642,14 @@ export default function useStopCardActions(params) {
           // Step 4: NOW trigger the manual FAB optimization — all backend data is confirmed persisted
           // Polyline updates happen only here, never from passive location changes
           // CRITICAL: Pass firstStopId so optimizeRemainingStops locks the started stop
-          // even if isNextDelivery hasn't fully propagated on the backend yet
+          // The optimizer will use this explicit firstStopId as the authoritative route origin
           window.dispatchEvent(new CustomEvent('triggerRouteOptimization', {
-            detail: { firstStopId: delivery.id, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+            detail: { 
+              firstStopId: delivery.id, 
+              driverId: delivery.driver_id, 
+              deliveryDate: delivery.delivery_date,
+              source: 'start_action'
+            }
           }));
 
           fabControlEvents.reactivatePhaseTwoIfAvailable();

@@ -75,22 +75,26 @@ Deno.serve(async (req) => {
     reorderedActiveStops.unshift(selectedDelivery);
 
     const reorderedRoute = [...completedStops, ...reorderedActiveStops, ...pendingStops].filter(Boolean);
-    const updatesToPersist = reorderedRoute
-      .map((delivery, index) => {
-        const nextOrder = index + 1;
-        const isTargetDelivery = delivery.id === deliveryId;
-        const payload = {
-          stop_order: nextOrder,
-          display_stop_order: nextOrder,
-          isNextDelivery: isTargetDelivery
-        };
-        return { delivery, payload };
-      })
-      .filter(({ delivery, payload }) => {
-        return Number(delivery?.stop_order || 0) !== Number(payload.stop_order)
-          || Number(delivery?.display_stop_order || 0) !== Number(payload.display_stop_order)
-          || Boolean(delivery?.isNextDelivery) !== Boolean(payload.isNextDelivery);
-      });
+    
+    // CRITICAL: Update ALL deliveries with correct stop_order and isNextDelivery
+    // This ensures the optimizer always has consistent, authoritative route data
+    const allUpdates = reorderedRoute.map((delivery, index) => {
+      const nextOrder = index + 1;
+      const isTargetDelivery = delivery.id === deliveryId;
+      const payload = {
+        stop_order: nextOrder,
+        display_stop_order: nextOrder,
+        isNextDelivery: isTargetDelivery
+      };
+      return { delivery, payload };
+    });
+
+    // Only update if there's an actual change
+    const updatesToPersist = allUpdates.filter(({ delivery, payload }) => {
+      return Number(delivery?.stop_order || 0) !== Number(payload.stop_order)
+        || Number(delivery?.display_stop_order || 0) !== Number(payload.display_stop_order)
+        || Boolean(delivery?.isNextDelivery) !== Boolean(payload.isNextDelivery);
+    });
 
     await Promise.all(
       updatesToPersist.map(({ delivery, payload }) =>
@@ -104,7 +108,7 @@ Deno.serve(async (req) => {
       )
     );
 
-    console.log(`🔄 [handleStartDelivery] Route serialized for stop ${deliveryId}`);
+    console.log(`🔄 [handleStartDelivery] Route serialized for stop ${deliveryId} (${updatesToPersist.length}/${allUpdates.length} updated)`);
 
     return Response.json({
       success: true,
