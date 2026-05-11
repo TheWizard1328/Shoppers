@@ -28,6 +28,8 @@ export default function RealTimeRouteOptimizer({
 }) {
   const [notification, setNotification] = useState(null);
 
+  const firstStopIdRef = useRef(null);
+
   const optimizeRoute = async () => {
     // CRITICAL: Only run on driver's mobile device
     const isMobile = isMobileDevice();
@@ -96,11 +98,14 @@ export default function RealTimeRouteOptimizer({
     }
 
     try {
+      const lockedFirstStopId = firstStopIdRef.current;
+      firstStopIdRef.current = null; // consume it
       const response = await base44.functions.invoke('optimizeRemainingStops', {
         driverId: selectedDriverId,
         deliveryDate: selectedDate,
         currentLocalTime: `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`,
-        deviceTime: new Date().toISOString()
+        deviceTime: new Date().toISOString(),
+        ...(lockedFirstStopId ? { firstStopId: lockedFirstStopId } : {})
       });
 
       const data = response?.data || response;
@@ -190,8 +195,10 @@ export default function RealTimeRouteOptimizer({
 
   useEffect(() => {
     // Listen for manual optimization triggers
-    const handleTriggerOptimization = () => {
-      console.log('🎯 [RealTimeRouteOptimizer] Manual trigger received');
+    const handleTriggerOptimization = (event) => {
+      const { firstStopId } = event?.detail || {};
+      if (firstStopId) firstStopIdRef.current = firstStopId;
+      console.log('🎯 [RealTimeRouteOptimizer] Manual trigger received', firstStopId ? `firstStopId=${firstStopId}` : '');
       showUIRef.current = true;
       optimizeRoute();
     };

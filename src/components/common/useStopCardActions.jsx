@@ -639,7 +639,11 @@ export default function useStopCardActions(params) {
 
           // Step 4: NOW trigger the manual FAB optimization — all backend data is confirmed persisted
           // Polyline updates happen only here, never from passive location changes
-          window.dispatchEvent(new CustomEvent('triggerManualRouteOptimization'));
+          // CRITICAL: Pass firstStopId so optimizeRemainingStops locks the started stop
+          // even if isNextDelivery hasn't fully propagated on the backend yet
+          window.dispatchEvent(new CustomEvent('triggerRouteOptimization', {
+            detail: { firstStopId: delivery.id, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+          }));
 
           fabControlEvents.reactivatePhaseTwoIfAvailable();
 
