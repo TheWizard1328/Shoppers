@@ -58,9 +58,10 @@ export default function QuickRouteAdjustments({
         <Droppable droppableId="route-stops">
           {(provided) => (
             <div
-              ref={provided.innerRef}
-              {...provided.droppableProps}
-              className="space-y-1"
+            ref={provided.innerRef}
+            {...provided.droppableProps}
+            className="space-y-1"
+            style={{ position: 'relative' }}
             >
               {localOrder.map((delivery, index) => {
                 const isNext = delivery.isNextDelivery === true;
@@ -78,7 +79,9 @@ export default function QuickRouteAdjustments({
                             ? 'var(--bg-slate-100)'
                             : isNext ? 'rgba(16,185,129,0.1)' : 'var(--bg-white)',
                           borderColor: isNext ? '#6ee7b7' : 'var(--border-slate-200)',
-                          boxShadow: snapshot.isDragging ? '0 4px 16px rgba(0,0,0,0.18)' : undefined,
+                          boxShadow: snapshot.isDragging ? '0 8px 24px rgba(0,0,0,0.35)' : undefined,
+                          zIndex: snapshot.isDragging ? 9999 : undefined,
+                          position: snapshot.isDragging ? 'relative' : undefined,
                           userSelect: 'none',
                         }}
                       >

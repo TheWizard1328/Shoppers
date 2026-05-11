@@ -77,7 +77,7 @@ export default function DashboardDialogs({
       <DispatcherPickupNotification deliveries={deliveries} stores={stores} appUsers={appUsers} currentUser={currentUser} isDispatcher={isDispatcher} />
 
       {isDriver && <Dialog open={showQuickAdjustments} onOpenChange={setShowQuickAdjustments}>
-        <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto z-[10001]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
+        <DialogContent className="max-w-md max-h-[80vh] overflow-visible z-[10001]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
           <DialogHeader><DialogTitle style={{ color: 'var(--text-slate-900)' }}>Quick Route Adjustments</DialogTitle></DialogHeader>
           <QuickRouteAdjustments
             deliveries={deliveriesWithStopOrder}
