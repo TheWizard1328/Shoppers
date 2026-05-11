@@ -77,18 +77,19 @@ export default function DashboardDialogs({
       <DispatcherPickupNotification deliveries={deliveries} stores={stores} appUsers={appUsers} currentUser={currentUser} isDispatcher={isDispatcher} />
 
       {isDriver && <Dialog open={showQuickAdjustments} onOpenChange={setShowQuickAdjustments}>
-        <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto z-[10001]">
-          <DialogHeader><DialogTitle>Quick Route Adjustments</DialogTitle></DialogHeader>
-          {deliveriesWithStopOrder.filter(d => d && (d.status === 'in_transit' || d.status === 'en_route')).length === 0
-            ? <p className="text-sm text-slate-500 py-4">No active stops to adjust</p>
-            : <QuickRouteAdjustments deliveries={deliveriesWithStopOrder} currentUser={currentUser} patients={patients} stores={stores} onReorder={handleQuickReorder} onAddDelay={handleAddDelay} />}
-          <div className="flex gap-2 pt-2 border-t border-slate-200 mt-2">
-            <Button variant="outline" className="flex-1" onClick={() => setShowQuickAdjustments(false)}>Cancel</Button>
-            <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => {
+        <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto z-[10001]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
+          <DialogHeader><DialogTitle style={{ color: 'var(--text-slate-900)' }}>Quick Route Adjustments</DialogTitle></DialogHeader>
+          <QuickRouteAdjustments
+            deliveries={deliveriesWithStopOrder}
+            patients={patients}
+            stores={stores}
+            onCancel={() => setShowQuickAdjustments(false)}
+            onReoptimize={async (reorderPayload) => {
+              await handleQuickReorder(reorderPayload);
               setShowQuickAdjustments(false);
               window.dispatchEvent(new CustomEvent('triggerManualRouteOptimization'));
-            }}>Reoptimize</Button>
-          </div>
+            }}
+          />
         </DialogContent>
       </Dialog>}
 
