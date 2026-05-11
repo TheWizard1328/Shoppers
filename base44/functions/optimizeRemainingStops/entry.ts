@@ -787,9 +787,17 @@ Deno.serve(async (req) => {
           cumulativeTime += travelMinutes;
         }
 
-        // CRITICAL: Snap UP to the stop's own window start if we'd arrive too early.
-        // This ensures time-windowed stops never get an ETA before their window opens.
-        cumulativeTime = snapToWindowStart(cumulativeTime, stop);
+        // CRITICAL: Pickups on future dates always get an ETA exactly equal to their
+        // delivery_time_start — no travel-time drift allowed for scheduled pickups.
+        if (stop.isPickup && isFutureDate) {
+          const pickupStartMinutes = parseTimeToMinutes(stop.delivery?.delivery_time_start || stop.windowStart);
+          if (Number.isFinite(pickupStartMinutes)) {
+            cumulativeTime = pickupStartMinutes;
+          }
+        } else {
+          // Snap UP to the stop's own window start if we'd arrive too early.
+          cumulativeTime = snapToWindowStart(cumulativeTime, stop);
+        }
 
         const eta = formatMinutesToTime(cumulativeTime);
         stageEtaMap.set(stop.delivery.id, eta);
