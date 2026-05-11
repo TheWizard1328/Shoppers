@@ -1,8 +1,28 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { GripVertical } from 'lucide-react';
+
+// Renders the dragging clone into document.body to escape dialog transform context
+const PortalAwareDraggable = ({ provided, snapshot, children }) => {
+  const child = (
+    <div
+      ref={provided.innerRef}
+      {...provided.draggableProps}
+      {...provided.dragHandleProps}
+      style={provided.draggableProps.style}
+    >
+      {children}
+    </div>
+  );
+
+  if (snapshot.isDragging) {
+    return createPortal(child, document.body);
+  }
+  return child;
+};
 
 export default function QuickRouteAdjustments({
   deliveries,
@@ -58,44 +78,38 @@ export default function QuickRouteAdjustments({
         <Droppable droppableId="route-stops">
           {(provided) => (
             <div
-            ref={provided.innerRef}
-            {...provided.droppableProps}
-            className="space-y-1"
-            style={{ position: 'relative' }}
+              ref={provided.innerRef}
+              {...provided.droppableProps}
+              className="space-y-1"
             >
               {localOrder.map((delivery, index) => {
                 const isNext = delivery.isNextDelivery === true;
                 return (
                   <Draggable key={delivery.id} draggableId={delivery.id} index={index}>
                     {(provided, snapshot) => (
-                      <div
-                        ref={provided.innerRef}
-                        {...provided.draggableProps}
-                        {...provided.dragHandleProps}
-                        className="flex items-center gap-2 p-2 rounded-lg border cursor-grab active:cursor-grabbing"
-                        style={{
-                          ...provided.draggableProps.style,
-                          background: snapshot.isDragging
-                            ? 'var(--bg-slate-100)'
-                            : isNext ? 'rgba(16,185,129,0.1)' : 'var(--bg-white)',
-                          borderColor: isNext ? '#6ee7b7' : 'var(--border-slate-200)',
-                          boxShadow: snapshot.isDragging ? '0 8px 24px rgba(0,0,0,0.35)' : undefined,
-                          zIndex: snapshot.isDragging ? 9999 : undefined,
-                          position: snapshot.isDragging ? 'relative' : undefined,
-                          userSelect: 'none',
-                        }}
-                      >
-                        <GripVertical className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--text-slate-400)' }} />
-
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold" style={{ color: 'var(--text-slate-500)' }}>#{index + 1}</span>
-                            <span className="text-sm font-medium truncate" style={{ color: 'var(--text-slate-900)' }}>{getStopName(delivery)}</span>
-                            {isNext && <Badge className="bg-emerald-500 text-white text-[9px] px-1.5">NEXT</Badge>}
+                      <PortalAwareDraggable provided={provided} snapshot={snapshot}>
+                        <div
+                          className="flex items-center gap-2 p-2 rounded-lg border cursor-grab active:cursor-grabbing"
+                          style={{
+                            background: snapshot.isDragging
+                              ? 'var(--bg-slate-100)'
+                              : isNext ? 'rgba(16,185,129,0.1)' : 'var(--bg-white)',
+                            borderColor: isNext ? '#6ee7b7' : 'var(--border-slate-200)',
+                            boxShadow: snapshot.isDragging ? '0 8px 24px rgba(0,0,0,0.35)' : undefined,
+                            userSelect: 'none',
+                          }}
+                        >
+                          <GripVertical className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--text-slate-400)' }} />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold" style={{ color: 'var(--text-slate-500)' }}>#{index + 1}</span>
+                              <span className="text-sm font-medium truncate" style={{ color: 'var(--text-slate-900)' }}>{getStopName(delivery)}</span>
+                              {isNext && <Badge className="bg-emerald-500 text-white text-[9px] px-1.5">NEXT</Badge>}
+                            </div>
+                            <span className="text-xs capitalize" style={{ color: 'var(--text-slate-500)' }}>{delivery.status.replace('_', ' ')}</span>
                           </div>
-                          <span className="text-xs capitalize" style={{ color: 'var(--text-slate-500)' }}>{delivery.status.replace('_', ' ')}</span>
                         </div>
-                      </div>
+                      </PortalAwareDraggable>
                     )}
                   </Draggable>
                 );
