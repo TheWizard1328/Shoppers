@@ -68,13 +68,13 @@ const formatMinutesToTime = (minutes) => {
 };
 
 const getEffectiveWindowStart = (delivery, patient = null) => {
-  // Patient time windows always take priority over delivery-level windows
-  return patient?.time_window_start || delivery?.delivery_time_start || delivery?.time_window_start || null;
+  // CRITICAL: Only use delivery time windows, never patient time windows
+  return delivery?.delivery_time_start || delivery?.time_window_start || null;
 };
 
 const getEffectiveWindowEnd = (delivery, patient = null) => {
-  // Patient time windows always take priority over delivery-level windows
-  return patient?.time_window_end || delivery?.delivery_time_end || delivery?.time_window_end || null;
+  // CRITICAL: Only use delivery time windows, never patient time windows
+  return delivery?.delivery_time_end || delivery?.time_window_end || null;
 };
 
 const isLateWindowStop = (windowStart, currentMinutes) => {
@@ -801,12 +801,40 @@ Deno.serve(async (req) => {
       routeStops = corrected;
     }
 
-    // CRITICAL: Re-sort routeStops by their effective window start time after HERE sequencing.
-    // HERE optimizes for distance and may still misequence stops when time windows are sparse.
-    // Sorting by window start ensures chronological ordering is always enforced before polyline
-    // generation and ETA calculation. Preserve relative order for stops without a window.
-    if (!preserveExistingOrder && routeStops.length > 1) {
-      // Stable sort: stops without a window sort after stops with one
+    // CRITICAL: Lock isNextDelivery stop as FIRST in the route, NEVER re-sort it.
+    // All other stops are sorted by window start, but the isNextDelivery stop always remains first.
+    if (!preserveExistingOrder && routeStops.length > 1 && lockedNextStop) {
+      // Find the locked next stop in the current route
+      const nextStopIndex = routeStops.findIndex(s => s.delivery.id === lockedNextStop.delivery.id);
+      if (nextStopIndex > 0) {
+        // Move it to the front
+        const [nextStop] = routeStops.splice(nextStopIndex, 1);
+        routeStops.unshift(nextStop);
+        console.log(`🔒 [optimizeRemainingStops] Locked isNextDelivery stop to position 0`);
+      }
+
+      // Sort the remaining stops (after the locked first stop) by window start
+      if (routeStops.length > 1) {
+        const restOfRoute = routeStops.slice(1);
+        restOfRoute.sort((a, b) => {
+          const aMin = parseTimeToMinutes(a.windowStart || a.delivery?.delivery_time_start);
+          const bMin = parseTimeToMinutes(b.windowStart || b.delivery?.delivery_time_start);
+          const aVal = Number.isFinite(aMin) ? aMin : 99999;
+          const bVal = Number.isFinite(bMin) ? bMin : 99999;
+          return aVal - bVal;
+        });
+        routeStops = [routeStops[0], ...restOfRoute];
+      }
+
+      // Rebuild directionsLegs for the reordered route
+      directionsLegs = routeStops.map((stop, index) => {
+        const prevPos = index === 0 ? currentPosition : { lat: routeStops[index - 1].lat, lng: routeStops[index - 1].lng };
+        const distKm = calculateCrowFliesDistance(prevPos.lat, prevPos.lng, stop.lat, stop.lng);
+        return { duration: Math.ceil((distKm / 40) * 3600 * 1.3), distance: distKm * 1000 };
+      });
+      console.log(`🔃 [optimizeRemainingStops] Locked isNextDelivery to first position, sorted remaining ${routeStops.length - 1} stops by window start`);
+    } else if (!preserveExistingOrder && routeStops.length > 1) {
+      // No locked next stop: sort all stops by window start
       routeStops.sort((a, b) => {
         const aMin = parseTimeToMinutes(a.windowStart || a.delivery?.delivery_time_start);
         const bMin = parseTimeToMinutes(b.windowStart || b.delivery?.delivery_time_start);
@@ -820,8 +848,6 @@ Deno.serve(async (req) => {
         const distKm = calculateCrowFliesDistance(prevPos.lat, prevPos.lng, stop.lat, stop.lng);
         return { duration: Math.ceil((distKm / 40) * 3600 * 1.3), distance: distKm * 1000 };
       });
-      // Re-align segmentPolylines to the new order — polylines are keyed by deliveryId so
-      // the map lookup in the write batch still works correctly; legs are rebuilt above.
       console.log(`🔃 [optimizeRemainingStops] Re-sorted ${routeStops.length} stops by window start after HERE sequencing`);
     }
 
@@ -874,30 +900,28 @@ Deno.serve(async (req) => {
         console.log(`  ✅ [optimizeRemainingStops] ${stop.delivery.patient_name || 'Pickup'} - ETA: ${eta}`);
       }
     } else {
-      // CRITICAL: For future dates or window-based departures, always start ETA accumulation
-      // from etaBaseMinutes (the earliest window start), NOT from currentMinutes.
-      // This ensures all stops get ETAs projected from the correct route start time,
-      // not from the wall-clock time of optimization.
-      let cumulativeTime = etaBaseMinutes;
-
+      // CRITICAL: For isNextDelivery (first stop), ETA is based on currentMinutes (now) + travel time from current location.
+      // For all subsequent stops, cascade ETAs based on arrival + service time + travel to next stop.
+      let cumulativeTime;
+      
       for (let i = 0; i < routeStops.length; i++) {
         const stop = routeStops[i];
         const segmentPolyline = segmentPolylineByDeliveryId.get(stop.delivery.id) || null;
-        const isLockedStartedStop = i === 0 && !!lockedNextStop;
-        if (!isLockedStartedStop) {
+        const isFirstStop = i === 0;
+        const isLockedNextDelivery = isFirstStop && !!lockedNextStop;
+
+        if (isFirstStop && isLockedNextDelivery) {
+          // CRITICAL: isNextDelivery ETA is based on CURRENT TIME + travel from current location
+          // Ignore all time windows for this calculation — just use NOW + distance
+          cumulativeTime = currentMinutes;
+          const travelMinutes = getLegTravelMinutes({ stop, leg: directionsLegs[i], segmentPolyline, fallbackMinutes: 5 });
+          cumulativeTime += travelMinutes;
+          // Snap to the stop's window start only if it's in the future
+          cumulativeTime = snapToWindowStart(cumulativeTime, stop);
+        } else {
+          // All other stops: cascade from the previous stop's departure
           const travelMinutes = getLegTravelMinutes({ stop, leg: directionsLegs[i], segmentPolyline, fallbackMinutes: 10 });
           cumulativeTime += travelMinutes;
-        }
-
-        // CRITICAL: Pickups on future routes always get an ETA exactly equal to their
-        // delivery_time_start — no travel-time drift allowed for scheduled pickups.
-        if (stop.isPickup && isFutureRoute) {
-          const pickupStartMinutes = parseTimeToMinutes(stop.delivery?.delivery_time_start || stop.windowStart);
-          if (Number.isFinite(pickupStartMinutes)) {
-            cumulativeTime = pickupStartMinutes;
-          }
-        } else {
-          // Snap UP to the stop's own window start if we'd arrive too early.
           cumulativeTime = snapToWindowStart(cumulativeTime, stop);
         }
 
@@ -905,7 +929,7 @@ Deno.serve(async (req) => {
         stageEtaMap.set(stop.delivery.id, eta);
         // Advance by service time at this stop before calculating the next leg
         cumulativeTime += stop.delivery.extra_time || (stop.isPickup ? 15 : 5);
-        console.log(`  ✅ [optimizeRemainingStops] ${stop.delivery.patient_name || 'Pickup'} - ETA: ${eta} (base=${formatMinutesToTime(etaBaseMinutes)}, isFutureRoute=${isFutureRoute})`);
+        console.log(`  ✅ [optimizeRemainingStops] ${stop.delivery.patient_name || 'Pickup'} - ETA: ${eta}${isLockedNextDelivery ? ' [isNextDelivery - based on current location/time]' : ''}`);
       }
     }
 
