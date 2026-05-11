@@ -117,18 +117,20 @@ const getTimeZoneOffset = (dateStr) => {
 const buildLocalIso = (dateStr, timeStr) => `${dateStr}T${normalizeTimeString(timeStr)}${getTimeZoneOffset(dateStr)}`;
 
 const buildAccessConstraint = (dateStr, startTime, endTime) => {
-  // CRITICAL: Always include a time window constraint for every stop.
-  // If no explicit window is provided, default to a full-day window (00:00–23:59).
-  // This forces HERE to always respect temporal ordering rather than purely geographic proximity.
-  const effectiveStart = startTime || '00:00';
-  const effectiveEnd = endTime || '23:59';
-  const startMinutes = parseTimeToMinutes(effectiveStart);
-  const endMinutes = parseTimeToMinutes(effectiveEnd);
-  if (!Number.isFinite(startMinutes) || !Number.isFinite(endMinutes) || endMinutes <= startMinutes) return null;
+  // CRITICAL: Always emit a time window constraint whenever we have at least a startTime.
+  // If endTime is missing, use startTime + 90 minutes as a tight deadline so HERE is
+  // forced to respect chronological ordering rather than purely minimising travel distance.
+  // Without this, two pickups at the same store (identical coords, different windows) are
+  // indistinguishable to HERE and it picks whichever order minimises distance.
+  if (!startTime) return null;
+  const startMinutes = parseTimeToMinutes(startTime);
+  if (!Number.isFinite(startMinutes)) return null;
+  const endMinutes = endTime ? parseTimeToMinutes(endTime) : startMinutes + 90;
+  if (endMinutes <= startMinutes) return null;
   const weekday = getWeekdayCode(dateStr);
   const offset = getTimeZoneOffset(dateStr);
-  const start = normalizeTimeString(effectiveStart, '00:00:00');
-  const end = normalizeTimeString(effectiveEnd, '23:59:59');
+  const start = normalizeTimeString(startTime, '00:00:00');
+  const end = normalizeTimeString(endTime || formatMinutesToTime(endMinutes), '23:59:59');
   return `acc:${weekday}${start}${offset}|${weekday}${end}${offset}`;
 };
 

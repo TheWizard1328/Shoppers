@@ -762,6 +762,31 @@ Deno.serve(async (req) => {
       }
     }
 
+    // CRITICAL: Co-located stop correction — if HERE placed stops with identical (or nearly identical)
+    // coordinates in the wrong order relative to their time windows, fix them now.
+    // This is the primary failure mode for two pickups from the same store with different windows.
+    if (routeStops.length > 1) {
+      const COORD_EPSILON = 0.0002; // ~22m — same location
+      const corrected = routeStops.slice();
+      for (let i = 0; i < corrected.length - 1; i++) {
+        for (let j = i + 1; j < corrected.length; j++) {
+          const si = corrected[i];
+          const sj = corrected[j];
+          const sameLocation = Math.abs(si.lat - sj.lat) < COORD_EPSILON && Math.abs(si.lng - sj.lng) < COORD_EPSILON;
+          if (!sameLocation) break; // stops are sorted, so once not co-located we can stop
+          const wiMin = parseTimeToMinutes(si.windowStart || si.delivery?.delivery_time_start);
+          const wjMin = parseTimeToMinutes(sj.windowStart || sj.delivery?.delivery_time_start);
+          // If j has an earlier window than i, swap them
+          if (Number.isFinite(wiMin) && Number.isFinite(wjMin) && wjMin < wiMin) {
+            [corrected[i], corrected[j]] = [corrected[j], corrected[i]];
+            [directionsLegs[i], directionsLegs[j]] = [directionsLegs[j], directionsLegs[i]];
+            console.log(`🔀 [optimizeRemainingStops] Swapped co-located stops: ${sj.delivery.patient_name || 'Pickup'} (${formatMinutesToTime(wjMin)}) before ${si.delivery.patient_name || 'Pickup'} (${formatMinutesToTime(wiMin)})`);
+          }
+        }
+      }
+      routeStops = corrected;
+    }
+
     // CRITICAL: After HERE sequencing, sort pending stops to the end of the route.
     // They were included in HERE optimization so they influence the overall route shape,
     // but they must appear last since they have no polyline and their ETAs come from their pickup.
