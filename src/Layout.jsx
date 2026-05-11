@@ -388,11 +388,13 @@ export default function Layout({ children, currentPageName }) {
     };
   }, [currentUser, dataLoaded, currentPageName]);
 
-  // Pause background sync when forms are open
+  // Pause sync managers when forms are open
   useEffect(() => {
     if (isFormOverlayOpen) {
+      smartRefreshManager.pause();
       backgroundSyncManager.pause();
     } else {
+      smartRefreshManager.resume();
       backgroundSyncManager.resume();
     }
   }, [isFormOverlayOpen]);
