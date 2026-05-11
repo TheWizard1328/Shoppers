@@ -76,18 +76,21 @@ async function normalizePickupPuid(base44, pickup) {
 async function ensurePickupDriverName(base44, pickup, driverName) {
   if (!pickup) return pickup;
   const desiredPuid = pickup.puid || pickup.stop_id || null;
-  if (pickup.driver_name === driverName && pickup.puid === desiredPuid && pickup.stop_id === desiredPuid) return pickup;
+  const needsDriverName = driverName && pickup.driver_name !== driverName;
+  const needsPuid = desiredPuid && (pickup.puid !== desiredPuid || pickup.stop_id !== desiredPuid);
+  if (!needsDriverName && !needsPuid) return pickup;
+  const updatePayload = {
+    ...(needsDriverName ? { driver_name: driverName } : {}),
+    ...(needsPuid ? { stop_id: desiredPuid, puid: desiredPuid } : {}),
+  };
   try {
-    const updatedPickup = await base44.asServiceRole.entities.Delivery.update(pickup.id, {
-      ...(driverName ? { driver_name: driverName } : {}),
-      ...(desiredPuid ? { stop_id: desiredPuid, puid: desiredPuid } : {})
-    }).catch((error) => {
+    const updatedPickup = await base44.asServiceRole.entities.Delivery.update(pickup.id, updatePayload).catch((error) => {
       if (isNotFoundError(error)) return null;
       throw error;
     });
-    return updatedPickup || { ...pickup, ...(driverName ? { driver_name: driverName } : {}), ...(desiredPuid ? { stop_id: desiredPuid, puid: desiredPuid } : {}) };
+    return updatedPickup || { ...pickup, ...updatePayload };
   } catch (_) {
-    return { ...pickup, ...(driverName ? { driver_name: driverName } : {}), ...(desiredPuid ? { stop_id: desiredPuid, puid: desiredPuid } : {}) };
+    return { ...pickup, ...updatePayload };
   }
 }
 

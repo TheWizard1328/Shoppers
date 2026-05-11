@@ -128,7 +128,7 @@ async function ensurePickup(base44, { store, deliveryDate, driverId, driverName,
   const pickups = (existingStoreDeliveries || []).filter((item) => !item?.patient_id);
   const reusablePickup = findReusablePickup(pickups, slot);
   if (reusablePickup) {
-    if (!reusablePickup.driver_name && driverName) {
+    if (driverName && reusablePickup.driver_name !== driverName) {
       const updatedPickup = await base44.asServiceRole.entities.Delivery.update(reusablePickup.id, { driver_name: driverName }).catch((error) => {
         if (isNotFoundError(error)) return null;
         throw error;
