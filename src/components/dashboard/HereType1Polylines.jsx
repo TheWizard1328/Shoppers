@@ -248,9 +248,11 @@ export default function HereType1Polylines({
     const orderedStops = [...stops.incomplete]
       .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
     
-    const currentIndex = orderedStops.findIndex((stop) => stop?.isNextDelivery === true);
+    // Use isNextDelivery index, but fall back to index 0 if none is flagged yet
+    const flaggedIndex = orderedStops.findIndex((stop) => stop?.isNextDelivery === true);
+    const currentIndex = flaggedIndex >= 0 ? flaggedIndex : (orderedStops.length > 0 ? 0 : -1);
     
-    // Render all stops FROM the stop after isNextDelivery (leg: isNextDelivery -> next) in driver's color
+    // Render all legs from isNextDelivery+1 onwards in driver's color
     if (currentIndex >= 0 && currentIndex < orderedStops.length - 1) {
       for (let i = currentIndex + 1; i < orderedStops.length; i++) {
         const prevStop = orderedStops[i - 1];
