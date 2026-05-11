@@ -196,6 +196,7 @@ export default function ExpandedStatsControls({
         preferredTravelMode={preferredTravelMode}
         setPreferredTravelMode={setPreferredTravelMode}
         isRouteComplete={isRouteComplete}
+        filteredDeliveries={deliveries}
       />
 
       {isStatsCardCentered && (

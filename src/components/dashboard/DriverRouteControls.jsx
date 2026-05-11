@@ -15,6 +15,7 @@ export default function DriverRouteControls({
   preferredTravelMode,
   setPreferredTravelMode,
   hasActiveRoute,
+  filteredDeliveries,
   modeDialogOpen,
   setModeDialogOpen,
   nearbyModeStops,
@@ -44,7 +45,7 @@ export default function DriverRouteControls({
               variant="outline"
               size="sm"
               onClick={() => setShowQuickAdjustments(true)}
-              disabled={!hasActiveRoute}
+              disabled={!hasActiveRoute || !filteredDeliveries?.some(d => d && (d.status === 'in_transit' || d.status === 'en_route'))}
               className="h-8 gap-1.5 px-2 flex-shrink-0"
               title="Quick route adjustments"
               style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
