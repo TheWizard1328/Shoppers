@@ -44,6 +44,7 @@ export default function DriverRouteControls({
               variant="outline"
               size="sm"
               onClick={() => setShowQuickAdjustments(true)}
+              disabled={!hasActiveRoute}
               className="h-8 gap-1.5 px-2 flex-shrink-0"
               title="Quick route adjustments"
               style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
