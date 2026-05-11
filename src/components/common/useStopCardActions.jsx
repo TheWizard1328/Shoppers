@@ -602,17 +602,19 @@ export default function useStopCardActions(params) {
           await base44.functions.invoke('handleStartDelivery', { deliveryId: delivery.id, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime });
 
           // Step 2: Fetch fresh deliveries from backend to capture any server-side corrections
-          const refreshedImmediately = await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-          const refreshedListImmediate = Array.isArray(refreshedImmediately)
-            ? refreshedImmediately
-            : Array.isArray(refreshedImmediately?.deliveries)
-              ? refreshedImmediately.deliveries
-              : null;
+           const refreshedImmediately = await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+           const refreshedListImmediate = Array.isArray(refreshedImmediately)
+             ? refreshedImmediately
+             : Array.isArray(refreshedImmediately?.deliveries)
+               ? refreshedImmediately.deliveries
+               : null;
 
           if (Array.isArray(refreshedListImmediate) && refreshedListImmediate.length > 0) {
+            // CRITICAL: Save to offline DB only (don't update UI yet)
+            // The optimizer will run next and update the backend + broadcast its own optimized result
+            // If we update the UI here with pre-optimization order, something will revert it back
             await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', delivery.delivery_date, refreshedListImmediate);
-            updateDeliveriesLocally?.(refreshedListImmediate, true);
-            
+
             // CRITICAL: Verify the started stop has isNextDelivery flag before optimization
             // Ensure the correct stop is locked when optimization runs
             const startedStopFromRefresh = refreshedListImmediate.find((d) => d?.id === delivery.id);
