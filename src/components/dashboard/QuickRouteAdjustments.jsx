@@ -72,13 +72,15 @@ export default function QuickRouteAdjustments({
 
   return (
     <div className="flex flex-col gap-3">
-      <DragDropContext onDragEnd={handleDragEnd}>
+      <DragDropContext onDragEnd={handleDragEnd} onDragStart={() => {}}>
+
         <Droppable droppableId="route-stops">
           {(provided) =>
           <div
             ref={provided.innerRef}
             {...provided.droppableProps}
-            className="space-y-1">
+            className="space-y-1"
+            style={{ touchAction: 'none' }}>
             
               {localOrder.map((delivery, index) => {
               const isNext = delivery.isNextDelivery === true;
@@ -99,7 +101,8 @@ export default function QuickRouteAdjustments({
                         borderColor: isNext ? '#6ee7b7' : 'var(--border-slate-200)',
                         boxShadow: snapshot.isDragging ? '0 8px 24px rgba(0,0,0,0.35)' : undefined,
                         userSelect: 'none',
-                        pointerEvents: 'auto'
+                        pointerEvents: 'auto',
+                        touchAction: 'none'
                       }}>
                       
                           <GripVertical className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--text-slate-400)' }} />
