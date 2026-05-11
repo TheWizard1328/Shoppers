@@ -250,7 +250,7 @@ export default function HereType1Polylines({
     
     const currentIndex = orderedStops.findIndex((stop) => stop?.isNextDelivery === true);
     
-    // Render all stops AFTER the current isNextDelivery in driver's color
+    // Render all stops FROM the stop after isNextDelivery (leg: isNextDelivery -> next) in driver's color
     if (currentIndex >= 0 && currentIndex < orderedStops.length - 1) {
       for (let i = currentIndex + 1; i < orderedStops.length; i++) {
         const prevStop = orderedStops[i - 1];
@@ -261,7 +261,7 @@ export default function HereType1Polylines({
         const origin = { latitude: Number(prevStop.latitude), longitude: Number(prevStop.longitude) };
         const destination = { latitude: Number(stop.latitude), longitude: Number(stop.longitude) };
         const driverColor = getPolylineColorForDriver(driverId, stop.driver?.sort_order);
-        const key = `remaining-${driverId}-${stop.id}`;
+        const key = `remaining-${driverId}-${stop.id}-${i}`;
 
         let coords = null;
         let shouldUseFallback = false;
@@ -283,7 +283,7 @@ export default function HereType1Polylines({
         const driverStyle = getTravelModeLineStyle(mode, driverColor);
         lines.push(
           <Polyline
-            key={`type1-remaining-line-${driverId}-${stop.id}`}
+            key={`type1-remaining-line-${driverId}-${stop.id}-${i}`}
             positions={coords}
             pathOptions={{
               ...driverStyle,
@@ -295,7 +295,7 @@ export default function HereType1Polylines({
             pane="routeBasePane"
           />,
           <RouteDirectionDecorator
-            key={`type1-remaining-arrow-${driverId}-${stop.id}`}
+            key={`type1-remaining-arrow-${driverId}-${stop.id}-${i}`}
             positions={coords}
             color={driverColor}
           />
