@@ -392,9 +392,10 @@ Deno.serve(async (req) => {
     const incompleteDeliveries = allDeliveries.filter(d => !FINISHED_STATUSES.includes(d.status));
     const activeRouteDeliveries = incompleteDeliveries.filter((delivery) => ACTIVE_STATUSES.includes(delivery.status));
     const pendingRouteDeliveries = incompleteDeliveries.filter((delivery) => delivery.status === 'pending');
-    const optimizableDeliveries = [...activeRouteDeliveries, ...pendingRouteDeliveries];
+    // CRITICAL: Only optimize ACTIVE deliveries with HERE. Pending deliveries will be appended to the end after optimization.
+    const optimizableDeliveries = activeRouteDeliveries;
 
-    if (optimizableDeliveries.length === 0) {
+    if (optimizableDeliveries.length === 0 && pendingRouteDeliveries.length === 0) {
       return Response.json({
         success: true,
         message: 'No optimizable stops found',
@@ -535,7 +536,14 @@ Deno.serve(async (req) => {
     console.log(`📍 [optimizeRemainingStops] Starting from: ${locationSource} (${currentPosition.lat}, ${currentPosition.lng})`);
     console.log(`🎯 [optimizeRemainingStops] Active next stop: ${explicitNextDelivery?.id || 'none'}`);
 
-    const optimizationStops = optimizableDeliveries
+    // CRITICAL: Build stops ONLY from active deliveries for HERE optimization.
+    // Pending deliveries are NOT included in the optimization input—they'll be appended at the end.
+    const optimizationStops = activeRouteDeliveries
+      .map((delivery) => stops.find((item) => item.delivery.id === delivery.id) || null)
+      .filter(Boolean);
+
+    // All pending stops will be added at the end (not optimized)
+    const pendingStops = pendingRouteDeliveries
       .map((delivery) => stops.find((item) => item.delivery.id === delivery.id) || null)
       .filter(Boolean);
 
@@ -817,28 +825,20 @@ Deno.serve(async (req) => {
       console.log(`🔃 [optimizeRemainingStops] Re-sorted ${routeStops.length} stops by window start after HERE sequencing`);
     }
 
-    // CRITICAL: After HERE sequencing, sort pending stops to the end of the route.
-    // They were included in HERE optimization so they influence the overall route shape,
-    // but they must appear last since they have no polyline and their ETAs come from their pickup.
-    if (pendingDeliveryIds.size > 0 && routeStops.length > 0) {
-      const nonPending = routeStops.filter(s => !pendingDeliveryIds.has(s.delivery.id));
-      const pendingAtEnd = routeStops.filter(s => pendingDeliveryIds.has(s.delivery.id));
-      if (pendingAtEnd.length > 0) {
-        const reordered = [...nonPending, ...pendingAtEnd];
-        // Rebuild directionsLegs to match the new order (crow-flies for pending legs)
-        const newLegs = reordered.map((stop, index) => {
-          if (!pendingDeliveryIds.has(stop.delivery.id)) {
-            // Keep the original leg from HERE for non-pending stops
-            const origIdx = routeStops.findIndex(s => s.delivery.id === stop.delivery.id);
-            return directionsLegs[origIdx] || { duration: 0, distance: 0 };
-          }
-          // Pending stop: placeholder leg (no travel time — ETA derived from pickup)
-          return { duration: 0, distance: 0 };
-        });
-        routeStops = reordered;
-        directionsLegs = newLegs;
-        console.log(`📌 [optimizeRemainingStops] Sorted ${pendingAtEnd.length} pending stop(s) to end of route`);
+    // CRITICAL: Pending stops were NOT included in HERE optimization, so append them now at the end.
+    // This ensures the optimized active route is never distorted by pending deliveries.
+    if (pendingStops.length > 0 && routeStops.length > 0) {
+      const lastActiveStop = routeStops[routeStops.length - 1];
+      let prevPos = { lat: lastActiveStop.lat, lng: lastActiveStop.lng };
+      
+      for (const pendingStop of pendingStops) {
+        routeStops.push(pendingStop);
+        // Pending stops get crow-flies placeholder legs (no actual polyline)
+        const distKm = calculateCrowFliesDistance(prevPos.lat, prevPos.lng, pendingStop.lat, pendingStop.lng);
+        directionsLegs.push({ duration: 0, distance: 0 });
+        prevPos = { lat: pendingStop.lat, lng: pendingStop.lng };
       }
+      console.log(`📌 [optimizeRemainingStops] Appended ${pendingStops.length} pending stop(s) to end of route after HERE optimization`);
     }
 
     // -------------------------------------------------------------------
