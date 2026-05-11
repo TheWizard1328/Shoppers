@@ -116,7 +116,7 @@ Deno.serve(async (req) => {
       console.log(`📦 [setDriverStatus] Found ${allTodayDeliveries.length} deliveries for ${targetDate}`);
       console.log(`📦 [setDriverStatus] Preserving existing next-stop state on on_duty (${flaggedDeliveries.length} currently flagged)`);
 
-      if (flaggedDeliveries.length > 0) {
+      if (flaggedDeliveries.length > 0 && updatedAppUser?.home_latitude != null && updatedAppUser?.home_longitude != null) {
         await base44.asServiceRole.functions.invoke('regenerateType1Polyline', {
           driverId: user.id,
           deliveryDate: targetDate,
