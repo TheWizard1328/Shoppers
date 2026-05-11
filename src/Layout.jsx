@@ -651,7 +651,7 @@ export default function Layout({ children, currentPageName }) {
 
     // Listen for delivery updates from DeliveryForm and trigger refresh
     const handleDeliveriesUpdated = async (event) => {
-      const { deliveryId, driverId, deliveryDate, triggeredBy, freshDeliveries, preserveLocalState, deletedIds, deletedId } = event.detail || {};
+      const { deliveryId, driverId, deliveryDate, triggeredBy, freshDeliveries, preserveLocalState, deletedIds, deletedId, fullReplacement } = event.detail || {};
       const skipReloadTriggers = ['batchSaveImmediate', 'driver_location_update', 'driverLocationUpdate', 'pullToSyncDataReady', 'pullToSyncComplete', 'initialDataReady'];
       if (preserveLocalState || skipReloadTriggers.includes(triggeredBy)) {
         // CRITICAL: Always remove deleted IDs even when preserving local state (cross-device realtime deletes)
@@ -660,13 +660,19 @@ export default function Layout({ children, currentPageName }) {
         if (freshDeliveries?.length > 0) setDeliveries((prev) => {const map = new Map(prev.filter((d) => !idsToRemove.has(d?.id)).map((d) => [d?.id, d]).filter(([id]) => !!id));freshDeliveries.forEach((d) => {if (d?.id && !idsToRemove.has(d.id)) map.set(d.id, d);});return Array.from(map.values());});
         return;
       }
-      console.log(`🔄 [Layout] Delivery updated event: ${deliveryId} (${triggeredBy})`);
+      console.log(`🔄 [Layout] Delivery updated event: ${deliveryId} (${triggeredBy}) - fullReplacement: ${fullReplacement}`);
       if (freshDeliveries?.length > 0) {
-        setDeliveries((prev) => {
-          const map = new Map((prev || []).filter(Boolean).map((d) => [d?.id, d]).filter(([id]) => !!id));
-          freshDeliveries.forEach((d) => {if (d?.id) map.set(d.id, d);});
-          return Array.from(map.values());
-        });
+        // CRITICAL: When fullReplacement is true (route optimization), replace entire array to preserve stop_order
+        if (fullReplacement) {
+          setDeliveries((prev) => [...freshDeliveries].filter(Boolean));
+        } else {
+          // Merge mode for partial updates
+          setDeliveries((prev) => {
+            const map = new Map((prev || []).filter(Boolean).map((d) => [d?.id, d]).filter(([id]) => !!id));
+            freshDeliveries.forEach((d) => {if (d?.id) map.set(d.id, d);});
+            return Array.from(map.values());
+          });
+        }
       }
     };
     window.addEventListener('deliveriesUpdated', handleDeliveriesUpdated);
