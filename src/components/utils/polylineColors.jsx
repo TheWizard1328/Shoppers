@@ -3,7 +3,6 @@
 
 export const POLYLINE_COLORS = [
   '#E11D48', // Rose
-  '#16A34A', // Green
   '#EA580C', // Orange
   '#7C3AED', // Violet
   '#0F766E', // Teal
@@ -17,6 +16,7 @@ export const POLYLINE_COLORS = [
   '#6D28D9', // Deep Violet
   '#047857', // Dark Emerald
   '#BE123C', // Crimson
+  '#16A34A', // Green
 ];
 
 // sortOrder-based color assignment — drivers are colored by their sort_order position in the list.
