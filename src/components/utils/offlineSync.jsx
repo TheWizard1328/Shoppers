@@ -345,7 +345,10 @@ export const forceSyncAll = async () => {
 
     const cleanPatients = (freshPatients || []).filter(p => p && p.id && !p.id.startsWith('temp_'));
     console.log(`✅ [ForceSyncAll] Synced ${cleanPatients.length} referenced patients`);
-    notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 35, count: cleanPatients.length });
+    
+    // CRITICAL: Get total patient count from offline DB after merge
+    const allPatientsInDB = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+    notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 35, count: allPatientsInDB.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
     notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 40 });
@@ -439,7 +442,10 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null)
       await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
     }
     invalidateEntityCache('Patient');
-    notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 65, count: totalPatients });
+    
+    // CRITICAL: Get total patient count from offline DB after merge
+    const allPatientsAfterSync = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+    notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 65, count: allPatientsAfterSync.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
     // STEP 3: Now save deliveries to offline DB (patients are already up-to-date)
@@ -674,6 +680,14 @@ export const restartDeliveryPatientSync = async () => {
     const cleanPatients = allPatients.filter(p => p && p.id && !p.id.startsWith('temp_'));
     console.log(`✅ [OfflineSync] Synced ${cleanPatients.length} total active patients`);
     
+    // CRITICAL: Update progress with actual offline DB patient count (merged, not just synced)
+    const totalOfflinePatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+    notifySyncStatus({ 
+      status: 'syncing', 
+      entity: `Patients (total in DB: ${totalOfflinePatients.length})`, 
+      progress: 75 
+    });
+    
     await new Promise(r => setTimeout(r, 1000));
     
     // Full sync for OTHER entities (Cities, Stores, AppUsers)
@@ -723,12 +737,16 @@ export const restartDeliveryPatientSync = async () => {
     // Update sync status for all entities
     const deliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
     
+    // CRITICAL: Get actual offline DB counts (merged data, not just synced)
+    const offlinePatientsForStatus = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+    const offlineDeliveriesForStatus = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+    
     await Promise.all([
       offlineDB.updateSyncStatus('City', { recordCount: cities.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
       offlineDB.updateSyncStatus('Store', { recordCount: stores.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
       offlineDB.updateSyncStatus('AppUser', { recordCount: appUsers.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
-      offlineDB.updateSyncStatus('Delivery', { recordCount: deliveries.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
-      offlineDB.updateSyncStatus('Patient', { recordCount: cleanPatients.length, status: 'synced', lastSync: new Date().toISOString() })
+      offlineDB.updateSyncStatus('Delivery', { recordCount: offlineDeliveriesForStatus.length, status: 'synced', lastSync: new Date().toISOString(), lastFullSync: new Date().toISOString() }),
+      offlineDB.updateSyncStatus('Patient', { recordCount: offlinePatientsForStatus.length, status: 'synced', lastSync: new Date().toISOString() })
     ]);
     
     notifySyncStatus({ status: 'complete', progress: 100 });
