@@ -9,6 +9,10 @@ export async function handleStatusUpdateOptimization(driverId, deliveryDate) {
   const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
   try {
+    // CRITICAL: Bypass 5-min refresh cooldown for manual route optimizations (user-triggered)
+    const { globalFilters } = await import('../utils/globalFilters');
+    globalFilters.invalidateRefreshCooldown();
+
     // CRITICAL: First recalculate ETAs based on completion time + remaining estimated durations
     await base44.functions.invoke('recalculateRemainingETAs', {
       driverId,
