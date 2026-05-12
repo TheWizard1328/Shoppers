@@ -18,7 +18,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
   let isEntityUpdating = false;
   let refreshData = null;
   let currentUser = null;
-  
+
   try {
     const appData = useAppData();
     if (appData) {
@@ -27,31 +27,31 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
       refreshData = appData.refreshData;
     }
   } catch (e) {
+
     // Context not available, use defaults
   }
-  
   try {
     const userData = useUser();
     if (userData) {
       currentUser = userData.currentUser;
     }
   } catch (e) {
+
     // Context not available, use defaults
   }
-  
   const [recentUpdates, setRecentUpdates] = useState([]);
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [currentDisplayIndex, setCurrentDisplayIndex] = useState(0);
   const [hasError, setHasError] = useState(false);
   const [isRefreshStuck, setIsRefreshStuck] = useState(false);
-  
+
   // Track which manager is active
   const [activeManager, setActiveManager] = useState(null); // 'smart', 'offline', 'polling'
   const [isSmartRefreshActive, setIsSmartRefreshActive] = useState(false);
   const [isOfflineSyncActive, setIsOfflineSyncActive] = useState(false);
   const [isPollingActive, setIsPollingActive] = useState(false);
-  
+
   // CRITICAL: Track smartRefreshManager.isRefreshing directly
   const isRefreshingRef = React.useRef(false);
 
@@ -59,7 +59,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
   // CRITICAL: Use a ref to track the timeout so we can clear it properly
   const clearTimeoutRef = React.useRef(null);
   const cycleIntervalRef = React.useRef(null);
-  
+
   useEffect(() => {
     // Clear any pending timeouts/intervals when dependencies change
     if (clearTimeoutRef.current) {
@@ -70,15 +70,15 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
       clearInterval(cycleIntervalRef.current);
       cycleIntervalRef.current = null;
     }
-    
+
     if (smartRefreshActivity?.updatedEntities && smartRefreshActivity.updatedEntities.length > 0) {
       setRecentUpdates(smartRefreshActivity.updatedEntities);
       setCurrentDisplayIndex(0);
-      
+
       // CRITICAL: Start cycling through entity badges ONLY while refresh is active
       if (smartRefreshActivity.active && smartRefreshActivity.updatedEntities.length > 1) {
         cycleIntervalRef.current = setInterval(() => {
-          setCurrentDisplayIndex(prev => (prev + 1) % smartRefreshActivity.updatedEntities.length);
+          setCurrentDisplayIndex((prev) => (prev + 1) % smartRefreshActivity.updatedEntities.length);
         }, 1000);
       }
     } else if (!smartRefreshActivity?.active) {
@@ -87,7 +87,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
       setRecentUpdates([]);
       setCurrentDisplayIndex(0);
     }
-    
+
     return () => {
       if (clearTimeoutRef.current) {
         clearTimeout(clearTimeoutRef.current);
@@ -118,7 +118,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
           setTimeout(() => setHasError(false), 5000);
         }
       };
-      
+
       window.addEventListener('rateLimitError', handleRateLimitError);
       return () => window.removeEventListener('rateLimitError', handleRateLimitError);
     }
@@ -130,12 +130,12 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
       // CRITICAL: Track smart refresh state by polling isRefreshing flag every 50ms
       const checkSmartRefresh = () => {
         const isRefreshing = smartRefreshManager?.isRefreshing || false;
-        
+
         // Update state only when it changes to prevent re-renders
         if (isRefreshing !== isRefreshingRef.current) {
           isRefreshingRef.current = isRefreshing;
           setIsSmartRefreshActive(isRefreshing);
-          
+
           if (isRefreshing) {
             console.log('🟢 [Indicator] Smart refresh STARTED - showing green spinner');
           } else {
@@ -143,23 +143,23 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
           }
         }
       };
-      
+
       // Track offline sync state
       const handleOfflineSyncStart = () => setIsOfflineSyncActive(true);
       const handleOfflineSyncComplete = () => setIsOfflineSyncActive(false);
-      
+
       // Track polling manager state  
       const handlePollingStart = () => setIsPollingActive(true);
       const handlePollingComplete = () => setIsPollingActive(false);
-      
+
       // Check smart refresh every 50ms for responsive updates
       const smartRefreshInterval = setInterval(checkSmartRefresh, 50);
-      
+
       window.addEventListener('offlineSyncStarted', handleOfflineSyncStart);
       window.addEventListener('offlineSyncComplete', handleOfflineSyncComplete);
       window.addEventListener('driverLocationPollingStarted', handlePollingStart);
       window.addEventListener('driverLocationPollingComplete', handlePollingComplete);
-      
+
       return () => {
         clearInterval(smartRefreshInterval);
         window.removeEventListener('offlineSyncStarted', handleOfflineSyncStart);
@@ -209,19 +209,19 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
   const isActive = !isRefreshStuck && (smartRefreshActivity?.active || isManualRefreshing || isSmartRefreshActive || isOfflineSyncActive);
   const isPaused = isEntityUpdating;
   const hasUpdates = recentUpdates.length > 0;
-  
+
   // Determine spinner color based on active manager
   const getSpinnerColor = () => {
     if (hasError) return 'bg-red-500';
     if (isPaused) return 'bg-yellow-100';
     if (!isOnline) return 'bg-red-500';
     if (isPollingOnly) return 'bg-slate-200 hover:bg-slate-300';
-    
+
     switch (activeManager) {
-      case 'smart': return 'bg-emerald-500'; // Green for smart refresh
-      case 'offline': return 'bg-purple-500'; // Purple for offline sync
-      case 'polling': return 'bg-blue-500'; // Blue for polling
-      default: return isActive ? 'bg-emerald-500' : 'bg-slate-200 hover:bg-slate-300';
+      case 'smart':return 'bg-emerald-500'; // Green for smart refresh
+      case 'offline':return 'bg-purple-500'; // Purple for offline sync
+      case 'polling':return 'bg-blue-500'; // Blue for polling
+      default:return isActive ? 'bg-emerald-500' : 'bg-slate-200 hover:bg-slate-300';
     }
   };
 
@@ -253,7 +253,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
       if (selectedDriverId && selectedDriverId !== 'all' && /^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) {
         repairMissingPolylines({ driverId: selectedDriverId, deliveryDate: selectedDate }).catch(() => null);
       }
-    } catch(_) {}
+    } catch (_) {}
 
     const requestedAt = Date.now();
 
@@ -306,7 +306,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
     return (
       <div className="relative w-7 h-7 flex-shrink-0">
       <AnimatePresence mode="wait">
-        {showPill ? (
+        {showPill ?
           <motion.button
             key="pill"
             data-offline-sync-button
@@ -316,7 +316,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
             animate={{ width: 'auto' }}
             exit={{ width: 16 }}
             transition={{ duration: 0.2, ease: 'easeInOut' }}
-            className={`h-9 min-h-9 px-2 flex shrink-0 items-center gap-1.5 overflow-hidden pointer-events-auto rounded-full ${getSpinnerColor()} shadow-lg`}
+            className={`h-9 min-h-9 px-2 flex shrink-0 items-center overflow-hidden pointer-events-auto rounded-full gap-1.5 ${getSpinnerColor()} shadow-lg`}
             style={{ position: 'absolute', left: 0, zIndex: 10030, whiteSpace: 'nowrap' }}
             title="Syncing...">
             <motion.div
@@ -332,8 +332,8 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
               className="text-white text-xs font-medium pr-0.5">
               Syncing...
             </motion.span>
-          </motion.button>
-        ) : (
+          </motion.button> :
+
           <motion.button
             key="circle"
             data-offline-sync-button
@@ -346,41 +346,41 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
             className={`w-7 h-7 min-w-7 min-h-7 aspect-square rounded-full flex shrink-0 items-center justify-center transition-colors duration-200 hover:scale-110 relative pointer-events-auto ${getSpinnerColor()}`}
             style={{ zIndex: 10030 }}
             title={hasError ? 'Refresh error' : !isOnline ? 'Offline' : isPaused ? 'Refresh paused' : 'Click to refresh'}>
-            {isPaused ? (
-              <div className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
-            ) : hasError ? (
-              <RefreshCw className="w-3 h-3 text-white" />
-            ) : isPollingOnly ? (
-              <RefreshCw className="w-3 h-3 text-blue-500" />
-            ) : (
-              <RefreshCw className={`w-3 h-3 ${!isOnline ? 'text-white' : 'text-slate-500'}`} />
-            )}
+            {isPaused ?
+            <div className="w-1.5 h-1.5 rounded-full bg-yellow-500" /> :
+            hasError ?
+            <RefreshCw className="w-3 h-3 text-white" /> :
+            isPollingOnly ?
+            <RefreshCw className="w-3 h-3 text-blue-500" /> :
+
+            <RefreshCw className={`w-3 h-3 ${!isOnline ? 'text-white' : 'text-slate-500'}`} />
+            }
 
             {/* Show entity badge on top of spinner */}
             <AnimatePresence mode="wait">
-              {hasUpdates && currentEntity && (
-                <motion.div
-                  key={currentEntity}
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0, opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className={`absolute inset-0 rounded-full text-[9px] font-bold text-white flex items-center justify-center ${entityColors[currentEntity] || 'bg-slate-500'}`}
-                  title={currentEntity}>
+              {hasUpdates && currentEntity &&
+              <motion.div
+                key={currentEntity}
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className={`absolute inset-0 rounded-full text-[9px] font-bold text-white flex items-center justify-center ${entityColors[currentEntity] || 'bg-slate-500'}`}
+                title={currentEntity}>
                   {entityLabels[currentEntity] || '?'}
                 </motion.div>
-              )}
+              }
             </AnimatePresence>
           </motion.button>
-        )}
+          }
       </AnimatePresence>
-      </div>
-    );
+      </div>);
+
   }
 
   // Original vertical version for fixed position
   const currentEntity = hasUpdates ? recentUpdates[currentDisplayIndex] : null;
-  
+
   return (
     <div className="flex flex-col items-center gap-1 z-[601]">
       <button
@@ -389,50 +389,50 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
         disabled={isPaused}
         className={`w-6 h-6 min-w-6 min-h-6 aspect-square rounded-full flex shrink-0 items-center justify-center transition-colors duration-200 hover:scale-110 relative pointer-events-auto ${getSpinnerColor()} ${isActive && !isPaused ? 'shadow-xl' : ''}`}
         style={{ position: 'relative', zIndex: 10030 }}
-        title={hasError ? 'Refresh error - click to retry' : !isOnline ? 'Offline - changes will sync when online' : isPaused ? 'Smart refresh paused' : 
-               activeManager === 'smart' ? 'Smart Refresh active' : 
-               activeManager === 'offline' ? 'Offline Sync active' : 
-               activeManager === 'polling' ? 'Background location polling' : 
-               'Click to refresh'}>
+        title={hasError ? 'Refresh error - click to retry' : !isOnline ? 'Offline - changes will sync when online' : isPaused ? 'Smart refresh paused' :
+        activeManager === 'smart' ? 'Smart Refresh active' :
+        activeManager === 'offline' ? 'Offline Sync active' :
+        activeManager === 'polling' ? 'Background location polling' :
+        'Click to refresh'}>
 
-        {hasError ? (
-          <RefreshCw className="w-3.5 h-3.5 text-white" />
-        ) : !isOnline ? (
-          <motion.div
-            key="spinner-offline"
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
+        {hasError ?
+        <RefreshCw className="w-3.5 h-3.5 text-white" /> :
+        !isOnline ?
+        <motion.div
+          key="spinner-offline"
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
             <RefreshCw className="w-3.5 h-3.5 text-white drop-shadow-lg" />
-          </motion.div>
-        ) : isActive && !isPaused ? (
-          <motion.div
-            key="spinner-active"
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
+          </motion.div> :
+        isActive && !isPaused ?
+        <motion.div
+          key="spinner-active"
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
             <RefreshCw className="w-3.5 h-3.5 text-white drop-shadow-lg" />
-          </motion.div>
-        ) : isPaused ? (
-          <div className="w-2 h-2 rounded-full bg-yellow-500" />
-        ) : isPollingOnly ? (
-          <RefreshCw className="w-3.5 h-3.5 text-blue-500" />
-        ) : (
-          <RefreshCw className="w-3.5 h-3.5 text-slate-400" />
-        )}
+          </motion.div> :
+        isPaused ?
+        <div className="w-2 h-2 rounded-full bg-yellow-500" /> :
+        isPollingOnly ?
+        <RefreshCw className="w-3.5 h-3.5 text-blue-500" /> :
+
+        <RefreshCw className="w-3.5 h-3.5 text-slate-400" />
+        }
         
         {/* Show entity badge on top of spinner */}
         <AnimatePresence mode="wait">
-          {hasUpdates && currentEntity && (
-            <motion.div
-              key={currentEntity}
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className={`absolute inset-0 rounded-full text-[10px] font-bold text-white flex items-center justify-center ${entityColors[currentEntity] || 'bg-slate-500'}`}
-              title={currentEntity}>
+          {hasUpdates && currentEntity &&
+          <motion.div
+            key={currentEntity}
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className={`absolute inset-0 rounded-full text-[10px] font-bold text-white flex items-center justify-center ${entityColors[currentEntity] || 'bg-slate-500'}`}
+            title={currentEntity}>
               {entityLabels[currentEntity] || '?'}
             </motion.div>
-          )}
+          }
         </AnimatePresence>
       </button>
     </div>);

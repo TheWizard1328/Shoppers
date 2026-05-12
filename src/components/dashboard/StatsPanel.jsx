@@ -91,7 +91,7 @@ export default function StatsPanel({
       const cityStoreIds = new Set(
         (stores || []).filter((store) => store?.city_id === selectedCityId).map((store) => store.id)
       );
-      const dispatcherStoreIds = new Set(isDispatcher ? (currentUser?.store_ids || []) : []);
+      const dispatcherStoreIds = new Set(isDispatcher ? currentUser?.store_ids || [] : []);
 
       const offlineDateDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr).catch(() => []);
       const sourceDeliveries = offlineDateDeliveries?.length > 0 ? offlineDateDeliveries : deliveries || [];
@@ -225,7 +225,7 @@ export default function StatsPanel({
 
           style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', pointerEvents: 'auto', touchAction: 'none', position: 'relative' }}>
 
-          <div className="mt-0.25 mb-0 flex items-center justify-between">
+          <div className="mb-0 flex items-center justify-between mt-0.25">
             <div className="pr-1 flex items-center gap-1">
               <h2 className="pl-2 text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>Dashboard</h2>
               {currentUser && <div className="flex items-center gap-1.5 ml-0">
