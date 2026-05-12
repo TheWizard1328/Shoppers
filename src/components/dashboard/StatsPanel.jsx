@@ -439,6 +439,7 @@ export default function StatsPanel({
                   onChange={onTravelModeChange} />
                 }
 
+                {!(isDriver && !isDispatcher) &&
                 <Button variant="default" size="sm" onClick={() => {
                   const nextShowRoutes = !showRoutes;
                   setShowRoutes(nextShowRoutes);
@@ -450,6 +451,7 @@ export default function StatsPanel({
                 }} className={`gap-2 h-8 flex-shrink-0 ${showRoutes ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'} text-white`}>
                   <Truck className="w-3.5 h-3.5" />{showRoutes ? 'Hide' : 'Show'}
                 </Button>
+                }
               </div>
 
               {isDriver && !isDispatcher && <>
@@ -462,6 +464,17 @@ export default function StatsPanel({
                     </Button>
                     <Button variant="outline" size="sm" onClick={() => setShowMapStyleOptions((prev) => !prev)} className="h-8 w-8 p-0 flex-shrink-0" title="Map style" style={{ background: showMapStyleOptions ? 'var(--bg-slate-100)' : 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                       <MapIcon className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button variant="default" size="sm" onClick={() => {
+                      const nextShowRoutes = !showRoutes;
+                      setShowRoutes(nextShowRoutes);
+                      if (nextShowRoutes) {
+                        setShowBreadcrumbs(false);
+                        setBreadcrumbsData({ historical: [], current: [] });
+                      }
+                      setIsExpanded(false);
+                    }} className={`gap-2 h-8 flex-shrink-0 ${showRoutes ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'} text-white`}>
+                      <Truck className="w-3.5 h-3.5" />{showRoutes ? 'Hide' : 'Show'}
                     </Button>
                   </>}
                 </div>
