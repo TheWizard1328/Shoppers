@@ -722,8 +722,11 @@ Deno.serve(async (req) => {
 
       // Destination: ALWAYS the last delivery stop (never home for active routes)
       const lastWaypoint = allWaypointsForDirections[allWaypointsForDirections.length - 1];
-      // CRITICAL: For active routes, ALWAYS end at the last delivery. Home is only destination if NO deliveries remain.
-      const destinationForDirections = lastWaypoint || originForDirections;
+      // CRITICAL: For active routes, ALWAYS end at home if available (final destination after all deliveries).
+      // This ensures the route optimizer sequences all stops between current position and home.
+      // If no home, end at the last delivery. Never end mid-route.
+      const destinationForDirections = resolvedHomePosition || lastWaypoint || originForDirections;
+      console.log(`🏠 [optimizeRemainingStops] Final destination: ${resolvedHomePosition ? 'HOME' : lastWaypoint ? 'LAST_DELIVERY' : 'ORIGIN'}`);
 
       let hereDirectionsResult = null;
       try {

@@ -144,7 +144,8 @@ export default function DashboardBulkEditControls({
         const payload = { ...sharedUpdates };
 
         // Status is per-delivery (pickup vs delivery determines en_route vs in_transit)
-        if (values.statusChoice !== "unchanged" && values.statusChoice !== initialValues.statusChoice) {
+        // Only apply if user explicitly changed it from the initial value AND it's not "unchanged"
+        if (values.statusChoice !== "unchanged") {
           payload.status = values.statusChoice === "in_transit_or_en_route"
             ? (!delivery?.patient_id ? "en_route" : "in_transit")
             : values.statusChoice;
