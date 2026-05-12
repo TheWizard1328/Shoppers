@@ -429,9 +429,8 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null)
     if (cityStoreIds.length > 0) {
       deliveryFilter.store_id = { $in: cityStoreIds };
     }
-    // STEP 1: Fetch deliveries from server (don't save to offline DB yet)
+    // STEP 1: Fetch deliveries from server once
     const deliveries = await Delivery.filter(deliveryFilter, '-updated_date', 5000);
-    notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 40, count: deliveries.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
     // STEP 2: Sync patients FIRST using the delivery patient IDs we just fetched
@@ -448,20 +447,22 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null)
     notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 65, count: allPatientsAfterSync.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
-    // STEP 3: Now save deliveries to offline DB (patients are already up-to-date)
-     // CRITICAL: Purge deliveries for selected date/city, then sync fresh from server
-     notifySyncStatus({ status: 'syncing', entity: 'Deliveries (saving)', progress: 70 });
-     const offlineDeliveriesForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-     const deliveryIdsToDelete = (offlineDeliveriesForDate || [])
-       .filter((delivery) => !selectedCityId || cityStoreIds.includes(delivery?.store_id))
-       .map((delivery) => delivery?.id)
-       .filter(Boolean);
-     await Promise.all(deliveryIdsToDelete.map((id) => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id)));
-     if (deliveries.length > 0) {
-       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
-     }
-     invalidateEntityCache('Delivery');
-     notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 80, count: deliveries.length });
+    // STEP 3: Save deliveries to offline DB (purge + replace for selected date/city only)
+    notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 70 });
+    const offlineDeliveriesForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+    const deliveryIdsToDelete = (offlineDeliveriesForDate || [])
+      .filter((delivery) => !selectedCityId || cityStoreIds.includes(delivery?.store_id))
+      .map((delivery) => delivery?.id)
+      .filter(Boolean);
+    await Promise.all(deliveryIdsToDelete.map((id) => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id)));
+    if (deliveries.length > 0) {
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+    }
+    invalidateEntityCache('Delivery');
+    
+    // CRITICAL: Get actual offline DB delivery count after merge
+    const allDeliveriesAfterSync = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+    notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 80, count: allDeliveriesAfterSync.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
     notifySyncStatus({ status: 'syncing', entity: 'Companies', progress: 94 });
@@ -469,11 +470,15 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null)
     await offlineDB.replaceAllRecords(offlineDB.STORES.COMPANIES, companies);
     invalidateEntityCache('Company');
 
+    // CRITICAL: Get actual offline DB counts (merged data)
+    const offlinePatientsForStatus = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+    const offlineDeliveriesForStatus = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+    
     const syncTime = new Date().toISOString();
     await Promise.all([
       offlineDB.updateSyncStatus('Store', { recordCount: stores.length, status: 'synced', lastSync: syncTime, lastFullSync: syncTime }),
-      offlineDB.updateSyncStatus('Delivery', { recordCount: deliveries.length, status: 'synced', lastSync: syncTime }),
-      offlineDB.updateSyncStatus('Patient', { recordCount: totalPatients, status: 'synced', lastSync: syncTime }),
+      offlineDB.updateSyncStatus('Delivery', { recordCount: offlineDeliveriesForStatus.length, status: 'synced', lastSync: syncTime }),
+      offlineDB.updateSyncStatus('Patient', { recordCount: offlinePatientsForStatus.length, status: 'synced', lastSync: syncTime }),
       offlineDB.updateSyncStatus('AppUser', { recordCount: appUsers.length, status: 'synced', lastSync: syncTime, lastFullSync: syncTime }),
       offlineDB.updateSyncStatus('City', { recordCount: cities.length, status: 'synced', lastSync: syncTime, lastFullSync: syncTime }),
       offlineDB.updateSyncStatus('Company', { recordCount: companies.length, status: 'synced', lastSync: syncTime, lastFullSync: syncTime })
