@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { deliveryId, driverId, deliveryDate, currentLocalTime } = await req.json();
+    const { deliveryId, driverId, deliveryDate, currentLocalTime, driverCurrentLatitude, driverCurrentLongitude } = await req.json();
 
     if (!deliveryId || !driverId || !deliveryDate) {
       return Response.json({ error: 'Missing required fields: deliveryId, driverId, deliveryDate' }, { status: 400 });
@@ -109,6 +109,24 @@ Deno.serve(async (req) => {
     );
 
     console.log(`🔄 [handleStartDelivery] Route serialized for stop ${deliveryId} (${updatesToPersist.length}/${allUpdates.length} updated)`);
+
+    // CRITICAL: Trigger full route optimization for remaining stops after re-ordering
+    // This will update ETAs, travel distances, and polylines based on driver's current location
+    try {
+      await base44.functions.invoke('optimizeRemainingStops', {
+        driverId: driverId,
+        deliveryDate: deliveryDate,
+        currentLocalTime: normalizedTime,
+        deviceTime: new Date().toISOString(),
+        currentLocation: driverCurrentLatitude && driverCurrentLongitude ? {
+          lat: driverCurrentLatitude,
+          lon: driverCurrentLongitude
+        } : undefined,
+        bypassDeduplication: true
+      });
+    } catch (optimizeError) {
+      console.warn(`⚠️ [handleStartDelivery] Optimization failed (non-blocking):`, optimizeError?.message || optimizeError);
+    }
 
     return Response.json({
       success: true,
