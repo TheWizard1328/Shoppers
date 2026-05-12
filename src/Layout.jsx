@@ -1022,132 +1022,91 @@ export default function Layout({ children, currentPageName }) {
     try {
       const selectedCityId = globalFilters.getSelectedCityId();
       const selectedDateStr = globalFilters.getSelectedDate();
-      const selectedDriverId = globalFilters.getSelectedDriverId();
 
       if (!currentUser || !selectedCityId || selectedCityId === 'waiting-for-selection') {
         setDataLoaded(false);
         return;
       }
 
-      const selectedDate = selectedDateStr ? new Date(selectedDateStr + 'T00:00:00') : new Date();
-      const selectedYear = selectedDate.getFullYear();
-
-      let workingCities = cities;
-      const isAdmin = userHasRole(currentUser, 'admin');
-
-      // CRITICAL: Stagger initial data loads to prevent rate limiting
-      const { offlineDB: offlineDBForCities } = await import('./components/utils/offlineDatabase');
-      const citiesData = workingCities?.length > 0 ? workingCities : await (async () => {const cached = await offlineDBForCities.getAll(offlineDBForCities.STORES.CITIES);return cached?.length ? cached : await getData('City', null, null, forceRefresh);})();
-
-      // Small delay before next batch
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      const allStores = await getData('Store', null, null, forceRefresh);
-
-      // Another delay before AppUsers
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      const allAppUsers = await getData('AppUser', null, null, forceRefresh);
-
-      if (citiesData && (!workingCities || workingCities.length === 0)) {
-        citiesData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
-        setCities(citiesData);
-        workingCities = citiesData;
-      }
-
-      allStores.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
-
-      // CRITICAL: ALWAYS load ALL drivers' deliveries for selected date (no driver filtering)
-      // Dashboard will filter locally based on driver selection
-      let cityStoreFilter = {};
-      const cityStoreIds = allStores.map((s) => s?.id).filter(Boolean);
-      if (cityStoreIds.length > 0) {
-        cityStoreFilter.store_id = { $in: cityStoreIds };
-      }
-
-      // CRITICAL: Load ALL drivers' deliveries - no driver filter at all
-      const priorityFilter = { delivery_date: selectedDateStr, ...cityStoreFilter };
-
-      // CRITICAL: Load Square data from offline DB first to prevent rate limits
-      // API sync will happen in background later
+      // CRITICAL: Load Square data from offline DB first (non-blocking, no API call)
       const { offlineDB } = await import('./components/utils/offlineDatabase');
-      const offlineSquareConfigs = await offlineDB.getAll(offlineDB.STORES.SQUARE_LOCATION_CONFIGS);
-      const offlineSquareTx = await offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS);
-      const offlineCatalogItems = await offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS);
+      const [sqConfigs, sqTx, sqCatalog] = await Promise.all([
+        offlineDB.getAll(offlineDB.STORES.SQUARE_LOCATION_CONFIGS),
+        offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS),
+        offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS)
+      ]);
+      setSquareLocationConfigs(sqConfigs || []);
+      setCatalogItems(sqCatalog || []);
+      setSquareTransactions(sqTx || []);
 
-      setSquareLocationConfigs(offlineSquareConfigs || []);
-      setCatalogItems(offlineCatalogItems || []); // Load from offline DB first
-      setSquareTransactions(offlineSquareTx || []);
+      // Helper — applies a complete dataset to all state in one pass (single UI update)
+      const applyFullDataToState = ({ deliveries, patients, appUsers, stores, cities }) => {
+        if (cities && cities.length > 0) setCities(cities);
+        if (stores && stores.length > 0) setStores(stores);
+        if (patients && patients.length > 0) setPatients(patients);
+        const mergedUsersMap = new Map();
+        if (currentUser) mergedUsersMap.set(currentUser.id, currentUser);
+        (appUsers || []).forEach((appUser) => {
+          if (!appUser || mergedUsersMap.has(appUser.user_id)) return;
+          const pseudoUser = createMergedUser(null, appUser);
+          if (pseudoUser) mergedUsersMap.set(pseudoUser.id, pseudoUser);
+        });
+        const initialUsers = Array.from(mergedUsersMap.values()).filter(Boolean);
+        const activeDrivers = sortUsers(initialUsers.filter((user) =>
+          user && Array.isArray(user.app_roles) &&
+          (user.app_roles.includes('driver') || user.app_roles.includes('admin')) &&
+          user.user_name && user.status === 'active'
+        ));
+        setUsers(initialUsers);
+        setDrivers(activeDrivers);
+        if (appUsers && appUsers.length > 0) setAppUsers(appUsers);
+        // Single delivery UI update — after all other state is set
+        updateDeliveriesLocally(deliveries || [], true);
+        setDataLoaded(true);
+        setTotalCodsDue(calculateUserCodTotal(currentUser, sqCatalog || [], sqConfigs || [], stores, sqTx || []));
+      };
 
-      // Load deliveries with instant UI callback - NO driver filter to get ALL drivers
-      await loadDeliveries(
-        selectedDateStr,
-        { delivery_date: selectedDateStr, ...cityStoreFilter }, // Priority: today's deliveries for ALL drivers
-        { delivery_date: selectedDateStr, ...cityStoreFilter }, // Background: same (no separate background load)
-        forceRefresh,
-        // Instant UI callback
-        (initialDeliveries) => {
-          updateDeliveriesLocally(initialDeliveries, true);
-          setDataLoaded(true);
+      // CRITICAL: Run manualSyncSelected — fetches Stores/Cities/AppUsers in parallel,
+      // then Patients, then purges+reloads Deliveries — all before a single UI update.
+      const { manualSyncSelected } = await import('./components/utils/offlineSync');
+      const syncResult = await manualSyncSelected(selectedDateStr, selectedCityId);
 
-          setTimeout(async () => {
-            const patientsData = await getData('Patient', null, null, forceRefresh);
-            setPatients(patientsData);
-          }, 100);
-        },
-        // Background callback
-        (fullMonthDeliveries) => {
-          updateDeliveriesLocally(fullMonthDeliveries, true);
-        }
-      );
-
-      const mergedUsersMap = new Map();
-
-      if (currentUser) {
-        mergedUsersMap.set(currentUser.id, currentUser);
+      if (syncResult?.skipped || syncResult?.error) {
+        // Fallback: load from offline DB if sync was skipped or errored
+        console.warn('⚠️ [Layout] manualSyncSelected skipped/errored — loading from offline DB');
+        const [offlineDeliveries, offlinePatients, offlineAppUsers, offlineStores, offlineCities] = await Promise.all([
+          offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr).catch(() => []),
+          offlineDB.getAll(offlineDB.STORES.PATIENTS).catch(() => []),
+          offlineDB.getAll(offlineDB.STORES.APP_USERS).catch(() => []),
+          offlineDB.getAll(offlineDB.STORES.STORES).catch(() => []),
+          offlineDB.getAll(offlineDB.STORES.CITIES).catch(() => [])
+        ]);
+        applyFullDataToState({
+          deliveries: offlineDeliveries,
+          patients: offlinePatients,
+          appUsers: offlineAppUsers,
+          stores: offlineStores.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)),
+          cities: offlineCities.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity))
+        });
+        return;
       }
 
-      // For non-admins: create users from AppUser data only (faster)
-      allAppUsers.forEach((appUser) => {
-        if (!appUser || mergedUsersMap.has(appUser.user_id)) return;
-        const pseudoUser = createMergedUser(null, appUser);
-        if (pseudoUser) {
-          mergedUsersMap.set(pseudoUser.id, pseudoUser);
-        }
+      // SUCCESS: read deliveries back from offline DB (already purged+reloaded by manualSyncSelected)
+      const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr).catch(() => syncResult.deliveries || []);
+      applyFullDataToState({
+        deliveries: freshDeliveries,
+        patients: syncResult.patients || [],
+        appUsers: syncResult.appUsers || [],
+        stores: (syncResult.stores || []).sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)),
+        cities: (syncResult.cities || []).sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity))
       });
-
-      const initialUsers = Array.from(mergedUsersMap.values()).filter(Boolean);
-
-      let activeDrivers = initialUsers.filter((user) => {
-        if (!user || !user.app_roles || !Array.isArray(user.app_roles)) return false;
-        if (!user.app_roles.includes('driver') && !user.app_roles.includes('admin')) return false;
-        if (!user.user_name) return false;
-        if (user.status !== 'active') return false;
-        return true;
-      });
-      activeDrivers = sortUsers(activeDrivers);
-
-      setUsers(initialUsers);
-      setDrivers(activeDrivers);
-      setStores(allStores);
-      setAppUsers(allAppUsers);
-
-      // CRITICAL: Force refresh driver locations on initial load IMMEDIATELY
-      // This ensures driver location markers show immediately
-      const locationUpdates = await smartRefreshManager.refreshDriverLocations(allAppUsers, true);
-      if (locationUpdates?.hasChanges) {
-        setAppUsers(locationUpdates.appUsers);
-      }
-
-      // Calculate initial COD total from offline catalog items
-      const codTotal = calculateUserCodTotal(currentUser, catalogItems || [], squareLocationConfigs || [], allStores, squareTransactions || []);
-      setTotalCodsDue(codTotal);
-
 
     } catch (error) {
       console.warn('⚠️ [Layout] Full data reload failed - preserving current dashboard data:', error?.message || error);
       setDataLoaded(true);
-    } finally { triggerFullDataLoad.isRunning = false; }
+    } finally {
+      triggerFullDataLoad.isRunning = false;
+    }
   }, [currentUser, isFormOverlayOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   triggerFullDataLoadRef.current = triggerFullDataLoad;

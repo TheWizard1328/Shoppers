@@ -25,12 +25,13 @@ class LightweightRefreshManager {
 
     // Minimal intervals - only for non-WebSocket entities and offline sync
     this.intervals = {
-      cities: 1800000,       // 30min - Cities dataset (less frequent to avoid 429)
-      stores: 1800000,       // 30min - Stores dataset (less frequent to avoid 429)
-      appUsers: 60000,       // 60sec - Backup poll ONLY if no recent WebSocket update
-      appSettings: 60000,    // 60sec - App-wide settings like active API key
-      offlineSync: 0,        // DISABLED - offlineDB reads, not syncs
-      cacheRefresh: 600000   // 10min - Cache consistency check
+      cities: 1800000,              // 30min - Cities dataset (less frequent to avoid 429)
+      stores: 1800000,              // 30min - Stores dataset (less frequent to avoid 429)
+      appUsers: 60000,              // 60sec - Backup poll ONLY if no recent WebSocket update
+      appSettings: 60000,           // 60sec - App-wide settings like active API key
+      offlineSync: 0,               // DISABLED - offlineDB reads, not syncs
+      cacheRefresh: 600000,         // 10min - Cache consistency check
+      patientDeliverySync: 300000   // 5min - Automated Patients+Deliveries background reconcile
     };
 
     this.lastRefreshTimes = {
@@ -39,7 +40,8 @@ class LightweightRefreshManager {
       appUsers: 0,
       appSettings: 0,
       offlineSync: 0,
-      cacheRefresh: 0
+      cacheRefresh: 0,
+      patientDeliverySync: 0
     };
 
     // Listen for WebSocket AppUser updates to track freshness
@@ -494,6 +496,72 @@ class LightweightRefreshManager {
       if (this.shouldRefresh('appUsers')) {
         console.log(`👥 [LightweightRefresh] Skipping AppUser API poll - WebSocket subscriptions handle all cross-device sync`);
         this.markRefreshed('appUsers');
+      }
+
+      // Automated Patients + Deliveries reconcile every 5 minutes
+      // This is a lightweight background version of pull-to-sync (no UI overlay)
+      if (this.shouldRefresh('patientDeliverySync')) {
+        try {
+          const { globalFilters } = await import('./globalFilters');
+          const selectedDateStr = globalFilters.getSelectedDate();
+          const selectedCityId = globalFilters.getSelectedCityId();
+
+          if (selectedDateStr && selectedCityId && selectedCityId !== 'waiting-for-selection') {
+            console.log(`🔄 [SmartRefresh] Auto Patients+Deliveries sync for ${selectedDateStr}`);
+            const { offlineSyncDeps } = await import('../services/offlineSyncDeps');
+            const { offlineDB } = await import('./offlineDatabase');
+            const { Delivery, Patient, Store, fetchPatientsDedup } = offlineSyncDeps;
+
+            // Fetch stores to determine city store IDs (lightweight — already cached)
+            const offlineStores = await offlineDB.getAll(offlineDB.STORES.STORES);
+            const cityStoreIds = (offlineStores || [])
+              .filter(s => !selectedCityId || s?.city_id === selectedCityId)
+              .map(s => s?.id).filter(Boolean);
+
+            const deliveryFilter = { delivery_date: selectedDateStr };
+            if (cityStoreIds.length > 0) deliveryFilter.store_id = { $in: cityStoreIds };
+
+            await this.waitForRateLimit();
+            // Fetch fresh deliveries
+            const freshDeliveries = await Delivery.filter(deliveryFilter, '-updated_date', 5000);
+            this.recordSuccess();
+
+            // Extract unique patient IDs from fresh deliveries
+            const patientIds = Array.from(new Set(
+              (freshDeliveries || []).filter(d => d?.patient_id).map(d => d.patient_id)
+            ));
+
+            // Fetch only the patients referenced by today's deliveries
+            if (patientIds.length > 0) {
+              await this.waitForRateLimit();
+              const { createOfflineSyncPatientService } = await import('../services/offlineSyncPatientService');
+              const { syncPatientsByIds } = createOfflineSyncPatientService({ offlineDB, Patient, invalidateEntityCache: () => {} });
+              const { freshPatients = [] } = await syncPatientsByIds(patientIds);
+              if (freshPatients.length > 0) {
+                await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
+              }
+              this.recordSuccess();
+            }
+
+            // Purge+replace deliveries for this date in offline DB (silent — no UI update)
+            if (Array.isArray(freshDeliveries)) {
+              const offlineForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr).catch(() => []);
+              const idsToDelete = (offlineForDate || [])
+                .filter(d => !selectedCityId || cityStoreIds.includes(d?.store_id))
+                .map(d => d?.id).filter(Boolean);
+              await Promise.all(idsToDelete.map(id => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id)));
+              if (freshDeliveries.length > 0) {
+                await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+              }
+            }
+
+            console.log(`✅ [SmartRefresh] Auto Patients+Deliveries sync complete (${freshDeliveries?.length || 0} deliveries)`);
+          }
+          this.markRefreshed('patientDeliverySync');
+        } catch (e) {
+          this.recordError(e);
+          console.warn('⚠️ [SmartRefresh] Auto Patients+Deliveries sync failed:', e.message);
+        }
       }
 
       // Offline sync reconciliation every 1 minute
