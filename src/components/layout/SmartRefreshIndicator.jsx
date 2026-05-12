@@ -301,55 +301,78 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
   // Inline version for stats card header
   if (inline) {
     const currentEntity = hasUpdates ? recentUpdates[currentDisplayIndex] : null;
-    
+    const showPill = isActive && !isPaused;
+
     return (
-      <div className="flex items-center gap-1">
-        <button
-          data-offline-sync-button
-          onClick={handleManualRefresh}
-          disabled={isPaused}
-          className={`w-7 h-7 min-w-7 min-h-7 aspect-square rounded-full flex shrink-0 items-center justify-center transition-colors duration-200 hover:scale-110 relative pointer-events-auto ${getSpinnerColor()} ${isActive && !isPaused ? 'shadow-lg' : ''}`}
-          style={{ position: 'relative', zIndex: 10030 }}
-          title={hasError ? 'Refresh error' : !isOnline ? 'Offline' : isPaused ? 'Refresh paused' : 
-                 activeManager === 'smart' ? 'Smart Refresh active' : 
-                 activeManager === 'offline' ? 'Offline Sync active' : 
-                 activeManager === 'polling' ? 'Background location polling' : 
-                 'Click to refresh'}>
-          
-          {isActive && !isPaused ? (
+      <AnimatePresence mode="wait">
+        {showPill ? (
+          <motion.button
+            key="pill"
+            data-offline-sync-button
+            onClick={handleManualRefresh}
+            disabled={isPaused}
+            initial={{ width: 28, borderRadius: 9999 }}
+            animate={{ width: 'auto', borderRadius: 9999 }}
+            exit={{ width: 28, borderRadius: 9999 }}
+            transition={{ duration: 0.2, ease: 'easeInOut' }}
+            className={`h-7 min-h-7 px-2 flex shrink-0 items-center gap-1.5 overflow-hidden pointer-events-auto ${getSpinnerColor()} shadow-lg`}
+            style={{ position: 'relative', zIndex: 10030, whiteSpace: 'nowrap' }}
+            title="Syncing...">
             <motion.div
-              key="spinner-active"
               animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
-              <RefreshCw className="w-3 h-3 text-white drop-shadow-md" />
+              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}>
+              <RefreshCw className="w-3 h-3 text-white drop-shadow-md flex-shrink-0" />
             </motion.div>
-          ) : isPaused ? (
-            <div className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
-          ) : hasError ? (
-            <RefreshCw className="w-3 h-3 text-white" />
-          ) : isPollingOnly ? (
-            <RefreshCw className="w-3 h-3 text-blue-500" />
-          ) : (
-            <RefreshCw className={`w-3 h-3 ${!isOnline ? 'text-white' : 'text-slate-500'}`} />
-          )}
-          
-          {/* Show entity badge on top of spinner */}
-          <AnimatePresence mode="wait">
-            {hasUpdates && currentEntity && (
-              <motion.div
-                key={currentEntity}
-                initial={{ scale: 0, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className={`absolute inset-0 rounded-full text-[9px] font-bold text-white flex items-center justify-center ${entityColors[currentEntity] || 'bg-slate-500'}`}
-                title={currentEntity}>
-                {entityLabels[currentEntity] || '?'}
-              </motion.div>
+            <motion.span
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="text-white text-xs font-medium pr-0.5">
+              Syncing...
+            </motion.span>
+          </motion.button>
+        ) : (
+          <motion.button
+            key="circle"
+            data-offline-sync-button
+            onClick={handleManualRefresh}
+            disabled={isPaused}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className={`w-7 h-7 min-w-7 min-h-7 aspect-square rounded-full flex shrink-0 items-center justify-center transition-colors duration-200 hover:scale-110 relative pointer-events-auto ${getSpinnerColor()}`}
+            style={{ position: 'relative', zIndex: 10030 }}
+            title={hasError ? 'Refresh error' : !isOnline ? 'Offline' : isPaused ? 'Refresh paused' : 'Click to refresh'}>
+            {isPaused ? (
+              <div className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
+            ) : hasError ? (
+              <RefreshCw className="w-3 h-3 text-white" />
+            ) : isPollingOnly ? (
+              <RefreshCw className="w-3 h-3 text-blue-500" />
+            ) : (
+              <RefreshCw className={`w-3 h-3 ${!isOnline ? 'text-white' : 'text-slate-500'}`} />
             )}
-          </AnimatePresence>
-        </button>
-      </div>
+
+            {/* Show entity badge on top of spinner */}
+            <AnimatePresence mode="wait">
+              {hasUpdates && currentEntity && (
+                <motion.div
+                  key={currentEntity}
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className={`absolute inset-0 rounded-full text-[9px] font-bold text-white flex items-center justify-center ${entityColors[currentEntity] || 'bg-slate-500'}`}
+                  title={currentEntity}>
+                  {entityLabels[currentEntity] || '?'}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.button>
+        )}
+      </AnimatePresence>
     );
   }
 

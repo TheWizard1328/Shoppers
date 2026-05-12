@@ -259,7 +259,7 @@ export default function PullToSync({
 
       {/* Pull indicator - inside stats card container with higher z-index */}
       <AnimatePresence>
-        {(isPulling || isSyncing) && (
+        {isPulling && !isSyncing && (
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -278,15 +278,14 @@ export default function PullToSync({
                 className="w-4 h-4"
                 style={{ 
                   color: 'var(--text-emerald-600)',
-                  transform: isSyncing ? undefined : `rotate(${rotation}deg)`,
-                  animation: isSyncing ? 'spin 1s linear infinite' : undefined
+                  transform: `rotate(${rotation}deg)`
                 }}
               />
               <span 
                 className="text-sm font-medium"
                 style={{ color: 'var(--text-slate-700)' }}
               >
-                {isSyncing ? 'Syncing...' : pullProgress >= 1 ? 'Release to sync' : 'Pull to sync'}
+                {pullProgress >= 1 ? 'Release to sync' : 'Pull to sync'}
               </span>
             </div>
           </motion.div>
