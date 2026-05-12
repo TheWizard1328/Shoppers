@@ -304,7 +304,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
     const showPill = isActive && !isPaused;
 
     return (
-      <div className="relative w-7 h-7 flex-shrink-0">
+      <div className="relative w-7 h-9 flex-shrink-0 flex items-center">
       <AnimatePresence mode="wait">
         {showPill ?
           <motion.button
