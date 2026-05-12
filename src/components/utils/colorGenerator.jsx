@@ -105,7 +105,6 @@ const DRIVER_COLOR_PALETTE = [
     '#DB2777', // Pink
     '#0F766E', // Teal
     '#9333EA', // Purple
-    '#16A34A', // Green
     '#C2410C', // Burnt Orange
     '#BE123C', // Rose
     '#047857', // Dark Emerald
@@ -116,6 +115,7 @@ const DRIVER_COLOR_PALETTE = [
     '#A16207', // Brown Gold
     '#9A3412', // Rust
     '#881337', // Burgundy
+    '#16A34A', // Green
 ];
 
 const usedDriverColors = new Map();
