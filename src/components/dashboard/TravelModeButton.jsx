@@ -40,12 +40,11 @@ export default function TravelModeButton({ currentUser, appUsers = [], value, on
       size="sm"
       onClick={handleToggle}
       disabled={disabled}
-      className="h-8 gap-1.5 px-2 flex-shrink-0"
+      className="h-8 w-8 p-0 flex-shrink-0"
       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
       title={disabled ? 'Available during active route only' : isWalking ? 'Walking' : isCycling ? 'Cycling' : 'Driving'}
     >
       <CurrentIcon className="w-3.5 h-3.5" />
-      <span className="text-xs">{isWalking ? 'Walking' : isCycling ? 'Cycling' : 'Driving'}</span>
     </Button>
   );
 }

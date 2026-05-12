@@ -431,6 +431,14 @@ export default function StatsPanel({
                   </Button>
                 }
 
+                {isDriver && !isAllDriversMode &&
+                <TravelModeButton
+                  currentUser={currentUser}
+                  appUsers={appUsers}
+                  value={preferredTravelMode}
+                  onChange={onTravelModeChange} />
+                }
+
                 <Button variant="default" size="sm" onClick={() => {
                   const nextShowRoutes = !showRoutes;
                   setShowRoutes(nextShowRoutes);
@@ -455,12 +463,6 @@ export default function StatsPanel({
                     <Button variant="outline" size="sm" onClick={() => setShowMapStyleOptions((prev) => !prev)} className="h-8 w-8 p-0 flex-shrink-0" title="Map style" style={{ background: showMapStyleOptions ? 'var(--bg-slate-100)' : 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                       <MapIcon className="w-3.5 h-3.5" />
                     </Button>
-                    <TravelModeButton
-                      currentUser={currentUser}
-                      appUsers={appUsers}
-                      value={preferredTravelMode}
-                      onChange={onTravelModeChange} />
-                    
                   </>}
                 </div>
               </>}
