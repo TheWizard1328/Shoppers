@@ -67,16 +67,49 @@ export const syncOnFilterChange = async (selectedDateStr, selectedCityId, applyS
 
     const freshDeliveries = await Delivery.filter(deliveryFilter, '-updated_date', 5000).catch(() => []);
 
-    // ── STEP 3b: Sync patients referenced by the new deliveries ─────────────
-    console.log(`🔄 [FilterSync] Step 3b — sync ${freshDeliveries.length} delivery patients`);
+    // ── STEP 3b: Ensure ALL active patients are available for historical dates ─────────────
+    // CRITICAL: Even on historical dates with few deliveries, we need ALL patients for map markers
+    console.log(`🔄 [FilterSync] Step 3b — syncing ALL active patients for complete map coverage`);
     const patientIds = Array.from(new Set((freshDeliveries || []).filter(d => d?.patient_id).map(d => d.patient_id)));
-    if (patientIds.length > 0) {
+
+    // Load currently cached patients
+    const cachedPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS).catch(() => []);
+    const cachedPatientIds = new Set(cachedPatients.map(p => p?.id).filter(Boolean));
+
+    // If we have fewer than 500 cached patients, do a full sync of active patients
+    // This ensures new historical dates don't lack patient data
+    if (cachedPatients.length < 500) {
+      console.log(`   Only ${cachedPatients.length} cached patients — syncing all active patients...`);
+      try {
+        let allFreshPatients = [];
+        let offset = 0;
+        const BATCH_SIZE = 100;
+
+        while (true) {
+          const batch = await Patient.filter({ status: 'active' }, '-updated_date', BATCH_SIZE, offset).catch(() => []);
+          if (!batch || batch.length === 0) break;
+          allFreshPatients = allFreshPatients.concat(batch);
+          offset += BATCH_SIZE;
+          if (batch.length < BATCH_SIZE) break;
+          await new Promise(r => setTimeout(r, 300));
+        }
+
+        if (allFreshPatients.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, allFreshPatients).catch(() => {});
+          console.log(`   ✅ Synced ${allFreshPatients.length} active patients`);
+        }
+      } catch (err) {
+        console.warn(`   ⚠️ Full patient sync failed: ${err.message}`);
+      }
+    } else if (patientIds.length > 0) {
+      // Sync only patients referenced by this date's deliveries
       const { freshPatients = [] } = await syncPatientsByIds(patientIds).catch(() => ({ freshPatients: [] }));
       if (freshPatients.length > 0) {
         await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients).catch(() => {});
       }
-      invalidateEntityCache('Patient');
     }
+
+    invalidateEntityCache('Patient');
 
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
