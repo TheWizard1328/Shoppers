@@ -6,10 +6,6 @@
       "type": "string",
       "description": "ID of the driver this live breadcrumb batch belongs to"
     },
-    "delivery_start_time": {
-      "type": "string",
-      "description": "Actual delivery completion timestamp of the previous stop that started this leg"
-    },
     "delivery_date": {
       "type": "string",
       "format": "date",
@@ -17,7 +13,7 @@
     },
     "stop_order": {
       "type": "number",
-      "description": "Stop order for reference only"
+      "description": "Stop order of the delivery this leg leads TO - used for matching to Delivery records"
     },
     "breadcrumbs": {
       "type": "array",
@@ -34,7 +30,7 @@
   },
   "required": [
     "driver_id",
-    "delivery_start_time",
-    "delivery_date"
+    "delivery_date",
+    "stop_order"
   ]
 }

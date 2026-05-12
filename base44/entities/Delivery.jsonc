@@ -208,12 +208,20 @@
       "description": "AM or PM designation based on pickup store's delivery_time_start (< 15:00 = AM, >= 15:00 = PM)"
     },
     "delivery_route_breadcrumbs": {
-      "type": "string",
-      "description": "JSON string array of GPS points [latitude, longitude, timestamp_ms] captured during this delivery leg"
+      "type": "array",
+      "description": "Strategic GPS waypoints [lat, lng, timestamp_ms] subsampled from live breadcrumbs - used as fallback to regenerate encoded_polyline via HERE API",
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 2,
+        "maxItems": 3
+      }
     },
     "encoded_polyline": {
       "type": "string",
-      "description": "Encoded polyline for this stop's route segment"
+      "description": "HERE API encoded polyline for this stop's route segment"
     },
     "transport_mode": {
       "type": "string",
