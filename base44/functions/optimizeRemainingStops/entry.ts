@@ -678,7 +678,8 @@ Deno.serve(async (req) => {
 
       // Destination: home if available, otherwise last waypoint
       const lastWaypoint = allWaypointsForDirections[allWaypointsForDirections.length - 1];
-      const destinationForDirections = resolvedHomePosition || lastWaypoint || originForDirections;
+      // CRITICAL: For non-started routes, end at the last delivery, not home
+      const destinationForDirections = (!routeHasStarted && lastWaypoint) ? lastWaypoint : (resolvedHomePosition || lastWaypoint || originForDirections);
 
       let hereDirectionsResult = null;
       try {
