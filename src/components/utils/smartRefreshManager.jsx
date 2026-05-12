@@ -500,64 +500,71 @@ class LightweightRefreshManager {
 
       // Automated Patients + Deliveries reconcile every 5 minutes
       // This is a lightweight background version of pull-to-sync (no UI overlay)
+      // Also respects the globalFilters refresh cooldown so city/date changes and
+      // pull-to-sync can bypass and restart the interval.
       if (this.shouldRefresh('patientDeliverySync')) {
         try {
           const { globalFilters } = await import('./globalFilters');
-          const selectedDateStr = globalFilters.getSelectedDate();
-          const selectedCityId = globalFilters.getSelectedCityId();
+          // Skip if the cooldown hasn't expired (e.g. a pull-to-sync just ran)
+          if (!globalFilters.isRefreshNeeded(false)) {
+            this.markRefreshed('patientDeliverySync');
+          } else {
+            const selectedDateStr = globalFilters.getSelectedDate();
+            const selectedCityId = globalFilters.getSelectedCityId();
 
-          if (selectedDateStr && selectedCityId && selectedCityId !== 'waiting-for-selection') {
-            console.log(`🔄 [SmartRefresh] Auto Patients+Deliveries sync for ${selectedDateStr}`);
-            const { offlineSyncDeps } = await import('../services/offlineSyncDeps');
-            const { offlineDB } = await import('./offlineDatabase');
-            const { Delivery, Patient, Store, fetchPatientsDedup } = offlineSyncDeps;
+            if (selectedDateStr && selectedCityId && selectedCityId !== 'waiting-for-selection') {
+              console.log(`🔄 [SmartRefresh] Auto Patients+Deliveries sync for ${selectedDateStr}`);
+              const { offlineSyncDeps } = await import('../services/offlineSyncDeps');
+              const { offlineDB } = await import('./offlineDatabase');
+              const { Delivery, Patient } = offlineSyncDeps;
 
-            // Fetch stores to determine city store IDs (lightweight — already cached)
-            const offlineStores = await offlineDB.getAll(offlineDB.STORES.STORES);
-            const cityStoreIds = (offlineStores || [])
-              .filter(s => !selectedCityId || s?.city_id === selectedCityId)
-              .map(s => s?.id).filter(Boolean);
+              // Fetch stores to determine city store IDs (lightweight — already cached)
+              const offlineStores = await offlineDB.getAll(offlineDB.STORES.STORES);
+              const cityStoreIds = (offlineStores || [])
+                .filter(s => !selectedCityId || s?.city_id === selectedCityId)
+                .map(s => s?.id).filter(Boolean);
 
-            const deliveryFilter = { delivery_date: selectedDateStr };
-            if (cityStoreIds.length > 0) deliveryFilter.store_id = { $in: cityStoreIds };
+              const deliveryFilter = { delivery_date: selectedDateStr };
+              if (cityStoreIds.length > 0) deliveryFilter.store_id = { $in: cityStoreIds };
 
-            await this.waitForRateLimit();
-            // Fetch fresh deliveries
-            const freshDeliveries = await Delivery.filter(deliveryFilter, '-updated_date', 5000);
-            this.recordSuccess();
-
-            // Extract unique patient IDs from fresh deliveries
-            const patientIds = Array.from(new Set(
-              (freshDeliveries || []).filter(d => d?.patient_id).map(d => d.patient_id)
-            ));
-
-            // Fetch only the patients referenced by today's deliveries
-            if (patientIds.length > 0) {
               await this.waitForRateLimit();
-              const { createOfflineSyncPatientService } = await import('../services/offlineSyncPatientService');
-              const { syncPatientsByIds } = createOfflineSyncPatientService({ offlineDB, Patient, invalidateEntityCache: () => {} });
-              const { freshPatients = [] } = await syncPatientsByIds(patientIds);
-              if (freshPatients.length > 0) {
-                await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
-              }
+              const freshDeliveries = await Delivery.filter(deliveryFilter, '-updated_date', 5000);
               this.recordSuccess();
-            }
 
-            // Purge+replace deliveries for this date in offline DB (silent — no UI update)
-            if (Array.isArray(freshDeliveries)) {
-              const offlineForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr).catch(() => []);
-              const idsToDelete = (offlineForDate || [])
-                .filter(d => !selectedCityId || cityStoreIds.includes(d?.store_id))
-                .map(d => d?.id).filter(Boolean);
-              await Promise.all(idsToDelete.map(id => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id)));
-              if (freshDeliveries.length > 0) {
-                await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+              // Extract unique patient IDs from fresh deliveries
+              const patientIds = Array.from(new Set(
+                (freshDeliveries || []).filter(d => d?.patient_id).map(d => d.patient_id)
+              ));
+
+              // Fetch only the patients referenced by today's deliveries
+              if (patientIds.length > 0) {
+                await this.waitForRateLimit();
+                const { createOfflineSyncPatientService } = await import('../services/offlineSyncPatientService');
+                const { syncPatientsByIds } = createOfflineSyncPatientService({ offlineDB, Patient, invalidateEntityCache: () => {} });
+                const { freshPatients = [] } = await syncPatientsByIds(patientIds);
+                if (freshPatients.length > 0) {
+                  await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
+                }
+                this.recordSuccess();
               }
-            }
 
-            console.log(`✅ [SmartRefresh] Auto Patients+Deliveries sync complete (${freshDeliveries?.length || 0} deliveries)`);
+              // Purge+replace deliveries for this date in offline DB (silent — no UI update)
+              if (Array.isArray(freshDeliveries)) {
+                const offlineForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr).catch(() => []);
+                const idsToDelete = (offlineForDate || [])
+                  .filter(d => !selectedCityId || cityStoreIds.includes(d?.store_id))
+                  .map(d => d?.id).filter(Boolean);
+                await Promise.all(idsToDelete.map(id => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id)));
+                if (freshDeliveries.length > 0) {
+                  await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+                }
+              }
+
+              console.log(`✅ [SmartRefresh] Auto Patients+Deliveries sync complete (${freshDeliveries?.length || 0} deliveries)`);
+              globalFilters.markRefreshComplete();
+            }
+            this.markRefreshed('patientDeliverySync');
           }
-          this.markRefreshed('patientDeliverySync');
         } catch (e) {
           this.recordError(e);
           console.warn('⚠️ [SmartRefresh] Auto Patients+Deliveries sync failed:', e.message);

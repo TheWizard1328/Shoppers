@@ -1017,6 +1017,13 @@ export default function Layout({ children, currentPageName }) {
     if (isFormOverlayOpen) return;
     if (triggerFullDataLoad.isRunning) return;
 
+    // COOLDOWN GUARD: skip automatic syncs within 5 minutes of last refresh.
+    // forceRefresh=true (city change, pull-to-sync, connection recovery) always bypasses.
+    if (!globalFilters.isRefreshNeeded(forceRefresh)) {
+      console.log('⏳ [Layout] triggerFullDataLoad skipped — within 5-min cooldown');
+      return;
+    }
+
     triggerFullDataLoad.isRunning = true;
 
     try {
@@ -1100,6 +1107,9 @@ export default function Layout({ children, currentPageName }) {
         stores: (syncResult.stores || []).sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)),
         cities: (syncResult.cities || []).sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity))
       });
+
+      // Reset 5-min cooldown after a successful sync
+      globalFilters.markRefreshComplete();
 
     } catch (error) {
       console.warn('⚠️ [Layout] Full data reload failed - preserving current dashboard data:', error?.message || error);

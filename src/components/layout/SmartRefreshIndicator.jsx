@@ -232,6 +232,12 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
 
     setIsManualRefreshing(true);
 
+    // Pull-to-sync always bypasses the 5-min cooldown and restarts it on completion
+    try {
+      const { globalFilters } = await import('../utils/globalFilters');
+      globalFilters.invalidateRefreshCooldown();
+    } catch (_) {}
+
     // Trigger pull-to-sync (silent mode - no overlay)
     window.dispatchEvent(new CustomEvent('triggerPullToSync', {
       detail: { silent: true, requestedAt: Date.now() }
@@ -264,6 +270,10 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
       if (fallbackTimer) clearTimeout(fallbackTimer);
       setIsManualRefreshing(false);
       window.removeEventListener('pullToSyncComplete', handleSyncComplete);
+      // Reset the 5-min cooldown after pull-to-sync completes (sync import, already loaded)
+      try {
+        import('../utils/globalFilters').then(({ globalFilters }) => globalFilters.markRefreshComplete()).catch(() => {});
+      } catch (_) {}
       window.dispatchEvent(new CustomEvent('refreshPayrollStatsAfterSync'));
     };
 

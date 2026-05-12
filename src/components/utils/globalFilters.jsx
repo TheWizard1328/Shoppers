@@ -15,6 +15,12 @@ const STORAGE_KEYS = {
   lastSeenAt: 'app_lastSeenAt'
 };
 
+// 5-minute cooldown for automatic patient+delivery syncs
+const REFRESH_COOLDOWN_MS = 5 * 60 * 1000;
+
+// In-memory last refresh timestamp (not persisted — resets on page load intentionally)
+let lastRefreshTimestamp = 0;
+
 // Global state object
 let globalState = {
   selectedDate: null,
@@ -161,6 +167,34 @@ export const globalFilters = {
     return isReady;
   },
 
+  // ── Refresh cooldown helpers ──────────────────────────────────────────────
+  /**
+   * Returns true if enough time has passed since the last recorded refresh,
+   * OR if force=true (city change, date change, pull-to-sync).
+   */
+  isRefreshNeeded: (force = false) => {
+    if (force) return true;
+    const elapsed = Date.now() - lastRefreshTimestamp;
+    const needed = elapsed >= REFRESH_COOLDOWN_MS;
+    if (!needed) {
+      console.log(`⏳ [GlobalFilters] Refresh cooldown active — ${Math.ceil((REFRESH_COOLDOWN_MS - elapsed) / 1000)}s remaining`);
+    }
+    return needed;
+  },
+
+  /** Call this immediately after a successful sync so the 5-min window restarts. */
+  markRefreshComplete: () => {
+    lastRefreshTimestamp = Date.now();
+    console.log('✅ [GlobalFilters] Refresh cooldown reset — next auto-sync in 5 min');
+  },
+
+  /** Force-expire the cooldown so the very next sync attempt runs immediately. */
+  invalidateRefreshCooldown: () => {
+    lastRefreshTimestamp = 0;
+    console.log('🔄 [GlobalFilters] Refresh cooldown invalidated — next sync will run immediately');
+  },
+  // ─────────────────────────────────────────────────────────────────────────
+
   // Setters with change detection
   setSelectedDate: (date) => {
     // CRITICAL FIX: Add check for Invalid Date objects
@@ -177,7 +211,12 @@ export const globalFilters = {
       return;
     }
 
-    updateAndSave('selectedDate', dateString);
+    const changed = updateAndSave('selectedDate', dateString);
+    // Date changed → invalidate cooldown so the next sync runs immediately
+    if (changed) {
+      lastRefreshTimestamp = 0;
+      console.log('📅 [GlobalFilters] Date changed — refresh cooldown invalidated');
+    }
   },
 
   setSelectedDriverId: (driverId) => {
@@ -187,7 +226,12 @@ export const globalFilters = {
 
   setSelectedCityId: (cityId) => {
     const newCityId = cityId || 'all';
-    updateAndSave('selectedCityId', newCityId);
+    const changed = updateAndSave('selectedCityId', newCityId);
+    // City changed → invalidate cooldown so the next sync runs immediately
+    if (changed) {
+      lastRefreshTimestamp = 0;
+      console.log('🏙️ [GlobalFilters] City changed — refresh cooldown invalidated');
+    }
   },
 
   setSelectedStoreId: (storeId) => {
