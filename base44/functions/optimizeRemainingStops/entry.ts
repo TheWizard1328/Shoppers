@@ -438,35 +438,44 @@ Deno.serve(async (req) => {
     );
 
     const stops = optimizableDeliveries.map(delivery => {
-      const coords = getDeliveryCoords(delivery, patientMap, storeMap);
-      const patient = delivery.patient_id ? patientMap.get(delivery.patient_id) : null;
-      // CRITICAL: If patient has time windows, always use them over delivery-level windows.
-      // This ensures patient-specific schedules are respected during optimization.
-      let windowStart = (patient?.time_window_start) || delivery.delivery_time_start || delivery.time_window_start || null;
-      let windowEnd = (patient?.time_window_end) || delivery.delivery_time_end || delivery.time_window_end || null;
+       const coords = getDeliveryCoords(delivery, patientMap, storeMap);
+       const patient = delivery.patient_id ? patientMap.get(delivery.patient_id) : null;
+       // CRITICAL: If patient has time windows, always use them over delivery-level windows.
+       // This ensures patient-specific schedules are respected during optimization.
+       let windowStart = (patient?.time_window_start) || delivery.delivery_time_start || delivery.time_window_start || null;
+       let windowEnd = (patient?.time_window_end) || delivery.delivery_time_end || delivery.time_window_end || null;
 
-      if (delivery.patient_id && delivery.puid && pickupWindowByStopId.has(delivery.puid)) {
-        const pickupWindow = pickupWindowByStopId.get(delivery.puid);
-        const pickupEndMinutes = parseTimeToMinutes(pickupWindow?.end || pickupWindow?.start);
-        const deliveryStartMinutes = parseTimeToMinutes(windowStart);
-        if (Number.isFinite(pickupEndMinutes) && (!Number.isFinite(deliveryStartMinutes) || deliveryStartMinutes < pickupEndMinutes)) {
-          windowStart = formatMinutesToTime(pickupEndMinutes + 5);
-        }
-      }
+       if (delivery.patient_id && delivery.puid && pickupWindowByStopId.has(delivery.puid)) {
+         const pickupWindow = pickupWindowByStopId.get(delivery.puid);
+         const pickupEndMinutes = parseTimeToMinutes(pickupWindow?.end || pickupWindow?.start);
+         const deliveryStartMinutes = parseTimeToMinutes(windowStart);
+         if (Number.isFinite(pickupEndMinutes) && (!Number.isFinite(deliveryStartMinutes) || deliveryStartMinutes < pickupEndMinutes)) {
+           windowStart = formatMinutesToTime(pickupEndMinutes + 5);
+         }
+       }
 
-      return {
-        delivery,
-        lat: coords?.lat,
-        lng: coords?.lng,
-        isPickup: !delivery.patient_id,
-        windowStart,
-        windowEnd,
-        hasLateWindow: isLateWindowStop(windowStart, currentMinutes),
-        timeMinutes: parseTimeToMinutes(windowStart || delivery.delivery_time_start)
-      };
-    }).filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lng));
+       return {
+         delivery,
+         lat: coords?.lat,
+         lng: coords?.lng,
+         isPickup: !delivery.patient_id,
+         windowStart,
+         windowEnd,
+         hasLateWindow: isLateWindowStop(windowStart, currentMinutes),
+         timeMinutes: parseTimeToMinutes(windowStart || delivery.delivery_time_start)
+       };
+     });
 
-    console.log(`📋 [optimizeRemainingStops] Prepared ${stops.length} stops for HERE sequencing`);
+     // CRITICAL: Log all deliveries and their coordinate status BEFORE filtering
+     console.log(`📋 [optimizeRemainingStops] Coordinate check for ${optimizableDeliveries.length} active deliveries:`);
+     optimizableDeliveries.forEach((delivery, idx) => {
+       const coords = getDeliveryCoords(delivery, patientMap, storeMap);
+       const hasCoords = Number.isFinite(coords?.lat) && Number.isFinite(coords?.lng);
+       console.log(`   [${idx + 1}] ${delivery.id} (${delivery.patient_name || 'Pickup'}): ${hasCoords ? `✅ (${coords.lat}, ${coords.lng})` : `❌ Missing coords`}`);
+     });
+
+     const stopsWithCoords = stops.filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lng));
+     console.log(`📋 [optimizeRemainingStops] Prepared ${stopsWithCoords.length} stops for HERE sequencing (${stops.length - stopsWithCoords.length} filtered out due to missing coordinates)`);
 
     const historicalRoute = isHistoricalRouteDate(deliveryDate);
     const latestFinishedDelivery = getLatestFinishedDelivery(completedDeliveries);
@@ -553,12 +562,12 @@ Deno.serve(async (req) => {
     // CRITICAL: Build stops ONLY from active deliveries for HERE optimization.
     // Pending deliveries are NOT included in the optimization input—they'll be appended at the end.
     const optimizationStops = activeRouteDeliveries
-      .map((delivery) => stops.find((item) => item.delivery.id === delivery.id) || null)
+      .map((delivery) => stopsWithCoords.find((item) => item.delivery.id === delivery.id) || null)
       .filter(Boolean);
 
     // All pending stops will be added at the end (not optimized)
     const pendingStops = pendingRouteDeliveries
-      .map((delivery) => stops.find((item) => item.delivery.id === delivery.id) || null)
+      .map((delivery) => stopsWithCoords.find((item) => item.delivery.id === delivery.id) || null)
       .filter(Boolean);
 
     // CRITICAL: Pre-sort stops by delivery_time_start window before optimization.
