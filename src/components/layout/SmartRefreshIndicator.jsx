@@ -304,6 +304,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
     const showPill = isActive && !isPaused;
 
     return (
+      <div className="relative flex items-center">
       <AnimatePresence mode="wait">
         {showPill ? (
           <motion.button
@@ -311,12 +312,12 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
             data-offline-sync-button
             onClick={handleManualRefresh}
             disabled={isPaused}
-            initial={{ width: 28, borderRadius: 9999 }}
-            animate={{ width: 'auto', borderRadius: 9999 }}
-            exit={{ width: 28, borderRadius: 9999 }}
+            initial={{ width: 28 }}
+            animate={{ width: 'auto' }}
+            exit={{ width: 28 }}
             transition={{ duration: 0.2, ease: 'easeInOut' }}
-            className={`h-7 min-h-7 px-2 flex shrink-0 items-center gap-1.5 overflow-hidden pointer-events-auto ${getSpinnerColor()} shadow-lg`}
-            style={{ position: 'relative', zIndex: 10030, whiteSpace: 'nowrap' }}
+            className={`h-7 min-h-7 px-2 flex shrink-0 items-center gap-1.5 overflow-hidden pointer-events-auto rounded-full ${getSpinnerColor()} shadow-lg`}
+            style={{ position: 'absolute', left: 0, zIndex: 10030, whiteSpace: 'nowrap' }}
             title="Syncing...">
             <motion.div
               animate={{ rotate: 360 }}
@@ -343,7 +344,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
             className={`w-7 h-7 min-w-7 min-h-7 aspect-square rounded-full flex shrink-0 items-center justify-center transition-colors duration-200 hover:scale-110 relative pointer-events-auto ${getSpinnerColor()}`}
-            style={{ position: 'relative', zIndex: 10030 }}
+            style={{ zIndex: 10030 }}
             title={hasError ? 'Refresh error' : !isOnline ? 'Offline' : isPaused ? 'Refresh paused' : 'Click to refresh'}>
             {isPaused ? (
               <div className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
@@ -373,6 +374,9 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
           </motion.button>
         )}
       </AnimatePresence>
+      {/* Reserve space so the circle always occupies its slot */}
+      <div className="w-7 h-7 shrink-0 pointer-events-none" />
+      </div>
     );
   }
 
