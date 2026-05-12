@@ -443,13 +443,19 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null)
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
     // STEP 3: Now save deliveries to offline DB (patients are already up-to-date)
-     // CRITICAL: Use MERGE strategy — only update deliveries from server, preserve local polyline data
+     // CRITICAL: Purge deliveries for selected date/city, then sync fresh from server
      notifySyncStatus({ status: 'syncing', entity: 'Deliveries (saving)', progress: 70 });
+     const offlineDeliveriesForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+     const deliveryIdsToDelete = (offlineDeliveriesForDate || [])
+       .filter((delivery) => !selectedCityId || cityStoreIds.includes(delivery?.store_id))
+       .map((delivery) => delivery?.id)
+       .filter(Boolean);
+     await Promise.all(deliveryIdsToDelete.map((id) => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id)));
      if (deliveries.length > 0) {
        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
      }
      invalidateEntityCache('Delivery');
-    notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 80, count: deliveries.length });
+     notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 80, count: deliveries.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
     notifySyncStatus({ status: 'syncing', entity: 'Companies', progress: 94 });
