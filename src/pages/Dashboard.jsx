@@ -963,10 +963,10 @@ function Dashboard() {
   }, [appUsers, currentUser, stores, selectedDate, deliveries]);
 
   useEffect(() => {
-    const au = appUsers.find((u) => u?.user_id === currentUser?.id); if (au?.preferred_travel_mode) setPreferredTravelMode(au.preferred_travel_mode);
-    const onAU = (e) => { const a = e.detail?.singleUpdate || (e.detail?.appUsers || [])[0]; if (a?.user_id === currentUser?.id && a.preferred_travel_mode) setPreferredTravelMode(a.preferred_travel_mode); };
-    window.addEventListener('appUsersUpdated', onAU); return () => window.removeEventListener('appUsersUpdated', onAU);
-  }, [appUsers, currentUser?.id]);
+    const tid=(selectedDriverId&&selectedDriverId!=='all')?selectedDriverId:currentUser?.id;
+    const au=appUsers.find((u)=>u?.user_id===tid);if(au?.preferred_travel_mode)setPreferredTravelMode(au.preferred_travel_mode);
+    const onAU=(e)=>{const a=e.detail?.singleUpdate||(e.detail?.appUsers||[])[0];const t=(selectedDriverId&&selectedDriverId!=='all')?selectedDriverId:currentUser?.id;if(a?.user_id===t&&a.preferred_travel_mode)setPreferredTravelMode(a.preferred_travel_mode);};window.addEventListener('appUsersUpdated',onAU);return()=>window.removeEventListener('appUsersUpdated',onAU);
+  },[appUsers,currentUser?.id,selectedDriverId]);
 
   const shouldShowLocationToggle = useMemo(() => {
     // Show for all drivers on ALL devices and screen sizes
@@ -2906,8 +2906,6 @@ function Dashboard() {
       const dayOfWeek = dateObj.getDay();
       const isSaturday = dayOfWeek === 6;
       const isSunday = dayOfWeek === 0;
-      const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayOfWeek];
-
       const assignedStores = (stores || []).filter((store) => {// Defensive check
         if (!store) return false;
         if (isSaturday) {
@@ -4350,7 +4348,6 @@ function Dashboard() {
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       const currentDate = getEdmDate();
-      const failedPatient = patients.find((p) => p?.id === originalDelivery.patient_id);
       const puid = originalDelivery.puid;
       let finalStoreId = originalDelivery.store_id;
       let finalAmpm = originalDelivery.ampm_deliveries;
@@ -4419,8 +4416,6 @@ function Dashboard() {
 
     await new Promise((resolve) => setTimeout(resolve, 100));
 
-    // CRITICAL: Store the ID we clicked on BEFORE any database changes
-    const originalClickedId = deliveryId;
     let newNextDeliveryId = deliveryId;
 
     try {
@@ -5043,36 +5038,6 @@ function Dashboard() {
   });
 
   return <DashboardScreen {...dashboardViewModel} />;
-}
-
-async function geocodeAddress(address) {
-  if (!address) return null;
-
-  try {
-    const response = await base44.functions.invoke('getGoogleMapsKey');
-    const apiKey = response.data?.apiKey;
-
-    if (!apiKey) {
-      console.error('❌ [Geocoding] Google Maps API key not configured');
-      return null;
-    }
-
-    const encodedAddress = encodeURIComponent(address);
-    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodedAddress}&key=${apiKey}`;
-
-    const geoResponse = await fetch(url);
-    const data = await geoResponse.json();
-
-    if (data.status === 'OK' && data.results && Array.isArray(data.results) && data.results.length > 0) {// Defensive check
-      const location = data.results[0].geometry.location;
-      return { lat: location.lat, lon: location.lng };
-    } else {
-      return null;
-    }
-  } catch (error) {
-    console.error('Error geocoding:', error);
-    return null;
-  }
 }
 
 export default Dashboard;
