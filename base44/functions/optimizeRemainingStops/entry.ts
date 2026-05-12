@@ -642,14 +642,32 @@ Deno.serve(async (req) => {
       }
       console.log('✅ [optimizeRemainingStops] Preserving existing order and refreshing ETAs only');
     } else if (stopsToSequence.length > 0) {
-      // -------------------------------------------------------------------
-      // Step 1: Call getHereDirections to get optimized sequence + polylines
-      // -------------------------------------------------------------------
-      const originForDirections = currentPosition;
+       // -------------------------------------------------------------------
+       // Step 1: Call getHereDirections to get optimized sequence + polylines
+       // CRITICAL: Origin is always the logical segment origin (last finished stop or home).
+       // Driver's GPS is added as a waypoint IF it's significantly different from the origin.
+       // This ensures polyline accuracy while preserving ETA calculation from actual position.
+       // -------------------------------------------------------------------
+       const originForDirections = logicalSegmentOrigin;
 
-      const allWaypointsForDirections = routeOriginStop
-        ? [{ lat: routeOriginStop.lat, lng: routeOriginStop.lng }, ...stopsToSequence.map(s => ({ lat: s.lat, lng: s.lng }))]
-        : stopsToSequence.map(s => ({ lat: s.lat, lng: s.lng }));
+       // Check if driver's current GPS is >250m away from the logical origin
+       const WAYPOINT_INSERTION_THRESHOLD_KM = 0.25;
+       const shouldInsertGpsWaypoint = driverGpsPosition && logicalSegmentOrigin
+         && calculateCrowFliesDistance(
+             driverGpsPosition.lat, driverGpsPosition.lng,
+             logicalSegmentOrigin.lat, logicalSegmentOrigin.lng
+           ) > WAYPOINT_INSERTION_THRESHOLD_KM;
+
+       const allWaypointsForDirections = routeOriginStop
+         ? [
+             { lat: routeOriginStop.lat, lng: routeOriginStop.lng },
+             ...(shouldInsertGpsWaypoint ? [{ lat: driverGpsPosition.lat, lng: driverGpsPosition.lng }] : []),
+             ...stopsToSequence.map(s => ({ lat: s.lat, lng: s.lng }))
+           ]
+         : [
+             ...(shouldInsertGpsWaypoint ? [{ lat: driverGpsPosition.lat, lng: driverGpsPosition.lng }] : []),
+             ...stopsToSequence.map(s => ({ lat: s.lat, lng: s.lng }))
+           ];
 
       const allRouteContextForDirections = routeOriginStop
         ? [
@@ -660,6 +678,7 @@ Deno.serve(async (req) => {
               time_window_start: routeOriginStop.windowStart,
               time_window_end: routeOriginStop.windowEnd,
             },
+            ...(shouldInsertGpsWaypoint ? [{ id: 'driver_gps_waypoint', stop_id: null, delivery_id: null, time_window_start: null, time_window_end: null }] : []),
             ...stopsToSequence.map(s => ({
               id: s.delivery.stop_id || s.delivery.delivery_id || s.delivery.id,
               stop_id: s.delivery.stop_id,
@@ -668,18 +687,21 @@ Deno.serve(async (req) => {
               time_window_end: s.windowEnd,
             }))
           ]
-        : stopsToSequence.map(s => ({
-            id: s.delivery.stop_id || s.delivery.delivery_id || s.delivery.id,
-            stop_id: s.delivery.stop_id,
-            delivery_id: s.delivery.delivery_id,
-            time_window_start: s.windowStart,
-            time_window_end: s.windowEnd,
-          }));
+        : [
+            ...(shouldInsertGpsWaypoint ? [{ id: 'driver_gps_waypoint', stop_id: null, delivery_id: null, time_window_start: null, time_window_end: null }] : []),
+            ...stopsToSequence.map(s => ({
+              id: s.delivery.stop_id || s.delivery.delivery_id || s.delivery.id,
+              stop_id: s.delivery.stop_id,
+              delivery_id: s.delivery.delivery_id,
+              time_window_start: s.windowStart,
+              time_window_end: s.windowEnd,
+            }))
+          ];
 
-      // Destination: home if available, otherwise last waypoint
+      // Destination: ALWAYS the last delivery stop (never home for active routes)
       const lastWaypoint = allWaypointsForDirections[allWaypointsForDirections.length - 1];
-      // CRITICAL: For non-started routes, end at the last delivery, not home
-      const destinationForDirections = (!routeHasStarted && lastWaypoint) ? lastWaypoint : (resolvedHomePosition || lastWaypoint || originForDirections);
+      // CRITICAL: For active routes, ALWAYS end at the last delivery. Home is only destination if NO deliveries remain.
+      const destinationForDirections = lastWaypoint || originForDirections;
 
       let hereDirectionsResult = null;
       try {
@@ -741,10 +763,14 @@ Deno.serve(async (req) => {
         });
 
         // CRITICAL: Only create polylines for non-pending stops BEFORE they're sorted to the end.
-        // Map sections 1:1 to the HERE-sequenced stops, but exclude pending stops entirely.
+        // Map sections 1:1 to the HERE-sequenced stops, but exclude pending stops and GPS waypoint.
+        // GPS waypoint index needs to be skipped if it was inserted.
+        const gpsWaypointIndex = shouldInsertGpsWaypoint && routeOriginStop ? 1 : (shouldInsertGpsWaypoint ? 0 : -1);
         const activeStopsFromHere = routeStops.filter(s => !pendingDeliveryIds.has(s.delivery.id));
-        segmentPolylines = activeStopsFromHere.map((stop, index) => {
-          const section = sections[index] || null;
+        segmentPolylines = activeStopsFromHere.map((stop, stopIndex) => {
+          // Adjust section index to account for GPS waypoint if present
+          const sectionIndex = gpsWaypointIndex >= 0 ? stopIndex + 1 : stopIndex;
+          const section = sections[sectionIndex] || null;
           return {
             deliveryId: stop.delivery.id,
             encodedPolyline: section?.encoded_polyline || null,
