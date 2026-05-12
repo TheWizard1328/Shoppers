@@ -78,7 +78,6 @@ export const collectBreadcrumbForTracker = async ({
     driver_user_id: currentUser.id,
     delivery_id: activeDelivery.id,
     delivery_date: activeDelivery.delivery_date,
-    delivery_start_time: activeDelivery.delivery_time_start,
     stop_order: stopOrder,
     stop_label: `Stop ${stopOrder || 0}`,
     timestamp,
@@ -94,18 +93,14 @@ export const collectBreadcrumbForTracker = async ({
     const liveRecord = (liveRecords || []).find((record) => Number(record?.stop_order) === Number(stopOrder));
     if (liveRecord?.id) {
       await base44.entities.PendingBreadcrumbLive.update(liveRecord.id, {
-        delivery_id: activeDelivery.id,
         delivery_date: activeDelivery.delivery_date,
-        delivery_start_time: activeDelivery.delivery_time_start,
         stop_order: stopOrder,
         breadcrumbs: breadcrumbData.breadcrumbs
       });
     } else {
       await base44.entities.PendingBreadcrumbLive.create({
         driver_id: currentUser.id,
-        delivery_id: activeDelivery.id,
         delivery_date: activeDelivery.delivery_date,
-        delivery_start_time: activeDelivery.delivery_time_start,
         stop_order: stopOrder,
         breadcrumbs: breadcrumbData.breadcrumbs
       });
