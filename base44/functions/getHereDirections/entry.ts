@@ -400,6 +400,17 @@ const buildRoutingSections = async ({ hereApiKey, orderedStops, originLat, origi
     };
   });
 
+  // Helper to check if coordinates need reversal (if polyline is backwards)
+  const shouldReverseCoords = (coords, expectedFromLat, expectedFromLng, expectedToLat, expectedToLng) => {
+    if (!coords || coords.length < 2) return false;
+    const [firstLat, firstLng] = coords[0];
+    const [lastLat, lastLng] = coords[coords.length - 1];
+    const distFirstToFrom = Math.abs(firstLat - expectedFromLat) + Math.abs(firstLng - expectedFromLng);
+    const distFirstToTo = Math.abs(firstLat - expectedToLat) + Math.abs(firstLng - expectedToLng);
+    // If first point is closer to destination than origin, coords are reversed
+    return distFirstToTo < distFirstToFrom;
+  };
+
   // Coordinate-based section matcher.
   // Finds the unused decodedRouteSection whose start is nearest to fromPoint and
   // whose end is nearest to toPoint.  Returns null if nothing is within threshold.
@@ -441,7 +452,12 @@ const buildRoutingSections = async ({ hereApiKey, orderedStops, originLat, origi
         if (candidate !== coordMatch && positionalFallback) positionalFallback.used = true;
         matchedSection = candidate.rawSection;
         decodedCoords = candidate.coords;
+        
+        // Check if coordinates are reversed and flip if needed
         if (decodedCoords && decodedCoords.length > 1) {
+          if (shouldReverseCoords(decodedCoords, fromPoint.lat, fromPoint.lng, toPoint.lat, toPoint.lng)) {
+            decodedCoords = decodedCoords.reverse();
+          }
           encodedPolyline = encodeGooglePolyline(decodedCoords);
         } else {
           // Section exists but polyline didn't decode — warn and fall through to straight-line
@@ -512,8 +528,12 @@ const buildRoutingSections = async ({ hereApiKey, orderedStops, originLat, origi
       const legData = await legResp.json().catch(() => null);
       const legSection = Array.isArray(legData?.routes?.[0]?.sections) ? legData.routes[0].sections[0] : null;
       if (legSection?.polyline) {
-        const decoded = decodeHereFlexiblePolyline(legSection.polyline);
+        let decoded = decodeHereFlexiblePolyline(legSection.polyline);
         if (decoded.length > 1) {
+          // Check if coordinates are reversed and flip if needed
+          if (shouldReverseCoords(decoded, seg._fromPoint.lat, seg._fromPoint.lng, seg._toPoint.lat, seg._toPoint.lng)) {
+            decoded = decoded.reverse();
+          }
           const ep = encodeGooglePolyline(decoded);
           decodedSectionCoordinates.push(decoded);
           sections[i] = {
