@@ -33,6 +33,7 @@ import MobileHeader from './components/layout/MobileHeader';
 import PageTransition from './components/layout/PageTransition';
 import { ResizableDivider } from './components/ui/resizable-divider';
 import { globalFilters } from './components/utils/globalFilters';
+import { syncOnFilterChange, isUiLocked } from './components/utils/filterChangeSync';
 import CitySelectionPopup from './components/cities/CitySelectionPopup';
 import { getActiveDriversForCity, getAvailableDrivers } from './components/utils/driverSelectors';
 import DeviceRegistration from './components/devices/DeviceRegistration';
@@ -653,6 +654,11 @@ export default function Layout({ children, currentPageName }) {
 
     // Listen for delivery updates from DeliveryForm and trigger refresh
     const handleDeliveriesUpdated = async (event) => {
+      // CRITICAL: Ignore intermediate events while filter-change sync is running
+      if (isUiLocked()) {
+        console.log('🔒 [Layout] deliveriesUpdated ignored — UI locked during filter-change sync');
+        return;
+      }
       const { deliveryId, driverId, deliveryDate, triggeredBy, freshDeliveries, preserveLocalState, deletedIds, deletedId, fullReplacement } = event.detail || {};
       const skipReloadTriggers = ['batchSaveImmediate', 'driver_location_update', 'driverLocationUpdate', 'pullToSyncDataReady', 'pullToSyncComplete', 'initialDataReady'];
       if (preserveLocalState || skipReloadTriggers.includes(triggeredBy)) {
@@ -681,6 +687,10 @@ export default function Layout({ children, currentPageName }) {
 
     // CRITICAL: Update patients/stores/appUsers in UI immediately when pullToSync completes
     const handlePullToSyncDataReady = (event) => {
+      if (isUiLocked()) {
+        console.log('🔒 [Layout] pullToSyncDataReady ignored — UI locked during filter-change sync');
+        return;
+      }
       const { patients: freshPatients, stores: freshStores, appUsers: freshAppUsers } = event.detail || {};
       if (freshPatients && freshPatients.length > 0) setPatients(freshPatients);
       if (freshStores && freshStores.length > 0) setStores(freshStores);
@@ -1048,8 +1058,8 @@ export default function Layout({ children, currentPageName }) {
 
       // Helper — applies a complete dataset to all state in one pass (single UI update)
       const applyFullDataToState = ({ deliveries, patients, appUsers, stores, cities }) => {
-        if (cities && cities.length > 0) setCities(cities);
-        if (stores && stores.length > 0) setStores(stores);
+        if (cities && cities.length > 0) setCities(cities.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)));
+        if (stores && stores.length > 0) setStores(stores.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)));
         if (patients && patients.length > 0) setPatients(patients);
         const mergedUsersMap = new Map();
         if (currentUser) mergedUsersMap.set(currentUser.id, currentUser);
@@ -1073,43 +1083,26 @@ export default function Layout({ children, currentPageName }) {
         setTotalCodsDue(calculateUserCodTotal(currentUser, sqCatalog || [], sqConfigs || [], stores, sqTx || []));
       };
 
-      // CRITICAL: Run manualSyncSelected — fetches Stores/Cities/AppUsers in parallel,
-      // then Patients, then purges+reloads Deliveries — all before a single UI update.
-      const { manualSyncSelected } = await import('./components/utils/offlineSync');
-      const syncResult = await manualSyncSelected(selectedDateStr, selectedCityId);
-
-      if (syncResult?.skipped || syncResult?.error) {
-        // Fallback: load from offline DB if sync was skipped or errored
-        console.warn('⚠️ [Layout] manualSyncSelected skipped/errored — loading from offline DB');
-        const [offlineDeliveries, offlinePatients, offlineAppUsers, offlineStores, offlineCities] = await Promise.all([
-          offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr).catch(() => []),
-          offlineDB.getAll(offlineDB.STORES.PATIENTS).catch(() => []),
-          offlineDB.getAll(offlineDB.STORES.APP_USERS).catch(() => []),
-          offlineDB.getAll(offlineDB.STORES.STORES).catch(() => []),
-          offlineDB.getAll(offlineDB.STORES.CITIES).catch(() => [])
-        ]);
-        applyFullDataToState({
-          deliveries: offlineDeliveries,
-          patients: offlinePatients,
-          appUsers: offlineAppUsers,
-          stores: offlineStores.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)),
-          cities: offlineCities.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity))
-        });
-        return;
-      }
-
-      // SUCCESS: read deliveries back from offline DB (already purged+reloaded by manualSyncSelected)
-      const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr).catch(() => syncResult.deliveries || []);
-      applyFullDataToState({
-        deliveries: freshDeliveries,
-        patients: syncResult.patients || [],
-        appUsers: syncResult.appUsers || [],
-        stores: (syncResult.stores || []).sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)),
-        cities: (syncResult.cities || []).sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity))
-      });
-
-      // Reset 5-min cooldown after a successful sync
-      globalFilters.markRefreshComplete();
+      // ── 4-STEP UI-SAFE FILTER CHANGE SYNC ───────────────────────────────────
+      // Step 1: Snapshot offline DB → UI immediately (no "Unknown" flash)
+      // Step 2: Lock UI
+      // Step 3: Sync patients + deliveries from server
+      // Step 4: Unlock + push fresh data
+      await syncOnFilterChange(
+        selectedDateStr,
+        selectedCityId,
+        // applySnapshot (Step 1 — immediate offline render)
+        (snapshotData) => {
+          console.log(`📸 [Layout] Applying offline snapshot: ${snapshotData.deliveries?.length || 0} deliveries, ${snapshotData.patients?.length || 0} patients`);
+          applyFullDataToState(snapshotData);
+        },
+        // applyFresh (Step 4 — after sync completes)
+        (freshData) => {
+          console.log(`✅ [Layout] Applying fresh sync data: ${freshData.deliveries?.length || 0} deliveries, ${freshData.patients?.length || 0} patients`);
+          applyFullDataToState(freshData);
+          globalFilters.markRefreshComplete();
+        }
+      );
 
     } catch (error) {
       console.warn('⚠️ [Layout] Full data reload failed - preserving current dashboard data:', error?.message || error);
