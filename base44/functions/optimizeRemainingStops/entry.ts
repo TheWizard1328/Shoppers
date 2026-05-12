@@ -835,22 +835,6 @@ Deno.serve(async (req) => {
         return { duration: Math.ceil((distKm / 40) * 3600 * 1.3), distance: distKm * 1000 };
       });
       console.log(`🔃 [optimizeRemainingStops] Locked isNextDelivery to first position, sorted remaining ${routeStops.length - 1} stops by window start`);
-    } else if (!preserveExistingOrder && routeStops.length > 1) {
-      // No locked next stop: sort all stops by window start
-      routeStops.sort((a, b) => {
-        const aMin = parseTimeToMinutes(a.windowStart || a.delivery?.delivery_time_start);
-        const bMin = parseTimeToMinutes(b.windowStart || b.delivery?.delivery_time_start);
-        const aVal = Number.isFinite(aMin) ? aMin : 99999;
-        const bVal = Number.isFinite(bMin) ? bMin : 99999;
-        return aVal - bVal;
-      });
-      // Rebuild directionsLegs with crow-flies for the new order
-      directionsLegs = routeStops.map((stop, index) => {
-        const prevPos = index === 0 ? currentPosition : { lat: routeStops[index - 1].lat, lng: routeStops[index - 1].lng };
-        const distKm = calculateCrowFliesDistance(prevPos.lat, prevPos.lng, stop.lat, stop.lng);
-        return { duration: Math.ceil((distKm / 40) * 3600 * 1.3), distance: distKm * 1000 };
-      });
-      console.log(`🔃 [optimizeRemainingStops] Re-sorted ${routeStops.length} stops by window start after HERE sequencing`);
     }
 
     // CRITICAL: Pending stops were NOT included in HERE optimization, so append them now at the end.
