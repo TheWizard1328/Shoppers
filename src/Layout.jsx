@@ -1060,7 +1060,8 @@ export default function Layout({ children, currentPageName }) {
       const applyFullDataToState = ({ deliveries, patients, appUsers, stores, cities }) => {
         if (cities && cities.length > 0) setCities(cities.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)));
         if (stores && stores.length > 0) setStores(stores.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)));
-        if (patients && patients.length > 0) setPatients(patients);
+        // CRITICAL: Always update patients, even if empty — prevents stale data after date/driver change
+        if (patients) setPatients(patients);
         const mergedUsersMap = new Map();
         if (currentUser) mergedUsersMap.set(currentUser.id, currentUser);
         (appUsers || []).forEach((appUser) => {
