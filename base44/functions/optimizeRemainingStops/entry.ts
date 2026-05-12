@@ -217,8 +217,11 @@ const shouldSkipAutomationEvent = (context = {}) => {
   const activatedToRoute = changedFields.includes('status')
     && ACTIVE_STATUSES.includes(String(data?.status || ''))
     && !ACTIVE_STATUSES.includes(String(oldData?.status || ''));
+  const deactivatedFromRoute = changedFields.includes('status')
+    && !ACTIVE_STATUSES.includes(String(data?.status || ''))
+    && ACTIVE_STATUSES.includes(String(oldData?.status || ''));
 
-  return !(stopOrderChanged || nextDeliveryChanged || activatedToRoute);
+  return !(stopOrderChanged || nextDeliveryChanged || activatedToRoute || deactivatedFromRoute);
 };
 
 const dedupeKeyFor = (driverId, deliveryDate) => `optimizeRemainingStops:${driverId}:${deliveryDate}`;
