@@ -316,7 +316,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
             animate={{ width: 'auto' }}
             exit={{ width: 16 }}
             transition={{ duration: 0.2, ease: 'easeInOut' }}
-            className={`h-7 min-h-7 px-2 flex shrink-0 items-center gap-1.5 overflow-hidden pointer-events-auto rounded-full ${getSpinnerColor()} shadow-lg`}
+            className={`h-9 min-h-9 px-2 flex shrink-0 items-center gap-1.5 overflow-hidden pointer-events-auto rounded-full ${getSpinnerColor()} shadow-lg`}
             style={{ position: 'absolute', left: 0, zIndex: 10030, whiteSpace: 'nowrap' }}
             title="Syncing...">
             <motion.div
