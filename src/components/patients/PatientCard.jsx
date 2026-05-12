@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { isAppOwner } from "../utils/userRoles";
 import {
   Phone,
   MapPin,
@@ -119,7 +120,8 @@ export default function PatientCard({
   showStoreBadge = true,
   displayPriority,
   todayDelivery,
-  onStatusToggle
+  onStatusToggle,
+  currentUser
 }) {
 
   const handleEdit = (e) => {
@@ -271,6 +273,7 @@ export default function PatientCard({
 
               <Plus className="w-4 h-4" />
             </Button>
+            {isAppOwner(currentUser) &&
             <Button
               variant="ghost"
               size="icon"
@@ -280,6 +283,7 @@ export default function PatientCard({
 
               <Trash2 className="w-4 h-4" />
             </Button>
+            }
           </div>
         </div>
 

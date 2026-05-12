@@ -1820,7 +1820,8 @@ export default function Patients() {
                     showStoreBadge={storeFilter === "all" || storeFilter === "all" && selectedCityId !== "all"}
                     displayPriority={patient.displayPriority}
                     todayDelivery={patient.todayDelivery}
-                    onStatusToggle={handlePatientStatusChange} />
+                    onStatusToggle={handlePatientStatusChange}
+                    currentUser={currentUser} />
 
                   )}
                     </div>
