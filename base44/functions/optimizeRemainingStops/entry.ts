@@ -473,52 +473,53 @@ Deno.serve(async (req) => {
       || null;
     const explicitNextCoords = explicitNextDelivery ? getDeliveryCoords(explicitNextDelivery, patientMap, storeMap) : null;
     const latestFinishedCoords = latestFinishedDelivery ? getDeliveryCoords(latestFinishedDelivery, patientMap, storeMap) : null;
-    const previousStopBeforeNext = explicitNextDelivery
-      ? allDeliveries
-          .filter((delivery) => delivery?.id !== explicitNextDelivery.id)
-          .filter((delivery) => Number(delivery?.stop_order || 0) < Number(explicitNextDelivery?.stop_order || 0))
-          .sort((a, b) => Number(b?.stop_order || 0) - Number(a?.stop_order || 0))[0] || null
-      : null;
-    const previousStopCoords = previousStopBeforeNext ? getDeliveryCoords(previousStopBeforeNext, patientMap, storeMap) : null;
-    const routeHasStarted = completedDeliveries.length > 0 || !!previousStopBeforeNext;
+    const routeHasStarted = completedDeliveries.length > 0;
     const shouldLockExplicitNextStop = !!explicitNextDelivery;
 
     const driverGpsPosition = driverAppUser.current_latitude != null && driverAppUser.current_longitude != null
       ? { lat: Number(driverAppUser.current_latitude), lng: Number(driverAppUser.current_longitude) }
       : null;
+    const driverHomePosition = driverAppUser.home_latitude != null && driverAppUser.home_longitude != null
+      ? { lat: Number(driverAppUser.home_latitude), lng: Number(driverAppUser.home_longitude) }
+      : null;
 
-    if (routeHasStarted && latestFinishedCoords) {
-      const distanceFromLastFinishedStop = driverGpsPosition
-        ? calculateCrowFliesDistance(driverGpsPosition.lat, driverGpsPosition.lng, latestFinishedCoords.lat, latestFinishedCoords.lng)
-        : null;
+    const DISTANCE_THRESHOLD_KM = 1.0;
 
-      if (distanceFromLastFinishedStop != null && distanceFromLastFinishedStop > LAST_FINISHED_STOP_PROXIMITY_KM) {
+    // Rule 1: If route not started, use home
+    if (!routeHasStarted && driverHomePosition) {
+      currentPosition = driverHomePosition;
+      locationSource = 'home_route_not_started';
+    }
+    // Rule 2: If route has started, use last finished stop
+    else if (routeHasStarted && latestFinishedCoords) {
+      currentPosition = latestFinishedCoords;
+      locationSource = 'last_finished_stop';
+    }
+
+    // Rule 3: If driver GPS exists and is >1km from current origin (home or last finished), use GPS
+    if (driverGpsPosition && currentPosition) {
+      const distanceToOrigin = calculateCrowFliesDistance(
+        driverGpsPosition.lat,
+        driverGpsPosition.lng,
+        currentPosition.lat,
+        currentPosition.lng
+      );
+      if (distanceToOrigin > DISTANCE_THRESHOLD_KM) {
         currentPosition = driverGpsPosition;
-        locationSource = 'driver_gps_away_from_last_finished_stop';
-      } else {
-        currentPosition = latestFinishedCoords;
-        locationSource = 'last_finished_stop';
+        locationSource = 'driver_gps_far_from_origin';
       }
     }
 
-    if (!currentPosition && previousStopCoords) {
-      currentPosition = previousStopCoords;
-      locationSource = 'previous_stop_before_next';
-    }
-
-    if (!currentPosition && explicitNextCoords) {
-      currentPosition = explicitNextCoords;
-      locationSource = 'next_delivery_stop';
-    }
-
-    if (!routeHasStarted && !currentPosition && driverGpsPosition) {
+    // Fallback: If no currentPosition yet, try driver GPS
+    if (!currentPosition && driverGpsPosition) {
       currentPosition = driverGpsPosition;
       locationSource = 'driver_gps';
     }
 
-    if (!currentPosition && driverAppUser.home_latitude != null && driverAppUser.home_longitude != null) {
-      currentPosition = { lat: Number(driverAppUser.home_latitude), lng: Number(driverAppUser.home_longitude) };
-      locationSource = 'home';
+    // Last resort fallback: Never use next delivery stop as origin to avoid zero-distance first leg
+    if (!currentPosition && driverHomePosition) {
+      currentPosition = driverHomePosition;
+      locationSource = 'home_fallback';
     }
 
     if (!currentPosition) {
