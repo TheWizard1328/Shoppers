@@ -54,11 +54,13 @@ const evenlySpacedInterior = (points, count) => {
 
 // Subsample points: always keep origin + destination, add 0–3 interior points based on distance
 const subsamplePoints = (points, originCoords, destCoords) => {
-  // Build full point list: prefer delivery stop coords for origin/dest for accuracy
-  const origin = originCoords ? [...originCoords] : points[0];
-  const dest = destCoords ? [...destCoords] : points[points.length - 1];
+  const origin = originCoords ? [...originCoords] : (points.length > 0 ? points[0] : null);
+  const dest = destCoords ? [...destCoords] : (points.length > 0 ? points[points.length - 1] : null);
 
-  if (points.length <= 2) {
+  if (!origin || !dest) return null;
+
+  // If no breadcrumb interior points, just return origin + dest directly
+  if (points.length < 2) {
     return [origin, dest];
   }
 
@@ -98,6 +100,26 @@ const fetchHerePolyline = async (waypoints, apiKey, mode = 'driving') => {
   return polyline;
 };
 
+// Get coordinates for a delivery stop: patient coords if patient delivery, store coords if store pickup
+const getStopCoords = async (delivery, base44) => {
+  if (delivery.patient_id) {
+    const lat = Number(delivery.patient_latitude);
+    const lng = Number(delivery.patient_longitude);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) return [lat, lng];
+    return null;
+  }
+  // Store pickup — fetch store coords
+  if (delivery.store_id) {
+    const store = await base44.asServiceRole.entities.Store.get(delivery.store_id);
+    if (store) {
+      const lat = Number(store.latitude);
+      const lng = Number(store.longitude);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) return [lat, lng];
+    }
+  }
+  return null;
+};
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -126,40 +148,69 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, skipped: true, reason: 'polyline_already_exists', delivery_id });
     }
 
-    // Fetch matching PendingBreadcrumbLive records
+    // ── Resolve destination coords (current stop) ────────────────────────────
+    const destCoords = await getStopCoords(delivery, base44);
+    if (!destCoords) {
+      return Response.json({ success: false, skipped: true, reason: 'no_destination_coords', delivery_id });
+    }
+
+    // ── Resolve origin coords (previous stop or driver home) ─────────────────
+    let originCoords = null;
+
+    if (Number(stop_order) > 1) {
+      // Look up the previous stop in this route
+      const prevDeliveries = await base44.asServiceRole.entities.Delivery.filter({
+        driver_id,
+        delivery_date,
+        stop_order: Number(stop_order) - 1,
+      });
+      const prevDelivery = prevDeliveries?.[0];
+      if (prevDelivery) {
+        originCoords = await getStopCoords(prevDelivery, base44);
+      }
+    }
+
+    // Fallback to driver's home coordinates for first stop or if previous stop has no coords
+    if (!originCoords) {
+      const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driver_id });
+      const appUser = appUsers?.[0];
+      if (appUser) {
+        const lat = Number(appUser.home_latitude);
+        const lng = Number(appUser.home_longitude);
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+          originCoords = [lat, lng];
+        }
+      }
+    }
+
+    if (!originCoords) {
+      return Response.json({ success: false, skipped: true, reason: 'no_origin_coords', delivery_id });
+    }
+
+    // ── Fetch PendingBreadcrumbLive records ──────────────────────────────────
     const pendingRecords = await base44.asServiceRole.entities.PendingBreadcrumbLive.filter({
       driver_id,
       delivery_date,
       stop_order: Number(stop_order),
     });
 
-    if (!pendingRecords || pendingRecords.length === 0) {
-      return Response.json({ success: false, skipped: true, reason: 'no_pending_breadcrumbs', delivery_id });
-    }
-
     // Merge and sort all breadcrumb points by timestamp
-    const allRaw = pendingRecords.flatMap(r => Array.isArray(r.breadcrumbs) ? r.breadcrumbs : []);
+    const allRaw = (pendingRecords || []).flatMap(r => Array.isArray(r.breadcrumbs) ? r.breadcrumbs : []);
     const normalized = allRaw.map(normalizePoint).filter(Boolean);
 
-    if (normalized.length < 2) {
-      return Response.json({ success: false, skipped: true, reason: 'insufficient_points', delivery_id, point_count: normalized.length });
-    }
-
-    // Sort by timestamp if available
-    const sorted = normalized[0].length >= 3
+    const sorted = normalized.length >= 2 && normalized[0].length >= 3
       ? [...normalized].sort((a, b) => a[2] - b[2])
       : normalized;
 
-    // Get origin/dest from delivery patient or store coords (prefer actual stop coords)
-    // Previous stop coords would be the origin — we use the first breadcrumb as proxy if not available
-    // Destination is the delivery's patient coords
-    const destLat = delivery.patient_latitude ?? null;
-    const destLng = delivery.patient_longitude ?? null;
-    const destCoords = (Number.isFinite(destLat) && Number.isFinite(destLng)) ? [destLat, destLng] : null;
+    // Build strategic waypoints — always uses originCoords + destCoords as anchors
+    // If no breadcrumbs, subsamplePoints will just return [origin, dest]
+    const strategicPoints = subsamplePoints(sorted, originCoords, destCoords);
 
-    const strategicPoints = subsamplePoints(sorted, null, destCoords);
+    if (!strategicPoints || strategicPoints.length < 2) {
+      return Response.json({ success: false, skipped: true, reason: 'insufficient_waypoints', delivery_id });
+    }
 
-    // Get HERE API key
+    // ── Get HERE API key ─────────────────────────────────────────────────────
     const hereApiKeyRes = await base44.asServiceRole.functions.invoke('getActiveHereApiKey', {});
     const hereApiKey = hereApiKeyRes?.api_key || Deno.env.get('HERE_API_KEY');
 
@@ -169,25 +220,29 @@ Deno.serve(async (req) => {
 
     const transportMode = delivery.transport_mode || 'driving';
 
-    // Fetch encoded polyline from HERE
+    // ── Fetch encoded polyline from HERE ─────────────────────────────────────
     const encodedPolyline = await fetchHerePolyline(strategicPoints, hereApiKey, transportMode);
 
-    // Save strategic points + encoded polyline back to Delivery
+    // ── Save strategic points + encoded polyline back to Delivery ────────────
     await base44.asServiceRole.entities.Delivery.update(delivery_id, {
       delivery_route_breadcrumbs: strategicPoints,
       encoded_polyline: encodedPolyline,
     });
 
-    // Clean up PendingBreadcrumbLive records
-    await Promise.all(pendingRecords.map(r => base44.asServiceRole.entities.PendingBreadcrumbLive.delete(r.id)));
+    // ── Clean up PendingBreadcrumbLive records (if any) ───────────────────────
+    if (pendingRecords && pendingRecords.length > 0) {
+      await Promise.all(pendingRecords.map(r => base44.asServiceRole.entities.PendingBreadcrumbLive.delete(r.id)));
+    }
 
     return Response.json({
       success: true,
       delivery_id,
       stop_order,
+      had_breadcrumbs: normalized.length >= 2,
       raw_point_count: normalized.length,
       strategic_point_count: strategicPoints.length,
-      pending_records_deleted: pendingRecords.length,
+      pending_records_deleted: pendingRecords?.length || 0,
+      origin_source: Number(stop_order) > 1 ? 'previous_stop' : 'driver_home',
     });
 
   } catch (error) {
