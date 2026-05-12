@@ -1,4 +1,5 @@
 import { base44 } from '@/api/base44Client';
+import { offlineDB } from '@/components/utils/offlineDatabase';
 
 export const TRAVEL_MODE_OPTIONS = [
   { value: 'driving', label: 'Driving' },
@@ -30,7 +31,27 @@ export function getPreferredTravelMode(appUsers = [], currentUserId) {
 export async function updatePreferredTravelMode(appUsers = [], currentUserId, nextMode) {
   const appUser = appUsers.find((user) => user?.user_id === currentUserId);
   if (!appUser?.id) return;
+  const normalized = normalizeTravelMode(nextMode);
+
+  // Update online DB
   await base44.entities.AppUser.update(appUser.id, {
-    preferred_travel_mode: normalizeTravelMode(nextMode)
+    preferred_travel_mode: normalized
   });
+
+  // Update offline DB
+  const updatedAppUser = { ...appUser, preferred_travel_mode: normalized };
+  await offlineDB.save(offlineDB.STORES.APP_USERS, updatedAppUser).catch(() => {});
+
+  // Broadcast to all devices so they pick up the new travel mode
+  window.dispatchEvent(new CustomEvent('entityMutationBroadcast', {
+    detail: {
+      entity: 'AppUser',
+      type: 'update',
+      id: appUser.id,
+      data: updatedAppUser
+    }
+  }));
+  window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+    detail: { appUsers: null, singleUpdate: updatedAppUser }
+  }));
 }
