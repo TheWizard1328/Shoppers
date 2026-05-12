@@ -136,7 +136,7 @@ const mergeAppUsersByFreshness = (currentUsers = [], incomingUsers = []) => {
         latitude: Number(user?.current_latitude),
         longitude: Number(user?.current_longitude)
       },
-      50
+      0
     );
 
     if (!movedEnough) {
@@ -904,12 +904,12 @@ export default function DeliveryMap({
     const hasMovedEnoughForMapFit = hasDriverMovedEnoughForPhase2(
       phase2LastFitDriverLocationRef.current,
       currentDriverFitLocation,
-      50
+      0
     );
     const stopChangedEnoughForMapFit = hasDriverMovedEnoughForPhase2(
       phase2LastStopLocationRef.current,
       currentStopFitLocation,
-      50
+      0
     );
     const nextKey = [
       Number(nextStop.latitude).toFixed(6),
