@@ -94,6 +94,11 @@ async function flushBuffered(entityName) {
       window.dispatchEvent(new CustomEvent(`realtimeUpdate_${entityName}`, { detail: { type: eventType, id, data, updatedBy, changedFields } }));
       if (entityName === 'AppUser' && (eventType === 'create' || eventType === 'update') && data) {
         window.dispatchEvent(new CustomEvent('appUserUpdated', { detail: { appUser: data, fromRealtime: true } }));
+        if (data.preferred_travel_mode && data.user_id) {
+          window.dispatchEvent(new CustomEvent('driverTravelModeChanged', {
+            detail: { driverId: data.user_id, travelMode: data.preferred_travel_mode, fromRealtime: true }
+          }));
+        }
       }
       if (entityName === 'AppSettings' && data) {
         window.dispatchEvent(new CustomEvent('appSettingsUpdated', {
