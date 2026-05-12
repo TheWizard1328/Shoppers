@@ -312,9 +312,9 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
             data-offline-sync-button
             onClick={handleManualRefresh}
             disabled={isPaused}
-            initial={{ width: 15 }}
+            initial={{ width: 16 }}
             animate={{ width: 'auto' }}
-            exit={{ width: 28 }}
+            exit={{ width: 16 }}
             transition={{ duration: 0.2, ease: 'easeInOut' }}
             className={`h-7 min-h-7 px-2 flex shrink-0 items-center gap-1.5 overflow-hidden pointer-events-auto rounded-full ${getSpinnerColor()} shadow-lg`}
             style={{ position: 'absolute', left: 0, zIndex: 10030, whiteSpace: 'nowrap' }}
