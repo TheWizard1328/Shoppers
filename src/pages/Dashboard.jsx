@@ -963,10 +963,9 @@ function Dashboard() {
   }, [appUsers, currentUser, stores, selectedDate, deliveries]);
 
   useEffect(() => {
-    const appUser = appUsers.find((user) => user?.user_id === currentUser?.id);
-    if (appUser?.preferred_travel_mode) {
-      setPreferredTravelMode(appUser.preferred_travel_mode);
-    }
+    const au = appUsers.find((u) => u?.user_id === currentUser?.id); if (au?.preferred_travel_mode) setPreferredTravelMode(au.preferred_travel_mode);
+    const onAU = (e) => { const a = e.detail?.appUser; if (a?.user_id === currentUser?.id && a.preferred_travel_mode) setPreferredTravelMode(a.preferred_travel_mode); };
+    window.addEventListener('appUserUpdated', onAU); return () => window.removeEventListener('appUserUpdated', onAU);
   }, [appUsers, currentUser?.id]);
 
   const shouldShowLocationToggle = useMemo(() => {
