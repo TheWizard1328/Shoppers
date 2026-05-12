@@ -53,6 +53,16 @@ const getFinishedLegRouteStyle = (driverId, deliveryTravelMode, opacityOverride,
   };
 };
 
+// Green dotted style for completed legs on an unfinished route (breadcrumb mode)
+const getUnfinishedLegStyle = (opacityOverride) => ({
+  color: '#16A34A',
+  weight: 4,
+  opacity: opacityOverride ?? 0.75,
+  dashArray: '8 12',
+  lineJoin: 'round',
+  lineCap: 'round',
+});
+
 const samePoint = (a, b) => (
   Math.abs(Number(a?.latitude) - Number(b?.latitude)) < 1e-5 &&
   Math.abs(Number(a?.longitude) - Number(b?.longitude)) < 1e-5
@@ -208,12 +218,12 @@ export default function CompletedBreadcrumbPolylines({
 
   const driverHomeMap = useMemo(() => new Map((driverHomeMarkers || []).map((marker) => [marker.driverId, marker])), [driverHomeMarkers]);
 
+  // Segments for fully-completed routes (breadcrumb mode)
   const completedSegments = useMemo(() => {
     if (!showBreadcrumbPolylines) return [];
     return (driverRoutes || []).flatMap((route) => {
       if (!route?.driverId) return [];
 
-      // Derive sort_order from the stops themselves (most reliable source)
       const routeStops = [
         ...pickupMarkers.filter((p) => p?.driver_id === route.driverId),
         ...deliveryMarkers.filter((d) => d?.driver_id === route.driverId),
@@ -313,6 +323,44 @@ export default function CompletedBreadcrumbPolylines({
     });
   }, [driverRoutes, pickupMarkers, deliveryMarkers, selectedDriverId, isAllDriversMode, highlightedDeliveryId, driverHomeMap]);
 
+  // Segments for unfinished routes — completed legs shown as green dotted polyline
+  const unfinishedRouteCompletedLegs = useMemo(() => {
+    if (!showBreadcrumbPolylines) return [];
+    return (driverRoutes || []).flatMap((route) => {
+      if (!route?.driverId) return [];
+
+      const stops = [
+        ...pickupMarkers.filter((p) => p && p.driver_id === route.driverId),
+        ...deliveryMarkers.filter((d) => d && d.driver_id === route.driverId),
+      ].sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+
+      // Only unfinished routes (at least one stop not yet finished)
+      const routeCompleted = route?.isCompleted || (stops.length > 0 && stops.every((stop) => FINISHED.includes(stop.status)));
+      if (routeCompleted || !stops.length) return [];
+
+      // Find finished stops that have an encoded_polyline
+      return stops
+        .filter((stop) => FINISHED.includes(stop.status))
+        .filter((stop) => {
+          const encoded = typeof stop.finished_leg_encoded_polyline === "string" && stop.finished_leg_encoded_polyline.trim().length > 0
+            ? stop.finished_leg_encoded_polyline.trim()
+            : (typeof stop.encoded_polyline === "string" ? stop.encoded_polyline.trim() : "");
+          return encoded.length > 0;
+        })
+        .map((stop) => {
+          const encodedPolyline = typeof stop.finished_leg_encoded_polyline === "string" && stop.finished_leg_encoded_polyline.trim().length > 0
+            ? stop.finished_leg_encoded_polyline.trim()
+            : stop.encoded_polyline.trim();
+          const opacity = selectedDriverId && selectedDriverId !== "all" && route.driverId === selectedDriverId ? 0.8 : 0.65;
+          return {
+            id: `unfinished-leg-${route.driverId}-${stop.id}`,
+            encodedPolyline,
+            opacity,
+          };
+        });
+    });
+  }, [driverRoutes, pickupMarkers, deliveryMarkers, selectedDriverId, showBreadcrumbPolylines]);
+
   const blockedStoredDestinationStopIds = useMemo(() => new Set(
     completedSegments
       .filter((segment) => segment.hasAnyBreadcrumbs && segment.destinationStopId)
@@ -403,6 +451,7 @@ export default function CompletedBreadcrumbPolylines({
 
   const renderedLines = [];
 
+  // Render stored finished segments (non-breadcrumb mode)
   storedFinishedSegments.forEach((segment) => {
     if (!showStoredPolylines) return;
     const coords = decodePolyline(segment.encodedPolyline);
@@ -425,6 +474,7 @@ export default function CompletedBreadcrumbPolylines({
     );
   });
 
+  // Render completed legs of fully-finished routes (breadcrumb mode)
   completedSegments.forEach((segment) => {
     if (!segment.hasAnyBreadcrumbs) {
       if (!showStoredPolylines) return;
@@ -481,6 +531,20 @@ export default function CompletedBreadcrumbPolylines({
           />
         );
       });
+  });
+
+  // Render completed legs of unfinished routes as green dotted polylines
+  unfinishedRouteCompletedLegs.forEach((leg) => {
+    const coords = decodePolyline(leg.encodedPolyline);
+    if (!coords) return;
+    renderedLines.push(
+      <Polyline
+        key={`unfinished-leg-${leg.id}-${polylineRenderKey}`}
+        positions={coords}
+        pathOptions={getUnfinishedLegStyle(leg.opacity)}
+        pane="completedBreadcrumbPane"
+      />
+    );
   });
 
   return renderedLines.length ? renderedLines.flat() : null;
