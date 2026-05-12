@@ -443,25 +443,12 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null)
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
     // STEP 3: Now save deliveries to offline DB (patients are already up-to-date)
-    notifySyncStatus({ status: 'syncing', entity: 'Deliveries (saving)', progress: 70 });
-    const offlineDeliveriesForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-    const deliveryIdsToDelete = (offlineDeliveriesForDate || [])
-      .filter((delivery) => !selectedCityId || cityStoreIds.includes(delivery?.store_id))
-      .map((delivery) => delivery?.id)
-      .filter(Boolean);
-    await Promise.all(deliveryIdsToDelete.map((id) => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id)));
-    if (deliveries.length > 0) {
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
-    }
-    invalidateEntityCache('Delivery');
-    // Dispatch UI update so the dashboard removes purged records immediately
-    if (deliveryIdsToDelete.length > 0) {
-      const serverIds = new Set((deliveries || []).map((d) => d?.id).filter(Boolean));
-      const purgedIds = deliveryIdsToDelete.filter((id) => !serverIds.has(id));
-      if (purgedIds.length > 0) {
-        window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', { detail: { deletedIds: purgedIds } }));
-      }
-    }
+     // CRITICAL: Use MERGE strategy — only update deliveries from server, preserve local polyline data
+     notifySyncStatus({ status: 'syncing', entity: 'Deliveries (saving)', progress: 70 });
+     if (deliveries.length > 0) {
+       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+     }
+     invalidateEntityCache('Delivery');
     notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 80, count: deliveries.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
@@ -495,8 +482,7 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null)
         appUsers: appUsers.length,
         cities: cities.length,
         stores: stores.length,
-        companies: companies.length,
-        purgedDeliveries: deliveryIdsToDelete.length
+        companies: companies.length
       }
     };
   } catch (error) {
