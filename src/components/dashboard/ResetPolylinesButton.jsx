@@ -110,6 +110,18 @@ export default function ResetPolylinesButton({
               .filter(Boolean)
               .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
 
+            const hasActiveStops = orderedDeliveries.some((delivery) => ["in_transit", "en_route"].includes(String(delivery?.status || "")));
+
+            // Repair missing polylines for completed routes only
+            if (!hasActiveStops) {
+              try {
+                const { repairMissingPolylines } = await import('@/functions/repairMissingPolylines');
+                await repairMissingPolylines({ driverId, deliveryDate: selectedDate });
+              } catch (err) {
+                console.warn(`⚠️ Polyline repair failed for ${driverId}:`, err);
+              }
+            }
+
             const orderedStopIds = orderedDeliveries
               .map((delivery) => delivery.id)
               .filter(Boolean);
@@ -138,7 +150,6 @@ export default function ResetPolylinesButton({
               throw new Error('No route stops found for this driver and date');
             }
 
-            const hasActiveStops = orderedDeliveries.some((delivery) => ["in_transit", "en_route"].includes(String(delivery?.status || "")));
             // Pre-clear existing polylines so bulkUpdateDeliveries change-detection doesn't skip identical values
             // await Promise.all(
             //   orderedDeliveries.map((delivery) =>
