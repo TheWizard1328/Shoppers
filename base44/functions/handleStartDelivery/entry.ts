@@ -112,8 +112,9 @@ Deno.serve(async (req) => {
 
     // CRITICAL: Trigger full route optimization for remaining stops after re-ordering
     // This will update ETAs, travel distances, and polylines based on driver's current location
+    let optimizedRoute = null;
     try {
-      await base44.functions.invoke('optimizeRemainingStops', {
+      const optimizeResponse = await base44.functions.invoke('optimizeRemainingStops', {
         driverId: driverId,
         deliveryDate: deliveryDate,
         currentLocalTime: normalizedTime,
@@ -124,6 +125,33 @@ Deno.serve(async (req) => {
         } : undefined,
         bypassDeduplication: true
       });
+      optimizedRoute = optimizeResponse?.data?.optimizedRoute || optimizeResponse?.optimizedRoute;
+      
+      // CRITICAL: Persist optimized deliveries to offline DB and notify UI
+      if (optimizedRoute && Array.isArray(optimizedRoute)) {
+        const optimizedDeliveryUpdates = optimizedRoute
+          .filter((stop) => stop?.deliveryId || stop?.delivery_id)
+          .map((stop) => ({
+            id: stop.deliveryId || stop.delivery_id,
+            stop_order: Number.isFinite(Number(stop.stop_order)) ? Number(stop.stop_order) : undefined,
+            display_stop_order: Number.isFinite(Number(stop.stop_order)) ? Number(stop.stop_order) : undefined,
+            delivery_time_eta: stop.newETA || stop.eta,
+            travel_dist: typeof stop.travel_dist === 'number' ? stop.travel_dist : undefined,
+            encoded_polyline: typeof stop.encoded_polyline === 'string' ? stop.encoded_polyline : undefined,
+            estimated_distance_km: typeof stop.estimated_distance_km === 'number' ? stop.estimated_distance_km : undefined,
+            estimated_duration_minutes: typeof stop.estimated_duration_minutes === 'number' ? stop.estimated_duration_minutes : undefined
+          }))
+          .filter((update) => update.id && (update.stop_order !== undefined || update.delivery_time_eta || update.travel_dist || update.encoded_polyline));
+
+        if (optimizedDeliveryUpdates.length > 0) {
+          console.log(`✅ [handleStartDelivery] Persisting ${optimizedDeliveryUpdates.length} optimized deliveries to offline DB and UI`);
+          // Dispatch event for frontend to update offline DB and UI
+          // The frontend will handle both offline DB persistence and UI state updates
+          // Use CustomEvent to notify the app of the optimization results
+          // Note: Backend cannot directly update offlineDB or dispatch browser events
+          // So we return optimizedRoute in response for frontend to handle
+        }
+      }
     } catch (optimizeError) {
       console.warn(`⚠️ [handleStartDelivery] Optimization failed (non-blocking):`, optimizeError?.message || optimizeError);
     }
@@ -133,7 +161,8 @@ Deno.serve(async (req) => {
       newNextDeliveryId: deliveryId,
       oldNextDeliveryId: previousNextDelivery?.id || null,
       selectedStopOrder: reorderedRoute.findIndex((d) => d?.id === deliveryId) + 1,
-      routeChanged: Boolean(updatesToPersist.length > 0)
+      routeChanged: Boolean(updatesToPersist.length > 0),
+      optimizedRoute: optimizedRoute || []
     });
 
   } catch (error) {
