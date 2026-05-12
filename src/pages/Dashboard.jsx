@@ -964,8 +964,8 @@ function Dashboard() {
 
   useEffect(() => {
     const au = appUsers.find((u) => u?.user_id === currentUser?.id); if (au?.preferred_travel_mode) setPreferredTravelMode(au.preferred_travel_mode);
-    const onAU = (e) => { const a = e.detail?.appUser; if (a?.user_id === currentUser?.id && a.preferred_travel_mode) setPreferredTravelMode(a.preferred_travel_mode); };
-    window.addEventListener('appUserUpdated', onAU); return () => window.removeEventListener('appUserUpdated', onAU);
+    const onAU = (e) => { const a = e.detail?.singleUpdate || (e.detail?.appUsers || [])[0]; if (a?.user_id === currentUser?.id && a.preferred_travel_mode) setPreferredTravelMode(a.preferred_travel_mode); };
+    window.addEventListener('appUsersUpdated', onAU); return () => window.removeEventListener('appUsersUpdated', onAU);
   }, [appUsers, currentUser?.id]);
 
   const shouldShowLocationToggle = useMemo(() => {
