@@ -77,12 +77,13 @@ export async function runAcceptAllBatchPipeline({
   }
 
   const optimizeResponse = await base44.functions.invoke('optimizeRemainingStops', {
-    driverId: triggerDelivery.driver_id,
-    deliveryDate: triggerDelivery.delivery_date,
-    currentLocalTime,
-    deviceTime: new Date().toISOString(),
-    forceFullRemainingRouteOptimization: true,
-    bypassDriverStatus: true
+   driverId: triggerDelivery.driver_id,
+   deliveryDate: triggerDelivery.delivery_date,
+   currentLocalTime,
+   deviceTime: new Date().toISOString(),
+   forceFullRemainingRouteOptimization: true,
+   bypassDriverStatus: true,
+   bypassDeduplication: true
   });
   const optimizeData = optimizeResponse?.data || optimizeResponse || {};
 
