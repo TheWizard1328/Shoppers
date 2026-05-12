@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@base44/sdk": "^0.8.27",
-    "@base44/vite-plugin": "^1.0.14",
+    "@base44/vite-plugin": "^1.0.15",
     "@capacitor-community/background-geolocation": "^1.2.26",
     "@capacitor/android": "^7.0.0",
     "@capacitor/cli": "^7.0.0",
