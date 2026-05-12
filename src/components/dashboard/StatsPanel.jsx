@@ -465,7 +465,8 @@ export default function StatsPanel({
                   currentUser={currentUser}
                   appUsers={appUsers}
                   value={preferredTravelMode}
-                  onChange={onTravelModeChange} />
+                  onChange={onTravelModeChange}
+                  selectedDriverId={selectedDriverId} />
                 }
 
                 {!(isDriver && !isDispatcher) &&
