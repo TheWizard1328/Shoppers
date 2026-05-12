@@ -312,7 +312,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
             data-offline-sync-button
             onClick={handleManualRefresh}
             disabled={isPaused}
-            initial={{ width: 28 }}
+            initial={{ width: 15 }}
             animate={{ width: 'auto' }}
             exit={{ width: 28 }}
             transition={{ duration: 0.2, ease: 'easeInOut' }}
