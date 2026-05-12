@@ -482,9 +482,16 @@ Deno.serve(async (req) => {
     const routeHasStarted = completedDeliveries.length > 0;
     const shouldLockExplicitNextStop = !!explicitNextDelivery;
 
-    const driverGpsPosition = driverAppUser.current_latitude != null && driverAppUser.current_longitude != null
-      ? { lat: Number(driverAppUser.current_latitude), lng: Number(driverAppUser.current_longitude) }
+    // CRITICAL: Prioritize real-time currentLocation from frontend over cached AppUser GPS
+    // This fixes the "one stop behind" ETA issue by using the driver's actual location at optimization time
+    const frontendProvidedLocation = body?.currentLocation 
+      ? { lat: Number(body.currentLocation.lat), lng: Number(body.currentLocation.lon) }
       : null;
+    
+    const driverGpsPosition = frontendProvidedLocation
+      || (driverAppUser.current_latitude != null && driverAppUser.current_longitude != null
+        ? { lat: Number(driverAppUser.current_latitude), lng: Number(driverAppUser.current_longitude) }
+        : null);
     const driverHomePosition = driverAppUser.home_latitude != null && driverAppUser.home_longitude != null
       ? { lat: Number(driverAppUser.home_latitude), lng: Number(driverAppUser.home_longitude) }
       : null;
