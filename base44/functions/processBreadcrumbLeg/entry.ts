@@ -104,14 +104,19 @@ Deno.serve(async (req) => {
 
     const payload = req.method === 'POST' ? await req.json().catch(() => ({})) : {};
 
-    const { delivery_id, driver_id, delivery_date, stop_order } = payload;
+    // Support both: manual call (delivery_id etc.) and entity automation (event + data)
+    const deliveryData = payload.data || null;
+    const delivery_id = payload.delivery_id || payload.event?.entity_id || deliveryData?.id;
+    const driver_id = payload.driver_id || deliveryData?.driver_id;
+    const delivery_date = payload.delivery_date || deliveryData?.delivery_date;
+    const stop_order = payload.stop_order ?? deliveryData?.stop_order;
 
     if (!delivery_id || !driver_id || !delivery_date || stop_order == null) {
-      return Response.json({ error: 'delivery_id, driver_id, delivery_date, and stop_order are required' }, { status: 400 });
+      return Response.json({ error: 'delivery_id, driver_id, delivery_date, and stop_order are required', received: { delivery_id, driver_id, delivery_date, stop_order } }, { status: 400 });
     }
 
-    // Fetch the delivery record
-    const delivery = await base44.asServiceRole.entities.Delivery.get(delivery_id);
+    // Use inline delivery data from automation payload if available, else fetch
+    const delivery = deliveryData?.id === delivery_id ? deliveryData : await base44.asServiceRole.entities.Delivery.get(delivery_id);
     if (!delivery) {
       return Response.json({ error: 'Delivery not found' }, { status: 404 });
     }
