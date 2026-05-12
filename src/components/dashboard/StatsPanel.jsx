@@ -438,19 +438,15 @@ export default function StatsPanel({
                                 : 'text-slate-700'
                         }`}
                         style={!showRoutes && !showBreadcrumbs && !isDateFinished ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}>
-                        {showBreadcrumbs ? (
-                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <circle cx="8" cy="3" r="1.5" fill="currentColor" />
-                            <circle cx="4" cy="8" r="1.5" fill="currentColor" />
-                            <circle cx="12" cy="9" r="1.5" fill="currentColor" />
-                            <circle cx="8" cy="13" r="1.5" fill="currentColor" />
-                            <path d="M 8 3 Q 6 5, 4 8" stroke="currentColor" strokeWidth="1" fill="none" />
-                            <path d="M 4 8 Q 8 8.5, 12 9" stroke="currentColor" strokeWidth="1" fill="none" />
-                            <path d="M 12 9 Q 10 11, 8 13" stroke="currentColor" strokeWidth="1" fill="none" />
-                          </svg>
-                        ) : (
-                          <Truck className="w-4 h-4" />
-                        )}
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <circle cx="8" cy="3" r="1.5" fill="currentColor" />
+                          <circle cx="4" cy="8" r="1.5" fill="currentColor" />
+                          <circle cx="12" cy="9" r="1.5" fill="currentColor" />
+                          <circle cx="8" cy="13" r="1.5" fill="currentColor" />
+                          <path d="M 8 3 Q 6 5, 4 8" stroke="currentColor" strokeWidth="1" fill="none" />
+                          <path d="M 4 8 Q 8 8.5, 12 9" stroke="currentColor" strokeWidth="1" fill="none" />
+                          <path d="M 12 9 Q 10 11, 8 13" stroke="currentColor" strokeWidth="1" fill="none" />
+                        </svg>
                       </Button>
                     </div>
                   </div>
