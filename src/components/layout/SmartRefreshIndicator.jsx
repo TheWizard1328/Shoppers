@@ -304,7 +304,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
     const showPill = isActive && !isPaused;
 
     return (
-      <div className="relative flex items-center">
+      <div className="relative w-7 h-7 flex-shrink-0">
       <AnimatePresence mode="wait">
         {showPill ? (
           <motion.button
@@ -374,8 +374,6 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
           </motion.button>
         )}
       </AnimatePresence>
-      {/* Reserve space so the circle always occupies its slot */}
-      <div className="w-7 h-7 shrink-0 pointer-events-none" />
       </div>
     );
   }
