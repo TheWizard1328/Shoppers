@@ -767,23 +767,24 @@ export default function useStopCardActions(params) {
         const actedOnNextDelivery = delivery?.isNextDelivery === true;
         await setAndCenterNextDelivery({ driverDeliveries: routeDeliveries, targetDeliveryId: nextStop?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true, persistToBackend: true });
         if (actedOnNextDelivery && shouldRecalculateCompletionEtas && remainingEtaDeliveries.length > 0) {
-          // Calculate updated ETAs for remaining stops based on device current time and estimated_duration_minutes
-          const currentLocalTime = getCurrentLocalTime?.() || localNowParts?.time || getCurrentLocalTimeString();
-          const [hours, minutes] = currentLocalTime.split(':').map(Number);
-          let currentEtaMinutes = hours * 60 + minutes;
-          const updatedRemainingWithEtas = remainingEtaDeliveries.map((stop, index) => {
-            if (index === 0) {
-              // First remaining stop (isNextDelivery): apply 5-min buffer + its own travel duration
-              currentEtaMinutes = currentEtaMinutes + 5 + (stop.estimated_duration_minutes || 5);
-            } else {
-              // Subsequent stops cascade from previous stop's ETA + that stop's estimated duration
-              currentEtaMinutes = currentEtaMinutes + (remainingEtaDeliveries[index - 1]?.estimated_duration_minutes || 5);
-            }
-            const newEtaHours = Math.floor((currentEtaMinutes % 1440) / 60);
-            const newEtaMins = currentEtaMinutes % 60;
-            const newEta = `${String(newEtaHours).padStart(2, '0')}:${String(newEtaMins).padStart(2, '0')}`;
-            return { ...stop, delivery_time_eta: newEta };
-          });
+           // Calculate updated ETAs for remaining stops based on ACTUAL completion time of just-completed stop
+           // Start from the completed stop's actual_delivery_time (not current device time)
+           const completedStopTime = completionUpdate.actual_delivery_time || forcedCompletionTimestamp;
+           const [completedHours, completedMinutes] = completedStopTime.split(':').map(Number);
+           let currentEtaMinutes = completedHours * 60 + completedMinutes;
+           const updatedRemainingWithEtas = remainingEtaDeliveries.map((stop, index) => {
+             if (index === 0) {
+               // First remaining stop (isNextDelivery): add travel time from completed stop's actual time
+               currentEtaMinutes = currentEtaMinutes + (stop.estimated_duration_minutes || 5);
+             } else {
+               // Subsequent stops cascade from previous stop's ETA + that stop's estimated duration
+               currentEtaMinutes = currentEtaMinutes + (remainingEtaDeliveries[index - 1]?.estimated_duration_minutes || 5);
+             }
+             const newEtaHours = Math.floor((currentEtaMinutes % 1440) / 60);
+             const newEtaMins = currentEtaMinutes % 60;
+             const newEta = `${String(newEtaHours).padStart(2, '0')}:${String(newEtaMins).padStart(2, '0')}`;
+             return { ...stop, delivery_time_eta: newEta };
+           });
 
           // Persist updated ETAs to database and broadcast to other devices
           await Promise.all(updatedRemainingWithEtas.map((stop) => {
@@ -936,23 +937,24 @@ export default function useStopCardActions(params) {
         const incompleteDeliveries = driverDeliveries.filter((d) => d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending').sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
         await setAndCenterNextDelivery({ driverDeliveries, targetDeliveryId: incompleteDeliveries[0]?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true, persistToBackend: true });
         if (actedOnNextDelivery && shouldRecalculateFailureEtas && remainingEtaDeliveries.length > 0) {
-          // Calculate updated ETAs for remaining stops based on device current time and estimated_duration_minutes
-          const currentLocalTime = getCurrentLocalTime?.() || localNowParts?.time || getCurrentLocalTimeString();
-          const [hours, minutes] = currentLocalTime.split(':').map(Number);
-          let currentEtaMinutes = hours * 60 + minutes;
-          const updatedRemainingWithEtas = remainingEtaDeliveries.map((stop, index) => {
-            if (index === 0) {
-              // First remaining stop (isNextDelivery): apply 5-min buffer + its own travel duration
-              currentEtaMinutes = currentEtaMinutes + 5 + (stop.estimated_duration_minutes || 5);
-            } else {
-              // Subsequent stops cascade from previous stop's ETA + that stop's estimated duration
-              currentEtaMinutes = currentEtaMinutes + (remainingEtaDeliveries[index - 1]?.estimated_duration_minutes || 5);
-            }
-            const newEtaHours = Math.floor((currentEtaMinutes % 1440) / 60);
-            const newEtaMins = currentEtaMinutes % 60;
-            const newEta = `${String(newEtaHours).padStart(2, '0')}:${String(newEtaMins).padStart(2, '0')}`;
-            return { ...stop, delivery_time_eta: newEta };
-          });
+           // Calculate updated ETAs for remaining stops based on ACTUAL completion time of just-failed stop
+           // Start from the failed stop's actual_delivery_time (not current device time)
+           const failedStopTime = criticalUpdate.actual_delivery_time || forcedFailureTimestamp;
+           const [failedHours, failedMinutes] = failedStopTime.split(':').map(Number);
+           let currentEtaMinutes = failedHours * 60 + failedMinutes;
+           const updatedRemainingWithEtas = remainingEtaDeliveries.map((stop, index) => {
+             if (index === 0) {
+               // First remaining stop (isNextDelivery): add travel time from failed stop's actual time
+               currentEtaMinutes = currentEtaMinutes + (stop.estimated_duration_minutes || 5);
+             } else {
+               // Subsequent stops cascade from previous stop's ETA + that stop's estimated duration
+               currentEtaMinutes = currentEtaMinutes + (remainingEtaDeliveries[index - 1]?.estimated_duration_minutes || 5);
+             }
+             const newEtaHours = Math.floor((currentEtaMinutes % 1440) / 60);
+             const newEtaMins = currentEtaMinutes % 60;
+             const newEta = `${String(newEtaHours).padStart(2, '0')}:${String(newEtaMins).padStart(2, '0')}`;
+             return { ...stop, delivery_time_eta: newEta };
+           });
 
           // Persist updated ETAs to database and broadcast to other devices
           await Promise.all(updatedRemainingWithEtas.map((stop) => {
