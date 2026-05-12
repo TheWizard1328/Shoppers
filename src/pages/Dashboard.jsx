@@ -964,7 +964,7 @@ function Dashboard() {
 
   const _drvIdRef=useRef(selectedDriverId);useEffect(()=>{_drvIdRef.current=selectedDriverId;},[selectedDriverId]);
   useEffect(()=>{const tid=(selectedDriverId&&selectedDriverId!=='all')?selectedDriverId:currentUser?.id;const au=appUsers.find((u)=>u?.user_id===tid);if(au?.preferred_travel_mode)setPreferredTravelMode(au.preferred_travel_mode);},[appUsers,currentUser?.id,selectedDriverId]);
-  useEffect(()=>{const h=(e)=>{const a=e.detail?.appUser||e.detail?.singleUpdate;if(!a?.preferred_travel_mode)return;const t=(_drvIdRef.current&&_drvIdRef.current!=='all')?_drvIdRef.current:currentUser?.id;if(a.user_id===t)setPreferredTravelMode(a.preferred_travel_mode);};window.addEventListener('appUserUpdated',h);return()=>window.removeEventListener('appUserUpdated',h);},[currentUser?.id]);
+  useEffect(()=>{const onS=(e)=>{const a=e.detail?.appUser||e.detail?.singleUpdate;if(!a?.preferred_travel_mode)return;const t=(_drvIdRef.current&&_drvIdRef.current!=='all')?_drvIdRef.current:currentUser?.id;if(a.user_id===t)setPreferredTravelMode(a.preferred_travel_mode);};const onF=(e)=>{const{appUsers:f,fullReplacement,fromRealtime}=e.detail||{};if(fullReplacement&&fromRealtime&&Array.isArray(f)&&f.length>0&&updateAppUsersLocally)updateAppUsersLocally(f,true);};window.addEventListener('appUserUpdated',onS);window.addEventListener('appUsersUpdated',onF);return()=>{window.removeEventListener('appUserUpdated',onS);window.removeEventListener('appUsersUpdated',onF);};},[currentUser?.id,updateAppUsersLocally]);
 
   const shouldShowLocationToggle = useMemo(() => {
     // Show for all drivers on ALL devices and screen sizes
