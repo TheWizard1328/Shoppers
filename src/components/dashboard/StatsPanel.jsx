@@ -430,11 +430,11 @@ export default function StatsPanel({
                         }}
                         className={`h-9 w-9 p-0 text-white ${
                           isDateFinished
-                            ? 'bg-emerald-600 hover:bg-emerald-600 opacity-70 cursor-not-allowed'
+                            ? 'bg-blue-600 hover:bg-blue-600 opacity-70 cursor-not-allowed'
                             : showBreadcrumbs
-                              ? 'bg-blue-600 hover:bg-blue-700'
+                              ? 'bg-emerald-600 hover:bg-emerald-700'
                               : showRoutes
-                                ? 'bg-emerald-600 hover:bg-emerald-700'
+                                ? 'bg-blue-600 hover:bg-blue-700'
                                 : 'text-slate-700'
                         }`}
                         style={!showRoutes && !showBreadcrumbs && !isDateFinished ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}>
