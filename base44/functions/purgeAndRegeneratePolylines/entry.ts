@@ -454,6 +454,107 @@ function getEdmontonDateString(value = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
+// Haversine distance in km
+function haversineKm(a, b) {
+  const R = 6371;
+  const dLat = (b[0] - a[0]) * Math.PI / 180;
+  const dLon = (b[1] - a[1]) * Math.PI / 180;
+  const lat1 = a[0] * Math.PI / 180;
+  const lat2 = b[0] * Math.PI / 180;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
+function pathDistanceKm(points) {
+  let total = 0;
+  for (let i = 1; i < points.length; i++) total += haversineKm(points[i - 1], points[i]);
+  return total;
+}
+
+function normalizeRawPoint(point) {
+  if (Array.isArray(point) && point.length >= 2) {
+    const lat = Number(point[0]);
+    const lng = Number(point[1]);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) return [lat, lng, point.length >= 3 ? Number(point[2]) : null];
+  }
+  return null;
+}
+
+function evenlySpacedInterior(points, count) {
+  const result = [];
+  const step = (points.length - 1) / (count + 1);
+  for (let i = 1; i <= count; i++) result.push(points[Math.round(step * i)]);
+  return result;
+}
+
+function subsampleWaypoints(points, originCoords, destCoords) {
+  const origin = originCoords ? [...originCoords] : (points.length > 0 ? points[0] : null);
+  const dest = destCoords ? [...destCoords] : (points.length > 0 ? points[points.length - 1] : null);
+  if (!origin || !dest) return null;
+  if (points.length < 2) return [origin, dest];
+  const totalKm = pathDistanceKm(points);
+  let interiorCount = 0;
+  if (totalKm >= 15) interiorCount = 3;
+  else if (totalKm >= 5) interiorCount = 2;
+  else if (totalKm >= 1) interiorCount = 1;
+  const interior = interiorCount > 0 ? evenlySpacedInterior(points, interiorCount) : [];
+  return [origin, ...interior, dest];
+}
+
+// Try to build a polyline from stored delivery_route_breadcrumbs (needs >= 3 points)
+// or from PendingBreadcrumbLive for this stop. Returns { encoded_polyline, estimated_distance_km } or null.
+async function tryResolveLegFromBreadcrumbs(base44, delivery, originCoords, destCoords, pendingBreadcrumbsByStopOrder) {
+  let rawPoints = null;
+  let source = null;
+
+  // 1. Try delivery.delivery_route_breadcrumbs first
+  const stored = delivery.delivery_route_breadcrumbs;
+  let storedParsed = stored;
+  if (typeof stored === 'string') {
+    try { storedParsed = JSON.parse(stored); } catch { storedParsed = null; }
+  }
+  if (Array.isArray(storedParsed) && storedParsed.length >= 3) {
+    rawPoints = storedParsed.map(normalizeRawPoint).filter(Boolean);
+    if (rawPoints.length >= 3) source = 'delivery_route_breadcrumbs';
+    else rawPoints = null;
+  }
+
+  // 2. Fall back to PendingBreadcrumbLive
+  if (!rawPoints) {
+    const pendingRows = pendingBreadcrumbsByStopOrder.get(Number(delivery.stop_order)) || [];
+    const allPending = pendingRows.flatMap(r => Array.isArray(r.breadcrumbs) ? r.breadcrumbs : []);
+    const pendingNormalized = allPending.map(normalizeRawPoint).filter(Boolean);
+    // sort by timestamp if available
+    const sorted = pendingNormalized[0]?.[2] != null
+      ? [...pendingNormalized].sort((a, b) => (a[2] ?? 0) - (b[2] ?? 0))
+      : pendingNormalized;
+    if (sorted.length >= 2) {
+      rawPoints = sorted;
+      source = 'pending_breadcrumb_live';
+    }
+  }
+
+  if (!rawPoints || rawPoints.length < 2) return null;
+
+  // Build strategic waypoints anchored to origin/dest
+  const originArr = originCoords ? [originCoords.lat, originCoords.lon] : null;
+  const destArr = destCoords ? [destCoords.lat, destCoords.lon] : null;
+  const waypoints = subsampleWaypoints(rawPoints.map(p => [p[0], p[1]]), originArr, destArr);
+  if (!waypoints || waypoints.length < 2) return null;
+
+  const encoded = encodeGooglePolyline(waypoints);
+  const distKm = pathDistanceKm(waypoints);
+
+  console.log(`[purgeAndRegeneratePolylines] breadcrumb leg resolved | delivery=${delivery.id} | stop_order=${delivery.stop_order} | source=${source} | points=${waypoints.length} | dist=${distKm.toFixed(2)}km`);
+
+  return {
+    encoded_polyline: encoded,
+    estimated_distance_km: Number(distKm.toFixed(3)),
+    estimated_duration_minutes: null,
+    source
+  };
+}
+
 async function reintegratePendingBreadcrumbLive(base44, driverId, deliveryDate, deliveries) {
   const completedLikeStops = (Array.isArray(deliveries) ? deliveries : [])
     .filter((delivery) => FINISHED_STATUSES.has(String(delivery?.status || '')))
@@ -985,29 +1086,61 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Pre-fetch all PendingBreadcrumbLive rows for this driver/date (one query, reused per stop)
+      const allPendingRows = await base44.asServiceRole.entities.PendingBreadcrumbLive.filter(
+        { driver_id: driverId, delivery_date: deliveryDate },
+        '-updated_date',
+        50000
+      );
+      const pendingBreadcrumbsByStopOrder = new Map();
+      for (const row of (allPendingRows || [])) {
+        const so = Number(row.stop_order);
+        if (!Number.isFinite(so)) continue;
+        if (!pendingBreadcrumbsByStopOrder.has(so)) pendingBreadcrumbsByStopOrder.set(so, []);
+        pendingBreadcrumbsByStopOrder.get(so).push(row);
+      }
+
       const finishedDirectionsByStopId = new Map();
+      const breadcrumbResolvedStopIds = new Set();
+
+      // Try breadcrumb resolution first for each finished stop
+      for (const segment of finishedSegmentSpecs) {
+        const originCoords = segment.from ? { lat: segment.from.lat, lon: segment.from.lon } : null;
+        const destCoords = segment.actualTo ? { lat: segment.actualTo.lat, lon: segment.actualTo.lon } : null;
+        const resolved = await tryResolveLegFromBreadcrumbs(base44, segment.stop, originCoords, destCoords, pendingBreadcrumbsByStopOrder);
+        if (resolved) {
+          finishedDirectionsByStopId.set(segment.stop.id, resolved);
+          breadcrumbResolvedStopIds.add(segment.stop.id);
+        }
+      }
+
+      // Only call HERE API for legs NOT resolved from breadcrumbs
       if (routeSource === 'polylines' && finishedSegmentSpecs.length > 0) {
-        const groupedByMode = [];
-        let currentGroup = [finishedSegmentSpecs[0]];
-        for (let index = 1; index < finishedSegmentSpecs.length; index += 1) {
-          const prev = finishedSegmentSpecs[index - 1];
-          const curr = finishedSegmentSpecs[index];
-          if (getNormalizedTravelMode(prev.transportMode) === getNormalizedTravelMode(curr.transportMode)) currentGroup.push(curr);
-          else {
-            groupedByMode.push(currentGroup);
-            currentGroup = [curr];
+        const needsApiSegments = finishedSegmentSpecs.filter(s => !breadcrumbResolvedStopIds.has(s.stop.id));
+        if (needsApiSegments.length > 0) {
+          const groupedByMode = [];
+          let currentGroup = [needsApiSegments[0]];
+          for (let index = 1; index < needsApiSegments.length; index += 1) {
+            const prev = needsApiSegments[index - 1];
+            const curr = needsApiSegments[index];
+            if (getNormalizedTravelMode(prev.transportMode) === getNormalizedTravelMode(curr.transportMode)) currentGroup.push(curr);
+            else {
+              groupedByMode.push(currentGroup);
+              currentGroup = [curr];
+            }
+          }
+          if (currentGroup.length > 0) groupedByMode.push(currentGroup);
+
+          for (const group of groupedByMode) {
+            const mode = getNormalizedTravelMode(group[0]?.transportMode, 'driving');
+            const groupedFinishedRoute = await getMultiSegmentDirections(base44, group.map((segment) => ({ from: segment.from, to: segment.to })), mode);
+            apiCallsMade += 1;
+            group.forEach((segment, index) => {
+              finishedDirectionsByStopId.set(segment.stop.id, groupedFinishedRoute[index] || null);
+            });
           }
         }
-        if (currentGroup.length > 0) groupedByMode.push(currentGroup);
-
-        for (const group of groupedByMode) {
-          const mode = getNormalizedTravelMode(group[0]?.transportMode, 'driving');
-          const groupedFinishedRoute = await getMultiSegmentDirections(base44, group.map((segment) => ({ from: segment.from, to: segment.to })), mode);
-          apiCallsMade += 1;
-          group.forEach((segment, index) => {
-            finishedDirectionsByStopId.set(segment.stop.id, groupedFinishedRoute[index] || null);
-          });
-        }
+        console.log(`[purgeAndRegeneratePolylines] finished legs: ${finishedSegmentSpecs.length} total | ${breadcrumbResolvedStopIds.size} from breadcrumbs | ${finishedSegmentSpecs.length - breadcrumbResolvedStopIds.size} via HERE API`);
       }
 
       finishedSegmentSpecs.forEach((segment) => {
