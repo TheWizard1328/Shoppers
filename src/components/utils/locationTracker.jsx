@@ -26,8 +26,8 @@ class LocationTracker {
         this.updateInterval = 15000; // 15 seconds GPS polling
         this.coordinateUpdateInterval = 15000; // 15 seconds between coordinate updates
 
-        // Distance threshold - only upload if moved at least 100m
-        this.minDistanceChange = 100; // 100 meters minimum movement to trigger upload
+        // Distance threshold - only upload if moved at least 0m
+        this.minDistanceChange = 0; // 0 meters minimum movement to trigger upload
 
         // Deduplication - prevent duplicate updates within 2 seconds
         this.lastUploadTime = 0;
@@ -78,15 +78,15 @@ class LocationTracker {
       // Interval locked to 15 seconds for primary device polling
       this.updateInterval = 15000; // 15 seconds GPS polling
 
-      // 100m minimum movement threshold
-      this.minDistanceChange = 100;
+      // 0m minimum movement threshold
+      this.minDistanceChange = 0;
       this.breadcrumbSaveInterval = 15000;
 
       console.log(`📍 [LocationTracker] Interval: ${this.updateInterval / 1000}s, breadcrumb interval: ${this.breadcrumbSaveInterval / 1000}s, distance threshold: ${this.minDistanceChange}m`);
     } catch (error) {
       console.warn('⚠️ Could not load route optimization settings, using defaults');
       this.updateInterval = 15000; // Default 15 seconds
-      this.minDistanceChange = 100; // Default 100m
+      this.minDistanceChange = 0; // Default 0m
       this.breadcrumbSaveInterval = 15000;
     }
   }
