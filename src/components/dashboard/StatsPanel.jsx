@@ -172,6 +172,15 @@ export default function StatsPanel({
     }
   }, [showExpandedContent]);
 
+  // Auto-lock to polylines mode when route is finished
+  useEffect(() => {
+    if (isDateFinished && isDriver && !isAllDriversMode) {
+      setShowBreadcrumbs(false);
+      setBreadcrumbsData({ historical: [], current: [] });
+      setShowRoutes(true);
+    }
+  }, [isDateFinished, isDriver, isAllDriversMode]);
+
   return (
     <div className={statsCardPositioning} style={{ zIndex: isMobile && isExpanded ? 40 : isMobile ? 100 : 600, position: 'absolute', pointerEvents: 'none' }}>
       <div className="flex flex-col items-center gap-1 min-w-[355px] max-w-[355px] relative"
@@ -382,42 +391,66 @@ export default function StatsPanel({
                     </div>
 
                     <div className="flex flex-col items-center gap-1">
+                      {/* Combined polylines/breadcrumbs toggle button */}
                       <Button variant="outline" size="icon"
-                    onClick={async () => {
-                      const newShow = !showBreadcrumbs;
-                      if (newShow) {
-                        try {
-                          const selDateStr = format(selectedDate, 'yyyy-MM-dd');
-                          const driverIdToFetch = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
-                          const loadedBreadcrumbs = await loadBreadcrumbsForDriver(driverIdToFetch, selDateStr, appUsers);
-                          if (loadedBreadcrumbs.historical.length === 0 && loadedBreadcrumbs.current.length === 0) {
+                        disabled={isDateFinished}
+                        title={isDateFinished ? 'Route complete — polylines locked' : showBreadcrumbs ? 'Breadcrumbs mode (click to turn off)' : showRoutes ? 'Polylines mode (click for breadcrumbs)' : 'Click to show polylines'}
+                        onClick={async () => {
+                          if (isDateFinished) return;
+                          if (!showRoutes && !showBreadcrumbs) {
+                            // Off → Polylines
+                            setShowRoutes(true);
                             setShowBreadcrumbs(false);
                             setBreadcrumbsData({ historical: [], current: [] });
-                            return;
+                          } else if (showRoutes && !showBreadcrumbs) {
+                            // Polylines → Breadcrumbs
+                            setShowRoutes(false);
+                            try {
+                              const selDateStr = format(selectedDate, 'yyyy-MM-dd');
+                              const driverIdToFetch = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
+                              const loadedBreadcrumbs = await loadBreadcrumbsForDriver(driverIdToFetch, selDateStr, appUsers);
+                              if (loadedBreadcrumbs.historical.length === 0 && loadedBreadcrumbs.current.length === 0) {
+                                setShowBreadcrumbs(false);
+                                setBreadcrumbsData({ historical: [], current: [] });
+                                setShowRoutes(false);
+                                return;
+                              }
+                              setBreadcrumbsData(loadedBreadcrumbs);
+                              setShowBreadcrumbs(true);
+                            } catch (e) {
+                              setShowBreadcrumbs(false);
+                              setBreadcrumbsData({ historical: [], current: [] });
+                            }
+                          } else {
+                            // Breadcrumbs → Off
+                            setShowBreadcrumbs(false);
+                            setBreadcrumbsData({ historical: [], current: [] });
+                            setShowRoutes(false);
                           }
-                          setBreadcrumbsData(loadedBreadcrumbs);
-                          setShowBreadcrumbs(true);
-                          setShowRoutes(false);
-                        } catch (e) {
-                          setShowBreadcrumbs(false);
-                          setBreadcrumbsData({ historical: [], current: [] });
-                        }
-                      } else {
-                        setShowBreadcrumbs(false);
-                        setBreadcrumbsData({ historical: [], current: [] });
-                      }
-                    }}
-                    className={`h-9 w-9 p-0 ${showBreadcrumbs ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
-                    style={!showBreadcrumbs ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}>
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <circle cx="8" cy="3" r="1.5" fill="currentColor" />
-                          <circle cx="4" cy="8" r="1.5" fill="currentColor" />
-                          <circle cx="12" cy="9" r="1.5" fill="currentColor" />
-                          <circle cx="8" cy="13" r="1.5" fill="currentColor" />
-                          <path d="M 8 3 Q 6 5, 4 8" stroke="currentColor" strokeWidth="1" fill="none" />
-                          <path d="M 4 8 Q 8 8.5, 12 9" stroke="currentColor" strokeWidth="1" fill="none" />
-                          <path d="M 12 9 Q 10 11, 8 13" stroke="currentColor" strokeWidth="1" fill="none" />
-                        </svg>
+                        }}
+                        className={`h-9 w-9 p-0 text-white ${
+                          isDateFinished
+                            ? 'bg-emerald-600 hover:bg-emerald-600 opacity-70 cursor-not-allowed'
+                            : showBreadcrumbs
+                              ? 'bg-blue-600 hover:bg-blue-700'
+                              : showRoutes
+                                ? 'bg-emerald-600 hover:bg-emerald-700'
+                                : 'text-slate-700'
+                        }`}
+                        style={!showRoutes && !showBreadcrumbs && !isDateFinished ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}>
+                        {showBreadcrumbs ? (
+                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="8" cy="3" r="1.5" fill="currentColor" />
+                            <circle cx="4" cy="8" r="1.5" fill="currentColor" />
+                            <circle cx="12" cy="9" r="1.5" fill="currentColor" />
+                            <circle cx="8" cy="13" r="1.5" fill="currentColor" />
+                            <path d="M 8 3 Q 6 5, 4 8" stroke="currentColor" strokeWidth="1" fill="none" />
+                            <path d="M 4 8 Q 8 8.5, 12 9" stroke="currentColor" strokeWidth="1" fill="none" />
+                            <path d="M 12 9 Q 10 11, 8 13" stroke="currentColor" strokeWidth="1" fill="none" />
+                          </svg>
+                        ) : (
+                          <Truck className="w-4 h-4" />
+                        )}
                       </Button>
                     </div>
                   </div>
@@ -464,17 +497,6 @@ export default function StatsPanel({
                     </Button>
                     <Button variant="outline" size="sm" onClick={() => setShowMapStyleOptions((prev) => !prev)} className="h-8 w-8 p-0 flex-shrink-0" title="Map style" style={{ background: showMapStyleOptions ? 'var(--bg-slate-100)' : 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                       <MapIcon className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button variant="default" size="sm" onClick={() => {
-                      const nextShowRoutes = !showRoutes;
-                      setShowRoutes(nextShowRoutes);
-                      if (nextShowRoutes) {
-                        setShowBreadcrumbs(false);
-                        setBreadcrumbsData({ historical: [], current: [] });
-                      }
-                      setIsExpanded(false);
-                    }} className={`gap-2 h-8 flex-shrink-0 ${showRoutes ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'} text-white`}>
-                      <Truck className="w-3.5 h-3.5" />{showRoutes ? 'Hide' : 'Show'}
                     </Button>
                   </>}
                 </div>
