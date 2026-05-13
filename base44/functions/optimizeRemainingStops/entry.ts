@@ -672,8 +672,8 @@ Deno.serve(async (req) => {
         id: s.delivery.stop_id || s.delivery.delivery_id || s.delivery.id,
         stop_id: s.delivery.stop_id,
         delivery_id: s.delivery.delivery_id,
-        time_window_start: s.windowStart,
-        time_window_end: s.windowEnd,
+        time_window_start: s.delivery.delivery_time_start || null,
+        time_window_end: s.delivery.delivery_time_end || null,
       }));
 
       let hereSequenceResult = null;
