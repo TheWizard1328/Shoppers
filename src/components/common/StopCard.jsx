@@ -683,52 +683,57 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                 </div>
                 {!routeCompletedForLayout && !isPastDeliveryDate && !shouldRedact && !isAssignedDispatcher &&
                 <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                     {!isPickup || !isWithinActiveStopRange ? (
-                 <>
-                       {finalDisplayPhone &&
-                     <a
-                       href={`tel:${String(finalDisplayPhone).replace(/\D/g, '')}`}
-                       onClick={(e) => e.stopPropagation()}
-                       className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 transition-colors hover:bg-emerald-200">
+                     {isPickup && isWithinActiveStopRange && !isFinishedDelivery && delivery.status === 'en_route' && pendingPickups && pendingPickups.length > 0 && canAccessAcceptButtons ? (
+                   <button onClick={async (e) => {e.stopPropagation();blockCardToggle(e);await handleAcceptAllStops();}} className="inline-flex items-center gap-1 h-9 px-2.5 text-xs !text-white bg-emerald-600 hover:bg-emerald-700 rounded-md font-medium whitespace-nowrap" disabled={isAcceptingAll}>
+                     {isAcceptingAll && <Loader2 className="w-3 h-3 animate-spin" />}
+                     {acceptButtonText}
+                   </button>
+                 ) : (
+                   <>
+                         {finalDisplayPhone &&
+                       <a
+                         href={`tel:${String(finalDisplayPhone).replace(/\D/g, '')}`}
+                         onClick={(e) => e.stopPropagation()}
+                         className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 transition-colors hover:bg-emerald-200">
 
-                             <Phone className="w-6 h-6" />
-                           </a>
-                     }
-                         {isNextDelivery && navigationHref && (
-                     isWithinActiveStopRange ?
-                     <button
-                       type="button"
-                       onClick={handleUpdateGPS}
-                       className="inline-flex h-14 w-14 items-center justify-center rounded-full transition-colors bg-emerald-600 text-white hover:bg-emerald-700">
+                               <Phone className="w-6 h-6" />
+                             </a>
+                       }
+                           {isNextDelivery && navigationHref && (
+                       isWithinActiveStopRange ?
+                       <button
+                         type="button"
+                         onClick={handleUpdateGPS}
+                         className="inline-flex h-14 w-14 items-center justify-center rounded-full transition-colors bg-emerald-600 text-white hover:bg-emerald-700">
 
-                               <LocateFixed className="w-6 h-6" />
-                             </button> :
+                                 <LocateFixed className="w-6 h-6" />
+                               </button> :
 
-                     <a
-                       href={navigationHref}
-                       data-navigation-href={navigationHref}
-                       target="_blank"
-                       rel="noopener noreferrer"
-                       onClick={(e) => {
-                         e.stopPropagation();
-                         console.log('[StopCard navigation click]', {
-                           deliveryId: delivery?.id,
-                           patientId: delivery?.patient_id,
-                           navigationHref,
-                           rawStopLatitude,
-                           rawStopLongitude,
-                           patientAddress: patient?.address,
-                           storeAddress: store?.address
-                         });
-                       }}
-                       className="inline-flex h-14 w-14 items-center justify-center rounded-full transition-colors bg-blue-100 text-blue-600 hover:bg-blue-200">
+                       <a
+                         href={navigationHref}
+                         data-navigation-href={navigationHref}
+                         target="_blank"
+                         rel="noopener noreferrer"
+                         onClick={(e) => {
+                           e.stopPropagation();
+                           console.log('[StopCard navigation click]', {
+                             deliveryId: delivery?.id,
+                             patientId: delivery?.patient_id,
+                             navigationHref,
+                             rawStopLatitude,
+                             rawStopLongitude,
+                             patientAddress: patient?.address,
+                             storeAddress: store?.address
+                           });
+                         }}
+                         className="inline-flex h-14 w-14 items-center justify-center rounded-full transition-colors bg-blue-100 text-blue-600 hover:bg-blue-200">
 
-                               <Navigation className="w-6 h-6" />
-                             </a>)
+                                 <Navigation className="w-6 h-6" />
+                               </a>)
 
-                     }
-                   </>
-                 ) : null}
+                       }
+                     </>
+                 )}
                    </div>
                 }
               </div>
