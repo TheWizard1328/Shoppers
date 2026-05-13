@@ -545,9 +545,9 @@ export default function useStopCardActions(params) {
           .filter((d) => d && d.status === 'pending')
           .sort((a, b) => Number(a?.stop_order || 0) - Number(b?.stop_order || 0));
 
-        const reorderedActiveStops = activeStops.filter((d) => d?.id !== delivery.id);
-        reorderedActiveStops.unshift(delivery);
-        const startedRouteDeliveries = [...completedStops, ...reorderedActiveStops, ...pendingStops]
+        // CRITICAL: Started stop should be placed immediately after finished stops, not with other active stops
+        const otherActiveStops = activeStops.filter((d) => d?.id !== delivery.id);
+        const startedRouteDeliveries = [...completedStops, delivery, ...otherActiveStops, ...pendingStops]
           .filter(Boolean)
           .map((d, index) => ({
             ...d,
@@ -618,13 +618,13 @@ export default function useStopCardActions(params) {
 
           // CRITICAL: After optimization, save optimized deliveries to offline DB for cross-device sync
           let optimizedDeliveriesToPersist = [];
-          if (Array.isArray(optimizeResponse?.optimizedRoute) && optimizeResponse.optimizedRoute.length > 0) {
-            optimizedDeliveriesToPersist = optimizeResponse.optimizedRoute
+          if (Array.isArray(optimizedWithCorrectedEtas) && optimizedWithCorrectedEtas.length > 0) {
+            optimizedDeliveriesToPersist = optimizedWithCorrectedEtas
               .filter((stop) => stop?.deliveryId || stop?.delivery_id)
               .map((stop) => ({
                 id: stop.deliveryId || stop.delivery_id,
                 stop_order: Number.isFinite(Number(stop.stop_order)) ? Number(stop.stop_order) : undefined,
-                delivery_time_eta: stop.newETA || stop.eta,
+                delivery_time_eta: stop.correctedEta,
                 encoded_polyline: stop.encoded_polyline || null,
                 estimated_distance_km: stop.estimated_distance_km,
                 estimated_duration_minutes: stop.estimated_duration_minutes,
@@ -678,7 +678,34 @@ export default function useStopCardActions(params) {
 
           // CRITICAL: If handleStartDelivery already returned optimizedRoute, use it directly
           // Otherwise trigger route optimization manually
+          let optimizedWithCorrectedEtas = null;
           if (Array.isArray(optimizeResponse?.optimizedRoute) && optimizeResponse.optimizedRoute.length > 0) {
+            // CRITICAL: Recalculate ETAs from last completed stop's actual delivery time
+            const lastCompletedStop = completedStops.length > 0 ? completedStops[completedStops.length - 1] : null;
+            const lastCompletedActualTime = lastCompletedStop?.actual_delivery_time || null;
+
+            let baseTimeMinutes = 0;
+            if (lastCompletedActualTime) {
+              const [hours, minutes] = lastCompletedActualTime.split(':').map(Number);
+              baseTimeMinutes = hours * 60 + minutes;
+            } else {
+              const now = new Date();
+              baseTimeMinutes = now.getHours() * 60 + now.getMinutes();
+            }
+
+            optimizedWithCorrectedEtas = optimizeResponse.optimizedRoute.map((stop, index) => {
+              let etaMinutes = baseTimeMinutes;
+              // Add estimated duration for each stop up to and including current one
+              for (let i = 0; i <= index; i++) {
+                const currentStop = optimizeResponse.optimizedRoute[i];
+                etaMinutes += (currentStop.estimated_duration_minutes || 5);
+              }
+              const etaHours = Math.floor((etaMinutes % 1440) / 60);
+              const etaMins = etaMinutes % 60;
+              const newEta = `${String(etaHours).padStart(2, '0')}:${String(etaMins).padStart(2, '0')}`;
+              return { ...stop, correctedEta: newEta };
+            });
+
             // handleStartDelivery already optimized — just regenerate polylines
             const polylineResponse = await base44.functions.invoke('purgeAndRegeneratePolylines', {
               driverId: delivery.driver_id,
@@ -687,8 +714,8 @@ export default function useStopCardActions(params) {
               reason: 'start_action',
               sourcePage: 'Dashboard',
               bypassDriverStatus: true,
-              routeStopOrder: optimizeResponse.optimizedRoute.map((stop) => stop.deliveryId || stop.delivery_id).filter(Boolean),
-              orderedStopsWithTransportMode: optimizeResponse.optimizedRoute.map((stop) => ({
+              routeStopOrder: optimizedWithCorrectedEtas.map((stop) => stop.deliveryId || stop.delivery_id).filter(Boolean),
+              orderedStopsWithTransportMode: optimizedWithCorrectedEtas.map((stop) => ({
                 deliveryId: stop.deliveryId || stop.delivery_id,
                 transport_mode: stop.transport_mode || stop.finished_leg_transport_mode || currentPreferredTravelMode,
                 finished_leg_transport_mode: stop.finished_leg_transport_mode || stop.transport_mode || currentPreferredTravelMode,
@@ -707,14 +734,14 @@ export default function useStopCardActions(params) {
             if (polylineResponse) {
               window.dispatchEvent(new CustomEvent('polylineUpdated', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, source: 'start_action' } }));
 
-              // CRITICAL: Broadcast optimized deliveries to other devices in real-time
+              // CRITICAL: Broadcast optimized deliveries with corrected ETAs to other devices in real-time
               Promise.resolve().then(async () => {
                 try {
                   const { broadcastMutation } = await import('../utils/realtimeSync');
-                  await Promise.all(optimizeResponse.optimizedRoute.map((stop) => 
+                  await Promise.all(optimizedWithCorrectedEtas.map((stop) => 
                     broadcastMutation('Delivery', 'update', stop.deliveryId || stop.delivery_id, {
                       stop_order: stop.stop_order,
-                      delivery_time_eta: stop.newETA || stop.eta,
+                      delivery_time_eta: stop.correctedEta,
                       encoded_polyline: stop.encoded_polyline || null,
                       estimated_distance_km: stop.estimated_distance_km,
                       estimated_duration_minutes: stop.estimated_duration_minutes,
