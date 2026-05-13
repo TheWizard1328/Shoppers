@@ -20,7 +20,7 @@ export default function DashboardDialogs({
   currentUser, isDriver, isDispatcher,
   deliveries, patients, stores, drivers, appUsers,
   filteredDeliveries, deliveriesWithStopOrder,
-  selectedDate, selectedDateStr,
+  selectedDate, selectedDateStr, selectedDriverId,
   driverLocation,
   // Forms
   showDeliveryForm, setShowDeliveryForm, editingDelivery, setEditingDelivery,
@@ -103,14 +103,15 @@ export default function DashboardDialogs({
                 const deliveryDate = format(selectedDate, 'yyyy-MM-dd');
                 const now = new Date();
                 const completionTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                const targetDriverId = selectedDriverId && selectedDriverId !== 'all' ? selectedDriverId : currentUser.id;
                 await base44.functions.invoke('purgeAndRegeneratePolylines', {
-                  driverId: currentUser.id,
+                  driverId: targetDriverId,
                   deliveryDate,
                   orderedDeliveryIds,
                   recalculateEtas: true,
                   completionTime
                 });
-                const freshDeliveries = await base44.entities.Delivery.filter({ driver_id: currentUser.id, delivery_date: deliveryDate });
+                const freshDeliveries = await base44.entities.Delivery.filter({ driver_id: targetDriverId, delivery_date: deliveryDate });
                 window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'quickReorder', freshDeliveries, fullReplacement: false } }));
               } catch (err) {
                 console.warn('[QuickReorder] Reorder failed:', err?.message);
