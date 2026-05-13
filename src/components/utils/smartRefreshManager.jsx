@@ -9,6 +9,27 @@ import { queueEntityRequest } from "./requestQueue";
 import { touchUserCache } from "./auth";
 import { globalFilters } from "./globalFilters";
 
+/**
+ * Calculate distance between two geographic points using Haversine formula
+ * @param {number} lat1 - Starting latitude
+ * @param {number} lon1 - Starting longitude
+ * @param {number} lat2 - Destination latitude
+ * @param {number} lon2 - Destination longitude
+ * @returns {number} - Distance in kilometers
+ */
+function getDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Radius of Earth in kilometers
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const distance = R * c; // Distance in km
+  return distance;
+}
+
 class LightweightRefreshManager {
   constructor() {
     this._enabled = true;
@@ -68,6 +89,10 @@ class LightweightRefreshManager {
     // Deleted ID tracking
     this.deletedDeliveryIds = new Set();
     this.deletedPatientIds = new Set();
+
+    // Auto ETA recalculation tracking
+    this.lastAutoETARecalculation = 0;
+    this.AUTO_ETA_RECALC_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 
     this.isRefreshing = false;
     this.refreshCallbacks = new Set();
@@ -761,6 +786,76 @@ class LightweightRefreshManager {
           }
         } catch (error) {
           console.warn('⚠️ [SmartRefresh] Polyline resync failed:', error?.message || error);
+        }
+
+        // STEP 4a: Auto ETA recalculation for drivers past ETA and >1km away
+        try {
+          const driverAppUser = currentData.appUsers?.find(au => au.user_id === selectedDriverId);
+          const driverLat = driverAppUser?.current_latitude;
+          const driverLon = driverAppUser?.current_longitude;
+
+          // CONDITION 1: Check if driver is On Duty
+          const isDriverOnDuty = driverAppUser?.driver_status === 'on_duty';
+          
+          // CONDITION 2: Check for 5-minute cooldown
+          const now = Date.now();
+          const isCooldownElapsed = (now - this.lastAutoETARecalculation) >= this.AUTO_ETA_RECALC_COOLDOWN_MS;
+
+          if (isDriverOnDuty && isCooldownElapsed && driverLat && driverLon) {
+            // Find the next delivery for the selected driver
+            const nextDelivery = currentData.deliveries?.find(d => d.driver_id === selectedDriverId && d.isNextDelivery);
+
+            if (nextDelivery && nextDelivery.delivery_time_eta && nextDelivery.patient_id) {
+              // Get patient details for destination coordinates
+              const patient = currentData.patients?.find(p => p.id === nextDelivery.patient_id);
+              const destinationLat = patient?.latitude;
+              const destinationLon = patient?.longitude;
+
+              if (destinationLat && destinationLon) {
+                const currentDateTime = new Date();
+                const [etaHours, etaMinutes] = nextDelivery.delivery_time_eta.split(':').map(Number);
+                
+                // Construct a full Date object for the ETA, using the delivery_date
+                const etaDate = new Date(selectedDateStr); 
+                etaDate.setHours(etaHours, etaMinutes, 0, 0);
+
+                const distanceToDestinationKm = getDistance(driverLat, driverLon, destinationLat, destinationLon);
+                const ONE_KM = 1; // 1 kilometer threshold for recalculation
+
+                // Check if current time is past ETA AND driver is more than 1km away
+                if (currentDateTime >= etaDate && distanceToDestinationKm > ONE_KM) {
+                  console.log(`⏰ [SmartRefresh] ETA for next stop (${nextDelivery.delivery_id}) exceeded and driver is >${ONE_KM}km away. Driver is On Duty and cooldown elapsed. Triggering ETA recalculation.`);
+                  
+                  // Invoke the backend function to recalculate ETAs
+                  await base44.functions.invoke('recalculateRemainingETAs', {
+                    driverId: selectedDriverId,
+                    deliveryDate: selectedDateStr
+                  });
+
+                  // Update the last recalculation timestamp
+                  this.lastAutoETARecalculation = now;
+
+                  // Dispatch an event to force UI to refresh deliveries if needed
+                  if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                      detail: {
+                        triggeredBy: 'smartRefresh_etaRecalculation',
+                        driverId: selectedDriverId,
+                        deliveryDate: selectedDateStr,
+                        fullReplacement: true
+                      }
+                    }));
+                  }
+                }
+              }
+            }
+          } else if (!isDriverOnDuty) {
+            // Silently skip - driver not on duty
+          } else if (!isCooldownElapsed) {
+            // Silently skip - cooldown still active
+          }
+        } catch (error) {
+          console.warn('⚠️ [SmartRefresh] Error during ETA check or recalculation:', error?.message || error);
         }
       }
 
