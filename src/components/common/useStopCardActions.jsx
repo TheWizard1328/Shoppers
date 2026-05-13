@@ -4,6 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { setDriverStatus } from "@/functions/setDriverStatus";
 import { locationTracker } from "../utils/locationTracker";
 import { smartRefreshManager } from "../utils/smartRefreshManager";
+import { backgroundSyncManager } from "../utils/backgroundSyncManager";
 import { deleteCODWithTimeout } from '../utils/squareCODHandler';
 import { cleanupSquareCodCatalogForDate } from '../utils/squareCodCatalogCleanup';
 import { createDeliveryLocal, updateDeliveryLocal } from '../utils/offlineMutations';
@@ -213,6 +214,7 @@ export default function useStopCardActions(params) {
     try {
       driverLocationPoller.pause();
       smartRefreshManager.pause();
+      backgroundSyncManager.pause();
       setIsEntityUpdating(true);
 
       const scopedPendingDeliveries = allDeliveries.filter((item) => item && item.driver_id === delivery.driver_id && item.delivery_date === delivery.delivery_date && item.status === 'pending' && item?.store_id === delivery.store_id);
@@ -319,6 +321,7 @@ export default function useStopCardActions(params) {
       resumeOfflineSync('delivery_actions');
       driverLocationPoller.resume();
       smartRefreshManager.resume();
+      backgroundSyncManager.resume();
       setIsEntityUpdating(false);
       setIsAcceptingAll(false);
       onClick?.(null);
@@ -405,6 +408,7 @@ export default function useStopCardActions(params) {
     blockCardToggle(e, { keepExpanded: true });
     const lockResult = await runWithDeliveryActionLock('retry_delivery', async () => {
       pauseOfflineSync('delivery_actions');
+      backgroundSyncManager.pause();
       fabControlEvents.deactivateFAB();
       setIsRetrying(true);
       setIsProcessingBackground(true);
@@ -434,6 +438,7 @@ export default function useStopCardActions(params) {
         });
       } finally {
         resumeOfflineSync('delivery_actions');
+        backgroundSyncManager.resume();
         resetActionLocks(true);
       }
     });
@@ -443,6 +448,7 @@ export default function useStopCardActions(params) {
   const restartCurrentDelivery = useCallback(async () => {
     const lockResult = await runWithDeliveryActionLock('restart_delivery', async () => {
       pauseOfflineSync('delivery_actions');
+      backgroundSyncManager.pause();
       fabControlEvents.deactivateFAB();
       setIsRestarting(true);
       setIsEntityUpdating(true);
@@ -497,6 +503,7 @@ export default function useStopCardActions(params) {
         });
       } finally {
         resumeOfflineSync('delivery_actions');
+        backgroundSyncManager.resume();
         resetActionLocks(true);
       }
     });
@@ -518,6 +525,7 @@ export default function useStopCardActions(params) {
     const { driverLocationPoller } = await import('../utils/driverLocationPoller');
     driverLocationPoller.pause();
     smartRefreshManager.pause();
+    backgroundSyncManager.pause();
 
     const lockResult = await runWithDeliveryActionLock(START_ACTION_NAME, async () => {
       if (!delivery?.id || !delivery?.driver_id || !delivery?.delivery_date) {
@@ -782,6 +790,7 @@ export default function useStopCardActions(params) {
         resumeOfflineSync('delivery_actions');
         driverLocationPoller.resume();
         smartRefreshManager.resume();
+        backgroundSyncManager.resume();
         resetActionLocks(true);
       }
     });
@@ -802,6 +811,7 @@ export default function useStopCardActions(params) {
       const { driverLocationPoller } = await import('../utils/driverLocationPoller');
       driverLocationPoller.pause();
       smartRefreshManager.pause();
+      backgroundSyncManager.pause();
       smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
       try {
         const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
@@ -978,6 +988,7 @@ export default function useStopCardActions(params) {
         resumeOfflineSync('delivery_actions');
         driverLocationPoller?.resume?.();
         smartRefreshManager.resume();
+        backgroundSyncManager.resume();
         resetActionLocks(true);
       }
     });
@@ -988,6 +999,7 @@ export default function useStopCardActions(params) {
     const status = pendingFailureStatus;
     const lockResult = await runWithDeliveryActionLock('failure_delivery', async () => {
       pauseOfflineSync('delivery_actions');
+      backgroundSyncManager.pause();
       try {
         setShowFailureReasonDialog(false);
         setPendingFailureStatus(null);
@@ -1104,6 +1116,7 @@ export default function useStopCardActions(params) {
         toast.error(`Failed to mark as ${status}: ${error.message}`);
       } finally {
         resumeOfflineSync('delivery_actions');
+        backgroundSyncManager.resume();
         resetActionLocks(true);
       }
     });
