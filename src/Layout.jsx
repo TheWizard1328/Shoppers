@@ -297,6 +297,12 @@ export default function Layout({ children, currentPageName }) {
         smartRefreshManager._initialized = true;
         if (ms.appVersion) {const v = ms.appVersion;setAppVersion(`v${v.major}.${v.minor}.${v.build}`);}
         setAdminImportEnabled(ms.adminImportEnabled === true);
+        // Seed HERE API key from bootstrap manifest to avoid redundant backend calls
+        if (ms.hereApiKey) {
+          if (typeof window !== 'undefined') window.__hereApiKey = ms.hereApiKey;
+          const { seedHereApiKey } = await import('./components/utils/hereApiKeyStore');
+          seedHereApiKey(ms.hereApiKey);
+        }
         if (userHasRole(fetchedUser, 'dispatcher') && fetchedUser.status === 'inactive') {
           sessionStorage.clear();clearUserCache();clearSettingsCache();
           alert('Access Denied: Your account is currently inactive. Please contact an administrator.');

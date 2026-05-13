@@ -15,7 +15,9 @@ export const getDeliveriesForDateRange = async (startDate, endDate, filters = {}
       return true;
     });
 
-    if (filtered.length > 0) {
+    // Return offline data if available OR if not forcing a refresh
+    // This prevents expensive $gte/$lte range queries that cause 429s
+    if (filtered.length > 0 || !forceRefresh) {
       return filtered;
     }
   } catch {}
