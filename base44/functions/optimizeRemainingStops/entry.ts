@@ -225,6 +225,34 @@ const snapToWindowStart = (cumulativeTime, stop) => {
   return cumulativeTime;
 };
 
+// Check if a stop's time window is still valid (not completely expired)
+const isWindowExpired = (stop, currentMinutes) => {
+  const windowEnd = parseTimeToMinutes(stop.windowEnd || stop.delivery?.delivery_time_end || stop.delivery?.time_window_end);
+  if (!Number.isFinite(windowEnd)) return false; // No end time = always valid
+  return windowEnd <= currentMinutes; // Window expired if end time has passed
+};
+
+// Check if arrival at a given time violates the stop's time window (strictly enforced for non-expired windows)
+const violatesTimeWindow = (stop, arrivalMinutes, currentMinutes) => {
+  // If window has expired, ignore it
+  if (isWindowExpired(stop, currentMinutes)) {
+    return false;
+  }
+  
+  const windowStart = parseTimeToMinutes(stop.windowStart || stop.delivery?.delivery_time_start || stop.delivery?.time_window_start);
+  const windowEnd = parseTimeToMinutes(stop.windowEnd || stop.delivery?.delivery_time_end || stop.delivery?.time_window_end);
+  
+  // Strict enforcement: arrival must be within [start, end] window
+  if (Number.isFinite(windowStart) && arrivalMinutes < windowStart) {
+    return true; // Arriving before window opens
+  }
+  if (Number.isFinite(windowEnd) && arrivalMinutes > windowEnd) {
+    return true; // Arriving after window closes
+  }
+  
+  return false;
+};
+
 Deno.serve(async (req) => {
   console.log('🚀 [optimizeRemainingStops] Function called');
 
@@ -425,31 +453,36 @@ Deno.serve(async (req) => {
     );
 
     const stops = optimizableDeliveries.map(delivery => {
-       const coords = getDeliveryCoords(delivery, patientMap, storeMap);
-       const patient = delivery.patient_id ? patientMap.get(delivery.patient_id) : null;
-       let windowStart = (patient?.time_window_start) || delivery.delivery_time_start || delivery.time_window_start || null;
-       let windowEnd = (patient?.time_window_end) || delivery.delivery_time_end || delivery.time_window_end || null;
+      const coords = getDeliveryCoords(delivery, patientMap, storeMap);
+      const patient = delivery.patient_id ? patientMap.get(delivery.patient_id) : null;
+      let windowStart = (patient?.time_window_start) || delivery.delivery_time_start || delivery.time_window_start || null;
+      let windowEnd = (patient?.time_window_end) || delivery.delivery_time_end || delivery.time_window_end || null;
 
-       if (delivery.patient_id && delivery.puid && pickupWindowByStopId.has(delivery.puid)) {
-         const pickupWindow = pickupWindowByStopId.get(delivery.puid);
-         const pickupEndMinutes = parseTimeToMinutes(pickupWindow?.end || pickupWindow?.start);
-         const deliveryStartMinutes = parseTimeToMinutes(windowStart);
-         if (Number.isFinite(pickupEndMinutes) && (!Number.isFinite(deliveryStartMinutes) || deliveryStartMinutes < pickupEndMinutes)) {
-           windowStart = formatMinutesToTime(pickupEndMinutes + 5);
-         }
-       }
+      if (delivery.patient_id && delivery.puid && pickupWindowByStopId.has(delivery.puid)) {
+        const pickupWindow = pickupWindowByStopId.get(delivery.puid);
+        const pickupEndMinutes = parseTimeToMinutes(pickupWindow?.end || pickupWindow?.start);
+        const deliveryStartMinutes = parseTimeToMinutes(windowStart);
+        if (Number.isFinite(pickupEndMinutes) && (!Number.isFinite(deliveryStartMinutes) || deliveryStartMinutes < pickupEndMinutes)) {
+          windowStart = formatMinutesToTime(pickupEndMinutes + 5);
+        }
+      }
 
-       return {
-         delivery,
-         lat: coords?.lat,
-         lng: coords?.lng,
-         isPickup: !delivery.patient_id,
-         windowStart,
-         windowEnd,
-         hasLateWindow: isLateWindowStop(windowStart, currentMinutes),
-         timeMinutes: parseTimeToMinutes(windowStart || delivery.delivery_time_start)
-       };
-     });
+      const stop = {
+        delivery,
+        lat: coords?.lat,
+        lng: coords?.lng,
+        isPickup: !delivery.patient_id,
+        windowStart,
+        windowEnd,
+        hasLateWindow: isLateWindowStop(windowStart, currentMinutes),
+        timeMinutes: parseTimeToMinutes(windowStart || delivery.delivery_time_start)
+      };
+
+      // Mark window expiration status
+      stop.windowExpired = isWindowExpired(stop, currentMinutes);
+
+      return stop;
+    });
 
      console.log(`📋 [optimizeRemainingStops] Coordinate check for ${optimizableDeliveries.length} active deliveries:`);
      optimizableDeliveries.forEach((delivery, idx) => {
@@ -549,7 +582,22 @@ Deno.serve(async (req) => {
       .map((delivery) => stopsWithCoords.find((item) => item.delivery.id === delivery.id) || null)
       .filter(Boolean);
 
+    // Separate stops by time window expiration status: prioritize valid windows, then expired windows
+    const partitionStopsByWindowValidity = (stopsArr) => {
+      const valid = [];
+      const expired = [];
+      stopsArr.forEach(s => {
+        if (s.windowExpired) {
+          expired.push(s);
+        } else {
+          valid.push(s);
+        }
+      });
+      return { valid, expired };
+    };
+
     // Pre-sort stops by delivery_time_start window before passing to HERE as a hint
+    // Within each partition (valid / expired), sort by window start time
     const sortStopsByWindow = (stopsArr) =>
       stopsArr.slice().sort((a, b) => {
         const aMin = parseTimeToMinutes(a.windowStart || a.delivery?.delivery_time_start);
@@ -567,15 +615,17 @@ Deno.serve(async (req) => {
       ? stopsWithCoords.find(s => s.delivery.id === explicitNextDelivery.id) || null
       : null;
 
-    // Remaining stops to be optimized by HERE: everything except the locked first stop,
-    // pre-sorted by delivery_time_start as a hint to HERE's Sequence API.
+    // Remaining stops to be optimized by HERE: everything except the locked first stop.
+    // STRICT TIME WINDOW ENFORCEMENT: partition stops by window validity, prioritize valid windows first
+    const stopsForHereUnfiltered = optimizationStops.filter(s => !lockedNextStop || s.delivery.id !== lockedNextStop.delivery.id);
+    const { valid: validWindowStops, expired: expiredWindowStops } = partitionStopsByWindowValidity(stopsForHereUnfiltered);
+
     const stopsForHere = preserveExistingOrder
-      ? optimizationStops
-          .filter(s => !lockedNextStop || s.delivery.id !== lockedNextStop.delivery.id)
-          .sort((a, b) => (Number(a.delivery?.stop_order) || 99999) - (Number(b.delivery?.stop_order) || 99999))
-      : sortStopsByWindow(
-          optimizationStops.filter(s => !lockedNextStop || s.delivery.id !== lockedNextStop.delivery.id)
-        );
+      ? stopsForHereUnfiltered.sort((a, b) => (Number(a.delivery?.stop_order) || 99999) - (Number(b.delivery?.stop_order) || 99999))
+      : [
+          ...sortStopsByWindow(validWindowStops),     // Valid windows: sorted by time, optimized first
+          ...sortStopsByWindow(expiredWindowStops)    // Expired windows: appended at end, sorted by time
+        ];
 
     // Full ordered list passed to HERE: [lockedNextStop?, ...stopsForHere]
     // This is what HERE's Sequence API receives as waypoints. The locked stop is at index 0
@@ -588,6 +638,13 @@ Deno.serve(async (req) => {
     if (lockedNextStop) {
       console.log(`🔒 [optimizeRemainingStops] isNextDelivery stop locked at position 1: ${lockedNextStop.delivery.id} (window: ${lockedNextStop.windowStart || 'none'})`);
     }
+    // Log time window enforcement status
+    const validWindowCount = stopsWithCoords.filter(s => !s.windowExpired && (s.windowStart || s.windowEnd)).length;
+    const expiredWindowCount = stopsWithCoords.filter(s => s.windowExpired && (s.windowStart || s.windowEnd)).length;
+    if (validWindowCount > 0 || expiredWindowCount > 0) {
+      console.log(`⏰ [optimizeRemainingStops] TIME WINDOW ENFORCEMENT: ${validWindowCount} stops with active time windows, ${expiredWindowCount} stops with expired windows (will be de-prioritized)`);
+    }
+
     console.log(`📋 [optimizeRemainingStops] ${stopsToSequence.length} active stops for HERE, ${pendingDeliveryIds.size} pending (appended to end after sequencing)`);
     console.log(`\n🎯 [optimizeRemainingStops] Optimizing remaining route: ${optimizationStops.length} stops`);
 
@@ -917,10 +974,17 @@ Deno.serve(async (req) => {
         cumulativeTime += travelMinutes;
         cumulativeTime = snapToWindowStart(cumulativeTime, stop);
 
+        // STRICT: Enforce time windows. If window is NOT expired and arrival violates it, log warning
+        if (!stop.windowExpired && violatesTimeWindow(stop, cumulativeTime, currentMinutes)) {
+          const windowStart = parseTimeToMinutes(stop.windowStart || stop.delivery?.delivery_time_start);
+          const windowEnd = parseTimeToMinutes(stop.windowEnd || stop.delivery?.delivery_time_end);
+          console.warn(`⚠️ [optimizeRemainingStops] STRICT TIME WINDOW VIOLATION: ${stop.delivery.patient_name || 'Pickup'} scheduled arrival ${formatMinutesToTime(cumulativeTime)} violates window [${Number.isFinite(windowStart) ? formatMinutesToTime(windowStart) : 'none'}, ${Number.isFinite(windowEnd) ? formatMinutesToTime(windowEnd) : 'none'}]`);
+        }
+
         const eta = formatMinutesToTime(cumulativeTime);
         stageEtaMap.set(stop.delivery.id, eta);
         cumulativeTime += stop.delivery.extra_time || (stop.isPickup ? 15 : 5);
-        console.log(`  ✅ [optimizeRemainingStops] ${stop.delivery.patient_name || 'Pickup'} - ETA: ${eta}`);
+        console.log(`  ✅ [optimizeRemainingStops] ${stop.delivery.patient_name || 'Pickup'} - ETA: ${eta}${stop.windowExpired ? ' (window expired)' : ''}`);
       }
     }
 
