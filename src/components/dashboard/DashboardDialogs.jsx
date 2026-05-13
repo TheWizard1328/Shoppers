@@ -77,7 +77,17 @@ export default function DashboardDialogs({
 
       <DispatcherPickupNotification deliveries={deliveries} stores={stores} appUsers={appUsers} currentUser={currentUser} isDispatcher={isDispatcher} />
 
-      {isDriver && <Dialog open={showQuickAdjustments} onOpenChange={setShowQuickAdjustments}>
+      {isDriver && <Dialog open={showQuickAdjustments} onOpenChange={(open) => {
+        if (!open) {
+          setShowQuickAdjustments(false);
+          // Resume background sync when dialog closes
+          window.dispatchEvent(new CustomEvent('resumeBackgroundSync'));
+        } else {
+          // Pause background sync when dialog opens
+          window.dispatchEvent(new CustomEvent('pauseBackgroundSync'));
+          setShowQuickAdjustments(true);
+        }
+      }}>
         <DialogContent className="max-w-[300px] max-h-[80vh] overflow-hidden z-[10001]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
           <DialogHeader><DialogTitle style={{ color: 'var(--text-slate-900)' }}>Quick Route Adjustments</DialogTitle></DialogHeader>
           <QuickRouteAdjustments
@@ -88,6 +98,8 @@ export default function DashboardDialogs({
             onReoptimize={async (reorderPayload) => {
               await handleQuickReorder(reorderPayload);
               setShowQuickAdjustments(false);
+              // Resume background sync after dialog closes
+              window.dispatchEvent(new CustomEvent('resumeBackgroundSync'));
               // Refresh polylines + ETAs with single consolidated call
               try {
                 const now = new Date();

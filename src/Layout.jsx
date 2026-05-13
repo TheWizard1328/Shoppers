@@ -406,6 +406,24 @@ export default function Layout({ children, currentPageName }) {
     }
   }, [isFormOverlayOpen]);
 
+  // Listen for pause/resume sync events from dialogs
+  useEffect(() => {
+    const handlePauseSync = () => {
+      smartRefreshManager.pause();
+      backgroundSyncManager.pause();
+    };
+    const handleResumeSync = () => {
+      smartRefreshManager.resume();
+      backgroundSyncManager.resume();
+    };
+    window.addEventListener('pauseBackgroundSync', handlePauseSync);
+    window.addEventListener('resumeBackgroundSync', handleResumeSync);
+    return () => {
+      window.removeEventListener('pauseBackgroundSync', handlePauseSync);
+      window.removeEventListener('resumeBackgroundSync', handleResumeSync);
+    };
+  }, []);
+
   // Initialize offline database sync
   useEffect(() => {
     if (!currentUser) return;

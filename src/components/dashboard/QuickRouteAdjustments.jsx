@@ -23,6 +23,8 @@ export default function QuickRouteAdjustments({
   onReoptimize,
   onCancel
 }) {
+  const [isOptimizing, setIsOptimizing] = useState(false);
+
   const getActive = () =>
   deliveries.
   filter((d) => d && (d.status === 'in_transit' || d.status === 'en_route')).
@@ -48,13 +50,18 @@ export default function QuickRouteAdjustments({
     setLocalOrder(updated);
   };
 
-  const handleReoptimize = () => {
-    const originalOrders = getActive().map((d) => d.stop_order || 0).sort((a, b) => a - b);
-    const reorderPayload = localOrder.map((delivery, i) => ({
-      id: delivery.id,
-      stop_order: originalOrders[i]
-    }));
-    onReoptimize(reorderPayload);
+  const handleReoptimize = async () => {
+    setIsOptimizing(true);
+    try {
+      const originalOrders = getActive().map((d) => d.stop_order || 0).sort((a, b) => a - b);
+      const reorderPayload = localOrder.map((delivery, i) => ({
+        id: delivery.id,
+        stop_order: originalOrders[i]
+      }));
+      await onReoptimize(reorderPayload);
+    } finally {
+      setIsOptimizing(false);
+    }
   };
 
   const getStopName = (delivery) => {
@@ -126,8 +133,14 @@ export default function QuickRouteAdjustments({
       </DragDropContext>
 
       <div className="flex gap-2 pt-2 border-t pb-2" style={{ borderColor: 'var(--border-slate-200)' }}>
-        <Button variant="outline" className="flex-1" onClick={onCancel}>Cancel</Button>
-        <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleReoptimize}>Reoptimize</Button>
+        <Button variant="outline" className="flex-1" onClick={onCancel} disabled={isOptimizing}>Cancel</Button>
+        <Button 
+          className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-60 disabled:cursor-not-allowed" 
+          onClick={handleReoptimize}
+          disabled={isOptimizing}
+        >
+          {isOptimizing ? '⏳ Optimizing...' : 'Reoptimize'}
+        </Button>
       </div>
     </div>);
 
