@@ -1164,7 +1164,8 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
 
   metrics.yearTotals.billable = metrics.monthlyData.reduce((sum, month) => sum + (month.billable || 0), 0);
   metrics.yearTotals.nonBillable = metrics.monthlyData.reduce((sum, month) => sum + (month.nonBillable || 0), 0);
-  metrics.storeFeeTotals.stores_paying_fees = storesPayingFeesSet.size;
+  // Count stores currently paying fees based on pays_app_fees field, not just those with deliveries in the period
+  metrics.storeFeeTotals.stores_paying_fees = stores.filter(s => s.pays_app_fees === true).length;
   metrics.yearTotals.activeDrivers = new Set(appUsers.filter(au => au.app_roles && au.app_roles.includes('driver') && au.status === 'active').map(au => au.user_id)).size;
   return metrics;
 }
