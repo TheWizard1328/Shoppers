@@ -599,7 +599,7 @@ export default function useStopCardActions(params) {
         if (!delivery?.id || !delivery?.driver_id || !delivery?.delivery_date) return;
         try {
           // Step 1: Confirm backend persistence of start state
-          await base44.functions.invoke('handleStartDelivery', { deliveryId: delivery.id, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime });
+          const optimizeResponse = await base44.functions.invoke('handleStartDelivery', { deliveryId: delivery.id, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime });
 
           // Step 2: Fetch fresh deliveries from backend to capture any server-side corrections
            const refreshedImmediately = await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
@@ -643,14 +643,49 @@ export default function useStopCardActions(params) {
           // Polyline updates happen only here, never from passive location changes
           // CRITICAL: Pass firstStopId so optimizeRemainingStops locks the started stop
           // The optimizer will use this explicit firstStopId as the authoritative route origin
-          window.dispatchEvent(new CustomEvent('triggerRouteOptimization', {
-            detail: { 
-              firstStopId: delivery.id, 
-              driverId: delivery.driver_id, 
+
+          // CRITICAL: If handleStartDelivery already returned optimizedRoute, use it directly
+          // Otherwise trigger route optimization manually
+          if (Array.isArray(optimizeResponse?.optimizedRoute) && optimizeResponse.optimizedRoute.length > 0) {
+            // handleStartDelivery already optimized — just regenerate polylines
+            const polylineResponse = await base44.functions.invoke('purgeAndRegeneratePolylines', {
+              driverId: delivery.driver_id,
               deliveryDate: delivery.delivery_date,
-              source: 'start_action'
+              scope: 'active_only',
+              reason: 'start_action',
+              sourcePage: 'Dashboard',
+              bypassDriverStatus: true,
+              routeStopOrder: optimizeResponse.optimizedRoute.map((stop) => stop.deliveryId || stop.delivery_id).filter(Boolean),
+              orderedStopsWithTransportMode: optimizeResponse.optimizedRoute.map((stop) => ({
+                deliveryId: stop.deliveryId || stop.delivery_id,
+                transport_mode: stop.transport_mode || stop.finished_leg_transport_mode || currentPreferredTravelMode,
+                finished_leg_transport_mode: stop.finished_leg_transport_mode || stop.transport_mode || currentPreferredTravelMode,
+                encoded_polyline: stop.encoded_polyline || null,
+                estimated_distance_km: stop.estimated_distance_km ?? null,
+                estimated_duration_minutes: stop.estimated_duration_minutes ?? null
+              })).filter((stop) => stop.deliveryId),
+              explicitOrderedStopsOnly: true,
+              explicitRouteOrigin: 'last_finished_stop',
+              explicitRouteDestination: 'home',
+              bypassPolylineUpdated: true,
+              bypassPolylineDelete: true,
+              reuseProvidedPolylines: true
+            }).catch(() => null);
+
+            if (polylineResponse) {
+              window.dispatchEvent(new CustomEvent('polylineUpdated', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, source: 'start_action' } }));
             }
-          }));
+          } else {
+            // Fallback: trigger route optimization manually
+            window.dispatchEvent(new CustomEvent('triggerRouteOptimization', {
+              detail: { 
+                firstStopId: delivery.id, 
+                driverId: delivery.driver_id, 
+                deliveryDate: delivery.delivery_date,
+                source: 'start_action'
+              }
+            }));
+          }
 
           fabControlEvents.reactivatePhaseTwoIfAvailable();
 
