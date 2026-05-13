@@ -559,16 +559,29 @@ Deno.serve(async (req) => {
         return aVal - bVal;
       });
 
-    const orderedOptimizationStops = preserveExistingOrder
-      ? optimizationStops.slice().sort((a, b) => (Number(a.delivery?.stop_order) || 99999) - (Number(b.delivery?.stop_order) || 99999))
-      : sortStopsByWindow(optimizationStops);
-
     const pendingDeliveryIds = new Set(pendingRouteDeliveries.map(d => d.id));
 
-    // CRITICAL: Do NOT lock/pin isNextDelivery stop as routeOriginStop when passing to HERE.
-    // HERE will determine the correct first stop based on time windows and location.
-    // Locking a stop to position 0 and then manually re-sorting the rest was causing backwards routes.
-    const stopsToSequence = orderedOptimizationStops;
+    let orderedOptimizationStops;
+    if (preserveExistingOrder) {
+      orderedOptimizationStops = optimizationStops.slice().sort((a, b) => (Number(a.delivery?.stop_order) || 99999) - (Number(b.delivery?.stop_order) || 99999));
+    } else {
+      orderedOptimizationStops = sortStopsByWindow(optimizationStops);
+    }
+
+    // CRITICAL: If an isNextDelivery stop is locked, pin it to position 0 in the waypoints list
+    // passed to HERE's Sequence API. HERE will then optimise positions 1..N around it.
+    // This is the correct approach — passing it as a fixed first waypoint lets HERE respect time
+    // windows for the remaining stops without us needing to manually re-sort afterwards.
+    let stopsToSequence = orderedOptimizationStops;
+    const lockedNextStop = explicitNextDelivery
+      ? stopsWithCoords.find(s => s.delivery.id === explicitNextDelivery.id) || null
+      : null;
+
+    if (lockedNextStop && !preserveExistingOrder) {
+      const rest = orderedOptimizationStops.filter(s => s.delivery.id !== lockedNextStop.delivery.id);
+      stopsToSequence = [lockedNextStop, ...rest];
+      console.log(`🔒 [optimizeRemainingStops] Pinned isNextDelivery stop (${lockedNextStop.delivery.id}) to position 0 for HERE sequencing`);
+    }
 
     console.log(`📋 [optimizeRemainingStops] ${orderedOptimizationStops.length} stops total, ${pendingDeliveryIds.size} pending (will be sorted to end after HERE sequencing)`);
     console.log(`\n🎯 [optimizeRemainingStops] Optimizing remaining route: ${optimizationStops.length} stops`);
@@ -665,6 +678,9 @@ Deno.serve(async (req) => {
           deliveryDate,
           departureTime: resolvedDepartureTime,
           caller: 'optimizeRemainingStops',
+          // CRITICAL: Never preserve order — HERE's Sequence API uses time windows (acc: constraints)
+          // to determine the optimal order. The locked isNextDelivery stop is already pinned to
+          // position 0 in the waypoints list, which HERE will naturally visit first from the origin.
           preserveWaypointOrder: false,
           skipSequenceApi: false,
         });
@@ -692,8 +708,14 @@ Deno.serve(async (req) => {
       const sections = Array.isArray(hereDirectionsResult?.sections) ? hereDirectionsResult.sections : [];
 
       if (optimizedWaypointIds && optimizedWaypointIds.length > 0 && sections.length > 0) {
+        // CRITICAL: Build lookup using the SAME key used in routeContext[].id — must match exactly
+        // what HERE returns as waypoint.id. The GPS waypoint placeholder ('driver_gps_waypoint')
+        // will not be in stopLookupById so it falls through the filter cleanly.
         const stopLookupById = new Map(
-          stopsToSequence.map(s => [s.delivery.stop_id || s.delivery.delivery_id || s.delivery.id, s])
+          stopsToSequence.map(s => {
+            const key = s.delivery.stop_id || s.delivery.delivery_id || s.delivery.id;
+            return [key, s];
+          })
         );
 
         const orderedSequencedStops = optimizedWaypointIds

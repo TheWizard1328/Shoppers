@@ -150,16 +150,41 @@ export default function RealTimeRouteOptimizer({
             onRouteOptimized(data.optimizedRoute);
           }
 
-          // CRITICAL: Force UI refresh to show new stop orders and ETAs
-          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-            detail: {
-              driverId: selectedDriverId,
-              deliveryDate: selectedDate,
-              triggeredBy: 'realTimeRouteOptimizer',
-              alreadyOptimized: true
+          // CRITICAL: Force a FULL data reload so updated isNextDelivery + encoded_polyline
+          // fields are reflected in the map and stop cards. Without this, the UI shows stale
+          // polylines and wrong isNextDelivery flags because the in-memory delivery objects
+          // were not updated with the backend's changes.
+          try {
+            const freshDeliveries = await base44.entities.Delivery.filter({
+              driver_id: selectedDriverId,
+              delivery_date: selectedDate
+            }, 'stop_order');
+
+            if (Array.isArray(freshDeliveries) && freshDeliveries.length > 0) {
+              window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                detail: {
+                  driverId: selectedDriverId,
+                  deliveryDate: selectedDate,
+                  triggeredBy: 'realTimeRouteOptimizer',
+                  freshDeliveries,
+                  fullReplacement: true,
+                  alreadyOptimized: true
+                }
+              }));
             }
-          }));
-          // Also signal downstream layers to invalidate polylines for this driver/date
+          } catch (refreshErr) {
+            console.warn('[RealTimeRouteOptimizer] Failed to reload fresh deliveries:', refreshErr?.message);
+            // Fallback: signal a generic update so Layout re-fetches
+            window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+              detail: {
+                driverId: selectedDriverId,
+                deliveryDate: selectedDate,
+                triggeredBy: 'realTimeRouteOptimizer',
+                alreadyOptimized: true
+              }
+            }));
+          }
+          // Signal downstream layers to re-render polylines
           window.dispatchEvent(new CustomEvent('routeReordered', {
             detail: { driverId: selectedDriverId, deliveryDate: selectedDate, source: 'realTimeRouteOptimizer' }
           }));
