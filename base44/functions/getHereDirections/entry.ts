@@ -686,13 +686,24 @@ Deno.serve(async (req) => {
       params.set('improveFor', 'time');
       params.set('start', `driverStart;${originLat},${originLng}`);
 
-      sequenceStops.forEach((stop, index) => {
+      // Separate the home destination (last stop) from the optimizable waypoints.
+      // HERE findsequence2 requires `end` for the locked final destination.
+      // Without `end`, HERE treats home as just another optimizable waypoint.
+      const optimizableStops = sequenceStops.slice(0, -1);
+      const endStop = sequenceStops[sequenceStops.length - 1];
+
+      optimizableStops.forEach((stop, index) => {
         const routeItem = routeContext[stop.sequenceIndex] || {};
         const segments = [`${stop.id};${stop.lat},${stop.lng}`];
         const accessConstraint = buildAccessConstraint(dateStr, routeItem?.time_window_start, routeItem?.time_window_end);
         if (accessConstraint) segments.push(accessConstraint);
         params.set(`destination${index + 1}`, segments.join(';'));
       });
+
+      // Lock the final destination (home) using `end` parameter so HERE never reorders it
+      if (endStop) {
+        params.set('end', `driverEnd;${endStop.lat},${endStop.lng}`);
+      }
 
       routeCallCount += 1;
       resp = await fetch(`https://wps.hereapi.com/v8/findsequence2?${params.toString()}`, {
@@ -712,9 +723,14 @@ Deno.serve(async (req) => {
         retryParams.set('mode', `fastest;${hereTransportMode};traffic:disabled`);
         retryParams.set('improveFor', 'time');
         retryParams.set('start', `driverStart;${originLat},${originLng}`);
-        sequenceStops.forEach((stop, index) => {
+        const retryOptimizableStops = sequenceStops.slice(0, -1);
+        const retryEndStop = sequenceStops[sequenceStops.length - 1];
+        retryOptimizableStops.forEach((stop, index) => {
           retryParams.set(`destination${index + 1}`, `${stop.id};${stop.lat},${stop.lng}`);
         });
+        if (retryEndStop) {
+          retryParams.set('end', `driverEnd;${retryEndStop.lat},${retryEndStop.lng}`);
+        }
         routeCallCount += 1;
         resp = await fetch(`https://wps.hereapi.com/v8/findsequence2?${retryParams.toString()}`, {
           signal: AbortSignal.timeout(20000),
