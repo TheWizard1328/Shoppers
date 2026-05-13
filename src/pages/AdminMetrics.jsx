@@ -39,7 +39,6 @@ const EMPTY_METRICS_DATA = {
   dailyStoreData: {},
   monthlyStoreData: {},
   monthlyStoreFees: {},
-  monthlyStoreExtraKm: {},
   storeFeeTotals: {
     total_fees_owed: 0,
     app_fee_rate: 0,
@@ -360,14 +359,8 @@ export default function AdminMetrics() {
 
     // Store + Month selected: show day-by-day breakdown for that store
     if (selectedStoreMonth) {
-      // Build day-by-day data for the selected store in selected month
       const dailyData = metricsData.dailyStoreData?.[selectedStoreMonth.month]?.[selectedStoreMonth.storeId] || [];
-
-      // Get app fee rate and calculate fees per day based on billable deliveries
-      const appFeeRate = metricsData.storeFeeTotals?.app_fee_rate || 0;
-
-      // Use per-day fees directly from dailyStoreData — already computed per-delivery
-      // respecting app_fee_history effective_date in the backend
+      // Use per-day fees directly from backend - already respects app_fee_history effective_date
       const dailyDataWithFees = dailyData.map((day) => ({ ...day, fees: day.fees || 0 }));
 
       return {
@@ -379,8 +372,6 @@ export default function AdminMetrics() {
 
     // Only month selected: filter all graphs by month
     if (selectedMonth) {
-      // For fees mode, use monthlyStoreData which has pre-calculated fees per store
-      // For deliveries mode, use storeDataByMonth which has completed/failed counts
       const monthStoreData = metricsData.storeDataByMonth?.[selectedMonth] || metricsData.storeData;
       const monthStoreDataWithFees = metricsData.monthlyStoreData?.[selectedMonth] || metricsData.monthlyStoreFees?.[selectedMonth] || [];
       const monthFees = feeTotals?.monthly_fees?.[selectedMonth - 1] ?? feeTotals?.monthlyFees?.[selectedMonth - 1] ?? 0;
@@ -403,7 +394,6 @@ export default function AdminMetrics() {
     }
 
     // Nothing selected: return all year data with fees merged
-    // Aggregate fees across all months per store for full year view
     const allMonthsStoreFees = {};
     for (let m = 1; m <= 12; m++) {
       const monthData = metricsData.monthlyStoreData?.[m] || metricsData.monthlyStoreFees?.[m] || [];
@@ -547,25 +537,20 @@ export default function AdminMetrics() {
     const daysInMonth = new Date(parseInt(selectedYear), selectedMonth, 0).getDate();
 
     if (metricsViewMode === 'fees') {
-      const sourceRows = selectedStoreMonth ?
-      bottomStoreChartData || [] :
-      Array.from({ length: daysInMonth }, (_, index) => {
+      // If a specific store+month is selected, use the already-computed bottomStoreChartData
+      if (selectedStoreMonth) {
+        return bottomStoreChartData || [];
+      }
+
+      // City-wide daily fees: sum actual per-day fees from dailyStoreData (backend already respects app_fee_history)
+      return Array.from({ length: daysInMonth }, (_, index) => {
         const day = index + 1;
         const totalFees = Object.values(metricsData.dailyStoreData?.[selectedMonth] || {}).reduce((sum, storeDays) => {
           const entry = (storeDays || []).find((item) => item.day === day);
-          const storeId = storeDays?.[0]?.storeId;
-          const monthStore = (metricsData.monthlyStoreData?.[selectedMonth] || []).find((store) => (store.storeId || store.id) === storeId);
-          const fallbackFee = (metricsData.monthlyStoreFees?.[selectedMonth] || []).find((store) => (store.storeId || store.id) === storeId);
-          const monthTotalFees = monthStore?.fees ?? fallbackFee?.fees ?? fallbackFee?.total_fees ?? 0;
-          // Use only billable deliveries (completed + afterHours) to match how fees are calculated
-          const monthTotalBillable = (monthStore?.completed || 0) + (monthStore?.afterHours || 0);
-          const dayTotalBillable = (entry?.completed || 0) + (entry?.afterHours || 0);
-          if (monthTotalFees <= 0 || monthTotalBillable <= 0 || dayTotalBillable <= 0) return sum;
-          return sum + monthTotalFees * (dayTotalBillable / monthTotalBillable);
+          return sum + (entry?.fees || 0);
         }, 0);
         return { day, fees: totalFees };
       });
-      return sourceRows;
     }
 
     if (metricsViewMode === 'extra_km') {
