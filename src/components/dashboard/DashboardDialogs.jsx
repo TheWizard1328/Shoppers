@@ -88,22 +88,18 @@ export default function DashboardDialogs({
             onReoptimize={async (reorderPayload) => {
               await handleQuickReorder(reorderPayload);
               setShowQuickAdjustments(false);
-              // Refresh polylines + ETAs for the existing order — do NOT reoptimize sequence
+              // Refresh polylines + ETAs with single consolidated call
               try {
+                const now = new Date();
+                const completionTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
                 await base44.functions.invoke('purgeAndRegeneratePolylines', {
                   driverId: currentUser?.id,
                   deliveryDate: selectedDateStr,
                   scope: 'active_only',
                   reason: 'manual',
                   routeSource: 'polylines',
-                  bypassDriverStatus: true
-                });
-                // Build a current-time string HH:mm for the ETA cascade start
-                const now = new Date();
-                const completionTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                await base44.functions.invoke('recalculateRemainingETAs', {
-                  driverId: currentUser?.id,
-                  deliveryDate: selectedDateStr,
+                  bypassDriverStatus: true,
+                  recalculateEtas: true,
                   completionTime
                 });
                 // Fetch fresh deliveries from backend and push to UI

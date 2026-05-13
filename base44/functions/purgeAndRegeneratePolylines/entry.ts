@@ -852,7 +852,9 @@ Deno.serve(async (req) => {
       resolvedOriginCoords = null,
       bypassPolylineDelete = false,
       reuseProvidedPolylines = false,
-      sourcePage = null
+      sourcePage = null,
+      recalculateEtas = false,
+      completionTime = null
     } = body || {};
 
     if (!driverId || !deliveryDate) {
@@ -1578,6 +1580,57 @@ Deno.serve(async (req) => {
       console.log(`# [purgeAndRegeneratePolylines] AFTER markDeliveriesPolylineUpdated | driver=${driverDisplayName} | date=${deliveryDate} | totalStops=${finalDeliveries?.length || 0}`);
     }
 
+    // Consolidate ETA recalculation if requested
+    let etasRecalculated = false;
+    if (recalculateEtas && completionTime) {
+      const completionTimeMs = (() => {
+        const parts = String(completionTime || '00:00').split(':');
+        const h = parseInt(parts[0], 10) || 0;
+        const m = parseInt(parts[1], 10) || 0;
+        return h * 60 + m;
+      })();
+
+      const incompleteDeliveries = (finalDeliveries || [])
+        .filter((d) => !FINISHED_STATUSES.has(d?.status))
+        .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
+
+      if (incompleteDeliveries.length > 0) {
+        let cumulativeMinutes = completionTimeMs;
+        const etaUpdates = new Map();
+
+        incompleteDeliveries.forEach((delivery) => {
+          const travelDuration = Number(delivery?.estimated_duration_minutes) || 0;
+          const serviceTime = Number(delivery?.extra_time) || 5;
+          cumulativeMinutes += travelDuration + serviceTime;
+
+          const hours = Math.floor(cumulativeMinutes / 60) % 24;
+          const minutes = cumulativeMinutes % 60;
+          const etaStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+
+          etaUpdates.set(delivery.id, { delivery_time_eta: etaStr });
+        });
+
+        if (etaUpdates.size > 0) {
+          console.log(`# [purgeAndRegeneratePolylines] RECALCULATING ETAs | driver=${driverDisplayName} | date=${deliveryDate} | startTime=${completionTime} | deliveriesToUpdate=${etaUpdates.size}`);
+          await processInChunks(
+            Array.from(etaUpdates.entries()),
+            20,
+            async ([deliveryId, update]) => {
+              return await base44.asServiceRole.entities.Delivery.update(deliveryId, update).catch((error) => {
+                if (isNotFoundError(error)) return null;
+                throw error;
+              });
+            }
+          );
+          etasRecalculated = true;
+          finalDeliveries = await base44.asServiceRole.entities.Delivery.filter({
+            driver_id: driverId,
+            delivery_date: deliveryDate
+          }, 'stop_order', 50000);
+        }
+      }
+    }
+
     const trackingRecalcData = null;
 
     const consolidatedLegs = [];
@@ -1597,6 +1650,7 @@ Deno.serve(async (req) => {
       regeneratedFinishedLegStopIds,
       repairedStopOrders: stopOrderRepairUpdates.length,
       recalculatedTravelDistances: sortedForTravelDistance.length,
+      etasRecalculated,
       originStrategy: latestFinishedStop ? 'last_finished_stop' : 'home_through_remaining_route',
       consolidatedLegs,
       pendingBreadcrumbLiveMerge,
