@@ -106,7 +106,18 @@ export default function DashboardDialogs({
                   deliveryDate: selectedDateStr,
                   completionTime
                 });
-                window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'quickReorder' } }));
+                // Fetch fresh deliveries from backend and push to UI
+                const freshDeliveries = await base44.entities.Delivery.filter({
+                  driver_id: currentUser?.id,
+                  delivery_date: selectedDateStr
+                });
+                window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                  detail: {
+                    triggeredBy: 'quickReorder',
+                    freshDeliveries,
+                    fullReplacement: false
+                  }
+                }));
               } catch (err) {
                 console.warn('[QuickReorder] Polyline/ETA refresh failed:', err?.message);
               }
