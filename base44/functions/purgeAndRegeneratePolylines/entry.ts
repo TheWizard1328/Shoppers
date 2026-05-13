@@ -943,14 +943,24 @@ Deno.serve(async (req) => {
       // Build segment specs for the ordered deliveries
       const segmentSpecs = [];
 
+      // Get last finished stop or home as route origin
+      const finishedDeliveries = deliveries.filter((d) => FINISHED_STATUSES.has(d?.status))
+        .sort((a, b) => {
+          const aTime = new Date(a?.actual_delivery_time || a?.updated_date || 0).getTime();
+          const bTime = new Date(b?.actual_delivery_time || b?.updated_date || 0).getTime();
+          return bTime - aTime;
+        });
+      const lastFinishedStop = finishedDeliveries.length > 0 ? finishedDeliveries[0] : null;
+      const routeOrigin = lastFinishedStop
+        ? getLatLon(lastFinishedStop)
+        : (driverAppUser.home_latitude != null && driverAppUser.home_longitude != null
+          ? { lat: Number(driverAppUser.home_latitude), lon: Number(driverAppUser.home_longitude) }
+          : null);
+
       for (let index = 0; index < orderedDeliveries.length; index += 1) {
         const delivery = orderedDeliveries[index];
         const from = index === 0
-          ? (driverAppUser.current_latitude != null && driverAppUser.current_longitude != null
-            ? { lat: Number(driverAppUser.current_latitude), lon: Number(driverAppUser.current_longitude) }
-            : (driverAppUser.home_latitude != null && driverAppUser.home_longitude != null
-              ? { lat: Number(driverAppUser.home_latitude), lon: Number(driverAppUser.home_longitude) }
-              : null))
+          ? routeOrigin
           : getLatLon(orderedDeliveries[index - 1]);
         const to = getLatLon(delivery);
 
@@ -1384,6 +1394,22 @@ Deno.serve(async (req) => {
 
       let cumulativeMinutes = completionTimeMs;
       const etaUpdates = new Map();
+
+      // If driver is >100m from route origin, add travel time from current location
+      const currentLat = Number(driverAppUser?.current_latitude);
+      const currentLon = Number(driverAppUser?.current_longitude);
+      const routeOriginLat = routeOrigin ? Number(routeOrigin.lat) : null;
+      const routeOriginLon = routeOrigin ? Number(routeOrigin.lon) : null;
+
+      if (isValidCoordinatePair(currentLat, currentLon) && isValidCoordinatePair(routeOriginLat, routeOriginLon)) {
+        const distanceMetersFromOrigin = distanceMeters(currentLat, currentLon, routeOriginLat, routeOriginLon);
+        if (distanceMetersFromOrigin > 100) {
+          // Estimate ~60 km/h average speed = 1 km per minute
+          const estimatedTravelMinutes = Math.ceil(distanceMetersFromOrigin / 1000);
+          cumulativeMinutes += estimatedTravelMinutes;
+          console.log(`[purgeAndRegeneratePolylines] ETA adjustment for driver position | distance=${distanceMetersFromOrigin.toFixed(0)}m | extraMinutes=${estimatedTravelMinutes}`);
+        }
+      }
 
       orderedDeliveries.forEach((delivery) => {
         const travelDuration = Number(delivery?.estimated_duration_minutes) || 0;
