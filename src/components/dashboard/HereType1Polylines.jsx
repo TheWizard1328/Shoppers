@@ -196,11 +196,16 @@ export default function HereType1Polylines({
     })[0];
     const previousStop = currentIndex > 0 ? orderedStops[currentIndex - 1] : previousCompleted;
     const home = driverHomeMarkers.find((h) => h && h.driverId === driverId);
-    const origin = previousStop
-      ? { latitude: Number(previousStop.latitude), longitude: Number(previousStop.longitude) }
-      : home
-        ? { latitude: Number(home.latitude), longitude: Number(home.longitude) }
-        : null;
+    
+    // Determine origin: use previous stop's coordinates, or if no previous, use last completed delivery, then home
+    let origin = null;
+    if (previousStop) {
+      origin = { latitude: Number(previousStop.latitude), longitude: Number(previousStop.longitude) };
+    } else if (previousCompleted) {
+      origin = { latitude: Number(previousCompleted.latitude), longitude: Number(previousCompleted.longitude) };
+    } else if (home) {
+      origin = { latitude: Number(home.latitude), longitude: Number(home.longitude) };
+    }
     const destination = { latitude: Number(currentStop.latitude), longitude: Number(currentStop.longitude) };
     const key = `active-${driverId}-${currentStop.id}`;
 
