@@ -95,11 +95,16 @@ export default function DashboardDialogs({
                   deliveryDate: selectedDateStr,
                   scope: 'active_only',
                   reason: 'manual',
-                  routeSource: 'polylines'
+                  routeSource: 'polylines',
+                  bypassDriverStatus: true
                 });
+                // Build a current-time string HH:mm for the ETA cascade start
+                const now = new Date();
+                const completionTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
                 await base44.functions.invoke('recalculateRemainingETAs', {
                   driverId: currentUser?.id,
-                  deliveryDate: selectedDateStr
+                  deliveryDate: selectedDateStr,
+                  completionTime
                 });
                 window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'quickReorder' } }));
               } catch (err) {
