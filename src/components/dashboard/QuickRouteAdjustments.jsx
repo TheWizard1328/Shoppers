@@ -53,10 +53,9 @@ export default function QuickRouteAdjustments({
   const handleReoptimize = async () => {
     setIsOptimizing(true);
     try {
-      const originalOrders = getActive().map((d) => d.stop_order || 0).sort((a, b) => a - b);
-      const reorderPayload = localOrder.map((delivery, i) => ({
-        id: delivery.id,
-        stop_order: originalOrders[i]
+      // Pass delivery IDs in their new dragged order
+      const reorderPayload = localOrder.map((delivery) => ({
+        id: delivery.id
       }));
       await onReoptimize(reorderPayload);
     } finally {
