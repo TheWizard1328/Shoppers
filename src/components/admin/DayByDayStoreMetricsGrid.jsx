@@ -54,13 +54,8 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
     }
 
     if (mode === 'fees') {
-      const monthStore = monthData.find((store) => (store.storeId || store.id) === storeId);
-      const fallbackFee = (monthlyStoreFees[selectedMonth] || []).find((store) => (store.storeId || store.id) === storeId);
-      const monthTotalFees = monthStore?.fees ?? fallbackFee?.fees ?? fallbackFee?.total_fees ?? 0;
-      const monthTotalDeliveries = (monthStore?.completed || 0) + (monthStore?.failed || 0) + (monthStore?.afterHours || 0);
-      const dayTotalDeliveries = (dayData.completed || 0) + (dayData.failed || 0) + (dayData.afterHours || 0);
-      if (monthTotalFees <= 0 || monthTotalDeliveries <= 0 || dayTotalDeliveries <= 0) return 0;
-      return monthTotalFees * (dayTotalDeliveries / monthTotalDeliveries);
+      // Use the actual fee value computed per-delivery in the backend (respects app_fee_history effective_date)
+      return dayData.fees || 0;
     }
 
     return (dayData.completed || 0) + (dayData.failed || 0) + (dayData.afterHours || 0);
@@ -80,8 +75,8 @@ export default function DayByDayStoreMetricsGrid({ metricsData, selectedMonth, s
       return fallbackKm?.extra_km ?? storeDaily.reduce((sum, day) => sum + (day.extra_km || 0), 0);
     }
     if (mode === 'fees') {
-      const fallbackFee = (monthlyStoreFees[selectedMonth] || []).find((item) => (item.storeId || item.id) === storeId);
-      return store.fees ?? fallbackFee?.fees ?? fallbackFee?.total_fees ?? 0;
+      // Sum actual daily fees from dailyStoreData — consistent with app_fee_history-aware backend values
+      return storeDaily.reduce((sum, day) => sum + (day.fees || 0), 0);
     }
     return storeDaily.reduce((sum, day) => sum + (day.completed || 0) + (day.failed || 0) + (day.afterHours || 0), 0);
   };
