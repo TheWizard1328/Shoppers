@@ -1,4 +1,4 @@
-// Redeployed on 2026-05-13 - fixed waypoint_id-based polyline assignment, removed post-HERE manual re-sort
+// Redeployed on 2026-05-13 - fixed polyline assignment (waypoint_id based) + removed manual re-sort after HERE
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
@@ -65,14 +65,6 @@ const formatMinutesToTime = (minutes) => {
   const h = Math.floor(minutes / 60) % 24;
   const m = minutes % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-};
-
-const getEffectiveWindowStart = (delivery, patient = null) => {
-  return delivery?.delivery_time_start || delivery?.time_window_start || null;
-};
-
-const getEffectiveWindowEnd = (delivery, patient = null) => {
-  return delivery?.delivery_time_end || delivery?.time_window_end || null;
 };
 
 const isLateWindowStop = (windowStart, currentMinutes) => {
@@ -393,6 +385,7 @@ Deno.serve(async (req) => {
     const incompleteDeliveries = allDeliveries.filter(d => !FINISHED_STATUSES.includes(d.status));
     const activeRouteDeliveries = incompleteDeliveries.filter((delivery) => ACTIVE_STATUSES.includes(delivery.status));
     const pendingRouteDeliveries = incompleteDeliveries.filter((delivery) => delivery.status === 'pending');
+    // CRITICAL: Only optimize ACTIVE deliveries with HERE. Pending deliveries will be appended to the end after optimization.
     const optimizableDeliveries = activeRouteDeliveries;
 
     if (optimizableDeliveries.length === 0 && pendingRouteDeliveries.length === 0) {
@@ -481,10 +474,10 @@ Deno.serve(async (req) => {
     const routeHasStarted = completedDeliveries.length > 0;
 
     // CRITICAL: Prioritize real-time currentLocation from frontend over cached AppUser GPS
-    const frontendProvidedLocation = body?.currentLocation
+    const frontendProvidedLocation = body?.currentLocation 
       ? { lat: Number(body.currentLocation.lat), lng: Number(body.currentLocation.lon) }
       : null;
-
+    
     const driverGpsPosition = frontendProvidedLocation
       || (driverAppUser.current_latitude != null && driverAppUser.current_longitude != null
         ? { lat: Number(driverAppUser.current_latitude), lng: Number(driverAppUser.current_longitude) }
@@ -538,14 +531,14 @@ Deno.serve(async (req) => {
       }, { status: 404 });
     }
 
-    // CRITICAL: logicalSegmentOrigin is the true starting point for the first polyline leg.
-    // This is Home (if not started) or the last completed stop's location.
+    // logicalSegmentOrigin is used as the HERE API origin — always the last finished stop or home (not mid-route GPS)
     const logicalSegmentOrigin = latestFinishedCoords
-      || driverHomePosition
+      || (driverAppUser.home_latitude != null && driverAppUser.home_longitude != null
+        ? { lat: Number(driverAppUser.home_latitude), lng: Number(driverAppUser.home_longitude) }
+        : null)
       || currentPosition;
 
     console.log(`📍 [optimizeRemainingStops] Starting from: ${locationSource} (${currentPosition.lat}, ${currentPosition.lng})`);
-    console.log(`📍 [optimizeRemainingStops] Logical segment origin for polylines: (${logicalSegmentOrigin.lat}, ${logicalSegmentOrigin.lng})`);
     console.log(`🎯 [optimizeRemainingStops] Active next stop: ${explicitNextDelivery?.id || 'none'}`);
 
     const optimizationStops = activeRouteDeliveries
@@ -556,6 +549,7 @@ Deno.serve(async (req) => {
       .map((delivery) => stopsWithCoords.find((item) => item.delivery.id === delivery.id) || null)
       .filter(Boolean);
 
+    // Pre-sort stops by delivery_time_start window before passing to HERE as a hint
     const sortStopsByWindow = (stopsArr) =>
       stopsArr.slice().sort((a, b) => {
         const aMin = parseTimeToMinutes(a.windowStart || a.delivery?.delivery_time_start);
@@ -571,7 +565,12 @@ Deno.serve(async (req) => {
 
     const pendingDeliveryIds = new Set(pendingRouteDeliveries.map(d => d.id));
 
-    console.log(`📋 [optimizeRemainingStops] ${orderedOptimizationStops.length} stops total, ${pendingDeliveryIds.size} pending`);
+    // CRITICAL: Do NOT lock/pin isNextDelivery stop as routeOriginStop when passing to HERE.
+    // HERE will determine the correct first stop based on time windows and location.
+    // Locking a stop to position 0 and then manually re-sorting the rest was causing backwards routes.
+    const stopsToSequence = orderedOptimizationStops;
+
+    console.log(`📋 [optimizeRemainingStops] ${orderedOptimizationStops.length} stops total, ${pendingDeliveryIds.size} pending (will be sorted to end after HERE sequencing)`);
     console.log(`\n🎯 [optimizeRemainingStops] Optimizing remaining route: ${optimizationStops.length} stops`);
 
     let attemptedHereCalls = 0;
@@ -580,9 +579,11 @@ Deno.serve(async (req) => {
     let directionsLegs = [];
     let segmentPolylines = [];
 
-    const resolvedHomePosition = driverHomePosition;
+    const resolvedHomePosition = driverAppUser.home_latitude != null && driverAppUser.home_longitude != null
+      ? { lat: Number(driverAppUser.home_latitude), lng: Number(driverAppUser.home_longitude) }
+      : null;
 
-    const allStopsForDeparture = orderedOptimizationStops;
+    const allStopsForDeparture = stopsToSequence;
     const earliestWindowMinutes = allStopsForDeparture.reduce((earliest, s) => {
       const wm = parseTimeToMinutes(s.windowStart || s.delivery?.delivery_time_start);
       return Number.isFinite(wm) && wm < earliest ? wm : earliest;
@@ -609,49 +610,49 @@ Deno.serve(async (req) => {
     console.log(`📅 [optimizeRemainingStops] isFutureDate=${isFutureDate}, isFutureRoute=${isFutureRoute}, etaBase=${formatMinutesToTime(etaBaseMinutes)}, currentTime=${formatMinutesToTime(currentMinutes)}, earliestWindow=${Number.isFinite(earliestWindowMinutes) ? formatMinutesToTime(earliestWindowMinutes) : 'none'}`);
 
     if (preserveExistingOrder) {
+      // Just refresh ETAs using existing order, no HERE call needed
       routeStops = [...orderedOptimizationStops];
-      let prevPos = logicalSegmentOrigin;
+      let prevPos = currentPosition;
       for (const stop of routeStops) {
         const distKm = calculateCrowFliesDistance(prevPos.lat, prevPos.lng, stop.lat, stop.lng);
         directionsLegs.push({ duration: Math.ceil((distKm / 40) * 60 * 60 * 1.3), distance: distKm * 1000 });
-        segmentPolylines.push({ deliveryId: stop.delivery.id, encodedPolyline: null, estimatedDistanceKm: distKm, estimatedDurationMinutes: Math.ceil((distKm / 40) * 60) });
         prevPos = { lat: stop.lat, lng: stop.lng };
       }
       console.log('✅ [optimizeRemainingStops] Preserving existing order and refreshing ETAs only');
-    } else if (orderedOptimizationStops.length > 0) {
-      // -------------------------------------------------------------------
-      // Step 1: Call getHereDirections to get optimized sequence + polylines
-      // CRITICAL: Origin is always logicalSegmentOrigin (home if not started, last completed stop if in progress).
-      // GPS waypoint inserted only if driver has moved significantly from the origin.
-      // -------------------------------------------------------------------
-      const originForDirections = logicalSegmentOrigin;
+    } else if (stopsToSequence.length > 0) {
+       // -------------------------------------------------------------------
+       // Step 1: Call getHereDirections to get optimized sequence + polylines
+       // CRITICAL: Origin is always the logical segment origin (last finished stop or home).
+       // Driver's GPS is added as a waypoint IF it's significantly different from the origin.
+       // -------------------------------------------------------------------
+       const originForDirections = logicalSegmentOrigin;
 
-      const WAYPOINT_INSERTION_THRESHOLD_KM = 0.25;
-      const shouldInsertGpsWaypoint = driverGpsPosition && logicalSegmentOrigin
-        && calculateCrowFliesDistance(
-            driverGpsPosition.lat, driverGpsPosition.lng,
-            logicalSegmentOrigin.lat, logicalSegmentOrigin.lng
-          ) > WAYPOINT_INSERTION_THRESHOLD_KM;
+       const WAYPOINT_INSERTION_THRESHOLD_KM = 0.25;
+       const shouldInsertGpsWaypoint = driverGpsPosition && logicalSegmentOrigin
+         && calculateCrowFliesDistance(
+             driverGpsPosition.lat, driverGpsPosition.lng,
+             logicalSegmentOrigin.lat, logicalSegmentOrigin.lng
+           ) > WAYPOINT_INSERTION_THRESHOLD_KM;
 
-      const allWaypointsForDirections = [
-        ...(shouldInsertGpsWaypoint ? [{ lat: driverGpsPosition.lat, lng: driverGpsPosition.lng }] : []),
-        ...orderedOptimizationStops.map(s => ({ lat: s.lat, lng: s.lng }))
-      ];
+       const allWaypointsForDirections = [
+         ...(shouldInsertGpsWaypoint ? [{ lat: driverGpsPosition.lat, lng: driverGpsPosition.lng }] : []),
+         ...stopsToSequence.map(s => ({ lat: s.lat, lng: s.lng }))
+       ];
 
-      const allRouteContextForDirections = [
-        ...(shouldInsertGpsWaypoint ? [{ id: 'driver_gps_waypoint', stop_id: null, delivery_id: null, time_window_start: null, time_window_end: null }] : []),
-        ...orderedOptimizationStops.map(s => ({
-          id: s.delivery.stop_id || s.delivery.delivery_id || s.delivery.id,
-          stop_id: s.delivery.stop_id,
-          delivery_id: s.delivery.delivery_id,
-          time_window_start: s.windowStart,
-          time_window_end: s.windowEnd,
-        }))
-      ];
+       const allRouteContextForDirections = [
+         ...(shouldInsertGpsWaypoint ? [{ id: 'driver_gps_waypoint', stop_id: null, delivery_id: null, time_window_start: null, time_window_end: null }] : []),
+         ...stopsToSequence.map(s => ({
+           id: s.delivery.stop_id || s.delivery.delivery_id || s.delivery.id,
+           stop_id: s.delivery.stop_id,
+           delivery_id: s.delivery.delivery_id,
+           time_window_start: s.windowStart,
+           time_window_end: s.windowEnd,
+         }))
+       ];
 
-      const lastWaypoint = allWaypointsForDirections[allWaypointsForDirections.length - 1];
-      const destinationForDirections = resolvedHomePosition || lastWaypoint || originForDirections;
-      console.log(`🏠 [optimizeRemainingStops] Final destination: ${resolvedHomePosition ? 'HOME' : lastWaypoint ? 'LAST_DELIVERY' : 'ORIGIN'}`);
+       const lastWaypoint = allWaypointsForDirections[allWaypointsForDirections.length - 1];
+       const destinationForDirections = resolvedHomePosition || lastWaypoint || originForDirections;
+       console.log(`🏠 [optimizeRemainingStops] Final destination: ${resolvedHomePosition ? 'HOME' : lastWaypoint ? 'LAST_DELIVERY' : 'ORIGIN'}`);
 
       let hereDirectionsResult = null;
       try {
@@ -679,10 +680,10 @@ Deno.serve(async (req) => {
       }
 
       // -------------------------------------------------------------------
-      // Step 2: Build routeStops in HERE's optimized order using waypoint_id matching
-      // CRITICAL: We trust HERE's sequence entirely — no manual re-sorting after this point.
-      // Each stop's polyline is matched by waypoint_id, not by array index, so GPS waypoint
-      // insertion and the final "home" section never cause off-by-one errors.
+      // Step 2: Build routeStops in the optimized order returned by HERE.
+      // CRITICAL: Use waypoint_id-based matching for polylines — NOT positional indexing.
+      // This ensures GPS waypoint insertions and home destination sections never
+      // cause an off-by-one shift in which polyline goes to which stop.
       // -------------------------------------------------------------------
       const optimizedWaypointIds = Array.isArray(hereDirectionsResult?.optimized_waypoint_ids)
         ? hereDirectionsResult.optimized_waypoint_ids
@@ -692,17 +693,20 @@ Deno.serve(async (req) => {
 
       if (optimizedWaypointIds && optimizedWaypointIds.length > 0 && sections.length > 0) {
         const stopLookupById = new Map(
-          orderedOptimizationStops.map(s => [s.delivery.stop_id || s.delivery.delivery_id || s.delivery.id, s])
+          stopsToSequence.map(s => [s.delivery.stop_id || s.delivery.delivery_id || s.delivery.id, s])
         );
 
-        // Build routeStops in HERE's optimized order (skip GPS waypoint placeholder if present)
-        routeStops = optimizedWaypointIds
+        const orderedSequencedStops = optimizedWaypointIds
           .map(waypointId => stopLookupById.get(waypointId) || null)
           .filter(Boolean);
 
-        // CRITICAL: For each stop, find its matching section by waypoint_id.
-        // This is the correct approach — positional index is unreliable due to GPS waypoints
-        // and the final "home" section that HERE appends.
+        // CRITICAL: Trust HERE's sequence completely — no manual re-sorting after this point.
+        // HERE has already considered time windows via acc: constraints.
+        routeStops = orderedSequencedStops;
+
+        // Build directionsLegs and segmentPolylines using waypoint_id matching (not positional index)
+        directionsLegs = [];
+        segmentPolylines = [];
         routeStops.forEach((stop, index) => {
           const stopId = stop.delivery.stop_id || stop.delivery.delivery_id || stop.delivery.id;
           const matchedSection = sections.find(s => s.waypoint_id === stopId) || null;
@@ -719,7 +723,7 @@ Deno.serve(async (req) => {
               estimatedDurationMinutes: matchedSection.estimated_duration_minutes ?? null,
             });
           } else {
-            // Fallback: crow-flies estimate if no matching section
+            // Fallback leg if section not found for this stop
             const prevPos = index === 0 ? originForDirections : { lat: routeStops[index - 1].lat, lng: routeStops[index - 1].lng };
             const distKm = calculateCrowFliesDistance(prevPos.lat, prevPos.lng, stop.lat, stop.lng);
             directionsLegs.push({ duration: Math.ceil((distKm / 40) * 3600 * 1.3), distance: distKm * 1000 });
@@ -739,7 +743,7 @@ Deno.serve(async (req) => {
       } else {
         // Fallback: crow-flies ordering
         console.log('⚠️ [optimizeRemainingStops] HERE sequencing failed or returned no sections - using crow-flies fallback');
-        const allStopsForFallback = [...orderedOptimizationStops];
+        const allStopsForFallback = [...stopsToSequence];
         allStopsForFallback.sort((a, b) => {
           const distA = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, a.lat, a.lng);
           const distB = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, b.lat, b.lng);
@@ -748,11 +752,10 @@ Deno.serve(async (req) => {
           return (distA - homePenaltyA * 0.15) - (distB - homePenaltyB * 0.15);
         });
         routeStops = allStopsForFallback;
-        let prevPos = logicalSegmentOrigin;
+        let prevPos = currentPosition;
         for (const stop of routeStops) {
           const distKm = calculateCrowFliesDistance(prevPos.lat, prevPos.lng, stop.lat, stop.lng);
           directionsLegs.push({ duration: Math.ceil((distKm / 40) * 60 * 60 * 1.3), distance: distKm * 1000 });
-          segmentPolylines.push({ deliveryId: stop.delivery.id, encodedPolyline: null, estimatedDistanceKm: distKm, estimatedDurationMinutes: Math.ceil((distKm / 40) * 60) });
           prevPos = { lat: stop.lat, lng: stop.lng };
         }
       }
@@ -760,12 +763,10 @@ Deno.serve(async (req) => {
 
     // CRITICAL: Co-located stop correction — if HERE placed stops with identical (or nearly identical)
     // coordinates in the wrong order relative to their time windows, fix them now.
-    // This is the primary failure mode for two pickups from the same store with different windows.
+    // This only swaps stops at the EXACT SAME location — it does not re-sort the whole route.
     if (routeStops.length > 1) {
       const COORD_EPSILON = 0.0002; // ~22m — same location
       const corrected = routeStops.slice();
-      const correctedLegs = directionsLegs.slice();
-      const correctedPolylines = segmentPolylines.slice();
       for (let i = 0; i < corrected.length - 1; i++) {
         for (let j = i + 1; j < corrected.length; j++) {
           const si = corrected[i];
@@ -776,22 +777,20 @@ Deno.serve(async (req) => {
           const wjMin = parseTimeToMinutes(sj.windowStart || sj.delivery?.delivery_time_start);
           if (Number.isFinite(wiMin) && Number.isFinite(wjMin) && wjMin < wiMin) {
             [corrected[i], corrected[j]] = [corrected[j], corrected[i]];
-            [correctedLegs[i], correctedLegs[j]] = [correctedLegs[j], correctedLegs[i]];
-            [correctedPolylines[i], correctedPolylines[j]] = [correctedPolylines[j], correctedPolylines[i]];
+            [directionsLegs[i], directionsLegs[j]] = [directionsLegs[j], directionsLegs[i]];
+            [segmentPolylines[i], segmentPolylines[j]] = [segmentPolylines[j], segmentPolylines[i]];
             console.log(`🔀 [optimizeRemainingStops] Swapped co-located stops: ${sj.delivery.patient_name || 'Pickup'} (${formatMinutesToTime(wjMin)}) before ${si.delivery.patient_name || 'Pickup'} (${formatMinutesToTime(wiMin)})`);
           }
         }
       }
       routeStops = corrected;
-      directionsLegs = correctedLegs;
-      segmentPolylines = correctedPolylines;
     }
 
     // CRITICAL: Pending stops were NOT included in HERE optimization, so append them now at the end.
     if (pendingStops.length > 0 && routeStops.length > 0) {
       const lastActiveStop = routeStops[routeStops.length - 1];
       let prevPos = { lat: lastActiveStop.lat, lng: lastActiveStop.lng };
-
+      
       for (const pendingStop of pendingStops) {
         routeStops.push(pendingStop);
         directionsLegs.push({ duration: 0, distance: 0 });
@@ -806,6 +805,10 @@ Deno.serve(async (req) => {
     // -------------------------------------------------------------------
     const stageEtaMap = new Map();
     const segmentPolylineByDeliveryId = new Map(segmentPolylines.map((segment) => [segment.deliveryId, segment]));
+
+    // Determine the isNextDelivery stop — it's the first non-pending stop in routeStops
+    const firstActiveRouteStop = routeStops.find(s => !pendingDeliveryIds.has(s.delivery.id)) || null;
+    const nextStopIdForEta = explicitNextDelivery?.id || firstActiveRouteStop?.delivery?.id || null;
 
     if (historicalRoute && routeStops.length > 0) {
       const firstStop = routeStops[0];
@@ -829,8 +832,9 @@ Deno.serve(async (req) => {
         console.log(`  ✅ [optimizeRemainingStops] ${stop.delivery.patient_name || 'Pickup'} - ETA: ${eta}`);
       }
     } else {
+      // For active routes: first stop ETA = now + travel time; subsequent stops cascade
       let cumulativeTime = etaBaseMinutes;
-
+      
       for (let i = 0; i < routeStops.length; i++) {
         const stop = routeStops[i];
         const segmentPolyline = segmentPolylineByDeliveryId.get(stop.delivery.id) || null;
@@ -866,8 +870,9 @@ Deno.serve(async (req) => {
     console.log('🏠 [optimizeRemainingStops] Final-route distance to home penalty applied:', addRouteToHomePenalty(routeStops, resolvedHomePosition).toFixed(2), 'km');
     const finalDeliveryWriteBatch = [];
     const finalizedById = new Map(activeStops.map((stop) => [stop.id, stop]));
-    // CRITICAL: Preserve explicit isNextDelivery assignment from before optimization
-    const nextStopId = explicitNextDelivery?.id || null;
+
+    // The isNextDelivery stop is the first non-pending stop in the optimized route
+    const nextStopId = explicitNextDelivery?.id || firstActiveRouteStop?.delivery?.id || null;
 
     const resolvePendingTimes = (stop) => {
       if (stop.status !== 'pending') return null;
@@ -922,7 +927,6 @@ Deno.serve(async (req) => {
         travel_dist: Number(directionsLegs[i]?.distance)
           ? Number((Number(directionsLegs[i].distance) / 1000).toFixed(3))
           : null,
-        // Pending stops never get a polyline — clear any stale one
         encoded_polyline: isPendingStop ? null : (segmentPolyline?.encodedPolyline || null),
         ...(typeof segmentPolyline?.estimatedDurationMinutes === 'number' && !isPendingStop ? { estimated_duration_minutes: segmentPolyline.estimatedDurationMinutes } : {}),
         ...(typeof segmentPolyline?.estimatedDistanceKm === 'number' && !isPendingStop ? { estimated_distance_km: segmentPolyline.estimatedDistanceKm } : {}),
@@ -959,7 +963,7 @@ Deno.serve(async (req) => {
         if (stopIndex < 0) return;
 
         const fromPos = stopIndex === 0
-          ? logicalSegmentOrigin
+          ? currentPosition
           : { lat: routeStops[stopIndex - 1].lat, lng: routeStops[stopIndex - 1].lng };
         const toStop = routeStops[stopIndex];
 
