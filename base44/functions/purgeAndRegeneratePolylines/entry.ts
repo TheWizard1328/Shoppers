@@ -841,7 +841,8 @@ Deno.serve(async (req) => {
       deliveryDate,
       orderedDeliveryIds = [],
       completionTime = null,
-      recalculateEtas = false
+      recalculateEtas = false,
+      currentPosition = null  // Driver's current/home location to prepend to first leg
     } = body || {};
 
     if (!driverId || !deliveryDate) {
@@ -996,12 +997,23 @@ Deno.serve(async (req) => {
           const groupedDirections = await getMultiSegmentDirections(base44, group.map((segment) => ({ from: segment.from, to: segment.to })), mode);
           apiCallsMade += 1;
           group.forEach((segment, index) => {
-            const directions = groupedDirections[index] || null;
+            let polyline = (groupedDirections[index] || {})?.encoded_polyline || null;
+            
+            // CRITICAL: Prepend currentPosition to first segment for blue current-leg polyline
+            if (index === 0 && currentPosition && polyline && isValidCoordinatePair(Number(currentPosition.lat), Number(currentPosition.lng))) {
+              const firstSegmentCoords = decodeGooglePolyline(polyline);
+              if (firstSegmentCoords.length > 0) {
+                const prepended = [[Number(currentPosition.lat), Number(currentPosition.lng)], ...firstSegmentCoords];
+                polyline = encodeGooglePolyline(prepended);
+                console.log(`[purgeAndRegeneratePolylines] Prepended currentPosition to first segment: ${segment.delivery.id}`);
+              }
+            }
+            
             deliveryUpdatesById.set(segment.delivery.id, {
-              encoded_polyline: directions?.encoded_polyline || null,
+              encoded_polyline: polyline,
               transport_mode: segment.transportMode,
-              estimated_distance_km: directions?.estimated_distance_km ?? null,
-              estimated_duration_minutes: directions?.estimated_duration_minutes ?? null
+              estimated_distance_km: (groupedDirections[index] || {})?.estimated_distance_km ?? null,
+              estimated_duration_minutes: (groupedDirections[index] || {})?.estimated_duration_minutes ?? null
             });
           });
         }

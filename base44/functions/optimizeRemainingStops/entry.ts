@@ -1092,13 +1092,15 @@ Deno.serve(async (req) => {
     });
 
     // Delegate polyline and ETA recalculation to purgeAndRegeneratePolylines
+    // Pass currentPosition to prepend to first leg polyline for blue current leg
     const orderedDeliveryIds = finalDeliveryWriteBatch.map(item => item.id);
     const polylineResult = await base44.asServiceRole.functions.invoke('purgeAndRegeneratePolylines', {
       driverId,
       deliveryDate,
       orderedDeliveryIds,
       completionTime: resolvedDepartureTime,
-      recalculateEtas: false  // ETAs already calculated above
+      recalculateEtas: false,  // ETAs already calculated above
+      currentPosition: currentPosition  // Prepend driver's current/home location to first leg
     });
 
     console.log(`\n✅ [optimizeRemainingStops] Route optimization complete - ${activeStops.length} stops optimized, ${attemptedHereCalls} sequence API calls, ${polylineResult?.apiCallsMade || 0} polyline API calls`);
