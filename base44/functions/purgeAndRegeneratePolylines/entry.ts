@@ -960,9 +960,9 @@ Deno.serve(async (req) => {
 
       for (let index = 0; index < orderedDeliveries.length; index += 1) {
         const delivery = orderedDeliveries[index];
-        const from = index === 0
-          ? routeOrigin
-          : getLatLon(orderedDeliveries[index - 1]);
+        const from = index === 0 && currentPosition && isValidCoordinatePair(Number(currentPosition.lat), Number(currentPosition.lon))
+          ? currentPosition
+          : (index === 0 ? routeOrigin : getLatLon(orderedDeliveries[index - 1]));
         const to = getLatLon(delivery);
 
         if (!from || !to) continue;
@@ -999,15 +999,7 @@ Deno.serve(async (req) => {
           group.forEach((segment, index) => {
             let polyline = (groupedDirections[index] || {})?.encoded_polyline || null;
             
-            // CRITICAL: Prepend currentPosition to first segment for blue current-leg polyline
-            if (index === 0 && currentPosition && polyline && isValidCoordinatePair(Number(currentPosition.lat), Number(currentPosition.lng))) {
-              const firstSegmentCoords = decodeGooglePolyline(polyline);
-              if (firstSegmentCoords.length > 0) {
-                const prepended = [[Number(currentPosition.lat), Number(currentPosition.lng)], ...firstSegmentCoords];
-                polyline = encodeGooglePolyline(prepended);
-                console.log(`[purgeAndRegeneratePolylines] Prepended currentPosition to first segment: ${segment.delivery.id}`);
-              }
-            }
+
             
             deliveryUpdatesById.set(segment.delivery.id, {
               encoded_polyline: polyline,
