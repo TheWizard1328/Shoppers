@@ -1077,6 +1077,7 @@ Deno.serve(async (req) => {
       }));
     }
 
+    // Persist the optimized route to database
     await Promise.all(
       finalDeliveryWriteBatch.map(({ id, data }) =>
         base44.asServiceRole.entities.Delivery.update(id, data).catch((error) => {
@@ -1090,9 +1091,17 @@ Deno.serve(async (req) => {
       console.log(`  🔢 [optimizeRemainingStops] Stop #${data.stop_order}: ${label} | ETA: ${data.delivery_time_eta || 'none'}${data.encoded_polyline ? ' [polyline saved]' : ' [no polyline]'}${data.delivery_time_start ? ` (start: ${data.delivery_time_start})` : ''}`);
     });
 
-    const shouldRefreshPolylines = activeStops.length > 0;
+    // Delegate polyline and ETA recalculation to purgeAndRegeneratePolylines
+    const orderedDeliveryIds = finalDeliveryWriteBatch.map(item => item.id);
+    const polylineResult = await base44.asServiceRole.functions.invoke('purgeAndRegeneratePolylines', {
+      driverId,
+      deliveryDate,
+      orderedDeliveryIds,
+      completionTime: resolvedDepartureTime,
+      recalculateEtas: false  // ETAs already calculated above
+    });
 
-    console.log(`\n✅ [optimizeRemainingStops] Route optimization complete - ${activeStops.length} stops updated, ${attemptedHereCalls} API calls`);
+    console.log(`\n✅ [optimizeRemainingStops] Route optimization complete - ${activeStops.length} stops optimized, ${attemptedHereCalls} sequence API calls, ${polylineResult?.apiCallsMade || 0} polyline API calls`);
 
     return Response.json({
       success: true,

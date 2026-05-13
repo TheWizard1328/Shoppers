@@ -839,39 +839,17 @@ Deno.serve(async (req) => {
     const {
       driverId,
       deliveryDate,
-      scope = 'active_only',
-      reason = 'manual',
-      routeSource = 'polylines',
-      bypassDriverStatus = false,
-      bypassPolylineUpdated = false,
-      routeStopOrder = [],
-      orderedStopsWithTransportMode = [],
-      explicitOrderedStopsOnly = false,
-      explicitRouteOrigin = null,
-      explicitRouteDestination = null,
-      resolvedOriginCoords = null,
-      bypassPolylineDelete = false,
-      reuseProvidedPolylines = false,
-      sourcePage = null,
-      recalculateEtas = false,
-      completionTime = null
+      orderedDeliveryIds = [],
+      completionTime = null,
+      recalculateEtas = false
     } = body || {};
 
     if (!driverId || !deliveryDate) {
       return Response.json({ error: 'driverId and deliveryDate are required' }, { status: 400 });
     }
 
-    if (sourcePage && sourcePage !== 'Dashboard') {
-      return Response.json({
-        success: true,
-        skipped: true,
-        reason: 'non_dashboard_page',
-        scope,
-        deleted: 0,
-        created: 0,
-        apiCallsMade: 0,
-        repairedStopOrders: 0
-      });
+    if (!Array.isArray(orderedDeliveryIds) || orderedDeliveryIds.length === 0) {
+      return Response.json({ error: 'orderedDeliveryIds array is required and must not be empty' }, { status: 400 });
     }
 
     let deliveries = await base44.asServiceRole.entities.Delivery.filter({
@@ -879,78 +857,28 @@ Deno.serve(async (req) => {
       delivery_date: deliveryDate
     }, 'stop_order', 50000);
 
+    if (!Array.isArray(deliveries) || deliveries.length === 0) {
+      return Response.json({ error: 'No deliveries found for this driver and date' }, { status: 404 });
+    }
+
     const appUsersForDriverName = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId }, '-updated_date', 1);
     const driverNameAppUser = Array.isArray(appUsersForDriverName) ? appUsersForDriverName[0] : null;
     const driverDisplayName = driverNameAppUser?.user_name || driverNameAppUser?.full_name || driverId;
 
-    const stopOrderRepairUpdates = buildStopOrderRepairUpdates(deliveries);
-    if (stopOrderRepairUpdates.length > 0) {
-      const stopOrderUpdateMap = new Map(stopOrderRepairUpdates.map((update) => [update.id, { stop_order: update.stop_order }]));
-      console.log(`# [purgeAndRegeneratePolylines] REPAIR stop_order BEFORE route build | driver=${driverDisplayName} | date=${deliveryDate} | repairs=${stopOrderRepairUpdates.length}`);
-      deliveries = await bulkUpdateDeliveries(base44, deliveries, stopOrderUpdateMap);
-      deliveries = await base44.asServiceRole.entities.Delivery.filter({
-        driver_id: driverId,
-        delivery_date: deliveryDate
-      }, 'stop_order', 50000);
+    // Filter deliveries to only those in orderedDeliveryIds
+    const deliveryById = new Map(deliveries.map(d => [d.id, d]));
+    const orderedDeliveries = orderedDeliveryIds
+      .map(id => deliveryById.get(id))
+      .filter(Boolean);
+
+    if (orderedDeliveries.length === 0) {
+      return Response.json({ error: 'None of the provided delivery IDs match this driver/date' }, { status: 400 });
     }
 
-    let existingPolylines = [];
+    console.log(`# [purgeAndRegeneratePolylines] START | driver=${driverDisplayName} | date=${deliveryDate} | orderedDeliveries=${orderedDeliveries.length} | totalStops=${deliveries.length}`);
 
-    const structuralReason = ['stops_added', 'stops_deleted', 'route_reordered', 'manual', 'manual_breadcrumbs'];
-    if (!structuralReason.includes(reason)) {
-      return Response.json({
-        success: true,
-        skipped: true,
-        reason: 'non_structural_request',
-        scope,
-        deleted: 0,
-        created: 0,
-        apiCallsMade: 0,
-        repairedStopOrders: stopOrderRepairUpdates.length
-      });
-    }
-
-    console.log('existingPolylines:', existingPolylines);
-    console.log('Type of existingPolylines:', typeof existingPolylines, Array.isArray(existingPolylines));
-
-    const previousGenerationCount = Array.isArray(existingPolylines) && existingPolylines.length
-      ? Math.max(...existingPolylines.map((row) => Number(row?.daily_generation_count || 0)))
-      : 0;
-
-    if (!Array.isArray(deliveries) || deliveries.length === 0) {
-      if (scope !== 'completed_only') {
-        await processInChunks(deliveries, 20, (delivery) =>
-          base44.asServiceRole.entities.Delivery.update(delivery.id, {
-            encoded_polyline: null,
-            transport_mode: null,
-            segment_origin_lat: null,
-            segment_origin_lon: null,
-            segment_dest_lat: null,
-            segment_dest_lon: null,
-            estimated_distance_km: null,
-            estimated_duration_minutes: null
-          }).catch((error) => {
-            if (isNotFoundError(error)) return null;
-            throw error;
-          })
-        );
-      }
-
-      return Response.json({
-        success: true,
-        scope,
-        deleted: existingPolylines?.length || 0,
-        created: 0,
-        apiCallsMade: 0,
-        segments: [],
-        clearedFinishedLegs: 0,
-        regeneratedFinishedLegs: 0,
-        repairedStopOrders: 0
-      });
-    }
-
-    const patientIds = [...new Set(deliveries.filter((d) => d?.patient_id).map((d) => d.patient_id))];
-    const storeIds = [...new Set(deliveries.filter((d) => d?.store_id).map((d) => d.store_id))];
+    const patientIds = [...new Set(orderedDeliveries.filter((d) => d?.patient_id).map((d) => d.patient_id))];
+    const storeIds = [...new Set(orderedDeliveries.filter((d) => d?.store_id).map((d) => d.store_id))];
 
     const [patients, stores, appUsers] = await Promise.all([
       patientIds.length ? base44.asServiceRole.entities.Patient.filter({ id: { $in: patientIds } }, undefined, 50000) : [],
@@ -1018,173 +946,79 @@ Deno.serve(async (req) => {
       return null;
     };
 
-    const explicitStopOrderIds = Array.isArray(routeStopOrder) ? routeStopOrder.filter(Boolean) : [];
-    const explicitStopMetaById = new Map(
-      (Array.isArray(orderedStopsWithTransportMode) ? orderedStopsWithTransportMode : [])
-        .filter((item) => item?.deliveryId)
-        .map((item) => [item.deliveryId, item])
-    );
-    const reusablePolylineMetaById = reuseProvidedPolylines ? explicitStopMetaById : new Map();
-    const deliveryById = new Map((deliveries || []).filter((delivery) => delivery?.id).map((delivery) => [delivery.id, delivery]));
-    const orderedDeliveries = (explicitStopOrderIds.length > 0
-      ? explicitStopOrderIds.map((id) => deliveryById.get(id) || null).filter(Boolean)
-      : [...deliveries].sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0))
-    );
 
-    const finishedStops = orderedDeliveries.filter((delivery) => FINISHED_STATUSES.has(delivery.status));
-    const latestFinishedStop = finishedStops[finishedStops.length - 1] || null;
-    // CRITICAL: Pending stops must be completely excluded from polyline generation.
-    // They are not active, not finished, and must not be used as origins for subsequent stops.
-    const pendingStops = orderedDeliveries.filter((delivery) => delivery.status === 'pending');
-    const activeStops = orderedDeliveries.filter((delivery) => ACTIVE_STATUSES.has(delivery.status));
 
     let apiCallsMade = 0;
-    let deletedPolylineCount = 0;
-    let clearedFinishedLegs = 0;
-    const regeneratedFinishedLegStopIds = [];
     const deliveryUpdatesById = new Map();
-
-    const sortedForTravelDistance = [...deliveries].sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
-
-    if (scope === 'all' || scope === 'completed_only') {
-      clearedFinishedLegs = 0;
-    }
 
     const createdSegments = [];
 
-    if (scope === 'completed_only' || scope === 'all') {
-      const homeLat = Number(driverAppUser?.home_latitude);
-      const homeLon = Number(driverAppUser?.home_longitude);
-      const hasHomeCoords = isValidCoordinatePair(homeLat, homeLon);
-      const finishedSegmentSpecs = [];
-      if (hasHomeCoords && finishedStops.length > 0) {
-        const orderedStops = finishedStops
-          .map((stop) => ({ stop, coords: getLatLon(stop) }))
-          .filter((entry) => entry.coords);
+    if (orderedDeliveries.length > 0) {
+      // Build segment specs for the ordered deliveries
+      const segmentSpecs = [];
 
-        const routePoints = [
-          { lat: homeLat, lon: homeLon },
-          ...orderedStops.map((entry) => entry.coords),
-          { lat: homeLat, lon: homeLon }
-        ];
+      for (let index = 0; index < orderedDeliveries.length; index += 1) {
+        const delivery = orderedDeliveries[index];
+        const from = index === 0
+          ? (driverAppUser.current_latitude != null && driverAppUser.current_longitude != null
+            ? { lat: Number(driverAppUser.current_latitude), lon: Number(driverAppUser.current_longitude) }
+            : (driverAppUser.home_latitude != null && driverAppUser.home_longitude != null
+              ? { lat: Number(driverAppUser.home_latitude), lon: Number(driverAppUser.home_longitude) }
+              : null))
+          : getLatLon(orderedDeliveries[index - 1]);
+        const to = getLatLon(delivery);
 
-        for (let index = 0; index < orderedStops.length; index += 1) {
-          const stop = orderedStops[index].stop;
-          const actualStopCoords = orderedStops[index].coords;
-          const from = routePoints[index];
-          const to = routePoints[index + 1];
-          if (!from || !to || !actualStopCoords) continue;
-          const existingBreadcrumbs = stop?.delivery_route_breadcrumbs || null;
-          const fallbackBreadcrumbs = existingBreadcrumbs || buildFallbackBreadcrumbs(
-            from,
-            to,
-            new Date(stop?.actual_delivery_time || stop?.arrival_time || stop?.updated_date || stop?.created_date || Date.now()).getTime()
-          );
-          const explicitMeta = explicitStopMetaById.get(stop?.id) || null;
-          const normalizedTransportMode = resolveStopTravelMode(stop, explicitMeta, driverAppUser, 'finished_leg_transport_mode');
-          finishedSegmentSpecs.push({
-            stop,
-            from,
-            to,
-            actualFrom: from,
-            actualTo: actualStopCoords,
-            transportMode: normalizedTransportMode,
-            breadcrumbDirections: parseBreadcrumbPolyline(existingBreadcrumbs),
-            fallbackBreadcrumbs,
-            usedFallbackBreadcrumbs: !existingBreadcrumbs && !!fallbackBreadcrumbs
+        if (!from || !to) continue;
+
+        segmentSpecs.push({
+          delivery,
+          from,
+          to,
+          transportMode: getNormalizedTravelMode(delivery?.transport_mode || driverAppUser?.preferred_travel_mode, 'driving')
+        });
+      }
+
+      const finishedSegmentSpecs = segmentSpecs;
+
+      // Single call to get polylines for all segments in ordered sequence
+      if (finishedSegmentSpecs.length > 0) {
+        const groupedByMode = [];
+        let currentGroup = [finishedSegmentSpecs[0]];
+        for (let index = 1; index < finishedSegmentSpecs.length; index += 1) {
+          const prev = finishedSegmentSpecs[index - 1];
+          const curr = finishedSegmentSpecs[index];
+          if (getNormalizedTravelMode(prev.transportMode) === getNormalizedTravelMode(curr.transportMode)) currentGroup.push(curr);
+          else {
+            groupedByMode.push(currentGroup);
+            currentGroup = [curr];
+          }
+        }
+        if (currentGroup.length > 0) groupedByMode.push(currentGroup);
+
+        for (const group of groupedByMode) {
+          const mode = getNormalizedTravelMode(group[0]?.transportMode, 'driving');
+          const groupedDirections = await getMultiSegmentDirections(base44, group.map((segment) => ({ from: segment.from, to: segment.to })), mode);
+          apiCallsMade += 1;
+          group.forEach((segment, index) => {
+            const directions = groupedDirections[index] || null;
+            deliveryUpdatesById.set(segment.delivery.id, {
+              encoded_polyline: directions?.encoded_polyline || null,
+              transport_mode: segment.transportMode,
+              estimated_distance_km: directions?.estimated_distance_km ?? null,
+              estimated_duration_minutes: directions?.estimated_duration_minutes ?? null
+            });
           });
         }
+        console.log(`[purgeAndRegeneratePolylines] Generated polylines for ${finishedSegmentSpecs.length} segments using ${groupedByMode.length} HERE call(s)`);
       }
-
-      // Pre-fetch all PendingBreadcrumbLive rows for this driver/date (one query, reused per stop)
-      const allPendingRows = await base44.asServiceRole.entities.PendingBreadcrumbLive.filter(
-        { driver_id: driverId, delivery_date: deliveryDate },
-        '-updated_date',
-        50000
-      );
-      const pendingBreadcrumbsByStopOrder = new Map();
-      for (const row of (allPendingRows || [])) {
-        const so = Number(row.stop_order);
-        if (!Number.isFinite(so)) continue;
-        if (!pendingBreadcrumbsByStopOrder.has(so)) pendingBreadcrumbsByStopOrder.set(so, []);
-        pendingBreadcrumbsByStopOrder.get(so).push(row);
-      }
-
-      const finishedDirectionsByStopId = new Map();
-      const breadcrumbResolvedStopIds = new Set();
-
-      // Try breadcrumb resolution first for each finished stop
-      for (const segment of finishedSegmentSpecs) {
-        const originCoords = segment.from ? { lat: segment.from.lat, lon: segment.from.lon } : null;
-        const destCoords = segment.actualTo ? { lat: segment.actualTo.lat, lon: segment.actualTo.lon } : null;
-        const resolved = await tryResolveLegFromBreadcrumbs(base44, segment.stop, originCoords, destCoords, pendingBreadcrumbsByStopOrder);
-        if (resolved) {
-          finishedDirectionsByStopId.set(segment.stop.id, resolved);
-          breadcrumbResolvedStopIds.add(segment.stop.id);
-        }
-      }
-
-      // Only call HERE API for legs NOT resolved from breadcrumbs
-      if (routeSource === 'polylines' && finishedSegmentSpecs.length > 0) {
-        const needsApiSegments = finishedSegmentSpecs.filter(s => !breadcrumbResolvedStopIds.has(s.stop.id));
-        if (needsApiSegments.length > 0) {
-          const groupedByMode = [];
-          let currentGroup = [needsApiSegments[0]];
-          for (let index = 1; index < needsApiSegments.length; index += 1) {
-            const prev = needsApiSegments[index - 1];
-            const curr = needsApiSegments[index];
-            if (getNormalizedTravelMode(prev.transportMode) === getNormalizedTravelMode(curr.transportMode)) currentGroup.push(curr);
-            else {
-              groupedByMode.push(currentGroup);
-              currentGroup = [curr];
-            }
-          }
-          if (currentGroup.length > 0) groupedByMode.push(currentGroup);
-
-          for (const group of groupedByMode) {
-            const mode = getNormalizedTravelMode(group[0]?.transportMode, 'driving');
-            const groupedFinishedRoute = await getMultiSegmentDirections(base44, group.map((segment) => ({ from: segment.from, to: segment.to })), mode);
-            apiCallsMade += 1;
-            group.forEach((segment, index) => {
-              finishedDirectionsByStopId.set(segment.stop.id, groupedFinishedRoute[index] || null);
-            });
-          }
-        }
-        console.log(`[purgeAndRegeneratePolylines] finished legs: ${finishedSegmentSpecs.length} total | ${breadcrumbResolvedStopIds.size} from breadcrumbs | ${finishedSegmentSpecs.length - breadcrumbResolvedStopIds.size} via HERE API`);
-      }
-
-      finishedSegmentSpecs.forEach((segment) => {
-        const directions = routeSource === 'polylines'
-          ? finishedDirectionsByStopId.get(segment.stop.id) || null
-          : segment.breadcrumbDirections || null;
-        const mergedFinishedPolyline = directions?.encoded_polyline || null;
-        regeneratedFinishedLegStopIds.push(segment.stop.id);
-        deliveryUpdatesById.set(segment.stop.id, {
-          ...(deliveryUpdatesById.get(segment.stop.id) || {}),
-          ...buildSegmentDeliveryUpdate({ from: segment.from, to: segment.to }, directions, segment.transportMode),
-          delivery_route_breadcrumbs: parseBreadcrumbsToArray(segment.usedFallbackBreadcrumbs ? segment.fallbackBreadcrumbs : (deliveryUpdatesById.get(segment.stop.id)?.delivery_route_breadcrumbs || segment.stop?.delivery_route_breadcrumbs)),
-          finished_leg_encoded_polyline: mergedFinishedPolyline,
-          finished_leg_transport_mode: mergedFinishedPolyline ? segment.transportMode : null,
-          travel_dist: directions?.estimated_distance_km ?? null,
-          PolylineUpdated: bypassPolylineUpdated ? false : true
-        });
-      });
-
-      clearedFinishedLegs = finishedStops.length;
     }
 
     if (deliveryUpdatesById.size > 0) {
-      console.log(`# [purgeAndRegeneratePolylines] BEFORE finishedLeg bulkUpdateDeliveries | driver=${driverDisplayName} | date=${deliveryDate} | totalStops=${deliveries?.length || 0} | updateCount=${deliveryUpdatesById.size}`);
+      console.log(`# [purgeAndRegeneratePolylines] Updating deliveries with polylines | driver=${driverDisplayName} | date=${deliveryDate} | count=${deliveryUpdatesById.size}`);
       deliveries = await bulkUpdateDeliveries(base44, deliveries, deliveryUpdatesById);
-      const afterFinishedLegDeliveries = await base44.asServiceRole.entities.Delivery.filter({
-        driver_id: driverId,
-        delivery_date: deliveryDate
-      }, 'stop_order', 50000);
-      console.log(`# [purgeAndRegeneratePolylines] AFTER finishedLeg bulkUpdateDeliveries | driver=${driverDisplayName} | date=${deliveryDate} | totalStops=${afterFinishedLegDeliveries?.length || 0} | updateCount=${deliveryUpdatesById.size}`);
-      deliveries = afterFinishedLegDeliveries;
     }
 
-    if ((scope === 'all' || scope === 'active_only') && routeSource === 'polylines') {
+    if (false) {
       const firstActive = getLatLon(activeStops.find((stop) => stop.isNextDelivery === true) || activeStops[0]);
       const preservedType1Row = scope === 'active_only' && firstActive && !explicitOrderedStopsOnly
         ? (existingPolylines || []).find((row) => samePoint({ lat: row?.segment_dest_lat, lon: row?.segment_dest_lon }, firstActive)) || null
@@ -1554,33 +1388,9 @@ Deno.serve(async (req) => {
       }
     }
 
-    let pendingBreadcrumbLiveMerge = { mergedCount: 0, sourceRows: 0, updatedDeliveryIds: [] };
-    if (routeSource === 'breadcrumbs') {
-      pendingBreadcrumbLiveMerge = await reintegratePendingBreadcrumbLive(base44, driverId, deliveryDate, deliveries);
-      if (pendingBreadcrumbLiveMerge.updatedDeliveryIds.length > 0) {
-        deliveries = await base44.asServiceRole.entities.Delivery.filter({
-          driver_id: driverId,
-          delivery_date: deliveryDate
-        }, 'stop_order', 50000);
-      }
-    }
+    let finalDeliveries = deliveries;
 
-    let finalDeliveries = await base44.asServiceRole.entities.Delivery.filter({
-      driver_id: driverId,
-      delivery_date: deliveryDate
-    }, 'stop_order', 50000);
-
-    if (!bypassPolylineUpdated) {
-      console.log(`# [purgeAndRegeneratePolylines] BEFORE markDeliveriesPolylineUpdated | driver=${driverDisplayName} | date=${deliveryDate} | totalStops=${deliveries?.length || 0}`);
-      await markDeliveriesPolylineUpdated(base44, finalDeliveries, true);
-      finalDeliveries = await base44.asServiceRole.entities.Delivery.filter({
-        driver_id: driverId,
-        delivery_date: deliveryDate
-      }, 'stop_order', 50000);
-      console.log(`# [purgeAndRegeneratePolylines] AFTER markDeliveriesPolylineUpdated | driver=${driverDisplayName} | date=${deliveryDate} | totalStops=${finalDeliveries?.length || 0}`);
-    }
-
-    // Consolidate ETA recalculation if requested
+    // Recalculate ETAs if requested
     let etasRecalculated = false;
     if (recalculateEtas && completionTime) {
       const completionTimeMs = (() => {
@@ -1590,71 +1400,45 @@ Deno.serve(async (req) => {
         return h * 60 + m;
       })();
 
-      const incompleteDeliveries = (finalDeliveries || [])
-        .filter((d) => !FINISHED_STATUSES.has(d?.status))
-        .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
+      let cumulativeMinutes = completionTimeMs;
+      const etaUpdates = new Map();
 
-      if (incompleteDeliveries.length > 0) {
-        let cumulativeMinutes = completionTimeMs;
-        const etaUpdates = new Map();
+      orderedDeliveries.forEach((delivery) => {
+        const travelDuration = Number(delivery?.estimated_duration_minutes) || 0;
+        const serviceTime = Number(delivery?.extra_time) || 5;
+        cumulativeMinutes += travelDuration + serviceTime;
 
-        incompleteDeliveries.forEach((delivery) => {
-          const travelDuration = Number(delivery?.estimated_duration_minutes) || 0;
-          const serviceTime = Number(delivery?.extra_time) || 5;
-          cumulativeMinutes += travelDuration + serviceTime;
+        const hours = Math.floor(cumulativeMinutes / 60) % 24;
+        const minutes = cumulativeMinutes % 60;
+        const etaStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 
-          const hours = Math.floor(cumulativeMinutes / 60) % 24;
-          const minutes = cumulativeMinutes % 60;
-          const etaStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+        etaUpdates.set(delivery.id, { delivery_time_eta: etaStr });
+      });
 
-          etaUpdates.set(delivery.id, { delivery_time_eta: etaStr });
-        });
-
-        if (etaUpdates.size > 0) {
-          console.log(`# [purgeAndRegeneratePolylines] RECALCULATING ETAs | driver=${driverDisplayName} | date=${deliveryDate} | startTime=${completionTime} | deliveriesToUpdate=${etaUpdates.size}`);
-          await processInChunks(
-            Array.from(etaUpdates.entries()),
-            20,
-            async ([deliveryId, update]) => {
-              return await base44.asServiceRole.entities.Delivery.update(deliveryId, update).catch((error) => {
-                if (isNotFoundError(error)) return null;
-                throw error;
-              });
-            }
-          );
-          etasRecalculated = true;
-          finalDeliveries = await base44.asServiceRole.entities.Delivery.filter({
-            driver_id: driverId,
-            delivery_date: deliveryDate
-          }, 'stop_order', 50000);
-        }
+      if (etaUpdates.size > 0) {
+        console.log(`# [purgeAndRegeneratePolylines] Recalculating ETAs | driver=${driverDisplayName} | date=${deliveryDate} | startTime=${completionTime} | deliveriesToUpdate=${etaUpdates.size}`);
+        await processInChunks(
+          Array.from(etaUpdates.entries()),
+          20,
+          async ([deliveryId, update]) => {
+            return await base44.asServiceRole.entities.Delivery.update(deliveryId, update).catch((error) => {
+              if (isNotFoundError(error)) return null;
+              throw error;
+            });
+          }
+        );
+        etasRecalculated = true;
       }
     }
 
-    const trackingRecalcData = null;
-
-    const consolidatedLegs = [];
-    const completedLikeStops = (finalDeliveries || [])
-      .filter((delivery) => FINISHED_STATUSES.has(String(delivery?.status || '')))
-      .sort((a, b) => Number(a?.stop_order || 0) - Number(b?.stop_order || 0));
-
     return Response.json({
       success: true,
-      scope,
-      deleted: deletedPolylineCount,
-      created: createdSegments.length,
+      driverId,
+      deliveryDate,
+      orderedDeliveryIds: orderedDeliveryIds.length,
       apiCallsMade,
-      segments: createdSegments,
-      clearedFinishedLegs,
-      regeneratedFinishedLegs: regeneratedFinishedLegStopIds.length,
-      regeneratedFinishedLegStopIds,
-      repairedStopOrders: stopOrderRepairUpdates.length,
-      recalculatedTravelDistances: sortedForTravelDistance.length,
       etasRecalculated,
-      originStrategy: latestFinishedStop ? 'last_finished_stop' : 'home_through_remaining_route',
-      consolidatedLegs,
-      pendingBreadcrumbLiveMerge,
-      trackingNumbersUpdated: Number(trackingRecalcData?.updated || 0)
+      polylineCount: deliveryUpdatesById.size
     });
   } catch (error) {
     console.error('[purgeAndRegeneratePolylines] Error:', error?.message || error);
