@@ -412,7 +412,7 @@ export default function StatsPanel({
                               if (loadedBreadcrumbs.historical.length === 0 && loadedBreadcrumbs.current.length === 0) {
                                 setShowBreadcrumbs(false);
                                 setBreadcrumbsData({ historical: [], current: [] });
-                                setShowRoutes(false);
+                                setShowRoutes(true);
                                 return;
                               }
                               setBreadcrumbsData(loadedBreadcrumbs);
@@ -420,8 +420,9 @@ export default function StatsPanel({
                             } catch (e) {
                               setShowBreadcrumbs(false);
                               setBreadcrumbsData({ historical: [], current: [] });
+                              setShowRoutes(true);
                             }
-                          } else {
+                          } else if (showBreadcrumbs) {
                             // Breadcrumbs → Off
                             setShowBreadcrumbs(false);
                             setBreadcrumbsData({ historical: [], current: [] });
