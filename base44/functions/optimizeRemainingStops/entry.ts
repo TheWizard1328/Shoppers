@@ -640,31 +640,18 @@ Deno.serve(async (req) => {
     } else if (stopsToSequence.length > 0) {
        // -------------------------------------------------------------------
        // Step 1: Build HERE Sequence API inputs
-       //
-       // Origin hierarchy (first point in the route):
-       //   1. Driver's home (if route not started)
-       //   2. Last completed stop location (if route in progress)
-       //   3. Driver's current GPS (if significantly far from #1/#2)
-       //
-       // Waypoint order sent to HERE:
-       //   [lockedNextStop (if any), ...remainingStopsForHere]
-       // HERE is ONLY allowed to reorder remainingStopsForHere (index 1..N).
-       // The locked isNextDelivery stop is always first — guaranteed by being the
-       // first waypoint after origin, which HERE's Sequence visits in order from start.
-       //
-       // Destination: always driver's home (locked).
+       // Origin = logicalSegmentOrigin (home → last finished → driver GPS)
+       // Waypoints = all active stops (HERE optimizes freely)
+       // Destination = driver's home (locked)
+       // Step 5 (post-HERE): re-enforce isNextDelivery at position 0, sort rest by time window
        // -------------------------------------------------------------------
        const originForDirections = logicalSegmentOrigin;
 
-       // All delivery stops as HERE waypoints — lockedNextStop first, then HERE-optimizable rest
        const allWaypointsForDirections = stopsToSequence.map(s => ({ lat: s.lat, lng: s.lng }));
-
        const allRouteContextForDirections = stopsToSequence.map(s => ({
          id: s.delivery.stop_id || s.delivery.delivery_id || s.delivery.id,
          stop_id: s.delivery.stop_id,
          delivery_id: s.delivery.delivery_id,
-         // Only pass time windows for stops that HERE is allowed to reorder (not the locked first stop)
-         // For the locked stop, pass its window so ETAs are correct but don't constrain ordering
          time_window_start: s.windowStart,
          time_window_end: s.windowEnd,
        }));
@@ -679,40 +666,21 @@ Deno.serve(async (req) => {
 
       let hereDirectionsResult = null;
       try {
-        // CRITICAL SEQUENCING STRATEGY:
-        // - If there's a locked isNextDelivery stop AND more stops after it:
-        //   Use the locked stop's location as the HERE origin so it is GUARANTEED to be
-        //   visited first. HERE then freely optimizes the remaining stops (stopsForHere).
-        //   The leg from logicalSegmentOrigin→lockedStop gets a separate point-to-point call.
-        // - If only one stop, or no locked stop: use logicalSegmentOrigin as origin normally.
-        const hereOrigin = (lockedNextStop && stopsForHere.length > 0)
-          ? { lat: lockedNextStop.lat, lng: lockedNextStop.lng }
-          : originForDirections;
-        const hereWaypoints = (lockedNextStop && stopsForHere.length > 0)
-          ? stopsForHere.map(s => ({ lat: s.lat, lng: s.lng }))
-          : allWaypointsForDirections;
-        const hereRouteContext = (lockedNextStop && stopsForHere.length > 0)
-          ? stopsForHere.map(s => ({
-              id: s.delivery.stop_id || s.delivery.delivery_id || s.delivery.id,
-              stop_id: s.delivery.stop_id,
-              delivery_id: s.delivery.delivery_id,
-              time_window_start: s.windowStart,
-              time_window_end: s.windowEnd,
-            }))
-          : allRouteContextForDirections;
-
-        const hereResp = await base44.asServiceRole.functions.invoke('getHereDirections', {
-          origin: hereOrigin,
-          destination: destinationForDirections,
-          waypoints: hereWaypoints,
-          routeContext: hereRouteContext,
-          transportMode: routingTravelMode,
-          deliveryDate,
-          departureTime: resolvedDepartureTime,
-          caller: 'optimizeRemainingStops',
-          preserveWaypointOrder: false,
-          skipSequenceApi: false,
-        });
+       // Send ALL stops to HERE with origin=logicalSegmentOrigin, destination=home.
+       // HERE freely optimizes the waypoint order. After HERE returns we re-enforce the
+       // locked isNextDelivery stop at position 0 and sort the rest by time window (step 5).
+       const hereResp = await base44.asServiceRole.functions.invoke('getHereDirections', {
+         origin: originForDirections,
+         destination: destinationForDirections,
+         waypoints: allWaypointsForDirections,
+         routeContext: allRouteContextForDirections,
+         transportMode: routingTravelMode,
+         deliveryDate,
+         departureTime: resolvedDepartureTime,
+         caller: 'optimizeRemainingStops',
+         preserveWaypointOrder: false,
+         skipSequenceApi: false,
+       });
 
         hereDirectionsResult = hereResp?.data || hereResp || null;
         const apiCallCount = Number(hereDirectionsResult?.api_call_count || 1);
@@ -746,117 +714,57 @@ Deno.serve(async (req) => {
       );
 
       if (optimizedWaypointIds && optimizedWaypointIds.length > 0 && sections.length > 0) {
-        // HERE returned an optimized sequence for the stops it was given (stopsForHere or all stopsToSequence)
+        // HERE returned an optimized sequence. Build routeStops from HERE's order.
         const hereOrderedStops = optimizedWaypointIds
           .map(waypointId => stopLookupById.get(waypointId) || null)
           .filter(Boolean);
 
-        // CRITICAL: If we used lockedNextStop as HERE's origin, prepend it back now.
-        // Final order: [lockedNextStop, ...HERE-optimized rest]
-        if (lockedNextStop && stopsForHere.length > 0) {
-          routeStops = [lockedNextStop, ...hereOrderedStops];
+        // STEP 5: Re-enforce isNextDelivery at position 0, then sort rest by time window.
+        // HERE may have placed the locked stop anywhere — move it to front, then sort the rest.
+        if (lockedNextStop) {
+          const withoutLocked = hereOrderedStops.filter(s => s.delivery.id !== lockedNextStop.delivery.id);
+          const sortedRest = sortStopsByWindow(withoutLocked);
+          routeStops = [lockedNextStop, ...sortedRest];
         } else {
-          routeStops = hereOrderedStops;
+          // No locked stop — use HERE's order but sort by time window as a post-pass
+          routeStops = sortStopsByWindow(hereOrderedStops);
         }
 
-        // Build polylines via waypoint_id matching for HERE-returned stops
+        // Build polylines via waypoint_id matching from HERE sections
         directionsLegs = [];
         segmentPolylines = [];
-
-        if (lockedNextStop && stopsForHere.length > 0) {
-          // The locked stop was used as HERE's origin, so we need to separately fetch the
-          // origin→lockedStop leg polyline via a point-to-point HERE Router call.
-          let firstLegPolyline = null;
-          let firstLegDistKm = calculateCrowFliesDistance(originForDirections.lat, originForDirections.lng, lockedNextStop.lat, lockedNextStop.lng);
-          let firstLegDurMin = Math.ceil((firstLegDistKm / 40) * 60);
-          try {
-            const firstLegResp = await base44.asServiceRole.functions.invoke('getHereDirections', {
-              origin: originForDirections,
-              destination: { lat: lockedNextStop.lat, lng: lockedNextStop.lng },
-              waypoints: [],
-              routeContext: [],
-              transportMode: routingTravelMode,
-              deliveryDate,
-              departureTime: resolvedDepartureTime,
-              caller: 'optimizeRemainingStops:firstLeg',
-              preserveWaypointOrder: true,
-              skipSequenceApi: true,
+        routeStops.forEach((stop, index) => {
+          const stopId = stop.delivery.stop_id || stop.delivery.delivery_id || stop.delivery.id;
+          const matchedSection = sections.find(s => s.waypoint_id === stopId) || null;
+          if (matchedSection) {
+            directionsLegs.push({
+              duration: (matchedSection.estimated_duration_minutes || 0) * 60,
+              distance: (matchedSection.estimated_distance_km || 0) * 1000
             });
-            const firstLegResult = firstLegResp?.data || firstLegResp || null;
-            const firstSection = Array.isArray(firstLegResult?.sections) ? firstLegResult.sections[0] : null;
-            if (firstSection?.encoded_polyline) {
-              firstLegPolyline = firstSection.encoded_polyline;
-              firstLegDistKm = firstSection.estimated_distance_km ?? firstLegDistKm;
-              firstLegDurMin = firstSection.estimated_duration_minutes ?? firstLegDurMin;
-              attemptedHereCalls += 1;
-            }
-          } catch (_) { /* use crow-flies fallback */ }
-          directionsLegs.push({ duration: firstLegDurMin * 60, distance: firstLegDistKm * 1000 });
-          segmentPolylines.push({
-            deliveryId: lockedNextStop.delivery.id,
-            encodedPolyline: firstLegPolyline,
-            estimatedDistanceKm: firstLegDistKm,
-            estimatedDurationMinutes: firstLegDurMin,
-          });
-
-          // Now fill in the rest from HERE sections (lockedStop→stop2, stop2→stop3, etc.)
-          hereOrderedStops.forEach((stop, index) => {
-            const stopId = stop.delivery.stop_id || stop.delivery.delivery_id || stop.delivery.id;
-            const matchedSection = sections.find(s => s.waypoint_id === stopId) || null;
-            if (matchedSection) {
-              directionsLegs.push({
-                duration: (matchedSection.estimated_duration_minutes || 0) * 60,
-                distance: (matchedSection.estimated_distance_km || 0) * 1000
-              });
-              segmentPolylines.push({
-                deliveryId: stop.delivery.id,
-                encodedPolyline: matchedSection.encoded_polyline || null,
-                estimatedDistanceKm: matchedSection.estimated_distance_km ?? null,
-                estimatedDurationMinutes: matchedSection.estimated_duration_minutes ?? null,
-              });
-            } else {
-              const prevPos = index === 0 ? { lat: lockedNextStop.lat, lng: lockedNextStop.lng } : { lat: hereOrderedStops[index - 1].lat, lng: hereOrderedStops[index - 1].lng };
-              const dKm = calculateCrowFliesDistance(prevPos.lat, prevPos.lng, stop.lat, stop.lng);
-              directionsLegs.push({ duration: Math.ceil((dKm / 40) * 3600 * 1.3), distance: dKm * 1000 });
-              segmentPolylines.push({ deliveryId: stop.delivery.id, encodedPolyline: null, estimatedDistanceKm: dKm, estimatedDurationMinutes: Math.ceil((dKm / 40) * 60) });
-            }
-          });
-        } else {
-          // No locked stop split — normal waypoint_id matching for all stops
-          routeStops.forEach((stop, index) => {
-            const stopId = stop.delivery.stop_id || stop.delivery.delivery_id || stop.delivery.id;
-            const matchedSection = sections.find(s => s.waypoint_id === stopId) || null;
-            if (matchedSection) {
-              directionsLegs.push({
-                duration: (matchedSection.estimated_duration_minutes || 0) * 60,
-                distance: (matchedSection.estimated_distance_km || 0) * 1000
-              });
-              segmentPolylines.push({
-                deliveryId: stop.delivery.id,
-                encodedPolyline: matchedSection.encoded_polyline || null,
-                estimatedDistanceKm: matchedSection.estimated_distance_km ?? null,
-                estimatedDurationMinutes: matchedSection.estimated_duration_minutes ?? null,
-              });
-            } else {
-              const prevPos = index === 0 ? originForDirections : { lat: routeStops[index - 1].lat, lng: routeStops[index - 1].lng };
-              const dKm = calculateCrowFliesDistance(prevPos.lat, prevPos.lng, stop.lat, stop.lng);
-              directionsLegs.push({ duration: Math.ceil((dKm / 40) * 3600 * 1.3), distance: dKm * 1000 });
-              segmentPolylines.push({ deliveryId: stop.delivery.id, encodedPolyline: null, estimatedDistanceKm: dKm, estimatedDurationMinutes: Math.ceil((dKm / 40) * 60) });
-            }
-          });
-        }
+            segmentPolylines.push({
+              deliveryId: stop.delivery.id,
+              encodedPolyline: matchedSection.encoded_polyline || null,
+              estimatedDistanceKm: matchedSection.estimated_distance_km ?? null,
+              estimatedDurationMinutes: matchedSection.estimated_duration_minutes ?? null,
+            });
+          } else {
+            const prevPos = index === 0 ? originForDirections : { lat: routeStops[index - 1].lat, lng: routeStops[index - 1].lng };
+            const dKm = calculateCrowFliesDistance(prevPos.lat, prevPos.lng, stop.lat, stop.lng);
+            directionsLegs.push({ duration: Math.ceil((dKm / 40) * 3600 * 1.3), distance: dKm * 1000 });
+            segmentPolylines.push({ deliveryId: stop.delivery.id, encodedPolyline: null, estimatedDistanceKm: dKm, estimatedDurationMinutes: Math.ceil((dKm / 40) * 60) });
+          }
+        });
 
         console.log(`✅ [optimizeRemainingStops] HERE sequence success: ${routeStops.length} stops (locked=${!!lockedNextStop}), ${sections.length} sections${usedTimeWindows ? ' with time windows' : ' without time windows'}`);
         segmentPolylines.forEach((sp, i) => {
           console.log(`   Leg ${i + 1} -> ${sp.deliveryId}: polyline=${sp.encodedPolyline ? 'YES (' + sp.encodedPolyline.length + ' chars)' : 'NONE'}, dist=${sp.estimatedDistanceKm}km, dur=${sp.estimatedDurationMinutes}min`);
         });
       } else {
-        // Fallback: crow-flies ordering with locked stop first
-        console.log('⚠️ [optimizeRemainingStops] HERE sequencing failed — using time-window + crow-flies fallback');
-        const fallbackStops = lockedNextStop
-          ? [lockedNextStop, ...sortStopsByWindow(stopsForHere)]
+        // Fallback: locked stop first, rest sorted by time window
+        console.log('⚠️ [optimizeRemainingStops] HERE sequencing failed — using time-window fallback');
+        routeStops = lockedNextStop
+          ? [lockedNextStop, ...sortStopsByWindow(stopsToSequence.filter(s => s.delivery.id !== lockedNextStop.delivery.id))]
           : sortStopsByWindow(stopsToSequence);
-        routeStops = fallbackStops;
         let prevPos = originForDirections;
         for (const stop of routeStops) {
           const distKm = calculateCrowFliesDistance(prevPos.lat, prevPos.lng, stop.lat, stop.lng);
