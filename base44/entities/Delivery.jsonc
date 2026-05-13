@@ -33,11 +33,11 @@
     },
     "delivery_time_start": {
       "type": "string",
-      "description": "Scheduled start of delivery time window (HH:mm) - populated from patient time_window_start or store slot times"
+      "description": "Scheduled start of delivery time window (HH:mm)"
     },
     "delivery_time_end": {
       "type": "string",
-      "description": "Scheduled end of delivery time window (HH:mm) - populated from patient time_window_end or store slot times"
+      "description": "Scheduled end of delivery time window (HH:mm)"
     },
     "delivery_time_eta": {
       "type": "string",
@@ -49,7 +49,7 @@
     },
     "actual_delivery_time": {
       "type": "string",
-      "description": "Actual delivery completion timestamp in local time (YYYY-MM-DDTHH:MM:SS) - stored as plain string without timezone offset"
+      "description": "Actual delivery completion timestamp in local time (YYYY-MM-DDTHH:MM:SS)"
     },
     "status": {
       "type": "string",
@@ -94,7 +94,7 @@
     },
     "puid": {
       "type": "string",
-      "description": "Pickup ID (PUID) - links deliveries to their originating pickup using the pickup's stop_id"
+      "description": "Pickup ID (PUID) - links deliveries to their originating pickup"
     },
     "extra_time": {
       "type": "number",
@@ -107,11 +107,11 @@
     },
     "paid_km_override": {
       "type": "number",
-      "description": "Admin override for paid kilometers - overrides the patient distance_from_store for this delivery only"
+      "description": "Admin override for paid kilometers"
     },
     "cod_total_amount_required": {
       "type": "number",
-      "description": "Total COD amount required to be collected for this delivery (set by dispatcher)"
+      "description": "Total COD amount required to be collected for this delivery"
     },
     "cod_payments": {
       "type": "array",
@@ -137,7 +137,7 @@
           "amount"
         ]
       },
-      "description": "Array of collected COD payments with type and amount (filled by driver)"
+      "description": "Array of collected COD payments with type and amount"
     },
     "signature_needed": {
       "type": "boolean",
@@ -160,7 +160,7 @@
       "items": {
         "type": "string"
       },
-      "description": "Array of barcode values (Code 128) scanned and associated with this delivery"
+      "description": "Array of barcode values scanned and associated with this delivery"
     },
     "receipt_barcode_values": {
       "type": "array",
@@ -205,23 +205,11 @@
         "AM",
         "PM"
       ],
-      "description": "AM or PM designation based on pickup store's delivery_time_start (< 15:00 = AM, >= 15:00 = PM)"
-    },
-    "delivery_route_breadcrumbs": {
-      "type": "array",
-      "description": "Strategic GPS waypoints [lat, lng, timestamp_ms] subsampled from live breadcrumbs - used as fallback to regenerate encoded_polyline via HERE API",
-      "items": {
-        "type": "array",
-        "items": {
-          "type": "number"
-        },
-        "minItems": 2,
-        "maxItems": 3
-      }
+      "description": "AM or PM designation based on pickup store's delivery_time_start"
     },
     "encoded_polyline": {
       "type": "string",
-      "description": "HERE API encoded polyline for this stop's route segment"
+      "description": "HERE API encoded polyline for this stop's planned route segment"
     },
     "transport_mode": {
       "type": "string",

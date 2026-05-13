@@ -2,6 +2,7 @@ import { base44 } from '@/api/base44Client';
 import { offlineDB } from "./offlineDatabase";
 
 const hasPendingBreadcrumbLiveEntity = () => !!base44.entities?.PendingBreadcrumbLive;
+const hasDeliveryBreadcrumbsEntity = () => !!base44.entities?.DeliveryBreadcrumbs;
 
 function getDriverAppUser(driverUserId, appUsers = []) {
   return (appUsers || []).find((user) => user?.user_id === driverUserId) || null;
@@ -82,9 +83,10 @@ export async function clearPendingBreadcrumbsForDriver({ driverUserId, appUsers 
   if (!force) return;
   try {
     if (driverUserId) {
-      if (!hasPendingBreadcrumbLiveEntity()) throw new Error('PendingBreadcrumbLive unavailable');
-      const liveRecords = await base44.entities.PendingBreadcrumbLive.filter({ driver_id: driverUserId });
-      await Promise.all((liveRecords || []).map((record) => base44.entities.PendingBreadcrumbLive.delete(record.id)));
+      if (hasPendingBreadcrumbLiveEntity()) {
+        const liveRecords = await base44.entities.PendingBreadcrumbLive.filter({ driver_id: driverUserId });
+        await Promise.all((liveRecords || []).map((record) => base44.entities.PendingBreadcrumbLive.delete(record.id)));
+      }
     }
   } catch (_) {}
   const records = await listPendingBreadcrumbRecordsForDriver({ driverUserId, appUsers });
@@ -94,11 +96,12 @@ export async function clearPendingBreadcrumbsForDriver({ driverUserId, appUsers 
 export async function clearPendingBreadcrumbsForDelivery({ driverUserId, deliveryId, stopOrder, appUsers = [], force = false }) {
   if (!force || !driverUserId) return;
   try {
-    if (!hasPendingBreadcrumbLiveEntity()) throw new Error('PendingBreadcrumbLive unavailable');
-    const liveRecords = await base44.entities.PendingBreadcrumbLive.filter({ driver_id: driverUserId });
-    const matchingLiveRecords = (liveRecords || []).filter((record) => Number(record?.stop_order) === Number(stopOrder));
-    if (matchingLiveRecords.length) {
-      await Promise.all(matchingLiveRecords.map((record) => base44.entities.PendingBreadcrumbLive.delete(record.id)));
+    if (hasPendingBreadcrumbLiveEntity()) {
+      const liveRecords = await base44.entities.PendingBreadcrumbLive.filter({ driver_id: driverUserId });
+      const matchingLiveRecords = (liveRecords || []).filter((record) => Number(record?.stop_order) === Number(stopOrder));
+      if (matchingLiveRecords.length) {
+        await Promise.all(matchingLiveRecords.map((record) => base44.entities.PendingBreadcrumbLive.delete(record.id)));
+      }
     }
   } catch (_) {}
 

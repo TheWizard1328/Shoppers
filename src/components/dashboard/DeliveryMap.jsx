@@ -225,6 +225,7 @@ export default function DeliveryMap({
   const [measuredTopOverlayHeight, setMeasuredTopOverlayHeight] = useState(0);
   const [hereApiKey, setHereApiKey] = useState(null);
   const [tileLayerInstanceKey, setTileLayerInstanceKey] = useState(0);
+  const [deliveryBreadcrumbsMap, setDeliveryBreadcrumbsMap] = useState(new Map()); // delivery_id → encoded_polyline
   const hasNotifiedMapReady = useRef(false);
   const prevDriverHomeMarkersRef = useRef([]);
   const prevDriverLocationMarkersRef = useRef([]);
@@ -330,6 +331,29 @@ export default function DeliveryMap({
       window.removeEventListener("routeOptimizationComplete", handleDeliveriesUpdate);
     };
   }, []);
+
+  // Load DeliveryBreadcrumbs for the selected date/driver to enrich completed stop markers
+  useEffect(() => {
+    if (!selectedDate || (!selectedDriverId || selectedDriverId === 'all')) {
+      setDeliveryBreadcrumbsMap(new Map());
+      return;
+    }
+    (async () => {
+      try {
+        const records = await base44.entities.DeliveryBreadcrumbs.filter({
+          driver_id: selectedDriverId,
+          delivery_date: selectedDate,
+        });
+        const map = new Map();
+        (records || []).forEach((r) => {
+          if (r.delivery_id && r.encoded_polyline) map.set(r.delivery_id, r.encoded_polyline);
+        });
+        setDeliveryBreadcrumbsMap(map);
+      } catch {
+        setDeliveryBreadcrumbsMap(new Map());
+      }
+    })();
+  }, [selectedDate, selectedDriverId]);
 
   useEffect(() => {
     if (!selectedDate || !showOtherDriverDeliveries || !selectedDriverId || selectedDriverId === "all") {
@@ -811,7 +835,12 @@ export default function DeliveryMap({
 
   const completedRouteDriverIds = useMemo(() => new Set((driverRoutes || []).filter((route) => route?.isCompleted).map((route) => route.driverId).filter(Boolean)), [driverRoutes]);
   const completedRouteDriverRoutes = useMemo(() => (driverRoutes || []).filter((route) => route?.isCompleted), [driverRoutes]);
-  const completedRouteDeliveryMarkers = useMemo(() => (deliveryMarkers || []).filter((marker) => completedRouteDriverIds.has(marker?.driver_id)), [deliveryMarkers, completedRouteDriverIds]);
+  const completedRouteDeliveryMarkers = useMemo(() => (deliveryMarkers || [])
+    .filter((marker) => completedRouteDriverIds.has(marker?.driver_id))
+    .map((marker) => {
+      const breadcrumbPolyline = deliveryBreadcrumbsMap.get(marker?.id);
+      return breadcrumbPolyline ? { ...marker, breadcrumb_encoded_polyline: breadcrumbPolyline } : marker;
+    }), [deliveryMarkers, completedRouteDriverIds, deliveryBreadcrumbsMap]);
   const completedRoutePickupMarkers = useMemo(() => (pickupMarkers || []).filter((marker) => completedRouteDriverIds.has(marker?.driver_id)), [pickupMarkers, completedRouteDriverIds]);
 
   useEffect(() => {

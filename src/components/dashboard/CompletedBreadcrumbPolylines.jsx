@@ -153,7 +153,40 @@ const decodePolyline = (encoded) => {
   return coordinates.length > 1 ? coordinates : null;
 };
 
+// Decode a Google-format polyline string into [{latitude, longitude}] points
+const decodePolylineToLatLng = (encoded) => {
+  if (!encoded || typeof encoded !== 'string') return [];
+  let index = 0, lat = 0, lng = 0;
+  const coordinates = [];
+  while (index < encoded.length) {
+    let shift = 0, result = 0, byte;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+    shift = 0; result = 0;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    coordinates.push({ latitude: lat / 1e5, longitude: lng / 1e5 });
+  }
+  return coordinates;
+};
+
+// Parse breadcrumb points from a DeliveryBreadcrumbs record (encoded_polyline field)
+// or fall back to legacy JSON array format
 const parseBreadcrumbPoints = (breadcrumbsValue) => {
+  if (!breadcrumbsValue) return [];
+  // New format: encoded polyline string from DeliveryBreadcrumbs.encoded_polyline
+  if (typeof breadcrumbsValue === 'string' && !breadcrumbsValue.startsWith('[')) {
+    return decodePolylineToLatLng(breadcrumbsValue);
+  }
+  // Legacy format: JSON array of [lat, lng, ts?]
   try {
     const parsed = typeof breadcrumbsValue === "string" ? JSON.parse(breadcrumbsValue) : breadcrumbsValue;
     return (Array.isArray(parsed) ? parsed : [])
@@ -259,7 +292,8 @@ export default function CompletedBreadcrumbPolylines({
 
         const start = { latitude: Number(fromStop.latitude), longitude: Number(fromStop.longitude) };
         const end = { latitude: Number(toStop.latitude), longitude: Number(toStop.longitude) };
-        const breadcrumbPoints = parseBreadcrumbPoints(toStop.delivery_route_breadcrumbs);
+        // Read from DeliveryBreadcrumbs entity data if available, else legacy field
+        const breadcrumbPoints = parseBreadcrumbPoints(toStop.breadcrumb_encoded_polyline || toStop.delivery_route_breadcrumbs);
         const routePoints = buildBreadcrumbRoutePoints(start, breadcrumbPoints, end);
         const hasRealBreadcrumbPoints = breadcrumbPoints.length > 0;
 

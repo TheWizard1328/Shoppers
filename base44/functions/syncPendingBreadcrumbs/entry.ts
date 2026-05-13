@@ -1,6 +1,52 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
-const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
+// Polyline encoding (Google format)
+function encodePolylineValue(value) {
+  let v = Math.round(value * 1e5);
+  v = v < 0 ? ~(v << 1) : v << 1;
+  let result = '';
+  while (v >= 0x20) {
+    result += String.fromCharCode((0x20 | (v & 0x1f)) + 63);
+    v >>= 5;
+  }
+  result += String.fromCharCode(v + 63);
+  return result;
+}
+
+function encodePolyline(points) {
+  let prevLat = 0, prevLon = 0, result = '';
+  for (const point of points) {
+    result += encodePolylineValue(point[0] - prevLat);
+    result += encodePolylineValue(point[1] - prevLon);
+    prevLat = point[0];
+    prevLon = point[1];
+  }
+  return result;
+}
+
+function decodePolyline(encoded) {
+  if (!encoded || typeof encoded !== 'string') return [];
+  let index = 0, lat = 0, lng = 0;
+  const coordinates = [];
+  while (index < encoded.length) {
+    let shift = 0, result = 0, byte;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+    shift = 0; result = 0;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    coordinates.push([lat / 1e5, lng / 1e5]);
+  }
+  return coordinates;
+}
 
 function parseBreadcrumbPayload(payload) {
   if (!payload) return [];
@@ -17,7 +63,6 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
-
     if (!user) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -28,14 +73,13 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Missing deliveryId' }, { status: 400 });
     }
 
-    const breadcrumbs = parseBreadcrumbPayload(breadcrumbPayload);
-    if (!breadcrumbs.length) {
+    const newPoints = parseBreadcrumbPayload(breadcrumbPayload);
+    if (!newPoints.length) {
       return Response.json({ status: 'skipped', reason: 'empty_breadcrumbs', deliveryId, sourcePendingKey, stopOrder, breadcrumbDate });
     }
 
     const deliveries = await base44.asServiceRole.entities.Delivery.filter({ id: deliveryId });
     const delivery = deliveries?.[0];
-
     if (!delivery) {
       return Response.json({ error: 'Delivery not found' }, { status: 404 });
     }
@@ -48,7 +92,13 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    if (!overwrite && typeof delivery.delivery_route_breadcrumbs === 'string' && delivery.delivery_route_breadcrumbs.trim().length > 0) {
+    // Check for existing DeliveryBreadcrumbs record for this stop
+    const existingRecords = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
+      delivery_id: deliveryId,
+    }).catch(() => []);
+    const existingRecord = existingRecords?.[0] || null;
+
+    if (!overwrite && existingRecord?.encoded_polyline) {
       return Response.json({
         status: 'skipped',
         reason: 'already_present',
@@ -56,32 +106,37 @@ Deno.serve(async (req) => {
         sourcePendingKey,
         stopOrder,
         breadcrumbDate,
-        breadcrumbCount: breadcrumbs.length
+        breadcrumbCount: newPoints.length
       });
     }
 
-    let updatedDelivery = null;
-    let lastError = null;
-
-    for (let attempt = 1; attempt <= 3; attempt += 1) {
-      try {
-        updatedDelivery = await base44.asServiceRole.entities.Delivery.update(deliveryId, {
-          delivery_route_breadcrumbs: JSON.stringify(breadcrumbs)
-        });
-        break;
-      } catch (error) {
-        if (isNotFoundError(error)) {
-          return Response.json({ status: 'skipped', reason: 'delivery_not_found', deliveryId, sourcePendingKey, stopOrder, breadcrumbDate, breadcrumbCount: breadcrumbs.length });
-        }
-        lastError = error;
-        if (attempt < 3) {
-          await new Promise((resolve) => setTimeout(resolve, attempt * 250));
-        }
-      }
+    // Merge with existing points if not overwriting
+    let allPoints = newPoints;
+    if (!overwrite && existingRecord?.encoded_polyline && existingRecord?.timestamps) {
+      const existingCoords = decodePolyline(existingRecord.encoded_polyline);
+      const existingTs = existingRecord.timestamps.split(',').map(Number);
+      const existingPoints = existingCoords.map((coord, i) => [coord[0], coord[1], existingTs[i] || 0]);
+      allPoints = [...existingPoints, ...newPoints].sort((a, b) => (a[2] || 0) - (b[2] || 0));
     }
 
-    if (!updatedDelivery) {
-      throw lastError || new Error('Failed to sync breadcrumbs');
+    const encodedPolyline = encodePolyline(allPoints);
+    const timestamps = allPoints.map((p) => p[2] || 0).join(',');
+
+    const breadcrumbData = {
+      driver_id: delivery.driver_id,
+      delivery_date: delivery.delivery_date,
+      stop_order: delivery.stop_order,
+      delivery_id: deliveryId,
+      encoded_polyline: encodedPolyline,
+      timestamps,
+      transport_mode: delivery.transport_mode || 'driving',
+      point_count: allPoints.length,
+    };
+
+    if (existingRecord?.id) {
+      await base44.asServiceRole.entities.DeliveryBreadcrumbs.update(existingRecord.id, breadcrumbData);
+    } else {
+      await base44.asServiceRole.entities.DeliveryBreadcrumbs.create(breadcrumbData);
     }
 
     return Response.json({
@@ -90,7 +145,7 @@ Deno.serve(async (req) => {
       sourcePendingKey,
       stopOrder,
       breadcrumbDate,
-      breadcrumbCount: breadcrumbs.length
+      breadcrumbCount: allPoints.length
     });
   } catch (error) {
     console.error('❌ [syncPendingBreadcrumbs] Error:', error?.message || error);
