@@ -89,7 +89,7 @@ export const collectBreadcrumbForTracker = async ({
   await offlineDB.save(offlineDB.STORES.PENDING_BREADCRUMBS, breadcrumbData);
 
   try {
-    const liveRecords = await base44.entities.PendingBreadcrumbLive.filter({ driver_id: currentUser.id });
+    const liveRecords = await base44.entities.PendingBreadcrumbLive.filter({ driver_id: currentUser.id, delivery_date: activeDelivery.delivery_date });
     const liveRecord = (liveRecords || []).find((record) => Number(record?.stop_order) === Number(stopOrder));
     if (liveRecord?.id) {
       await base44.entities.PendingBreadcrumbLive.update(liveRecord.id, {
