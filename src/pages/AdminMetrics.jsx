@@ -366,24 +366,9 @@ export default function AdminMetrics() {
       // Get app fee rate and calculate fees per day based on billable deliveries
       const appFeeRate = metricsData.storeFeeTotals?.app_fee_rate || 0;
 
-      // Add fees to each day using proportional distribution from pre-calculated month fees
-      // This respects the store's pays_app_fees / app_fee_history date ranges
-      const monthStoreEntry = (metricsData.monthlyStoreData?.[selectedStoreMonth.month] || []).find(
-        (s) => s.storeId === selectedStoreMonth.storeId || s.abbreviation === selectedStoreMonth.storeAbbr
-      );
-      const fallbackFeeEntry = (metricsData.monthlyStoreFees?.[selectedStoreMonth.month] || []).find(
-        (s) => s.storeId === selectedStoreMonth.storeId || s.abbreviation === selectedStoreMonth.storeAbbr || s.storeAbbr === selectedStoreMonth.storeAbbr
-      );
-      const monthTotalFees = monthStoreEntry?.fees ?? fallbackFeeEntry?.fees ?? fallbackFeeEntry?.total_fees ?? 0;
-      const monthTotalBillable = (monthStoreEntry?.completed || 0) + (monthStoreEntry?.afterHours || 0);
-
-      const dailyDataWithFees = dailyData.map((day) => {
-        const dayBillable = (day.completed || 0) + (day.afterHours || 0);
-        const dayFees = monthTotalFees > 0 && monthTotalBillable > 0
-          ? monthTotalFees * (dayBillable / monthTotalBillable)
-          : 0;
-        return { ...day, fees: dayFees };
-      });
+      // Use per-day fees directly from dailyStoreData — already computed per-delivery
+      // respecting app_fee_history effective_date in the backend
+      const dailyDataWithFees = dailyData.map((day) => ({ ...day, fees: day.fees || 0 }));
 
       return {
         ...metricsData,

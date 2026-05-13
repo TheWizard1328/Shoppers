@@ -1092,13 +1092,15 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
       if (!metrics.dailyStoreData[monthIndex + 1][delivery.store_id]) metrics.dailyStoreData[monthIndex + 1][delivery.store_id] = [];
       let dailyStoreEntry = metrics.dailyStoreData[monthIndex + 1][delivery.store_id].find(d => d.day === dayOfMonth);
       if (!dailyStoreEntry) {
-        dailyStoreEntry = { day: dayOfMonth, completed: 0, failed: 0, afterHours: 0, extra_km: 0 };
+        dailyStoreEntry = { day: dayOfMonth, completed: 0, failed: 0, afterHours: 0, extra_km: 0, fees: 0 };
         metrics.dailyStoreData[monthIndex + 1][delivery.store_id].push(dailyStoreEntry);
       }
       if (isCountableCompletedDelivery(delivery)) dailyStoreEntry.completed++;
       if (isCountableFailedDelivery(delivery)) dailyStoreEntry.failed++;
       if (isCountableAfterHoursPickup(delivery)) dailyStoreEntry.afterHours++;
       if (delivery.patient_id && (isCountableCompletedDelivery(delivery) || isCountableFailedDelivery(delivery))) dailyStoreEntry.extra_km += calculateExtraKm(delivery);
+      // Add per-delivery fee to daily store entry — respects app_fee_history effective_date
+      if (appFeeRate > 0 && wasPayingOnDeliveryDate && isAppFeePayableDelivery(delivery)) dailyStoreEntry.fees += appFeeRate;
 
       if (appFeeRate > 0 && wasPayingOnDeliveryDate && isAppFeePayableDelivery(delivery)) {
         storesPayingFeesSet.add(store.id);
