@@ -960,9 +960,17 @@ Deno.serve(async (req) => {
 
       for (let index = 0; index < orderedDeliveries.length; index += 1) {
         const delivery = orderedDeliveries[index];
-        const from = index === 0 && currentPosition && isValidCoordinatePair(Number(currentPosition.lat), Number(currentPosition.lon))
-          ? currentPosition
-          : (index === 0 ? routeOrigin : getLatLon(orderedDeliveries[index - 1]));
+        // CRITICAL: For first stop, prioritize currentPosition > isNextDelivery's origin > lastFinished > home
+        let from;
+        if (index === 0) {
+          if (currentPosition && isValidCoordinatePair(Number(currentPosition.lat), Number(currentPosition.lon))) {
+            from = currentPosition;
+          } else {
+            from = routeOrigin;
+          }
+        } else {
+          from = getLatLon(orderedDeliveries[index - 1]);
+        }
         const to = getLatLon(delivery);
 
         if (!from || !to) continue;
