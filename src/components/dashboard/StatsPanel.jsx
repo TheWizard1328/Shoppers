@@ -393,52 +393,52 @@ export default function StatsPanel({
                     <div className="flex flex-col items-center gap-1">
                       {/* Combined polylines/breadcrumbs toggle button */}
                       <Button variant="outline" size="icon"
-                        disabled={isDateFinished}
-                        title={isDateFinished ? 'Route complete — polylines locked' : showBreadcrumbs ? 'Breadcrumbs mode (click to turn off)' : showRoutes ? 'Polylines mode (click for breadcrumbs)' : 'Click to show polylines'}
+                        disabled={false}
+                        title={!showRoutes && !showBreadcrumbs ? 'Click to show polylines' : showRoutes && !showBreadcrumbs ? isDateFinished ? 'Blue: Polylines only' : 'Blue: Polylines only' : 'Green: ' + (isDateFinished ? 'Breadcrumbs only' : 'Breadcrumbs + Polylines')}
                         onClick={async () => {
-                          if (isDateFinished) return;
                           if (!showRoutes && !showBreadcrumbs) {
-                            // Off → Polylines
+                            // Stage 1: Show polylines (blue)
                             setShowRoutes(true);
                             setShowBreadcrumbs(false);
                             setBreadcrumbsData({ historical: [], current: [] });
                           } else if (showRoutes && !showBreadcrumbs) {
-                            // Polylines → Breadcrumbs
-                            setShowRoutes(false);
+                            // Stage 2: Show breadcrumbs (+ polylines if active route)
                             try {
                               const selDateStr = format(selectedDate, 'yyyy-MM-dd');
                               const driverIdToFetch = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
                               const loadedBreadcrumbs = await loadBreadcrumbsForDriver(driverIdToFetch, selDateStr, appUsers);
                               if (loadedBreadcrumbs.historical.length === 0 && loadedBreadcrumbs.current.length === 0) {
-                                setShowBreadcrumbs(false);
-                                setBreadcrumbsData({ historical: [], current: [] });
-                                setShowRoutes(true);
+                                // No breadcrumbs available, stay at polylines
                                 return;
                               }
                               setBreadcrumbsData(loadedBreadcrumbs);
                               setShowBreadcrumbs(true);
+                              if (!isDateFinished) {
+                                // Active route: show both breadcrumbs + polylines (green)
+                                setShowRoutes(true);
+                              } else {
+                                // Completed route: show breadcrumbs only (green)
+                                setShowRoutes(false);
+                              }
                             } catch (e) {
-                              setShowBreadcrumbs(false);
-                              setBreadcrumbsData({ historical: [], current: [] });
-                              setShowRoutes(true);
+                              // On error, stay at polylines
+                              return;
                             }
-                          } else if (showBreadcrumbs) {
-                            // Breadcrumbs → Off
+                          } else {
+                            // Back to off (from breadcrumbs)
                             setShowBreadcrumbs(false);
                             setBreadcrumbsData({ historical: [], current: [] });
                             setShowRoutes(false);
                           }
                         }}
                         className={`h-9 w-9 p-0 text-white ${
-                          isDateFinished
-                            ? 'bg-blue-600 hover:bg-blue-600 opacity-70 cursor-not-allowed'
-                            : showBreadcrumbs
-                              ? 'bg-emerald-600 hover:bg-emerald-700'
-                              : showRoutes
-                                ? 'bg-blue-600 hover:bg-blue-700'
-                                : 'text-slate-700'
+                          showBreadcrumbs
+                            ? 'bg-emerald-600 hover:bg-emerald-700'
+                            : showRoutes
+                              ? 'bg-blue-600 hover:bg-blue-700'
+                              : 'text-slate-700'
                         }`}
-                        style={!showRoutes && !showBreadcrumbs && !isDateFinished ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}>
+                        style={!showRoutes && !showBreadcrumbs ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}>
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <circle cx="8" cy="3" r="1.5" fill="currentColor" />
                           <circle cx="4" cy="8" r="1.5" fill="currentColor" />
