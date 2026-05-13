@@ -825,29 +825,40 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Co-located stop correction: swap stops at the EXACT same location if their time windows
-    // are out of order. NEVER touch index 0 (locked isNextDelivery stop).
+    // Co-located stop correction: group stops at the same location and sort each group by
+    // time window. NEVER touch index 0 (locked isNextDelivery stop).
+    // This ensures two pickups at the same store (e.g. Bonnie Doon 11:30 AM + 5:00 PM) are
+    // always ordered by time window regardless of what HERE returned.
     if (routeStops.length > 2) {
       const COORD_EPSILON = 0.0002; // ~22m — same location
+
+      // Group consecutive AND non-consecutive stops that share the same coordinates.
+      // We do a stable insertion-sort by time window within each coordinate group,
+      // swapping their entries in routeStops / directionsLegs / segmentPolylines together.
       const corrected = routeStops.slice();
+      const correctedLegs = directionsLegs.slice();
+      const correctedPolylines = segmentPolylines.slice();
+
       // Start from index 1 to preserve the locked first stop
       for (let i = 1; i < corrected.length - 1; i++) {
         for (let j = i + 1; j < corrected.length; j++) {
           const si = corrected[i];
           const sj = corrected[j];
           const sameLocation = Math.abs(si.lat - sj.lat) < COORD_EPSILON && Math.abs(si.lng - sj.lng) < COORD_EPSILON;
-          if (!sameLocation) break;
+          if (!sameLocation) continue; // don't break — scan all remaining stops for co-location
           const wiMin = parseTimeToMinutes(si.windowStart || si.delivery?.delivery_time_start);
           const wjMin = parseTimeToMinutes(sj.windowStart || sj.delivery?.delivery_time_start);
           if (Number.isFinite(wiMin) && Number.isFinite(wjMin) && wjMin < wiMin) {
             [corrected[i], corrected[j]] = [corrected[j], corrected[i]];
-            [directionsLegs[i], directionsLegs[j]] = [directionsLegs[j], directionsLegs[i]];
-            [segmentPolylines[i], segmentPolylines[j]] = [segmentPolylines[j], segmentPolylines[i]];
-            console.log(`🔀 [optimizeRemainingStops] Swapped co-located stops: ${sj.delivery.patient_name || 'Pickup'} (${formatMinutesToTime(wjMin)}) before ${si.delivery.patient_name || 'Pickup'} (${formatMinutesToTime(wiMin)})`);
+            [correctedLegs[i], correctedLegs[j]] = [correctedLegs[j], correctedLegs[i]];
+            [correctedPolylines[i], correctedPolylines[j]] = [correctedPolylines[j], correctedPolylines[i]];
+            console.log(`🔀 [optimizeRemainingStops] Swapped co-located stops: ${corrected[i].delivery.patient_name || 'Pickup'} (${formatMinutesToTime(wjMin)}) before ${corrected[j].delivery.patient_name || 'Pickup'} (${formatMinutesToTime(wiMin)})`);
           }
         }
       }
       routeStops = corrected;
+      directionsLegs = correctedLegs;
+      segmentPolylines = correctedPolylines;
     }
 
     // CRITICAL: Pending stops were NOT included in HERE optimization, so append them now at the end.
