@@ -252,19 +252,33 @@ export default function DeliveryMap({
     let mounted = true;
 
     const loadHereApiKey = async () => {
+      // Prefer the key already seeded at bootstrap to avoid redundant backend calls
+      const windowKey = typeof window !== 'undefined' ? window.__hereApiKey : null;
+      if (windowKey) {
+        if (mounted) setHereApiKey(windowKey);
+        return;
+      }
+      // Fallback: fetch from backend only if not already available
       const response = await getActiveHereApiKey({}).catch(() => null);
       const nextApiKey = response?.data?.apiKey;
       if (mounted && nextApiKey) {
         setHereApiKey(nextApiKey);
+        if (typeof window !== 'undefined') window.__hereApiKey = nextApiKey;
       }
     };
 
     loadHereApiKey();
-    window.addEventListener("appSettingsUpdated", loadHereApiKey);
+
+    const handleAppSettingsUpdated = () => {
+      // On settings update, clear the cached key and re-fetch
+      if (typeof window !== 'undefined') delete window.__hereApiKey;
+      loadHereApiKey();
+    };
+    window.addEventListener("appSettingsUpdated", handleAppSettingsUpdated);
 
     return () => {
       mounted = false;
-      window.removeEventListener("appSettingsUpdated", loadHereApiKey);
+      window.removeEventListener("appSettingsUpdated", handleAppSettingsUpdated);
     };
   }, []);
 
