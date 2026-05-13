@@ -897,27 +897,13 @@ Deno.serve(async (req) => {
         success: true,
         skipped: true,
         reason: 'driver_unavailable',
-        scope,
         deleted: 0,
         created: 0,
-        apiCallsMade: 0,
-        repairedStopOrders: stopOrderRepairUpdates.length
+        apiCallsMade: 0
       });
     }
-    if (driverAvailability.isUnavailable && !isHistoricalDate && !bypassDriverStatus) {
-      console.log(`[purgeAndRegeneratePolylines] driver unavailable | driver=${driverDisplayName} | status=${driverAvailability.status || 'missing'} | date=${deliveryDate}`);
-      return Response.json({
-        success: true,
-        skipped: true,
-        reason: 'driver_unavailable',
-        scope,
-        deleted: 0,
-        created: 0,
-        apiCallsMade: 0,
-        repairedStopOrders: stopOrderRepairUpdates.length
-      });
-    }
-    console.log(`# [purgeAndRegeneratePolylines] START | driver=${driverDisplayName} | date=${deliveryDate} | scope=${scope} | totalStops=${deliveries?.length || 0} | existingPolylines=${existingPolylines?.length || 0} | driver_status=${driverAvailability.status || 'missing'} | historical=${isHistoricalDate} | home_lat=${driverAppUser?.home_latitude} | home_lon=${driverAppUser?.home_longitude}`);
+
+    console.log(`# [purgeAndRegeneratePolylines] START | driver=${driverDisplayName} | date=${deliveryDate} | orderedDeliveries=${orderedDeliveries.length} | totalStops=${deliveries?.length || 0} | driver_status=${driverAvailability.status || 'missing'} | historical=${isHistoricalDate} | home_lat=${driverAppUser?.home_latitude} | home_lon=${driverAppUser?.home_longitude}`);
 
     const getLatLon = (delivery) => {
       if (!delivery) return null;
@@ -1019,12 +1005,8 @@ Deno.serve(async (req) => {
     }
 
     if (false) {
-      const firstActive = getLatLon(activeStops.find((stop) => stop.isNextDelivery === true) || activeStops[0]);
-      const preservedType1Row = scope === 'active_only' && firstActive && !explicitOrderedStopsOnly
-        ? (existingPolylines || []).find((row) => samePoint({ lat: row?.segment_dest_lat, lon: row?.segment_dest_lon }, firstActive)) || null
-        : null;
-
-      if (activeStops.length > 0) {
+      // Dead code block removed - only orderedDeliveryIds mode is supported
+      if (false && orderedDeliveries.length > 0) {
         const segmentSpecs = [];
         const seen = new Set();
 
