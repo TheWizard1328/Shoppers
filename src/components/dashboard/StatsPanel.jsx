@@ -394,15 +394,17 @@ export default function StatsPanel({
                       {/* Combined polylines/breadcrumbs toggle button */}
                       <Button variant="outline" size="icon"
                         disabled={false}
-                        title={!showRoutes && !showBreadcrumbs ? 'Click to show polylines' : showRoutes && !showBreadcrumbs ? isDateFinished ? 'Blue: Polylines only' : 'Blue: Polylines only' : 'Green: ' + (isDateFinished ? 'Breadcrumbs only' : 'Breadcrumbs + Polylines')}
-                        onClick={async () => {
+                        title={!showRoutes && !showBreadcrumbs ? 'Click to show polylines' : showRoutes && !showBreadcrumbs ? 'Polylines only' : 'Polylines + Breadcrumbs'}
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
                           if (!showRoutes && !showBreadcrumbs) {
                             // Stage 1: Show polylines (blue)
                             setShowRoutes(true);
                             setShowBreadcrumbs(false);
                             setBreadcrumbsData({ historical: [], current: [] });
                           } else if (showRoutes && !showBreadcrumbs) {
-                            // Stage 2: Show breadcrumbs (+ polylines if active route)
+                            // Stage 2: Show breadcrumbs + polylines (green)
                             try {
                               const selDateStr = format(selectedDate, 'yyyy-MM-dd');
                               const driverIdToFetch = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
@@ -413,23 +415,22 @@ export default function StatsPanel({
                               }
                               setBreadcrumbsData(loadedBreadcrumbs);
                               setShowBreadcrumbs(true);
-                              if (!isDateFinished) {
-                                // Active route: show both breadcrumbs + polylines (green)
-                                setShowRoutes(true);
-                              } else {
-                                // Completed route: show breadcrumbs only (green)
-                                setShowRoutes(false);
-                              }
+                              setShowRoutes(true);
                             } catch (e) {
                               // On error, stay at polylines
                               return;
                             }
                           } else {
-                            // Back to off (from breadcrumbs)
+                            // Stage 3: Back to off (from breadcrumbs)
                             setShowBreadcrumbs(false);
                             setBreadcrumbsData({ historical: [], current: [] });
                             setShowRoutes(false);
                           }
+                        }}
+                        onTouchEnd={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          e.currentTarget.click();
                         }}
                         className={`h-9 w-9 p-0 text-white ${
                           showBreadcrumbs
