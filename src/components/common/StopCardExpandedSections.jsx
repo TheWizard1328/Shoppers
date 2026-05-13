@@ -213,23 +213,23 @@ export function StopCardPatientInfoSection({ isStrippedForDriver, isFinishedDeli
   return null;
 }
 
-export function StopCardPendingPickupsSection({ isFinishedDelivery, isPickup, delivery, pendingPickups, canAccessAcceptButtons, isAcceptingAll, handleAcceptAllStops, acceptButtonText, onEdit, patients, store }) {
+export function StopCardPendingPickupsSection({ isFinishedDelivery, isPickup, delivery, pendingPickups, canAccessAcceptButtons, isAcceptingAll, handleAcceptAllStops, acceptButtonText, onEdit, patients, store, isAtStoreLocation = false }) {
   if (isFinishedDelivery || !isPickup || delivery.status !== 'en_route' || !pendingPickups || pendingPickups.length === 0) return null;
 
   return (
     <div className="pt-1 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
       <div className="mb-1 flex items-center justify-between">
-        <h4 className="text-base font-bold flex items-center gap-2" style={{ color: 'var(--text-slate-700)' }}>
+         <h4 className="text-base font-bold flex items-center gap-2" style={{ color: 'var(--text-slate-700)' }}>
           <Package className="w-3.5 h-3.5" />
           Pending Pickup List ({pendingPickups.length})
           <HelpTooltip title={HELP_CONTENT.pendingPickups.title} content={HELP_CONTENT.pendingPickups.content} size="sm" />
         </h4>
-        {canAccessAcceptButtons &&
-        <Button size="sm" variant="default" className="inline-flex items-center gap-2 h-6 px-2 text-xs !text-white bg-emerald-600 hover:bg-emerald-700" disabled={isAcceptingAll} onClick={async (e) => {e.stopPropagation();await handleAcceptAllStops();}}>
-            {isAcceptingAll && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
-            {acceptButtonText}
-          </Button>
-        }
+         {canAccessAcceptButtons && !isAtStoreLocation &&
+         <Button size="sm" variant="default" className="inline-flex items-center gap-2 h-6 px-2 text-xs !text-white bg-emerald-600 hover:bg-emerald-700" disabled={isAcceptingAll} onClick={async (e) => {e.stopPropagation();await handleAcceptAllStops();}}>
+             {isAcceptingAll && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
+             {acceptButtonText}
+           </Button>
+         }
       </div>
 
       <div className="space-y-0.5 overflow-y-auto custom-scrollbar max-h-[150px]" onWheel={(e) => {

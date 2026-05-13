@@ -185,6 +185,7 @@ export default function StopCardBody({
                 onEdit={onEdit}
                 patients={patients}
                 store={store}
+                isAtStoreLocation={isAtStoreLocation}
               />
 
               <StopCardNotesSection
