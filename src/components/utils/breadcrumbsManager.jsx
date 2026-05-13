@@ -1,3 +1,4 @@
+import { base44 } from '@/api/base44Client';
 import { offlineDB } from '@/components/utils/offlineDatabase';
 import { getEdmontonDateString, listPendingBreadcrumbRecordsForDriver } from '@/components/utils/pendingBreadcrumbsManager';
 
@@ -6,19 +7,52 @@ export async function loadBreadcrumbsForDriver(driverId, selectedDateStr, appUse
     return { historical: [], current: [] };
   }
 
-  const deliveriesForBreadcrumbs = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+  // CRITICAL: Try offline DB first, then fall back to API if needed
+  let historical = [];
+  
+  try {
+    // Load from offline DeliveryBreadcrumbs first
+    const offlineBreadcrumbs = await offlineDB.getByCompoundIndex(
+      offlineDB.STORES.DELIVERY_BREADCRUMBS,
+      'date_driver',
+      [selectedDateStr, driverId]
+    );
 
-  const historical = (deliveriesForBreadcrumbs || [])
-    .filter((delivery) => delivery && delivery.driver_id === driverId && delivery.delivery_date === selectedDateStr && delivery.delivery_route_breadcrumbs)
-    .map((delivery) => {
-      try {
-        const breadcrumbs = JSON.parse(delivery.delivery_route_breadcrumbs);
-        return Array.isArray(breadcrumbs) && breadcrumbs.length ? { id: delivery.id, driver_id: delivery.driver_id, breadcrumbs } : null;
-      } catch {
-        return null;
+    if (Array.isArray(offlineBreadcrumbs) && offlineBreadcrumbs.length > 0) {
+      historical = offlineBreadcrumbs
+        .filter(record => record?.encoded_polyline)
+        .map(record => ({
+          id: record.delivery_id,
+          driver_id: record.driver_id,
+          encoded_polyline: record.encoded_polyline,
+          timestamps: record.timestamps
+        }));
+    }
+
+    // Fall back to API if offline DB is empty
+    if (historical.length === 0 && base44.entities?.DeliveryBreadcrumbs) {
+      const apiBreadcrumbs = await base44.entities.DeliveryBreadcrumbs.filter({
+        driver_id: driverId,
+        delivery_date: selectedDateStr
+      });
+
+      if (Array.isArray(apiBreadcrumbs) && apiBreadcrumbs.length > 0) {
+        // Save to offline DB for next time
+        await offlineDB.bulkSave(offlineDB.STORES.DELIVERY_BREADCRUMBS, apiBreadcrumbs);
+        
+        historical = apiBreadcrumbs
+          .filter(record => record?.encoded_polyline)
+          .map(record => ({
+            id: record.delivery_id,
+            driver_id: record.driver_id,
+            encoded_polyline: record.encoded_polyline,
+            timestamps: record.timestamps
+          }));
       }
-    })
-    .filter(Boolean);
+    }
+  } catch (e) {
+    console.warn('⚠️ Failed to load breadcrumbs:', e.message);
+  }
 
   const pendingRecords = await listPendingBreadcrumbRecordsForDriver({ driverUserId: driverId, appUsers });
   const current = pendingRecords

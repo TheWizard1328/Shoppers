@@ -52,7 +52,8 @@ class LightweightRefreshManager {
       appSettings: 60000,           // 60sec - App-wide settings like active API key
       offlineSync: 0,               // DISABLED - offlineDB reads, not syncs
       cacheRefresh: 600000,         // 10min - Cache consistency check
-      patientDeliverySync: 300000   // 5min - Automated Patients+Deliveries background reconcile
+      patientDeliverySync: 300000,  // 5min - Automated Patients+Deliveries background reconcile
+      deliveryBreadcrumbs: 900000   // 15min - Sync historical breadcrumbs for offline access
     };
 
     this.lastRefreshTimes = {
@@ -62,7 +63,8 @@ class LightweightRefreshManager {
       appSettings: 0,
       offlineSync: 0,
       cacheRefresh: 0,
-      patientDeliverySync: 0
+      patientDeliverySync: 0,
+      deliveryBreadcrumbs: 0
     };
 
     // Listen for WebSocket AppUser updates to track freshness
@@ -195,7 +197,9 @@ class LightweightRefreshManager {
         appUsers: 0,
         appSettings: 0,
         offlineSync: 0,
-        cacheRefresh: 0
+        cacheRefresh: 0,
+        patientDeliverySync: 0,
+        deliveryBreadcrumbs: 0
       };
       this._paused = false;
     }
@@ -521,6 +525,50 @@ class LightweightRefreshManager {
       if (this.shouldRefresh('appUsers')) {
         console.log(`👥 [LightweightRefresh] Skipping AppUser API poll - WebSocket subscriptions handle all cross-device sync`);
         this.markRefreshed('appUsers');
+      }
+
+      // Sync DeliveryBreadcrumbs every 15 minutes for offline access
+      if (this.shouldRefresh('deliveryBreadcrumbs')) {
+        try {
+          console.log('🥖 [SmartRefresh] Syncing DeliveryBreadcrumbs for offline access');
+          const { offlineDB } = await import('./offlineDatabase');
+          
+          // Get all drivers from offline DB
+          const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+          const driverIds = new Set(
+            (offlineAppUsers || [])
+              .filter(u => u?.user_id && u?.app_roles?.includes('driver'))
+              .map(u => u.user_id)
+          );
+
+          if (driverIds.size > 0) {
+            // Fetch breadcrumbs for last 3 days to cover offline device sync gaps
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 3);
+            const dateStart = yesterday.toISOString().split('T')[0];
+            
+            await this.waitForRateLimit();
+            const breadcrumbs = await queueEntityRequest(
+              () => base44.entities.DeliveryBreadcrumbs.filter(
+                { driver_id: { $in: Array.from(driverIds) } },
+                '-delivery_date',
+                5000
+              ),
+              'DeliveryBreadcrumbs sync'
+            );
+
+            if (Array.isArray(breadcrumbs) && breadcrumbs.length > 0) {
+              await offlineDB.bulkSave(offlineDB.STORES.DELIVERY_BREADCRUMBS, breadcrumbs);
+              await offlineDB.updateSyncMetadata('DeliveryBreadcrumbs', new Date().toISOString());
+              console.log(`✅ [SmartRefresh] Synced ${breadcrumbs.length} DeliveryBreadcrumbs to offline DB`);
+              this.recordSuccess();
+            }
+          }
+          this.markRefreshed('deliveryBreadcrumbs');
+        } catch (e) {
+          this.recordError(e);
+          console.warn('⚠️ [SmartRefresh] DeliveryBreadcrumbs sync failed:', e.message);
+        }
       }
 
       // Automated Patients + Deliveries reconcile every 5 minutes

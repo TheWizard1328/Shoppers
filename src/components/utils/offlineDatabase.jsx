@@ -25,7 +25,8 @@ const STORES = {
   SYNC_STATUS: 'sync_status',
   PENDING_MUTATIONS: 'pending_mutations',
   SYNC_METADATA: 'sync_metadata', // Timestamp tracking per entity
-  PENDING_BREADCRUMBS: 'pending_breadcrumbs' // Temporary GPS breadcrumbs [lat, lng, timestamp_ms] being collected for current route
+  PENDING_BREADCRUMBS: 'pending_breadcrumbs', // Temporary GPS breadcrumbs [lat, lng, timestamp_ms] being collected for current route
+  DELIVERY_BREADCRUMBS: 'delivery_breadcrumbs' // Historical breadcrumbs by driver/date
 };
 
 let dbInstance = null;
@@ -213,6 +214,14 @@ const openDatabase = async () => {
         breadcrumbStore.createIndex('driver_id', 'driver_id', { unique: false });
         breadcrumbStore.createIndex('delivery_id', 'delivery_id', { unique: false });
         breadcrumbStore.createIndex('timestamp', 'timestamp', { unique: false });
+      }
+
+      if (!db.objectStoreNames.contains(STORES.DELIVERY_BREADCRUMBS)) {
+        const deliveryBreadcrumbStore = db.createObjectStore(STORES.DELIVERY_BREADCRUMBS, { keyPath: 'id' });
+        deliveryBreadcrumbStore.createIndex('driver_id', 'driver_id', { unique: false });
+        deliveryBreadcrumbStore.createIndex('delivery_date', 'delivery_date', { unique: false });
+        deliveryBreadcrumbStore.createIndex('date_driver', ['delivery_date', 'driver_id'], { unique: false });
+        deliveryBreadcrumbStore.createIndex('updated_date', 'updated_date', { unique: false });
       }
 
 
