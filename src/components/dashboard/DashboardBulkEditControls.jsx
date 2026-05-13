@@ -31,6 +31,7 @@ export default function DashboardBulkEditControls({
   selectedDeliveryIds = {},
   onSelectionChange,
   onBulkDeleteComplete,
+  onBulkApplyComplete,
 }) {
   const [showBulkEditPanel, setShowBulkEditPanel] = useState(false);
 
@@ -165,6 +166,7 @@ export default function DashboardBulkEditControls({
       invalidate("Delivery");
       await refreshData?.();
       clearSelection();
+      onBulkApplyComplete?.();
     } finally {
       setIsSaving(false);
       smartRefreshManager.resume();

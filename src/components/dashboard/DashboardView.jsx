@@ -364,6 +364,10 @@ export default function DashboardView({
               setShowStopCardCheckboxes(false);
               setSelectedDeliveryIds({});
             }}
+            onBulkApplyComplete={() => {
+              setShowStopCardCheckboxes(false);
+              setSelectedDeliveryIds({});
+            }}
           />
           <StopCardsSection
             currentUser={currentUser} isDriver={isDriver} isAdmin={isAdmin} isDispatcher={isDispatcher} isMobile={isMobile}
