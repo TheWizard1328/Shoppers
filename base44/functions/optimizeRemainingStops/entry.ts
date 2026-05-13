@@ -788,14 +788,13 @@ Deno.serve(async (req) => {
         });
 
         // CRITICAL: Only create polylines for non-pending stops BEFORE they're sorted to the end.
-        // Map sections 1:1 to the HERE-sequenced stops, but exclude pending stops and GPS waypoint.
-        // GPS waypoint index needs to be skipped if it was inserted.
-        const gpsWaypointIndex = shouldInsertGpsWaypoint && routeOriginStop ? 1 : (shouldInsertGpsWaypoint ? 0 : -1);
+        // Use waypoint_id-based matching (not positional index) so GPS waypoint insertion
+        // and extra "home" sections never cause an off-by-one shift.
         const activeStopsFromHere = routeStops.filter(s => !pendingDeliveryIds.has(s.delivery.id));
-        segmentPolylines = activeStopsFromHere.map((stop, stopIndex) => {
-          // Adjust section index to account for GPS waypoint if present
-          const sectionIndex = gpsWaypointIndex >= 0 ? stopIndex + 1 : stopIndex;
-          const section = sections[sectionIndex] || null;
+        segmentPolylines = activeStopsFromHere.map((stop) => {
+          const stopId = stop.delivery.stop_id || stop.delivery.delivery_id || stop.delivery.id;
+          // Find the section whose waypoint_id matches this stop's identifier
+          const section = sections.find(s => s.waypoint_id === stopId) || null;
           return {
             deliveryId: stop.delivery.id,
             encodedPolyline: section?.encoded_polyline || null,
