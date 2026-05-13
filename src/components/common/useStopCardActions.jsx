@@ -616,6 +616,38 @@ export default function useStopCardActions(params) {
             await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', delivery.delivery_date, refreshedListImmediate);
           }
 
+          // CRITICAL: After optimization, save optimized deliveries to offline DB for cross-device sync
+          let optimizedDeliveriesToPersist = [];
+          if (Array.isArray(optimizeResponse?.optimizedRoute) && optimizeResponse.optimizedRoute.length > 0) {
+            optimizedDeliveriesToPersist = optimizeResponse.optimizedRoute
+              .filter((stop) => stop?.deliveryId || stop?.delivery_id)
+              .map((stop) => ({
+                id: stop.deliveryId || stop.delivery_id,
+                stop_order: Number.isFinite(Number(stop.stop_order)) ? Number(stop.stop_order) : undefined,
+                delivery_time_eta: stop.newETA || stop.eta,
+                encoded_polyline: stop.encoded_polyline || null,
+                estimated_distance_km: stop.estimated_distance_km,
+                estimated_duration_minutes: stop.estimated_duration_minutes,
+                travel_dist: stop.travel_dist
+              }))
+              .filter((update) => update.id);
+
+            if (optimizedDeliveriesToPersist.length > 0) {
+              await Promise.all(
+                optimizedDeliveriesToPersist.map((update) =>
+                  base44.entities.Delivery.update(update.id, {
+                    stop_order: update.stop_order,
+                    delivery_time_eta: update.delivery_time_eta,
+                    encoded_polyline: update.encoded_polyline,
+                    estimated_distance_km: update.estimated_distance_km,
+                    estimated_duration_minutes: update.estimated_duration_minutes,
+                    travel_dist: update.travel_dist
+                  }).catch(() => null)
+                )
+              );
+            }
+          }
+
           await base44.functions.invoke('recalculateTrackingNumbers', {
             driverId: delivery.driver_id,
             deliveryDate: delivery.delivery_date
@@ -674,8 +706,27 @@ export default function useStopCardActions(params) {
 
             if (polylineResponse) {
               window.dispatchEvent(new CustomEvent('polylineUpdated', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, source: 'start_action' } }));
+
+              // CRITICAL: Broadcast optimized deliveries to other devices in real-time
+              Promise.resolve().then(async () => {
+                try {
+                  const { broadcastMutation } = await import('../utils/realtimeSync');
+                  await Promise.all(optimizeResponse.optimizedRoute.map((stop) => 
+                    broadcastMutation('Delivery', 'update', stop.deliveryId || stop.delivery_id, {
+                      stop_order: stop.stop_order,
+                      delivery_time_eta: stop.newETA || stop.eta,
+                      encoded_polyline: stop.encoded_polyline || null,
+                      estimated_distance_km: stop.estimated_distance_km,
+                      estimated_duration_minutes: stop.estimated_duration_minutes,
+                      travel_dist: stop.travel_dist
+                    })
+                  ));
+                } catch (broadcastError) {
+                  console.warn('⚠️ [Start] optimization broadcast failed:', broadcastError?.message || broadcastError);
+                }
+              });
             }
-          } else {
+            } else {
             // Fallback: trigger route optimization manually
             window.dispatchEvent(new CustomEvent('triggerRouteOptimization', {
               detail: { 
@@ -685,7 +736,7 @@ export default function useStopCardActions(params) {
                 source: 'start_action'
               }
             }));
-          }
+            }
 
           fabControlEvents.reactivatePhaseTwoIfAvailable();
 
