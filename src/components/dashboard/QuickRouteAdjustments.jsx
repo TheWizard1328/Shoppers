@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { GripVertical } from 'lucide-react';
+import { smartRefreshManager } from '../utils/smartRefreshManager';
+import { backgroundSyncManager } from '../utils/backgroundSyncManager';
 
 // Portal element mounted once at body level to avoid remounting during drag
 let portalEl = null;
@@ -50,8 +52,25 @@ export default function QuickRouteAdjustments({
     setOriginalOrders(Object.fromEntries(active.map((d) => [d.id, d.stop_order || '?'])));
   }, [deliveries]);
 
+  const dragStartRef = useRef(null);
+
+  const handleDragStart = () => {
+    // Pause sync managers immediately when drag starts
+    window.dispatchEvent(new CustomEvent('pauseBackgroundSync'));
+    smartRefreshManager.pause();
+    backgroundSyncManager.pause();
+    dragStartRef.current = Date.now();
+  };
+
   const handleDragEnd = (result) => {
-    if (!result.destination || result.destination.index === result.source.index) return;
+    if (!result.destination || result.destination.index === result.source.index) {
+      // Resume sync if drop position didn't change
+      window.dispatchEvent(new CustomEvent('resumeBackgroundSync'));
+      smartRefreshManager.resume();
+      backgroundSyncManager.resume();
+      dragStartRef.current = null;
+      return;
+    }
     const updated = [...localOrder];
     const [moved] = updated.splice(result.source.index, 1);
     updated.splice(result.destination.index, 0, moved);
@@ -86,7 +105,7 @@ export default function QuickRouteAdjustments({
 
   return (
     <div className="flex flex-col gap-3">
-      <DragDropContext onDragEnd={handleDragEnd}>
+      <DragDropContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
 
         <Droppable droppableId="route-stops">
           {(provided) =>
@@ -106,8 +125,7 @@ export default function QuickRouteAdjustments({
                       ref={provided.innerRef}
                       {...provided.draggableProps}
                       {...provided.dragHandleProps}
-                      className="flex items-center gap-2 p-2 rounded-lg border cursor-grab active:cursor-grabbing"
-                      onPointerDown={(e) => e.currentTarget.setPointerCapture(e.pointerId)}
+                      className="flex items-center gap-2 p-2 rounded-lg border cursor-grab active:cursor-grabbing select-none"
                       style={{
                         ...provided.draggableProps.style,
                         background: snapshot.isDragging ?
@@ -117,7 +135,9 @@ export default function QuickRouteAdjustments({
                         boxShadow: snapshot.isDragging ? '0 8px 24px rgba(0,0,0,0.35)' : undefined,
                         userSelect: 'none',
                         pointerEvents: 'auto',
-                        touchAction: 'none'
+                        touchAction: 'none',
+                        WebkitUserSelect: 'none',
+                        WebkitTouchCallout: 'none'
                       }}>
                       
                           <GripVertical className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--text-slate-400)' }} />
