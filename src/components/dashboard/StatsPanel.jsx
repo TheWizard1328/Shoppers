@@ -402,7 +402,6 @@ export default function StatsPanel({
                             // Stage 1: Show polylines (blue)
                             setShowRoutes(true);
                             setShowBreadcrumbs(false);
-                            setBreadcrumbsData({ historical: [], current: [] });
                           } else if (showRoutes && !showBreadcrumbs) {
                             // Stage 2: Show breadcrumbs + polylines (green)
                             try {
@@ -410,21 +409,19 @@ export default function StatsPanel({
                               const driverIdToFetch = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
                               const loadedBreadcrumbs = await loadBreadcrumbsForDriver(driverIdToFetch, selDateStr, appUsers);
                               if (loadedBreadcrumbs.historical.length === 0 && loadedBreadcrumbs.current.length === 0) {
-                                // No breadcrumbs available, stay at polylines
                                 return;
                               }
                               setBreadcrumbsData(loadedBreadcrumbs);
                               setShowBreadcrumbs(true);
                               setShowRoutes(true);
                             } catch (e) {
-                              // On error, stay at polylines
                               return;
                             }
                           } else {
-                            // Stage 3: Back to off (from breadcrumbs)
+                            // Back to polylines only (from breadcrumbs)
                             setShowBreadcrumbs(false);
                             setBreadcrumbsData({ historical: [], current: [] });
-                            setShowRoutes(false);
+                            setShowRoutes(true);
                           }
                         }}
                         onTouchEnd={(e) => {
