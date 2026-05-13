@@ -1182,7 +1182,7 @@ Deno.serve(async (req) => {
       preserveExistingOrder,
       forceFullRemainingRouteOptimization,
       nextDeliveryId: nextStopId,
-      shouldRefreshPolylines,
+      shouldRefreshPolylines: true,
       optimizedRoute: activeStops.map((stop, index) => ({
         deliveryId: stop.id,
         newETA: stop.delivery_time_eta,
