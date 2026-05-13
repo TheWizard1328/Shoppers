@@ -97,12 +97,22 @@ export default function DashboardDialogs({
             onCancel={() => setShowQuickAdjustments(false)}
             onReoptimize={async (reorderPayload) => {
               try {
-                await handleQuickReorder(reorderPayload);
+                // reorderPayload is [{id, stop_order}] in the new desired order
+                // Pass the ordered delivery IDs directly to purgeAndRegeneratePolylines
+                const orderedDeliveryIds = reorderPayload.map(u => u.id);
+                const deliveryDate = format(selectedDate, 'yyyy-MM-dd');
+                await base44.functions.invoke('purgeAndRegeneratePolylines', {
+                  driverId: currentUser.id,
+                  deliveryDate,
+                  orderedDeliveryIds,
+                  recalculateEtas: true
+                });
+                const freshDeliveries = await base44.entities.Delivery.filter({ driver_id: currentUser.id, delivery_date: deliveryDate });
+                window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'quickReorder', freshDeliveries, fullReplacement: false } }));
               } catch (err) {
                 console.warn('[QuickReorder] Reorder failed:', err?.message);
               } finally {
                 setShowQuickAdjustments(false);
-                // Resume background sync after dialog closes
                 window.dispatchEvent(new CustomEvent('resumeBackgroundSync'));
               }
             }}
