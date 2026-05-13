@@ -151,7 +151,6 @@ export default function ExpandedStatsControls({
                 setShowBreadcrumbs={setShowBreadcrumbs}
                 setShowRoutes={setShowRoutes}
                 setBreadcrumbsData={setBreadcrumbsData}
-                showRoutes={showRoutes}
                 selectedDate={selectedDate}
                 showAllDriverMarkers={showAllDriverMarkers}
                 selectedDriverId={selectedDriverId}
@@ -173,7 +172,17 @@ export default function ExpandedStatsControls({
           <Settings className="w-3.5 h-3.5" />
         </Button>
 
-
+        <Button
+          variant="default"
+          size="s"
+          onClick={() => {
+            setShowRoutes(!showRoutes);
+            setIsExpanded(false);
+          }}
+          className={`${showRoutes ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'} text-white px-2 text-sm font-medium rounded-md inline-flex min-h-11 min-w-11 items-center justify-center whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow gap-2 h-6 flex-shrink-0`}
+        >
+          Route Lines
+        </Button>
       </div>
 
       <DriverRouteControlsSlot
