@@ -290,6 +290,9 @@ export default function Layout({ children, currentPageName }) {
           if (s.sidebar_width) setSidebarWidth(s.sidebar_width);
           if (s.theme_preference && isMobileDeviceForTheme()) setThemePreference(s.theme_preference);else setThemePreference('light');
           if (s.data_source) setDataSource(s.data_source);
+          // Initialize globalFilters from UserSettings (selected_date and selected_driver_id)
+          if (s.selected_date) globalFilters.setSelectedDate(s.selected_date, fetchedUser.id);
+          if (s.selected_driver_id) globalFilters.setSelectedDriverId(s.selected_driver_id, fetchedUser.id);
           setUserSettingsLoaded(true);
         } catch {setUserSettingsLoaded(true);}
         const ms = manifest.appSettings || {};

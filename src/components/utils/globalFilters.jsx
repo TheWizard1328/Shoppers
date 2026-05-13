@@ -1,9 +1,9 @@
 import React from 'react';
 import { format } from 'date-fns';
+import { saveSetting } from './userSettingsManager';
 
 // Global filter state manager for consistent filters across all pages
-// CRITICAL: These are stored in localStorage which is device-specific
-// They should NOT be synced across devices via UserSettings
+// CRITICAL: Device-specific settings synced via UserSettings backend persistence
 
 const STORAGE_KEYS = {
   selectedDate: 'app_selectedDate',
@@ -108,7 +108,7 @@ const notifyListeners = () => {
 };
 
 // CRITICAL FIX: Only update and notify if value actually changed
-const updateAndSave = (key, value) => {
+const updateAndSave = (key, value, userId = null) => {
   const currentValue = globalState[key];
   
   // GUARD: Don't update if value is the same
@@ -128,6 +128,15 @@ const updateAndSave = (key, value) => {
   } catch (error) {
     console.warn('Failed to save to localStorage:', error);
   }
+  
+  // Persist to backend if it's selected_date or selected_driver_id
+  if ((key === 'selectedDate' || key === 'selectedDriverId') && userId) {
+    const backendKey = key === 'selectedDate' ? 'selected_date' : 'selected_driver_id';
+    saveSetting(userId, backendKey, value).catch(error => {
+      console.warn(`Failed to persist ${backendKey} to backend:`, error);
+    });
+  }
+  
   notifyListeners();
   return true; // Indicate change occurred
 };
@@ -196,7 +205,7 @@ export const globalFilters = {
   // ─────────────────────────────────────────────────────────────────────────
 
   // Setters with change detection
-  setSelectedDate: (date) => {
+  setSelectedDate: (date, userId = null) => {
     // CRITICAL FIX: Add check for Invalid Date objects
     if (!date || (date instanceof Date && isNaN(date.getTime()))) {
       console.warn('setSelectedDate called with null or invalid date. Action aborted.');
@@ -211,7 +220,7 @@ export const globalFilters = {
       return;
     }
 
-    const changed = updateAndSave('selectedDate', dateString);
+    const changed = updateAndSave('selectedDate', dateString, userId);
     // Date changed → invalidate cooldown so the next sync runs immediately
     if (changed) {
       lastRefreshTimestamp = 0;
@@ -219,9 +228,9 @@ export const globalFilters = {
     }
   },
 
-  setSelectedDriverId: (driverId) => {
+  setSelectedDriverId: (driverId, userId = null) => {
     const newDriverId = driverId || 'all';
-    updateAndSave('selectedDriverId', newDriverId);
+    updateAndSave('selectedDriverId', newDriverId, userId);
   },
 
   setSelectedCityId: (cityId) => {
