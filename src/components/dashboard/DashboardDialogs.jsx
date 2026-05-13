@@ -1,4 +1,5 @@
 import { AnimatePresence } from "framer-motion";
+import { base44 } from "@/api/base44Client";
 import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { format } from 'date-fns';
@@ -87,7 +88,23 @@ export default function DashboardDialogs({
             onReoptimize={async (reorderPayload) => {
               await handleQuickReorder(reorderPayload);
               setShowQuickAdjustments(false);
-              window.dispatchEvent(new CustomEvent('triggerManualRouteOptimization'));
+              // Refresh polylines + ETAs for the existing order — do NOT reoptimize sequence
+              try {
+                await base44.functions.invoke('purgeAndRegeneratePolylines', {
+                  driverId: currentUser?.id,
+                  deliveryDate: selectedDateStr,
+                  scope: 'active_only',
+                  reason: 'manual',
+                  routeSource: 'polylines'
+                });
+                await base44.functions.invoke('recalculateRemainingETAs', {
+                  driverId: currentUser?.id,
+                  deliveryDate: selectedDateStr
+                });
+                window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'quickReorder' } }));
+              } catch (err) {
+                console.warn('[QuickReorder] Polyline/ETA refresh failed:', err?.message);
+              }
             }}
           />
         </DialogContent>
