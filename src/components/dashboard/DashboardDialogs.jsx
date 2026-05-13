@@ -96,38 +96,14 @@ export default function DashboardDialogs({
             stores={stores}
             onCancel={() => setShowQuickAdjustments(false)}
             onReoptimize={async (reorderPayload) => {
-              await handleQuickReorder(reorderPayload);
-              setShowQuickAdjustments(false);
-              // Resume background sync after dialog closes
-              window.dispatchEvent(new CustomEvent('resumeBackgroundSync'));
-              // Refresh polylines + ETAs with single consolidated call
               try {
-                const now = new Date();
-                const completionTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                await base44.functions.invoke('purgeAndRegeneratePolylines', {
-                  driverId: currentUser?.id,
-                  deliveryDate: selectedDateStr,
-                  scope: 'active_only',
-                  reason: 'manual',
-                  routeSource: 'polylines',
-                  bypassDriverStatus: true,
-                  recalculateEtas: true,
-                  completionTime
-                });
-                // Fetch fresh deliveries from backend and push to UI
-                const freshDeliveries = await base44.entities.Delivery.filter({
-                  driver_id: currentUser?.id,
-                  delivery_date: selectedDateStr
-                });
-                window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                  detail: {
-                    triggeredBy: 'quickReorder',
-                    freshDeliveries,
-                    fullReplacement: false
-                  }
-                }));
+                await handleQuickReorder(reorderPayload);
               } catch (err) {
-                console.warn('[QuickReorder] Polyline/ETA refresh failed:', err?.message);
+                console.warn('[QuickReorder] Reorder failed:', err?.message);
+              } finally {
+                setShowQuickAdjustments(false);
+                // Resume background sync after dialog closes
+                window.dispatchEvent(new CustomEvent('resumeBackgroundSync'));
               }
             }}
           />

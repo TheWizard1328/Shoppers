@@ -4430,27 +4430,19 @@ function Dashboard() {
   const handleQuickReorder = async (reorderUpdates) => {
     try {
       setIsEntityUpdating(true);
-
-      // Update stop orders in parallel
       for (const update of reorderUpdates) {
         await updateDeliveryLocal(update.id, { stop_order: update.stop_order });
       }
-
-      // Recalculate ETAs after reordering
       const deliveryDate = format(selectedDate, 'yyyy-MM-dd');
       const now = new Date();
-      const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-      const response = await base44.functions.invoke('calculateRealTimeETA', {
-        driverId: currentUser.id,
-        deliveryDate: deliveryDate,
-        currentLocalTime: localTimeString // Backend calculates and saves ETAs directly
+      const completionTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      await base44.functions.invoke('purgeAndRegeneratePolylines', {
+        driverId: currentUser.id, deliveryDate, scope: 'active_only', reason: 'manual',
+        routeSource: 'polylines', bypassDriverStatus: true, recalculateEtas: true, completionTime
       });
-      // Backend now handles all ETA calculations and database updates - no need to recalculate here
-
+      const freshDeliveries = await base44.entities.Delivery.filter({ driver_id: currentUser.id, delivery_date: deliveryDate });
       invalidate('Delivery');
-      await refreshData();
-
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'quickReorder', freshDeliveries, fullReplacement: false } }));
     } catch (error) {
       console.error('❌ [Quick Reorder] Error:', error);
       alert('Failed to reorder stops. Please try again.');
