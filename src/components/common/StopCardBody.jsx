@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { parseISO, isBefore } from "date-fns";
+import { Loader2 } from "lucide-react";
 import {
   StopCardPhoneRow,
   StopCardCodSection,
@@ -56,7 +57,9 @@ export default function StopCardBody({
   appUsers = [],
   preferredTravelMode,
   onTravelModeChange,
-  travelModeDisabled = false
+  travelModeDisabled = false,
+  isAtStoreLocation = false,
+  blockCardToggle
 }) {
   const handleNotesBlur = () => {
     if (!notesInput.trim() || notesInput.trim() === 'No driver notes') {
@@ -115,6 +118,16 @@ export default function StopCardBody({
 
   return (
     <>
+      {/* STORE LOCATION - ACCEPT ALL BUTTON (when at pickup location, shown above body) */}
+      {isAtStoreLocation && !isFinishedDelivery && isPickup && delivery.status === 'en_route' && pendingPickups && pendingPickups.length > 0 && canAccessAcceptButtons &&
+      <div className="pt-1 px-1 pb-2 border-b" style={{ borderColor: 'var(--border-slate-200)' }}>
+        <button onClick={async (e) => {e.stopPropagation();blockCardToggle(e);await handleAcceptAllStops();}} className="inline-flex items-center gap-2 h-8 px-3 text-sm !text-white bg-emerald-600 hover:bg-emerald-700 rounded-md w-full justify-center font-medium" disabled={isAcceptingAll}>
+          {isAcceptingAll && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
+          {acceptButtonText}
+        </button>
+      </div>
+      }
+
       {/* BODY SECTION - Expandable - Always show when expanded (BUT never for dispatcher-stripped cards) */}
       <AnimatePresence>
         {isExpanded && !isStrippedForDispatcher &&
