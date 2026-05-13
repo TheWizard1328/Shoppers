@@ -24,11 +24,8 @@ export async function runAcceptAllBatchPipeline({
   const routeDeliveries = allDeliveries.filter((item) => item && item.driver_id === triggerDelivery.driver_id && item.delivery_date === triggerDelivery.delivery_date);
   const scopedPendingDeliveries = routeDeliveries.filter((item) => item?.store_id === triggerDelivery.store_id && item.status === 'pending');
 
-  // CRITICAL: Use the pickup's own delivery_time_start as the base for transition times,
-  // not current device time. Deliveries start 5 minutes after the pickup's window opens.
-  const pickupBaseTime = triggerDelivery.delivery_time_start || currentLocalTime;
-  const pickupStartTime = pickupBaseTime;
-  const transitionedStopStartTime = addMinutesToTimeString(pickupBaseTime, 5);
+  const pickupStartTime = currentLocalTime;
+  const transitionedStopStartTime = addMinutesToTimeString(currentLocalTime, 5);
 
   const stagedRoute = routeDeliveries.map((item) => {
     if (!item) return item;
