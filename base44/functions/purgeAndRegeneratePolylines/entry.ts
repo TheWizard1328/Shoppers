@@ -191,10 +191,10 @@ function parseBreadcrumbPolyline(rawBreadcrumbs) {
 function buildFallbackBreadcrumbs(from, to, timestampSeed = Date.now()) {
   if (!from || !to) return null;
   if (![from.lat, from.lon, to.lat, to.lon].every((value) => Number.isFinite(value))) return null;
-  return JSON.stringify([
+  return [
     [Number(from.lat), Number(from.lon), Number(timestampSeed)],
     [Number(to.lat), Number(to.lon), Number(timestampSeed) + 60000]
-  ]);
+  ];
 }
 
 const HERE_POLYLINE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
@@ -388,6 +388,14 @@ function resolveStopTravelMode(stop, explicitMeta, driverAppUser, finishedField 
   return getNormalizedTravelMode(explicitMode || stopMode || driverMode, 'driving');
 }
 
+
+function parseBreadcrumbsToArray(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed : null; } catch { return null; }
+  }
+  return null;
+}
 
 async function bulkUpdateDeliveries(base44, deliveries, updatesById) {
   if (!(updatesById instanceof Map) || updatesById.size === 0) {
@@ -668,7 +676,7 @@ async function reintegratePendingBreadcrumbLive(base44, driverId, deliveryDate, 
       .filter((point, index, arr) => index === 0 || !(arr[index - 1][0] === point[0] && arr[index - 1][1] === point[1] && arr[index - 1][2] === point[2]));
 
     const breadcrumbUpdate = {
-      delivery_route_breadcrumbs: JSON.stringify(uniquePoints),
+      delivery_route_breadcrumbs: uniquePoints,
       finished_leg_encoded_polyline: null,
       finished_leg_transport_mode: null,
       PolylineUpdated: true
@@ -1152,7 +1160,7 @@ Deno.serve(async (req) => {
         deliveryUpdatesById.set(segment.stop.id, {
           ...(deliveryUpdatesById.get(segment.stop.id) || {}),
           ...buildSegmentDeliveryUpdate({ from: segment.from, to: segment.to }, directions, segment.transportMode),
-          delivery_route_breadcrumbs: segment.usedFallbackBreadcrumbs ? segment.fallbackBreadcrumbs : (deliveryUpdatesById.get(segment.stop.id)?.delivery_route_breadcrumbs || segment.stop?.delivery_route_breadcrumbs),
+          delivery_route_breadcrumbs: parseBreadcrumbsToArray(segment.usedFallbackBreadcrumbs ? segment.fallbackBreadcrumbs : (deliveryUpdatesById.get(segment.stop.id)?.delivery_route_breadcrumbs || segment.stop?.delivery_route_breadcrumbs)),
           finished_leg_encoded_polyline: mergedFinishedPolyline,
           finished_leg_transport_mode: mergedFinishedPolyline ? segment.transportMode : null,
           travel_dist: directions?.estimated_distance_km ?? null,
