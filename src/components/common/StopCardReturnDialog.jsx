@@ -21,20 +21,7 @@ export default function StopCardReturnDialog({
   return ReactDOM.createPortal(
     <div
       className="fixed inset-0 flex items-center justify-center"
-      style={{ background: 'rgba(0, 0, 0, 0.6)', zIndex: 999999, pointerEvents: 'auto', touchAction: 'manipulation' }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          handleCancelReturn();
-        }
-      }}
-      onMouseDown={(e) => e.stopPropagation()}
-      onPointerDown={(e) => e.stopPropagation()}
-      onTouchEnd={(e) => {
-        if (e.target === e.currentTarget) {
-          e.preventDefault();
-          handleCancelReturn();
-        }
-      }}
+      style={{ background: 'rgba(0, 0, 0, 0.6)', zIndex: 999999, pointerEvents: 'auto' }}
     >
       <div
         role="dialog"
