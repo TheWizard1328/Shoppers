@@ -25,6 +25,14 @@ export default function QuickRouteAdjustments({
 }) {
   const [isOptimizing, setIsOptimizing] = useState(false);
 
+  // CRITICAL: Pause background sync while panel is open
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('pauseBackgroundSync'));
+    return () => {
+      window.dispatchEvent(new CustomEvent('resumeBackgroundSync'));
+    };
+  }, []);
+
   const getActive = () =>
   deliveries.
   filter((d) => d && (d.status === 'in_transit' || d.status === 'en_route')).
@@ -99,6 +107,7 @@ export default function QuickRouteAdjustments({
                       {...provided.draggableProps}
                       {...provided.dragHandleProps}
                       className="flex items-center gap-2 p-2 rounded-lg border cursor-grab active:cursor-grabbing"
+                      onPointerDown={(e) => e.currentTarget.setPointerCapture(e.pointerId)}
                       style={{
                         ...provided.draggableProps.style,
                         background: snapshot.isDragging ?
