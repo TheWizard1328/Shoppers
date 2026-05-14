@@ -736,9 +736,18 @@ export const AppDataProvider = ({ children, value }) => {
 
       if (fetched.length > 0) {
         await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, fetched);
+        
+        // CRITICAL: Push fetched patients directly into React state via updatePatientsLocally
+        // This ensures the UI updates without requiring a full page refresh
+        if (value.updatePatientsLocally) {
+          value.updatePatientsLocally({ upserts: fetched, deleteIds: [] });
+        } else if (applyPatientChangesLocallyRef.current) {
+          applyPatientChangesLocallyRef.current({ upserts: fetched, deleteIds: [] });
+        }
+
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('patientsUpdated', {
-            detail: { count: fetched.length, selectedDate, selectedCityId, preserveLocalState: true }
+            detail: { count: fetched.length, selectedDate, selectedCityId, patients: fetched, preserveLocalState: true }
           }));
         }
       }
@@ -749,7 +758,7 @@ export const AppDataProvider = ({ children, value }) => {
       patientSyncStateRef.current.inProgress = false;
       patientSyncStateRef.current.lastRunAt = Date.now();
     }
-  }, [value.selectedCityId, value.selectedDate]);
+  }, [value.selectedCityId, value.selectedDate, value.updatePatientsLocally]);
 
   // Trigger on dashboard refresh/boot
   useEffect(() => {
@@ -765,6 +774,7 @@ export const AppDataProvider = ({ children, value }) => {
         triggeredBy === 'manualRefresh' ||
         triggeredBy === 'periodicRefresh' ||
         triggeredBy === 'route_importer' ||
+        triggeredBy === 'dateChange' ||
         source === 'realtime_sync'
       ) {
         ensurePatientsForSelectedDate();
