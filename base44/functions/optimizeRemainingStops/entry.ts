@@ -207,11 +207,16 @@ const shouldSkipAutomationEvent = (context = {}) => {
   const activatedToRoute = changedFields.includes('status')
     && ACTIVE_STATUSES.includes(String(data?.status || ''))
     && !ACTIVE_STATUSES.includes(String(oldData?.status || ''));
+  // CRITICAL: When a delivery transitions FROM active → finished (completed/failed/cancelled/returned),
+  // we must NOT re-optimize — the route is contracting, not changing order. Skip entirely.
   const deactivatedFromRoute = changedFields.includes('status')
-    && !ACTIVE_STATUSES.includes(String(data?.status || ''))
+    && FINISHED_STATUSES.includes(String(data?.status || ''))
     && ACTIVE_STATUSES.includes(String(oldData?.status || ''));
 
-  return !(stopOrderChanged || nextDeliveryChanged || activatedToRoute || deactivatedFromRoute);
+  // If the only trigger is a completion/failure/cancel, skip — no HERE calls needed.
+  if (deactivatedFromRoute) return true;
+
+  return !(stopOrderChanged || nextDeliveryChanged || activatedToRoute);
 };
 
 const dedupeKeyFor = (driverId, deliveryDate) => `optimizeRemainingStops:${driverId}:${deliveryDate}`;
@@ -406,6 +411,20 @@ Deno.serve(async (req) => {
         success: true,
         skipped: true,
         reason: 'driver_unavailable',
+        routeChanged: false,
+        optimizedCount: 0,
+        apiCallsMade: 0
+      });
+    }
+
+    // CRITICAL: Never call HERE API for past dates — route is already done, no re-optimization needed.
+    if (isHistoricalRouteDate(deliveryDate)) {
+      console.log(`⏭️ [optimizeRemainingStops] Skipping — historical date (${deliveryDate}), no HERE calls needed`);
+      return Response.json({
+        success: true,
+        skipped: true,
+        reason: 'historical_date',
+        triggerSource,
         routeChanged: false,
         optimizedCount: 0,
         apiCallsMade: 0
