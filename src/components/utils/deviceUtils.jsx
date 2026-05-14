@@ -93,8 +93,13 @@ export const getUserAgentInfo = () => {
   // CRITICAL: Touch + small screen fallback for devices with ambiguous UAs
   const isTouchSmallScreen = navigator.maxTouchPoints > 0 && window.innerWidth <= 768 && !isTabletDevice;
 
+  // iPhones are ALWAYS Mobile, regardless of screen width or orientation
+  const isiPhone = /iPhone|iPod/i.test(ua);
+
   let deviceType = 'Desktop';
-  if (isTabletDevice) {
+  if (isiPhone) {
+    deviceType = 'Mobile';
+  } else if (isTabletDevice) {
     deviceType = 'Tablet';
   } else if (isMobileUserAgent || isTouchSmallScreen) {
     deviceType = 'Mobile';
