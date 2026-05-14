@@ -567,35 +567,22 @@ Deno.serve(async (req) => {
 
     const DISTANCE_THRESHOLD_KM = 1.0;
 
-    // Rule 1: If route not started, use home
-    if (!routeHasStarted && driverHomePosition) {
-      currentPosition = driverHomePosition;
-      locationSource = 'home_route_not_started';
-    }
-    // Rule 2: If route has started, use last finished stop
-    else if (routeHasStarted && latestFinishedCoords) {
+    // Rule 1: Route has started — always use the last finished stop as segment origin.
+    // This is the authoritative origin for the current leg regardless of where the driver's
+    // GPS happens to be (e.g. driver may be mid-route between stops).
+    if (routeHasStarted && latestFinishedCoords) {
       currentPosition = latestFinishedCoords;
       locationSource = 'last_finished_stop';
     }
-
-    // Rule 3: If driver GPS exists and is >1km from current origin (home or last finished), use GPS
-    if (driverGpsPosition && currentPosition) {
-      const distanceToOrigin = calculateCrowFliesDistance(
-        driverGpsPosition.lat,
-        driverGpsPosition.lng,
-        currentPosition.lat,
-        currentPosition.lng
-      );
-      if (distanceToOrigin > DISTANCE_THRESHOLD_KM) {
-        currentPosition = driverGpsPosition;
-        locationSource = 'driver_gps_far_from_origin';
-      }
+    // Rule 2: Route not started — use home as origin if available
+    else if (!routeHasStarted && driverHomePosition) {
+      currentPosition = driverHomePosition;
+      locationSource = 'home_route_not_started';
     }
-
-    // Fallback: If no currentPosition yet, try driver GPS
-    if (!currentPosition && driverGpsPosition) {
+    // Rule 3: Route not started and no home — use live GPS as fallback origin
+    else if (!routeHasStarted && driverGpsPosition) {
       currentPosition = driverGpsPosition;
-      locationSource = 'driver_gps';
+      locationSource = 'driver_gps_no_home';
     }
 
     // Last resort fallback
