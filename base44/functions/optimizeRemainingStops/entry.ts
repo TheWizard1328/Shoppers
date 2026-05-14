@@ -286,6 +286,9 @@ Deno.serve(async (req) => {
     } = context;
 
     const firstStopId = body?.firstStopId || null;
+    // When a stop is explicitly added/removed from a route (retry, return, restart),
+    // the caller sets bypassHistoricalCheck=true so optimization runs even on past dates.
+    const bypassHistoricalCheck = body?.bypassHistoricalCheck === true;
 
     if (!driverId || !deliveryDate) {
       return Response.json({
@@ -417,8 +420,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    // CRITICAL: Never call HERE API for past dates — route is already done, no re-optimization needed.
-    if (isHistoricalRouteDate(deliveryDate)) {
+    // CRITICAL: Skip HERE API for past dates UNLESS this is an explicit add/remove stop action.
+    // bypassHistoricalCheck=true is set when stops are added/removed (retry, return, restart),
+    // which requires a fresh optimization even on historical dates.
+    if (isHistoricalRouteDate(deliveryDate) && !bypassHistoricalCheck) {
       console.log(`⏭️ [optimizeRemainingStops] Skipping — historical date (${deliveryDate}), no HERE calls needed`);
       return Response.json({
         success: true,
@@ -429,6 +434,9 @@ Deno.serve(async (req) => {
         optimizedCount: 0,
         apiCallsMade: 0
       });
+    }
+    if (bypassHistoricalCheck && isHistoricalRouteDate(deliveryDate)) {
+      console.log(`🔓 [optimizeRemainingStops] bypassHistoricalCheck=true — running optimization on historical date (${deliveryDate}) due to stop add/remove`);
     }
 
     const preferredTravelMode = String(driverAppUser?.preferred_travel_mode || 'driving').toLowerCase();

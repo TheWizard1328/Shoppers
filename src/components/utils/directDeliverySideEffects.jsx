@@ -1,5 +1,4 @@
 import { base44 } from '@/api/base44Client';
-import { shouldRefreshEtasForCompletionDrift, markEtaRefreshRun } from './etaRefreshRules';
 import { hasStopOrderChanged } from './offlineMutations';
 
 const hasCardCodPayment = (delivery) => (
@@ -107,27 +106,7 @@ export const runTerminalDeliverySideEffects = ({ delivery, previousStatus, nextS
     return;
   }
 
-  if (
-    nextStatus === 'completed' &&
-    driverId &&
-    deliveryDate &&
-    shouldRefreshEtasForCompletionDrift({
-      driverId,
-      deliveryDate,
-      actualDeliveryTime: nextDelivery.actual_delivery_time,
-      now: new Date()
-    })
-  ) {
-    const now = new Date();
-    const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    setTimeout(() => {
-      base44.functions.invoke('calculateRealTimeETA', {
-        driverId,
-        deliveryDate,
-        currentLocalTime
-      }).then(() => {
-        markEtaRefreshRun({ driverId, deliveryDate, now: Date.now() });
-      }).catch(() => null);
-    }, 0);
-  }
+  // NOTE: calculateRealTimeETA (HERE API) is intentionally NOT called here.
+  // Stop orders do not change on complete/fail/cancel, so ETAs are updated
+  // locally in useStopCardActions using estimated_duration_minutes instead.
 };

@@ -89,19 +89,13 @@ export const scheduleAppUserUpdate = (appUserId, payload, delay = COMPLETION_DEB
 
 const flushCompletionJob = async (entry) => {
   entry.timer = null;
-  const { driverId, deliveryDate, setOffDuty, skipRouteOptimization } = entry.payload;
+  const { setOffDuty } = entry.payload;
 
+  // NOTE: purgeAndRegeneratePolylines (HERE API) is intentionally never called here.
+  // Stop orders do not change on complete/fail/cancel, so existing polylines remain valid.
+  // Route optimization only runs on explicit user actions (Accept All, Start, FAB re-optimize)
+  // or when stops are added/removed from the route (retry, return, restart).
   const tasks = [];
-
-  if (driverId && deliveryDate && !skipRouteOptimization) {
-    tasks.push(
-      base44.functions.invoke('purgeAndRegeneratePolylines', {
-        driverId,
-        deliveryDate,
-        scope: 'active_only'
-      })
-    );
-  }
 
   if (setOffDuty && entry.payload.appUserId && /^[a-f0-9]{24}$/i.test(String(entry.payload.appUserId))) {
     tasks.push(

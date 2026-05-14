@@ -643,7 +643,10 @@ export async function optimizeRouteAndApplyNextDelivery({
       const optimizeResponse = await base44.functions.invoke('optimizeRemainingStops', {
         driverId,
         deliveryDate,
-        hereApiKey
+        hereApiKey,
+        // Stops are being added/removed — optimize even on historical dates
+        bypassHistoricalCheck: true,
+        bypassDriverStatus: true
       }).catch(() => null);
       optimizeData = optimizeResponse?.data || optimizeResponse || optimizeData;
     }
