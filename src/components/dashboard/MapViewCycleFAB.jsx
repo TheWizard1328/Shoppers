@@ -160,6 +160,12 @@ export default function MapViewCycleFAB({ currentUser = null, filteredDeliveries
               event.stopPropagation();
               return;
             }
+            // CRITICAL: Always clear deactivated state on user click so color feedback is immediate
+            setIsTemporarilyDeactivated(false);
+            if (deactivateTimeoutRef.current) {
+              clearTimeout(deactivateTimeoutRef.current);
+              deactivateTimeoutRef.current = null;
+            }
             onClick?.(event);
           }}
           title={getTooltip()}
