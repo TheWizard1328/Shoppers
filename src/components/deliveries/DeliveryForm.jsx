@@ -1828,6 +1828,11 @@ export default function DeliveryForm({
   useEffect(() => {
     if (delivery || hasLoadedPending.current) return;
     if (!allDeliveries || !suggestedDate || !currentUser || !Array.isArray(patients) || !Array.isArray(stores) || !patients.length || !stores.length) return;
+    // CRITICAL: Skip auto-load if user has already added local staged deliveries
+    if (stagedDeliveries.length > 0) {
+      hasLoadedPending.current = true;
+      return;
+    }
     const pendingDeliveries = filterPendingDeliveriesForUser({ allDeliveries, suggestedDate, currentUser, userHasRole });
     if (pendingDeliveries.length === 0) {
       hasLoadedPending.current = true;
@@ -1841,7 +1846,7 @@ export default function DeliveryForm({
       setHasChanges(false);
       if (unresolvedPendingCount === 0) hasLoadedPending.current = true;
     }, 100);
-  }, [delivery, allDeliveries, currentUser, patients, stores, suggestedDate]);
+  }, [delivery, allDeliveries, currentUser, patients, stores, suggestedDate, stagedDeliveries.length]);
 
   // CRITICAL: Track initial PUID from delivery to prevent overwrites
   const initialPuidRef = useRef(null);
