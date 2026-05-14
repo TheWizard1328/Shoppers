@@ -56,8 +56,19 @@ export const shouldUseMobileLayout = () => {
 export const getUserAgentInfo = () => {
   if (isCapacitorNativeApp()) {
     const platform = getCapacitorPlatform();
+    const ua = navigator.userAgent;
+    const isIPad = /iPad/i.test(ua) || (/Mac/i.test(ua) && navigator.maxTouchPoints > 1);
+    const isiPhone = /iPhone|iPod/i.test(ua);
+
+    let deviceType;
+    if (platform === 'ios') {
+      deviceType = isIPad ? 'Tablet' : 'Mobile'; // iPhones always Mobile, iPads always Tablet
+    } else {
+      deviceType = window.innerWidth > 768 ? 'Tablet' : 'Mobile';
+    }
+
     return {
-      deviceType: window.innerWidth > 768 ? 'Tablet' : 'Mobile',
+      deviceType,
       os: platform === 'android' ? 'Android' : platform === 'ios' ? 'iOS' : 'Unknown OS'
     };
   }
