@@ -165,18 +165,7 @@ export default function ResetPolylinesButton({
             const response = await base44.functions.invoke('purgeAndRegeneratePolylines', {
               driverId,
               deliveryDate: selectedDate,
-              scope: hasActiveStops ? 'all' : 'completed_only',
-              reason: 'manual',
-              routeSource: 'polylines',
-              bypassDriverStatus: true,
-              bypassPolylineUpdated: true,
-              routeStopOrder: orderedStopIds,
-              orderedStopsWithTransportMode,
-              routePattern: ['home', ...orderedStopIds, 'home'],
-              explicitOrderedStopsOnly: true,
-              explicitRouteOrigin: 'home',
-              explicitRouteDestination: 'home',
-              bypassPolylineDelete: true
+              orderedDeliveryIds: orderedStopIds
             });
             result = response?.data || response || {};
             if (!result.success) {
