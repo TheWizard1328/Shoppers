@@ -907,49 +907,60 @@ export default function useStopCardActions(params) {
         const actedOnNextDelivery = delivery?.isNextDelivery === true;
         await setAndCenterNextDelivery({ driverDeliveries: routeDeliveries, targetDeliveryId: nextStop?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true, persistToBackend: true });
         if (actedOnNextDelivery && shouldRecalculateCompletionEtas && remainingEtaDeliveries.length > 0) {
-          // CRITICAL: Trigger backend optimization to recalculate ETAs properly
-          // Don't calculate ETAs locally - let optimizeRemainingStops handle it with HERE API
+          // CRITICAL: Use local ETA recalculation with estimated_duration_minutes (no API call)
+          // Calculate ETAs by cascading from completed stop using each delivery's estimated_duration_minutes + 5 min buffer
           try {
-            const optimizeResponse = await base44.functions.invoke('optimizeRemainingStops', {
-              driverId: delivery.driver_id,
-              deliveryDate: delivery.delivery_date,
-              currentLocalTime: completionUpdate.actual_delivery_time || forcedCompletionTimestamp,
-              deviceTime: new Date().toISOString(),
-              bypassDeduplication: true
+            const completionTimeStr = completionUpdate.actual_delivery_time || forcedCompletionTimestamp;
+            const [completionHours, completionMinutes] = completionTimeStr.split(':').map(Number);
+            let baseTimeMinutes = completionHours * 60 + completionMinutes;
+            
+            const etaUpdates = [];
+            remainingEtaDeliveries.forEach((stop, index) => {
+              // Add estimated_duration_minutes for this stop plus 5 minute buffer
+              const duration = Number(stop.estimated_duration_minutes) || 5;
+              baseTimeMinutes += duration + (index === 0 ? 5 : 0); // Extra 5 min for next delivery
+              
+              const etaHours = Math.floor((baseTimeMinutes % 1440) / 60);
+              const etaMins = baseTimeMinutes % 60;
+              const newEta = `${String(etaHours).padStart(2, '0')}:${String(etaMins).padStart(2, '0')}`;
+              
+              etaUpdates.push({
+                id: stop.id,
+                delivery_time_eta: newEta
+              });
             });
             
-            const optimizedRoute = optimizeResponse?.data?.optimizedRoute || optimizeResponse?.optimizedRoute;
-            if (Array.isArray(optimizedRoute) && optimizedRoute.length > 0) {
-              // Persist optimized ETAs to backend
-              const etaUpdates = optimizedRoute
-                .filter((stop) => (stop.deliveryId || stop.delivery_id) && (stop.newETA || stop.eta))
-                .map((stop) => ({
-                  id: stop.deliveryId || stop.delivery_id,
-                  delivery_time_eta: stop.newETA || stop.eta
-                }));
+            if (etaUpdates.length > 0) {
+              // Persist to backend
+              await Promise.all(etaUpdates.map((update) =>
+                base44.entities.Delivery.update(update.id, { delivery_time_eta: update.delivery_time_eta }).catch(() => null)
+              ));
               
-              if (etaUpdates.length > 0) {
-                await Promise.all(etaUpdates.map((update) =>
-                  base44.entities.Delivery.update(update.id, { delivery_time_eta: update.delivery_time_eta }).catch(() => null)
-                ));
-                
-                // Broadcast to other devices
-                Promise.resolve().then(async () => {
-                  try {
-                    const { broadcastMutation } = await import('../utils/realtimeSync');
-                    await Promise.all(etaUpdates.map((item) => broadcastMutation('Delivery', 'update', item.id, { delivery_time_eta: item.delivery_time_eta })));
-                  } catch (broadcastError) {
-                    console.warn('⚠️ [Complete ETA] broadcast failed:', broadcastError?.message || broadcastError);
-                  }
-                });
-              }
+              // Update offline DB
+              const { offlineDB } = await import('../utils/offlineDatabase');
+              await Promise.all(etaUpdates.map((update) =>
+                offlineDB.updateRecord(offlineDB.STORES.DELIVERIES, update.id, { delivery_time_eta: update.delivery_time_eta }).catch(() => null)
+              ));
+              
+              // Update local UI state
+              updateDeliveriesLocally?.(etaUpdates.map((update) => ({
+                ...remainingEtaDeliveries.find((d) => d.id === update.id),
+                delivery_time_eta: update.delivery_time_eta
+              })), false);
+              
+              // Broadcast to other devices
+              Promise.resolve().then(async () => {
+                try {
+                  const { broadcastMutation } = await import('../utils/realtimeSync');
+                  await Promise.all(etaUpdates.map((item) => broadcastMutation('Delivery', 'update', item.id, { delivery_time_eta: item.delivery_time_eta })));
+                } catch (broadcastError) {
+                  console.warn('⚠️ [Complete ETA] broadcast failed:', broadcastError?.message || broadcastError);
+                }
+              });
             }
-          } catch (optError) {
-            console.warn('⚠️ [Complete] ETA optimization failed:', optError?.message || optError);
+          } catch (error) {
+            console.warn('⚠️ [Complete] Local ETA recalculation failed:', error?.message || error);
           }
-          
-          // Refresh to ensure UI has latest data
-          await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date).catch(() => null);
         }
         if (!nextStop) {
           fabControlEvents.notifyDoneButtonClicked();
@@ -1077,49 +1088,60 @@ export default function useStopCardActions(params) {
         const incompleteDeliveries = driverDeliveries.filter((d) => d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending').sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
         await setAndCenterNextDelivery({ driverDeliveries, targetDeliveryId: incompleteDeliveries[0]?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true, persistToBackend: true });
         if (actedOnNextDelivery && shouldRecalculateFailureEtas && remainingEtaDeliveries.length > 0) {
-          // CRITICAL: Trigger backend optimization to recalculate ETAs properly
-          // Don't calculate ETAs locally - let optimizeRemainingStops handle it with HERE API
+          // CRITICAL: Use local ETA recalculation with estimated_duration_minutes (no API call)
+          // Calculate ETAs by cascading from failed/cancelled stop using each delivery's estimated_duration_minutes + 5 min buffer
           try {
-            const optimizeResponse = await base44.functions.invoke('optimizeRemainingStops', {
-              driverId: delivery.driver_id,
-              deliveryDate: delivery.delivery_date,
-              currentLocalTime: criticalUpdate.actual_delivery_time || forcedFailureTimestamp,
-              deviceTime: new Date().toISOString(),
-              bypassDeduplication: true
+            const failureTimeStr = criticalUpdate.actual_delivery_time || forcedFailureTimestamp;
+            const [failureHours, failureMinutes] = failureTimeStr.split(':').map(Number);
+            let baseTimeMinutes = failureHours * 60 + failureMinutes;
+            
+            const etaUpdates = [];
+            remainingEtaDeliveries.forEach((stop, index) => {
+              // Add estimated_duration_minutes for this stop plus 5 minute buffer
+              const duration = Number(stop.estimated_duration_minutes) || 5;
+              baseTimeMinutes += duration + (index === 0 ? 5 : 0); // Extra 5 min for next delivery
+              
+              const etaHours = Math.floor((baseTimeMinutes % 1440) / 60);
+              const etaMins = baseTimeMinutes % 60;
+              const newEta = `${String(etaHours).padStart(2, '0')}:${String(etaMins).padStart(2, '0')}`;
+              
+              etaUpdates.push({
+                id: stop.id,
+                delivery_time_eta: newEta
+              });
             });
             
-            const optimizedRoute = optimizeResponse?.data?.optimizedRoute || optimizeResponse?.optimizedRoute;
-            if (Array.isArray(optimizedRoute) && optimizedRoute.length > 0) {
-              // Persist optimized ETAs to backend
-              const etaUpdates = optimizedRoute
-                .filter((stop) => (stop.deliveryId || stop.delivery_id) && (stop.newETA || stop.eta))
-                .map((stop) => ({
-                  id: stop.deliveryId || stop.delivery_id,
-                  delivery_time_eta: stop.newETA || stop.eta
-                }));
+            if (etaUpdates.length > 0) {
+              // Persist to backend
+              await Promise.all(etaUpdates.map((update) =>
+                base44.entities.Delivery.update(update.id, { delivery_time_eta: update.delivery_time_eta }).catch(() => null)
+              ));
               
-              if (etaUpdates.length > 0) {
-                await Promise.all(etaUpdates.map((update) =>
-                  base44.entities.Delivery.update(update.id, { delivery_time_eta: update.delivery_time_eta }).catch(() => null)
-                ));
-                
-                // Broadcast to other devices
-                Promise.resolve().then(async () => {
-                  try {
-                    const { broadcastMutation } = await import('../utils/realtimeSync');
-                    await Promise.all(etaUpdates.map((item) => broadcastMutation('Delivery', 'update', item.id, { delivery_time_eta: item.delivery_time_eta })));
-                  } catch (broadcastError) {
-                    console.warn('⚠️ [Failure ETA] broadcast failed:', broadcastError?.message || broadcastError);
-                  }
-                });
-              }
+              // Update offline DB
+              const { offlineDB } = await import('../utils/offlineDatabase');
+              await Promise.all(etaUpdates.map((update) =>
+                offlineDB.updateRecord(offlineDB.STORES.DELIVERIES, update.id, { delivery_time_eta: update.delivery_time_eta }).catch(() => null)
+              ));
+              
+              // Update local UI state
+              updateDeliveriesLocally?.(etaUpdates.map((update) => ({
+                ...remainingEtaDeliveries.find((d) => d.id === update.id),
+                delivery_time_eta: update.delivery_time_eta
+              })), false);
+              
+              // Broadcast to other devices
+              Promise.resolve().then(async () => {
+                try {
+                  const { broadcastMutation } = await import('../utils/realtimeSync');
+                  await Promise.all(etaUpdates.map((item) => broadcastMutation('Delivery', 'update', item.id, { delivery_time_eta: item.delivery_time_eta })));
+                } catch (broadcastError) {
+                  console.warn('⚠️ [Failure ETA] broadcast failed:', broadcastError?.message || broadcastError);
+                }
+              });
             }
-          } catch (optError) {
-            console.warn('⚠️ [Failure] ETA optimization failed:', optError?.message || optError);
+          } catch (error) {
+            console.warn('⚠️ [Failure] Local ETA recalculation failed:', error?.message || error);
           }
-          
-          // Refresh to ensure UI has latest data
-          await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date).catch(() => null);
         }
         Promise.resolve().then(() => params.scheduleCompletionSideEffects({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, nextDeliveryId: incompleteDeliveries[0]?.id || null, lastCompletedDeliveryId: delivery.id, setOffDuty: incompleteDeliveries.length === 0, appUserId: currentDriverAppUser?.id || null, skipRouteOptimization: true, skipNextLegPolylineRefresh: true }).catch(() => {}));
         onClick?.(null);
