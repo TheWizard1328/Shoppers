@@ -10,6 +10,47 @@ const AUTOMATION_DEDUPE_WINDOW_MS = 60000;
 const LAST_FINISHED_STOP_PROXIMITY_KM = 0.25;
 const WEEKDAY_CODES = ['su', 'mo', 'tu', 'we', 'th', 'fr', 'sa'];
 
+// Geocode a patient address using Google Places API
+const geocodePatientAddress = async (base44, patient) => {
+  if (!patient?.address) return null;
+  
+  try {
+    // Use googlePlacesAutocomplete to get place_id
+    const autocompleteResult = await base44.asServiceRole.functions.invoke('googlePlacesAutocomplete', {
+      input: patient.address,
+      latitude: null,
+      longitude: null
+    });
+    
+    const predictions = autocompleteResult?.predictions || [];
+    if (!predictions || predictions.length === 0) {
+      console.warn(`[geocodePatientAddress] No autocomplete results for: ${patient.address}`);
+      return null;
+    }
+    
+    // Use the first prediction
+    const placeId = predictions[0].place_id;
+    if (!placeId) return null;
+    
+    // Get place details with coordinates
+    const placeDetailsResult = await base44.asServiceRole.functions.invoke('googlePlaceDetails', {
+      place_id: placeId
+    });
+    
+    if (placeDetailsResult?.latitude && placeDetailsResult?.longitude) {
+      return {
+        latitude: placeDetailsResult.latitude,
+        longitude: placeDetailsResult.longitude
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.warn(`[geocodePatientAddress] Failed to geocode ${patient.address}:`, error?.message);
+    return null;
+  }
+};
+
 const getLatestFinishedDelivery = (deliveries) => [...(deliveries || [])]
   .filter((delivery) => FINISHED_STATUSES.includes(delivery?.status))
   .sort((a, b) => {
@@ -489,6 +530,10 @@ Deno.serve(async (req) => {
       : [];
     const storeMap = new Map(stores.map(s => [s.id, s]));
 
+    // Track skipped stops and attempt geocoding for missing coordinates
+    const skippedStops = [];
+    const geocodedPatientIds = new Set();
+
     const pickupWindowByStopId = new Map(
       optimizableDeliveries
         .filter((delivery) => delivery && !delivery.patient_id && delivery.stop_id)
@@ -531,14 +576,68 @@ Deno.serve(async (req) => {
     });
 
      console.log(`📋 [optimizeRemainingStops] Coordinate check for ${optimizableDeliveries.length} active deliveries:`);
-     optimizableDeliveries.forEach((delivery, idx) => {
-       const coords = getDeliveryCoords(delivery, patientMap, storeMap);
+     
+     // Process stops with geocoding for missing coordinates
+     const enhancedStops = [];
+     for (const stop of stops) {
+       const delivery = stop.delivery;
+       let coords = getDeliveryCoords(delivery, patientMap, storeMap);
        const hasCoords = Number.isFinite(coords?.lat) && Number.isFinite(coords?.lng);
-       console.log(`   [${idx + 1}] ${delivery.id} (${delivery.patient_name || 'Pickup'}): ${hasCoords ? `✅ (${coords.lat}, ${coords.lng})` : `❌ Missing coords`}`);
-     });
-
-     const stopsWithCoords = stops.filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lng));
-     console.log(`📋 [optimizeRemainingStops] Prepared ${stopsWithCoords.length} stops for HERE sequencing (${stops.length - stopsWithCoords.length} filtered out due to missing coordinates)`);
+       
+       // Attempt geocoding if coordinates are missing and patient has address
+       if (!hasCoords && delivery.patient_id && !geocodedPatientIds.has(delivery.patient_id)) {
+         const patient = patientMap.get(delivery.patient_id);
+         if (patient?.address && (patient.latitude == null || patient.longitude == null)) {
+           console.log(`   🌍 [optimizeRemainingStops] Attempting geocoding for ${delivery.patient_name || 'Patient'} (${patient.address})`);
+           const geocodedCoords = await geocodePatientAddress(base44, patient);
+           
+           if (geocodedCoords) {
+             // Update patient record with new coordinates
+             try {
+               await base44.asServiceRole.entities.Patient.update(patient.id, {
+                 latitude: geocodedCoords.latitude,
+                 longitude: geocodedCoords.longitude
+               });
+               console.log(`   ✅ [optimizeRemainingStops] Geocoded and saved: ${patient.address} -> (${geocodedCoords.latitude}, ${geocodedCoords.longitude})`);
+               
+               // Update patientMap and coords
+               patientMap.set(patient.id, { ...patient, latitude: geocodedCoords.latitude, longitude: geocodedCoords.longitude });
+               coords = geocodedCoords;
+               geocodedPatientIds.add(patient.id);
+               
+               enhancedStops.push({ ...stop, lat: coords.lat, lng: coords.lng });
+               continue;
+             } catch (error) {
+               console.warn(`   ⚠️ [optimizeRemainingStops] Failed to save geocoded coords for patient ${patient.id}:`, error?.message);
+             }
+           } else {
+             console.warn(`   ❌ [optimizeRemainingStops] Geocoding failed for ${patient.address}`);
+             geocodedPatientIds.add(patient.id);
+           }
+         }
+       }
+       
+       // If still no coords, mark as skipped
+       if (!Number.isFinite(coords?.lat) || !Number.isFinite(coords?.lng)) {
+         const reason = delivery.patient_id ? 
+           (patientMap.get(delivery.patient_id)?.address ? 'geocoding_failed' : 'no_patient_address') : 
+           'pickup_no_coords';
+         
+         skippedStops.push({
+           deliveryId: delivery.id,
+           patientName: delivery.patient_name || 'Unknown',
+           address: delivery.patient_id ? (patientMap.get(delivery.patient_id)?.address || 'No address') : 'Store pickup',
+           reason
+         });
+         
+         console.log(`   ⚠️ [optimizeRemainingStops] SKIP: ${delivery.id} (${delivery.patient_name || 'Pickup'}) - ${reason}`);
+       } else {
+         enhancedStops.push({ ...stop, lat: coords.lat, lng: coords.lng });
+       }
+     }
+     
+     const stopsWithCoords = enhancedStops;
+     console.log(`📋 [optimizeRemainingStops] Prepared ${stopsWithCoords.length} stops for HERE sequencing (${skippedStops.length} skipped due to missing coordinates)`);
 
     const historicalRoute = isHistoricalRouteDate(deliveryDate);
     const latestFinishedDelivery = getLatestFinishedDelivery(completedDeliveries);
