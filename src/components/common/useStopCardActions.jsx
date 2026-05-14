@@ -14,7 +14,7 @@ import { invalidate } from '../utils/dataManager';
 import { generateCompletionTimestamp, calculateRetroactiveStopTiming, parseLocalTimestamp, shouldUseRegularTiming } from '../utils/timeRoundingHelper';
 import { generateUniqueSID } from '../dashboard/DashboardHelpers';
 import { buildRetryDelivery, collapseExpandedStopCardsForDriver, getCurrentLocalTimeString, getDriverRouteDeliveries, getNextActiveDelivery, getNextTrackingNumberInGroup, incrementTrackingNumber, optimizeRouteAndApplyNextDelivery, refreshDriverRoute, reorderActiveRouteLocally, setAndCenterNextDelivery, syncDriverLocationToStop, waitForRouteTransitionSettle, withPausedDriverLocationPoller } from "./stopCardActionHelpers";
-import { clearPendingBreadcrumbsForDelivery, getPendingBreadcrumbsForDelivery } from '../utils/pendingBreadcrumbsManager';
+// pendingBreadcrumbsManager removed - breadcrumbs now handled via DeliveryBreadcrumbs entity
 import { appendBoundaryBreadcrumbPoints } from '../utils/breadcrumbBoundaryPoints';
 import { triggerSquareCodUpsert } from '../utils/directDeliverySideEffects';
 import { runAcceptAllBatchPipeline } from '../utils/acceptAllBatchPipeline';
@@ -828,9 +828,7 @@ export default function useStopCardActions(params) {
         if (autoCODPayment) setCodPayments(autoCODPayment);
         let pendingBreadcrumbsString = null;
         try {
-          pendingBreadcrumbsString = await getPendingBreadcrumbsForDelivery({ driverUserId: delivery.driver_id, deliveryId: delivery.id, stopOrder: delivery.stop_order, appUsers });
           await appendBoundaryBreadcrumbPoints({ driverId: delivery.driver_id, delivery, allDeliveries, patients, stores, appUsers, terminalStatus: 'completed', completedAt: delivery.actual_delivery_time || delivery.arrival_time || new Date().toISOString() });
-          pendingBreadcrumbsString = await getPendingBreadcrumbsForDelivery({ driverUserId: delivery.driver_id, deliveryId: delivery.id, stopOrder: delivery.stop_order, appUsers });
         } catch {}
         // Only execute accept all stops if this is a pickup and has pending deliveries to process
         const hasPendingPickupTransitions = isPickup && pendingPickups && pendingPickups.some((p) => p.status === 'pending');
@@ -849,7 +847,7 @@ export default function useStopCardActions(params) {
         const patientSavedSignatureUrl = patient?.signature_image_url || patient?.saved_signature_image_url || null;
         const fallbackSignatureUrl = patientSavedSignatureUrl || null;
         const fallbackTravelDist = resolveTravelDistFallback(delivery, retroactiveTiming?.travel_dist, sameRouteDeliveries);
-        const completionUpdate = { status: 'completed', actual_delivery_time: forcedCompletionTimestamp || localTimeString, finished_leg_transport_mode: currentPreferredTravelMode, isNextDelivery: false, finished_leg_encoded_polyline: null, PolylineUpdated: true, ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}), ...(completionCodPayments.length > 0 ? { cod_payments: completionCodPayments } : {}), ...(fallbackSignatureUrl ? { signature_image_url: fallbackSignatureUrl } : {}), ...(shouldOverwriteArrivalTime && forcedArrivalTimestamp ? { arrival_time: forcedArrivalTimestamp } : {}), ...(typeof fallbackTravelDist === 'number' ? { travel_dist: fallbackTravelDist } : {}) };
+        const completionUpdate = { status: 'completed', actual_delivery_time: forcedCompletionTimestamp || localTimeString, finished_leg_transport_mode: currentPreferredTravelMode, isNextDelivery: false, finished_leg_encoded_polyline: null, PolylineUpdated: true, ...(completionCodPayments.length > 0 ? { cod_payments: completionCodPayments } : {}), ...(fallbackSignatureUrl ? { signature_image_url: fallbackSignatureUrl } : {}), ...(shouldOverwriteArrivalTime && forcedArrivalTimestamp ? { arrival_time: forcedArrivalTimestamp } : {}), ...(typeof fallbackTravelDist === 'number' ? { travel_dist: fallbackTravelDist } : {}) };
         const shouldDeleteSquareCodBeforeComplete = !isPickup && Number(delivery?.cod_total_amount_required || 0) > 0 && hasDebitOrCreditCod(delivery, completionCodPayments);
         const shouldRecalculateCompletionEtas = delivery?.delivery_date === localDeviceTodayStr && shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, completionUpdate.actual_delivery_time);
         const remainingEtaDeliveries = sameRouteDeliveries
@@ -875,9 +873,7 @@ export default function useStopCardActions(params) {
             await base44.entities.Patient.update(patient.id, { status: 'active' });
           }
         }
-        if (pendingBreadcrumbsString) {
-          try { await clearPendingBreadcrumbsForDelivery({ driverUserId: delivery.driver_id, deliveryId: delivery.id, stopOrder: delivery.stop_order, appUsers, force: true }); } catch {}
-        }
+        // Breadcrumbs cleared automatically by processBreadcrumbLeg backend automation on delivery completion
 
         const optimisticDeliveries = allDeliveries.map((d) => {
           if (!d || d.driver_id !== delivery.driver_id || d.delivery_date !== delivery.delivery_date) return d;
@@ -1023,9 +1019,7 @@ export default function useStopCardActions(params) {
         const retroactiveTiming = useRetroactiveTiming ? await calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: localDeviceTodayStr, allowSameDay: true }) : null;
         let pendingBreadcrumbsString = null;
         try {
-          pendingBreadcrumbsString = await getPendingBreadcrumbsForDelivery({ driverUserId: delivery.driver_id, deliveryId: delivery.id, stopOrder: delivery.stop_order, appUsers });
           await appendBoundaryBreadcrumbPoints({ driverId: delivery.driver_id, delivery, allDeliveries, patients, stores, appUsers, terminalStatus: status, completedAt: delivery.actual_delivery_time || delivery.arrival_time || new Date().toISOString() });
-          pendingBreadcrumbsString = await getPendingBreadcrumbsForDelivery({ driverUserId: delivery.driver_id, deliveryId: delivery.id, stopOrder: delivery.stop_order, appUsers });
         } catch {}
         const forcedFailureTimestamp = useRetroactiveTiming ? (retroactiveTiming?.actual_delivery_time || localTimeString) : localTimeString;
         const forcedFailureArrivalTimestamp = useRetroactiveTiming ? (retroactiveTiming?.arrival_time || forcedFailureTimestamp) : (delivery.arrival_time || localTimeString);
@@ -1035,13 +1029,13 @@ export default function useStopCardActions(params) {
         const shouldAutoSetArrivalTime = (useRetroactiveTiming && !!retroactiveArrivalDate && (!existingArrivalDate || arrivalVsRetroArrivalDiffMinutes > 5)) || (!useRetroactiveTiming && !delivery.arrival_time);
         const allRouteDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
         const fallbackTravelDist = resolveTravelDistFallback(delivery, retroactiveTiming?.travel_dist, allRouteDeliveries);
-        const criticalUpdate = { status, delivery_notes: updatedNotes, actual_delivery_time: forcedFailureTimestamp, finished_leg_transport_mode: currentPreferredTravelMode, isNextDelivery: false, PolylineUpdated: true, ...(pendingBreadcrumbsString ? { delivery_route_breadcrumbs: pendingBreadcrumbsString } : {}), ...(shouldAutoSetArrivalTime ? { arrival_time: forcedFailureArrivalTimestamp } : {}), ...(typeof fallbackTravelDist === 'number' ? { travel_dist: fallbackTravelDist } : {}) };
+        const criticalUpdate = { status, delivery_notes: updatedNotes, actual_delivery_time: forcedFailureTimestamp, finished_leg_transport_mode: currentPreferredTravelMode, isNextDelivery: false, PolylineUpdated: true, ...(shouldAutoSetArrivalTime ? { arrival_time: forcedFailureArrivalTimestamp } : {}), ...(typeof fallbackTravelDist === 'number' ? { travel_dist: fallbackTravelDist } : {}) };
         const shouldDeleteSquareCodBeforeFailure = Number(delivery?.cod_total_amount_required || 0) > 0;
         await appendBoundaryBreadcrumbPoints({ driverId: delivery.driver_id, delivery, allDeliveries, patients, stores, appUsers, terminalStatus: status, completedAt: criticalUpdate.actual_delivery_time });
         if (shouldDeleteSquareCodBeforeFailure) await deleteCODWithTimeout(delivery.id, `Deleted before marking as ${status}`);
         await Promise.allSettled([updateDeliveryLocal(delivery.id, criticalUpdate, { skipSmartRefresh: true })]);
         if (onStatusUpdate) await onStatusUpdate(delivery.id, status, criticalUpdate, false);
-        if (pendingBreadcrumbsString) await clearPendingBreadcrumbsForDelivery({ driverUserId: delivery.driver_id, deliveryId: delivery.id, stopOrder: delivery.stop_order, appUsers, force: true });
+        // Breadcrumbs cleared automatically by processBreadcrumbLeg backend automation on delivery completion
         const actedOnNextDelivery = delivery?.isNextDelivery === true;
         const allDriverDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
         const incompleteAfterThis = allDriverDeliveries.filter((d) => d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending');

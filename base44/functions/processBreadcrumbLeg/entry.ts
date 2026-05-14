@@ -217,7 +217,7 @@ Deno.serve(async (req) => {
       return Response.json({ success: false, skipped: true, reason: 'no_origin_coords', delivery_id });
     }
 
-    // Fetch breadcrumbs from DeliveryBreadcrumbs entity (new) or PendingBreadcrumbLive (legacy fallback)
+    // Fetch breadcrumbs exclusively from DeliveryBreadcrumbs entity
     let allRaw = [];
 
     const breadcrumbRecords = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
@@ -236,12 +236,6 @@ Deno.serve(async (req) => {
           else allRaw.push([coord[0], coord[1]]);
         });
       }
-    } else {
-      // Legacy: PendingBreadcrumbLive
-      const pendingRecords = await base44.asServiceRole.entities.PendingBreadcrumbLive.filter({
-        driver_id, delivery_date, stop_order: Number(stop_order),
-      }).catch(() => []);
-      allRaw = (pendingRecords || []).flatMap((r) => Array.isArray(r.breadcrumbs) ? r.breadcrumbs : []);
     }
 
     const normalized = allRaw.map(normalizePoint).filter(Boolean);
@@ -292,16 +286,6 @@ Deno.serve(async (req) => {
       await base44.asServiceRole.entities.DeliveryBreadcrumbs.update(existingBreadcrumb.id, breadcrumbData);
     } else {
       await base44.asServiceRole.entities.DeliveryBreadcrumbs.create(breadcrumbData);
-    }
-
-    // Clean up legacy PendingBreadcrumbLive records if any
-    if (breadcrumbRecords.length === 0) {
-      const pendingRecords = await base44.asServiceRole.entities.PendingBreadcrumbLive.filter({
-        driver_id, delivery_date, stop_order: Number(stop_order),
-      }).catch(() => []);
-      if (pendingRecords && pendingRecords.length > 0) {
-        await Promise.all(pendingRecords.map((r) => base44.asServiceRole.entities.PendingBreadcrumbLive.delete(r.id)));
-      }
     }
 
     return Response.json({

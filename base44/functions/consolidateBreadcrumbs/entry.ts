@@ -197,26 +197,7 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, skipped: true, reason: 'missing_leg_end_time', delivery_id: currentDelivery.id });
     }
 
-    // Fetch raw pending breadcrumbs from the old PendingBreadcrumbLive entity (legacy)
-    const pendingRows = await base44.asServiceRole.entities.PendingBreadcrumbLive.filter({ driver_id }, '-updated_date', 50000).catch(() => []);
-    const matchingPendingRows = (pendingRows || []).filter((row) => Number(row?.stop_order) === numericStopOrder);
-
-    const validPoints = [];
-    for (const row of matchingPendingRows) {
-      const rawPoints = Array.isArray(row?.breadcrumbs) ? row.breadcrumbs : [];
-      for (const rawPoint of rawPoints) {
-        const point = normalizeBreadcrumbPoint(rawPoint);
-        if (!point) continue;
-        const timestampMs = point[2];
-        const pointDate = getEdmontonDateString(timestampMs);
-        if (pointDate !== delivery_date) continue;
-        if (timestampMs > legEndMs) continue;
-        if (legStartMs && timestampMs < legStartMs) continue;
-        validPoints.push(point);
-      }
-    }
-
-    // Also fetch existing DeliveryBreadcrumbs record for this stop to merge
+    // Fetch existing DeliveryBreadcrumbs record for this stop to merge
     const existingBreadcrumbRecords = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
       driver_id, delivery_date, stop_order: numericStopOrder
     }).catch(() => []);
@@ -232,7 +213,7 @@ Deno.serve(async (req) => {
         return true;
       });
 
-    const sortedPoints = dedupeSequential([...existingPoints, ...validPoints].sort((a, b) => a[2] - b[2]));
+    const sortedPoints = dedupeSequential([...existingPoints].sort((a, b) => a[2] - b[2]));
 
     if (sortedPoints.length === 0) {
       return Response.json({ success: true, message: 'No valid breadcrumb points to consolidate', delivery_id: currentDelivery.id, breadcrumb_count: 0 });
@@ -260,16 +241,10 @@ Deno.serve(async (req) => {
       await base44.asServiceRole.entities.DeliveryBreadcrumbs.create(breadcrumbData);
     }
 
-    // Clean up old PendingBreadcrumbLive rows
-    for (const row of matchingPendingRows) {
-      await base44.asServiceRole.entities.PendingBreadcrumbLive.delete(row.id).catch(() => null);
-    }
-
     return Response.json({
       success: true,
       delivery_id: currentDelivery.id,
       breadcrumb_count: sortedPoints.length,
-      source_rows: matchingPendingRows.length,
       leg_start_ms: legStartMs,
       leg_end_ms: legEndMs
     });

@@ -1,6 +1,54 @@
 import { base44 } from '@/api/base44Client';
 import { getLocalDateString } from './localTimeHelper';
 
+// Polyline encoding (Google format) for compact storage
+function encodePolylineValue(value) {
+  let v = Math.round(value * 1e5);
+  v = v < 0 ? ~(v << 1) : v << 1;
+  let result = '';
+  while (v >= 0x20) {
+    result += String.fromCharCode((0x20 | (v & 0x1f)) + 63);
+    v >>= 5;
+  }
+  result += String.fromCharCode(v + 63);
+  return result;
+}
+
+function encodePolyline(points) {
+  let prevLat = 0, prevLon = 0, result = '';
+  for (const point of points) {
+    result += encodePolylineValue(point[0] - prevLat);
+    result += encodePolylineValue(point[1] - prevLon);
+    prevLat = point[0];
+    prevLon = point[1];
+  }
+  return result;
+}
+
+function decodePolyline(encoded) {
+  if (!encoded || typeof encoded !== 'string') return [];
+  let index = 0, lat = 0, lng = 0;
+  const coordinates = [];
+  while (index < encoded.length) {
+    let shift = 0, result = 0, byte;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+    shift = 0; result = 0;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    coordinates.push([lat / 1e5, lng / 1e5]);
+  }
+  return coordinates;
+}
+
 export const collectBreadcrumbForTracker = async ({
   driverStatus,
   appUserId,
@@ -15,7 +63,6 @@ export const collectBreadcrumbForTracker = async ({
   }
 
   const { offlineDB } = await import('./offlineDatabase');
-  const { buildPendingBreadcrumbKey } = await import('./pendingBreadcrumbsManager');
 
   const deliveryDate = currentDeliveryDate || getLocalDateString();
   const deliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, deliveryDate);
@@ -31,17 +78,24 @@ export const collectBreadcrumbForTracker = async ({
   }
 
   const stopOrder = Number(activeDelivery?.stop_order || activeDelivery?.display_stop_order || 0);
-  const pendingKey = buildPendingBreadcrumbKey({
-    appUserId,
-    deliveryId: activeDelivery.id,
-    stopOrder
-  });
+  // Use a stable local key for the offline record
+  const offlineKey = `${currentUser.id}__stop_${stopOrder}__${deliveryDate}`;
 
-  const existingBreadcrumbs = await offlineDB.getById(offlineDB.STORES.PENDING_BREADCRUMBS, pendingKey);
+  // Load existing offline DeliveryBreadcrumbs record for this leg
+  const existingOfflineRecord = await offlineDB.getById(offlineDB.STORES.DELIVERY_BREADCRUMBS, offlineKey);
   const breadcrumbPoint = [latitude, longitude, timestamp];
 
+  // Reconstruct existing points from encoded polyline + timestamps
+  let existingPoints = [];
+  if (existingOfflineRecord?.encoded_polyline && existingOfflineRecord?.timestamps) {
+    const coords = decodePolyline(existingOfflineRecord.encoded_polyline);
+    const tsArr = existingOfflineRecord.timestamps.split(',').map(Number);
+    existingPoints = coords.map((coord, i) => [coord[0], coord[1], tsArr[i] || 0]);
+  }
+
+  // On first point for this stop, seed with origin from previous finished stop
   let initialPoints = [];
-  if (!existingBreadcrumbs?.breadcrumbs?.length) {
+  if (existingPoints.length === 0) {
     const previousFinishedStop = driverDeliveries
       .filter((d) => finishedStatuses.includes(d?.status) && (d?.stop_order || 0) < stopOrder)
       .sort((a, b) => Number(b?.stop_order || 0) - Number(a?.stop_order || 0))[0];
@@ -71,46 +125,58 @@ export const collectBreadcrumbForTracker = async ({
     }
   }
 
-  const breadcrumbData = {
-    id: pendingKey,
+  const allPoints = existingPoints.length > 0
+    ? [...existingPoints, breadcrumbPoint]
+    : [...initialPoints, breadcrumbPoint];
+
+  const encodedPolyline = encodePolyline(allPoints);
+  const timestamps = allPoints.map((p) => p[2] || 0).join(',');
+
+  // Save to offline DeliveryBreadcrumbs store
+  const offlineRecord = {
+    id: offlineKey,
     driver_id: currentUser.id,
-    owner_driver_id: appUserId,
-    driver_user_id: currentUser.id,
     delivery_id: activeDelivery.id,
-    delivery_date: activeDelivery.delivery_date,
+    delivery_date: deliveryDate,
     stop_order: stopOrder,
-    stop_label: `Stop ${stopOrder || 0}`,
-    timestamp,
-    breadcrumbs: existingBreadcrumbs?.breadcrumbs?.length
-      ? [...existingBreadcrumbs.breadcrumbs, breadcrumbPoint]
-      : [...initialPoints, breadcrumbPoint]
+    encoded_polyline: encodedPolyline,
+    timestamps,
+    transport_mode: activeDelivery.transport_mode || 'driving',
+    point_count: allPoints.length,
   };
+  await offlineDB.save(offlineDB.STORES.DELIVERY_BREADCRUMBS, offlineRecord);
 
-  await offlineDB.save(offlineDB.STORES.PENDING_BREADCRUMBS, breadcrumbData);
-
+  // Sync to backend DeliveryBreadcrumbs entity
   try {
-    const liveRecords = await base44.entities.PendingBreadcrumbLive.filter({ driver_id: currentUser.id, delivery_date: activeDelivery.delivery_date });
-    const liveRecord = (liveRecords || []).find((record) => Number(record?.stop_order) === Number(stopOrder));
-    if (liveRecord?.id) {
-      await base44.entities.PendingBreadcrumbLive.update(liveRecord.id, {
-        delivery_date: activeDelivery.delivery_date,
-        stop_order: stopOrder,
-        breadcrumbs: breadcrumbData.breadcrumbs
-      });
+    const existingRecords = await base44.entities.DeliveryBreadcrumbs.filter({
+      driver_id: currentUser.id,
+      delivery_date: deliveryDate,
+      stop_order: stopOrder,
+    });
+    const existingBackendRecord = existingRecords?.[0] || null;
+
+    const breadcrumbPayload = {
+      driver_id: currentUser.id,
+      delivery_date: deliveryDate,
+      stop_order: stopOrder,
+      delivery_id: activeDelivery.id,
+      encoded_polyline: encodedPolyline,
+      timestamps,
+      transport_mode: activeDelivery.transport_mode || 'driving',
+      point_count: allPoints.length,
+    };
+
+    if (existingBackendRecord?.id) {
+      await base44.entities.DeliveryBreadcrumbs.update(existingBackendRecord.id, breadcrumbPayload);
     } else {
-      await base44.entities.PendingBreadcrumbLive.create({
-        driver_id: currentUser.id,
-        delivery_date: activeDelivery.delivery_date,
-        stop_order: stopOrder,
-        breadcrumbs: breadcrumbData.breadcrumbs
-      });
+      await base44.entities.DeliveryBreadcrumbs.create(breadcrumbPayload);
     }
   } catch (error) {
     const isRateLimited = error?.response?.status === 429 || error?.status === 429 || error?.message?.includes('429') || error?.message?.toLowerCase?.().includes('rate limit');
     if (!isRateLimited) {
-      console.warn(`⚠️ [LocationTracker] Live breadcrumb write skipped:`, error.message);
+      console.warn(`⚠️ [LocationTracker] DeliveryBreadcrumbs write skipped:`, error.message);
     } else {
-      console.warn(`⚠️ [LocationTracker] Live breadcrumb rate-limited, skipping this point`);
+      console.warn(`⚠️ [LocationTracker] DeliveryBreadcrumbs rate-limited, skipping this point`);
     }
   }
 
@@ -119,11 +185,11 @@ export const collectBreadcrumbForTracker = async ({
       driverId: currentUser?.id,
       appUserId,
       deliveryId: activeDelivery.id,
-      deliveryDate: activeDelivery.delivery_date,
+      deliveryDate,
       stopOrder,
       point: { lat: latitude, lng: longitude, timestamp }
     }
   }));
 
-  return { pendingKey, activeDelivery, stopOrder };
+  return { pendingKey: offlineKey, activeDelivery, stopOrder };
 };

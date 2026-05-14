@@ -418,6 +418,7 @@ const subscribeToEntity = (entityName) => {
                             entityName === 'City' ? offlineDB.STORES.CITIES :
                             entityName === 'Store' ? offlineDB.STORES.STORES :
                             entityName === 'Payroll' ? offlineDB.STORES.PAYROLL :
+                            entityName === 'DeliveryBreadcrumbs' ? offlineDB.STORES.DELIVERY_BREADCRUMBS :
                             entityName === 'Message' ? null : null;
 
           if (entityName === 'Message' && typeof window !== 'undefined') {
@@ -440,6 +441,7 @@ const subscribeToEntity = (entityName) => {
                             entityName === 'Delivery' ? offlineDB.STORES.DELIVERIES :
                             entityName === 'Patient' ? offlineDB.STORES.PATIENTS :
                             entityName === 'Payroll' ? offlineDB.STORES.PAYROLL :
+                            entityName === 'DeliveryBreadcrumbs' ? offlineDB.STORES.DELIVERY_BREADCRUMBS :
                             null;
 
           if (storeName) {
@@ -481,6 +483,7 @@ export const connect = () => {
     subscribeToEntity('Message');
     subscribeToEntity('GoogleAPILog');
     subscribeToEntity('AppSettings');
+    subscribeToEntity('DeliveryBreadcrumbs');
 
     // Instantly cascade Patient changes to related Deliveries in OFFLINE DB + UI
     window.addEventListener('realtimeUpdate_Patient', async (e) => {
