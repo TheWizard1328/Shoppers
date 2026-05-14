@@ -646,6 +646,35 @@ export default function useStopCardActions(params) {
           }
 
           // CRITICAL: After optimization, save optimized deliveries to offline DB for cross-device sync
+          // First, calculate corrected ETAs from the optimization response
+          let optimizedWithCorrectedEtas = null;
+          if (Array.isArray(optimizeResponse?.optimizedRoute) && optimizeResponse.optimizedRoute.length > 0) {
+            const lastCompletedStop = completedStops.length > 0 ? completedStops[completedStops.length - 1] : null;
+            const lastCompletedActualTime = lastCompletedStop?.actual_delivery_time || null;
+
+            let baseTimeMinutes = 0;
+            if (lastCompletedActualTime) {
+              const [hours, minutes] = lastCompletedActualTime.split(':').map(Number);
+              baseTimeMinutes = hours * 60 + minutes;
+            } else {
+              const now = new Date();
+              baseTimeMinutes = now.getHours() * 60 + now.getMinutes();
+            }
+
+            optimizedWithCorrectedEtas = optimizeResponse.optimizedRoute.map((stop, index) => {
+              let etaMinutes = baseTimeMinutes;
+              for (let i = 0; i <= index; i++) {
+                const currentStop = optimizeResponse.optimizedRoute[i];
+                etaMinutes += (currentStop.estimated_duration_minutes || 5);
+              }
+              const etaHours = Math.floor((etaMinutes % 1440) / 60);
+              const etaMins = etaMinutes % 60;
+              const newEta = `${String(etaHours).padStart(2, '0')}:${String(etaMins).padStart(2, '0')}`;
+              return { ...stop, correctedEta: newEta };
+            });
+          }
+
+          // Now save the optimized deliveries with corrected ETAs to the backend
           let optimizedDeliveriesToPersist = [];
           if (Array.isArray(optimizedWithCorrectedEtas) && optimizedWithCorrectedEtas.length > 0) {
             optimizedDeliveriesToPersist = optimizedWithCorrectedEtas
@@ -705,37 +734,8 @@ export default function useStopCardActions(params) {
           // CRITICAL: Pass firstStopId so optimizeRemainingStops locks the started stop
           // The optimizer will use this explicit firstStopId as the authoritative route origin
 
-          // CRITICAL: If handleStartDelivery already returned optimizedRoute, use it directly
-          // Otherwise trigger route optimization manually
-          let optimizedWithCorrectedEtas = null;
-          if (Array.isArray(optimizeResponse?.optimizedRoute) && optimizeResponse.optimizedRoute.length > 0) {
-            // CRITICAL: Recalculate ETAs from last completed stop's actual delivery time
-            const lastCompletedStop = completedStops.length > 0 ? completedStops[completedStops.length - 1] : null;
-            const lastCompletedActualTime = lastCompletedStop?.actual_delivery_time || null;
-
-            let baseTimeMinutes = 0;
-            if (lastCompletedActualTime) {
-              const [hours, minutes] = lastCompletedActualTime.split(':').map(Number);
-              baseTimeMinutes = hours * 60 + minutes;
-            } else {
-              const now = new Date();
-              baseTimeMinutes = now.getHours() * 60 + now.getMinutes();
-            }
-
-            optimizedWithCorrectedEtas = optimizeResponse.optimizedRoute.map((stop, index) => {
-              let etaMinutes = baseTimeMinutes;
-              // Add estimated duration for each stop up to and including current one
-              for (let i = 0; i <= index; i++) {
-                const currentStop = optimizeResponse.optimizedRoute[i];
-                etaMinutes += (currentStop.estimated_duration_minutes || 5);
-              }
-              const etaHours = Math.floor((etaMinutes % 1440) / 60);
-              const etaMins = etaMinutes % 60;
-              const newEta = `${String(etaHours).padStart(2, '0')}:${String(etaMins).padStart(2, '0')}`;
-              return { ...stop, correctedEta: newEta };
-            });
-
-            // handleStartDelivery already optimized — just regenerate polylines
+          // handleStartDelivery already optimized — just regenerate polylines
+          if (Array.isArray(optimizedWithCorrectedEtas) && optimizedWithCorrectedEtas.length > 0) {
             const polylineResponse = await base44.functions.invoke('purgeAndRegeneratePolylines', {
               driverId: delivery.driver_id,
               deliveryDate: delivery.delivery_date,
