@@ -485,6 +485,14 @@ export default function useStopCardActions(params) {
             updateDeliveriesLocally(updatedDeliveries, true);
           }
 
+          if (!isPickup && patient?.id && patient?.status === 'inactive') {
+            try {
+              const { updatePatientLocal } = await import('../utils/offlineMutations');
+              await updatePatientLocal(patient.id, { status: 'active' });
+            } catch {}
+            await base44.entities.Patient.update(patient.id, { status: 'active' }).catch(() => null);
+          }
+
           if ((delivery.cod_total_amount_required || 0) > 0 && !isPickup) triggerSquareCodUpsert({ deliveryId: delivery.id, patientName: patient?.full_name || delivery.patient_name || 'Patient', storeAbbreviation: store?.abbreviation || '', codAmount: delivery.cod_total_amount_required, deliveryDate: delivery.delivery_date, storeId: delivery.store_id });
 
           let restartOptimizeData = null;
@@ -592,7 +600,11 @@ export default function useStopCardActions(params) {
         );
 
         if (!isPickup && patient?.id && patient?.status === 'inactive') {
-          await base44.entities.Patient.update(patient.id, { status: 'active' });
+          try {
+            const { updatePatientLocal } = await import('../utils/offlineMutations');
+            await updatePatientLocal(patient.id, { status: 'active' });
+          } catch {}
+          await base44.entities.Patient.update(patient.id, { status: 'active' }).catch(() => null);
         }
 
         await setAndCenterNextDelivery({ driverDeliveries: startedRouteDeliveries, targetDeliveryId: delivery.id, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true, persistToBackend: true });

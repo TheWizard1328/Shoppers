@@ -74,6 +74,27 @@ export async function runAcceptAllBatchPipeline({
     ));
 
     await processPendingMutations();
+
+    // Reactivate any inactive patients whose deliveries just went in_transit
+    const inactivePatientIds = stagedChangedDeliveries
+      .filter((item) => item?.patient_id && item.status === 'in_transit')
+      .map((item) => item.patient_id);
+
+    if (inactivePatientIds.length > 0) {
+      Promise.resolve().then(async () => {
+        try {
+          const cachedPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS).catch(() => []);
+          const inactivePatients = cachedPatients.filter((p) => p?.id && inactivePatientIds.includes(p.id) && p.status === 'inactive');
+          if (inactivePatients.length > 0) {
+            const { updatePatientLocal } = await import('./offlineMutations');
+            await Promise.all(inactivePatients.map(async (p) => {
+              await updatePatientLocal(p.id, { status: 'active' }).catch(() => {});
+              await base44.entities.Patient.update(p.id, { status: 'active' }).catch(() => {});
+            }));
+          }
+        } catch {}
+      });
+    }
   }
 
   const optimizeResponse = await base44.functions.invoke('optimizeRemainingStops', {
