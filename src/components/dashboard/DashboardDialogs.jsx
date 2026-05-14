@@ -97,20 +97,50 @@ export default function DashboardDialogs({
             onCancel={() => setShowQuickAdjustments(false)}
             onReoptimize={async (reorderPayload) => {
               try {
-                // reorderPayload is [{id, stop_order}] in the new desired order
-                // Pass the ordered delivery IDs directly to purgeAndRegeneratePolylines
                 const orderedDeliveryIds = reorderPayload.map(u => u.id);
                 const deliveryDate = format(selectedDate, 'yyyy-MM-dd');
+                const targetDriverId = selectedDriverId && selectedDriverId !== 'all' ? selectedDriverId : currentUser.id;
+
+                // Build a complete ordered list: active stops in new dragged order,
+                // then append any non-active stops that were excluded from drag UI
+                const allRouteDeliveries = (deliveriesWithStopOrder || [])
+                  .filter(d => d && d.driver_id === targetDriverId && d.delivery_date === deliveryDate)
+                  .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+
+                const activeIds = new Set(orderedDeliveryIds);
+                const nonActiveDeliveries = allRouteDeliveries.filter(d => !activeIds.has(d.id));
+
+                // Assign new stop_order values: active stops first (in dragged order), then non-active
+                const fullOrderedIds = [...orderedDeliveryIds, ...nonActiveDeliveries.map(d => d.id)];
+
+                // Persist new stop_order to backend
+                await Promise.all(
+                  fullOrderedIds.map((id, index) =>
+                    base44.entities.Delivery.update(id, { stop_order: index + 1 })
+                  )
+                );
+
+                // Optimistically update UI immediately so cards reorder right away
+                const optimisticDeliveries = allRouteDeliveries.map(d => {
+                  const newOrder = fullOrderedIds.indexOf(d.id);
+                  return newOrder >= 0 ? { ...d, stop_order: newOrder + 1 } : d;
+                });
+                window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                  detail: { triggeredBy: 'quickReorder', freshDeliveries: optimisticDeliveries, fullReplacement: false }
+                }));
+
+                // Regenerate polylines with the new order
                 const now = new Date();
                 const completionTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                const targetDriverId = selectedDriverId && selectedDriverId !== 'all' ? selectedDriverId : currentUser.id;
                 await base44.functions.invoke('purgeAndRegeneratePolylines', {
                   driverId: targetDriverId,
                   deliveryDate,
-                  orderedDeliveryIds,
+                  orderedDeliveryIds: fullOrderedIds,
                   recalculateEtas: true,
                   completionTime
                 });
+
+                // Final refresh with fresh backend data
                 const freshDeliveries = await base44.entities.Delivery.filter({ driver_id: targetDriverId, delivery_date: deliveryDate });
                 window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'quickReorder', freshDeliveries, fullReplacement: false } }));
               } catch (err) {
