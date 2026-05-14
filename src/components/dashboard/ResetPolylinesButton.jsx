@@ -5,7 +5,6 @@ import { toast } from "@/components/ui/use-toast";
 
 import { offlineDB } from "@/components/utils/offlineDatabase";
 import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
-import { recalculateAndUpdateStopOrders } from "@/components/utils/stopOrderManager";
 import { Loader2, RotateCcw } from "lucide-react";
 
 export default function ResetPolylinesButton({
@@ -64,19 +63,7 @@ export default function ResetPolylinesButton({
     const breadcrumbIntegrationResults = [];
 
     try {
-      // 1. Resort the stops (per driver) via completed times and update stop orders
-      // Process sequentially to avoid rate limits and ensure DBs are updated before polylines
-      for (const driverId of driverIds) {
-        await recalculateAndUpdateStopOrders(driverId, selectedDate, true);
-        window.dispatchEvent(new CustomEvent("deliveriesUpdated", {
-          detail: { driverId, deliveryDate: selectedDate, triggeredBy: "resetPolylines_stopOrders" }
-        }));
-        await new Promise(resolve => setTimeout(resolve, 300));
-      }
-
-      // Polyline cache clearing intentionally skipped
-
-      // 3. Update the polylines/breadcrumbs (per driver) sequentially
+      // Regenerate polylines (per driver) sequentially
       for (const driverId of driverIds) {
         try {
           let result;
