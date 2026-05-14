@@ -423,6 +423,7 @@ export default function StatsPanel({
                             setBreadcrumbsData({ historical: [], current: [] });
                             setShowRoutes(true);
                           }
+                          setIsExpanded(false);
                         }}
                         onTouchEnd={(e) => {
                           e.preventDefault();
