@@ -871,7 +871,6 @@ export default function useStopCardActions(params) {
         const fallbackTravelDist = resolveTravelDistFallback(delivery, retroactiveTiming?.travel_dist, sameRouteDeliveries);
         const completionUpdate = { status: 'completed', actual_delivery_time: forcedCompletionTimestamp || localTimeString, finished_leg_transport_mode: currentPreferredTravelMode, isNextDelivery: false, finished_leg_encoded_polyline: null, PolylineUpdated: true, ...(completionCodPayments.length > 0 ? { cod_payments: completionCodPayments } : {}), ...(fallbackSignatureUrl ? { signature_image_url: fallbackSignatureUrl } : {}), ...(shouldOverwriteArrivalTime && forcedArrivalTimestamp ? { arrival_time: forcedArrivalTimestamp } : {}), ...(typeof fallbackTravelDist === 'number' ? { travel_dist: fallbackTravelDist } : {}) };
         const shouldDeleteSquareCodBeforeComplete = !isPickup && Number(delivery?.cod_total_amount_required || 0) > 0 && hasDebitOrCreditCod(delivery, completionCodPayments);
-        const shouldRecalculateCompletionEtas = delivery?.delivery_date === localDeviceTodayStr && shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, completionUpdate.actual_delivery_time);
         const remainingEtaDeliveries = sameRouteDeliveries
           .filter((d) => d && d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending')
           .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
