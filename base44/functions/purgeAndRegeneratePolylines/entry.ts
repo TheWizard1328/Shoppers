@@ -1416,8 +1416,8 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Route is "started" if any stop is in_transit or en_route
-      const routeStarted = orderedDeliveries.some(d => ACTIVE_STATUSES.has(d?.status));
+      // Route is "started" if any stop is completed, failed, or cancelled
+      const routeStarted = orderedDeliveries.some(d => FINISHED_STATUSES.has(d?.status));
 
       // Helper: parse "HH:mm" to total minutes
       const parseTimeToMinutes = (timeStr) => {
