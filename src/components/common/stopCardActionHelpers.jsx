@@ -240,7 +240,8 @@ async function getHereFinishedLegPolyline({ delivery, origin, destination, finis
     origin: { lat: Number(origin.latitude), lng: Number(origin.longitude) },
     destination: { lat: Number(destination.latitude), lng: Number(destination.longitude) },
     waypoints: waypointPoints.map((point) => ({ lat: Number(point[0]), lng: Number(point[1]) })),
-    transportMode
+    transportMode,
+    caller: 'stopCardActionHelpers:finishedLeg'
   }).catch(() => null);
 
   const data = response?.data || response;
@@ -255,6 +256,11 @@ async function getHereFinishedLegPolyline({ delivery, origin, destination, finis
     waypointPoints.map((point) => ({ lat: Number(point[0]), lng: Number(point[1]) }))
   ).catch(() => null);
 }
+
+const getLocalTodayString = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+};
 
 export async function getFinishedLegEncodedPolyline({
   delivery,
@@ -271,6 +277,12 @@ export async function getFinishedLegEncodedPolyline({
   const origin = getFinishedLegOrigin({ delivery, allDeliveries, driver, patients, stores, finishedStatuses });
   const destination = getStopCoordinates(delivery, patient, store);
   if (!origin || !destination) return null;
+
+  // CRITICAL: For historical dates, never call HERE API — just use existing polyline data.
+  const isHistorical = delivery?.delivery_date && delivery.delivery_date < getLocalTodayString();
+  if (isHistorical) {
+    return delivery?.encoded_polyline || null;
+  }
 
   const pendingLiveBreadcrumbPoints = await getPendingLiveBreadcrumbPoints({ delivery, driverId: delivery?.driver_id });
   const payloadBreadcrumbPoints = parseBreadcrumbPoints(breadcrumbPayload ?? delivery?.delivery_route_breadcrumbs);
