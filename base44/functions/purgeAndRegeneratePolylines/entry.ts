@@ -1416,7 +1416,46 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Route is "started" if any stop is in_transit or en_route
+      const routeStarted = orderedDeliveries.some(d => ACTIVE_STATUSES.has(d?.status));
+
+      // Helper: parse "HH:mm" to total minutes
+      const parseTimeToMinutes = (timeStr) => {
+        if (!timeStr || typeof timeStr !== 'string') return null;
+        const parts = timeStr.split(':');
+        const h = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+        return h * 60 + m;
+      };
+
       orderedDeliveries.forEach((delivery) => {
+        const isPickup = !delivery?.patient_id && !!delivery?.store_id;
+
+        if (isPickup) {
+          const pickupScheduledMinutes = parseTimeToMinutes(delivery?.delivery_time_start);
+
+          if (!routeStarted) {
+            // Non-started route: always use delivery_time_start for pickups
+            if (pickupScheduledMinutes != null) {
+              const etaStr = delivery.delivery_time_start;
+              // Still advance cumulativeMinutes so subsequent stops are offset correctly
+              cumulativeMinutes = Math.max(cumulativeMinutes, pickupScheduledMinutes);
+              etaUpdates.set(delivery.id, { delivery_time_eta: etaStr });
+              return;
+            }
+          } else {
+            // Started route: use delivery_time_start if it is >1 hour from current calculated time
+            if (pickupScheduledMinutes != null && pickupScheduledMinutes - cumulativeMinutes > 60) {
+              const etaStr = delivery.delivery_time_start;
+              cumulativeMinutes = Math.max(cumulativeMinutes, pickupScheduledMinutes);
+              etaUpdates.set(delivery.id, { delivery_time_eta: etaStr });
+              return;
+            }
+            // Otherwise fall through to calculated ETA below
+          }
+        }
+
         // CRITICAL: Use freshly computed duration from polyline results, not stale delivery data
         const freshUpdate = deliveryUpdatesById.get(delivery.id);
         const travelDuration = Number(freshUpdate?.estimated_duration_minutes ?? delivery?.estimated_duration_minutes) || 0;
