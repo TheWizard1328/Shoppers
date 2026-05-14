@@ -1,4 +1,5 @@
-const RECENT_DELIVERY_LOOKBACK_DAYS = 2;
+const RECENT_DELIVERY_LOOKBACK_DAYS = 5; // Check past 5 days for recent deliveries
+const MAX_PROJECTION_DAYS_BEYOND_PRIMARY = 3; // Don't show projections more than 3 days beyond primary date
 
 const userHasRole = (user, role) => {
   if (!user || !role) return false;
@@ -55,10 +56,23 @@ export function getLocalDeliveryPredictions({ currentUser, stores, patients, all
         if (!delivery.delivery_date) return false;
         const deliveredDate = new Date(`${delivery.delivery_date}T00:00:00`);
         const daysAgo = diffDays(dateObj, deliveredDate);
+        // Check if delivery was within past 5 days (0-5 days ago)
         return daysAgo >= 0 && daysAgo <= RECENT_DELIVERY_LOOKBACK_DAYS;
       })
       .map((delivery) => delivery.patient_id)
   );
+
+  // Find primary projection date for each patient (their most recent recurring delivery date)
+  const primaryProjectionDates = new Map();
+  (allDeliveries || [])
+    .filter((delivery) => delivery && delivery.patient_id && delivery.delivery_date)
+    .forEach((delivery) => {
+      const deliveredDate = new Date(`${delivery.delivery_date}T00:00:00`);
+      const existingDate = primaryProjectionDates.get(delivery.patient_id);
+      if (!existingDate || deliveredDate > existingDate) {
+        primaryProjectionDates.set(delivery.patient_id, deliveredDate);
+      }
+    });
 
   return (patients || []).filter((patient) => {
     if (!patient || patient.status !== 'active') return false;
@@ -102,6 +116,18 @@ export function getLocalDeliveryPredictions({ currentUser, stores, patients, all
 
     if (shouldDeliver && recentlyDeliveredPatientIds.has(patient.id)) shouldDeliver = false;
     if (shouldDeliver && lastDate && lastDate >= dateObj) shouldDeliver = false;
+    
+    // Check if selected date is more than 3 days beyond the primary projection date
+    if (shouldDeliver) {
+      const primaryDate = primaryProjectionDates.get(patient.id);
+      if (primaryDate) {
+        const daysBeyondPrimary = diffDays(dateObj, primaryDate);
+        if (daysBeyondPrimary > MAX_PROJECTION_DAYS_BEYOND_PRIMARY) {
+          shouldDeliver = false;
+        }
+      }
+    }
+    
     if (!shouldDeliver) return null;
 
     return {
