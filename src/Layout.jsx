@@ -240,29 +240,25 @@ export default function Layout({ children, currentPageName }) {
   const initAutoRefreshTimerRef = useRef(null);
   const initRetryHintTimerRef = useRef(null);
 
-  // Poll for adminImportEnabled changes (for Kyle J to see updates when toggle changes)
+  // AppSettings sync via WebSocket realtime only (no polling)
+  // adminImportEnabled updates are received through the realtimeSync WebSocket subscription
+  // The realtimeSync module subscribes to AppSettings entity changes and dispatches events
   useEffect(() => {
-    // Only poll for Kyle J (non-app-owner who can benefit from the toggle)
     if (!currentUser) return;
-    if (isAppOwner(currentUser)) return; // App owner controls the toggle, no need to poll
-    if (currentUser.user_name !== 'Kyle J') return; // Only Kyle J needs to poll
+    if (isAppOwner(currentUser)) return; // App owner controls the toggle directly
 
-    const pollAdminImportSetting = async () => {
-      try {
-        const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
-        if (settings && settings.length > 0 && settings[0].setting_value) {
-          const newValue = settings[0].setting_value.adminImportEnabled === true;
-          if (newValue !== adminImportEnabled) {
-            setAdminImportEnabled(newValue);
-          }
-        }
-      } catch (error) {
+    const handleAppSettingsUpdate = (event) => {
+      const updated = event.detail?.data || event.detail;
+      if (!updated) return;
+      if (updated.setting_key === 'refresh_intervals' && updated.setting_value) {
+        const newValue = updated.setting_value.adminImportEnabled === true;
+        setAdminImportEnabled(newValue);
+      }
+    };
 
-        // Silent fail
-      }}; // Initial check
-    pollAdminImportSetting(); // Poll every 60 seconds to prevent rate limits
-    const interval = setInterval(pollAdminImportSetting, 60000);return () => clearInterval(interval);
-  }, [currentUser, adminImportEnabled]);
+    window.addEventListener('appSettingsUpdated', handleAppSettingsUpdate);
+    return () => window.removeEventListener('appSettingsUpdated', handleAppSettingsUpdate);
+  }, [currentUser]);
 
   // ATOMIC INIT: Unified loading state - keeps spinner until device+auth+data confirmed
   useEffect(() => {
