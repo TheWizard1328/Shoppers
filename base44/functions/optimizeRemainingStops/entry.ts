@@ -300,6 +300,11 @@ Deno.serve(async (req) => {
       });
     }
 
+    // CRITICAL: _stampDedupeOnly = true means the caller just wants to pre-lock the dedupe key
+    // to suppress any automation-triggered calls from individual delivery saves in the same batch.
+    // Write the key and return immediately — no HERE API calls made.
+    const stampDedupeOnly = body?._stampDedupeOnly === true;
+
     const dedupeKey = dedupeKeyFor(driverId, deliveryDate);
     const dedupeCheck = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: dedupeKey }, '-updated_date', 1);
     const dedupeRecord = dedupeCheck?.[0] || null;
@@ -321,7 +326,7 @@ Deno.serve(async (req) => {
         setting_value: {
           ...(dedupeRecord.setting_value || {}),
           last_run_at: new Date().toISOString(),
-          trigger_source: triggerSource
+          trigger_source: stampDedupeOnly ? 'batch_dedupe_stamp' : triggerSource
         }
       });
     } else {
@@ -330,8 +335,22 @@ Deno.serve(async (req) => {
         description: 'Recent optimizeRemainingStops execution lock',
         setting_value: {
           last_run_at: new Date().toISOString(),
-          trigger_source: triggerSource
+          trigger_source: stampDedupeOnly ? 'batch_dedupe_stamp' : triggerSource
         }
+      });
+    }
+
+    // Early exit after stamping dedupe key — no HERE calls needed
+    if (stampDedupeOnly) {
+      console.log(`🔒 [optimizeRemainingStops] Dedupe key stamped for batch pipeline (${driverId}/${deliveryDate}) — returning early`);
+      return Response.json({
+        success: true,
+        skipped: true,
+        reason: 'dedupe_stamp_only',
+        triggerSource,
+        routeChanged: false,
+        optimizedCount: 0,
+        apiCallsMade: 0
       });
     }
 

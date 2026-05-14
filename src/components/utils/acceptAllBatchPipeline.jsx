@@ -63,6 +63,22 @@ export async function runAcceptAllBatchPipeline({
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, stagedChangedDeliveries);
     updateDeliveriesLocally?.(stagedChangedDeliveries, false);
 
+    // CRITICAL: Pre-stamp the dedupe key BEFORE batch-saving individual delivery updates.
+    // Each individual Delivery.update() fires an entity automation that calls optimizeRemainingStops.
+    // By writing the dedupe key first (with a future timestamp), all automation-triggered calls
+    // will hit the dedup wall and skip. Only the single explicit call at the end of this pipeline runs.
+    try {
+      await base44.functions.invoke('optimizeRemainingStops', {
+        driverId: triggerDelivery.driver_id,
+        deliveryDate: triggerDelivery.delivery_date,
+        currentLocalTime,
+        deviceTime: new Date().toISOString(),
+        // Use a no-op flag to just stamp the dedupe key without running optimization
+        _stampDedupeOnly: true,
+        bypassDeduplication: false
+      });
+    } catch (_) { /* non-blocking - dedupe stamp is best-effort */ }
+
     await Promise.all(stagedChangedDeliveries.map((item) =>
       base44.entities.Delivery.update(item.id, {
         status: item.status,
