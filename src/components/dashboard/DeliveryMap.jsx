@@ -225,6 +225,14 @@ export default function DeliveryMap({
   const [measuredTopOverlayHeight, setMeasuredTopOverlayHeight] = useState(0);
   const [hereApiKey, setHereApiKey] = useState(null);
   const [tileLayerInstanceKey, setTileLayerInstanceKey] = useState(0);
+  const [systemDark, setSystemDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = (e) => setSystemDark(e.matches);
+    mq.addEventListener ? mq.addEventListener('change', handler) : mq.addListener(handler);
+    return () => mq.removeEventListener ? mq.removeEventListener('change', handler) : mq.removeListener(handler);
+  }, []);
   const [deliveryBreadcrumbsMap, setDeliveryBreadcrumbsMap] = useState(new Map()); // delivery_id → encoded_polyline
   const hasNotifiedMapReady = useRef(false);
   const prevDriverHomeMarkersRef = useRef([]);
@@ -645,13 +653,15 @@ export default function DeliveryMap({
         overlay: buildHereHybridOverlayTileUrl(hereApiKey)
       };
     }
+    const root = document.documentElement;
+    const isDark = root.classList.contains("dark-theme") ||
+      (root.classList.contains("auto-theme") && systemDark) ||
+      root.classList.contains("dark");
     return {
-      base: document.documentElement.classList.contains("dark-theme") || (document.documentElement.classList.contains("auto-theme") && window.matchMedia("(prefers-color-scheme: dark)").matches)
-        ? buildHereDarkTileUrl(hereApiKey)
-        : buildHereLightTileUrl(hereApiKey),
+      base: isDark ? buildHereDarkTileUrl(hereApiKey) : buildHereLightTileUrl(hereApiKey),
       overlay: null
     };
-  }, [hereApiKey, mapStyle]);
+  }, [hereApiKey, mapStyle, systemDark]);
 
   const driversWithCompleteRoute = useMemo(() => {
     const byDriver = new Map();
