@@ -25,9 +25,11 @@ export async function runAcceptAllBatchPipeline({
   const scopedPendingDeliveries = routeDeliveries.filter((item) => item?.store_id === triggerDelivery.store_id && item.status === 'pending');
 
   const pickupStartTime = currentLocalTime;
-  const transitionedStopStartTime = addMinutesToTimeString(currentLocalTime, 5);
+  // CRITICAL: Each transitioning stop gets its own time window: current time + 5 minutes
+  // This ensures proper sequencing as stops are accepted
+  const getTransitionTime = (index) => addMinutesToTimeString(currentLocalTime, 5 + (index * 5));
 
-  const stagedRoute = routeDeliveries.map((item) => {
+  const stagedRoute = routeDeliveries.map((item, idx) => {
     if (!item) return item;
     if (item.id === triggerDelivery.id) {
       return {
@@ -41,6 +43,9 @@ export async function runAcceptAllBatchPipeline({
     // CRITICAL: Only transition strictly 'pending' stops - never touch en_route/in_transit stops
     // en_route pickups already have their own ETAs and should NOT be modified
     if (item.store_id === triggerDelivery.store_id && item.status === 'pending') {
+      // Calculate sequential time windows: current time + 5, +10, +15, etc.
+      const transitionIndex = scopedPendingDeliveries.findIndex((pd) => pd.id === item.id);
+      const transitionedStopStartTime = getTransitionTime(transitionIndex);
       return {
         ...item,
         status: 'in_transit',
