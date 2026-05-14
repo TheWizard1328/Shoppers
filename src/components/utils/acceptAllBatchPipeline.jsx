@@ -73,8 +73,6 @@ export async function runAcceptAllBatchPipeline({
         deliveryDate: triggerDelivery.delivery_date,
         currentLocalTime,
         deviceTime: new Date().toISOString(),
-        // Use a no-op flag to just stamp the dedupe key without running optimization
-        _stampDedupeOnly: true,
         bypassDeduplication: false
       });
     } catch (_) { /* non-blocking - dedupe stamp is best-effort */ }
