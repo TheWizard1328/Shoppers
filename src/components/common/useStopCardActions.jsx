@@ -905,11 +905,11 @@ export default function useStopCardActions(params) {
         const routeDeliveries = optimisticDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
         const incompleteDeliveries = routeDeliveries.filter((d) => d && d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending').sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
         const nextStop = incompleteDeliveries[0] || null;
-        const actedOnNextDelivery = delivery?.isNextDelivery === true;
         await setAndCenterNextDelivery({ driverDeliveries: routeDeliveries, targetDeliveryId: nextStop?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true, persistToBackend: true });
-        if (actedOnNextDelivery && shouldRecalculateCompletionEtas && remainingEtaDeliveries.length > 0) {
-          // CRITICAL: Use local ETA recalculation with estimated_duration_minutes (no API call)
-          // Calculate ETAs by cascading from completed stop using each delivery's estimated_duration_minutes + 5 min buffer
+        
+        // CRITICAL: ALWAYS recalculate ETAs for remaining stops when completing ANY stop (not just next delivery)
+        // Use local ETA recalculation with estimated_duration_minutes (no API call)
+        if (remainingEtaDeliveries.length > 0) {
           try {
             const completionTimeStr = completionUpdate.actual_delivery_time || forcedCompletionTimestamp;
             const [completionHours, completionMinutes] = completionTimeStr.split(':').map(Number);
@@ -932,7 +932,7 @@ export default function useStopCardActions(params) {
             });
             
             if (etaUpdates.length > 0) {
-              // Persist to backend
+              // CRITICAL: Persist to backend FIRST, then offline DB, then broadcast - all with await
               await Promise.all(etaUpdates.map((update) =>
                 base44.entities.Delivery.update(update.id, { delivery_time_eta: update.delivery_time_eta }).catch(() => null)
               ));
@@ -949,15 +949,19 @@ export default function useStopCardActions(params) {
                 delivery_time_eta: update.delivery_time_eta
               })), false);
               
-              // Broadcast to other devices
-              Promise.resolve().then(async () => {
-                try {
-                  const { broadcastMutation } = await import('../utils/realtimeSync');
-                  await Promise.all(etaUpdates.map((item) => broadcastMutation('Delivery', 'update', item.id, { delivery_time_eta: item.delivery_time_eta })));
-                } catch (broadcastError) {
-                  console.warn('⚠️ [Complete ETA] broadcast failed:', broadcastError?.message || broadcastError);
+              // CRITICAL: Await broadcast to ensure cross-device propagation
+              const { broadcastMutation } = await import('../utils/realtimeSync');
+              await Promise.all(etaUpdates.map((item) => broadcastMutation('Delivery', 'update', item.id, { delivery_time_eta: item.delivery_time_eta })));
+              
+              // Force dispatch delivery update event to trigger UI refresh on all devices
+              window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                detail: {
+                  triggeredBy: 'eta_recalculation',
+                  driverId: delivery.driver_id,
+                  deliveryDate: delivery.delivery_date,
+                  freshDeliveries: etaUpdates.map((u) => ({ id: u.id, delivery_time_eta: u.delivery_time_eta }))
                 }
-              });
+              }));
             }
           } catch (error) {
             console.warn('⚠️ [Complete] Local ETA recalculation failed:', error?.message || error);
@@ -1069,10 +1073,8 @@ export default function useStopCardActions(params) {
         await Promise.allSettled([updateDeliveryLocal(delivery.id, criticalUpdate, { skipSmartRefresh: true })]);
         if (onStatusUpdate) await onStatusUpdate(delivery.id, status, criticalUpdate, false);
         // Breadcrumbs cleared automatically by processBreadcrumbLeg backend automation on delivery completion
-        const actedOnNextDelivery = delivery?.isNextDelivery === true;
         const allDriverDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
         const incompleteAfterThis = allDriverDeliveries.filter((d) => d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending');
-        const shouldRecalculateFailureEtas = delivery?.delivery_date === localDeviceTodayStr && shouldRefreshRemainingEtas(delivery?.delivery_time_eta || delivery?.delivery_time_start, criticalUpdate.actual_delivery_time);
         const remainingEtaDeliveries = incompleteAfterThis.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
         if (incompleteAfterThis.length === 0) {
           fabControlEvents.notifyDoneButtonClicked();
@@ -1088,9 +1090,9 @@ export default function useStopCardActions(params) {
         const driverDeliveries = allDriverDeliveries.map((item) => item.id === delivery.id ? { ...item, ...criticalUpdate, isNextDelivery: false } : item);
         const incompleteDeliveries = driverDeliveries.filter((d) => d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending').sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
         await setAndCenterNextDelivery({ driverDeliveries, targetDeliveryId: incompleteDeliveries[0]?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true, persistToBackend: true });
-        if (actedOnNextDelivery && shouldRecalculateFailureEtas && remainingEtaDeliveries.length > 0) {
-          // CRITICAL: Use local ETA recalculation with estimated_duration_minutes (no API call)
-          // Calculate ETAs by cascading from failed/cancelled stop using each delivery's estimated_duration_minutes + 5 min buffer
+        
+        // CRITICAL: ALWAYS recalculate ETAs for remaining stops when failing/cancelling ANY stop
+        if (remainingEtaDeliveries.length > 0) {
           try {
             const failureTimeStr = criticalUpdate.actual_delivery_time || forcedFailureTimestamp;
             const [failureHours, failureMinutes] = failureTimeStr.split(':').map(Number);
@@ -1113,7 +1115,7 @@ export default function useStopCardActions(params) {
             });
             
             if (etaUpdates.length > 0) {
-              // Persist to backend
+              // CRITICAL: Persist to backend FIRST, then offline DB, then broadcast - all with await
               await Promise.all(etaUpdates.map((update) =>
                 base44.entities.Delivery.update(update.id, { delivery_time_eta: update.delivery_time_eta }).catch(() => null)
               ));
@@ -1130,15 +1132,19 @@ export default function useStopCardActions(params) {
                 delivery_time_eta: update.delivery_time_eta
               })), false);
               
-              // Broadcast to other devices
-              Promise.resolve().then(async () => {
-                try {
-                  const { broadcastMutation } = await import('../utils/realtimeSync');
-                  await Promise.all(etaUpdates.map((item) => broadcastMutation('Delivery', 'update', item.id, { delivery_time_eta: item.delivery_time_eta })));
-                } catch (broadcastError) {
-                  console.warn('⚠️ [Failure ETA] broadcast failed:', broadcastError?.message || broadcastError);
+              // CRITICAL: Await broadcast to ensure cross-device propagation
+              const { broadcastMutation } = await import('../utils/realtimeSync');
+              await Promise.all(etaUpdates.map((item) => broadcastMutation('Delivery', 'update', item.id, { delivery_time_eta: item.delivery_time_eta })));
+              
+              // Force dispatch delivery update event to trigger UI refresh on all devices
+              window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                detail: {
+                  triggeredBy: 'eta_recalculation',
+                  driverId: delivery.driver_id,
+                  deliveryDate: delivery.delivery_date,
+                  freshDeliveries: etaUpdates.map((u) => ({ id: u.id, delivery_time_eta: u.delivery_time_eta }))
                 }
-              });
+              }));
             }
           } catch (error) {
             console.warn('⚠️ [Failure] Local ETA recalculation failed:', error?.message || error);
