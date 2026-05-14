@@ -572,6 +572,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
 
   const handleUpdateGPS = async (e) => {
     e?.stopPropagation?.();
+    if (!patient?.id) return;
     await updatePatientGPS({
       patientId: patient.id,
       storeId: delivery.store_id,
