@@ -702,10 +702,29 @@ Deno.serve(async (req) => {
 
     const useWindowBasedDeparture = isFutureRoute || driverIsOffDuty;
 
+    // CRITICAL: Determine departure time for HERE findsequence2.
+    // If any stop has a time window that has NOT yet expired (window end is still in the future),
+    // we must use the EARLIEST such window's start time as the departure so HERE treats those
+    // windows as live constraints and sequences stops into them correctly.
+    // Using current wall-clock time when stops have pre-noon windows causes HERE to see all
+    // windows as expired from that departure, making it ignore them entirely.
+    const earliestValidWindowMinutes = allStopsForDeparture.reduce((earliest, s) => {
+      const windowEnd = parseTimeToMinutes(s.windowEnd || s.delivery?.delivery_time_end);
+      if (Number.isFinite(windowEnd) && windowEnd <= currentMinutes) return earliest; // truly expired
+      const wm = parseTimeToMinutes(s.windowStart || s.delivery?.delivery_time_start);
+      return Number.isFinite(wm) && wm < earliest ? wm : earliest;
+    }, Infinity);
+    const hasValidWindows = Number.isFinite(earliestValidWindowMinutes);
+
     let resolvedDepartureTime;
     if (useWindowBasedDeparture && Number.isFinite(earliestWindowMinutes)) {
       resolvedDepartureTime = formatMinutesToTime(earliestWindowMinutes);
       console.log(`⏰ [optimizeRemainingStops] Using window-based departureTime=${resolvedDepartureTime} (isFutureRoute=${isFutureRoute}, offDuty=${driverIsOffDuty})`);
+    } else if (hasValidWindows && earliestValidWindowMinutes < currentMinutes) {
+      // Active route with stops whose windows started before now but haven't closed yet —
+      // use the earliest valid window start so HERE still respects those constraints.
+      resolvedDepartureTime = formatMinutesToTime(earliestValidWindowMinutes);
+      console.log(`⏰ [optimizeRemainingStops] Using earliest-valid-window departureTime=${resolvedDepartureTime} (currentTime=${formatMinutesToTime(currentMinutes)}, earliest valid window=${formatMinutesToTime(earliestValidWindowMinutes)})`);
     } else {
       resolvedDepartureTime = currentLocalTime || formatMinutesToTime(currentMinutes);
       console.log(`⏰ [optimizeRemainingStops] Using current-time departureTime=${resolvedDepartureTime}`);
@@ -713,7 +732,9 @@ Deno.serve(async (req) => {
 
     const etaBaseMinutes = useWindowBasedDeparture && Number.isFinite(earliestWindowMinutes)
       ? earliestWindowMinutes
-      : currentMinutes;
+      : (hasValidWindows && earliestValidWindowMinutes < currentMinutes)
+        ? earliestValidWindowMinutes
+        : currentMinutes;
 
     console.log(`📅 [optimizeRemainingStops] isFutureDate=${isFutureDate}, isFutureRoute=${isFutureRoute}, etaBase=${formatMinutesToTime(etaBaseMinutes)}, currentTime=${formatMinutesToTime(currentMinutes)}, earliestWindow=${Number.isFinite(earliestWindowMinutes) ? formatMinutesToTime(earliestWindowMinutes) : 'none'}`);
 
