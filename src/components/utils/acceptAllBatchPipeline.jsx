@@ -17,6 +17,7 @@ export async function runAcceptAllBatchPipeline({
   triggerDelivery,
   allDeliveries,
   stores,
+  patients = [],
   currentLocalTime,
   deliveryTimeStart,
   updateDeliveriesLocally
@@ -25,8 +26,7 @@ export async function runAcceptAllBatchPipeline({
   const scopedPendingDeliveries = routeDeliveries.filter((item) => item?.store_id === triggerDelivery.store_id && item.status === 'pending');
 
   const pickupStartTime = currentLocalTime;
-  // CRITICAL: All transitioning stops get the same time window: current time + 5 minutes
-  const transitionedStopStartTime = addMinutesToTimeString(currentLocalTime, 5);
+  const defaultTransitionTime = addMinutesToTimeString(currentLocalTime, 5);
 
   const stagedRoute = routeDeliveries.map((item) => {
     if (!item) return item;
@@ -40,13 +40,20 @@ export async function runAcceptAllBatchPipeline({
       };
     }
     // CRITICAL: Only transition strictly 'pending' stops - never touch en_route/in_transit stops
-    // en_route pickups already have their own ETAs and should NOT be modified
     if (item.store_id === triggerDelivery.store_id && item.status === 'pending') {
+      // CRITICAL: Check if patient has time_window_start - if so, use it instead of default transition time
+      let delivery_time_start = defaultTransitionTime;
+      if (item.patient_id) {
+        const patient = patients.find((p) => p?.id === item.patient_id);
+        if (patient?.time_window_start) {
+          delivery_time_start = patient.time_window_start;
+        }
+      }
       return {
         ...item,
         status: 'in_transit',
         isNextDelivery: false,
-        delivery_time_start: transitionedStopStartTime,
+        delivery_time_start,
         ampm_deliveries: item.ampm_deliveries || triggerDelivery.ampm_deliveries || (pickupStartTime >= '15:00' ? 'PM' : 'AM'),
         ...(item.active === false ? { active: true } : {})
       };

@@ -236,6 +236,7 @@ export default function useStopCardActions(params) {
         triggerDelivery: delivery,
         allDeliveries,
         stores,
+        patients,
         currentLocalTime,
         deliveryTimeStart,
         updateDeliveriesLocally
