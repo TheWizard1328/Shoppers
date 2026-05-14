@@ -11,8 +11,12 @@ const HERE_POLYLINE_DECODER = HERE_POLYLINE_ALPHABET.split('').reduce((acc, char
   acc[char] = index;
   return acc;
 }, {});
-const DEFAULT_MIN_MOVE_METERS = 100;
-const DEFAULT_MIN_INTERVAL_MS = 120000;
+const DEFAULT_SETTINGS = {
+  enableRouteDeviationDetection: true,
+  routeDeviationThresholdMeters: 200,
+  routeDeviationCooldownMinutes: 5,
+  minMovementDistanceMeters: 50
+};
 
 function round5(value) {
   return Number(Number(value).toFixed(5));
@@ -416,11 +420,24 @@ Deno.serve(async (req) => {
     const rawLocation = body?.currentLocation || {};
     const currentLat = Number(rawLocation?.lat);
     const currentLon = Number(rawLocation?.lon ?? rawLocation?.lng);
-    const minMoveMeters = Number(body?.minMoveMeters || DEFAULT_MIN_MOVE_METERS);
     const isPrimaryDevice = body?.isPrimaryDevice === true;
-    const allowDeviationCheck = body?.allowDeviationCheck === true;
     const routeChangeSource = String(body?.routeChangeSource || body?.source || 'poll').toLowerCase();
-    const isPollingFlow = !allowDeviationCheck && routeChangeSource === 'poll';
+    
+    // Load route optimization settings from AppSettings
+    let routeSettings = DEFAULT_SETTINGS;
+    try {
+      const appSettings = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'route_optimization' }, undefined, 1);
+      if (appSettings && appSettings.length > 0 && appSettings[0].setting_value) {
+        routeSettings = { ...DEFAULT_SETTINGS, ...appSettings[0].setting_value };
+      }
+    } catch (error) {
+      console.warn('[regenerateType1Polyline] Failed to load route settings, using defaults:', error.message);
+    }
+    
+    const enableDeviationDetection = routeSettings.enableRouteDeviationDetection !== false;
+    const deviationThresholdMeters = Number(routeSettings.routeDeviationThresholdMeters || 200);
+    const deviationCooldownMinutes = Number(routeSettings.routeDeviationCooldownMinutes || 5);
+    const minMovementDistanceMeters = Number(routeSettings.minMovementDistanceMeters || 50);
 
     if (!driverId || !deliveryDate || !Number.isFinite(currentLat) || !Number.isFinite(currentLon)) {
       return Response.json({ error: 'driverId, deliveryDate, and currentLocation are required' }, { status: 400 });
@@ -569,8 +586,15 @@ Deno.serve(async (req) => {
 
     const existingType1 = nextRouteStop?.encoded_polyline ? nextRouteStop : null;
 
-    if (!body?.force && !allowDeviationCheck) {
-      return Response.json({ success: true, skipped: true, reason: 'deviation_only_guard', repairedStopOrders: stopOrderRepairUpdates.length });
+    // Check if deviation detection is enabled in settings
+    if (!enableDeviationDetection) {
+      console.log('[regenerateType1Polyline] Route deviation detection is disabled in settings');
+      return Response.json({ 
+        success: true, 
+        skipped: true, 
+        reason: 'deviation_detection_disabled',
+        repairedStopOrders: stopOrderRepairUpdates.length 
+      });
     }
 
     const shouldBypassDeviationGuard = body?.force === true || body?.routeChangeSource === 'on_duty_start' || body?.routeChangeSource === 'route_completion_home';
@@ -597,19 +621,21 @@ Deno.serve(async (req) => {
         console.warn('[regenerateType1Polyline] Failed to decode polyline for deviation check:', e);
       }
 
-      // Only regenerate if driver has deviated significantly from the route
-      const hasDeviated = deviationMeters > minMoveMeters;
+      // Only regenerate if driver has deviated beyond the configured threshold
+      const hasDeviated = deviationMeters > deviationThresholdMeters;
       
       if (!hasDeviated) {
+        console.log(`[regenerateType1Polyline] Driver within route (${Math.round(deviationMeters)}m < ${deviationThresholdMeters}m threshold)`);
         return Response.json({ 
           success: true, 
           skipped: true, 
           reason: 'no_route_deviation', 
           deviationMeters: Math.round(deviationMeters),
+          thresholdMeters: deviationThresholdMeters,
           repairedStopOrders: stopOrderRepairUpdates.length 
         });
       } else {
-        console.log(`[regenerateType1Polyline] Driver deviated ${Math.round(deviationMeters)}m from route - regenerating`);
+        console.log(`[regenerateType1Polyline] Driver deviated ${Math.round(deviationMeters)}m (threshold: ${deviationThresholdMeters}m) - regenerating`);
       }
     }
 

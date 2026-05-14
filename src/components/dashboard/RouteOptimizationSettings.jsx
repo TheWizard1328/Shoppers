@@ -43,9 +43,30 @@ const getStoredSettings = () => {
   return DEFAULT_SETTINGS;
 };
 
-const saveSettings = (settings) => {
+const saveSettings = async (settings) => {
   try {
     localStorage.setItem('rxdeliver_route_optimization_settings', JSON.stringify(settings));
+    // Also save to AppSettings entity for backend functions to use
+    const adminOnlySettings = {
+      enableRouteDeviationDetection: settings.enableRouteDeviationDetection,
+      routeDeviationThresholdMeters: settings.routeDeviationThresholdMeters,
+      routeDeviationCooldownMinutes: settings.routeDeviationCooldownMinutes,
+      locationUpdateIntervalSeconds: settings.locationUpdateIntervalSeconds,
+      minMovementDistanceMeters: settings.minMovementDistanceMeters
+    };
+    const appSettings = await base44.entities.AppSettings.filter({ setting_key: 'route_optimization' }, undefined, 1);
+    if (appSettings && appSettings.length > 0) {
+      await base44.entities.AppSettings.update(appSettings[0].id, {
+        setting_value: adminOnlySettings
+      });
+    } else {
+      await base44.entities.AppSettings.create({
+        setting_key: 'route_optimization',
+        setting_value: adminOnlySettings,
+        description: 'Route optimization settings for deviation detection and tracking'
+      });
+    }
+    console.log('✅ Route optimization settings saved to AppSettings');
   } catch (error) {
     console.error('Error saving route optimization settings:', error);
   }
@@ -69,7 +90,7 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
   };
 
   const handleSave = async () => {
-    saveSettings(settings);
+    await saveSettings(settings);
     if (currentUser?.id) {
       const home_latitude = settings.useDriverHome ? settings.driverHomeLatitude : null;
       const home_longitude = settings.useDriverHome ? settings.driverHomeLongitude : null;
