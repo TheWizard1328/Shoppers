@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPageUrl } from '@/utils';
 import { userHasRole } from '@/components/utils/userRoles';
 import { useMobileNavigation } from '@/components/navigation/MobileNavigationProvider';
+import { getUserAgentInfo } from '@/components/utils/deviceUtils';
 import {
   LayoutDashboard,
   Users,
@@ -15,6 +16,12 @@ import {
 
 export default function MobileBottomNav({ currentUser, currentPageName, onSidebarToggle }) {
   const { activeTab, navigateToTab } = useMobileNavigation();
+  const [isIOS, setIsIOS] = useState(false);
+
+  useEffect(() => {
+    const { os, deviceType } = getUserAgentInfo();
+    setIsIOS(os === 'iOS' && deviceType === 'Mobile');
+  }, []);
 
   if (!currentUser) return null;
 
@@ -56,12 +63,11 @@ export default function MobileBottomNav({ currentUser, currentPageName, onSideba
   return (
     <nav
       data-mobile-bottom-nav
-      className="relative z-[150] shrink-0 border-t"
+      className={`relative z-[150] shrink-0 border-t${isIOS ? ' ios-safe-area-bottom' : ''}`}
       style={{
         background: 'var(--bg-white)',
         borderColor: 'var(--border-slate-200)',
         boxShadow: '0 -2px 10px var(--shadow-color)',
-        paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom, 0px))',
       }}
     >
       <div className="flex items-center gap-1 px-1">

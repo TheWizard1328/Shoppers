@@ -264,3 +264,8 @@ div[id^="stop-card-"] > .rounded-xl:has([data-stop-status="completed"][data-stop
   box-shadow: none !important;
   border: 1px solid var(--border-slate-200) !important;
 }
+
+/* iOS safe area support for bottom nav */
+.ios-safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+}
