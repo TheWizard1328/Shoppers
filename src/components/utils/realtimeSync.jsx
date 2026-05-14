@@ -178,7 +178,7 @@ async function flushBuffered(entityName) {
         fromRealtime: true,
         fullReplacement: true,
         skipMapPhaseOneRefresh: true,
-        preserveLocalState: true,
+        preserveLocalState: false,
         skipDriverLocationRefresh: true
       }
     }));
