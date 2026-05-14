@@ -949,13 +949,27 @@ Deno.serve(async (req) => {
         ? { lat: Number(driverAppUser.home_latitude), lon: Number(driverAppUser.home_longitude) }
         : null;
 
+      // Find the last finished delivery to use as origin if route has started
+      const finishedDeliveries = orderedDeliveries
+        .filter((d) => FINISHED_STATUSES.has(d?.status))
+        .sort((a, b) => {
+          const aTime = new Date(a?.actual_delivery_time || a?.arrival_time || a?.updated_date || 0).getTime();
+          const bTime = new Date(b?.actual_delivery_time || b?.arrival_time || b?.updated_date || 0).getTime();
+          if (aTime !== bTime) return aTime - bTime;
+          return Number(a?.stop_order || 0) - Number(b?.stop_order || 0);
+        });
+      const lastFinishedDelivery = finishedDeliveries.length > 0 ? finishedDeliveries[finishedDeliveries.length - 1] : null;
+
       for (let index = 0; index < orderedDeliveries.length; index += 1) {
         const delivery = orderedDeliveries[index];
-        // CRITICAL: For first stop, prioritize currentPosition > isNextDelivery's origin > lastFinished > home
+        // CRITICAL: For first stop, prioritize: currentPosition > lastFinishedDelivery > home
         let from;
         if (index === 0) {
           if (currentPosition && isValidCoordinatePair(Number(currentPosition.lat), Number(currentPosition.lon))) {
             from = currentPosition;
+          } else if (lastFinishedDelivery) {
+            // Use the last finished delivery's location as origin
+            from = getLatLon(lastFinishedDelivery);
           } else {
             from = routeOrigin;
           }
