@@ -944,19 +944,10 @@ Deno.serve(async (req) => {
       // Build segment specs for the ordered deliveries
       const segmentSpecs = [];
 
-      // Get last finished stop or home as route origin
-      const finishedDeliveries = deliveries.filter((d) => FINISHED_STATUSES.has(d?.status))
-        .sort((a, b) => {
-          const aTime = new Date(a?.actual_delivery_time || a?.updated_date || 0).getTime();
-          const bTime = new Date(b?.actual_delivery_time || b?.updated_date || 0).getTime();
-          return bTime - aTime;
-        });
-      const lastFinishedStop = finishedDeliveries.length > 0 ? finishedDeliveries[0] : null;
-      const routeOrigin = lastFinishedStop
-        ? getLatLon(lastFinishedStop)
-        : (driverAppUser.home_latitude != null && driverAppUser.home_longitude != null
-          ? { lat: Number(driverAppUser.home_latitude), lon: Number(driverAppUser.home_longitude) }
-          : null);
+      // Always use driver's home as route origin
+      const routeOrigin = (driverAppUser.home_latitude != null && driverAppUser.home_longitude != null)
+        ? { lat: Number(driverAppUser.home_latitude), lon: Number(driverAppUser.home_longitude) }
+        : null;
 
       for (let index = 0; index < orderedDeliveries.length; index += 1) {
         const delivery = orderedDeliveries[index];
