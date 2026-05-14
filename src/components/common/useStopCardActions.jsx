@@ -944,12 +944,10 @@ export default function useStopCardActions(params) {
             }
           });
 
-          await refreshDriverRoute({
-            driverId: delivery.driver_id,
-            deliveryDate: delivery.delivery_date,
-            forceRefreshDriverDeliveries,
-            triggeredBy: 'completeEtaRefresh'
-          });
+          // NOTE: No HERE API / optimizeRemainingStops call here.
+          // ETAs are already updated locally above using estimated_duration_minutes.
+          // Complete/fail/cancel never changes stop order — only a data refresh is needed.
+          await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date).catch(() => null);
         }
         if (!nextStop) {
           fabControlEvents.notifyDoneButtonClicked();
@@ -1114,12 +1112,10 @@ export default function useStopCardActions(params) {
             }
           });
 
-          await refreshDriverRoute({
-            driverId: delivery.driver_id,
-            deliveryDate: delivery.delivery_date,
-            forceRefreshDriverDeliveries,
-            triggeredBy: 'failureEtaRefresh'
-          });
+          // NOTE: No HERE API / optimizeRemainingStops call here.
+          // ETAs are already updated locally above using estimated_duration_minutes.
+          // Complete/fail/cancel never changes stop order — only a data refresh is needed.
+          await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date).catch(() => null);
         }
         Promise.resolve().then(() => params.scheduleCompletionSideEffects({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, nextDeliveryId: incompleteDeliveries[0]?.id || null, lastCompletedDeliveryId: delivery.id, setOffDuty: incompleteDeliveries.length === 0, appUserId: currentDriverAppUser?.id || null, skipRouteOptimization: true, skipNextLegPolylineRefresh: true }).catch(() => {}));
         onClick?.(null);
