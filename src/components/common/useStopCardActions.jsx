@@ -907,46 +907,48 @@ export default function useStopCardActions(params) {
         const actedOnNextDelivery = delivery?.isNextDelivery === true;
         await setAndCenterNextDelivery({ driverDeliveries: routeDeliveries, targetDeliveryId: nextStop?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true, persistToBackend: true });
         if (actedOnNextDelivery && shouldRecalculateCompletionEtas && remainingEtaDeliveries.length > 0) {
-           // Calculate updated ETAs for remaining stops based on ACTUAL completion time of just-completed stop
-           // Start from the completed stop's actual_delivery_time (not current device time)
-           const completedStopTime = completionUpdate.actual_delivery_time || forcedCompletionTimestamp;
-           const [completedHours, completedMinutes] = completedStopTime.split(':').map(Number);
-           let currentEtaMinutes = completedHours * 60 + completedMinutes;
-           const updatedRemainingWithEtas = remainingEtaDeliveries.map((stop, index) => {
-             if (index === 0) {
-               // First remaining stop (isNextDelivery): add travel time from completed stop's actual time
-               currentEtaMinutes = currentEtaMinutes + (stop.estimated_duration_minutes || 5);
-             } else {
-               // Subsequent stops cascade from previous stop's ETA + that stop's estimated duration
-               currentEtaMinutes = currentEtaMinutes + (remainingEtaDeliveries[index - 1]?.estimated_duration_minutes || 5);
-             }
-             const newEtaHours = Math.floor((currentEtaMinutes % 1440) / 60);
-             const newEtaMins = currentEtaMinutes % 60;
-             const newEta = `${String(newEtaHours).padStart(2, '0')}:${String(newEtaMins).padStart(2, '0')}`;
-             return { ...stop, delivery_time_eta: newEta };
-           });
-
-          // Persist updated ETAs to database and broadcast to other devices
-          await Promise.all(updatedRemainingWithEtas.map((stop) => {
-            return Promise.all([
-              updateDeliveryLocal(stop.id, { delivery_time_eta: stop.delivery_time_eta }, { skipSmartRefresh: true }),
-              base44.entities.Delivery.update(stop.id, { delivery_time_eta: stop.delivery_time_eta }).catch(() => null)
-            ]);
-          }));
-
-          // Broadcast mutations for real-time updates on other devices
-          Promise.resolve().then(async () => {
-            try {
-              const { broadcastMutation } = await import('../utils/realtimeSync');
-              await Promise.all(updatedRemainingWithEtas.map((item) => broadcastMutation('Delivery', 'update', item.id, { delivery_time_eta: item.delivery_time_eta })));
-            } catch (broadcastError) {
-              console.warn('⚠️ [Complete ETA] broadcast failed:', broadcastError?.message || broadcastError);
+          // CRITICAL: Trigger backend optimization to recalculate ETAs properly
+          // Don't calculate ETAs locally - let optimizeRemainingStops handle it with HERE API
+          try {
+            const optimizeResponse = await base44.functions.invoke('optimizeRemainingStops', {
+              driverId: delivery.driver_id,
+              deliveryDate: delivery.delivery_date,
+              currentLocalTime: completionUpdate.actual_delivery_time || forcedCompletionTimestamp,
+              deviceTime: new Date().toISOString(),
+              bypassDeduplication: true
+            });
+            
+            const optimizedRoute = optimizeResponse?.data?.optimizedRoute || optimizeResponse?.optimizedRoute;
+            if (Array.isArray(optimizedRoute) && optimizedRoute.length > 0) {
+              // Persist optimized ETAs to backend
+              const etaUpdates = optimizedRoute
+                .filter((stop) => (stop.deliveryId || stop.delivery_id) && (stop.newETA || stop.eta))
+                .map((stop) => ({
+                  id: stop.deliveryId || stop.delivery_id,
+                  delivery_time_eta: stop.newETA || stop.eta
+                }));
+              
+              if (etaUpdates.length > 0) {
+                await Promise.all(etaUpdates.map((update) =>
+                  base44.entities.Delivery.update(update.id, { delivery_time_eta: update.delivery_time_eta }).catch(() => null)
+                ));
+                
+                // Broadcast to other devices
+                Promise.resolve().then(async () => {
+                  try {
+                    const { broadcastMutation } = await import('../utils/realtimeSync');
+                    await Promise.all(etaUpdates.map((item) => broadcastMutation('Delivery', 'update', item.id, { delivery_time_eta: item.delivery_time_eta })));
+                  } catch (broadcastError) {
+                    console.warn('⚠️ [Complete ETA] broadcast failed:', broadcastError?.message || broadcastError);
+                  }
+                });
+              }
             }
-          });
-
-          // NOTE: No HERE API / optimizeRemainingStops call here.
-          // ETAs are already updated locally above using estimated_duration_minutes.
-          // Complete/fail/cancel never changes stop order — only a data refresh is needed.
+          } catch (optError) {
+            console.warn('⚠️ [Complete] ETA optimization failed:', optError?.message || optError);
+          }
+          
+          // Refresh to ensure UI has latest data
           await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date).catch(() => null);
         }
         if (!nextStop) {
@@ -1075,46 +1077,48 @@ export default function useStopCardActions(params) {
         const incompleteDeliveries = driverDeliveries.filter((d) => d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending').sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
         await setAndCenterNextDelivery({ driverDeliveries, targetDeliveryId: incompleteDeliveries[0]?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true, persistToBackend: true });
         if (actedOnNextDelivery && shouldRecalculateFailureEtas && remainingEtaDeliveries.length > 0) {
-           // Calculate updated ETAs for remaining stops based on ACTUAL completion time of just-failed stop
-           // Start from the failed stop's actual_delivery_time (not current device time)
-           const failedStopTime = criticalUpdate.actual_delivery_time || forcedFailureTimestamp;
-           const [failedHours, failedMinutes] = failedStopTime.split(':').map(Number);
-           let currentEtaMinutes = failedHours * 60 + failedMinutes;
-           const updatedRemainingWithEtas = remainingEtaDeliveries.map((stop, index) => {
-             if (index === 0) {
-               // First remaining stop (isNextDelivery): add travel time from failed stop's actual time
-               currentEtaMinutes = currentEtaMinutes + (stop.estimated_duration_minutes || 5);
-             } else {
-               // Subsequent stops cascade from previous stop's ETA + that stop's estimated duration
-               currentEtaMinutes = currentEtaMinutes + (remainingEtaDeliveries[index - 1]?.estimated_duration_minutes || 5);
-             }
-             const newEtaHours = Math.floor((currentEtaMinutes % 1440) / 60);
-             const newEtaMins = currentEtaMinutes % 60;
-             const newEta = `${String(newEtaHours).padStart(2, '0')}:${String(newEtaMins).padStart(2, '0')}`;
-             return { ...stop, delivery_time_eta: newEta };
-           });
-
-          // Persist updated ETAs to database and broadcast to other devices
-          await Promise.all(updatedRemainingWithEtas.map((stop) => {
-            return Promise.all([
-              updateDeliveryLocal(stop.id, { delivery_time_eta: stop.delivery_time_eta }, { skipSmartRefresh: true }),
-              base44.entities.Delivery.update(stop.id, { delivery_time_eta: stop.delivery_time_eta }).catch(() => null)
-            ]);
-          }));
-
-          // Broadcast mutations for real-time updates on other devices
-          Promise.resolve().then(async () => {
-            try {
-              const { broadcastMutation } = await import('../utils/realtimeSync');
-              await Promise.all(updatedRemainingWithEtas.map((item) => broadcastMutation('Delivery', 'update', item.id, { delivery_time_eta: item.delivery_time_eta })));
-            } catch (broadcastError) {
-              console.warn('⚠️ [Failure ETA] broadcast failed:', broadcastError?.message || broadcastError);
+          // CRITICAL: Trigger backend optimization to recalculate ETAs properly
+          // Don't calculate ETAs locally - let optimizeRemainingStops handle it with HERE API
+          try {
+            const optimizeResponse = await base44.functions.invoke('optimizeRemainingStops', {
+              driverId: delivery.driver_id,
+              deliveryDate: delivery.delivery_date,
+              currentLocalTime: criticalUpdate.actual_delivery_time || forcedFailureTimestamp,
+              deviceTime: new Date().toISOString(),
+              bypassDeduplication: true
+            });
+            
+            const optimizedRoute = optimizeResponse?.data?.optimizedRoute || optimizeResponse?.optimizedRoute;
+            if (Array.isArray(optimizedRoute) && optimizedRoute.length > 0) {
+              // Persist optimized ETAs to backend
+              const etaUpdates = optimizedRoute
+                .filter((stop) => (stop.deliveryId || stop.delivery_id) && (stop.newETA || stop.eta))
+                .map((stop) => ({
+                  id: stop.deliveryId || stop.delivery_id,
+                  delivery_time_eta: stop.newETA || stop.eta
+                }));
+              
+              if (etaUpdates.length > 0) {
+                await Promise.all(etaUpdates.map((update) =>
+                  base44.entities.Delivery.update(update.id, { delivery_time_eta: update.delivery_time_eta }).catch(() => null)
+                ));
+                
+                // Broadcast to other devices
+                Promise.resolve().then(async () => {
+                  try {
+                    const { broadcastMutation } = await import('../utils/realtimeSync');
+                    await Promise.all(etaUpdates.map((item) => broadcastMutation('Delivery', 'update', item.id, { delivery_time_eta: item.delivery_time_eta })));
+                  } catch (broadcastError) {
+                    console.warn('⚠️ [Failure ETA] broadcast failed:', broadcastError?.message || broadcastError);
+                  }
+                });
+              }
             }
-          });
-
-          // NOTE: No HERE API / optimizeRemainingStops call here.
-          // ETAs are already updated locally above using estimated_duration_minutes.
-          // Complete/fail/cancel never changes stop order — only a data refresh is needed.
+          } catch (optError) {
+            console.warn('⚠️ [Failure] ETA optimization failed:', optError?.message || optError);
+          }
+          
+          // Refresh to ensure UI has latest data
           await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date).catch(() => null);
         }
         Promise.resolve().then(() => params.scheduleCompletionSideEffects({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, nextDeliveryId: incompleteDeliveries[0]?.id || null, lastCompletedDeliveryId: delivery.id, setOffDuty: incompleteDeliveries.length === 0, appUserId: currentDriverAppUser?.id || null, skipRouteOptimization: true, skipNextLegPolylineRefresh: true }).catch(() => {}));
