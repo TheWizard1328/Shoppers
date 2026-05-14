@@ -76,7 +76,9 @@ import AppLoadingScreen from './components/layout/AppLoadingScreen';
 import SidebarDivider from './components/layout/SidebarDivider';
 import SidebarSectionLabel from './components/layout/SidebarSectionLabel';
 import getAdminNavigationItems from './components/layout/getAdminNavigationItems';
-import { getLayoutStyles } from './components/layout/layoutStyles';import { useWakeLockAndVisibility } from './components/layout/useWakeLockAndVisibility';
+import { getLayoutStyles } from './components/layout/layoutStyles';
+import { useWakeLockAndVisibility } from './components/layout/useWakeLockAndVisibility';
+import { mergePatients } from './components/layout/layoutDataHelpers';
 
 // App version will be loaded from AppSettings
 const DEFAULT_APP_VERSION = 'v1.0.0';
@@ -715,7 +717,9 @@ export default function Layout({ children, currentPageName }) {
         return;
       }
       const { patients: freshPatients, stores: freshStores, appUsers: freshAppUsers } = event.detail || {};
-      if (freshPatients && freshPatients.length > 0) setPatients(freshPatients);
+      if (freshPatients && freshPatients.length > 0) {
+        setPatients((prev) => mergePatients(prev, freshPatients));
+      }
       if (freshStores && freshStores.length > 0) setStores(freshStores);
       if (freshAppUsers && freshAppUsers.length > 0) {
         setAppUsers((prev) => { const m = new Map(prev.map((u) => [u.id, u])); freshAppUsers.forEach((u) => { if (u?.id) m.set(u.id, u); }); return Array.from(m.values()); });
@@ -1083,8 +1087,8 @@ export default function Layout({ children, currentPageName }) {
       const applyFullDataToState = ({ deliveries, patients, appUsers, stores, cities }) => {
         if (cities && cities.length > 0) setCities(cities.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)));
         if (stores && stores.length > 0) setStores(stores.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)));
-        // CRITICAL: Always update patients, even if empty — prevents stale data after date/driver change
-        if (patients) setPatients(patients);
+        // CRITICAL: Merge patients to preserve full patient DB during syncs
+        if (patients) setPatients((prev) => mergePatients(prev, patients));
         const mergedUsersMap = new Map();
         if (currentUser) mergedUsersMap.set(currentUser.id, currentUser);
         (appUsers || []).forEach((appUser) => {
