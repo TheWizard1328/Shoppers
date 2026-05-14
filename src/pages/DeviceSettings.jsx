@@ -30,21 +30,36 @@ export default function DeviceSettings() {
   useEffect(() => {
     if (!currentUser?.id) return;
 
-    const loadDevices = async () => {
-      try {
-        const userDevices = await base44.entities.UserDevice.filter({ 
-          user_id: currentUser.id 
-        });
-        setDevices(userDevices || []);
+    const DEVICES_CACHE_KEY = `rxdeliver_devices_${currentUser.id}`;
 
-        // Get current device ID from localStorage
-        const storedDeviceId = localStorage.getItem(DEVICE_ID_KEY);
-        if (storedDeviceId) {
-          const currentDevice = userDevices.find(d => d.device_identifier === storedDeviceId);
-          if (currentDevice) {
-            setCurrentDeviceId(currentDevice.id);
+    const applyDevices = (userDevices) => {
+      if (!userDevices || userDevices.length === 0) return;
+      setDevices(userDevices);
+      const storedDeviceId = localStorage.getItem(DEVICE_ID_KEY);
+      if (storedDeviceId) {
+        const currentDevice = userDevices.find(d => d.device_identifier === storedDeviceId);
+        if (currentDevice) setCurrentDeviceId(currentDevice.id);
+      }
+    };
+
+    const loadDevices = async () => {
+      // Step 1: Paint immediately from localStorage cache (no spinner wait)
+      try {
+        const cached = localStorage.getItem(DEVICES_CACHE_KEY);
+        if (cached) {
+          const cachedDevices = JSON.parse(cached);
+          if (Array.isArray(cachedDevices) && cachedDevices.length > 0) {
+            applyDevices(cachedDevices);
+            setIsLoading(false);
           }
         }
+      } catch {}
+
+      // Step 2: Refresh from server and update cache
+      try {
+        const userDevices = await base44.entities.UserDevice.filter({ user_id: currentUser.id });
+        applyDevices(userDevices || []);
+        localStorage.setItem(DEVICES_CACHE_KEY, JSON.stringify(userDevices || []));
       } catch (error) {
         console.error('Failed to load devices:', error);
         toast.error('Failed to load devices');
@@ -61,7 +76,11 @@ export default function DeviceSettings() {
 
     try {
       await base44.entities.UserDevice.delete(device.id);
-      setDevices(prev => prev.filter(d => d.id !== device.id));
+      setDevices(prev => {
+        const updated = prev.filter(d => d.id !== device.id);
+        localStorage.setItem(`rxdeliver_devices_${currentUser.id}`, JSON.stringify(updated));
+        return updated;
+      });
       
       // If deleting current device, clear localStorage
       if (device.id === currentDeviceId) {
