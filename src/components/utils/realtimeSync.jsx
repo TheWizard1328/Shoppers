@@ -165,6 +165,12 @@ async function flushBuffered(entityName) {
       return true;
     });
 
+    // CRITICAL: Ensure ETA changes trigger immediate UI update
+    const hasETAChanges = relevantItems.some((item) => 
+      Array.isArray(item.changedFields) && 
+      (item.changedFields.includes('delivery_time_eta') || item.changedFields.includes('estimated_duration_minutes'))
+    );
+    
     window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
       detail: {
         deliveries: scopedDeliveries,
@@ -179,7 +185,8 @@ async function flushBuffered(entityName) {
         fullReplacement: true,
         skipMapPhaseOneRefresh: true,
         preserveLocalState: false,
-        skipDriverLocationRefresh: true
+        skipDriverLocationRefresh: true,
+        forceETAUpdate: hasETAChanges
       }
     }));
   }
