@@ -2507,59 +2507,39 @@ function Dashboard() {
   }, [stopCardsBaseHeight, deliveriesWithStopOrder.length, cardsReadyForFAB, isAllDriversMode, isDispatcher]);
 
   const handleDateChange = async (date) => {
-    setIsEntityUpdating(true);setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current = null;setAreCardsVisible(false);setCurrentToNextPolyline(null);setDriverRoutes([]);
-    hasShownSummaryRef.current.clear();
-
+    setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current = null;setAreCardsVisible(false);setCurrentToNextPolyline(null);setDriverRoutes([]);
+    hasShownSummaryRef.current.clear();setIsCalendarOpen(false);
     setSelectedDate(date);
     globalFilters.setSelectedDate(date);
-    setIsCalendarOpen(false);
-
     const dateStr = format(date, 'yyyy-MM-dd');
-
+    setIsEntityUpdating(true);
+    smartRefreshManager.clearPendingUpdates();
     try {
-      smartRefreshManager.clearPendingUpdates();
-      const priorityDeliveries = await loadPriorityDeliveriesForSelection(dateStr, 'all', true);
-      if (updateDeliveriesLocally) {
-        updateDeliveriesLocally([...(deliveries || []).filter((d) => d && d.delivery_date !== dateStr), ...priorityDeliveries], true);
-
-        // CRITICAL: Protect from smart refresh overwrite
-        priorityDeliveries.forEach((d) => {
-          if (d?.id) {
-            smartRefreshManager.registerPendingUpdate(d.id, d.driver_id, dateStr);
-          }
-        });
+      // Delegate to Layout's triggerFullDataLoad — runs the full 4-step UI-safe sync
+      // (globalFilters.setSelectedDate above already invalidated the 5-min cooldown)
+      // (offline snapshot → lock UI → fetch fresh data → unlock + apply)
+      await refreshData(true);
+      // Refresh driver location markers with new date context
+      const _aus = await offlineDB.getAll(offlineDB.STORES.APP_USERS).catch(() => appUsers);
+      const _ap = (_aus?.length > 0 ? _aus : appUsers);
+      if (_ap?.length > 0) {
+        driverLocationPoller.processLocationData(currentUser, (deliveries||[]).filter((d)=>d?.delivery_date===dateStr), drivers, stores, _ap, new Date(dateStr+'T00:00:00'), true, 'Dashboard', showAllDriverMarkers||selectedDriverId==='all');
+        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: _ap, forceAll: true } }));
       }
-
-      let freshAppUsers = appUsers;
-      try { const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS); if (offlineAppUsers?.length > 0) freshAppUsers = offlineAppUsers; } catch {}
-      const appUsersToProcess = freshAppUsers?.length > 0 ? freshAppUsers : appUsers;
-
-      if (appUsersToProcess?.length > 0) {
-        driverLocationPoller.processLocationData(currentUser, priorityDeliveries, drivers, stores, appUsersToProcess, new Date(dateStr + 'T00:00:00'), true, 'Dashboard', showAllDriverMarkers || selectedDriverId === 'all');
-        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: appUsersToProcess, forceAll: true } }));
-      }
-
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryDate: dateStr, triggeredBy: 'dateChange', preserveLocalState: true, freshDeliveries: priorityDeliveries } }));
+      // Dispatcher: auto-select driver based on fresh data
+      if (isDispatcher && !isAdmin) { const _si=(currentUser?.store_ids||[]).map(String),_dws=[...new Set((deliveries||[]).filter((d)=>d&&d.delivery_date===dateStr&&_si.includes(String(d.store_id))).map((d)=>d.driver_id).filter(Boolean))];let _f='';if(_dws.length===1){_f=_dws[0];}else if(_dws.length>1){_f='all';}setSelectedDriverId(_f);globalFilters.setSelectedDriverId(_f); }
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-      await new Promise((resolve) => setTimeout(resolve, 650));
-
-      setIsMapViewLocked(mapViewPhase !== 1);
-      lastProgrammaticMapMoveRef.current = Date.now();
-      window._lastProgrammaticMapMove = Date.now();
-      setMapViewTrigger((prev) => prev + 1);
-
-      if (mapLockTimeoutRef.current) {
-        clearTimeout(mapLockTimeoutRef.current);
-        mapLockTimeoutRef.current = null;
-      }
+      await new Promise((r) => setTimeout(r, 300));
+      if (mapLockTimeoutRef.current) { clearTimeout(mapLockTimeoutRef.current); mapLockTimeoutRef.current = null; }
       mapLockExpiresAtRef.current = null;
-
+      setIsMapViewLocked(mapViewPhase !== 1);
+      lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();
+      setMapViewTrigger((prev) => prev + 1);
       centerNextDeliveryCard(deliveriesWithStopOrder);
       fabControlEvents.notifyDataReady();
-      if (isDispatcher && !isAdmin) { const _si=(currentUser?.store_ids||[]).map(String),_dws=[...new Set(priorityDeliveries.filter((d)=>d&&_si.includes(String(d.store_id))).map((d)=>d.driver_id).filter(Boolean))]; let _final=''; if(_dws.length===0){_final='';}else if(_dws.length===1){_final=_dws[0];}else{_final='all';}; setSelectedDriverId(_final); globalFilters.setSelectedDriverId(_final); }
-      setIsEntityUpdating(false);
     } catch (error) {
       console.error('❌ [Dashboard] Date change failed:', error);
+    } finally {
       setIsEntityUpdating(false);
     }
   };
