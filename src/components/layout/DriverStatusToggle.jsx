@@ -494,9 +494,30 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
             fabControlEvents.notifyBreakEnd(1);
           }
           
-          // Backend already set isNextDelivery flag and triggered ETA recalculation
-          console.log('✅ [DriverStatusToggle] Backend set isNextDelivery flag and recalculated ETAs');
-          
+          // CRITICAL: Set isNextDelivery on the first active stop for this driver/date
+          try {
+            const activeDeliveries = (appDataContext?.deliveries || [])
+              .filter((d) => d && d.driver_id === currentUser.id && d.delivery_date === today &&
+                !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(d.status))
+              .sort((a, b) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0));
+
+            const currentNextDelivery = activeDeliveries.find((d) => d.isNextDelivery);
+            const firstActive = activeDeliveries[0] || null;
+
+            if (firstActive && !currentNextDelivery) {
+              await base44.entities.Delivery.update(firstActive.id, { isNextDelivery: true }).catch(() => {});
+              if (appDataContext?.updateDeliveriesLocally) {
+                appDataContext.updateDeliveriesLocally(
+                  activeDeliveries.map((d) => ({ ...d, isNextDelivery: d.id === firstActive.id })),
+                  false
+                );
+              }
+              console.log('✅ [DriverStatusToggle] Set isNextDelivery on first active stop:', firstActive.id);
+            }
+          } catch (nextErr) {
+            console.warn('⚠️ [DriverStatusToggle] Could not set isNextDelivery:', nextErr?.message);
+          }
+
           // CRITICAL: Avoid full force refresh here because transient backend failures can wipe offline-backed UI state
           if (appDataContext?.refreshData) {
             console.log('🔄 [DriverStatusToggle] Refreshing after going on duty without force reset...');

@@ -537,6 +537,13 @@ export default function useStopCardActions(params) {
     smartRefreshManager.pause();
     backgroundSyncManager.pause();
 
+    // CRITICAL: Auto-set driver on_duty before starting delivery (if off_duty or on_break)
+    if (currentUser?.id === delivery?.driver_id &&
+        currentUser?.driver_status !== 'on_duty' &&
+        delivery?.delivery_date === localDeviceTodayStr) {
+      await ensureDriverOnline().catch(() => {});
+    }
+
     const lockResult = await runWithDeliveryActionLock(START_ACTION_NAME, async () => {
       if (!delivery?.id || !delivery?.driver_id || !delivery?.delivery_date) {
         resetActionLocks(true);
