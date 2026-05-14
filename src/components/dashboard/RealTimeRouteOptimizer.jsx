@@ -30,7 +30,7 @@ export default function RealTimeRouteOptimizer({
 
   const firstStopIdRef = useRef(null);
 
-  const optimizeRoute = async () => {
+  const optimizeRoute = async ({ bypassDateCheck = false } = {}) => {
     // CRITICAL: Only run on driver's mobile device
     const isMobile = isMobileDevice();
     const isDriver = currentUser && userHasRole(currentUser, 'driver');
@@ -42,7 +42,7 @@ export default function RealTimeRouteOptimizer({
     }
 
     // CRITICAL: Only run when driver is on duty (not off_duty or on_break)
-    if (currentUser.driver_status !== 'on_duty') {
+    if (!bypassDateCheck && currentUser.driver_status !== 'on_duty') {
       console.log('⏸️ [RealTimeRouteOptimizer] Skipping - driver not on duty (status:', currentUser.driver_status, ')');
       return;
     }
@@ -51,12 +51,14 @@ export default function RealTimeRouteOptimizer({
       return;
     }
 
-    // CRITICAL: Only optimize TODAY's date - skip past and future dates
-    const today = new Date();
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    if (selectedDate !== todayStr) {
-      console.log('⏸️ [RealTimeRouteOptimizer] Skipping - not today\'s date (selected:', selectedDate, ', today:', todayStr, ')');
-      return;
+    // CRITICAL: Only optimize TODAY's date for automatic triggers - explicit actions bypass this
+    if (!bypassDateCheck) {
+      const today = new Date();
+      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      if (selectedDate !== todayStr) {
+        console.log('⏸️ [RealTimeRouteOptimizer] Skipping - not today\'s date (selected:', selectedDate, ', today:', todayStr, ')');
+        return;
+      }
     }
 
     // CRITICAL: Only optimize when route has active stops (in_transit or en_route)
@@ -105,6 +107,8 @@ export default function RealTimeRouteOptimizer({
         deliveryDate: selectedDate,
         currentLocalTime: `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`,
         deviceTime: new Date().toISOString(),
+        bypassHistoricalCheck: bypassDateCheck,
+        bypassDriverStatus: bypassDateCheck,
         ...(lockedFirstStopId ? { firstStopId: lockedFirstStopId } : {})
       });
 
@@ -225,7 +229,8 @@ export default function RealTimeRouteOptimizer({
       if (firstStopId) firstStopIdRef.current = firstStopId;
       console.log('🎯 [RealTimeRouteOptimizer] Manual trigger received', firstStopId ? `firstStopId=${firstStopId}` : '');
       showUIRef.current = true;
-      optimizeRoute();
+      // bypassDateCheck=true so explicit Start/action triggers work on historical dates
+      optimizeRoute({ bypassDateCheck: true });
     };
 
     // CRITICAL: Listen for deliveriesUpdated events and check if already optimized

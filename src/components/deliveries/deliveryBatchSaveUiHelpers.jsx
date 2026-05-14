@@ -64,6 +64,14 @@ export const runDeleteOnlyBatchRefresh = ({ deliveryDate, driverId }) => {
 
       if (driverId && deliveryDate) {
         const { base44 } = await import('@/api/base44Client');
+        // Deletions/pending transitions change the route — run optimization
+        base44.functions.invoke('optimizeRemainingStops', {
+          driverId,
+          deliveryDate,
+          bypassDriverStatus: true,
+          bypassDeduplication: true,
+          bypassHistoricalCheck: true
+        }).catch(() => {});
         await base44.entities.Delivery.filter({
           driver_id: driverId,
           delivery_date: deliveryDate

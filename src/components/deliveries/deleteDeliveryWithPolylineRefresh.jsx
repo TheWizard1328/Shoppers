@@ -12,12 +12,16 @@ export async function deleteDeliveryWithPolylineRefresh({ deliveryId, deliveries
 
   if (!shouldSkipPolylineRefresh && deletedDelivery?.driver_id && deletedDelivery?.delivery_date) {
     try {
-      await base44.functions.invoke("purgeAndRegeneratePolylines", {
+      // Deleting an active stop changes the route — run full optimization
+      await base44.functions.invoke("optimizeRemainingStops", {
         driverId: deletedDelivery.driver_id,
         deliveryDate: deletedDelivery.delivery_date,
+        bypassDriverStatus: true,
+        bypassDeduplication: true,
+        bypassHistoricalCheck: true
       });
     } catch (error) {
-      console.warn("[deleteDeliveryWithPolylineRefresh] Polyline refresh failed:", error?.message || error);
+      console.warn("[deleteDeliveryWithPolylineRefresh] Route optimization failed:", error?.message || error);
     }
   }
 

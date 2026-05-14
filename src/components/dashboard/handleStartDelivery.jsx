@@ -120,7 +120,9 @@ export async function handleStartDelivery({
           lat: driverCurrentLat,
           lon: driverCurrentLon
         } : undefined,
-        bypassDeduplication: true
+        bypassDeduplication: true,
+        bypassHistoricalCheck: true,
+        bypassDriverStatus: true
       });
       optimizedRouteFromBackend = optimizeResponse?.data?.optimizedRoute || optimizeResponse?.optimizedRoute || null;
     } catch (optimizeError) {

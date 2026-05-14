@@ -272,7 +272,7 @@ export default function FABControls({
                 const localTime = isDateFinished ? (getRetroEtaSeedTime(incompleteStops) || currentTime) : currentTime;
                 const targetDriverId = selectedDriverId !== 'all' ? selectedDriverId : currentUser.id;
                 window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'optimize_route_fab', driverId: targetDriverId, deliveryDate } }));
-                const response = await base44.functions.invoke('optimizeRemainingStops', { driverId: targetDriverId, deliveryDate, currentLocalTime: localTime, deviceTime: now.toISOString(), bypassDriverStatus: true, bypassDeduplication: true });
+                const response = await base44.functions.invoke('optimizeRemainingStops', { driverId: targetDriverId, deliveryDate, currentLocalTime: localTime, deviceTime: now.toISOString(), bypassDriverStatus: true, bypassDeduplication: true, bypassHistoricalCheck: true });
                 const data = response?.data || response;
                 if (data?.success) {
                   // CRITICAL: optimizeRemainingStops already writes correct polylines directly

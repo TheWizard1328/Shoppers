@@ -120,7 +120,8 @@ export async function runAcceptAllBatchPipeline({
    deviceTime: new Date().toISOString(),
    forceFullRemainingRouteOptimization: true,
    bypassDriverStatus: true,
-   bypassDeduplication: true
+   bypassDeduplication: true,
+   bypassHistoricalCheck: true
   });
   const optimizeData = optimizeResponse?.data || optimizeResponse || {};
 
