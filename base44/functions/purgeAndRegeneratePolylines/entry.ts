@@ -1398,14 +1398,16 @@ Deno.serve(async (req) => {
       let cumulativeMinutes = completionTimeMs;
       const etaUpdates = new Map();
 
-      // If driver is >100m from route origin, add travel time from current location
+      // Use driver's home as ETA origin (same as polyline origin)
+      const homeOriginLat = driverAppUser?.home_latitude != null ? Number(driverAppUser.home_latitude) : null;
+      const homeOriginLon = driverAppUser?.home_longitude != null ? Number(driverAppUser.home_longitude) : null;
+
+      // If driver is >100m from home origin, add travel time from current location
       const currentLat = Number(driverAppUser?.current_latitude);
       const currentLon = Number(driverAppUser?.current_longitude);
-      const routeOriginLat = routeOrigin ? Number(routeOrigin.lat) : null;
-      const routeOriginLon = routeOrigin ? Number(routeOrigin.lon) : null;
 
-      if (isValidCoordinatePair(currentLat, currentLon) && isValidCoordinatePair(routeOriginLat, routeOriginLon)) {
-        const distanceMetersFromOrigin = distanceMeters(currentLat, currentLon, routeOriginLat, routeOriginLon);
+      if (isValidCoordinatePair(currentLat, currentLon) && isValidCoordinatePair(homeOriginLat, homeOriginLon)) {
+        const distanceMetersFromOrigin = distanceMeters(currentLat, currentLon, homeOriginLat, homeOriginLon);
         if (distanceMetersFromOrigin > 100) {
           // Estimate ~60 km/h average speed = 1 km per minute
           const estimatedTravelMinutes = Math.ceil(distanceMetersFromOrigin / 1000);
@@ -1415,7 +1417,9 @@ Deno.serve(async (req) => {
       }
 
       orderedDeliveries.forEach((delivery) => {
-        const travelDuration = Number(delivery?.estimated_duration_minutes) || 0;
+        // CRITICAL: Use freshly computed duration from polyline results, not stale delivery data
+        const freshUpdate = deliveryUpdatesById.get(delivery.id);
+        const travelDuration = Number(freshUpdate?.estimated_duration_minutes ?? delivery?.estimated_duration_minutes) || 0;
         const serviceTime = Number(delivery?.extra_time) || 5;
         cumulativeMinutes += travelDuration + serviceTime;
 
