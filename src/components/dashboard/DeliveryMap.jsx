@@ -1247,7 +1247,7 @@ export default function DeliveryMap({
 
         <DriverLocationMarkers users={routeAwareDriverLocationMarkers} currentUser={currentUser} activeDriver={null} deliveries={deliveriesForLocationFilter} selectedDate={selectedDate} />
 
-        {!showBreadcrumbs && (showRoutes || (typeof window !== "undefined" && localStorage.getItem("rxdeliver_show_routes") === "true")) && (
+        {(showRoutes || (typeof window !== "undefined" && localStorage.getItem("rxdeliver_show_routes") === "true")) && (!showBreadcrumbs || hasIncompleteStops) && (
           <>
             <HereType2Polylines key={`type2-${selectedDriverId}-${selectedDate}-${showOtherDriverDeliveries ? "all" : "single"}`} isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverRoutes={driverRoutes} multiDriverMode={selectedDriverId === "all" || showOtherDriverDeliveries} selectedDriverId={selectedDriverId} driverTravelModes={driverTravelModes} />
             <HereType1Polylines key={`type1-${selectedDriverId}-${selectedDate}-${showOtherDriverDeliveries ? "all" : "single"}`} isViewingCurrentDate={isViewingCurrentDate} deliveryMarkers={deliveryMarkers} pickupMarkers={pickupMarkers} driverHomeMarkers={driverHomeMarkers} currentDriverMarker={routeAwareCurrentDriverMarker} selectedDriverId={selectedDriverId} showAll={isAllDriversMode || showOtherDriverDeliveries} driverLocations={routeAwareDriverLocationMarkers} driverTravelModes={driverTravelModes} />
