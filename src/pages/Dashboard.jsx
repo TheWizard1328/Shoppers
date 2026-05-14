@@ -93,7 +93,7 @@ import DriverLocationBadge from '../components/dashboard/DriverLocationBadge';
 import ApiUsageBadge from '@/components/dashboard/ApiUsageBadge';
 import RouteActionButtons from '@/components/dashboard/RouteActionButtons';
 import DispatcherPickupNotification from '../components/dashboard/DispatcherPickupNotification';
-import ReconcileToast from '../components/dashboard/ReconcileToast';
+import ReconcileToast from '../components/dashboard/ReconcileToast';import SkippedStopsDialog from '../components/dashboard/SkippedStopsDialog';
 import { useLocalPerformanceStats } from "@/components/dashboard/useLocalPerformanceStats";
 import { StatBadge, calculateDistance, generateUniqueSID, addMinutesToTime, roundCompletionTime, populateTemporaryStartTimes } from "@/components/dashboard/DashboardHelpers";import { shouldRefreshUserFromAppUser } from "@/components/utils/appUserRefreshUtils";
 import { saveDriverChangedDelivery } from "@/components/utils/saveDriverChangedDelivery";
@@ -236,7 +236,7 @@ function Dashboard() {
   const [endOfDayDriver, setEndOfDayDriver] = useState(null);
   const [snapshotData, setSnapshotData] = useState(null);
   const [pullToSyncKey, setPullToSyncKey] = useState(0);
-  const statusUpdateLockRef = useRef(new Set());
+  const [skippedStopsDialogData, setSkippedStopsDialogData] = useState(null);const statusUpdateLockRef = useRef(new Set());
 
   const handleSnapshotSelect = (data) => {
     setSnapshotData(data || null);
@@ -3346,24 +3346,13 @@ function Dashboard() {
 
       if (data?.success) {
         setOptimizationMessage(`Route optimized! ${data.optimizedCount} stops updated.`);
-
-        // Refresh data to show new order
+        if (data.skippedStopsCount > 0 && Array.isArray(data.skippedStops)) setSkippedStopsDialogData(data.skippedStops);
         invalidate('Delivery');
         await refreshData();
-
-        // CRITICAL: Force map to re-render route lines
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { driverId: currentUser.id, deliveryDate: deliveryDate, triggeredBy: 'reoptimizeRoute' }
-        }));
-
-        // Trigger map view update
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { driverId: currentUser.id, deliveryDate: deliveryDate, triggeredBy: 'reoptimizeRoute' } }));
         setIsMapViewLocked(true);
         setMapViewTrigger((prev) => prev + 1);
-
-        setTimeout(() => {
-          setOptimizationMessage(null);
-          setIsMapViewLocked(false);
-        }, 3000);
+        setTimeout(() => { setOptimizationMessage(null); setIsMapViewLocked(false); }, 3000);
       } else {
         setOptimizationMessage(data?.error || 'Optimization failed');
         setTimeout(() => setOptimizationMessage(null), 5000);
@@ -4771,7 +4760,7 @@ function Dashboard() {
     mapStyle, setMapStyle, refreshUser, refreshData, dataSource
   });
 
-  return <DashboardScreen {...dashboardViewModel} />;
+  return (<><DashboardScreen {...dashboardViewModel} /><SkippedStopsDialog isOpen={!!skippedStopsDialogData} skippedStops={skippedStopsDialogData} onClose={() => setSkippedStopsDialogData(null)} /></>);
 }
 
 export default Dashboard;

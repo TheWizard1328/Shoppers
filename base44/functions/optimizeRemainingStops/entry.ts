@@ -10,40 +10,53 @@ const AUTOMATION_DEDUPE_WINDOW_MS = 60000;
 const LAST_FINISHED_STOP_PROXIMITY_KM = 0.25;
 const WEEKDAY_CODES = ['su', 'mo', 'tu', 'we', 'th', 'fr', 'sa'];
 
-// Geocode a patient address using Google Places API
-const geocodePatientAddress = async (base44, patient) => {
+// Geocode a patient address using Google Places API directly (no function invocation needed)
+const geocodePatientAddress = async (patient) => {
   if (!patient?.address) return null;
   
   try {
-    // Use googlePlacesAutocomplete to get place_id
-    const autocompleteResult = await base44.asServiceRole.functions.invoke('googlePlacesAutocomplete', {
-      input: patient.address,
-      latitude: null,
-      longitude: null
-    });
-    
-    const predictions = autocompleteResult?.predictions || [];
-    if (!predictions || predictions.length === 0) {
-      console.warn(`[geocodePatientAddress] No autocomplete results for: ${patient.address}`);
+    const apiKey = Deno.env.get('GOOGLE_MAPS_API_KEY');
+    if (!apiKey) {
+      console.warn('[geocodePatientAddress] GOOGLE_MAPS_API_KEY not set');
       return null;
     }
-    
-    // Use the first prediction
-    const placeId = predictions[0].place_id;
-    if (!placeId) return null;
-    
-    // Get place details with coordinates
-    const placeDetailsResult = await base44.asServiceRole.functions.invoke('googlePlaceDetails', {
-      place_id: placeId
+
+    // Step 1: Autocomplete to get place_id
+    const autocompleteUrl = 'https://places.googleapis.com/v1/places:autocomplete';
+    const autocompleteResp = await fetch(autocompleteUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': 'suggestions.placePrediction.placeId'
+      },
+      body: JSON.stringify({ input: patient.address, languageCode: 'en', includedRegionCodes: ['CA'] })
     });
-    
-    if (placeDetailsResult?.latitude && placeDetailsResult?.longitude) {
+
+    if (!autocompleteResp.ok) return null;
+    const autocompleteData = await autocompleteResp.json();
+    const placeId = autocompleteData?.suggestions?.[0]?.placePrediction?.placeId;
+    if (!placeId) {
+      console.warn(`[geocodePatientAddress] No place_id for: ${patient.address}`);
+      return null;
+    }
+
+    // Step 2: Get place details with coordinates
+    const detailsUrl = `https://places.googleapis.com/v1/places/${placeId}?fields=location&key=${apiKey}`;
+    const detailsResp = await fetch(detailsUrl, {
+      headers: { 'X-Goog-FieldMask': 'location' }
+    });
+
+    if (!detailsResp.ok) return null;
+    const detailsData = await detailsResp.json();
+
+    if (detailsData?.location?.latitude && detailsData?.location?.longitude) {
       return {
-        latitude: placeDetailsResult.latitude,
-        longitude: placeDetailsResult.longitude
+        latitude: detailsData.location.latitude,
+        longitude: detailsData.location.longitude
       };
     }
-    
+
     return null;
   } catch (error) {
     console.warn(`[geocodePatientAddress] Failed to geocode ${patient.address}:`, error?.message);
@@ -589,7 +602,7 @@ Deno.serve(async (req) => {
          const patient = patientMap.get(delivery.patient_id);
          if (patient?.address && (patient.latitude == null || patient.longitude == null)) {
            console.log(`   🌍 [optimizeRemainingStops] Attempting geocoding for ${delivery.patient_name || 'Patient'} (${patient.address})`);
-           const geocodedCoords = await geocodePatientAddress(base44, patient);
+           const geocodedCoords = await geocodePatientAddress(patient);
            
            if (geocodedCoords) {
              // Update patient record with new coordinates
@@ -1336,6 +1349,8 @@ Deno.serve(async (req) => {
       forceFullRemainingRouteOptimization,
       nextDeliveryId: nextStopId,
       shouldRefreshPolylines: true,
+      skippedStopsCount: skippedStops.length,
+      skippedStops: skippedStops,
       optimizedRoute: activeStops.map((stop, index) => ({
         deliveryId: stop.id,
         newETA: stop.delivery_time_eta,
