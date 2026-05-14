@@ -143,6 +143,13 @@ export default function DashboardDialogs({
                 // Final refresh with fresh backend data
                 const freshDeliveries = await base44.entities.Delivery.filter({ driver_id: targetDriverId, delivery_date: deliveryDate });
                 window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'quickReorder', freshDeliveries, fullReplacement: false } }));
+
+                // Broadcast changes to all other connected devices
+                await base44.functions.invoke('forceDriverSyncRefresh', {
+                  driverId: targetDriverId,
+                  deliveryDate,
+                  triggeredBy: 'quickReorder'
+                }).catch(() => {}); // non-critical, silent fail
               } catch (err) {
                 console.warn('[QuickReorder] Reorder failed:', err?.message);
               } finally {
