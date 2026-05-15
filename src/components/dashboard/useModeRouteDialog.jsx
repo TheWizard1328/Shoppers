@@ -28,7 +28,7 @@ export default function useModeRouteDialog({
     patients,
     stores,
     currentLocation: currentModeLocation,
-    radiusKm: 5,
+    radiusKm: 50, // Show all active stops on the route regardless of distance
   }), [deliveriesWithStopOrder, patients, stores, currentModeLocation]);
 
   const toggleModeStop = useCallback((stopId) => {
