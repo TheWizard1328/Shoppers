@@ -279,23 +279,20 @@ export default function FABControls({
                 const response = await base44.functions.invoke('optimizeRemainingStops', { driverId: targetDriverId, deliveryDate, currentLocalTime: localTime, deviceTime: now.toISOString(), bypassDriverStatus: true, bypassDeduplication: true, bypassHistoricalCheck: true });
                 const data = response?.data || response;
                 if (data?.success) {
-                  // CRITICAL: optimizeRemainingStops already writes correct polylines directly
-                  // to each delivery via HERE API. Calling purgeAndRegeneratePolylines after would
-                  // overwrite them with independently-computed segments using wrong origins.
-                  // Only call purgeAndRegeneratePolylines as fallback if no polylines came back.
-                  const fabOptHasPolylines = Array.isArray(data?.optimizedRoute) && data.optimizedRoute.some((stop) => stop.encoded_polyline);
-                  if (!fabOptHasPolylines) {
-                    await base44.functions.invoke('purgeAndRegeneratePolylines', {
-                      driverId: targetDriverId,
-                      deliveryDate,
-                      scope: 'active_only',
-                      reason: 'manual',
-                      sourcePage: 'Dashboard',
-                      bypassDriverStatus: true,
-                      bypassPolylineDelete: false,
-                      reuseProvidedPolylines: false
-                    }).catch(() => null);
-                  }
+                  // CRITICAL: optimizeRemainingStops now handles ONLY sequencing (findsequence2).
+                  // Always call purgeAndRegeneratePolylines to generate polylines for the sequenced route.
+                  const orderedDeliveryIds = Array.isArray(data?.orderedDeliveryIds) && data.orderedDeliveryIds.length > 0
+                    ? data.orderedDeliveryIds
+                    : null;
+                  await base44.functions.invoke('purgeAndRegeneratePolylines', {
+                    driverId: targetDriverId,
+                    deliveryDate,
+                    ...(orderedDeliveryIds ? { orderedDeliveryIds } : { scope: 'active_only' }),
+                    reason: 'post_sequence_optimization',
+                    sourcePage: 'Dashboard',
+                    bypassDriverStatus: true,
+                    recalculateEtas: false,
+                  }).catch(() => null);
                   setOptimizationMessage(`Route optimized! ${data.optimizedCount} stops updated and polylines refreshed.`);
                   invalidateDeliveriesForDate(deliveryDate);
                   const refreshTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error('Refresh timeout')), 8000));

@@ -891,6 +891,7 @@ Deno.serve(async (req) => {
           caller: 'optimizeRemainingStops:sequence',
           preserveWaypointOrder: false,
           skipSequenceApi: false,
+          skipRoutingApi: true,
         });
         hereSequenceResult = seqResp?.data || seqResp || null;
         attemptedHereCalls += Number(hereSequenceResult?.api_call_count || 1);
@@ -1344,18 +1345,7 @@ Deno.serve(async (req) => {
       console.log(`  🔢 [optimizeRemainingStops] Stop #${data.stop_order}: ${label} | ETA: ${data.delivery_time_eta || 'none'}${data.encoded_polyline ? ' [polyline saved]' : ' [no polyline]'}${data.estimated_distance_km != null ? ` | dist=${data.estimated_distance_km}km` : ''}${data.estimated_duration_minutes != null ? ` dur=${data.estimated_duration_minutes}min` : ''}`);
     });
 
-    // Delegate polyline and ETA recalculation to purgeAndRegeneratePolylines
-    const orderedDeliveryIds = finalDeliveryWriteBatch.map(item => item.id);
-    const polylineResult = await base44.asServiceRole.functions.invoke('purgeAndRegeneratePolylines', {
-      driverId,
-      deliveryDate,
-      orderedDeliveryIds,
-      completionTime: resolvedDepartureTime,
-      recalculateEtas: false,
-      currentPosition: currentPosition
-    });
-
-    console.log(`\n✅ [optimizeRemainingStops] Route optimization complete - ${activeStops.length} stops optimized, ${attemptedHereCalls} sequence API calls, ${polylineResult?.apiCallsMade || 0} polyline API calls`);
+    console.log(`\n✅ [optimizeRemainingStops] Route optimization complete - ${activeStops.length} stops sequenced, ${attemptedHereCalls} sequence API calls. Polyline generation delegated to purgeAndRegeneratePolylines.`);
 
     return Response.json({
       success: true,
@@ -1371,6 +1361,7 @@ Deno.serve(async (req) => {
       forceFullRemainingRouteOptimization,
       nextDeliveryId: nextStopId,
       shouldRefreshPolylines: true,
+      orderedDeliveryIds: finalDeliveryWriteBatch.map(item => item.id),
       skippedStopsCount: skippedStops.length,
       skippedStops: skippedStops,
       optimizedRoute: activeStops.map((stop, index) => ({

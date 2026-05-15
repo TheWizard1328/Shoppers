@@ -611,6 +611,9 @@ Deno.serve(async (req) => {
     const routeContext = Array.isArray(body?.routeContext) ? body.routeContext : [];
     const preserveWaypointOrder = body?.preserveWaypointOrder === true;
     const skipSequenceApi = body?.skipSequenceApi === true;
+    // When true, skip the HERE Router API call entirely — return only the sequenced waypoint order.
+    // Used by optimizeRemainingStops which delegates polyline generation to purgeAndRegeneratePolylines.
+    const skipRoutingApi = body?.skipRoutingApi === true;
     const requestedTransportMode = String(body?.transportMode || body?.transport_mode || 'driving').toLowerCase();
     const hereTransportMode = requestedTransportMode === 'cycling'
       ? 'bicycle'
@@ -717,6 +720,7 @@ Deno.serve(async (req) => {
       interconnections = Array.isArray(result?.interconnections) ? result.interconnections : [];
 
       if ((!resp.ok || !result || returnedWaypoints.length === 0) && sequenceStops.length > 0) {
+        console.warn(`[getHereDirections] Initial findsequence2 failed (status=${resp.status}, result=${!!result}, waypoints=${returnedWaypoints.length}) — retrying without time windows (caller=${caller})`);
         const retryParams = new URLSearchParams();
         retryParams.set('apiKey', hereApiKey);
         retryParams.set('departure', buildLocalIso(dateStr, departureTime));
@@ -740,6 +744,7 @@ Deno.serve(async (req) => {
         result = Array.isArray(data?.results) ? data.results[0] : null;
         returnedWaypoints = Array.isArray(result?.waypoints) ? result.waypoints : [];
         interconnections = Array.isArray(result?.interconnections) ? result.interconnections : [];
+        console.info(`[getHereDirections] Retry findsequence2 result: status=${resp.status}, waypoints=${returnedWaypoints.length} (caller=${caller})`);
       }
     }
 
@@ -803,6 +808,60 @@ Deno.serve(async (req) => {
       .filter(Boolean);
 
     const interconnectionByToWaypoint = new Map(interconnections.map((item) => [item.toWaypoint, item]));
+
+    // skipRoutingApi=true: caller only needs the sequenced waypoint order (no polylines).
+    // Return immediately with sequence data and crow-flies estimates — no Router API call.
+    if (skipRoutingApi) {
+      const sequenceOnlySections = orderedStops.map((stop, index) => {
+        const leg = interconnectionByToWaypoint.get(stop.id);
+        const fromPoint = index === 0 ? { lat: originLat, lng: originLng } : { lat: orderedStops[index - 1].lat, lng: orderedStops[index - 1].lng };
+        const fallbackDistanceKm = calculateCrowFliesDistance(fromPoint.lat, fromPoint.lng, stop.lat, stop.lng);
+        return {
+          polyline: null,
+          encoded_polyline: null,
+          estimated_distance_km: Number.isFinite(Number(leg?.distance)) ? Math.round((Number(leg.distance) / 1000) * 10) / 10 : Math.round(fallbackDistanceKm * 10) / 10,
+          estimated_duration_minutes: Number.isFinite(Number(leg?.time)) ? Math.round(Number(leg.time) / 60) : Math.round((fallbackDistanceKm / 40) * 60),
+          sequence: index + 1,
+          waypoint_id: stop.id,
+          coordinates: [fromPoint, { lat: stop.lat, lng: stop.lng }]
+        };
+      });
+      await logApiUsage({
+        base44,
+        appUserId: appUser?.id,
+        appUserName: appUser?.user_name || user.full_name,
+        provider: 'here',
+        apiType: 'Directions (HERE)',
+        purpose: `Sequence-only (no routing) — ${caller}`,
+        functionName: `getHereDirections:${caller}`,
+        success: true,
+        durationMs: Date.now() - startedAt,
+        callCount: routeCallCount,
+        metadata: {
+          transport_mode: normalizedTransportMode,
+          waypoint_count: waypoints.length,
+          stops_count: sequenceStops.length + 1,
+          skip_routing_api: true,
+          optimized_sequence: orderedWaypoints.map((wp) => wp.id),
+          caller,
+          caller_context: callerContext
+        },
+      });
+      return Response.json({
+        polyline_format: 'google',
+        coordinates: null,
+        polyline: null,
+        polylines: [],
+        sections: sequenceOnlySections,
+        estimated_distance_km: sequenceOnlySections.reduce((s, sec) => s + (sec.estimated_distance_km || 0), 0),
+        estimated_duration_minutes: sequenceOnlySections.reduce((s, sec) => s + (sec.estimated_duration_minutes || 0), 0),
+        transport_mode: normalizedTransportMode,
+        optimized_waypoint_ids: orderedWaypoints.map((wp) => wp.id),
+        used_time_windows: true,
+        api_call_count: routeCallCount,
+        skip_routing_api: true
+      });
+    }
 
     const routedGeometry = await buildRoutingSections({
       hereApiKey,
