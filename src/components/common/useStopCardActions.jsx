@@ -267,10 +267,11 @@ export default function useStopCardActions(params) {
           : null;
 
       if (Array.isArray(refreshedList) && refreshedList.length > 0) {
-        // Persist refreshed deliveries to offline DB first
+        // Persist refreshed deliveries to offline DB FIRST and ensure it's complete
         const { offlineDB } = await import('../utils/offlineDatabase');
         await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', delivery.delivery_date, refreshedList);
         
+        // NOW update UI AFTER offline DB is confirmed persisted
         updateDeliveriesLocally?.(refreshedList, true);
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, fullReplacement: true, freshDeliveries: refreshedList } }));
       } else {
@@ -613,11 +614,8 @@ export default function useStopCardActions(params) {
 
            if (Array.isArray(refreshedListImmediate) && refreshedListImmediate.length > 0) {
              await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', delivery.delivery_date, refreshedListImmediate);
-           }
 
-           // Step 3: Broadcast updated delivery state to other devices
-           if (Array.isArray(refreshedListImmediate) && refreshedListImmediate.length > 0) {
-             window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, fullReplacement: true, freshDeliveries: refreshedListImmediate } }));
+             // Step 3: Broadcast to other devices (non-blocking)
              Promise.resolve().then(async () => {
                try {
                  const { broadcastMutation } = await import('../utils/realtimeSync');
@@ -626,6 +624,9 @@ export default function useStopCardActions(params) {
                  console.warn('⚠️ [Start] delivery broadcast failed:', broadcastError?.message || broadcastError);
                }
              });
+
+             // Step 4: Update UI AFTER offline DB is persisted
+             window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, fullReplacement: true, freshDeliveries: refreshedListImmediate } }));
            } else {
              window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: false, fullReplacement: true } }));
            }
