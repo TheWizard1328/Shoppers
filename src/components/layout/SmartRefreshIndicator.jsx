@@ -6,6 +6,7 @@ import { isAppOwner } from '../utils/userRoles';
 import { useUser } from '../utils/UserContext';
 import { offlineManager } from '../utils/offlineManager';
 import { smartRefreshManager } from '../utils/smartRefreshManager';
+import { subscribeSyncStatus } from '../utils/offlineSyncStatus';
 
 /**
  * Smart Refresh Indicator - Shows app owners when smart refresh is active
@@ -47,10 +48,11 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
   const [isRefreshStuck, setIsRefreshStuck] = useState(false);
 
   // Track which manager is active
-  const [activeManager, setActiveManager] = useState(null); // 'smart', 'offline', 'polling'
+  const [activeManager, setActiveManager] = useState(null); // 'smart', 'offline', 'polling', 'historical'
   const [isSmartRefreshActive, setIsSmartRefreshActive] = useState(false);
   const [isOfflineSyncActive, setIsOfflineSyncActive] = useState(false);
   const [isPollingActive, setIsPollingActive] = useState(false);
+  const [isHistoricalSyncActive, setIsHistoricalSyncActive] = useState(false);
 
   // CRITICAL: Track smartRefreshManager.isRefreshing directly
   const isRefreshingRef = React.useRef(false);
@@ -155,6 +157,15 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
       // Check smart refresh every 50ms for responsive updates
       const smartRefreshInterval = setInterval(checkSmartRefresh, 50);
 
+      // Track historical background sync via notifySyncStatus
+      const unsubscribeHistorical = subscribeSyncStatus((status) => {
+        if (status?.status === 'background_syncing') {
+          setIsHistoricalSyncActive(true);
+        } else if (status?.status === 'complete' || status?.status === 'error') {
+          setIsHistoricalSyncActive(false);
+        }
+      });
+
       window.addEventListener('offlineSyncStarted', handleOfflineSyncStart);
       window.addEventListener('offlineSyncComplete', handleOfflineSyncComplete);
       window.addEventListener('driverLocationPollingStarted', handlePollingStart);
@@ -162,6 +173,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
 
       return () => {
         clearInterval(smartRefreshInterval);
+        unsubscribeHistorical();
         window.removeEventListener('offlineSyncStarted', handleOfflineSyncStart);
         window.removeEventListener('offlineSyncComplete', handleOfflineSyncComplete);
         window.removeEventListener('driverLocationPollingStarted', handlePollingStart);
@@ -174,6 +186,8 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
   useEffect(() => {
     if (isSmartRefreshActive) {
       setActiveManager('smart');
+    } else if (isHistoricalSyncActive) {
+      setActiveManager('historical');
     } else if (isOfflineSyncActive) {
       setActiveManager('offline');
     } else if (isPollingActive) {
@@ -181,10 +195,10 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
     } else {
       setActiveManager(null);
     }
-  }, [isSmartRefreshActive, isOfflineSyncActive, isPollingActive]);
+  }, [isSmartRefreshActive, isHistoricalSyncActive, isOfflineSyncActive, isPollingActive]);
 
   useEffect(() => {
-    const refreshLooksActive = smartRefreshActivity?.active || isManualRefreshing || isSmartRefreshActive || isOfflineSyncActive;
+    const refreshLooksActive = smartRefreshActivity?.active || isManualRefreshing || isSmartRefreshActive || isOfflineSyncActive || isHistoricalSyncActive;
 
     if (!refreshLooksActive) {
       setIsRefreshStuck(false);
@@ -206,7 +220,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
   }
 
   const isPollingOnly = activeManager === 'polling' && !smartRefreshActivity?.active && !isManualRefreshing && !isOfflineSyncActive && !isSmartRefreshActive;
-  const isActive = !isRefreshStuck && (smartRefreshActivity?.active || isManualRefreshing || isSmartRefreshActive || isOfflineSyncActive);
+  const isActive = !isRefreshStuck && (smartRefreshActivity?.active || isManualRefreshing || isSmartRefreshActive || isOfflineSyncActive || isHistoricalSyncActive);
   const isPaused = isEntityUpdating;
   const hasUpdates = recentUpdates.length > 0;
 
@@ -219,6 +233,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
 
     switch (activeManager) {
       case 'smart':return 'bg-emerald-500'; // Green for smart refresh
+      case 'historical':return 'bg-blue-900'; // Dark blue for historical bi-hourly sync
       case 'offline':return 'bg-purple-500'; // Purple for offline sync
       case 'polling':return 'bg-blue-500'; // Blue for polling
       default:return isActive ? 'bg-emerald-500' : 'bg-slate-200 hover:bg-slate-300';
@@ -381,6 +396,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
         style={{ position: 'relative', zIndex: 10030 }}
         title={hasError ? 'Refresh error - click to retry' : !isOnline ? 'Offline - changes will sync when online' : isPaused ? 'Smart refresh paused' :
         activeManager === 'smart' ? 'Smart Refresh active' :
+        activeManager === 'historical' ? 'Historical sync active' :
         activeManager === 'offline' ? 'Offline Sync active' :
         activeManager === 'polling' ? 'Background location polling' :
         'Click to refresh'}>
