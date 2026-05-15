@@ -31,26 +31,6 @@
       "format": "date",
       "description": "Scheduled delivery date"
     },
-    "delivery_time_start": {
-      "type": "string",
-      "description": "Scheduled start of delivery time window (HH:mm)"
-    },
-    "delivery_time_end": {
-      "type": "string",
-      "description": "Scheduled end of delivery time window (HH:mm)"
-    },
-    "delivery_time_eta": {
-      "type": "string",
-      "description": "Estimated time of arrival for incomplete deliveries (HH:mm)"
-    },
-    "arrival_time": {
-      "type": "string",
-      "description": "Local device time when driver arrived at delivery/pickup location (YYYY-MM-DDTHH:MM:SS)"
-    },
-    "actual_delivery_time": {
-      "type": "string",
-      "description": "Actual delivery completion timestamp in local time (YYYY-MM-DDTHH:MM:SS)"
-    },
     "status": {
       "type": "string",
       "enum": [
@@ -63,22 +43,6 @@
       ],
       "default": "pending",
       "description": "Current delivery status"
-    },
-    "prescription_number": {
-      "type": "string",
-      "description": "Prescription number (RX#)"
-    },
-    "delivery_notes": {
-      "type": "string",
-      "description": "Driver notes from this specific delivery"
-    },
-    "delivery_instructions": {
-      "type": "string",
-      "description": "Special delivery instructions from patient record"
-    },
-    "store_id": {
-      "type": "string",
-      "description": "ID of the store associated with this delivery"
     },
     "tracking_number": {
       "type": "string",
@@ -95,6 +59,68 @@
     "puid": {
       "type": "string",
       "description": "Pickup ID (PUID) - links deliveries to their originating pickup"
+    },
+    "first_delivery": {
+      "type": "boolean",
+      "default": false,
+      "description": "True if this is the first delivery for the associated patient"
+    },
+    "isNextDelivery": {
+      "type": "boolean",
+      "default": false,
+      "description": "True if this is the next delivery to be completed for the driver"
+    },
+    "ampm_deliveries": {
+      "type": "string",
+      "enum": [
+        "AM",
+        "PM"
+      ],
+      "description": "AM or PM designation based on pickup store's delivery_time_start"
+    },
+    "delivery_time_start": {
+      "type": "string",
+      "description": "Scheduled start of delivery time window (HH:mm)"
+    },
+    "delivery_time_end": {
+      "type": "string",
+      "description": "Scheduled end of delivery time window (HH:mm)"
+    },
+    "delivery_time_eta": {
+      "type": "string",
+      "description": "Estimated time of arrival for incomplete deliveries (HH:mm)"
+    },
+    "estimated_distance_km": {
+      "type": "number",
+      "description": "Estimated distance for the delivery leg that ends at this stop"
+    },
+    "estimated_duration_minutes": {
+      "type": "number",
+      "description": "Estimated duration for the delivery leg that ends at this stop"
+    },
+    "arrival_time": {
+      "type": "string",
+      "description": "Local device time when driver arrived at delivery/pickup location (YYYY-MM-DDTHH:MM:SS)"
+    },
+    "actual_delivery_time": {
+      "type": "string",
+      "description": "Actual delivery completion timestamp in local time (YYYY-MM-DDTHH:MM:SS)"
+    },
+    "prescription_number": {
+      "type": "string",
+      "description": "Prescription number (RX#)"
+    },
+    "delivery_notes": {
+      "type": "string",
+      "description": "Driver notes from this specific delivery"
+    },
+    "delivery_instructions": {
+      "type": "string",
+      "description": "Special delivery instructions from patient record"
+    },
+    "store_id": {
+      "type": "string",
+      "description": "ID of the store associated with this delivery"
     },
     "extra_time": {
       "type": "number",
@@ -189,24 +215,6 @@
       "default": false,
       "description": "No charge delivery (free of charge)"
     },
-    "first_delivery": {
-      "type": "boolean",
-      "default": false,
-      "description": "True if this is the first delivery for the associated patient"
-    },
-    "isNextDelivery": {
-      "type": "boolean",
-      "default": false,
-      "description": "True if this is the next delivery to be completed for the driver"
-    },
-    "ampm_deliveries": {
-      "type": "string",
-      "enum": [
-        "AM",
-        "PM"
-      ],
-      "description": "AM or PM designation based on pickup store's delivery_time_start"
-    },
     "encoded_polyline": {
       "type": "string",
       "description": "HERE API encoded polyline for this stop's planned route segment"
@@ -219,14 +227,6 @@
         "pedestrian"
       ],
       "description": "Transport mode used for this stop's route segment"
-    },
-    "estimated_distance_km": {
-      "type": "number",
-      "description": "Estimated distance for the delivery leg that ends at this stop"
-    },
-    "estimated_duration_minutes": {
-      "type": "number",
-      "description": "Estimated duration for the delivery leg that ends at this stop"
     },
     "PolylineUpdated": {
       "type": "boolean",
