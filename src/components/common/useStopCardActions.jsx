@@ -635,22 +635,49 @@ export default function useStopCardActions(params) {
            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers, triggeredBy: 'startOptimized' } }));
 
            // Step 4: Trigger the manual FAB optimization — polylines update only on that explicit action
-            window.dispatchEvent(new CustomEvent('triggerManualRouteOptimization', {
-              detail: { 
-                firstStopId: delivery.id, 
-                driverId: delivery.driver_id, 
-                deliveryDate: delivery.delivery_date,
-                source: 'start_action'
-              }
-            }));
+           window.dispatchEvent(new CustomEvent('triggerManualRouteOptimization', {
+             detail: { 
+               firstStopId: delivery.id, 
+               driverId: delivery.driver_id, 
+               deliveryDate: delivery.delivery_date,
+               source: 'start_action'
+             }
+           }));
 
-          fabControlEvents.reactivatePhaseTwoIfAvailable();
+           // CRITICAL: Wait for route optimization to complete before refreshing UI with new ETAs
+           await new Promise((resolve) => {
+             const timeout = setTimeout(resolve, 10000); // 10s fallback
+             const handleOptimizationComplete = (e) => {
+               if (e.detail?.driverId === delivery.driver_id && e.detail?.deliveryDate === delivery.delivery_date) {
+                 clearTimeout(timeout);
+                 window.removeEventListener('routeOptimizationComplete', handleOptimizationComplete);
+                 resolve();
+               }
+             };
+             window.addEventListener('routeOptimizationComplete', handleOptimizationComplete);
+           });
 
-          // Notify driver after optimization is complete
-          await ensureDriverOnline().catch(() => {});
-          if (userHasRole(currentUser, 'driver') && currentUser.id === delivery.driver_id) {
-            await notifyDriverStarted({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name, delivery, store, appUsers }).catch(() => {});
-          }
+           // After optimization, fetch fresh deliveries with updated ETAs
+           const finalRefreshedDeliveries = await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+           const finalRefreshedList = Array.isArray(finalRefreshedDeliveries)
+             ? finalRefreshedDeliveries
+             : Array.isArray(finalRefreshedDeliveries?.deliveries)
+               ? finalRefreshedDeliveries.deliveries
+               : null;
+
+           if (Array.isArray(finalRefreshedList) && finalRefreshedList.length > 0) {
+             await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', delivery.delivery_date, finalRefreshedList);
+             updateDeliveriesLocally?.(finalRefreshedList, true);
+             window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimizedFinal', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, fullReplacement: true, freshDeliveries: finalRefreshedList } }));
+           }
+
+           fabControlEvents.reactivatePhaseTwoIfAvailable();
+
+           // Notify driver after optimization is complete
+           await ensureDriverOnline().catch(() => {});
+           if (userHasRole(currentUser, 'driver') && currentUser.id === delivery.driver_id) {
+           await notifyDriverStarted({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name, delivery, store, appUsers }).catch(() => {});
+           }
         } catch (optErr) {
           const isNotFound = optErr?.status === 404 || optErr?.response?.status === 404 || String(optErr?.message || '').includes('404');
           if (!isNotFound) console.warn('⚠️ [Start] background start update failed:', optErr?.message || optErr);
