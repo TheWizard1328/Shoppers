@@ -503,22 +503,7 @@ export const handleBatchSaveDelivery = async ({
       }
     }
 
-    // Trigger route optimization if the route already has active (in_transit/en_route) stops,
-    // since new stops were just added and the route order + ETAs need refreshing.
-    const hasActiveStops = driverDeliveriesForDate.some((d) => ['in_transit', 'en_route'].includes(d.status));
-    if (hasActiveStops && driverId && driverId !== 'unassigned') {
-      const now = new Date();
-      const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      base44.functions.invoke('optimizeRemainingStops', {
-        driverId,
-        deliveryDate,
-        currentLocalTime,
-        deviceTime: now.toISOString(),
-        bypassDriverStatus: true,
-        bypassDeduplication: true,
-        bypassHistoricalCheck: true
-      }).catch(() => {});
-    }
+
   }
 
   invalidate('Delivery');
