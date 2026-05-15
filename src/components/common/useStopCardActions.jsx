@@ -273,14 +273,6 @@ export default function useStopCardActions(params) {
         
         updateDeliveriesLocally?.(refreshedList, true);
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, fullReplacement: true, freshDeliveries: refreshedList } }));
-
-        // Dispatch ETA updates to UI
-        const etaUpdates = refreshedList
-          .filter((stop) => stop?.delivery_time_eta)
-          .map((stop) => ({ deliveryId: stop.id, newEta: stop.delivery_time_eta }));
-        if (etaUpdates.length > 0) {
-          window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: delivery.driver_id, updates: etaUpdates } }));
-        }
       } else {
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: false, fullReplacement: true } }));
       }
@@ -641,17 +633,7 @@ export default function useStopCardActions(params) {
            window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers, triggeredBy: 'startOptimized' } }));
 
-           // Step 4: Dispatch ETA updates to UI
-           if (Array.isArray(refreshedListImmediate) && refreshedListImmediate.length > 0) {
-             const etaUpdates = refreshedListImmediate
-               .filter((stop) => stop?.delivery_time_eta)
-               .map((stop) => ({ deliveryId: stop.id, newEta: stop.delivery_time_eta }));
-             if (etaUpdates.length > 0) {
-               window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: delivery.driver_id, updates: etaUpdates } }));
-             }
-           }
-
-           // Step 5: Trigger the manual FAB optimization — polylines update only on that explicit action
+           // Step 4: Trigger the manual FAB optimization — polylines update only on that explicit action
             window.dispatchEvent(new CustomEvent('triggerManualRouteOptimization', {
               detail: { 
                 firstStopId: delivery.id, 
