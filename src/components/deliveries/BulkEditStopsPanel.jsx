@@ -367,7 +367,11 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
     delivery_time_start: getSharedValue(selectedDeliveries, (delivery) => delivery?.delivery_time_start, ""),
     delivery_time_end: getSharedValue(selectedDeliveries, (delivery) => delivery?.delivery_time_end, ""),
     // Auto-select "unchanged" if any terminal status is present
-    statusChoice: hasTerminalStatus ? "unchanged" : getSharedValue(selectedDeliveries, (delivery) => delivery?.status, "unchanged"),
+    // Normalize in_transit/en_route to the combined select value
+    statusChoice: hasTerminalStatus ? "unchanged" : (() => {
+      const raw = getSharedValue(selectedDeliveries, (delivery) => delivery?.status, "unchanged");
+      return (raw === "in_transit" || raw === "en_route") ? "in_transit_or_en_route" : raw;
+    })(),
     storeChoice: "unchanged",
     ampmChoice: getSharedValue(selectedDeliveries, (delivery) => delivery?.ampm_deliveries, "unchanged"),
     puid: hasMixedPuids ? "" : getSharedValue(selectedDeliveries, (delivery) => delivery?.puid, "")
