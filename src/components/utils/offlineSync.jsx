@@ -793,23 +793,28 @@ export const restartDeliveryPatientSync = async () => {
     const uniquePatientIdsList = Array.from(uniquePatientIdsFromLastWeek);
     console.log(`📍 [OfflineSync] Found ${uniquePatientIdsList.length} unique patients in ${allDeliveriesLastWeek.length} deliveries from last 7 days`);
 
-    // Step 2: Sync ONLY those unique patient IDs in batches
+    // Step 2: Sync ALL active patients using timestamp-based incremental strategy
     // CRITICAL: Sync ALL active patients, not just recent ones
     // This ensures payroll page has complete patient data for any historical date
     notifySyncStatus({ status: 'syncing', entity: 'Patients (all active)', progress: 55 });
-    console.log(`🔄 [OfflineSync] Step 2: Syncing ALL active patients for complete historical data...`);
+    console.log(`🔄 [OfflineSync] Step 2: Syncing ALL active patients using timestamp-based batching...`);
 
     let allPatients = [];
-    const PATIENT_PAGE_SIZE = 100;
-    let patientOffset = 0;
+    const PATIENT_BATCH_SIZE = 500; // Larger batch = fewer API calls
+    let lastSyncTimestamp = null;
+    let batchCount = 0;
 
     while (true) {
       try {
+        const patientFilter = { status: 'active' };
+        if (lastSyncTimestamp) {
+          patientFilter.updated_date = { $gt: lastSyncTimestamp };
+        }
+
         const patientBatch = await Patient.filter(
-          { status: 'active' },
+          patientFilter,
           '-updated_date',
-          PATIENT_PAGE_SIZE,
-          patientOffset
+          PATIENT_BATCH_SIZE
         );
 
         if (!patientBatch || patientBatch.length === 0) break;
@@ -818,7 +823,12 @@ export const restartDeliveryPatientSync = async () => {
         await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientBatch);
         invalidateEntityCache('Patient');
 
-        const batchNumber = Math.floor(patientOffset / PATIENT_PAGE_SIZE) + 1;
+        // Update timestamp to last patient's updated_date for next batch
+        if (patientBatch.length > 0) {
+          lastSyncTimestamp = patientBatch[patientBatch.length - 1].updated_date || new Date().toISOString();
+        }
+
+        batchCount++;
         const batchProgress = 55 + Math.min(20, Math.floor((allPatients.length / 4000) * 20));
         notifySyncStatus({ 
           status: 'syncing', 
@@ -826,18 +836,18 @@ export const restartDeliveryPatientSync = async () => {
           progress: batchProgress, 
           loaded: allPatients.length 
         });
-        console.log(`   ✅ Batch ${batchNumber} synced (${allPatients.length} total patients)`);
+        console.log(`   ✅ Batch ${batchCount} synced (${allPatients.length} total patients)`);
 
-        // Stop if we got fewer than page size (end of data)
-        if (patientBatch.length < PATIENT_PAGE_SIZE) break;
+        // Stop if we got fewer records than batch size (end of data)
+        if (patientBatch.length < PATIENT_BATCH_SIZE) break;
 
-        patientOffset += PATIENT_PAGE_SIZE;
-        await new Promise(r => setTimeout(r, 200));
+        // Longer cooldown between batches to avoid rate limits
+        await new Promise(r => setTimeout(r, 500));
       } catch (error) {
-        console.warn(`   ⚠️ Patient sync batch failed:`, error.message);
-        if (patientOffset === 0) {
-          // If first batch fails, use referenced patients as fallback
-          console.warn('   Using patients referenced in deliveries as fallback...');
+        console.warn(`   ⚠️ Patient sync batch ${batchCount} failed:`, error.message);
+        if (batchCount === 0) {
+          // If first batch fails, silently skip
+          console.warn('   Skipping patient sync on error');
           break;
         }
       }
