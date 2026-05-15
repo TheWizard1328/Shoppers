@@ -38,10 +38,10 @@ export default function ModeSelectionDialog({
       <DialogContent
         className={
           isMobile
-            ? 'fixed inset-x-0 bottom-0 top-auto w-full max-w-full rounded-t-2xl rounded-b-none p-0 border-0 shadow-2xl'
+            ? 'fixed inset-x-0 bottom-0 top-auto w-full max-w-full rounded-t-2xl rounded-b-none p-0 border-0 shadow-2xl left-1/2 transform -translate-x-1/2'
             : 'sm:max-w-md rounded-2xl p-0 overflow-hidden shadow-2xl'
         }
-        style={isMobile ? { margin: 0 } : {}}
+        style={isMobile ? { margin: 0, width: '100%', maxWidth: '100vw' } : {}}
       >
         {/* Header */}
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
