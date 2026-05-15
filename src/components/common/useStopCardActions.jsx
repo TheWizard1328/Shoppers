@@ -795,7 +795,7 @@ export default function useStopCardActions(params) {
              const [completionHours, completionMinutes] = completionTimeStr.split(':').map(Number);
              let baseTimeMinutes = completionHours * 60 + completionMinutes;
 
-             remoteLogger.info(`[Complete ETA] Starting recalc: completionTime=${completionTimeStr}, remainingStops=${remainingEtaDeliveries.length}, baseTimeMinutes=${baseTimeMinutes}`);
+             console.log(`[Complete ETA] Starting recalc: completionTime=${completionTimeStr}, remainingStops=${remainingEtaDeliveries.length}, baseTimeMinutes=${baseTimeMinutes}`);
 
              const etaUpdates = [];
              remainingEtaDeliveries.forEach((stop, index) => {
@@ -807,7 +807,7 @@ export default function useStopCardActions(params) {
                const etaMins = baseTimeMinutes % 60;
                const newEta = `${String(etaHours).padStart(2, '0')}:${String(etaMins).padStart(2, '0')}`;
 
-               remoteLogger.info(`[Complete ETA] Stop ${stop.id}: duration=${duration}min, newEta=${newEta}, baseTimeMinutes=${baseTimeMinutes}`);
+               console.log(`[Complete ETA] Stop ${stop.id}: duration=${duration}min, newEta=${newEta}, baseTimeMinutes=${baseTimeMinutes}`);
 
                etaUpdates.push({
                  id: stop.id,
@@ -816,7 +816,7 @@ export default function useStopCardActions(params) {
              });
 
              if (etaUpdates.length > 0) {
-               remoteLogger.info(`[Complete ETA] Persisting ${etaUpdates.length} ETA updates to backend and offline DB`);
+               console.log(`[Complete ETA] Persisting ${etaUpdates.length} ETA updates to backend and offline DB`);
 
                // CRITICAL: Persist to backend FIRST, then offline DB, then broadcast - all with await
                await Promise.all(etaUpdates.map((update) =>
@@ -839,7 +839,7 @@ export default function useStopCardActions(params) {
                const { broadcastMutation } = await import('../utils/realtimeSync');
                await Promise.all(etaUpdates.map((item) => broadcastMutation('Delivery', 'update', item.id, { delivery_time_eta: item.delivery_time_eta })));
 
-               remoteLogger.info(`[Complete ETA] Broadcast complete, dispatching deliveriesUpdated event`);
+               console.log(`[Complete ETA] Broadcast complete, dispatching deliveriesUpdated event`);
 
                // Force dispatch delivery update event to trigger UI refresh on all devices
                window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
@@ -852,7 +852,7 @@ export default function useStopCardActions(params) {
                }));
              }
            } catch (error) {
-             remoteLogger.warn(`[Complete ETA] Local ETA recalculation failed: ${error?.message || error}`);
+             console.warn(`[Complete ETA] Local ETA recalculation failed: ${error?.message || error}`);
            }
          }
         if (!nextStop) {
@@ -986,7 +986,7 @@ export default function useStopCardActions(params) {
              const [failureHours, failureMinutes] = failureTimeStr.split(':').map(Number);
              let baseTimeMinutes = failureHours * 60 + failureMinutes;
 
-             remoteLogger.info(`[Failure ETA] Starting recalc: failureTime=${failureTimeStr}, remainingStops=${remainingEtaDeliveries.length}, baseTimeMinutes=${baseTimeMinutes}`);
+             console.log(`[Failure ETA] Starting recalc: failureTime=${failureTimeStr}, remainingStops=${remainingEtaDeliveries.length}, baseTimeMinutes=${baseTimeMinutes}`);
 
              const etaUpdates = [];
              remainingEtaDeliveries.forEach((stop, index) => {
@@ -998,7 +998,7 @@ export default function useStopCardActions(params) {
                const etaMins = baseTimeMinutes % 60;
                const newEta = `${String(etaHours).padStart(2, '0')}:${String(etaMins).padStart(2, '0')}`;
 
-               remoteLogger.info(`[Failure ETA] Stop ${stop.id}: duration=${duration}min, newEta=${newEta}, baseTimeMinutes=${baseTimeMinutes}`);
+               console.log(`[Failure ETA] Stop ${stop.id}: duration=${duration}min, newEta=${newEta}, baseTimeMinutes=${baseTimeMinutes}`);
 
                etaUpdates.push({
                  id: stop.id,
@@ -1007,7 +1007,7 @@ export default function useStopCardActions(params) {
              });
 
              if (etaUpdates.length > 0) {
-               remoteLogger.info(`[Failure ETA] Persisting ${etaUpdates.length} ETA updates to backend and offline DB`);
+               console.log(`[Failure ETA] Persisting ${etaUpdates.length} ETA updates to backend and offline DB`);
 
                // CRITICAL: Persist to backend FIRST, then offline DB, then broadcast - all with await
                await Promise.all(etaUpdates.map((update) =>
@@ -1030,7 +1030,7 @@ export default function useStopCardActions(params) {
                const { broadcastMutation } = await import('../utils/realtimeSync');
                await Promise.all(etaUpdates.map((item) => broadcastMutation('Delivery', 'update', item.id, { delivery_time_eta: item.delivery_time_eta })));
 
-               remoteLogger.info(`[Failure ETA] Broadcast complete, dispatching deliveriesUpdated event`);
+               console.log(`[Failure ETA] Broadcast complete, dispatching deliveriesUpdated event`);
 
                // Force dispatch delivery update event to trigger UI refresh on all devices
                window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
@@ -1043,7 +1043,7 @@ export default function useStopCardActions(params) {
                }));
              }
            } catch (error) {
-             remoteLogger.warn(`[Failure ETA] Local ETA recalculation failed: ${error?.message || error}`);
+             console.warn(`[Failure ETA] Local ETA recalculation failed: ${error?.message || error}`);
            }
          }
         Promise.resolve().then(() => params.scheduleCompletionSideEffects({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, nextDeliveryId: incompleteDeliveries[0]?.id || null, lastCompletedDeliveryId: delivery.id, setOffDuty: incompleteDeliveries.length === 0, appUserId: currentDriverAppUser?.id || null, skipRouteOptimization: true, skipNextLegPolylineRefresh: true }).catch(() => {}));
