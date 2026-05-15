@@ -79,6 +79,7 @@ import getAdminNavigationItems from './components/layout/getAdminNavigationItems
 import { getLayoutStyles } from './components/layout/layoutStyles';
 import { useWakeLockAndVisibility } from './components/layout/useWakeLockAndVisibility';
 import { mergePatients } from './components/layout/layoutDataHelpers';
+import { initializeAppLoadDataFlow, executeAppLoadDataSync } from './components/layout/AppLoadDataManager';
 
 // App version will be loaded from AppSettings
 const DEFAULT_APP_VERSION = 'v1.0.0';
@@ -324,17 +325,23 @@ export default function Layout({ children, currentPageName }) {
         setSquareTransactions((await odb.getAll(odb.STORES.SQUARE_TRANSACTIONS)) || []);
         const today = new Date();if (!globalFilters.getSelectedDate()) globalFilters.setSelectedDate(today);
         if (!globalFilters.getSelectedDriverId()) globalFilters.setSelectedDriverId('all');
+        
+        // STEP 1: Load data from offline DB FIRST for immediate UI display
         try {
-          const dd = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, todayStr).catch(() => []);
-          const pd = await offlineDB.getAll(offlineDB.STORES.PATIENTS).catch(() => []);
-          const aud = Array.isArray(manifest.appUsers) ? manifest.appUsers : [];
-          const sd = Array.isArray(manifest.stores) ? [...manifest.stores] : [];
-          if (dd?.length) {await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, dd);setDeliveries(dd);}
-          if (pd?.length) {await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, pd);setPatients(pd);}
-          if (aud?.length) {await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, aud);setAppUsers(aud);}
-          if (sd?.length) {sd.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));await offlineDB.bulkSave(offlineDB.STORES.STORES, sd);setStores(sd);}
-          if (!dd?.length || !pd?.length || !aud?.length) window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));
-        } catch (e) {console.warn('⚠️ Offline DB prime failed:', e.message);window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));}
+          const [offlineDels, offlinePats, offlineAppUsers, offlineStores, offlineCities] = await Promise.all([
+            offlineDB.getAll(offlineDB.STORES.DELIVERIES).catch(() => []),
+            offlineDB.getAll(offlineDB.STORES.PATIENTS).catch(() => []),
+            offlineDB.getAll(offlineDB.STORES.APP_USERS).catch(() => []),
+            offlineDB.getAll(offlineDB.STORES.STORES).catch(() => []),
+            offlineDB.getAll(offlineDB.STORES.CITIES).catch(() => [])
+          ]);
+          if (offlineDels?.length) setDeliveries(offlineDels);
+          if (offlinePats?.length) setPatients(offlinePats);
+          if (offlineAppUsers?.length) setAppUsers(offlineAppUsers);
+          if (offlineStores?.length) setStores(offlineStores.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)));
+          if (offlineCities?.length) setCities(offlineCities.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)));
+          console.log(`✅ [Init] Offline DB loaded: ${offlineDels?.length || 0} deliveries, ${offlinePats?.length || 0} patients`);
+        } catch (e) {console.warn('⚠️ Offline DB load failed:', e.message);}
         const { markOfflineDBLoadComplete } = await import('./components/utils/dataManager');
         markOfflineDBLoadComplete();
         setInitialGlobalFiltersSet(true);setDataLoaded(true);
