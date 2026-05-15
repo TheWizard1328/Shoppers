@@ -1151,25 +1151,26 @@ Deno.serve(async (req) => {
     const nextStopIdForEta = explicitNextDelivery?.id || firstActiveRouteStop?.delivery?.id || null;
 
     if (historicalRoute && routeStops.length > 0) {
+      // Retro route ETA rules:
+      // - Stop 1: ETA = delivery_time_start (no finished stops on retro routes)
+      // - Stop N: ETA = Stop (N-1) ETA + Stop N's estimated_duration_minutes
       const firstStop = routeStops[0];
-      let cumulativeTime = snapToWindowStart(etaBaseMinutes, firstStop);
+      const firstStopStartMinutes = parseTimeToMinutes(firstStop.delivery.delivery_time_start);
+      let cumulativeTime = Number.isFinite(firstStopStartMinutes) ? firstStopStartMinutes : etaBaseMinutes;
 
       const firstStopEta = formatMinutesToTime(cumulativeTime);
       stageEtaMap.set(firstStop.delivery.id, firstStopEta);
-      cumulativeTime += firstStop.delivery.extra_time || (firstStop.isPickup ? 15 : 5);
-      console.log(`  ✅ [optimizeRemainingStops] ${firstStop.delivery.patient_name || 'Pickup'} - ETA: ${firstStopEta}`);
+      console.log(`  ✅ [optimizeRemainingStops] Retro Stop 1 ${firstStop.delivery.patient_name || 'Pickup'} - ETA: ${firstStopEta} (= delivery_time_start)`);
 
       for (let i = 1; i < routeStops.length; i++) {
         const stop = routeStops[i];
         const segmentPolyline = segmentPolylineByDeliveryId.get(stop.delivery.id) || null;
-        const travelMinutes = getLegTravelMinutes({ stop, leg: directionsLegs[i], segmentPolyline });
-        cumulativeTime += travelMinutes;
-        cumulativeTime = snapToWindowStart(cumulativeTime, stop);
+        const durationMinutes = getLegTravelMinutes({ stop, leg: directionsLegs[i], segmentPolyline });
+        cumulativeTime += durationMinutes;
 
         const eta = formatMinutesToTime(cumulativeTime);
         stageEtaMap.set(stop.delivery.id, eta);
-        cumulativeTime += stop.delivery.extra_time || (stop.isPickup ? 15 : 5);
-        console.log(`  ✅ [optimizeRemainingStops] ${stop.delivery.patient_name || 'Pickup'} - ETA: ${eta}`);
+        console.log(`  ✅ [optimizeRemainingStops] Retro Stop ${i + 1} ${stop.delivery.patient_name || 'Pickup'} - ETA: ${eta} (prev ETA + ${durationMinutes}min)`);
       }
     } else {
       // For active routes: first stop ETA = now + travel time; subsequent stops cascade
