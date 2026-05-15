@@ -624,93 +624,24 @@ export default function useStopCardActions(params) {
 
         // CRITICAL: All stop_order + isNextDelivery changes are already persisted to backend
         // above (lines with base44.entities.Delivery.update). Now call handleStartDelivery to
-        // confirm the backend has the authoritative order, then fetch fresh data and finally
-        // trigger the manual FAB optimization so polylines update only on that explicit action.
+        // confirm the backend has the authoritative order, clear origin coords, then trigger
+        // the manual FAB optimization so polylines update only on that explicit action.
         if (!delivery?.id || !delivery?.driver_id || !delivery?.delivery_date) return;
         try {
-          // Step 1: Confirm backend persistence of start state
-          const optimizeResponse = await base44.functions.invoke('handleStartDelivery', { deliveryId: delivery.id, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime });
+          // Step 1: Confirm backend persistence and clear origin coordinates
+          await base44.functions.invoke('handleStartDelivery', { deliveryId: delivery.id, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime });
 
-          // Step 2: Fetch fresh deliveries from backend to capture any server-side corrections
-           const refreshedImmediately = await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-           const refreshedListImmediate = Array.isArray(refreshedImmediately)
-             ? refreshedImmediately
-             : Array.isArray(refreshedImmediately?.deliveries)
-               ? refreshedImmediately.deliveries
-               : null;
+          // Step 2: Fetch fresh deliveries from backend
+          const refreshedImmediately = await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+          const refreshedListImmediate = Array.isArray(refreshedImmediately)
+            ? refreshedImmediately
+            : Array.isArray(refreshedImmediately?.deliveries)
+              ? refreshedImmediately.deliveries
+              : null;
 
           if (Array.isArray(refreshedListImmediate) && refreshedListImmediate.length > 0) {
-            // CRITICAL: Save to offline DB only (don't update UI yet)
-            // The optimizer will run next and update the backend + broadcast its own optimized result
-            // If we update the UI here with pre-optimization order, the reversion issue occurs
             await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', delivery.delivery_date, refreshedListImmediate);
           }
-
-          // CRITICAL: After optimization, save optimized deliveries to offline DB for cross-device sync
-          // First, calculate corrected ETAs from the optimization response
-          let optimizedWithCorrectedEtas = null;
-          if (Array.isArray(optimizeResponse?.optimizedRoute) && optimizeResponse.optimizedRoute.length > 0) {
-            const lastCompletedStop = completedStops.length > 0 ? completedStops[completedStops.length - 1] : null;
-            const lastCompletedActualTime = lastCompletedStop?.actual_delivery_time || null;
-
-            let baseTimeMinutes = 0;
-            if (lastCompletedActualTime) {
-              const [hours, minutes] = lastCompletedActualTime.split(':').map(Number);
-              baseTimeMinutes = hours * 60 + minutes;
-            } else {
-              const now = new Date();
-              baseTimeMinutes = now.getHours() * 60 + now.getMinutes();
-            }
-
-            optimizedWithCorrectedEtas = optimizeResponse.optimizedRoute.map((stop, index) => {
-              let etaMinutes = baseTimeMinutes;
-              for (let i = 0; i <= index; i++) {
-                const currentStop = optimizeResponse.optimizedRoute[i];
-                etaMinutes += (currentStop.estimated_duration_minutes || 5);
-              }
-              const etaHours = Math.floor((etaMinutes % 1440) / 60);
-              const etaMins = etaMinutes % 60;
-              const newEta = `${String(etaHours).padStart(2, '0')}:${String(etaMins).padStart(2, '0')}`;
-              return { ...stop, correctedEta: newEta };
-            });
-          }
-
-          // Now save the optimized deliveries with corrected ETAs to the backend
-          let optimizedDeliveriesToPersist = [];
-          if (Array.isArray(optimizedWithCorrectedEtas) && optimizedWithCorrectedEtas.length > 0) {
-            optimizedDeliveriesToPersist = optimizedWithCorrectedEtas
-              .filter((stop) => stop?.deliveryId || stop?.delivery_id)
-              .map((stop) => ({
-                id: stop.deliveryId || stop.delivery_id,
-                stop_order: Number.isFinite(Number(stop.stop_order)) ? Number(stop.stop_order) : undefined,
-                delivery_time_eta: stop.correctedEta,
-                encoded_polyline: stop.encoded_polyline || null,
-                estimated_distance_km: stop.estimated_distance_km,
-                estimated_duration_minutes: stop.estimated_duration_minutes,
-                travel_dist: stop.travel_dist
-              }))
-              .filter((update) => update.id);
-
-            if (optimizedDeliveriesToPersist.length > 0) {
-              await Promise.all(
-                optimizedDeliveriesToPersist.map((update) =>
-                  base44.entities.Delivery.update(update.id, {
-                    stop_order: update.stop_order,
-                    delivery_time_eta: update.delivery_time_eta,
-                    encoded_polyline: update.encoded_polyline,
-                    estimated_distance_km: update.estimated_distance_km,
-                    estimated_duration_minutes: update.estimated_duration_minutes,
-                    travel_dist: update.travel_dist
-                  }).catch(() => null)
-                )
-              );
-            }
-          }
-
-          await base44.functions.invoke('recalculateTrackingNumbers', {
-            driverId: delivery.driver_id,
-            deliveryDate: delivery.delivery_date
-          }).catch(() => null);
 
           // Step 3: Broadcast updated delivery state to other devices
           if (Array.isArray(refreshedListImmediate) && refreshedListImmediate.length > 0) {
@@ -730,70 +661,15 @@ export default function useStopCardActions(params) {
           window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
           window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers, triggeredBy: 'startOptimized' } }));
 
-          // Step 4: NOW trigger the manual FAB optimization — all backend data is confirmed persisted
-          // Polyline updates happen only here, never from passive location changes
-          // CRITICAL: Pass firstStopId so optimizeRemainingStops locks the started stop
-          // The optimizer will use this explicit firstStopId as the authoritative route origin
-
-          // handleStartDelivery already optimized — just regenerate polylines
-          if (Array.isArray(optimizedWithCorrectedEtas) && optimizedWithCorrectedEtas.length > 0) {
-            const polylineResponse = await base44.functions.invoke('purgeAndRegeneratePolylines', {
-              driverId: delivery.driver_id,
+          // Step 4: Trigger the manual FAB optimization — polylines update only on that explicit action
+          window.dispatchEvent(new CustomEvent('triggerRouteOptimization', {
+            detail: { 
+              firstStopId: delivery.id, 
+              driverId: delivery.driver_id, 
               deliveryDate: delivery.delivery_date,
-              scope: 'active_only',
-              reason: 'start_action',
-              sourcePage: 'Dashboard',
-              bypassDriverStatus: true,
-              routeStopOrder: optimizedWithCorrectedEtas.map((stop) => stop.deliveryId || stop.delivery_id).filter(Boolean),
-              orderedStopsWithTransportMode: optimizedWithCorrectedEtas.map((stop) => ({
-                deliveryId: stop.deliveryId || stop.delivery_id,
-                transport_mode: stop.transport_mode || stop.finished_leg_transport_mode || currentPreferredTravelMode,
-                finished_leg_transport_mode: stop.finished_leg_transport_mode || stop.transport_mode || currentPreferredTravelMode,
-                encoded_polyline: stop.encoded_polyline || null,
-                estimated_distance_km: stop.estimated_distance_km ?? null,
-                estimated_duration_minutes: stop.estimated_duration_minutes ?? null
-              })).filter((stop) => stop.deliveryId),
-              explicitOrderedStopsOnly: true,
-              explicitRouteOrigin: 'last_finished_stop',
-              explicitRouteDestination: 'home',
-              bypassPolylineUpdated: true,
-              bypassPolylineDelete: true,
-              reuseProvidedPolylines: true
-            }).catch(() => null);
-
-            if (polylineResponse) {
-              window.dispatchEvent(new CustomEvent('polylineUpdated', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, source: 'start_action' } }));
-
-              // CRITICAL: Broadcast optimized deliveries with corrected ETAs to other devices in real-time
-              Promise.resolve().then(async () => {
-                try {
-                  const { broadcastMutation } = await import('../utils/realtimeSync');
-                  await Promise.all(optimizedWithCorrectedEtas.map((stop) => 
-                    broadcastMutation('Delivery', 'update', stop.deliveryId || stop.delivery_id, {
-                      stop_order: stop.stop_order,
-                      delivery_time_eta: stop.correctedEta,
-                      encoded_polyline: stop.encoded_polyline || null,
-                      estimated_distance_km: stop.estimated_distance_km,
-                      estimated_duration_minutes: stop.estimated_duration_minutes,
-                      travel_dist: stop.travel_dist
-                    })
-                  ));
-                } catch (broadcastError) {
-                  console.warn('⚠️ [Start] optimization broadcast failed:', broadcastError?.message || broadcastError);
-                }
-              });
+              source: 'start_action'
             }
-            } else {
-            // Fallback: trigger route optimization manually
-            window.dispatchEvent(new CustomEvent('triggerRouteOptimization', {
-              detail: { 
-                firstStopId: delivery.id, 
-                driverId: delivery.driver_id, 
-                deliveryDate: delivery.delivery_date,
-                source: 'start_action'
-              }
-            }));
-            }
+          }));
 
           fabControlEvents.reactivatePhaseTwoIfAvailable();
 
