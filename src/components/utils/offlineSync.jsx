@@ -191,8 +191,9 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
 
 /**
  * Load priority data for initial display on app load
- * Order: Cities → AppUsers → Deliveries (SELECTED DATE + CITY ONLY) → Full Patient DB resync (once per 5 min)
- * CRITICAL: Patient sync is full DB in single write with 5-min cooldown; Deliveries limited to current date
+ * Order: Cities → AppUsers → Deliveries (SELECTED DATE + CITY ONLY) → Patients for those deliveries ONLY
+ * CRITICAL: Patients are synced only for the selected date's deliveries (lightweight priority load)
+ * Background store-by-store patient sync happens separately after system cools down
  */
 export const loadPriorityData = async (selectedDateStr, cityId = null, filters = {}) => {
   if (getSyncPaused()) return { skipped: true };
@@ -227,7 +228,7 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
     notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 25, count: appUsers.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
     
-    // Step 3: Sync Deliveries for SELECTED DATE + CITY ONLY (no 90-day loop)
+    // Step 3: Sync Deliveries for SELECTED DATE + CITY ONLY
     notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 40 });
     const deliveryFilter = { delivery_date: selectedDateStr };
     if (cityId) {
@@ -237,47 +238,29 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
       if (cityStores.length > 0) deliveryFilter.store_id = { $in: cityStores };
     }
     const deliveries = await Delivery.filter(deliveryFilter, '-updated_date', 5000);
-    // Replace deliveries for this date (empty = 0 stops on server)
     await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr, deliveries || []);
     invalidateEntityCache('Delivery');
     notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 55, count: deliveries.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
     
-    // Step 4: Full Patient DB resync with 5-min cooldown (single DB write)
-    notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 60 });
-    const patientMeta = await offlineDB.getSyncMetadata('Patient_FullSync') || {};
-    const lastFullSyncTime = patientMeta.lastFullSyncTime ? new Date(patientMeta.lastFullSyncTime).getTime() : 0;
-    const timeSinceLastSync = Date.now() - lastFullSyncTime;
-    const FIVE_MIN_MS = 5 * 60 * 1000;
+    // Step 4: Sync ONLY patients for these deliveries (priority light-weight sync)
+    notifySyncStatus({ status: 'syncing', entity: 'Patients (priority)', progress: 60 });
+    const patientIds = Array.from(new Set(
+      (deliveries || [])
+        .filter(d => d && d.patient_id)
+        .map(d => d.patient_id)
+    ));
     
-    if (timeSinceLastSync >= FIVE_MIN_MS) {
-      // Fetch ALL active patients in batches and write once
-      let allPatients = [];
-      let patientOffset = 0;
-      const PATIENT_PAGE_SIZE = 500;
-      
-      while (true) {
-        try {
-          const batch = await Patient.filter({ status: 'active' }, '-updated_date', PATIENT_PAGE_SIZE, patientOffset);
-          if (!batch || batch.length === 0) break;
-          allPatients = allPatients.concat(batch);
-          patientOffset += PATIENT_PAGE_SIZE;
-          if (batch.length < PATIENT_PAGE_SIZE) break;
-          await new Promise(r => setTimeout(r, 200));
-        } catch (e) {
-          console.warn('⚠️ Patient batch fetch failed:', e.message);
-          break;
-        }
+    let syncedPatients = [];
+    if (patientIds.length > 0) {
+      const { freshPatients = [] } = await syncPatientsByIds(patientIds);
+      if (freshPatients.length > 0) {
+        await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
+        syncedPatients = freshPatients;
       }
-      
-      // Single DB write for entire patient set
-      await offlineDB.replaceAllRecords(offlineDB.STORES.PATIENTS, allPatients);
-      invalidateEntityCache('Patient');
-      await offlineDB.updateSyncMetadata('Patient_FullSync', null, new Date().toISOString(), { lastFullSyncTime: new Date().toISOString() });
-      notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 90, count: allPatients.length });
-    } else {
-      notifySyncStatus({ status: 'syncing', entity: 'Patients (using cache)', progress: 90 });
     }
+    invalidateEntityCache('Patient');
+    notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 85, count: patientIds.length });
     
     // Update sync status
     const now = new Date().toISOString();
@@ -289,7 +272,7 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
     ]);
     
     notifySyncStatus({ status: 'complete', progress: 100 });
-    return { success: true, cities, appUsers, deliveries, cities };
+    return { success: true, cities, appUsers, deliveries, patients: syncedPatients };
   } catch (error) {
     notifySyncStatus({ status: 'error', error: error.message });
     return { error: error.message };
@@ -305,6 +288,74 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
  * Syncs one delivery date at a time over past 90 days
  */
 export { performBackgroundSync };
+
+/**
+ * Slow store-by-store patient sync for offline DB enrichment
+ * Runs AFTER priority sync, with long delays between batches to respect rate limits
+ * Does NOT clear existing patients — only merges new/updated ones
+ */
+export const performSlowStorePatientSync = async () => {
+  if (getSyncPaused() || getSyncInProgress()) return { skipped: true };
+  
+  setSyncInProgress(true);
+  notifySyncStatus({ status: 'syncing', entity: 'Background patient sync...', progress: 5 });
+  
+  try {
+    // Get all stores (already synced during priority load)
+    const stores = await offlineDB.getAll(offlineDB.STORES.STORES) || [];
+    if (stores.length === 0) {
+      notifySyncStatus({ status: 'complete' });
+      return { skipped: true };
+    }
+    
+    console.log(`🐢 [SlowPatientSync] Starting store-by-store sync (${stores.length} stores)...`);
+    
+    let totalSyncedPatients = 0;
+    const STORE_BATCH_COOLDOWN = 2000; // 2 sec between stores to avoid rate limits
+    
+    for (let i = 0; i < stores.length; i++) {
+      const store = stores[i];
+      if (!store || !store.id) continue;
+      
+      try {
+        // Fetch patients for this store only
+        const storePatients = await Patient.filter({ store_id: store.id, status: 'active' });
+        
+        if (storePatients && storePatients.length > 0) {
+          // Merge into offline DB (don't replace entire DB)
+          await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, storePatients);
+          totalSyncedPatients += storePatients.length;
+        }
+        
+        const progress = 5 + Math.floor((i / stores.length) * 90);
+        notifySyncStatus({ 
+          status: 'syncing', 
+          entity: `Patients (${store.name || 'Store'})`, 
+          progress,
+          count: totalSyncedPatients
+        });
+        
+        // Wait before next store to avoid rate limits
+        await new Promise(r => setTimeout(r, STORE_BATCH_COOLDOWN));
+      } catch (storeError) {
+        console.warn(`⚠️ [SlowPatientSync] Failed to sync store ${store.name}:`, storeError.message);
+        // Continue to next store on error
+      }
+    }
+    
+    invalidateEntityCache('Patient');
+    notifySyncStatus({ status: 'complete', progress: 100 });
+    console.log(`✅ [SlowPatientSync] Complete — synced ${totalSyncedPatients} patients from all stores`);
+    
+    return { success: true, totalSyncedPatients };
+  } catch (error) {
+    console.error('❌ [SlowPatientSync] Error:', error.message);
+    notifySyncStatus({ status: 'error', error: error.message });
+    return { error: error.message };
+  } finally {
+    setSyncInProgress(false);
+  }
+};
 
 
 
