@@ -710,28 +710,19 @@ export default function Layout({ children, currentPageName }) {
     };
     window.addEventListener('deliveriesUpdated', handleDeliveriesUpdated);
 
-    // CRITICAL: Update patients/stores/appUsers/deliveries in UI immediately when pullToSync completes
+    // CRITICAL: Update patients/stores/appUsers in UI immediately when pullToSync completes
     const handlePullToSyncDataReady = (event) => {
       if (isUiLocked()) {
         console.log('🔒 [Layout] pullToSyncDataReady ignored — UI locked during filter-change sync');
         return;
       }
-      const { patients: freshPatients, stores: freshStores, appUsers: freshAppUsers, deliveries: freshDeliveries } = event.detail || {};
+      const { patients: freshPatients, stores: freshStores, appUsers: freshAppUsers } = event.detail || {};
       if (freshPatients && freshPatients.length > 0) {
         setPatients((prev) => mergePatients(prev, freshPatients));
       }
       if (freshStores && freshStores.length > 0) setStores(freshStores);
       if (freshAppUsers && freshAppUsers.length > 0) {
         setAppUsers((prev) => { const m = new Map(prev.map((u) => [u.id, u])); freshAppUsers.forEach((u) => { if (u?.id) m.set(u.id, u); }); return Array.from(m.values()); });
-      }
-      if (freshDeliveries && freshDeliveries.length > 0) {
-        setDeliveries((prev) => {
-          const map = new Map((prev || []).filter(Boolean).map((d) => [d?.id, d]).filter(([id]) => !!id));
-          freshDeliveries.forEach((d) => {
-            if (d?.id) map.set(d.id, d);
-          });
-          return Array.from(map.values());
-        });
       }
     };
     window.addEventListener('pullToSyncDataReady', handlePullToSyncDataReady);
