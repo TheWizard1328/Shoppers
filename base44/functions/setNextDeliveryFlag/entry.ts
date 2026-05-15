@@ -126,25 +126,67 @@ Deno.serve(async (req) => {
       nextDelivery = activeDeliveries[0] || null;
     }
 
+    // CRITICAL: Find the last finished delivery to use as origin for next leg
+    const lastFinishedDelivery = repairedDeliveries
+      .filter((d) => FINISHED_STATUSES.has(d?.status))
+      .sort((a, b) => {
+        const aTime = new Date(a?.actual_delivery_time || a?.arrival_time || a?.updated_date || 0).getTime();
+        const bTime = new Date(b?.actual_delivery_time || b?.arrival_time || b?.updated_date || 0).getTime();
+        return bTime - aTime;
+      })[0] || null;
+
+    // Resolve coordinates for the last finished delivery
+    let lastFinishedOriginLat = null;
+    let lastFinishedOriginLng = null;
+    if (lastFinishedDelivery) {
+      if (lastFinishedDelivery.patient_id) {
+        const patientList = await base44.asServiceRole.entities.Patient.filter({ id: lastFinishedDelivery.patient_id }, undefined, 1);
+        const patient = Array.isArray(patientList) ? patientList[0] : null;
+        if (patient?.latitude && patient?.longitude) {
+          lastFinishedOriginLat = Number(patient.latitude);
+          lastFinishedOriginLng = Number(patient.longitude);
+        }
+      } else if (lastFinishedDelivery.store_id) {
+        const storeList = await base44.asServiceRole.entities.Store.filter({ id: lastFinishedDelivery.store_id }, undefined, 1);
+        const store = Array.isArray(storeList) ? storeList[0] : null;
+        if (store?.latitude && store?.longitude) {
+          lastFinishedOriginLat = Number(store.latitude);
+          lastFinishedOriginLng = Number(store.longitude);
+        }
+      }
+    }
+
     console.log('[setNextDeliveryFlag] Resolving next stop', {
       driverId,
       deliveryDate,
       targetDeliveryId: targetDeliveryId || null,
       activeCount: activeDeliveries.length,
       resolvedNextDeliveryId: nextDelivery?.id || null,
+      lastFinishedDeliveryId: lastFinishedDelivery?.id || null,
+      lastFinishedOriginLat,
+      lastFinishedOriginLng,
       stopOrderRepairsCount: stopOrderRepairs.length
     });
 
     const deliveriesToUpdate = activeDeliveries
       .filter((delivery) => Boolean(delivery?.isNextDelivery) !== Boolean(nextDelivery && delivery.id === nextDelivery.id))
-      .map((delivery) => ({
-        id: delivery.id,
-        isNextDelivery: !!nextDelivery && delivery.id === nextDelivery.id
-      }));
+      .map((delivery) => {
+        const update = {
+          isNextDelivery: !!nextDelivery && delivery.id === nextDelivery.id
+        };
+        // CRITICAL: When marking a delivery as next, update its first_leg_origin with last finished coords
+        if (nextDelivery && delivery.id === nextDelivery.id && lastFinishedOriginLat != null && lastFinishedOriginLng != null) {
+          update.first_leg_origin_lat = lastFinishedOriginLat;
+          update.first_leg_origin_lng = lastFinishedOriginLng;
+        }
+        return { id: delivery.id, ...update };
+      });
 
     const updates = deliveriesToUpdate.map((delivery) =>
       base44.asServiceRole.entities.Delivery.update(delivery.id, {
-        isNextDelivery: delivery.isNextDelivery
+        isNextDelivery: delivery.isNextDelivery,
+        ...(delivery.first_leg_origin_lat != null && { first_leg_origin_lat: delivery.first_leg_origin_lat }),
+        ...(delivery.first_leg_origin_lng != null && { first_leg_origin_lng: delivery.first_leg_origin_lng })
       }).catch((error) => {
         if (isNotFoundError(error)) return null;
         throw error;

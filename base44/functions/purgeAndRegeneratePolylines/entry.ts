@@ -962,13 +962,16 @@ Deno.serve(async (req) => {
 
       for (let index = 0; index < orderedDeliveries.length; index += 1) {
         const delivery = orderedDeliveries[index];
-        // CRITICAL: For first stop, prioritize: currentPosition > lastFinishedDelivery > home
+        // CRITICAL: For first stop, prioritize: currentPosition > first_leg_origin_lat/lng > lastFinishedDelivery > home
         let from;
         if (index === 0) {
           if (currentPosition && isValidCoordinatePair(Number(currentPosition.lat), Number(currentPosition.lon))) {
             from = currentPosition;
+          } else if (isValidCoordinatePair(Number(delivery.first_leg_origin_lat), Number(delivery.first_leg_origin_lng))) {
+            // Use stored first_leg_origin (last finished stop coords)
+            from = { lat: Number(delivery.first_leg_origin_lat), lon: Number(delivery.first_leg_origin_lng) };
           } else if (lastFinishedDelivery) {
-            // Use the last finished delivery's location as origin
+            // Fallback: Use the last finished delivery's location as origin
             from = getLatLon(lastFinishedDelivery);
           } else {
             from = routeOrigin;
