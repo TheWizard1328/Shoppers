@@ -98,6 +98,14 @@
       "type": "number",
       "description": "Estimated duration for the delivery leg that ends at this stop"
     },
+    "first_leg_origin_lat": {
+      "type": "number",
+      "description": "Latitude of the logical origin used when the first-leg polyline was last calculated (driver home or last completed stop). Used to detect cache hits and avoid redundant HERE API calls."
+    },
+    "first_leg_origin_lng": {
+      "type": "number",
+      "description": "Longitude of the logical origin used when the first-leg polyline was last calculated (driver home or last completed stop). Used to detect cache hits and avoid redundant HERE API calls."
+    },
     "arrival_time": {
       "type": "string",
       "description": "Local device time when driver arrived at delivery/pickup location (YYYY-MM-DDTHH:MM:SS)"
