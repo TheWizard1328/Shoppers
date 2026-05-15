@@ -571,10 +571,11 @@ Deno.serve(async (req) => {
 
       if (delivery.patient_id && delivery.puid && pickupWindowByStopId.has(delivery.puid)) {
         const pickupWindow = pickupWindowByStopId.get(delivery.puid);
-        const pickupEndMinutes = parseTimeToMinutes(pickupWindow?.end || pickupWindow?.start);
+        // Use the pickup's START time as the earliest the delivery can be ready (not end time)
+        const pickupStartMinutes = parseTimeToMinutes(pickupWindow?.start);
         const deliveryStartMinutes = parseTimeToMinutes(windowStart);
-        if (Number.isFinite(pickupEndMinutes) && (!Number.isFinite(deliveryStartMinutes) || deliveryStartMinutes < pickupEndMinutes)) {
-          windowStart = formatMinutesToTime(pickupEndMinutes + 5);
+        if (Number.isFinite(pickupStartMinutes) && (!Number.isFinite(deliveryStartMinutes) || deliveryStartMinutes < pickupStartMinutes)) {
+          windowStart = formatMinutesToTime(pickupStartMinutes + 5);
         }
       }
 
@@ -1091,6 +1092,38 @@ Deno.serve(async (req) => {
       routeStops = corrected;
       directionsLegs = correctedLegs;
       segmentPolylines = correctedPolylines;
+    }
+
+    // CRITICAL: Enforce pickup-before-delivery constraint.
+    // HERE may sequence a delivery before its originating store pickup. Scan for such violations
+    // and move the pickup immediately before the offending delivery.
+    if (routeStops.length > 1) {
+      // Build a map: puid (stop_id of pickup) -> index of that pickup in routeStops
+      const pickupIndexByStopId = new Map();
+      routeStops.forEach((s, idx) => {
+        if (!s.delivery.patient_id && s.delivery.stop_id) {
+          pickupIndexByStopId.set(s.delivery.stop_id, idx);
+        }
+      });
+
+      // Walk from index 1 (preserve locked first stop) and fix any delivery-before-pickup violations
+      for (let i = 1; i < routeStops.length; i++) {
+        const stop = routeStops[i];
+        if (!stop.delivery.patient_id || !stop.delivery.puid) continue;
+        const pickupIdx = pickupIndexByStopId.get(stop.delivery.puid);
+        if (pickupIdx == null || pickupIdx < i) continue; // pickup already before this delivery, fine
+
+        // Violation: delivery at i is before its pickup at pickupIdx — move pickup to i
+        console.log(`🔧 [optimizeRemainingStops] Pickup-before-delivery fix: moving pickup (${routeStops[pickupIdx].delivery.stop_id}) from index ${pickupIdx} to ${i} (delivery: ${stop.delivery.patient_name || stop.delivery.id})`);
+        const [removedStop] = routeStops.splice(pickupIdx, 1);
+        const [removedLeg] = directionsLegs.splice(pickupIdx, 1);
+        const [removedPoly] = segmentPolylines.splice(pickupIdx, 1);
+        routeStops.splice(i, 0, removedStop);
+        directionsLegs.splice(i, 0, removedLeg);
+        segmentPolylines.splice(i, 0, removedPoly);
+        // Update the pickup index map since we moved it
+        pickupIndexByStopId.set(removedStop.delivery.stop_id, i);
+      }
     }
 
     // CRITICAL: Pending stops were NOT included in HERE optimization, so append them now at the end.
