@@ -32,6 +32,14 @@ const ensureBus = () => {
     window.addEventListener('etaUpdated', (event) => {
       recordEtaUpdates(event?.detail?.updates || []);
     });
+    window.addEventListener('deliveriesUpdated', (event) => {
+      const freshDeliveries = event?.detail?.freshDeliveries || [];
+      const updates = freshDeliveries.map((d) => ({
+        deliveryId: d?.id,
+        newEta: d?.delivery_time_eta,
+      }));
+      recordEtaUpdates(updates);
+    });
   }
 
   return bus;
