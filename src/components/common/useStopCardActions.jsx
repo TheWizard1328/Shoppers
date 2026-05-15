@@ -269,6 +269,14 @@ export default function useStopCardActions(params) {
       if (Array.isArray(refreshedList) && refreshedList.length > 0) {
         updateDeliveriesLocally?.(refreshedList, true);
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, fullReplacement: true, freshDeliveries: refreshedList } }));
+
+        // Dispatch ETA updates to UI
+        const etaUpdates = refreshedList
+          .filter((stop) => stop?.delivery_time_eta)
+          .map((stop) => ({ deliveryId: stop.id, newEta: stop.delivery_time_eta }));
+        if (etaUpdates.length > 0) {
+          window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: delivery.driver_id, updates: etaUpdates } }));
+        }
       } else {
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: false, fullReplacement: true } }));
       }
@@ -600,44 +608,54 @@ export default function useStopCardActions(params) {
           await base44.functions.invoke('handleStartDelivery', { deliveryId: delivery.id, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime });
 
           // Step 2: Fetch fresh deliveries from backend
-          const refreshedImmediately = await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-          const refreshedListImmediate = Array.isArray(refreshedImmediately)
-            ? refreshedImmediately
-            : Array.isArray(refreshedImmediately?.deliveries)
-              ? refreshedImmediately.deliveries
-              : null;
+           const refreshedImmediately = await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+           const refreshedListImmediate = Array.isArray(refreshedImmediately)
+             ? refreshedImmediately
+             : Array.isArray(refreshedImmediately?.deliveries)
+               ? refreshedImmediately.deliveries
+               : null;
 
-          if (Array.isArray(refreshedListImmediate) && refreshedListImmediate.length > 0) {
-            await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', delivery.delivery_date, refreshedListImmediate);
-          }
+           if (Array.isArray(refreshedListImmediate) && refreshedListImmediate.length > 0) {
+             await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', delivery.delivery_date, refreshedListImmediate);
+           }
 
-          // Step 3: Broadcast updated delivery state to other devices
-          if (Array.isArray(refreshedListImmediate) && refreshedListImmediate.length > 0) {
-            window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, fullReplacement: true, freshDeliveries: refreshedListImmediate } }));
-            Promise.resolve().then(async () => {
-              try {
-                const { broadcastMutation } = await import('../utils/realtimeSync');
-                await Promise.all(refreshedListImmediate.map((item) => broadcastMutation('Delivery', 'update', item.id, item)));
-              } catch (broadcastError) {
-                console.warn('⚠️ [Start] delivery broadcast failed:', broadcastError?.message || broadcastError);
-              }
-            });
-          } else {
-            window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: false, fullReplacement: true } }));
-          }
+           // Step 3: Broadcast updated delivery state to other devices
+           if (Array.isArray(refreshedListImmediate) && refreshedListImmediate.length > 0) {
+             window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, fullReplacement: true, freshDeliveries: refreshedListImmediate } }));
+             Promise.resolve().then(async () => {
+               try {
+                 const { broadcastMutation } = await import('../utils/realtimeSync');
+                 await Promise.all(refreshedListImmediate.map((item) => broadcastMutation('Delivery', 'update', item.id, item)));
+               } catch (broadcastError) {
+                 console.warn('⚠️ [Start] delivery broadcast failed:', broadcastError?.message || broadcastError);
+               }
+             });
+           } else {
+             window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: false, fullReplacement: true } }));
+           }
 
-          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers, triggeredBy: 'startOptimized' } }));
+           window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+           window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers, triggeredBy: 'startOptimized' } }));
 
-          // Step 4: Trigger the manual FAB optimization — polylines update only on that explicit action
-           window.dispatchEvent(new CustomEvent('triggerManualRouteOptimization', {
-             detail: { 
-               firstStopId: delivery.id, 
-               driverId: delivery.driver_id, 
-               deliveryDate: delivery.delivery_date,
-               source: 'start_action'
+           // Step 4: Dispatch ETA updates to UI
+           if (Array.isArray(refreshedListImmediate) && refreshedListImmediate.length > 0) {
+             const etaUpdates = refreshedListImmediate
+               .filter((stop) => stop?.delivery_time_eta)
+               .map((stop) => ({ deliveryId: stop.id, newEta: stop.delivery_time_eta }));
+             if (etaUpdates.length > 0) {
+               window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: delivery.driver_id, updates: etaUpdates } }));
              }
-           }));
+           }
+
+           // Step 5: Trigger the manual FAB optimization — polylines update only on that explicit action
+            window.dispatchEvent(new CustomEvent('triggerManualRouteOptimization', {
+              detail: { 
+                firstStopId: delivery.id, 
+                driverId: delivery.driver_id, 
+                deliveryDate: delivery.delivery_date,
+                source: 'start_action'
+              }
+            }));
 
           fabControlEvents.reactivatePhaseTwoIfAvailable();
 
