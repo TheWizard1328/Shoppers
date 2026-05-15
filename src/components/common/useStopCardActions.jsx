@@ -825,9 +825,7 @@ export default function useStopCardActions(params) {
 
                // Update offline DB
                const { offlineDB } = await import('../utils/offlineDatabase');
-               await Promise.all(etaUpdates.map((update) =>
-                 offlineDB.updateRecord(offlineDB.STORES.DELIVERIES, update.id, { delivery_time_eta: update.delivery_time_eta }).catch(() => null)
-               ));
+               await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, etaUpdates);
 
                // Update local UI state
                updateDeliveriesLocally?.(etaUpdates.map((update) => ({
@@ -1016,9 +1014,7 @@ export default function useStopCardActions(params) {
 
                // Update offline DB
                const { offlineDB } = await import('../utils/offlineDatabase');
-               await Promise.all(etaUpdates.map((update) =>
-                 offlineDB.updateRecord(offlineDB.STORES.DELIVERIES, update.id, { delivery_time_eta: update.delivery_time_eta }).catch(() => null)
-               ));
+               await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, etaUpdates);
 
                // Update local UI state
                updateDeliveriesLocally?.(etaUpdates.map((update) => ({
