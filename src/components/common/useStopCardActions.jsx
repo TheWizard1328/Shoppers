@@ -267,6 +267,10 @@ export default function useStopCardActions(params) {
           : null;
 
       if (Array.isArray(refreshedList) && refreshedList.length > 0) {
+        // Persist refreshed deliveries to offline DB first
+        const { offlineDB } = await import('../utils/offlineDatabase');
+        await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', delivery.delivery_date, refreshedList);
+        
         updateDeliveriesLocally?.(refreshedList, true);
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, fullReplacement: true, freshDeliveries: refreshedList } }));
 
