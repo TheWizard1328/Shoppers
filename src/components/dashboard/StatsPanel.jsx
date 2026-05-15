@@ -5,7 +5,9 @@ import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Calendar as CalendarIcon, Clock, Truck, Plus, ChevronUp, ChevronDown, Settings, Binoculars, Map as MapIcon } from "lucide-react";
-import TravelModeButton from '@/components/dashboard/TravelModeButton';
+import TravelModeControl from '@/components/dashboard/TravelModeControl';
+import { getNearbyModeStops, getCurrentDriverLocation, calculateDistanceKm } from '@/components/dashboard/modeButtonHelpers';
+import { updatePreferredTravelMode } from '@/components/dashboard/travelModeHelpers';
 import { useEffect, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { format } from 'date-fns';
@@ -29,7 +31,7 @@ import { sortUsers } from "@/components/utils/sorting";
 
 export default function StatsPanel({
   currentUser, isDriver, isAdmin, isDispatcher,
-  deliveries, filteredDeliveries, drivers, stores, appUsers, driversList,
+  deliveries, filteredDeliveries, patients, drivers, stores, appUsers, driversList,
   selectedDate, selectedDateStr, selectedDriverId, calendarMonth, setCalendarMonth,
   isCalendarOpen, setIsCalendarOpen, handleDateChange, handleDriverChange,
   isDriverDropdownDisabled, isAllDriversMode, isDateFinished,
@@ -56,6 +58,8 @@ export default function StatsPanel({
   const [legendDeliveries, setLegendDeliveries] = useState([]);
   const [isDemoModeActive, setIsDemoModeActive] = useState(false);
   const [showMapStyleOptions, setShowMapStyleOptions] = useState(false);
+  const [travelModeDialogOpen, setTravelModeDialogOpen] = useState(false);
+  const [cyclingSelectedStopIds, setCyclingSelectedStopIds] = useState([]);
 
   useEffect(() => {
     let active = true;
@@ -461,12 +465,19 @@ export default function StatsPanel({
                 }
 
                 {isDriver && !isAllDriversMode &&
-                <TravelModeButton
+                <TravelModeControl
                   currentUser={currentUser}
                   appUsers={appUsers}
                   value={preferredTravelMode}
                   onChange={onTravelModeChange}
-                  selectedDriverId={selectedDriverId} />
+                  selectedDriverId={selectedDriverId}
+                  dialogOpen={travelModeDialogOpen}
+                  onDialogOpenChange={(open) => { setTravelModeDialogOpen(open); if (open) setIsExpanded(false); }}
+                  nearbyStops={getNearbyModeStops({ deliveries: filteredDeliveries || [], patients: patients || [], stores, currentLocation: getCurrentDriverLocation({ currentUser, appUsers }), radiusKm: 5 })}
+                  selectedStopIds={cyclingSelectedStopIds}
+                  onToggleStop={(id) => setCyclingSelectedStopIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])}
+                  onOptimize={() => setTravelModeDialogOpen(false)}
+                />
                 }
 
                 {!(isDriver && !isDispatcher) &&
