@@ -816,28 +816,30 @@ export default function useStopCardActions(params) {
              });
 
              if (etaUpdates.length > 0) {
-               console.log(`[Complete ETA] Persisting ${etaUpdates.length} ETA updates to backend and offline DB`);
+               console.log(`[Complete ETA] Persisting ${etaUpdates.length} ETA updates to offline DB (backend will sync in background)`);
 
-               // CRITICAL: Persist to backend FIRST, then offline DB, then broadcast - all with await
-               await Promise.all(etaUpdates.map((update) =>
-                 base44.entities.Delivery.update(update.id, { delivery_time_eta: update.delivery_time_eta }).catch(() => null)
-               ));
-
-               // Update offline DB
+               // CRITICAL: Write to offline DB FIRST for immediate local persistence
                const { offlineDB } = await import('../utils/offlineDatabase');
                await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, etaUpdates);
 
-               // Update local UI state
+               // Update local UI state immediately
                updateDeliveriesLocally?.(etaUpdates.map((update) => ({
                  ...remainingEtaDeliveries.find((d) => d.id === update.id),
                  delivery_time_eta: update.delivery_time_eta
                })), false);
 
-               // CRITICAL: Await broadcast to ensure cross-device propagation
+               // Broadcast for cross-device propagation (don't await all in parallel to avoid rate limits)
                const { broadcastMutation } = await import('../utils/realtimeSync');
-               await Promise.all(etaUpdates.map((item) => broadcastMutation('Delivery', 'update', item.id, { delivery_time_eta: item.delivery_time_eta })));
+               for (const item of etaUpdates) {
+                 await broadcastMutation('Delivery', 'update', item.id, { delivery_time_eta: item.delivery_time_eta }).catch(() => null);
+               }
 
-               console.log(`[Complete ETA] Broadcast complete, dispatching deliveriesUpdated event`);
+               console.log(`[Complete ETA] Offline DB persisted, queuing backend sync in background`);
+
+               // Queue backend updates for background sync (don't block on these)
+               etaUpdates.forEach((update) => {
+                 base44.entities.Delivery.update(update.id, { delivery_time_eta: update.delivery_time_eta }).catch(() => null);
+               });
 
                // Force dispatch delivery update event to trigger UI refresh on all devices
                window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
@@ -1005,28 +1007,30 @@ export default function useStopCardActions(params) {
              });
 
              if (etaUpdates.length > 0) {
-               console.log(`[Failure ETA] Persisting ${etaUpdates.length} ETA updates to backend and offline DB`);
+               console.log(`[Failure ETA] Persisting ${etaUpdates.length} ETA updates to offline DB (backend will sync in background)`);
 
-               // CRITICAL: Persist to backend FIRST, then offline DB, then broadcast - all with await
-               await Promise.all(etaUpdates.map((update) =>
-                 base44.entities.Delivery.update(update.id, { delivery_time_eta: update.delivery_time_eta }).catch(() => null)
-               ));
-
-               // Update offline DB
+               // CRITICAL: Write to offline DB FIRST for immediate local persistence
                const { offlineDB } = await import('../utils/offlineDatabase');
                await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, etaUpdates);
 
-               // Update local UI state
+               // Update local UI state immediately
                updateDeliveriesLocally?.(etaUpdates.map((update) => ({
                  ...remainingEtaDeliveries.find((d) => d.id === update.id),
                  delivery_time_eta: update.delivery_time_eta
                })), false);
 
-               // CRITICAL: Await broadcast to ensure cross-device propagation
+               // Broadcast for cross-device propagation (don't await all in parallel to avoid rate limits)
                const { broadcastMutation } = await import('../utils/realtimeSync');
-               await Promise.all(etaUpdates.map((item) => broadcastMutation('Delivery', 'update', item.id, { delivery_time_eta: item.delivery_time_eta })));
+               for (const item of etaUpdates) {
+                 await broadcastMutation('Delivery', 'update', item.id, { delivery_time_eta: item.delivery_time_eta }).catch(() => null);
+               }
 
-               console.log(`[Failure ETA] Broadcast complete, dispatching deliveriesUpdated event`);
+               console.log(`[Failure ETA] Offline DB persisted, queuing backend sync in background`);
+
+               // Queue backend updates for background sync (don't block on these)
+               etaUpdates.forEach((update) => {
+                 base44.entities.Delivery.update(update.id, { delivery_time_eta: update.delivery_time_eta }).catch(() => null);
+               });
 
                // Force dispatch delivery update event to trigger UI refresh on all devices
                window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
