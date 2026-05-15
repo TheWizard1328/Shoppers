@@ -59,6 +59,7 @@ export function getNearbyModeStops({ deliveries = [], patients = [], stores = []
           label: patient.full_name || 'Patient Stop',
           subtitle: patient.address || '',
           distanceKm,
+          status: delivery.status,
           stopType: 'delivery',
           delivery
         };
@@ -75,6 +76,7 @@ export function getNearbyModeStops({ deliveries = [], patients = [], stores = []
         label: store.name || 'Store Pickup',
         subtitle: store.address || '',
         distanceKm,
+        status: delivery.status,
         stopType: 'pickup',
         delivery
       };
