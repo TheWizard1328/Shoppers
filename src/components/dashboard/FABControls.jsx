@@ -257,13 +257,22 @@ export default function FABControls({
               const preOptCenter = window.__currentMapCenter ? [...window.__currentMapCenter] : null;
               const preOptZoom = window.__currentMapZoom ?? null;
               const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-              const incompleteStops = deliveriesWithStopOrder.filter(d => d && !finishedStatuses.includes(d.status));
+              const targetDriverId = selectedDriverId !== 'all' ? selectedDriverId : currentUser.id;
+              const incompleteStops = deliveriesWithStopOrder.filter(d => d && !finishedStatuses.includes(d.status) && d.driver_id === targetDriverId);
+              if (incompleteStops.length > 0) {
+                const allCoords = [];
+                if (driverLocation?.latitude && driverLocation?.longitude) allCoords.push([driverLocation.latitude, driverLocation.longitude]);
+                incompleteStops.forEach(stop => {
+                  if (stop.patient_id) { const p = patients.find(p => p && p.id === stop.patient_id); if (p?.latitude && p?.longitude) allCoords.push([p.latitude, p.longitude]); }
+                  else if (stop.store_id) { const s = stores.find(s => s && s.id === stop.store_id); if (s?.latitude && s?.longitude) allCoords.push([s.latitude, s.longitude]); }
+                });
+                if (allCoords.length > 0) { const pad = getMapPadding(); setShouldFitBounds({ bounds: allCoords, options: { ...pad, maxZoom: 16.5, animate: true } }); setMapCenter(null); setMapZoom(null); }
+              }
               try {
                 const deliveryDate = format(selectedDate, 'yyyy-MM-dd');
                 const now = new Date();
                 const currentTime = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
                 const localTime = isDateFinished ? (getRetroEtaSeedTime(incompleteStops) || currentTime) : currentTime;
-                const targetDriverId = selectedDriverId !== 'all' ? selectedDriverId : currentUser.id;
                 window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'optimize_route_fab', driverId: targetDriverId, deliveryDate } }));
                 const response = await base44.functions.invoke('optimizeRemainingStops', { driverId: targetDriverId, deliveryDate, currentLocalTime: localTime, deviceTime: now.toISOString(), bypassDriverStatus: true, bypassDeduplication: true, bypassHistoricalCheck: true });
                 const data = response?.data || response;
