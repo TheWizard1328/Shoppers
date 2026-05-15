@@ -793,15 +793,15 @@ export default function useStopCardActions(params) {
            try {
              const completionTimeStr = completionUpdate.actual_delivery_time || forcedCompletionTimestamp;
              const [completionHours, completionMinutes] = completionTimeStr.split(':').map(Number);
-             let baseTimeMinutes = completionHours * 60 + completionMinutes;
+             let baseTimeMinutes = completionHours * 60 + completionMinutes + 5; // Start with completion time + 5min buffer
 
              console.log(`[Complete ETA] Starting recalc: completionTime=${completionTimeStr}, remainingStops=${remainingEtaDeliveries.length}, baseTimeMinutes=${baseTimeMinutes}`);
 
              const etaUpdates = [];
-             remainingEtaDeliveries.forEach((stop, index) => {
-               // Add estimated_duration_minutes for this stop plus 5 minute buffer
+             remainingEtaDeliveries.forEach((stop) => {
+               // Add estimated_duration_minutes for this stop
                const duration = Number(stop.estimated_duration_minutes) || 5;
-               baseTimeMinutes += duration + (index === 0 ? 5 : 0); // Extra 5 min for next delivery
+               baseTimeMinutes += duration;
 
                const etaHours = Math.floor((baseTimeMinutes % 1440) / 60);
                const etaMins = baseTimeMinutes % 60;
@@ -982,15 +982,15 @@ export default function useStopCardActions(params) {
            try {
              const failureTimeStr = criticalUpdate.actual_delivery_time || forcedFailureTimestamp;
              const [failureHours, failureMinutes] = failureTimeStr.split(':').map(Number);
-             let baseTimeMinutes = failureHours * 60 + failureMinutes;
+             let baseTimeMinutes = failureHours * 60 + failureMinutes + 5; // Start with failure time + 5min buffer
 
              console.log(`[Failure ETA] Starting recalc: failureTime=${failureTimeStr}, remainingStops=${remainingEtaDeliveries.length}, baseTimeMinutes=${baseTimeMinutes}`);
 
              const etaUpdates = [];
-             remainingEtaDeliveries.forEach((stop, index) => {
-               // Add estimated_duration_minutes for this stop plus 5 minute buffer
+             remainingEtaDeliveries.forEach((stop) => {
+               // Add estimated_duration_minutes for this stop
                const duration = Number(stop.estimated_duration_minutes) || 5;
-               baseTimeMinutes += duration + (index === 0 ? 5 : 0); // Extra 5 min for next delivery
+               baseTimeMinutes += duration;
 
                const etaHours = Math.floor((baseTimeMinutes % 1440) / 60);
                const etaMins = baseTimeMinutes % 60;
