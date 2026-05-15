@@ -73,8 +73,13 @@ export default function HereType2Polylines({
   }, [deliveryMarkers, pickupMarkers, driverRoutes]);
 
   const getDriverMode = (driverId) => normalizeTravelMode(localDriverTravelModes[driverId] ?? driverTravelModes[driverId]);
-  const getDriverRouteStyle = (driverId, opacityOverride) => {
-    const mode = getDriverMode(driverId);
+  // Get mode for a specific delivery: use delivery.transport_mode if set, otherwise fall back to driver mode
+  const getDeliveryMode = (delivery, driverId) => {
+    if (delivery?.transport_mode) return normalizeTravelMode(delivery.transport_mode);
+    return getDriverMode(driverId);
+  };
+  const getDriverRouteStyle = (driverId, opacityOverride, delivery) => {
+    const mode = getDeliveryMode(delivery, driverId);
     const isCycling = mode === 'cycling';
     const sortOrder = driverSortOrderMap.get(driverId);
     const base = getTravelModeLineStyle(mode, getPolylineColorForDriver(driverId, sortOrder));
@@ -185,7 +190,7 @@ export default function HereType2Polylines({
       const segmentPositions = Array.isArray(coords) && coords.length > 1 ? coords : makeFallback(a, b);
       lines.push(
         <Polyline
-          key={`type2-line-${driverId}-${i}-${getDriverMode(driverId)}`}
+          key={`type2-line-${driverId}-${i}-${getDeliveryMode(b, driverId)}`}
           positions={segmentPositions}
           pathOptions={{
             ...getDriverRouteStyle(driverId, coords ? (() => {
@@ -193,12 +198,12 @@ export default function HereType2Polylines({
               const t = (i - 1) / Math.max(1, totalLegs - 2);
               const start = 0.85, end = 0.25;
               return Math.max(end, start + (end - start) * t);
-            })() : 0.35),
-            dashArray: coords ? getDriverRouteStyle(driverId).dashArray : '6,6'
+            })() : 0.35, b),
+            dashArray: coords ? getDriverRouteStyle(driverId, undefined, b).dashArray : '6,6'
           }}
           pane="routeBasePane"
         />,
-        <RouteDirectionDecorator key={`type2-arrow-${driverId}-${i}-${getDriverMode(driverId)}`} positions={segmentPositions} color={getDriverRouteStyle(driverId).color} />
+        <RouteDirectionDecorator key={`type2-arrow-${driverId}-${i}-${getDeliveryMode(b, driverId)}`} positions={segmentPositions} color={getDriverRouteStyle(driverId, undefined, b).color} />
       );
     }
   });

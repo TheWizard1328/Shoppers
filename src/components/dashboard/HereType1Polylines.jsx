@@ -120,9 +120,14 @@ export default function HereType1Polylines({
   const lines = [];
   const CURRENT_LEG_COLOR = '#2563EB'; // Blue — always used for Type 1 legs
   const getDriverMode = (driverId) => normalizeTravelMode(localDriverTravelModes[driverId] ?? driverTravelModes[driverId]);
+  // Get mode for a specific delivery: use delivery.transport_mode if set, otherwise fall back to driver mode
+  const getDeliveryMode = (delivery, driverId) => {
+    if (delivery?.transport_mode) return normalizeTravelMode(delivery.transport_mode);
+    return getDriverMode(driverId);
+  };
   const isCurrentLeg = (stop) => stop?.isNextDelivery === true;
-  const getDriverRouteStyle = (driverId, opacityOverride) => {
-    const mode = getDriverMode(driverId);
+  const getDriverRouteStyle = (driverId, opacityOverride, delivery) => {
+    const mode = getDeliveryMode(delivery, driverId);
     const base = getTravelModeLineStyle(mode, CURRENT_LEG_COLOR);
     return {
       ...base,
@@ -160,15 +165,15 @@ export default function HereType1Polylines({
           const segmentPositions = Array.isArray(coords) && coords.length > 1 ? coords : makeFallback({ latitude: originLat, longitude: originLon }, next);
           lines.push(
             <Polyline
-              key={`type1-pre-home-line-${driverId}-${getDriverMode(driverId)}`}
+              key={`type1-pre-home-line-${driverId}-${getDeliveryMode(next, driverId)}`}
               positions={segmentPositions}
               pathOptions={{
-                ...getDriverRouteStyle(driverId, coords ? 0.95 : 0.75),
-                dashArray: coords ? getDriverRouteStyle(driverId).dashArray : '8,8'
+                ...getDriverRouteStyle(driverId, coords ? 0.95 : 0.75, next),
+                dashArray: coords ? getDriverRouteStyle(driverId, 0.95, next).dashArray : '8,8'
               }}
               pane="routeBasePane"
             />,
-            <RouteDirectionDecorator key={`type1-pre-home-arrow-${driverId}-${getDriverMode(driverId)}`} positions={segmentPositions} color={CURRENT_LEG_COLOR} />
+            <RouteDirectionDecorator key={`type1-pre-home-arrow-${driverId}-${getDeliveryMode(next, driverId)}`} positions={segmentPositions} color={CURRENT_LEG_COLOR} />
           );
         }
       }
@@ -233,8 +238,8 @@ export default function HereType1Polylines({
         key={`type1-active-line-${driverId}-${currentStop.id}`}
         positions={coords}
         pathOptions={{
-          ...getDriverRouteStyle(driverId, shouldUseFallback ? 0.75 : 0.95),
-          dashArray: shouldUseFallback ? '8,8' : getDriverRouteStyle(driverId, 0.95).dashArray
+          ...getDriverRouteStyle(driverId, shouldUseFallback ? 0.75 : 0.95, currentStop),
+          dashArray: shouldUseFallback ? '8,8' : getDriverRouteStyle(driverId, 0.95, currentStop).dashArray
         }}
         pane="routeBasePane"
       />,
@@ -286,7 +291,7 @@ export default function HereType1Polylines({
         if (!coords || coords.length < 2 || seenKeys.has(key)) continue;
         seenKeys.add(key);
 
-        const mode = getDriverMode(driverId);
+        const mode = getDeliveryMode(stop, driverId);
         const driverStyle = getTravelModeLineStyle(mode, driverColor);
         lines.push(
           <Polyline
