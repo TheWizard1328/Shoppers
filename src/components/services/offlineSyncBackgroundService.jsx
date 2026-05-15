@@ -48,7 +48,7 @@ export const createOfflineSyncBackgroundService = ({
       const selectedDateFilter = { delivery_date: selectedDateStr, ...(storeIds && storeIds.length > 0 ? { store_id: { $in: storeIds } } : {}) };
       const selectedDateDeliveries = await Delivery.filter(selectedDateFilter, '-updated_date', 5000);
       // CRITICAL: Always replace the offline DB for this date scope, even when server returns 0 records.
-      // An empty result IS authoritative — it means all local records for this date should be removed.
+      // An empty result IS authoritative â€” it means all local records for this date should be removed.
       await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr, selectedDateDeliveries || []);
       invalidateEntityCache('Delivery');
 
@@ -69,7 +69,7 @@ export const createOfflineSyncBackgroundService = ({
         const deliveryDateToSync = await getNextDeliveryDateToSync();
         if (!deliveryDateToSync || deliveryDateToSync === selectedDateStr) {
           notifySyncStatus({ status: 'complete', skippedHistorical: true });
-          // CRITICAL: Do NOT fire offlineSyncComplete for historical background phases —
+          // CRITICAL: Do NOT fire offlineSyncComplete for historical background phases â€”
           // Layout's handler calls invalidate+getData which overwrites the user's active UI state.
           return { success: true, skippedHistorical: true };
         }
@@ -80,7 +80,7 @@ export const createOfflineSyncBackgroundService = ({
         }
 
         const deliveries = await Delivery.filter(deliveryFilter, '-updated_date', 500);
-        // CRITICAL: Always replace local records for this historical date — empty = 0 stops on server
+        // CRITICAL: Always replace local records for this historical date â€” empty = 0 stops on server
         await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', deliveryDateToSync, deliveries || []);
         invalidateEntityCache('Delivery');
 
@@ -92,7 +92,24 @@ export const createOfflineSyncBackgroundService = ({
         }
 
         notifySyncStatus({ status: 'complete', phase: 'deliveries', date: deliveryDateToSync });
-        // CRITICAL: Do NOT fire offlineSyncComplete for historical background phases —
+        // FIX 5: Notify Layout that historical deliveries are now in the offline DB.
+        // Only fire for non-active dates so we don't overwrite the driver's live UI state.
+        // Layout's handleDeliveriesUpdated will merge these in without triggering a full reload.
+        if (Array.isArray(deliveries) && deliveries.length > 0) {
+          const today = new Date().toLocaleDateString('en-CA');
+          if (deliveryDateToSync !== today) {
+            window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+              detail: {
+                triggeredBy: 'backgroundHistoricalSync',
+                deliveryDate: deliveryDateToSync,
+                freshDeliveries: deliveries,
+                preserveLocalState: true,
+                fullReplacement: false,
+              }
+            }));
+          }
+        }
+        // CRITICAL: Do NOT fire offlineSyncComplete for historical background phases â€”
         // Layout's handler calls invalidate+getData which overwrites the user's active UI state.
         return { success: true, phase: 'deliveries', date: deliveryDateToSync };
       }
@@ -108,7 +125,7 @@ export const createOfflineSyncBackgroundService = ({
       }
 
       notifySyncStatus({ status: 'complete', phase: 'patients' });
-      // CRITICAL: Do NOT fire offlineSyncComplete for historical background phases —
+      // CRITICAL: Do NOT fire offlineSyncComplete for historical background phases â€”
       // Layout's handler calls invalidate+getData which overwrites the user's active UI state.
       return { success: true, phase: 'patients', ...patientSyncResult };
     } catch (error) {
