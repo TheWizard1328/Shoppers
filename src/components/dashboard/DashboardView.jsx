@@ -369,6 +369,13 @@ export default function DashboardView({
               setSelectedDeliveryIds({});
             }}
           />
+          {optimizationMessage && (
+            <div className="w-full px-4 pb-1 pointer-events-none z-[9998]">
+              <div className="pointer-events-auto rounded-xl border border-slate-200 bg-white/95 px-4 py-3 text-sm font-medium text-slate-800 shadow-xl backdrop-blur-sm text-center">
+                {optimizationMessage}
+              </div>
+            </div>
+          )}
           <StopCardsSection
             currentUser={currentUser} isDriver={isDriver} isAdmin={isAdmin} isDispatcher={isDispatcher} isMobile={isMobile}
             deliveries={deliveries} patients={patients} stores={stores} drivers={drivers} deliveriesWithStopOrder={deliveriesWithStopOrder}
@@ -388,14 +395,6 @@ export default function DashboardView({
             onSelectionChange={handleStopCardSelectionChange}
           />
         </div>
-
-        {optimizationMessage && (
-          <div className="pointer-events-none fixed left-1/2 top-[5.5rem] -translate-x-1/2 z-[9998] w-full max-w-md px-4">
-            <div className="pointer-events-auto rounded-xl border border-slate-200 bg-white/95 px-4 py-3 text-sm font-medium text-slate-800 shadow-xl backdrop-blur-sm">
-              {optimizationMessage}
-            </div>
-          </div>
-        )}
 
         <StopCardCheckboxToggle
           checked={showStopCardCheckboxes}
