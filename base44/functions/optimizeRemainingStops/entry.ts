@@ -798,6 +798,7 @@ Deno.serve(async (req) => {
     let routeStops = [];
     let directionsLegs = [];
     let segmentPolylines = [];
+    let resolvedTrueOrigin = null; // set inside the else-if block, used in write batch
 
     const resolvedHomePosition = driverAppUser.home_latitude != null && driverAppUser.home_longitude != null
       ? { lat: Number(driverAppUser.home_latitude), lng: Number(driverAppUser.home_longitude) }
@@ -860,6 +861,7 @@ Deno.serve(async (req) => {
        // Call 2 (First Leg): trueOrigin → lockedNextStop (point-to-point)
        // -------------------------------------------------------------------
        const trueOrigin = logicalSegmentOrigin;
+       resolvedTrueOrigin = trueOrigin;
        const destinationForDirections = resolvedHomePosition
          || (stopsForHere.length > 0 ? { lat: stopsForHere[stopsForHere.length - 1].lat, lng: stopsForHere[stopsForHere.length - 1].lng } : trueOrigin);
 
@@ -910,30 +912,52 @@ Deno.serve(async (req) => {
       let firstLegDurMin = Math.ceil((firstLegDistKm / 40) * 60 * 1.3);
 
       if (lockedNextStop) {
-        try {
-          const legResp = await base44.asServiceRole.functions.invoke('getHereDirections', {
-            origin: trueOrigin,
-            destination: { lat: lockedNextStop.lat, lng: lockedNextStop.lng },
-            waypoints: [],
-            routeContext: [],
-            transportMode: routingTravelMode,
-            deliveryDate,
-            departureTime: resolvedDepartureTime,
-            caller: 'optimizeRemainingStops:firstLeg',
-            preserveWaypointOrder: true,
-            skipSequenceApi: true,
-          });
-          const legResult = legResp?.data || legResp || null;
-          const legSection = Array.isArray(legResult?.sections) ? legResult.sections[0] : null;
-          if (legSection?.encoded_polyline) {
-            firstLegPolyline = legSection.encoded_polyline;
-            firstLegDistKm = legSection.estimated_distance_km ?? firstLegDistKm;
-            firstLegDurMin = legSection.estimated_duration_minutes ?? firstLegDurMin;
+        // Cache check: reuse existing first-leg data if the origin hasn't changed.
+        const COORD_MATCH_THRESHOLD = 0.0002; // ~22m
+        const existingDelivery = lockedNextStop.delivery;
+        const cachedOriginLat = existingDelivery?.first_leg_origin_lat != null ? Number(existingDelivery.first_leg_origin_lat) : null;
+        const cachedOriginLng = existingDelivery?.first_leg_origin_lng != null ? Number(existingDelivery.first_leg_origin_lng) : null;
+        const cachedPolyline = existingDelivery?.encoded_polyline || null;
+        const cachedDistKm = existingDelivery?.estimated_distance_km != null ? Number(existingDelivery.estimated_distance_km) : null;
+        const cachedDurMin = existingDelivery?.estimated_duration_minutes != null ? Number(existingDelivery.estimated_duration_minutes) : null;
+
+        const originUnchanged = cachedOriginLat != null && cachedOriginLng != null
+          && Math.abs(cachedOriginLat - trueOrigin.lat) < COORD_MATCH_THRESHOLD
+          && Math.abs(cachedOriginLng - trueOrigin.lng) < COORD_MATCH_THRESHOLD;
+        const hasCachedData = cachedPolyline && cachedDistKm != null && cachedDurMin != null;
+
+        if (originUnchanged && hasCachedData) {
+          firstLegPolyline = cachedPolyline;
+          firstLegDistKm = cachedDistKm;
+          firstLegDurMin = cachedDurMin;
+          console.log(`♻️ [optimizeRemainingStops] First-leg CACHE HIT — reusing existing polyline (origin unchanged, dist=${firstLegDistKm}km, dur=${firstLegDurMin}min)`);
+        } else {
+          console.log(`🔄 [optimizeRemainingStops] First-leg cache MISS — ${!originUnchanged ? `origin changed from (${cachedOriginLat},${cachedOriginLng}) to (${trueOrigin.lat},${trueOrigin.lng})` : 'no cached polyline data'}`);
+          try {
+            const legResp = await base44.asServiceRole.functions.invoke('getHereDirections', {
+              origin: trueOrigin,
+              destination: { lat: lockedNextStop.lat, lng: lockedNextStop.lng },
+              waypoints: [],
+              routeContext: [],
+              transportMode: routingTravelMode,
+              deliveryDate,
+              departureTime: resolvedDepartureTime,
+              caller: 'optimizeRemainingStops:firstLeg',
+              preserveWaypointOrder: true,
+              skipSequenceApi: true,
+            });
+            const legResult = legResp?.data || legResp || null;
+            const legSection = Array.isArray(legResult?.sections) ? legResult.sections[0] : null;
+            if (legSection?.encoded_polyline) {
+              firstLegPolyline = legSection.encoded_polyline;
+              firstLegDistKm = legSection.estimated_distance_km ?? firstLegDistKm;
+              firstLegDurMin = legSection.estimated_duration_minutes ?? firstLegDurMin;
+            }
+            attemptedHereCalls += 1;
+            console.log(`📡 [optimizeRemainingStops] First-leg call: polyline=${firstLegPolyline ? 'YES' : 'NO'}, dist=${firstLegDistKm}km`);
+          } catch (err) {
+            console.warn('⚠️ [optimizeRemainingStops] First-leg call failed — using crow-flies fallback:', err?.message);
           }
-          attemptedHereCalls += 1;
-          console.log(`📡 [optimizeRemainingStops] First-leg call: polyline=${firstLegPolyline ? 'YES' : 'NO'}, dist=${firstLegDistKm}km`);
-        } catch (err) {
-          console.warn('⚠️ [optimizeRemainingStops] First-leg call failed — using crow-flies fallback:', err?.message);
         }
       }
 
@@ -1258,6 +1282,11 @@ Deno.serve(async (req) => {
         estimated_distance_km: (!isPendingStop && typeof segmentPolyline?.estimatedDistanceKm === 'number')
           ? segmentPolyline.estimatedDistanceKm
           : null,
+        // Persist first-leg origin on the isNextDelivery stop so future runs can cache-hit
+        ...(stop.id === nextStopId && resolvedTrueOrigin ? {
+          first_leg_origin_lat: resolvedTrueOrigin.lat,
+          first_leg_origin_lng: resolvedTrueOrigin.lng,
+        } : {}),
       };
 
       if (pendingTimes?.startTime) {
