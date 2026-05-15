@@ -190,16 +190,112 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
 
 
 /**
- * Load priority data for initial display
- * Order: Cities → AppUsers → Deliveries (selected date) → ALL Patients (critical for map markers)
- * CRITICAL: Validates offline DB is populated; forces full sync if underpopulated
+ * Load priority data for initial display on app load
+ * Order: Cities → AppUsers → Deliveries (SELECTED DATE + CITY ONLY) → Full Patient DB resync (once per 5 min)
+ * CRITICAL: Patient sync is full DB in single write with 5-min cooldown; Deliveries limited to current date
  */
-export const loadPriorityData = async (selectedDateStr, filters = {}) => {
+export const loadPriorityData = async (selectedDateStr, cityId = null, filters = {}) => {
   if (getSyncPaused()) return { skipped: true };
-  return getPriorityHelpers().loadPriorityData(selectedDateStr, filters, {
-    getSyncInProgress,
-    setSyncInProgress
-  });
+  
+  setSyncInProgress(true);
+  notifySyncStatus({ status: 'syncing', entity: 'Starting priority load...', progress: 5 });
+  
+  try {
+    // Step 1: Sync Cities (lightweight)
+    const cities = await City.list();
+    await offlineDB.replaceAllRecords(offlineDB.STORES.CITIES, cities);
+    invalidateEntityCache('City');
+    notifySyncStatus({ status: 'syncing', entity: 'Cities', progress: 10, count: cities.length });
+    
+    // Step 2: Sync ALL AppUsers (entire entity)
+    const appUsersRaw = await fetchAppUsersDedup();
+    const appUsersByUserId = new Map();
+    appUsersRaw.forEach(au => {
+      if (!au || !au.user_id) return;
+      const existing = appUsersByUserId.get(au.user_id);
+      if (!existing) {
+        appUsersByUserId.set(au.user_id, au);
+      } else {
+        const newLocTime = au.location_updated_at ? new Date(au.location_updated_at).getTime() : 0;
+        const exLocTime = existing.location_updated_at ? new Date(existing.location_updated_at).getTime() : 0;
+        if (newLocTime > exLocTime) appUsersByUserId.set(au.user_id, au);
+      }
+    });
+    const appUsers = Array.from(appUsersByUserId.values());
+    await offlineDB.replaceAllRecords(offlineDB.STORES.APP_USERS, appUsers);
+    invalidateEntityCache('AppUser');
+    notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 25, count: appUsers.length });
+    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+    
+    // Step 3: Sync Deliveries for SELECTED DATE + CITY ONLY (no 90-day loop)
+    notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 40 });
+    const deliveryFilter = { delivery_date: selectedDateStr };
+    if (cityId) {
+      const cityStores = (await offlineDB.getAll(offlineDB.STORES.STORES) || [])
+        .filter(s => s && s.city_id === cityId)
+        .map(s => s.id);
+      if (cityStores.length > 0) deliveryFilter.store_id = { $in: cityStores };
+    }
+    const deliveries = await Delivery.filter(deliveryFilter, '-updated_date', 5000);
+    // Replace deliveries for this date (empty = 0 stops on server)
+    await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr, deliveries || []);
+    invalidateEntityCache('Delivery');
+    notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 55, count: deliveries.length });
+    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+    
+    // Step 4: Full Patient DB resync with 5-min cooldown (single DB write)
+    notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 60 });
+    const patientMeta = await offlineDB.getSyncMetadata('Patient_FullSync') || {};
+    const lastFullSyncTime = patientMeta.lastFullSyncTime ? new Date(patientMeta.lastFullSyncTime).getTime() : 0;
+    const timeSinceLastSync = Date.now() - lastFullSyncTime;
+    const FIVE_MIN_MS = 5 * 60 * 1000;
+    
+    if (timeSinceLastSync >= FIVE_MIN_MS) {
+      // Fetch ALL active patients in batches and write once
+      let allPatients = [];
+      let patientOffset = 0;
+      const PATIENT_PAGE_SIZE = 500;
+      
+      while (true) {
+        try {
+          const batch = await Patient.filter({ status: 'active' }, '-updated_date', PATIENT_PAGE_SIZE, patientOffset);
+          if (!batch || batch.length === 0) break;
+          allPatients = allPatients.concat(batch);
+          patientOffset += PATIENT_PAGE_SIZE;
+          if (batch.length < PATIENT_PAGE_SIZE) break;
+          await new Promise(r => setTimeout(r, 200));
+        } catch (e) {
+          console.warn('⚠️ Patient batch fetch failed:', e.message);
+          break;
+        }
+      }
+      
+      // Single DB write for entire patient set
+      await offlineDB.replaceAllRecords(offlineDB.STORES.PATIENTS, allPatients);
+      invalidateEntityCache('Patient');
+      await offlineDB.updateSyncMetadata('Patient_FullSync', null, new Date().toISOString(), { lastFullSyncTime: new Date().toISOString() });
+      notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 90, count: allPatients.length });
+    } else {
+      notifySyncStatus({ status: 'syncing', entity: 'Patients (using cache)', progress: 90 });
+    }
+    
+    // Update sync status
+    const now = new Date().toISOString();
+    await Promise.all([
+      offlineDB.updateSyncStatus('City', { recordCount: cities.length, status: 'synced', lastSync: now, lastFullSync: now }),
+      offlineDB.updateSyncStatus('AppUser', { recordCount: appUsers.length, status: 'synced', lastSync: now, lastFullSync: now }),
+      offlineDB.updateSyncStatus('Delivery', { recordCount: deliveries.length, status: 'synced', lastSync: now }),
+      offlineDB.updateSyncStatus('Patient', { status: 'synced', lastSync: now })
+    ]);
+    
+    notifySyncStatus({ status: 'complete', progress: 100 });
+    return { success: true, cities, appUsers, deliveries, cities };
+  } catch (error) {
+    notifySyncStatus({ status: 'error', error: error.message });
+    return { error: error.message };
+  } finally {
+    setSyncInProgress(false);
+  }
 };
 
 // ==================== BACKGROUND SYNC ====================
