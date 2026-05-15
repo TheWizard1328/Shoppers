@@ -230,7 +230,6 @@ export default function useStopCardActions(params) {
       const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
       fabControlEvents.notifyAcceptAllClicked();
-      window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
 
       const { stagedChangedDeliveries, finalOfflineUpdates, codBatch, optimizeData } = await runAcceptAllBatchPipeline({
         triggerDelivery: delivery,
@@ -246,42 +245,19 @@ export default function useStopCardActions(params) {
       window.dispatchEvent(new CustomEvent('pendingToInTransit', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
       invalidate('Delivery');
 
-      if (optimizeData?.success && Array.isArray(optimizeData.optimizedRoute) && optimizeData.optimizedRoute.length > 0) {
-        window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: delivery.driver_id, updates: optimizeData.optimizedRoute.map((stop) => ({ deliveryId: stop.deliveryId || stop.delivery_id, newEta: stop.newETA || stop.eta })).filter((stop) => stop.deliveryId && stop.newEta) } }));
+      // STEP 1: Sync COD data with Square BEFORE route optimization
+      if (codBatch.length > 0) {
+        base44.functions.invoke('syncSquareCods', { items: codBatch }).catch((e) => console.warn('⚠️ [Square] Batch COD sync failed to start:', e));
       }
 
-      // CRITICAL: optimizeRemainingStops already writes correct polylines directly to each
-      // delivery via HERE API. Calling purgeAndRegeneratePolylines overwrites them with
-      // independently-generated segments using wrong origins (e.g. home→pending stop).
-      // Skip it entirely when optimization provided valid polylines.
-      const acceptAllHasPolylines = Array.isArray(optimizeData?.optimizedRoute) && optimizeData.optimizedRoute.some((stop) => stop.encoded_polyline);
-      const polylineResponse = acceptAllHasPolylines ? { skipped: true, reason: 'polylines_from_optimize' } : await base44.functions.invoke('purgeAndRegeneratePolylines', {
-        driverId: delivery.driver_id,
-        deliveryDate: delivery.delivery_date,
-        scope: 'active_only',
-        reason: optimizeData?.routeChanged ? 'route_reordered' : 'manual',
-        sourcePage: 'Dashboard',
-        bypassDriverStatus: true,
-        routeStopOrder: Array.isArray(optimizeData?.optimizedRoute)
-          ? optimizeData.optimizedRoute.map((stop) => stop.deliveryId || stop.delivery_id).filter(Boolean)
-          : [],
-        orderedStopsWithTransportMode: Array.isArray(optimizeData?.optimizedRoute)
-          ? optimizeData.optimizedRoute.map((stop) => ({
-              deliveryId: stop.deliveryId || stop.delivery_id,
-              transport_mode: stop.transport_mode || stop.finished_leg_transport_mode || currentPreferredTravelMode,
-              finished_leg_transport_mode: stop.finished_leg_transport_mode || stop.transport_mode || currentPreferredTravelMode,
-              encoded_polyline: stop.encoded_polyline || null,
-              estimated_distance_km: stop.estimated_distance_km ?? null,
-              estimated_duration_minutes: stop.estimated_duration_minutes ?? null
-            })).filter((stop) => stop.deliveryId)
-          : [],
-        explicitOrderedStopsOnly: true,
-        explicitRouteOrigin: 'last_finished_stop',
-        explicitRouteDestination: 'home',
-        bypassPolylineUpdated: true,
-        bypassPolylineDelete: true,
-        reuseProvidedPolylines: true
-      }).catch(() => null);
+      // STEP 2: Dispatch manual route optimization event
+      window.dispatchEvent(new CustomEvent('triggerManualRouteOptimization', {
+        detail: {
+          driverId: delivery.driver_id,
+          deliveryDate: delivery.delivery_date,
+          source: 'accept_all'
+        }
+      }));
 
       const refreshedDeliveries = await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
       const refreshedList = Array.isArray(refreshedDeliveries)
@@ -297,14 +273,7 @@ export default function useStopCardActions(params) {
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: false, fullReplacement: true } }));
       }
 
-      if (polylineResponse) {
-        window.dispatchEvent(new CustomEvent('polylineUpdated', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, source: 'accept_all_button' } }));
-      }
-
-      if (codBatch.length > 0) {
-        base44.functions.invoke('syncSquareCods', { items: codBatch }).catch((e) => console.warn('⚠️ [Square] Batch COD sync failed to start:', e));
-      }
-
+      // STEP 3: Send notifications
       const isDriverAction = userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id;
       if (isDriverAction) {
         notifyDriverAcceptedAll({ driver: currentUser, store, appUsers }).catch(() => {});
@@ -317,7 +286,6 @@ export default function useStopCardActions(params) {
       toast.error(`Failed to accept all: ${error.message}`);
       throw error;
     } finally {
-      window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true } }));
       resumeOfflineSync('delivery_actions');
       driverLocationPoller.resume();
