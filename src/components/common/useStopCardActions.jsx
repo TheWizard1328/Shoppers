@@ -302,31 +302,40 @@ export default function useStopCardActions(params) {
       }
 
       if (codBatch.length > 0) {
-        base44.functions.invoke('syncSquareCods', { items: codBatch }).catch((e) => console.warn('⚠️ [Square] Batch COD sync failed to start:', e));
-      }
+         base44.functions.invoke('syncSquareCods', { items: codBatch }).catch((e) => console.warn('⚠️ [Square] Batch COD sync failed to start:', e));
+       }
 
-      const isDriverAction = userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id;
-      if (isDriverAction) {
-        notifyDriverAcceptedAll({ driver: currentUser, store, appUsers }).catch(() => {});
-      } else {
-        const assignedDriver = drivers.find((d) => d?.id === delivery.driver_id);
-        if (assignedDriver) notifyDispatcherAssignedAll({ dispatcher: currentUser, driver: assignedDriver, store, deliveries: scopedPendingDeliveries, patients }).catch(() => {});
+       const isDriverAction = userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id;
+       if (isDriverAction) {
+         notifyDriverAcceptedAll({ driver: currentUser, store, appUsers }).catch(() => {});
+       } else {
+         const assignedDriver = drivers.find((d) => d?.id === delivery.driver_id);
+         if (assignedDriver) notifyDispatcherAssignedAll({ dispatcher: currentUser, driver: assignedDriver, store, deliveries: scopedPendingDeliveries, patients }).catch(() => {});
+       }
+
+       // Trigger route optimization after accepting all stops
+       window.dispatchEvent(new CustomEvent('triggerManualRouteOptimization', {
+         detail: {
+           driverId: delivery.driver_id,
+           deliveryDate: delivery.delivery_date,
+           source: 'accept_all'
+         }
+       }));
+      } catch (error) {
+       console.error('❌ [Accept All] Error:', error);
+       toast.error(`Failed to accept all: ${error.message}`);
+       throw error;
+      } finally {
+       window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
+       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true } }));
+       resumeOfflineSync('delivery_actions');
+       driverLocationPoller.resume();
+       smartRefreshManager.resume();
+       backgroundSyncManager.resume();
+       setIsEntityUpdating(false);
+       setIsAcceptingAll(false);
+       onClick?.(null);
       }
-    } catch (error) {
-      console.error('❌ [Accept All] Error:', error);
-      toast.error(`Failed to accept all: ${error.message}`);
-      throw error;
-    } finally {
-      window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAllOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true } }));
-      resumeOfflineSync('delivery_actions');
-      driverLocationPoller.resume();
-      smartRefreshManager.resume();
-      backgroundSyncManager.resume();
-      setIsEntityUpdating(false);
-      setIsAcceptingAll(false);
-      onClick?.(null);
-    }
   }, [allDeliveries, appUsers, currentUser, delivery, drivers, onClick, patients, setIsAcceptingAll, setIsEntityUpdating, store, stores, updateDeliveriesLocally, userHasRole]);
 
   const handleAcceptAllStops = useCallback(async () => {
