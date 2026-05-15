@@ -404,18 +404,18 @@ export default function DashboardView({
         >
           <ApiUsageBadge currentUser={currentUser} stopCardsHeight={immersiveHidden ? 0 : stopCardsBaseHeight} />
         </StopCardCheckboxToggle>
-      </div>
 
-      {optimizationMessage && !immersiveHidden && (
-        <div
-          className="pointer-events-none fixed left-0 right-0 z-[9998] flex justify-center px-4"
-          style={{ bottom: stopCardsBaseHeight + 8 }}
-        >
-          <div className="pointer-events-auto rounded-xl border border-slate-200 bg-white/95 px-4 py-3 text-sm font-medium text-slate-800 shadow-xl backdrop-blur-sm text-center max-w-md w-full">
-            {optimizationMessage}
+        {optimizationMessage && !immersiveHidden && (
+          <div
+            className="pointer-events-none absolute inset-x-0 z-[9998] flex justify-center px-4"
+            style={{ bottom: stopCardsBaseHeight + 8 }}
+          >
+            <div className="pointer-events-auto rounded-xl border border-slate-200 bg-white/95 px-4 py-3 text-sm font-medium text-slate-800 shadow-xl backdrop-blur-sm text-center max-w-md w-full">
+              {optimizationMessage}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {isAppOwner(currentUser) && (isDriver || isDispatcher) &&
         <FABControls
