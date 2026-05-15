@@ -791,11 +791,11 @@ export default function useStopCardActions(params) {
          // Use local ETA recalculation with estimated_duration_minutes (no API call)
          if (remainingEtaDeliveries.length > 0) {
            try {
-             const completionTimeStr = completionUpdate.actual_delivery_time || forcedCompletionTimestamp;
-             const [completionHours, completionMinutes] = completionTimeStr.split(':').map(Number);
-             let baseTimeMinutes = completionHours * 60 + completionMinutes + 5; // Start with completion time + 5min buffer
+             // Use current device time, not completion timestamp
+             const now = new Date();
+             let baseTimeMinutes = now.getHours() * 60 + now.getMinutes() + 5; // Current time + 5min buffer
 
-             console.log(`[Complete ETA] Starting recalc: completionTime=${completionTimeStr}, remainingStops=${remainingEtaDeliveries.length}, baseTimeMinutes=${baseTimeMinutes}`);
+             console.log(`[Complete ETA] Starting recalc: currentTime=${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}, remainingStops=${remainingEtaDeliveries.length}, baseTimeMinutes=${baseTimeMinutes}`);
 
              const etaUpdates = [];
              remainingEtaDeliveries.forEach((stop) => {
@@ -982,11 +982,11 @@ export default function useStopCardActions(params) {
         // CRITICAL: ALWAYS recalculate ETAs for remaining stops when failing/cancelling ANY stop
          if (remainingEtaDeliveries.length > 0) {
            try {
-             const failureTimeStr = criticalUpdate.actual_delivery_time || forcedFailureTimestamp;
-             const [failureHours, failureMinutes] = failureTimeStr.split(':').map(Number);
-             let baseTimeMinutes = failureHours * 60 + failureMinutes + 5; // Start with failure time + 5min buffer
+             // Use current device time, not failure timestamp
+             const now = new Date();
+             let baseTimeMinutes = now.getHours() * 60 + now.getMinutes() + 5; // Current time + 5min buffer
 
-             console.log(`[Failure ETA] Starting recalc: failureTime=${failureTimeStr}, remainingStops=${remainingEtaDeliveries.length}, baseTimeMinutes=${baseTimeMinutes}`);
+             console.log(`[Failure ETA] Starting recalc: currentTime=${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}, remainingStops=${remainingEtaDeliveries.length}, baseTimeMinutes=${baseTimeMinutes}`);
 
              const etaUpdates = [];
              remainingEtaDeliveries.forEach((stop) => {
