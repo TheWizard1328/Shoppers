@@ -1306,6 +1306,15 @@ Deno.serve(async (req) => {
       const patientWindowStart = stopObj?.windowStart && stopObj?.delivery?.patient_id ? stopObj.windowStart : null;
       const patientWindowEnd = stopObj?.windowEnd && stopObj?.delivery?.patient_id ? stopObj.windowEnd : null;
 
+      // CRITICAL: estimated_distance_km and estimated_duration_minutes represent the leg FROM this
+      // stop TO the next stop (stop N → stop N+1). We look ahead to segmentPolylines[i+1] so
+      // stop N holds the outbound leg distance/duration, not the inbound one.
+      // The last stop naturally has null values (no outbound leg to another delivery stop).
+      // encoded_polyline and travel_dist remain inbound (leg arriving AT this stop) as before.
+      const outboundSegment = !isPendingStop && i < activeStops.length - 1
+        ? (segmentPolylineByDeliveryId.get(activeStops[i + 1]?.id) || null)
+        : null;
+
       const updateData = {
         stop_order: newOrder,
         display_stop_order: newOrder,
@@ -1318,8 +1327,8 @@ Deno.serve(async (req) => {
           ? Number((Number(directionsLegs[i].distance) / 1000).toFixed(3))
           : null,
         encoded_polyline: isPendingStop ? null : (segmentPolyline?.encodedPolyline || null),
-        ...(typeof segmentPolyline?.estimatedDurationMinutes === 'number' && !isPendingStop ? { estimated_duration_minutes: segmentPolyline.estimatedDurationMinutes } : {}),
-        ...(typeof segmentPolyline?.estimatedDistanceKm === 'number' && !isPendingStop ? { estimated_distance_km: segmentPolyline.estimatedDistanceKm } : {}),
+        ...(typeof outboundSegment?.estimatedDurationMinutes === 'number' ? { estimated_duration_minutes: outboundSegment.estimatedDurationMinutes } : { estimated_duration_minutes: null }),
+        ...(typeof outboundSegment?.estimatedDistanceKm === 'number' ? { estimated_distance_km: outboundSegment.estimatedDistanceKm } : { estimated_distance_km: null }),
       };
 
       if (pendingTimes?.startTime) {
@@ -1376,13 +1385,20 @@ Deno.serve(async (req) => {
 
           if (cycleSection?.encoded_polyline) {
             batchItem.data.encoded_polyline = cycleSection.encoded_polyline;
-            if (typeof cycleSection.estimated_distance_km === 'number') {
-              batchItem.data.estimated_distance_km = cycleSection.estimated_distance_km;
+            // Update the PREVIOUS stop's outbound distance/duration with this cycling leg's values
+            // (consistent with the "outbound leg stored on departure stop" convention)
+            if (stopIndex > 0) {
+              const prevBatchItem = finalDeliveryWriteBatch[stopIndex - 1];
+              if (prevBatchItem) {
+                if (typeof cycleSection.estimated_distance_km === 'number') {
+                  prevBatchItem.data.estimated_distance_km = cycleSection.estimated_distance_km;
+                }
+                if (typeof cycleSection.estimated_duration_minutes === 'number') {
+                  prevBatchItem.data.estimated_duration_minutes = cycleSection.estimated_duration_minutes;
+                }
+              }
             }
-            if (typeof cycleSection.estimated_duration_minutes === 'number') {
-              batchItem.data.estimated_duration_minutes = cycleSection.estimated_duration_minutes;
-            }
-            console.log(`  🚴 Cycling polyline updated for stop ${batchItem.id} (${batchItem.label})`);
+            console.log(`  🚴 Cycling polyline updated for stop ${batchItem.id} (${batchItem.label}), outbound dist/dur stored on previous stop`);
           } else {
             console.warn(`  ⚠️ No cycling polyline returned for stop ${batchItem.id} - keeping driving polyline`);
           }
