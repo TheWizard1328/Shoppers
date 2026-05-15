@@ -152,17 +152,9 @@ export default function useStopCardActions(params) {
     showPhotoCapture
   } = params;
 
-  // Safe fallback for localNowParts if not provided by caller
-  const _now = new Date();
-  const _localNowParts = localNowParts || {
-    date: `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}-${String(_now.getDate()).padStart(2, '0')}`,
-    time: `${String(_now.getHours()).padStart(2, '0')}:${String(_now.getMinutes()).padStart(2, '0')}`
-  };
-  const _localDeviceTodayStr = localDeviceTodayStr || _localNowParts.date;
-
   const ensureDriverOnline = useCallback(async () => {
     if (!currentUser?.id || currentUser.id !== delivery?.driver_id) return;
-    if (delivery?.delivery_date !== _localDeviceTodayStr) return;
+    if (delivery?.delivery_date !== localDeviceTodayStr) return;
     try {
       const { data } = await setDriverStatus({ newStatus: 'on_duty' });
       try { await locationTracker.startTracking({ ...currentUser, appUserId: data?.appUserId }); } catch {}
@@ -522,7 +514,7 @@ export default function useStopCardActions(params) {
     // CRITICAL: Auto-set driver on_duty before starting delivery (if off_duty or on_break)
     if (currentUser?.id === delivery?.driver_id &&
         currentUser?.driver_status !== 'on_duty' &&
-        delivery?.delivery_date === _localDeviceTodayStr) {
+        delivery?.delivery_date === localDeviceTodayStr) {
       await ensureDriverOnline().catch(() => {});
     }
 
@@ -716,8 +708,8 @@ export default function useStopCardActions(params) {
           await waitForRouteTransitionSettle(pendingPickups?.length || 0);
         }
         const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
-        const useRetroactiveTiming = !shouldUseRegularTiming({ deliveryDate: delivery?.delivery_date, todayDateString: _localDeviceTodayStr, currentTimeString: _localNowParts.time });
-        const retroactiveTiming = useRetroactiveTiming ? await calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: _localDeviceTodayStr, allowSameDay: true }) : null;
+        const useRetroactiveTiming = !shouldUseRegularTiming({ deliveryDate: delivery?.delivery_date, todayDateString: localDeviceTodayStr, currentTimeString: localNowParts.time });
+        const retroactiveTiming = useRetroactiveTiming ? await calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: localDeviceTodayStr, allowSameDay: true }) : null;
         const completionCodPayments = autoCODPayment || codPayments;
         const sameRouteDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
         const forcedCompletionTimestamp = useRetroactiveTiming ? (retroactiveTiming?.actual_delivery_time || localTimeString) : localTimeString;
@@ -882,7 +874,7 @@ export default function useStopCardActions(params) {
       }
     });
     if (lockResult?.skipped) return;
-  }, [FINISHED_STATUSES, allDeliveries, appUsers, blockCardToggle, codPayments, codTotalRequired, collapseDriverStopCards, currentDriverAppUser?.id, currentUser, delivery, displayName, ensureDriverOnline, executeAcceptAllStops, forceRefreshDriverDeliveries, hasCODRequired, isCompleting, isExpanded, isFailing, isGlobalCompleteLocked, isGlobalRestartLocked, isPickup, isProcessingBackground, localDeviceTodayStr, localNowParts, onCODUpdate, onDriverStatusChange, params, patient, pendingPickups, resetActionLocks, safeDriver, setCodPayments, setIsCompleting, setIsProcessingBackground, store, updateDeliveriesLocally, userHasRole]);
+  }, [FINISHED_STATUSES, allDeliveries, appUsers, blockCardToggle, codPayments, codTotalRequired, collapseDriverStopCards, currentDriverAppUser?.id, currentUser, delivery, displayName, ensureDriverOnline, executeAcceptAllStops, forceRefreshDriverDeliveries, hasCODRequired, isCompleting, isExpanded, isFailing, isGlobalCompleteLocked, isGlobalRestartLocked, isPickup, isProcessingBackground, localDeviceTodayStr, localNowParts.time, onCODUpdate, onDriverStatusChange, params, patient, pendingPickups, resetActionLocks, safeDriver, setCodPayments, setIsCompleting, setIsProcessingBackground, store, updateDeliveriesLocally, userHasRole]);
 
   const handleFailureConfirm = useCallback(async (reason) => {
     const status = pendingFailureStatus;
@@ -908,8 +900,8 @@ export default function useStopCardActions(params) {
         const existingNotes = delivery.delivery_notes || '';
         const updatedNotes = existingNotes ? `${existingNotes}\n[${status.toUpperCase()}] ${reason}` : `[${status.toUpperCase()}] ${reason}`;
         const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
-        const useRetroactiveTiming = !shouldUseRegularTiming({ deliveryDate: delivery?.delivery_date, todayDateString: _localDeviceTodayStr, currentTimeString: _localNowParts.time });
-        const retroactiveTiming = useRetroactiveTiming ? await calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: _localDeviceTodayStr, allowSameDay: true }) : null;
+        const useRetroactiveTiming = !shouldUseRegularTiming({ deliveryDate: delivery?.delivery_date, todayDateString: localDeviceTodayStr, currentTimeString: localNowParts.time });
+        const retroactiveTiming = useRetroactiveTiming ? await calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: localDeviceTodayStr, allowSameDay: true }) : null;
         let pendingBreadcrumbsString = null;
         try {
           await appendBoundaryBreadcrumbPoints({ driverId: delivery.driver_id, delivery, allDeliveries, patients, stores, appUsers, terminalStatus: status, completedAt: delivery.actual_delivery_time || delivery.arrival_time || new Date().toISOString() });
@@ -1021,7 +1013,7 @@ export default function useStopCardActions(params) {
       }
     });
     if (lockResult?.skipped) return;
-  }, [FINISHED_STATUSES, allDeliveries, appUsers, collapseDriverStopCards, currentUser, delivery, displayName, forceRefreshDriverDeliveries, isPickup, localDeviceTodayStr, localNowParts, onClick, onDriverStatusChange, onStatusUpdate, params, patient, pendingFailureStatus, resetActionLocks, safeDriver, setIsFailing, setPendingFailureStatus, setShowFailureReasonDialog, store, updateDeliveriesLocally, userHasRole]);
+  }, [FINISHED_STATUSES, allDeliveries, appUsers, collapseDriverStopCards, currentUser, delivery, displayName, forceRefreshDriverDeliveries, isPickup, localDeviceTodayStr, localNowParts.time, onClick, onDriverStatusChange, onStatusUpdate, params, patient, pendingFailureStatus, resetActionLocks, safeDriver, setIsFailing, setPendingFailureStatus, setShowFailureReasonDialog, store, updateDeliveriesLocally, userHasRole]);
 
   return {
     blockCardToggle,

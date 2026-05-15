@@ -334,14 +334,14 @@ export default function Layout({ children, currentPageName }) {
           if (aud?.length) {await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, aud);setAppUsers(aud);}
           if (sd?.length) {sd.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));await offlineDB.bulkSave(offlineDB.STORES.STORES, sd);setStores(sd);}
           if (!dd?.length || !pd?.length || !aud?.length) window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));
-        } catch (e) {console.warn('âš ï¸ Offline DB prime failed:', e.message);window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));}
+        } catch (e) {console.warn('⚠️ Offline DB prime failed:', e.message);window.dispatchEvent(new CustomEvent('triggerOfflineSyncNow'));}
         const { markOfflineDBLoadComplete } = await import('./components/utils/dataManager');
         markOfflineDBLoadComplete();
         setInitialGlobalFiltersSet(true);setDataLoaded(true);
         setIsLoadingLayout(false); // Release loading gate ONLY after all prerequisites confirmed
       } catch (error) {
         const isAuth = error.response?.status === 401 || error.response?.status === 403 || error.message?.includes('Unauthorized') || error.message?.includes('Forbidden');
-        if (isAuth) {setHasAccess(false);} else {console.warn('âš ï¸ Init error:', error.message);setHasAccess(true);}
+        if (isAuth) {setHasAccess(false);} else {console.warn('⚠️ Init error:', error.message);setHasAccess(true);}
         setIsLoadingLayout(false);setDataLoaded(true);
       }
     };
@@ -381,9 +381,9 @@ export default function Layout({ children, currentPageName }) {
       try {
         await backgroundSyncManager.loadConfig();
         backgroundSyncManager.start();
-        console.log('âœ… [Layout] Background sync manager started');
+        console.log('✅ [Layout] Background sync manager started');
       } catch (error) {
-        console.warn('âš ï¸ [Layout] Failed to start background sync:', error);
+        console.warn('⚠️ [Layout] Failed to start background sync:', error);
       }
     };
 
@@ -438,7 +438,7 @@ export default function Layout({ children, currentPageName }) {
       const selectedDateStr = globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd');
       const cityStoreIds = stores.map((s) => s?.id).filter(Boolean);
 
-      console.log('ðŸ”„ [Layout] Starting ONE-TIME background sync for current month...');
+      console.log('🔄 [Layout] Starting ONE-TIME background sync for current month...');
       const { performBackgroundSync } = await import('./components/utils/offlineSync');
       performBackgroundSync(selectedDateStr, cityStoreIds).catch(() => {});
     }, 60000);
@@ -449,15 +449,8 @@ export default function Layout({ children, currentPageName }) {
     }, 60000);
 
     // Subscribe to ALL entity mutations and refresh UI IMMEDIATELY
-    // FIX 4: Subscribe smartRefreshManager so periodic background syncs update the UI.
-    // updateAppDataState already handles deliveries/patients/appUsers â€” it just wasn't subscribed.
-    const unsubscribeSmartRefresh = smartRefreshManager.subscribe((updates) => {
-      if (!updates) return;
-      updateAppDataState(updates);
-    });
-
     const unsubscribeMutations = subscribeMutations(async (mutation) => {
-      console.log('ðŸ”” [Layout] Mutation received:', mutation.entity, mutation.type, mutation.id);
+      console.log('🔔 [Layout] Mutation received:', mutation.entity, mutation.type, mutation.id);
 
       // CRITICAL: Handle 'replace' mutations to swap temp IDs with real backend IDs
       if (mutation.type === 'replace') {
@@ -580,7 +573,7 @@ export default function Layout({ children, currentPageName }) {
       const { appUsers: changedAppUsers } = event.detail || {};
       if (!changedAppUsers || changedAppUsers.length === 0) return;
 
-      console.log(`ðŸ” [Layout] User roles changed - updating UI and navigation`);
+      console.log(`🔐 [Layout] User roles changed - updating UI and navigation`);
 
       // Update appUsers state with new roles
       setAppUsers((prev) => {
@@ -633,7 +626,7 @@ export default function Layout({ children, currentPageName }) {
 
       // Show conflict resolution dialog
       // This will be handled by a global conflict manager
-      console.log(`âš ï¸ [Layout] ${conflicts.length} conflicts detected`);
+      console.log(`⚠️ [Layout] ${conflicts.length} conflicts detected`);
     };
     window.addEventListener('dataConflictsDetected', handleConflict);
 
@@ -641,7 +634,7 @@ export default function Layout({ children, currentPageName }) {
     const handleOfflineDeliveriesDeleted = (event) => {
       const { deletedIds } = event.detail || {};
       if (deletedIds && deletedIds.length > 0) {
-        console.log(`ðŸ—‘ï¸ [Layout] Removing ${deletedIds.length} deleted deliveries from UI`);
+        console.log(`🗑️ [Layout] Removing ${deletedIds.length} deleted deliveries from UI`);
         setDeliveries((prevDeliveries) => prevDeliveries.filter((d) => !deletedIds.includes(d?.id)));
       }
     };
@@ -653,7 +646,7 @@ export default function Layout({ children, currentPageName }) {
       // CRITICAL: Only process if deliveries array is provided and non-empty
       // Skip if source is 'layout' to prevent infinite loops
       if (deliveries && deliveries.length > 0 && source !== 'layout') {
-        console.log(`ðŸ“¥ [Layout] Received ${deliveries.length} imported deliveries - syncing patients FIRST`);
+        console.log(`📥 [Layout] Received ${deliveries.length} imported deliveries - syncing patients FIRST`);
 
         // CRITICAL: Sync patient data FIRST before updating deliveries
         // This ensures all patient references are available when markers render
@@ -661,9 +654,9 @@ export default function Layout({ children, currentPageName }) {
           invalidate('Patient');
           const freshPatients = await getData('Patient', null, null, true);
           setPatients(freshPatients);
-          console.log(`âœ… [Layout] Patient data synced: ${freshPatients.length} patients`);
+          console.log(`✅ [Layout] Patient data synced: ${freshPatients.length} patients`);
         } catch (error) {
-          console.error('âŒ [Layout] Failed to sync patients after import:', error);
+          console.error('❌ [Layout] Failed to sync patients after import:', error);
         }
 
         // Now update deliveries
@@ -688,7 +681,7 @@ export default function Layout({ children, currentPageName }) {
     const handleDeliveriesUpdated = async (event) => {
       // CRITICAL: Ignore intermediate events while filter-change sync is running
       if (isUiLocked()) {
-        console.log('ðŸ”’ [Layout] deliveriesUpdated ignored â€” UI locked during filter-change sync');
+        console.log('🔒 [Layout] deliveriesUpdated ignored — UI locked during filter-change sync');
         return;
       }
       const { deliveryId, driverId, deliveryDate, triggeredBy, freshDeliveries, preserveLocalState, deletedIds, deletedId, fullReplacement } = event.detail || {};
@@ -700,7 +693,7 @@ export default function Layout({ children, currentPageName }) {
         if (freshDeliveries?.length > 0) setDeliveries((prev) => {const map = new Map(prev.filter((d) => !idsToRemove.has(d?.id)).map((d) => [d?.id, d]).filter(([id]) => !!id));freshDeliveries.forEach((d) => {if (d?.id && !idsToRemove.has(d.id)) map.set(d.id, d);});return Array.from(map.values());});
         return;
       }
-      console.log(`ðŸ”„ [Layout] Delivery updated event: ${deliveryId} (${triggeredBy}) - fullReplacement: ${fullReplacement}`);
+      console.log(`🔄 [Layout] Delivery updated event: ${deliveryId} (${triggeredBy}) - fullReplacement: ${fullReplacement}`);
       if (freshDeliveries?.length > 0) {
         // CRITICAL: When fullReplacement is true (route optimization), replace entire array to preserve stop_order
         if (fullReplacement) {
@@ -720,10 +713,10 @@ export default function Layout({ children, currentPageName }) {
     // CRITICAL: Update patients/stores/appUsers in UI immediately when pullToSync completes
     const handlePullToSyncDataReady = (event) => {
       if (isUiLocked()) {
-        console.log('ðŸ”’ [Layout] pullToSyncDataReady ignored â€” UI locked during filter-change sync');
+        console.log('🔒 [Layout] pullToSyncDataReady ignored — UI locked during filter-change sync');
         return;
       }
-      const { patients: freshPatients, stores: freshStores, appUsers: freshAppUsers, deliveries: freshDeliveries } = event.detail || {};
+      const { patients: freshPatients, stores: freshStores, appUsers: freshAppUsers } = event.detail || {};
       if (freshPatients && freshPatients.length > 0) {
         setPatients((prev) => mergePatients(prev, freshPatients));
       }
@@ -731,48 +724,12 @@ export default function Layout({ children, currentPageName }) {
       if (freshAppUsers && freshAppUsers.length > 0) {
         setAppUsers((prev) => { const m = new Map(prev.map((u) => [u.id, u])); freshAppUsers.forEach((u) => { if (u?.id) m.set(u.id, u); }); return Array.from(m.values()); });
       }
-      // Also apply fresh deliveries if provided (some sync paths include them)
-      if (Array.isArray(freshDeliveries) && freshDeliveries.length > 0) {
-        setDeliveries((prev) => {
-          const map = new Map((prev || []).filter(Boolean).map((d) => [d?.id, d]).filter(([id]) => !!id));
-          freshDeliveries.forEach((d) => { if (d?.id) map.set(d.id, d); });
-          return Array.from(map.values());
-        });
-      }
     };
     window.addEventListener('pullToSyncDataReady', handlePullToSyncDataReady);
 
-    // FIX 3: manualSyncSelected fires 'manualSyncPriorityDataReady' â€” wire it up so deliveries
-    // and patients from a manual Pull-to-Sync actually appear in the UI.
-    const handleManualSyncPriorityDataReady = (event) => {
-      if (isUiLocked()) {
-        console.log('ðŸ”’ [Layout] manualSyncPriorityDataReady ignored â€” UI locked during filter-change sync');
-        return;
-      }
-      const { deliveries: freshDeliveries, patients: freshPatients, stores: freshStores, appUsers: freshAppUsers } = event.detail || {};
-      if (Array.isArray(freshDeliveries) && freshDeliveries.length > 0) {
-        // Full replacement for the synced date so stop_order is preserved correctly
-        setDeliveries((prev) => {
-          const syncedDate = freshDeliveries[0]?.delivery_date;
-          const base = syncedDate ? (prev || []).filter((d) => d?.delivery_date !== syncedDate) : (prev || []);
-          const map = new Map(base.filter(Boolean).map((d) => [d?.id, d]).filter(([id]) => !!id));
-          freshDeliveries.forEach((d) => { if (d?.id) map.set(d.id, d); });
-          return Array.from(map.values());
-        });
-      }
-      if (Array.isArray(freshPatients) && freshPatients.length > 0) {
-        setPatients((prev) => mergePatients(prev, freshPatients));
-      }
-      if (Array.isArray(freshStores) && freshStores.length > 0) setStores(freshStores);
-      if (Array.isArray(freshAppUsers) && freshAppUsers.length > 0) {
-        setAppUsers((prev) => { const m = new Map(prev.map((u) => [u.id, u])); freshAppUsers.forEach((u) => { if (u?.id) m.set(u.id, u); }); return Array.from(m.values()); });
-      }
-    };
-    window.addEventListener('manualSyncPriorityDataReady', handleManualSyncPriorityDataReady);
-
     // AUTO-RECOVERY: Listen for force refresh after connection recovery
     const handleForceDataRefresh = async () => {
-      console.log('ðŸ”„ [Layout] Force data refresh after connection recovery - COMPREHENSIVE MODE');
+      console.log('🔄 [Layout] Force data refresh after connection recovery - COMPREHENSIVE MODE');
 
       // CRITICAL: Invalidate ALL data caches to ensure fresh fetch
       invalidate('Delivery');
@@ -788,9 +745,9 @@ export default function Layout({ children, currentPageName }) {
 
       // CRITICAL: Force immediate data reload with validation
       if (triggerFullDataLoadRef.current) {
-        console.log('ðŸ“¥ [Recovery] Starting full data reload...');
+        console.log('📥 [Recovery] Starting full data reload...');
         await triggerFullDataLoadRef.current(true);
-        console.log('âœ… [Recovery] Full data reload complete');
+        console.log('✅ [Recovery] Full data reload complete');
       }
 
       // Wait for data to settle
@@ -805,7 +762,7 @@ export default function Layout({ children, currentPageName }) {
       appUsers.length > 0;
 
       if (!hasValidData) {
-        console.warn('âš ï¸ [Recovery] Data incomplete after reload - retrying...');
+        console.warn('⚠️ [Recovery] Data incomplete after reload - retrying...');
         // Retry once
         await new Promise((resolve) => setTimeout(resolve, 2000));
         await triggerFullDataLoadRef.current(true);
@@ -815,7 +772,7 @@ export default function Layout({ children, currentPageName }) {
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
 
       // CRITICAL: Force refresh ALL UI elements including COD data
-      console.log('ðŸŽ¨ [Recovery] Refreshing all UI elements...');
+      console.log('🎨 [Recovery] Refreshing all UI elements...');
 
       // Refresh COD data
       base44.functions.invoke('squareSyncCatalogItems', {}).then((response) => {
@@ -835,7 +792,7 @@ export default function Layout({ children, currentPageName }) {
           detail: { appUsers: locationUpdates?.appUsers || appUsers }
         }));
 
-        console.log('âœ… [Recovery] UI refresh complete');
+        console.log('✅ [Recovery] UI refresh complete');
       }, 1500);
     };
     window.addEventListener('forceDataRefresh', handleForceDataRefresh);
@@ -846,7 +803,6 @@ export default function Layout({ children, currentPageName }) {
       clearTimeout(bgSyncTimer);
       clearInterval(mutationSyncInterval);
       unsubscribeMutations();
-      if (typeof unsubscribeSmartRefresh === 'function') unsubscribeSmartRefresh();
       realtimeSync.disconnect();
       window.removeEventListener('offlineSyncComplete', handleSyncComplete);
       window.removeEventListener('userRolesChanged', handleUserRolesChanged);
@@ -857,7 +813,6 @@ export default function Layout({ children, currentPageName }) {
       window.removeEventListener('dataConflictsDetected', handleConflict);
       window.removeEventListener('forceDataRefresh', handleForceDataRefresh);
       window.removeEventListener('pullToSyncDataReady', handlePullToSyncDataReady);
-      window.removeEventListener('manualSyncPriorityDataReady', handleManualSyncPriorityDataReady);
       window.removeEventListener('openMessaging', handleOpenMessaging);window.removeEventListener('openMessagingPanel', handleOpenMessagingPanel);
     };
   }, [currentUser, currentPageName]);
@@ -1009,7 +964,7 @@ export default function Layout({ children, currentPageName }) {
         const mod = await import('./components/utils/pageDataReloader');
         const filters = { selectedDate: globalFilters.getSelectedDate(), selectedCityId: globalFilters.getSelectedCityId(), selectedDriverId: globalFilters.getSelectedDriverId(), currentUser };
         await mod.pageDataReloader.reloadPageData(currentPageName, filters);
-      } catch (_) {/* non-critical â€” pages filter data locally */}
+      } catch (_) {/* non-critical — pages filter data locally */}
     };
 
     reloadPageData();
@@ -1102,7 +1057,7 @@ export default function Layout({ children, currentPageName }) {
     // COOLDOWN GUARD: skip automatic syncs within 5 minutes of last refresh.
     // forceRefresh=true (city change, pull-to-sync, connection recovery) always bypasses.
     if (!globalFilters.isRefreshNeeded(forceRefresh)) {
-      console.log('â³ [Layout] triggerFullDataLoad skipped â€” within 5-min cooldown');
+      console.log('⏳ [Layout] triggerFullDataLoad skipped — within 5-min cooldown');
       return;
     }
 
@@ -1128,7 +1083,7 @@ export default function Layout({ children, currentPageName }) {
       setCatalogItems(sqCatalog || []);
       setSquareTransactions(sqTx || []);
 
-      // Helper â€” applies a complete dataset to all state in one pass (single UI update)
+      // Helper — applies a complete dataset to all state in one pass (single UI update)
       const applyFullDataToState = ({ deliveries, patients, appUsers, stores, cities }) => {
         if (cities && cities.length > 0) setCities(cities.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)));
         if (stores && stores.length > 0) setStores(stores.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)));
@@ -1150,35 +1105,35 @@ export default function Layout({ children, currentPageName }) {
         setUsers(initialUsers);
         setDrivers(activeDrivers);
         if (appUsers && appUsers.length > 0) setAppUsers(appUsers);
-        // Single delivery UI update â€” after all other state is set
+        // Single delivery UI update — after all other state is set
         updateDeliveriesLocally(deliveries || [], true);
         setDataLoaded(true);
         setTotalCodsDue(calculateUserCodTotal(currentUser, sqCatalog || [], sqConfigs || [], stores, sqTx || []));
       };
 
-      // â”€â”€ 4-STEP UI-SAFE FILTER CHANGE SYNC â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-      // Step 1: Snapshot offline DB â†’ UI immediately (no "Unknown" flash)
+      // ── 4-STEP UI-SAFE FILTER CHANGE SYNC ───────────────────────────────────
+      // Step 1: Snapshot offline DB → UI immediately (no "Unknown" flash)
       // Step 2: Lock UI
       // Step 3: Sync patients + deliveries from server
       // Step 4: Unlock + push fresh data
       await syncOnFilterChange(
         selectedDateStr,
         selectedCityId,
-        // applySnapshot (Step 1 â€” immediate offline render)
+        // applySnapshot (Step 1 — immediate offline render)
         (snapshotData) => {
-          console.log(`ðŸ“¸ [Layout] Applying offline snapshot: ${snapshotData.deliveries?.length || 0} deliveries, ${snapshotData.patients?.length || 0} patients`);
+          console.log(`📸 [Layout] Applying offline snapshot: ${snapshotData.deliveries?.length || 0} deliveries, ${snapshotData.patients?.length || 0} patients`);
           applyFullDataToState(snapshotData);
         },
-        // applyFresh (Step 4 â€” after sync completes)
+        // applyFresh (Step 4 — after sync completes)
         (freshData) => {
-          console.log(`âœ… [Layout] Applying fresh sync data: ${freshData.deliveries?.length || 0} deliveries, ${freshData.patients?.length || 0} patients`);
+          console.log(`✅ [Layout] Applying fresh sync data: ${freshData.deliveries?.length || 0} deliveries, ${freshData.patients?.length || 0} patients`);
           applyFullDataToState(freshData);
           globalFilters.markRefreshComplete();
         }
       );
 
     } catch (error) {
-      console.warn('âš ï¸ [Layout] Full data reload failed - preserving current dashboard data:', error?.message || error);
+      console.warn('⚠️ [Layout] Full data reload failed - preserving current dashboard data:', error?.message || error);
       setDataLoaded(true);
     } finally {
       triggerFullDataLoad.isRunning = false;
@@ -1547,7 +1502,7 @@ export default function Layout({ children, currentPageName }) {
       <DeviceRegistration
         currentUser={currentUser}
         onDeviceRegistered={(device) => {
-          console.log('âœ… Device registered:', device);
+          console.log('✅ Device registered:', device);
           setDeviceRegistered(true);
           // Cache the registration to prevent re-prompting on refresh
           localStorage.setItem(`rxdeliver_device_registered_${device.device_identifier}`, 'true');
