@@ -385,19 +385,75 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null)
   if (getSyncInProgress() || getSyncPaused()) return { skipped: true };
   setSyncInProgress(true);
   notifySyncStatus({ status: 'force_syncing', entity: 'Starting...', progress: 0 });
+
+  // We need stores to filter deliveries by city — fetch stores first (lightweight)
+  let stores = [], cities = [], appUsers = [], companies = [];
+
   try {
-    notifySyncStatus({ status: 'syncing', entity: 'Stores, Cities & AppUsers', progress: 10 });
-    const [stores, cities, appUsersRaw] = await Promise.all([
-      Store.list(),
+    // ── PHASE 1 (PRIORITY): Deliveries + Patients for selected date/city ─────
+    // Fetch stores quickly so we can filter deliveries by city
+    notifySyncStatus({ status: 'syncing', entity: 'Stores', progress: 5 });
+    stores = await Store.list();
+    await offlineDB.replaceAllRecords(offlineDB.STORES.STORES, stores);
+    invalidateEntityCache('Store');
+
+    const cityStoreIds = (stores || []).filter((store) => !selectedCityId || store?.city_id === selectedCityId).map((store) => store.id);
+
+    // Fetch deliveries for selected date + city
+    notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 15 });
+    const deliveryFilter = { delivery_date: selectedDateStr };
+    if (cityStoreIds.length > 0) {
+      deliveryFilter.store_id = { $in: cityStoreIds };
+    }
+    const deliveries = await Delivery.filter(deliveryFilter, '-updated_date', 5000);
+
+    // Purge + replace deliveries for selected date/city in offline DB
+    const offlineDeliveriesForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+    const deliveryIdsToDelete = (offlineDeliveriesForDate || [])
+      .filter((delivery) => !selectedCityId || cityStoreIds.includes(delivery?.store_id))
+      .map((delivery) => delivery?.id)
+      .filter(Boolean);
+    await Promise.all(deliveryIdsToDelete.map((id) => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id)));
+    if (deliveries.length > 0) {
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+    }
+    invalidateEntityCache('Delivery');
+    notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 35, count: deliveries.length });
+
+    // Sync patients for these deliveries immediately
+    notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 40 });
+    const patientIds = Array.from(new Set((deliveries || []).filter(d => d && d.patient_id).map(d => d.patient_id)));
+    const { totalPatients, freshPatients = [] } = await syncPatientsByIds(patientIds);
+    if (freshPatients.length > 0) {
+      await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
+    }
+    invalidateEntityCache('Patient');
+    notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 60, count: freshPatients.length });
+
+    // ── PRIORITY UI UPDATE: Push deliveries + patients to UI immediately ─────
+    // This is the key change — callers get fresh data right away before secondary sync
+    const priorityResult = {
+      success: true,
+      priority: true,
+      deliveries,
+      patients: freshPatients,
+      appUsers: [],
+      cities: [],
+      stores,
+      companies: [],
+    };
+    window.dispatchEvent(new CustomEvent('manualSyncPriorityDataReady', { detail: priorityResult }));
+
+    // ── PHASE 2 (SECONDARY): AppUsers, Cities, Companies in background ───────
+    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+    notifySyncStatus({ status: 'syncing', entity: 'AppUsers & Cities', progress: 65 });
+
+    const [citiesResult, appUsersRaw] = await Promise.all([
       City.list(),
       fetchAppUsersDedup()
     ]);
-
-    await Promise.all([
-      offlineDB.replaceAllRecords(offlineDB.STORES.STORES, stores),
-      offlineDB.replaceAllRecords(offlineDB.STORES.CITIES, cities)
-    ]);
-    invalidateEntityCache('Store');
+    cities = citiesResult;
+    await offlineDB.replaceAllRecords(offlineDB.STORES.CITIES, cities);
     invalidateEntityCache('City');
 
     const appUsersByUserId = new Map();
@@ -416,65 +472,23 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null)
         }
       }
     });
-    const appUsers = Array.from(appUsersByUserId.values());
+    appUsers = Array.from(appUsersByUserId.values());
     await offlineDB.replaceAllRecords(offlineDB.STORES.APP_USERS, appUsers);
     invalidateEntityCache('AppUser');
+    notifySyncStatus({ status: 'syncing', entity: 'AppUsers & Cities', progress: 82, count: appUsers.length });
 
-    const cityStoreIds = (stores || []).filter((store) => !selectedCityId || store?.city_id === selectedCityId).map((store) => store.id);
-    notifySyncStatus({ status: 'syncing', entity: 'Stores, Cities & AppUsers', progress: 25, count: stores.length + cities.length + appUsers.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
-
-    notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 30 });
-    const deliveryFilter = { delivery_date: selectedDateStr };
-    if (cityStoreIds.length > 0) {
-      deliveryFilter.store_id = { $in: cityStoreIds };
-    }
-    // STEP 1: Fetch deliveries from server once
-    const deliveries = await Delivery.filter(deliveryFilter, '-updated_date', 5000);
-    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
-
-    // STEP 2: Sync patients FIRST using the delivery patient IDs we just fetched
-    notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 50 });
-    const patientIds = Array.from(new Set((deliveries || []).filter(d => d && d.patient_id).map(d => d.patient_id)));
-    const { totalPatients, freshPatients = [] } = await syncPatientsByIds(patientIds);
-    if (freshPatients.length > 0) {
-      await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, freshPatients);
-    }
-    invalidateEntityCache('Patient');
-    
-    // CRITICAL: Get total patient count from offline DB after merge
-    const allPatientsAfterSync = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
-    notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 65, count: allPatientsAfterSync.length });
-    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
-
-    // STEP 3: Save deliveries to offline DB (purge + replace for selected date/city only)
-    notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 70 });
-    const offlineDeliveriesForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-    const deliveryIdsToDelete = (offlineDeliveriesForDate || [])
-      .filter((delivery) => !selectedCityId || cityStoreIds.includes(delivery?.store_id))
-      .map((delivery) => delivery?.id)
-      .filter(Boolean);
-    await Promise.all(deliveryIdsToDelete.map((id) => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id)));
-    if (deliveries.length > 0) {
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
-    }
-    invalidateEntityCache('Delivery');
-    
-    // CRITICAL: Get actual offline DB delivery count after merge
-    const allDeliveriesAfterSync = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-    notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 80, count: allDeliveriesAfterSync.length });
-    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
-
-    notifySyncStatus({ status: 'syncing', entity: 'Companies', progress: 94 });
-    const companies = await Company.list();
+    notifySyncStatus({ status: 'syncing', entity: 'Companies', progress: 90 });
+    companies = await Company.list();
     await offlineDB.replaceAllRecords(offlineDB.STORES.COMPANIES, companies);
     invalidateEntityCache('Company');
 
-    // CRITICAL: Get actual offline DB counts (merged data)
-    const offlinePatientsForStatus = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
-    const offlineDeliveriesForStatus = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-    
+    // Update sync status records
     const syncTime = new Date().toISOString();
+    const [offlinePatientsForStatus, offlineDeliveriesForStatus] = await Promise.all([
+      offlineDB.getAll(offlineDB.STORES.PATIENTS),
+      offlineDB.getAll(offlineDB.STORES.DELIVERIES)
+    ]);
     await Promise.all([
       offlineDB.updateSyncStatus('Store', { recordCount: stores.length, status: 'synced', lastSync: syncTime, lastFullSync: syncTime }),
       offlineDB.updateSyncStatus('Delivery', { recordCount: offlineDeliveriesForStatus.length, status: 'synced', lastSync: syncTime }),

@@ -111,7 +111,36 @@ export default function PullToSync({
       }
 
       window.dispatchEvent(new CustomEvent('pullToSyncStarted', { detail: { suppressIncrementalUi: true } }));
+
+      // Listen for the priority data ready event from manualSyncSelected (deliveries + patients first)
+      // and push it to the UI immediately — before the full sync completes
+      const handlePriorityDataReady = (event) => {
+        const { deliveries: priDeliveries, patients: priPatients, stores: priStores } = event.detail || {};
+        if (!priDeliveries) return;
+        const safeDeliveries = (priDeliveries || []).filter(Boolean);
+        const safePatients = (priPatients || []).filter(Boolean);
+        window.dispatchEvent(new CustomEvent('pullToSyncDataReady', {
+          detail: {
+            deliveryDate: selectedDateStr,
+            deliveries: safeDeliveries,
+            patients: safePatients,
+            stores: priStores || [],
+            appUsers: [],
+            cities: [],
+            triggeredBy: 'pullToSyncPriorityReady',
+            batchedUiUpdate: true,
+            preserveLocalState: false,
+            syncRunId,
+            priority: true
+          }
+        }));
+      };
+      window.addEventListener('manualSyncPriorityDataReady', handlePriorityDataReady, { once: true });
+
       const syncResult = await manualSyncSelected(selectedDateStr, currentCityId);
+      // Remove priority listener in case it didn't fire (e.g. error path)
+      window.removeEventListener('manualSyncPriorityDataReady', handlePriorityDataReady);
+
       if (syncResult?.error) {
         throw new Error(syncResult.error);
       }
@@ -131,9 +160,7 @@ export default function PullToSync({
         ? freshAppUsers.filter((u) => u?.user_id && u.user_id !== 'undefined' && u?.user_name && u.user_name !== 'undefined')
         : [];
 
-      // Dispatch one final UI update with the full synced dataset.
-      // CRITICAL: preserveLocalState must be FALSE so that a server-authoritative empty result
-      // (e.g. all stops deleted on another device) clears the local UI instead of being ignored.
+      // Final full UI update with complete synced dataset (includes appUsers, cities from phase 2)
       window.dispatchEvent(new CustomEvent('pullToSyncDataReady', {
         detail: { 
           deliveryDate: selectedDateStr,

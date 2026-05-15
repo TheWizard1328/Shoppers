@@ -7,7 +7,8 @@ import { notifySyncStatus } from './offlineSyncStatus';
 import { userActivityMonitor } from './userActivityMonitor';
 import { isMobileDevice } from './deviceUtils';
 
-export const MOBILE_HISTORICAL_SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000;
+// All devices sync historical data every 2 hours throughout the day
+export const HISTORICAL_SYNC_INTERVAL_MS = 2 * 60 * 60 * 1000;
 
 export const createOfflineSyncHistoricalHelpers = ({
   HISTORICAL_PATIENT_STORE_BATCH_SIZE,
@@ -17,11 +18,11 @@ export const createOfflineSyncHistoricalHelpers = ({
   getHistoricalSyncMeta
 }) => {
   const shouldRunMobileHistoricalSync = async () => {
-    if (!isMobileDevice()) return false;
+    // Run on ALL devices (mobile + desktop) — not just mobile
     if (!userActivityMonitor.isBackgroundSyncIdle()) return false;
     const metadata = await getHistoricalSyncMeta();
     const lastCompletedAt = metadata?.last_completed_at ? new Date(metadata.last_completed_at).getTime() : 0;
-    return !lastCompletedAt || (Date.now() - lastCompletedAt) >= MOBILE_HISTORICAL_SYNC_INTERVAL_MS;
+    return !lastCompletedAt || (Date.now() - lastCompletedAt) >= HISTORICAL_SYNC_INTERVAL_MS;
   };
 
   const getHistoricalDeliveryIndex = async () => {
