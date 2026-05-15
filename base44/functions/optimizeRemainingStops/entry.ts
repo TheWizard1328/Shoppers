@@ -513,8 +513,15 @@ Deno.serve(async (req) => {
     const incompleteDeliveries = allDeliveries.filter(d => !FINISHED_STATUSES.includes(d.status));
     const activeRouteDeliveries = incompleteDeliveries.filter((delivery) => ACTIVE_STATUSES.includes(delivery.status));
     const pendingRouteDeliveries = incompleteDeliveries.filter((delivery) => delivery.status === 'pending');
-    // CRITICAL: Only optimize ACTIVE deliveries with HERE. Pending deliveries will be appended to the end after optimization.
-    const optimizableDeliveries = activeRouteDeliveries;
+
+    // CRITICAL: For historical routes with bypassHistoricalCheck (new route creation / Accept All on retro date),
+    // if there are no active stops treat all pending stops as optimizable — same as a future/new route.
+    // For normal today/future routes: only optimize ACTIVE deliveries; pending are appended after.
+    const isRetroNewRoute = bypassHistoricalCheck && isHistoricalRouteDate(deliveryDate) && activeRouteDeliveries.length === 0 && pendingRouteDeliveries.length > 0;
+    const optimizableDeliveries = isRetroNewRoute ? pendingRouteDeliveries : activeRouteDeliveries;
+    if (isRetroNewRoute) {
+      console.log(`🕰️ [optimizeRemainingStops] Retro new-route detected — promoting ${pendingRouteDeliveries.length} pending stops to optimizable (full HERE sequencing + ETA)`);
+    }
 
     if (optimizableDeliveries.length === 0 && pendingRouteDeliveries.length === 0) {
       return Response.json({
@@ -723,7 +730,8 @@ Deno.serve(async (req) => {
       .map((delivery) => stopsWithCoords.find((item) => item.delivery.id === delivery.id) || null)
       .filter(Boolean);
 
-    const pendingStops = pendingRouteDeliveries
+    // For retro new routes, pending stops are already in optimizationStops — don't append them again
+    const pendingStops = isRetroNewRoute ? [] : pendingRouteDeliveries
       .map((delivery) => stopsWithCoords.find((item) => item.delivery.id === delivery.id) || null)
       .filter(Boolean);
 
@@ -752,7 +760,8 @@ Deno.serve(async (req) => {
         return aVal - bVal;
       });
 
-    const pendingDeliveryIds = new Set(pendingRouteDeliveries.map(d => d.id));
+    // For retro new routes, pending stops were promoted to optimizableDeliveries — don't treat them as pending-to-append
+    const pendingDeliveryIds = new Set(isRetroNewRoute ? [] : pendingRouteDeliveries.map(d => d.id));
 
     // CRITICAL: Resolve the locked "isNextDelivery" stop — this is ALWAYS placed first in the route,
     // before HERE even sees the remaining stops. HERE only sequences stops[1..N].
