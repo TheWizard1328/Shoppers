@@ -1152,15 +1152,57 @@ Deno.serve(async (req) => {
 
     if (historicalRoute && routeStops.length > 0) {
       // Retro route ETA rules:
-      // - Stop 1: ETA = delivery_time_start (no finished stops on retro routes)
-      // - Stop N: ETA = Stop (N-1) ETA + Stop N's estimated_duration_minutes
-      const firstStop = routeStops[0];
-      const firstStopStartMinutes = parseTimeToMinutes(firstStop.delivery.delivery_time_start);
-      let cumulativeTime = Number.isFinite(firstStopStartMinutes) ? firstStopStartMinutes : etaBaseMinutes;
+      // - All stops (complete and incomplete) are in sequence via stop_order.
+      // - For each incomplete stop N:
+      //   - If stop N-1 is FINISHED: ETA = actual_delivery_time of stop N-1 + Stop N's estimated_duration_minutes
+      //   - If stop N-1 is INCOMPLETE (or stop N is the first incomplete stop with no finished stops):
+      //     ETA = Stop N-1 ETA + Stop N's estimated_duration_minutes
+      //   - Stop 1 (first incomplete stop, no prior finished stop): ETA = delivery_time_start
 
-      const firstStopEta = formatMinutesToTime(cumulativeTime);
-      stageEtaMap.set(firstStop.delivery.id, firstStopEta);
-      console.log(`  ✅ [optimizeRemainingStops] Retro Stop 1 ${firstStop.delivery.patient_name || 'Pickup'} - ETA: ${firstStopEta} (= delivery_time_start)`);
+      // Build a full ordered list: completed stops (by stop_order) + routeStops (incomplete)
+      const completedSorted = completedDeliveries
+        .slice()
+        .sort((a, b) => (Number(a.stop_order) || 99999) - (Number(b.stop_order) || 99999));
+
+      // Find the last finished stop immediately before the first incomplete stop
+      const lastFinished = completedSorted.length > 0 ? completedSorted[completedSorted.length - 1] : null;
+
+      // Parse actual_delivery_time (YYYY-MM-DDTHH:MM:SS) → minutes
+      const parseActualDeliveryTime = (actualTimeStr) => {
+        if (!actualTimeStr) return null;
+        const timePart = String(actualTimeStr).split('T')[1];
+        if (!timePart) return null;
+        return parseTimeToMinutes(timePart.substring(0, 5));
+      };
+
+      let cumulativeTime;
+      if (lastFinished) {
+        const lastFinishedActualMinutes = parseActualDeliveryTime(lastFinished.actual_delivery_time);
+        if (Number.isFinite(lastFinishedActualMinutes)) {
+          // Seed from last finished stop's actual delivery time + first incomplete stop's duration
+          const firstStop = routeStops[0];
+          const segmentPolyline0 = segmentPolylineByDeliveryId.get(firstStop.delivery.id) || null;
+          const dur0 = getLegTravelMinutes({ stop: firstStop, leg: directionsLegs[0], segmentPolyline: segmentPolyline0 });
+          cumulativeTime = lastFinishedActualMinutes + dur0;
+          const firstEta = formatMinutesToTime(cumulativeTime);
+          stageEtaMap.set(firstStop.delivery.id, firstEta);
+          console.log(`  ✅ [optimizeRemainingStops] Retro Stop 1 ${firstStop.delivery.patient_name || 'Pickup'} - ETA: ${firstEta} (last finished actual_delivery_time ${formatMinutesToTime(lastFinishedActualMinutes)} + ${dur0}min)`);
+        } else {
+          // Fallback: no actual_delivery_time on last finished stop
+          const firstStop = routeStops[0];
+          const firstStopStartMinutes = parseTimeToMinutes(firstStop.delivery.delivery_time_start);
+          cumulativeTime = Number.isFinite(firstStopStartMinutes) ? firstStopStartMinutes : etaBaseMinutes;
+          stageEtaMap.set(firstStop.delivery.id, formatMinutesToTime(cumulativeTime));
+          console.log(`  ✅ [optimizeRemainingStops] Retro Stop 1 ${firstStop.delivery.patient_name || 'Pickup'} - ETA: ${formatMinutesToTime(cumulativeTime)} (fallback: delivery_time_start)`);
+        }
+      } else {
+        // No finished stops — first stop ETA = delivery_time_start
+        const firstStop = routeStops[0];
+        const firstStopStartMinutes = parseTimeToMinutes(firstStop.delivery.delivery_time_start);
+        cumulativeTime = Number.isFinite(firstStopStartMinutes) ? firstStopStartMinutes : etaBaseMinutes;
+        stageEtaMap.set(firstStop.delivery.id, formatMinutesToTime(cumulativeTime));
+        console.log(`  ✅ [optimizeRemainingStops] Retro Stop 1 ${firstStop.delivery.patient_name || 'Pickup'} - ETA: ${formatMinutesToTime(cumulativeTime)} (= delivery_time_start)`);
+      }
 
       for (let i = 1; i < routeStops.length; i++) {
         const stop = routeStops[i];
@@ -1170,7 +1212,7 @@ Deno.serve(async (req) => {
 
         const eta = formatMinutesToTime(cumulativeTime);
         stageEtaMap.set(stop.delivery.id, eta);
-        console.log(`  ✅ [optimizeRemainingStops] Retro Stop ${i + 1} ${stop.delivery.patient_name || 'Pickup'} - ETA: ${eta} (prev ETA + ${durationMinutes}min)`);
+        console.log(`  ✅ [optimizeRemainingStops] Retro Stop ${i + 1} ${stop.delivery.patient_name || 'Pickup'} - ETA: ${eta} (prev + ${durationMinutes}min)`);
       }
     } else {
       // For active routes: first stop ETA = now + travel time; subsequent stops cascade
