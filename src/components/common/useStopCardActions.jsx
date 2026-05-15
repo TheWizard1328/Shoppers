@@ -250,12 +250,13 @@ export default function useStopCardActions(params) {
         base44.functions.invoke('syncSquareCods', { items: codBatch }).catch((e) => console.warn('⚠️ [Square] Batch COD sync failed to start:', e));
       }
 
-      // STEP 2: Dispatch manual route optimization event
+      // STEP 2: Dispatch manual route optimization event with polyline regeneration
       window.dispatchEvent(new CustomEvent('triggerManualRouteOptimization', {
         detail: {
           driverId: delivery.driver_id,
           deliveryDate: delivery.delivery_date,
-          source: 'accept_all'
+          source: 'accept_all',
+          shouldRegeneratePolylines: true
         }
       }));
 
@@ -612,6 +613,35 @@ export default function useStopCardActions(params) {
                ? refreshedImmediately.deliveries
                : null;
 
+           // Step 2b: Immediately recalculate ETAs for remaining stops before any UI update
+           if (Array.isArray(refreshedListImmediate) && refreshedListImmediate.length > 0) {
+             try {
+               const finishedStatuses = new Set(FINISHED_STATUSES);
+               const nonFinishedStops = refreshedListImmediate
+                 .filter((d) => d && !finishedStatuses.has(d.status) && d.status !== 'pending')
+                 .sort((a, b) => Number(a?.stop_order || 0) - Number(b?.stop_order || 0));
+
+               if (nonFinishedStops.length > 0) {
+                 const now = new Date();
+                 let baseTimeMinutes = now.getHours() * 60 + now.getMinutes();
+
+                 nonFinishedStops.forEach((stop, index) => {
+                   const duration = Number(stop.estimated_duration_minutes) || 5;
+                   baseTimeMinutes += duration + (index === 0 ? 5 : 0);
+
+                   const etaHours = Math.floor((baseTimeMinutes % 1440) / 60);
+                   const etaMins = baseTimeMinutes % 60;
+                   const newEta = `${String(etaHours).padStart(2, '0')}:${String(etaMins).padStart(2, '0')}`;
+
+                   // Mutate in-place so deliveriesUpdated event carries correct ETAs
+                   stop.delivery_time_eta = newEta;
+                 });
+               }
+             } catch (etaError) {
+               console.warn('⚠️ [Start] ETA recalc failed:', etaError?.message || etaError);
+             }
+           }
+
            if (Array.isArray(refreshedListImmediate) && refreshedListImmediate.length > 0) {
              await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', delivery.delivery_date, refreshedListImmediate);
 
@@ -634,13 +664,14 @@ export default function useStopCardActions(params) {
            window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers, triggeredBy: 'startOptimized' } }));
 
-           // Step 4: Trigger the manual FAB optimization — polylines update only on that explicit action
+           // Step 4: Trigger the manual FAB optimization with polyline regeneration
            window.dispatchEvent(new CustomEvent('triggerManualRouteOptimization', {
              detail: { 
                firstStopId: delivery.id, 
                driverId: delivery.driver_id, 
                deliveryDate: delivery.delivery_date,
-               source: 'start_action'
+               source: 'start_action',
+               shouldRegeneratePolylines: true
              }
            }));
 
