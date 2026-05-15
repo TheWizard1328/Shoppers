@@ -693,8 +693,19 @@ export default function useStopCardActions(params) {
                    const optimizedDelivery = optimizedList.find(d => d?.id === delivery.id);
 
                    if (optimizedDelivery && originalDelivery && optimizedDelivery.delivery_time_eta !== originalDelivery.delivery_time_eta) {
-                     // ETAs have changed — optimization complete, update offline DB and UI
-                     await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', delivery.delivery_date, optimizedList);
+                     // ETAs have changed — optimization complete
+                     console.log(`✅ [Start] Optimization complete — saving ${optimizedList.length} deliveries to offline DB...`);
+
+                     // CRITICAL: Save to offline DB FIRST and wait for completion
+                     try {
+                       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, optimizedList);
+                       console.log('✅ [Start] Offline DB updated with optimized ETAs');
+                     } catch (dbErr) {
+                       console.error('❌ [Start] Failed to save to offline DB:', dbErr?.message || dbErr);
+                       return; // Don't dispatch if offline save failed
+                     }
+
+                     // NOW dispatch UI update with fresh data from offline DB
                      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { 
                        detail: { 
                          triggeredBy: 'startOptimized_final', 
@@ -705,6 +716,7 @@ export default function useStopCardActions(params) {
                          preserveLocalState: true
                        } 
                      }));
+                     console.log('📢 [Start] UI update dispatched with optimized ETAs');
                      break;
                    }
                  }
@@ -713,7 +725,7 @@ export default function useStopCardActions(params) {
                  await new Promise(r => setTimeout(r, 500));
                }
              } catch (err) {
-               console.warn('⚠️ [Start] Secondary ETA refresh failed:', err?.message || err);
+               console.error('❌ [Start] Secondary ETA refresh failed:', err?.message || err);
              }
            });
 
