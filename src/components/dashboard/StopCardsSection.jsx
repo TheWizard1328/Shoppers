@@ -35,7 +35,8 @@ export default function StopCardsSection({
         minHeight: undefined,
         transform: immersiveHidden ? 'translateY(calc(100% + 1rem))' : 'translateY(0)',
         opacity: immersiveHidden ? 0 : 1,
-        pointerEvents: immersiveHidden ? 'none' : 'auto'
+        pointerEvents: immersiveHidden ? 'none' : 'auto',
+        visibility: immersiveHidden ? 'hidden' : 'visible'
       }}
       onClick={() => {if (retractClustersRef.current) retractClustersRef.current();}}>
 
