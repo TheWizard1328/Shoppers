@@ -9,7 +9,7 @@ export default function ImmersiveActionFAB({ icon: Icon, title, onClick, disable
       animate={{ scale: 1, opacity: 1 }}
       exit={{ scale: 0, opacity: 0 }}
       transition={{ type: 'spring', stiffness: 260, damping: 20 }}
-      className="z-[100]"
+      className="z-[700]"
       style={{ position: 'absolute', bottom, right, pointerEvents: 'auto' }}
     >
       <Button
