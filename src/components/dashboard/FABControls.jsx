@@ -261,7 +261,9 @@ export default function FABControls({
               const incompleteStops = deliveriesWithStopOrder.filter(d => d && !finishedStatuses.includes(d.status) && d.driver_id === targetDriverId);
               if (incompleteStops.length > 0) {
                 const allCoords = [];
-                if (driverLocation?.latitude && driverLocation?.longitude) allCoords.push([driverLocation.latitude, driverLocation.longitude]);
+                // Only include driverLocation if it belongs to the selected driver (not the admin's own GPS)
+                const targetDriverIsCurrentUser = targetDriverId === currentUser?.id || targetDriverId === currentUser?.user_id;
+                if (targetDriverIsCurrentUser && driverLocation?.latitude && driverLocation?.longitude) allCoords.push([driverLocation.latitude, driverLocation.longitude]);
                 incompleteStops.forEach(stop => {
                   if (stop.patient_id) { const p = patients.find(p => p && p.id === stop.patient_id); if (p?.latitude && p?.longitude) allCoords.push([p.latitude, p.longitude]); }
                   else if (stop.store_id) { const s = stores.find(s => s && s.id === stop.store_id); if (s?.latitude && s?.longitude) allCoords.push([s.latitude, s.longitude]); }
