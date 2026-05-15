@@ -20,6 +20,7 @@ export default function TravelModeControl({
   onToggleReturn,
   onOptimize,
   isSubmitting = false,
+  renderDialogOutside = false,
 }) {
   const currentMode = normalizeTravelMode(value) === 'cycling' ? 'cycling' : 'driving';
   const isCycling = currentMode === 'cycling';
@@ -38,6 +39,21 @@ export default function TravelModeControl({
 
   if (!currentUser) return null;
 
+  const dialog = (
+    <ModeSelectionDialog
+      open={dialogOpen}
+      onOpenChange={onDialogOpenChange}
+      modeLabel="Cycling"
+      nearbyStops={nearbyStops}
+      selectedStopIds={selectedStopIds}
+      onToggleStop={onToggleStop}
+      returnToCurrentLocation={returnToCurrentLocation}
+      onToggleReturn={onToggleReturn}
+      onOptimize={onOptimize}
+      isSubmitting={isSubmitting}
+    />
+  );
+
   return (
     <>
       <Button
@@ -53,18 +69,36 @@ export default function TravelModeControl({
         <span className="text-xs">{isCycling ? 'Cycling' : 'Driving'}</span>
       </Button>
 
-      <ModeSelectionDialog
-        open={dialogOpen}
-        onOpenChange={onDialogOpenChange}
-        modeLabel="Cycling"
-        nearbyStops={nearbyStops}
-        selectedStopIds={selectedStopIds}
-        onToggleStop={onToggleStop}
-        returnToCurrentLocation={returnToCurrentLocation}
-        onToggleReturn={onToggleReturn}
-        onOptimize={onOptimize}
-        isSubmitting={isSubmitting}
-      />
+      {/* When renderDialogOutside=true, the parent renders the dialog; only render inline here when false */}
+      {!renderDialogOutside && dialog}
     </>
+  );
+}
+
+// Export the dialog separately so parents can render it at the top level
+export function TravelModeDialog({
+  dialogOpen,
+  onDialogOpenChange,
+  nearbyStops = [],
+  selectedStopIds = [],
+  onToggleStop,
+  returnToCurrentLocation = false,
+  onToggleReturn,
+  onOptimize,
+  isSubmitting = false,
+}) {
+  return (
+    <ModeSelectionDialog
+      open={dialogOpen}
+      onOpenChange={onDialogOpenChange}
+      modeLabel="Cycling"
+      nearbyStops={nearbyStops}
+      selectedStopIds={selectedStopIds}
+      onToggleStop={onToggleStop}
+      returnToCurrentLocation={returnToCurrentLocation}
+      onToggleReturn={onToggleReturn}
+      onOptimize={onOptimize}
+      isSubmitting={isSubmitting}
+    />
   );
 }

@@ -5,8 +5,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Calendar as CalendarIcon, Clock, Truck, Plus, ChevronUp, ChevronDown, Settings, Binoculars, Map as MapIcon } from "lucide-react";
-import TravelModeControl from '@/components/dashboard/TravelModeControl';
-import { getNearbyModeStops, getCurrentDriverLocation, calculateDistanceKm } from '@/components/dashboard/modeButtonHelpers';
+import TravelModeControl, { TravelModeDialog } from '@/components/dashboard/TravelModeControl';
+import { getNearbyModeStops, getCurrentDriverLocation } from '@/components/dashboard/modeButtonHelpers';
 import { updatePreferredTravelMode } from '@/components/dashboard/travelModeHelpers';
 import { useEffect, useState } from "react";
 import { base44 } from "@/api/base44Client";
@@ -473,10 +473,11 @@ export default function StatsPanel({
                   selectedDriverId={selectedDriverId}
                   dialogOpen={travelModeDialogOpen}
                   onDialogOpenChange={(open) => { setTravelModeDialogOpen(open); if (open) setIsExpanded(false); }}
-                  nearbyStops={getNearbyModeStops({ deliveries: filteredDeliveries || [], patients: patients || [], stores, currentLocation: getCurrentDriverLocation({ currentUser, appUsers }), radiusKm: 5 })}
+                  nearbyStops={[]}
                   selectedStopIds={cyclingSelectedStopIds}
                   onToggleStop={(id) => setCyclingSelectedStopIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])}
                   onOptimize={() => setTravelModeDialogOpen(false)}
+                  renderDialogOutside={true}
                 />
                 }
 
@@ -532,6 +533,24 @@ export default function StatsPanel({
             </motion.div>}
           </AnimatePresence>
         </motion.div>
+
+        {/* TravelModeDialog rendered OUTSIDE AnimatePresence so it survives StatsCard collapse */}
+        {isDriver && !isAllDriversMode && travelModeDialogOpen && (
+          <TravelModeDialog
+            dialogOpen={travelModeDialogOpen}
+            onDialogOpenChange={(open) => setTravelModeDialogOpen(open)}
+            nearbyStops={getNearbyModeStops({
+              deliveries: filteredDeliveries || [],
+              patients: patients || [],
+              stores,
+              currentLocation: getCurrentDriverLocation({ currentUser, appUsers }),
+              radiusKm: 200,
+            })}
+            selectedStopIds={cyclingSelectedStopIds}
+            onToggleStop={(id) => setCyclingSelectedStopIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])}
+            onOptimize={() => setTravelModeDialogOpen(false)}
+          />
+        )}
 
         {!isAllDriversMode && !isAdmin && !isDispatcher ? null : legendData.length > 0 &&
         <div className="backdrop-blur-sm rounded-xl shadow-lg border h-auto overflow-visible w-full min-w-auto max-w-auto" style={{ background: 'var(--bg-white)', opacity: 0.95, borderColor: 'var(--border-slate-200)' }}
