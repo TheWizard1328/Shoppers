@@ -224,10 +224,38 @@ export default function useStopCardActions(params) {
       }
 
       const now = new Date();
-      const currentMinutes = now.getHours() * 60 + now.getMinutes();
-      const startMinutes = currentMinutes + 5;
-      const deliveryTimeStart = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
-      const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const isRetroDate = delivery.delivery_date !== localDeviceTodayStr;
+      let deliveryTimeStart;
+      let currentLocalTime;
+      
+      if (isRetroDate) {
+        // For retro dates: preserve first pickup's time, cascade from prior stop ETAs
+        const firstPending = scopedPendingDeliveries[0];
+        const isFirstStop = firstPending && firstPending.id === delivery.id;
+        
+        if (isFirstStop && firstPending.delivery_time_start) {
+          deliveryTimeStart = firstPending.delivery_time_start;
+        } else {
+          // Calculate sequentially from previous stop's ETA
+          const prevStop = scopedPendingDeliveries[scopedPendingDeliveries.findIndex(d => d.id === delivery.id) - 1];
+          if (prevStop && prevStop.delivery_time_eta) {
+            const [h, m] = prevStop.delivery_time_eta.split(':').map(Number);
+            let baseMinutes = h * 60 + m + 5; // Add 5 min buffer
+            const etaHours = Math.floor((baseMinutes % 1440) / 60);
+            const etaMins = baseMinutes % 60;
+            deliveryTimeStart = `${String(etaHours).padStart(2, '0')}:${String(etaMins).padStart(2, '0')}`;
+          } else {
+            deliveryTimeStart = firstPending?.delivery_time_start || '09:00';
+          }
+        }
+        currentLocalTime = deliveryTimeStart;
+      } else {
+        // For today: use current time + 5 min
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        const startMinutes = currentMinutes + 5;
+        deliveryTimeStart = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
+        currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      }
 
       fabControlEvents.notifyAcceptAllClicked();
 
@@ -635,16 +663,61 @@ export default function useStopCardActions(params) {
            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers, triggeredBy: 'startOptimized' } }));
 
            // Step 4: Trigger the manual FAB optimization — polylines update only on that explicit action
-            window.dispatchEvent(new CustomEvent('triggerManualRouteOptimization', {
-              detail: { 
-                firstStopId: delivery.id, 
-                driverId: delivery.driver_id, 
-                deliveryDate: delivery.delivery_date,
-                source: 'start_action'
-              }
-            }));
+             window.dispatchEvent(new CustomEvent('triggerManualRouteOptimization', {
+               detail: { 
+                 firstStopId: delivery.id, 
+                 driverId: delivery.driver_id, 
+                 deliveryDate: delivery.delivery_date,
+                 source: 'start_action'
+               }
+             }));
 
-          fabControlEvents.reactivatePhaseTwoIfAvailable();
+           // Step 5: After optimization completes, fetch fresh deliveries with optimized ETAs
+           Promise.resolve().then(async () => {
+             try {
+               await new Promise(r => setTimeout(r, 2000)); // Wait for optimization to start
+               let attempts = 0;
+               const maxAttempts = 15; // ~7.5 seconds max wait
+
+               while (attempts < maxAttempts) {
+                 const optimizedDeliveries = await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+                 const optimizedList = Array.isArray(optimizedDeliveries)
+                   ? optimizedDeliveries
+                   : Array.isArray(optimizedDeliveries?.deliveries)
+                     ? optimizedDeliveries.deliveries
+                     : null;
+
+                 if (Array.isArray(optimizedList) && optimizedList.length > 0) {
+                   // Check if ETAs have been updated (optimization complete)
+                   const originalDelivery = startedChangedDeliveries.find(d => d?.id === delivery.id);
+                   const optimizedDelivery = optimizedList.find(d => d?.id === delivery.id);
+
+                   if (optimizedDelivery && originalDelivery && optimizedDelivery.delivery_time_eta !== originalDelivery.delivery_time_eta) {
+                     // ETAs have changed — optimization complete, update offline DB and UI
+                     await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', delivery.delivery_date, optimizedList);
+                     window.dispatchEvent(new CustomEvent('deliveriesUpdated', { 
+                       detail: { 
+                         triggeredBy: 'startOptimized_final', 
+                         driverId: delivery.driver_id, 
+                         deliveryDate: delivery.delivery_date,
+                         freshDeliveries: optimizedList,
+                         alreadyOptimized: true,
+                         preserveLocalState: true
+                       } 
+                     }));
+                     break;
+                   }
+                 }
+
+                 attempts++;
+                 await new Promise(r => setTimeout(r, 500));
+               }
+             } catch (err) {
+               console.warn('⚠️ [Start] Secondary ETA refresh failed:', err?.message || err);
+             }
+           });
+
+           fabControlEvents.reactivatePhaseTwoIfAvailable();
 
           // Notify driver after optimization is complete
           await ensureDriverOnline().catch(() => {});
