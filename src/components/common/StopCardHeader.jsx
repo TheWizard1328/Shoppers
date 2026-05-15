@@ -78,7 +78,11 @@ export default function StopCardHeader({
     primeEtaTrendBus([delivery]);
     const handler = () => setEtaTrendVersion((value) => value + 1);
     window.addEventListener('etaTrendUpdated', handler);
-    return () => window.removeEventListener('etaTrendUpdated', handler);
+    window.addEventListener('deliveriesUpdated', handler);
+    return () => {
+      window.removeEventListener('etaTrendUpdated', handler);
+      window.removeEventListener('deliveriesUpdated', handler);
+    };
   }, [delivery]);
 
   const isFinished = FINISHED_STATUSES.includes(delivery?.status);
