@@ -157,6 +157,14 @@ const enqueue = async (level, args) => {
   }
 };
 
+export const remoteLogger = {
+  log: (...args) => enqueue('log', args),
+  info: (...args) => enqueue('info', args),
+  warn: (...args) => enqueue('warn', args),
+  error: (...args) => enqueue('error', args),
+  debug: (...args) => enqueue('debug', args)
+};
+
 export const initRemoteLogger = async () => {
   if (initialized || typeof window === 'undefined') return;
   initialized = true;

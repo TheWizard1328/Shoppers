@@ -22,6 +22,7 @@ import { runWithDeliveryActionLock } from '../utils/deliveryActionLock';
 import { pauseOfflineSync, resumeOfflineSync } from '../utils/offlineSync';
 import { getOrFetchHereApiKey } from '../utils/hereApiKeyStore';
 import { notifyDriverAcceptedAll, notifyDispatcherAssignedAll, notifyDriverStarted, notifyDriverCompleted, notifyDriverFailed, notifyDriverRetry, notifyDriverReturn } from "../utils/deliveryMessaging";
+import { remoteLogger } from '../utils/remoteLogger';
 
 const START_ACTION_NAME = 'start_delivery';
 
@@ -787,65 +788,73 @@ export default function useStopCardActions(params) {
         await setAndCenterNextDelivery({ driverDeliveries: routeDeliveries, targetDeliveryId: nextStop?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true, persistToBackend: true });
         
         // CRITICAL: ALWAYS recalculate ETAs for remaining stops when completing ANY stop (not just next delivery)
-        // Use local ETA recalculation with estimated_duration_minutes (no API call)
-        if (remainingEtaDeliveries.length > 0) {
-          try {
-            const completionTimeStr = completionUpdate.actual_delivery_time || forcedCompletionTimestamp;
-            const [completionHours, completionMinutes] = completionTimeStr.split(':').map(Number);
-            let baseTimeMinutes = completionHours * 60 + completionMinutes;
-            
-            const etaUpdates = [];
-            remainingEtaDeliveries.forEach((stop, index) => {
-              // Add estimated_duration_minutes for this stop plus 5 minute buffer
-              const duration = Number(stop.estimated_duration_minutes) || 5;
-              baseTimeMinutes += duration + (index === 0 ? 5 : 0); // Extra 5 min for next delivery
-              
-              const etaHours = Math.floor((baseTimeMinutes % 1440) / 60);
-              const etaMins = baseTimeMinutes % 60;
-              const newEta = `${String(etaHours).padStart(2, '0')}:${String(etaMins).padStart(2, '0')}`;
-              
-              etaUpdates.push({
-                id: stop.id,
-                delivery_time_eta: newEta
-              });
-            });
-            
-            if (etaUpdates.length > 0) {
-              // CRITICAL: Persist to backend FIRST, then offline DB, then broadcast - all with await
-              await Promise.all(etaUpdates.map((update) =>
-                base44.entities.Delivery.update(update.id, { delivery_time_eta: update.delivery_time_eta }).catch(() => null)
-              ));
-              
-              // Update offline DB
-              const { offlineDB } = await import('../utils/offlineDatabase');
-              await Promise.all(etaUpdates.map((update) =>
-                offlineDB.updateRecord(offlineDB.STORES.DELIVERIES, update.id, { delivery_time_eta: update.delivery_time_eta }).catch(() => null)
-              ));
-              
-              // Update local UI state
-              updateDeliveriesLocally?.(etaUpdates.map((update) => ({
-                ...remainingEtaDeliveries.find((d) => d.id === update.id),
-                delivery_time_eta: update.delivery_time_eta
-              })), false);
-              
-              // CRITICAL: Await broadcast to ensure cross-device propagation
-              const { broadcastMutation } = await import('../utils/realtimeSync');
-              await Promise.all(etaUpdates.map((item) => broadcastMutation('Delivery', 'update', item.id, { delivery_time_eta: item.delivery_time_eta })));
-              
-              // Force dispatch delivery update event to trigger UI refresh on all devices
-              window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                detail: {
-                  triggeredBy: 'eta_recalculation',
-                  driverId: delivery.driver_id,
-                  deliveryDate: delivery.delivery_date,
-                  freshDeliveries: etaUpdates.map((u) => ({ id: u.id, delivery_time_eta: u.delivery_time_eta }))
-                }
-              }));
-            }
-          } catch (error) {
-            console.warn('⚠️ [Complete] Local ETA recalculation failed:', error?.message || error);
-          }
-        }
+         // Use local ETA recalculation with estimated_duration_minutes (no API call)
+         if (remainingEtaDeliveries.length > 0) {
+           try {
+             const completionTimeStr = completionUpdate.actual_delivery_time || forcedCompletionTimestamp;
+             const [completionHours, completionMinutes] = completionTimeStr.split(':').map(Number);
+             let baseTimeMinutes = completionHours * 60 + completionMinutes;
+
+             remoteLogger.info(`[Complete ETA] Starting recalc: completionTime=${completionTimeStr}, remainingStops=${remainingEtaDeliveries.length}, baseTimeMinutes=${baseTimeMinutes}`);
+
+             const etaUpdates = [];
+             remainingEtaDeliveries.forEach((stop, index) => {
+               // Add estimated_duration_minutes for this stop plus 5 minute buffer
+               const duration = Number(stop.estimated_duration_minutes) || 5;
+               baseTimeMinutes += duration + (index === 0 ? 5 : 0); // Extra 5 min for next delivery
+
+               const etaHours = Math.floor((baseTimeMinutes % 1440) / 60);
+               const etaMins = baseTimeMinutes % 60;
+               const newEta = `${String(etaHours).padStart(2, '0')}:${String(etaMins).padStart(2, '0')}`;
+
+               remoteLogger.info(`[Complete ETA] Stop ${stop.id}: duration=${duration}min, newEta=${newEta}, baseTimeMinutes=${baseTimeMinutes}`);
+
+               etaUpdates.push({
+                 id: stop.id,
+                 delivery_time_eta: newEta
+               });
+             });
+
+             if (etaUpdates.length > 0) {
+               remoteLogger.info(`[Complete ETA] Persisting ${etaUpdates.length} ETA updates to backend and offline DB`);
+
+               // CRITICAL: Persist to backend FIRST, then offline DB, then broadcast - all with await
+               await Promise.all(etaUpdates.map((update) =>
+                 base44.entities.Delivery.update(update.id, { delivery_time_eta: update.delivery_time_eta }).catch(() => null)
+               ));
+
+               // Update offline DB
+               const { offlineDB } = await import('../utils/offlineDatabase');
+               await Promise.all(etaUpdates.map((update) =>
+                 offlineDB.updateRecord(offlineDB.STORES.DELIVERIES, update.id, { delivery_time_eta: update.delivery_time_eta }).catch(() => null)
+               ));
+
+               // Update local UI state
+               updateDeliveriesLocally?.(etaUpdates.map((update) => ({
+                 ...remainingEtaDeliveries.find((d) => d.id === update.id),
+                 delivery_time_eta: update.delivery_time_eta
+               })), false);
+
+               // CRITICAL: Await broadcast to ensure cross-device propagation
+               const { broadcastMutation } = await import('../utils/realtimeSync');
+               await Promise.all(etaUpdates.map((item) => broadcastMutation('Delivery', 'update', item.id, { delivery_time_eta: item.delivery_time_eta })));
+
+               remoteLogger.info(`[Complete ETA] Broadcast complete, dispatching deliveriesUpdated event`);
+
+               // Force dispatch delivery update event to trigger UI refresh on all devices
+               window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                 detail: {
+                   triggeredBy: 'eta_recalculation',
+                   driverId: delivery.driver_id,
+                   deliveryDate: delivery.delivery_date,
+                   freshDeliveries: etaUpdates.map((u) => ({ id: u.id, delivery_time_eta: u.delivery_time_eta }))
+                 }
+               }));
+             }
+           } catch (error) {
+             remoteLogger.warn(`[Complete ETA] Local ETA recalculation failed: ${error?.message || error}`);
+           }
+         }
         if (!nextStop) {
           fabControlEvents.notifyDoneButtonClicked();
           window.dispatchEvent(new CustomEvent('showRouteSummary', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
@@ -971,64 +980,72 @@ export default function useStopCardActions(params) {
         await setAndCenterNextDelivery({ driverDeliveries, targetDeliveryId: incompleteDeliveries[0]?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true, persistToBackend: true });
         
         // CRITICAL: ALWAYS recalculate ETAs for remaining stops when failing/cancelling ANY stop
-        if (remainingEtaDeliveries.length > 0) {
-          try {
-            const failureTimeStr = criticalUpdate.actual_delivery_time || forcedFailureTimestamp;
-            const [failureHours, failureMinutes] = failureTimeStr.split(':').map(Number);
-            let baseTimeMinutes = failureHours * 60 + failureMinutes;
-            
-            const etaUpdates = [];
-            remainingEtaDeliveries.forEach((stop, index) => {
-              // Add estimated_duration_minutes for this stop plus 5 minute buffer
-              const duration = Number(stop.estimated_duration_minutes) || 5;
-              baseTimeMinutes += duration + (index === 0 ? 5 : 0); // Extra 5 min for next delivery
-              
-              const etaHours = Math.floor((baseTimeMinutes % 1440) / 60);
-              const etaMins = baseTimeMinutes % 60;
-              const newEta = `${String(etaHours).padStart(2, '0')}:${String(etaMins).padStart(2, '0')}`;
-              
-              etaUpdates.push({
-                id: stop.id,
-                delivery_time_eta: newEta
-              });
-            });
-            
-            if (etaUpdates.length > 0) {
-              // CRITICAL: Persist to backend FIRST, then offline DB, then broadcast - all with await
-              await Promise.all(etaUpdates.map((update) =>
-                base44.entities.Delivery.update(update.id, { delivery_time_eta: update.delivery_time_eta }).catch(() => null)
-              ));
-              
-              // Update offline DB
-              const { offlineDB } = await import('../utils/offlineDatabase');
-              await Promise.all(etaUpdates.map((update) =>
-                offlineDB.updateRecord(offlineDB.STORES.DELIVERIES, update.id, { delivery_time_eta: update.delivery_time_eta }).catch(() => null)
-              ));
-              
-              // Update local UI state
-              updateDeliveriesLocally?.(etaUpdates.map((update) => ({
-                ...remainingEtaDeliveries.find((d) => d.id === update.id),
-                delivery_time_eta: update.delivery_time_eta
-              })), false);
-              
-              // CRITICAL: Await broadcast to ensure cross-device propagation
-              const { broadcastMutation } = await import('../utils/realtimeSync');
-              await Promise.all(etaUpdates.map((item) => broadcastMutation('Delivery', 'update', item.id, { delivery_time_eta: item.delivery_time_eta })));
-              
-              // Force dispatch delivery update event to trigger UI refresh on all devices
-              window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                detail: {
-                  triggeredBy: 'eta_recalculation',
-                  driverId: delivery.driver_id,
-                  deliveryDate: delivery.delivery_date,
-                  freshDeliveries: etaUpdates.map((u) => ({ id: u.id, delivery_time_eta: u.delivery_time_eta }))
-                }
-              }));
-            }
-          } catch (error) {
-            console.warn('⚠️ [Failure] Local ETA recalculation failed:', error?.message || error);
-          }
-        }
+         if (remainingEtaDeliveries.length > 0) {
+           try {
+             const failureTimeStr = criticalUpdate.actual_delivery_time || forcedFailureTimestamp;
+             const [failureHours, failureMinutes] = failureTimeStr.split(':').map(Number);
+             let baseTimeMinutes = failureHours * 60 + failureMinutes;
+
+             remoteLogger.info(`[Failure ETA] Starting recalc: failureTime=${failureTimeStr}, remainingStops=${remainingEtaDeliveries.length}, baseTimeMinutes=${baseTimeMinutes}`);
+
+             const etaUpdates = [];
+             remainingEtaDeliveries.forEach((stop, index) => {
+               // Add estimated_duration_minutes for this stop plus 5 minute buffer
+               const duration = Number(stop.estimated_duration_minutes) || 5;
+               baseTimeMinutes += duration + (index === 0 ? 5 : 0); // Extra 5 min for next delivery
+
+               const etaHours = Math.floor((baseTimeMinutes % 1440) / 60);
+               const etaMins = baseTimeMinutes % 60;
+               const newEta = `${String(etaHours).padStart(2, '0')}:${String(etaMins).padStart(2, '0')}`;
+
+               remoteLogger.info(`[Failure ETA] Stop ${stop.id}: duration=${duration}min, newEta=${newEta}, baseTimeMinutes=${baseTimeMinutes}`);
+
+               etaUpdates.push({
+                 id: stop.id,
+                 delivery_time_eta: newEta
+               });
+             });
+
+             if (etaUpdates.length > 0) {
+               remoteLogger.info(`[Failure ETA] Persisting ${etaUpdates.length} ETA updates to backend and offline DB`);
+
+               // CRITICAL: Persist to backend FIRST, then offline DB, then broadcast - all with await
+               await Promise.all(etaUpdates.map((update) =>
+                 base44.entities.Delivery.update(update.id, { delivery_time_eta: update.delivery_time_eta }).catch(() => null)
+               ));
+
+               // Update offline DB
+               const { offlineDB } = await import('../utils/offlineDatabase');
+               await Promise.all(etaUpdates.map((update) =>
+                 offlineDB.updateRecord(offlineDB.STORES.DELIVERIES, update.id, { delivery_time_eta: update.delivery_time_eta }).catch(() => null)
+               ));
+
+               // Update local UI state
+               updateDeliveriesLocally?.(etaUpdates.map((update) => ({
+                 ...remainingEtaDeliveries.find((d) => d.id === update.id),
+                 delivery_time_eta: update.delivery_time_eta
+               })), false);
+
+               // CRITICAL: Await broadcast to ensure cross-device propagation
+               const { broadcastMutation } = await import('../utils/realtimeSync');
+               await Promise.all(etaUpdates.map((item) => broadcastMutation('Delivery', 'update', item.id, { delivery_time_eta: item.delivery_time_eta })));
+
+               remoteLogger.info(`[Failure ETA] Broadcast complete, dispatching deliveriesUpdated event`);
+
+               // Force dispatch delivery update event to trigger UI refresh on all devices
+               window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                 detail: {
+                   triggeredBy: 'eta_recalculation',
+                   driverId: delivery.driver_id,
+                   deliveryDate: delivery.delivery_date,
+                   freshDeliveries: etaUpdates.map((u) => ({ id: u.id, delivery_time_eta: u.delivery_time_eta }))
+                 }
+               }));
+             }
+           } catch (error) {
+             remoteLogger.warn(`[Failure ETA] Local ETA recalculation failed: ${error?.message || error}`);
+           }
+         }
         Promise.resolve().then(() => params.scheduleCompletionSideEffects({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, nextDeliveryId: incompleteDeliveries[0]?.id || null, lastCompletedDeliveryId: delivery.id, setOffDuty: incompleteDeliveries.length === 0, appUserId: currentDriverAppUser?.id || null, skipRouteOptimization: true, skipNextLegPolylineRefresh: true }).catch(() => {}));
         onClick?.(null);
         queueConsolidateBreadcrumbs({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, stopOrder: delivery.stop_order, status });
