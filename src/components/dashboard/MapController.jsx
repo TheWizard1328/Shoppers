@@ -78,6 +78,7 @@ export default function MapController({
     zoomend: () => {
       const rawZoom = mapInstance.getZoom();
       const roundedZoom = Math.round(rawZoom * 10) / 10;
+      window.__currentMapZoom = roundedZoom;
       
       if (roundedZoom !== currentZoom) {
         setCurrentZoom(roundedZoom);
@@ -113,6 +114,7 @@ export default function MapController({
       if ((window._suppressAutoCenterUntil || 0) > Date.now()) { return; }
       const center = mapInstance.getCenter();
       const newCenter = [center.lat, center.lng];
+      window.__currentMapCenter = newCenter;
       
       setMapCenter(prev => {
         if (!prev || prev[0] !== newCenter[0] || prev[1] !== newCenter[1]) {

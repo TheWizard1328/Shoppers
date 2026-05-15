@@ -253,6 +253,9 @@ export default function FABControls({
               pauseOfflineMutations(); pauseOfflineSync();
               await new Promise(r => setTimeout(r, 100));
               if (mapViewPhase === 2 && isMapViewLocked) { if (mapLockTimeoutRef.current) { clearTimeout(mapLockTimeoutRef.current); mapLockTimeoutRef.current = null; } mapLockExpiresAtRef.current = null; setIsMapViewLocked(false); }
+              // Capture current map center+zoom so we can restore after optimization
+              const preOptCenter = window.__currentMapCenter ? [...window.__currentMapCenter] : null;
+              const preOptZoom = window.__currentMapZoom ?? null;
               const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
               const incompleteStops = deliveriesWithStopOrder.filter(d => d && !finishedStatuses.includes(d.status));
               if (incompleteStops.length > 0) {
@@ -297,7 +300,14 @@ export default function FABControls({
                   const refreshTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error('Refresh timeout')), 8000));
                   await Promise.race([refreshData(), refreshTimeout]).catch(() => {});
                   window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { driverId: targetDriverId, deliveryDate, triggeredBy: 'reoptimizeRoute', alreadyOptimized: true } }));
-                  setIsMapViewLocked(true); setMapViewTrigger(p => p + 1);
+                  // Restore the map to pre-optimization position instead of triggering a phase zoom
+                  if (preOptCenter && preOptZoom != null) {
+                    setShouldFitBounds(null);
+                    setMapCenter(preOptCenter);
+                    setMapZoom(preOptZoom);
+                  } else {
+                    setIsMapViewLocked(true); setMapViewTrigger(p => p + 1);
+                  }
                   setTimeout(() => { setOptimizationMessage(null); setIsMapViewLocked(false); }, 3000);
                 } else { setOptimizationMessage(data?.error || 'Optimization failed'); setTimeout(() => setOptimizationMessage(null), 5000); }
               } catch (e) { setOptimizationMessage(`Error: ${e.message}`); setTimeout(() => setOptimizationMessage(null), 5000); }
