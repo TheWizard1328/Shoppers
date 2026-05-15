@@ -258,16 +258,6 @@ export default function FABControls({
               const preOptZoom = window.__currentMapZoom ?? null;
               const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
               const incompleteStops = deliveriesWithStopOrder.filter(d => d && !finishedStatuses.includes(d.status));
-              if (incompleteStops.length > 0) {
-                const allCoords = [];
-                if (driverLocation?.latitude && driverLocation?.longitude) allCoords.push([driverLocation.latitude, driverLocation.longitude]);
-                if (currentUser?.home_latitude && currentUser?.home_longitude) allCoords.push([currentUser.home_latitude, currentUser.home_longitude]);
-                incompleteStops.forEach(stop => {
-                  if (stop.patient_id) { const p = patients.find(p => p && p.id === stop.patient_id); if (p?.latitude && p?.longitude) allCoords.push([p.latitude, p.longitude]); }
-                  else if (stop.store_id) { const s = stores.find(s => s && s.id === stop.store_id); if (s?.latitude && s?.longitude) allCoords.push([s.latitude, s.longitude]); }
-                });
-                if (allCoords.length > 0) { const pad = getMapPadding(); setShouldFitBounds({ bounds: allCoords, options: { ...pad, maxZoom: 16.5, animate: true } }); setMapCenter(null); setMapZoom(null); }
-              }
               try {
                 const deliveryDate = format(selectedDate, 'yyyy-MM-dd');
                 const now = new Date();
