@@ -1014,12 +1014,22 @@ Deno.serve(async (req) => {
             
 
             
-            deliveryUpdatesById.set(segment.delivery.id, {
+            const dirResult = groupedDirections[index] || {};
+            const updateEntry = {
               encoded_polyline: polyline,
               transport_mode: segment.transportMode,
-              estimated_distance_km: (groupedDirections[index] || {})?.estimated_distance_km ?? null,
-              estimated_duration_minutes: (groupedDirections[index] || {})?.estimated_duration_minutes ?? null
-            });
+            };
+            // CRITICAL: Only overwrite estimated_distance_km / estimated_duration_minutes when
+            // the HERE response actually returned a real value. Writing null here would wipe out
+            // the values that optimizeRemainingStops already persisted, causing the local ETA
+            // recalculation in handleCompleteAction to fall back to 5 min and produce wrong ETAs.
+            if (typeof dirResult.estimated_distance_km === 'number') {
+              updateEntry.estimated_distance_km = dirResult.estimated_distance_km;
+            }
+            if (typeof dirResult.estimated_duration_minutes === 'number') {
+              updateEntry.estimated_duration_minutes = dirResult.estimated_duration_minutes;
+            }
+            deliveryUpdatesById.set(segment.delivery.id, updateEntry);
           });
         }
         console.log(`[purgeAndRegeneratePolylines] Generated polylines for ${finishedSegmentSpecs.length} segments using ${groupedByMode.length} HERE call(s)`);
