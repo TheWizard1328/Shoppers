@@ -662,14 +662,14 @@ export default function useStopCardActions(params) {
           window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers, triggeredBy: 'startOptimized' } }));
 
           // Step 4: Trigger the manual FAB optimization — polylines update only on that explicit action
-          window.dispatchEvent(new CustomEvent('triggerRouteOptimization', {
-            detail: { 
-              firstStopId: delivery.id, 
-              driverId: delivery.driver_id, 
-              deliveryDate: delivery.delivery_date,
-              source: 'start_action'
-            }
-          }));
+           window.dispatchEvent(new CustomEvent('triggerManualRouteOptimization', {
+             detail: { 
+               firstStopId: delivery.id, 
+               driverId: delivery.driver_id, 
+               deliveryDate: delivery.delivery_date,
+               source: 'start_action'
+             }
+           }));
 
           fabControlEvents.reactivatePhaseTwoIfAvailable();
 
