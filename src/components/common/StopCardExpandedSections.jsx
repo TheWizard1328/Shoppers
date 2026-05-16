@@ -52,7 +52,7 @@ export function StopCardCodSection(props) {
 
   return (
     <>
-      <div className="flex items-center justify-between rounded-md px-2 py-1" style={{ background: '#e5e7eb', borderWidth: '1px', borderColor: '#d1d5db' }}>
+      <div className="flex items-center justify-between rounded-md px-2" style={{ background: '#e5e7eb', borderWidth: '1px', borderColor: '#d1d5db' }}>
         <span className="text-lg font-semibold" style={{ color: '#374151' }}>
           COD Required: ${codTotalRequired.toFixed(2)}
         </span>
@@ -75,7 +75,7 @@ export function StopCardCodSection(props) {
       </div>
 
       {codPayments.length > 0 &&
-      <div className="flex items-center justify-between rounded-md px-2 py-1" style={{ background: '#10b981', borderWidth: '1px', borderColor: '#059669' }}>
+      <div className="flex items-center justify-between rounded-md px-2" style={{ background: '#10b981', borderWidth: '1px', borderColor: '#059669' }}>
           <span className="text-lg font-semibold" style={{ color: '#ffffff' }}>
             COD Collected:{' '}
             {codPayments.map((payment, index) =>
@@ -225,11 +225,11 @@ export function StopCardPendingPickupsSection({ isFinishedDelivery, isPickup, de
           <HelpTooltip title={HELP_CONTENT.pendingPickups.title} content={HELP_CONTENT.pendingPickups.content} size="sm" />
         </h4>
          {canAccessAcceptButtons && !isAtStoreLocation &&
-         <Button size="sm" variant="default" className="inline-flex items-center gap-2 h-6 px-2 text-xs !text-white bg-emerald-600 hover:bg-emerald-700" disabled={isAcceptingAll} onClick={async (e) => {e.stopPropagation();await handleAcceptAllStops();}}>
+        <Button size="sm" variant="default" className="inline-flex items-center gap-2 h-6 px-2 text-xs !text-white bg-emerald-600 hover:bg-emerald-700" disabled={isAcceptingAll} onClick={async (e) => {e.stopPropagation();await handleAcceptAllStops();}}>
              {isAcceptingAll && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
              {acceptButtonText}
            </Button>
-         }
+        }
       </div>
 
       <div className="space-y-0.5 overflow-y-auto custom-scrollbar max-h-[150px]" onWheel={(e) => {

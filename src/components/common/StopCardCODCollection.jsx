@@ -97,7 +97,7 @@ export default function StopCardCODCollection({
           }
         }}
         onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between">
             <span className="text-sm md:text-xs font-semibold" style={{ color: 'var(--text-slate-700)' }}>Collect COD Payments</span>
             <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={async (e) => {
             if (codRefreshPauseRef.current) {
