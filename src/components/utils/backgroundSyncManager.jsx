@@ -235,18 +235,11 @@ class BackgroundSyncManager {
   async syncHistoricalDeliveries() {
     if (this.currentCycleAPICalls >= this.config.maxAPICallsPerCycle) return;
 
-    // Defer historical sync on initial load
-    if (this.config.deferHistoricalOnLoad && this.minutesSinceStart() < this.config.historicalDeferMinutes) {
-      console.log('⏭️ [BackgroundSync] Deferring historical deliveries sync during initial load window');
-      return;
-    }
-
-    // GATE: Only run historical delivery sync after 8 PM local time
-    const nowHour = new Date().getHours();
-    if (nowHour < 20) {
-      console.log('🌙 [BackgroundSync] Skipping historical deliveries sync (before 8 PM)');
-      return;
-    }
+    // CRITICAL: Disable background sync of deliveries during user sessions
+    // Background sync was overwriting user edits (e.g., changing selected dates back to today)
+    // Users can manually pull-to-sync or wait for smartRefreshManager on filter changes
+    console.log('⏭️ [BackgroundSync] Historical deliveries sync disabled to prevent overwrites of user edits');
+    return;
 
     // Build list of historical dates: yesterday back to Jan 1 of current year
     const today = new Date();
@@ -311,11 +304,10 @@ class BackgroundSyncManager {
   async syncPatients() {
     if (this.currentCycleAPICalls >= this.config.maxAPICallsPerCycle) return;
 
-    // GATE: Only run after 8 PM local time (strict limit)
-    if (new Date().getHours() < 20) {
-      console.log('🌙 [BackgroundSync] Skipping patient sync (before 8 PM)');
-      return;
-    }
+    // CRITICAL: Disable background sync of patients during user sessions
+    // Background sync was overwriting user selections and edits
+    console.log('⏭️ [BackgroundSync] Patient sync disabled to prevent overwrites of user edits');
+    return;
 
     try {
       const stores = await offlineDB.getAll(offlineDB.STORES.STORES);
