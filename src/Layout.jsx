@@ -1032,10 +1032,10 @@ export default function Layout({ children, currentPageName }) {
 
 
 
+
       // Silent fail
     }}; //const currentUser = currentUser;
-  const handleCitySelected = useCallback(async (cityId) => {try {
-        globalFilters.setSelectedCityId(cityId);
+  const handleCitySelected = useCallback(async (cityId) => {try {globalFilters.setSelectedCityId(cityId);
         const today = new Date();
         globalFilters.setSelectedDate(today);
 
@@ -1177,9 +1177,9 @@ export default function Layout({ children, currentPageName }) {
 
 
 
+
       // Admins see all
-    } else if (userHasRole(currentUser, 'dispatcher')) {const sIds = currentUser.store_ids || [];if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;const pIds = new Set(patients.filter((p) => p && relIds.includes(p.store_id)).map((p) => p.id));data = data.filter((d) => d && (d.patient_id ? pIds.has(d.patient_id) : relIds.includes(d.store_id)));
-    } else if (userHasRole(currentUser, 'driver')) {
+    } else if (userHasRole(currentUser, 'dispatcher')) {const sIds = currentUser.store_ids || [];if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;const pIds = new Set(patients.filter((p) => p && relIds.includes(p.store_id)).map((p) => p.id));data = data.filter((d) => d && (d.patient_id ? pIds.has(d.patient_id) : relIds.includes(d.store_id)));} else if (userHasRole(currentUser, 'driver')) {
       data = data.filter((d) => d && d.driver_id === currentUser.id);
       if (selectedStoreId && selectedStoreId !== 'all' && currentUser.store_id !== selectedStoreId) return [];
     }
@@ -1200,9 +1200,9 @@ export default function Layout({ children, currentPageName }) {
 
 
 
+
       // Admins see all
-    } else if (userHasRole(currentUser, 'dispatcher')) {const sIds = currentUser.store_ids || [];if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;data = data.filter((p) => p && relIds.includes(p.store_id));}
-    return data;
+    } else if (userHasRole(currentUser, 'dispatcher')) {const sIds = currentUser.store_ids || [];if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;data = data.filter((p) => p && relIds.includes(p.store_id));}return data;
   }, [patients, currentUser, selectedStoreId]);
 
   // Route count - for dispatchers: unique dates with at least 1 delivery for their stores (YTD)
@@ -1771,7 +1771,7 @@ export default function Layout({ children, currentPageName }) {
                           </Link>
                   }
 
-                          <div className="border-t mb-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
+                          <div className="border-t mb-2 py-0.5" style={{ borderColor: 'var(--border-slate-200)' }}></div>
 
                     {/* Square COD - Admins and Drivers only */}
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
