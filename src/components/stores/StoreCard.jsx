@@ -478,10 +478,10 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                           onClick={(e) => {if (isLimitedView) return;e.stopPropagation();openSlotEditor('weekday_am');}}>
 
                           <div className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>Weekdays</div>
-                          {store.weekday_am_enabled !== false && (store.weekday_am_driver_id || store.driver_weekday_am) ?
+                          {store.weekday_am_enabled !== false && (store.weekday_am_driver_id || store.weekday_am_driver) ?
                           <>
                               <div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
-                                {getDriverName(store.weekday_am_driver_id, store.driver_weekday_am)}
+                                {getDriverName(store.weekday_am_driver_id, store.weekday_am_driver)}
                               </div>
                               {store.weekday_am_start && store.weekday_am_end &&
                             <div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
@@ -528,10 +528,10 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                           onClick={(e) => {if (isLimitedView) return;e.stopPropagation();openSlotEditor('sunday_am');}}>
 
                           <div className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>Sundays</div>
-                          {store.sunday_am_enabled !== false && (store.sunday_am_driver_id || store.driver_sunday_am) ?
+                          {store.sunday_am_enabled !== false && (store.sunday_am_driver_id || store.sunday_am_driver) ?
                           <>
                               <div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
-                                {getDriverName(store.sunday_am_driver_id, store.driver_sunday_am)}
+                                {getDriverName(store.sunday_am_driver_id, store.sunday_am_driver)}
                               </div>
                               {store.sunday_am_start && store.sunday_am_end &&
                             <div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
@@ -561,10 +561,10 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                           onClick={(e) => {if (isLimitedView) return;e.stopPropagation();openSlotEditor('weekday_pm');}}>
 
                           <div className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>Weekdays</div>
-                          {store.weekday_pm_enabled !== false && (store.weekday_pm_driver_id || store.driver_weekday_pm) ?
+                          {store.weekday_pm_enabled !== false && (store.weekday_pm_driver_id || store.weekday_pm_driver) ?
                           <>
                               <div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
-                                {getDriverName(store.weekday_pm_driver_id, store.driver_weekday_pm)}
+                                {getDriverName(store.weekday_pm_driver_id, store.weekday_pm_driver)}
                               </div>
                               {store.weekday_pm_start && store.weekday_pm_end &&
                             <div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
@@ -611,10 +611,10 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                           onClick={(e) => {if (isLimitedView) return;e.stopPropagation();openSlotEditor('sunday_pm');}}>
 
                           <div className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>Sundays</div>
-                          {store.sunday_pm_enabled !== false && (store.sunday_pm_driver_id || store.driver_sunday_pm) ?
+                          {store.sunday_pm_enabled !== false && (store.sunday_pm_driver_id || store.sunday_pm_driver) ?
                           <>
                               <div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
-                                {getDriverName(store.sunday_pm_driver_id, store.driver_sunday_pm)}
+                                {getDriverName(store.sunday_pm_driver_id, store.sunday_pm_driver)}
                               </div>
                               {store.sunday_pm_start && store.sunday_pm_end &&
                             <div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
