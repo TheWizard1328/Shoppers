@@ -178,27 +178,11 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                     </Badge>
                   }
                 </div>
-                {store.latitude && store.longitude ?
-                <a
-                  href={`https://maps.google.com/?q=${store.latitude},${store.longitude}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className="underline decoration-dotted text-md"
-                  style={{ color: 'var(--text-slate-600)' }}>
-                    {store.address}
-                  </a> :
-
                 <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>{store.address}</p>
-                }
                 {store.phone &&
-                <a
-                  href={`tel:${store.phone.replace(/\D/g, '')}`}
-                  onClick={(e) => e.stopPropagation()}
-                  className="mt-1 underline decoration-dotted block text-md"
-                  style={{ color: 'var(--text-slate-500)' }}>
+                <p className="text-sm mt-1" style={{ color: 'var(--text-slate-500)' }}>
                     {formatPhoneNumber(store.phone)}
-                  </a>
+                  </p>
                 }
                 </div>
                 {!hideEditDelete && <div className="space-y-2">
