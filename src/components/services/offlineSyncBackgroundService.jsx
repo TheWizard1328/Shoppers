@@ -45,6 +45,7 @@ export const createOfflineSyncBackgroundService = ({
     try {
       await new Promise((r) => setTimeout(r, BATCH_COOLDOWN));
 
+      // PRIORITY: Always sync the current/selected date regardless of time of day
       const selectedDateFilter = { delivery_date: selectedDateStr, ...(storeIds && storeIds.length > 0 ? { store_id: { $in: storeIds } } : {}) };
       const selectedDateDeliveries = await Delivery.filter(selectedDateFilter, '-updated_date', 5000);
       // CRITICAL: Always replace the offline DB for this date scope, even when server returns 0 records.
@@ -53,7 +54,6 @@ export const createOfflineSyncBackgroundService = ({
       invalidateEntityCache('Delivery');
 
       // CRITICAL: Sync patients for selected date BEFORE marking deliveries as complete
-      // This ensures patient data is fresh before deliveries are read from the offline DB
       if (selectedDateDeliveries && selectedDateDeliveries.length > 0) {
         const selectedDatePatientIds = Array.from(new Set(selectedDateDeliveries.filter((delivery) => delivery?.patient_id).map((delivery) => delivery.patient_id)));
         if (selectedDatePatientIds.length > 0) {
@@ -62,40 +62,33 @@ export const createOfflineSyncBackgroundService = ({
         }
       }
 
-      const historicalMeta = await getHistoricalSyncMeta();
-      const deliveryPhaseComplete = Number(historicalMeta?.delivery_cycle_index || 1) === 1 && historicalMeta?.delivery_last_synced_date === format(subDays(new Date(), DELIVERY_DATE_RANGE_DAYS), 'yyyy-MM-dd');
+      // GATE: Historical sync (deliveries prior to selected date + patient store sync)
+      // Only runs after 8 PM local device time to avoid rate limits during peak hours
+      const currentHour = new Date().getHours();
+      if (currentHour < 20) {
+        notifySyncStatus({ status: 'complete', skippedHistorical: true, reason: 'before_8pm' });
+        return { success: true, skippedHistorical: true, reason: 'before_8pm' };
+      }
 
-      if (!deliveryPhaseComplete) {
-        const deliveryDateToSync = await getNextDeliveryDateToSync();
-        if (!deliveryDateToSync || deliveryDateToSync === selectedDateStr) {
-          notifySyncStatus({ status: 'complete', skippedHistorical: true });
-          // CRITICAL: Do NOT fire offlineSyncComplete for historical background phases —
-          // Layout's handler calls invalidate+getData which overwrites the user's active UI state.
-          return { success: true, skippedHistorical: true };
-        }
+      // Get the next historical date that needs syncing (count-based, backwards from yesterday)
+      // Returns { dateStr, onlineDeliveries } or null if everything is synced
+      const nextToSync = await getNextDeliveryDateToSync(storeIds);
 
-        const deliveryFilter = { delivery_date: deliveryDateToSync };
-        if (storeIds && storeIds.length > 0) {
-          deliveryFilter.store_id = { $in: storeIds };
-        }
+      if (nextToSync) {
+        const { dateStr: deliveryDateToSync, onlineDeliveries } = nextToSync;
 
-        const deliveries = await Delivery.filter(deliveryFilter, '-updated_date', 500);
+        // We already have the online deliveries from the count-check — reuse them
         // CRITICAL: Always replace local records for this historical date — empty = 0 stops on server
-        await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', deliveryDateToSync, deliveries || []);
+        await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', deliveryDateToSync, onlineDeliveries || []);
         invalidateEntityCache('Delivery');
 
-        await offlineDB.updateSyncMetadata('Delivery', null, new Date().toISOString());
-        const nextMeta = await getHistoricalSyncMeta();
-        const completedDeliveries = nextMeta?.delivery_cycle_index > DELIVERY_DATE_RANGE_DAYS;
-        if (completedDeliveries) {
-          await updateHistoricalSyncMeta({ patient_phase_complete: false, patient_store_index: 0 });
-        }
-
-        notifySyncStatus({ status: 'complete', phase: 'deliveries', date: deliveryDateToSync });
+        notifySyncStatus({ status: 'complete', phase: 'deliveries', date: deliveryDateToSync, count: (onlineDeliveries || []).length });
         // CRITICAL: Do NOT fire offlineSyncComplete for historical background phases —
         // Layout's handler calls invalidate+getData which overwrites the user's active UI state.
         return { success: true, phase: 'deliveries', date: deliveryDateToSync };
       }
+
+      // All historical delivery dates are synced — proceed to patient phase
 
       const patientSyncResult = await syncHistoricalPatientsByStore(storeIds);
       if (patientSyncResult?.completed) {

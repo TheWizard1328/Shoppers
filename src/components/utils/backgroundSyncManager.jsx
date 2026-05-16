@@ -38,17 +38,17 @@ class BackgroundSyncManager {
       historicalDaysToSync: 90, // Sync past 90 days
       batchSize: 50, // Number of records per batch
       maxAPICallsPerCycle: 2, // Very small limit to avoid 429s
-      // New: control historical sync behavior
-      deferHistoricalOnLoad: true, // Do NOT run historical sync immediately on app load
-      historicalDeferMinutes: 15,   // Wait 15 minutes after load before allowing historical sync
+      // Historical sync: after 8 PM only, incremental count-based
+      deferHistoricalOnLoad: true,
+      historicalDeferMinutes: 15,
       offPeakWindows: [
-        // 24h HH:mm local time windows considered low traffic
-        { start: '21:00', end: '06:00' }
+        // After 8 PM until 6 AM local time
+        { start: '20:00', end: '06:00' }
       ],
-      historicalMaxDatesPerCycleDaytime: 1,  // If allowed in daytime (rare), use tiny chunks
-      historicalMaxDatesPerCycleOffpeak: 5,  // Larger chunks in off-peak
-      throttleBetweenCallsMsDaytime: 1500,
-      throttleBetweenCallsMsOffpeak: 300,
+      historicalMaxDatesPerCycleDaytime: 0,   // Never run during daytime
+      historicalMaxDatesPerCycleOffpeak: 3,   // 3 dates per cycle off-peak (conservative)
+      throttleBetweenCallsMsDaytime: 5000,
+      throttleBetweenCallsMsOffpeak: 500,
       priorities: {
         deliveries: 1, // Highest priority
         patients: 2,
@@ -241,54 +241,55 @@ class BackgroundSyncManager {
       return;
     }
 
-    // Only run historical sync during off-peak windows
-    if (!this.isOffPeakNow()) {
-      console.log('🌙 [BackgroundSync] Skipping historical deliveries sync (outside off-peak window)');
+    // GATE: Only run historical delivery sync after 8 PM local time
+    const nowHour = new Date().getHours();
+    if (nowHour < 20) {
+      console.log('🌙 [BackgroundSync] Skipping historical deliveries sync (before 8 PM)');
       return;
     }
 
-    // Get dates that need syncing (check last sync time per date)
-    const datesToSync = [];
-    for (let i = 1; i <= this.config.historicalDaysToSync; i++) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      const dateStr = format(date, 'yyyy-MM-dd');
-      
-      // Check if we have data for this date in offline DB
-      const existingData = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
-      
-      // Sync if no data or data is older than 1 hour
-      if (!existingData || existingData.length === 0) {
-        datesToSync.push(dateStr);
-      }
+    // Build list of historical dates: yesterday back to Jan 1 of current year
+    const today = new Date();
+    const jan1 = new Date(today.getFullYear(), 0, 1);
+    const allDates = [];
+    let cursor = new Date(today);
+    cursor.setDate(cursor.getDate() - 1); // start from yesterday
+    while (cursor >= jan1) {
+      allDates.push(format(cursor, 'yyyy-MM-dd'));
+      cursor.setDate(cursor.getDate() - 1);
     }
 
-    if (datesToSync.length === 0) {
-      console.log('✅ [BackgroundSync] Historical deliveries up to date');
-      return;
-    }
+    // Find next date that needs syncing using count-based validation
+    let syncedCount = 0;
+    const maxDatesPerCycle = this.config.historicalMaxDatesPerCycleOffpeak || 3;
 
-    // Sync oldest dates first, but limit to available API calls
-    const maxDates = this.isOffPeakNow()
-      ? (this.config.historicalMaxDatesPerCycleOffpeak || 5)
-      : (this.config.historicalMaxDatesPerCycleDaytime || 1);
-    const datesToSyncNow = datesToSync.slice(0, Math.min(maxDates, this.config.maxAPICallsPerCycle - this.currentCycleAPICalls));
-    
-    console.log(`🔄 [BackgroundSync] Syncing ${datesToSyncNow.length} historical dates`);
-
-    for (const dateStr of datesToSyncNow) {
+    for (const dateStr of allDates) {
       if (this.isPaused || !this.isRunning) break;
+      if (syncedCount >= maxDatesPerCycle) break;
+      if (this.currentCycleAPICalls >= this.config.maxAPICallsPerCycle) break;
 
       try {
-        const deliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr });
-        if (deliveries && deliveries.length > 0) {
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
-          console.log(`✅ [BackgroundSync] Synced ${deliveries.length} deliveries for ${dateStr}`);
-        }
+        // Count offline records for this date
+        const offlineRecords = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
+        const offlineCount = (offlineRecords || []).length;
+
+        // Fetch online records (also reused for save if counts differ)
+        const onlineDeliveries = await base44.entities.Delivery.filter({ delivery_date: dateStr }, '-updated_date', 5000);
+        const onlineCount = (onlineDeliveries || []).length;
         this.currentCycleAPICalls++;
+
+        // Skip if counts match and we have data — already synced
+        if (onlineCount === offlineCount && offlineCount > 0) {
+          console.log(`✅ [BackgroundSync] ${dateStr} already synced (${offlineCount} records) — skipping`);
+          continue;
+        }
+
+        // Counts differ — save the online data to offline DB
+        await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', dateStr, onlineDeliveries || []);
+        console.log(`🔄 [BackgroundSync] Synced ${onlineCount} deliveries for ${dateStr} (was ${offlineCount})`);
+        syncedCount++;
         this.lastSyncTimes.deliveries = new Date().toISOString();
       } catch (error) {
-        // Silently fail on rate limits
         if (error.response?.status === 429 || error.message?.includes('429')) {
           console.log('⏰ [BackgroundSync] Rate limited - stopping delivery sync');
           break;
@@ -296,24 +297,66 @@ class BackgroundSyncManager {
         console.warn(`⚠️ [BackgroundSync] Failed to sync deliveries for ${dateStr}:`, error.message);
       }
 
-      // Small delay between dates to avoid rate limits
-      const throttle = this.isOffPeakNow()
-        ? (this.config.throttleBetweenCallsMsOffpeak || 300)
-        : (this.config.throttleBetweenCallsMsDaytime || 1500);
-      await new Promise(resolve => setTimeout(resolve, throttle));
+      // Throttle between dates to avoid rate limits
+      await new Promise(resolve => setTimeout(resolve, this.config.throttleBetweenCallsMsOffpeak || 500));
     }
 
-    this.notifySubscribers({ type: 'deliveries_synced', count: datesToSyncNow.length });
+    this.notifySubscribers({ type: 'deliveries_synced', count: syncedCount });
   }
 
   /**
-   * Sync patient data incrementally
+   * Sync patient data incrementally — one store per cycle, after 8 PM only.
+   * Compares offline count to online count per store; skips if they match.
    */
   async syncPatients() {
     if (this.currentCycleAPICalls >= this.config.maxAPICallsPerCycle) return;
 
-    console.log('⏭️ [BackgroundSync] Patient API sync disabled to avoid 429s');
-    return;
+    // GATE: Only run after 8 PM local time
+    if (new Date().getHours() < 20) {
+      console.log('🌙 [BackgroundSync] Skipping patient sync (before 8 PM)');
+      return;
+    }
+
+    try {
+      const stores = await offlineDB.getAll(offlineDB.STORES.STORES);
+      if (!stores || stores.length === 0) return;
+
+      // Resume from last store index saved in localStorage
+      const resumeKey = 'rxdeliver_patient_sync_store_index';
+      let storeIndex = parseInt(localStorage.getItem(resumeKey) || '0', 10);
+      if (storeIndex >= stores.length) storeIndex = 0;
+
+      const store = stores[storeIndex];
+      if (!store?.id) return;
+
+      // Count offline patients for this store
+      const allOfflinePatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+      const offlineCount = (allOfflinePatients || []).filter(p => p?.store_id === store.id).length;
+
+      // Count online patients for this store
+      const onlinePatients = await base44.entities.Patient.filter({ store_id: store.id, status: 'active' });
+      const onlineCount = (onlinePatients || []).length;
+      this.currentCycleAPICalls++;
+
+      if (onlineCount === offlineCount && offlineCount > 0) {
+        console.log(`✅ [BackgroundSync] Patients for store ${store.name} already synced (${offlineCount}) — skipping`);
+      } else {
+        await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, onlinePatients || []);
+        console.log(`🔄 [BackgroundSync] Synced ${onlineCount} patients for store ${store.name} (was ${offlineCount})`);
+        this.lastSyncTimes.patients = new Date().toISOString();
+      }
+
+      // Advance to next store for next cycle
+      const nextIndex = (storeIndex + 1) >= stores.length ? 0 : storeIndex + 1;
+      localStorage.setItem(resumeKey, String(nextIndex));
+      this.notifySubscribers({ type: 'patients_synced', storeId: store.id, count: onlineCount });
+    } catch (error) {
+      if (error.response?.status === 429 || error.message?.includes('429')) {
+        console.log('⏰ [BackgroundSync] Rate limited - stopping patient sync');
+        return;
+      }
+      console.warn('⚠️ [BackgroundSync] Patient sync failed:', error.message);
+    }
   }
 
   /**
