@@ -137,10 +137,25 @@ export default function ResetPolylinesButton({
             //   )
             // );
 
+            // Fetch driver's home coords to force home as the absolute route origin
+            let homePosition = null;
+            try {
+              const driverAppUsers = await base44.entities.AppUser.filter({ user_id: driverId }, '-updated_date', 1);
+              const driverAppUser = driverAppUsers?.[0];
+              const homeLat = Number(driverAppUser?.home_latitude);
+              const homeLon = Number(driverAppUser?.home_longitude);
+              if (Number.isFinite(homeLat) && Number.isFinite(homeLon) && homeLat !== 0 && homeLon !== 0) {
+                homePosition = { lat: homeLat, lon: homeLon };
+              }
+            } catch (err) {
+              console.warn(`[ResetPolylinesButton] Could not fetch driver home coords for ${driverId}:`, err);
+            }
+
             const response = await base44.functions.invoke('purgeAndRegeneratePolylines', {
               driverId,
               deliveryDate: selectedDate,
-              orderedDeliveryIds: orderedStopIds
+              orderedDeliveryIds: orderedStopIds,
+              currentPosition: homePosition  // Force driver's home as absolute route origin
             });
             result = response?.data || response || {};
             if (!result.success) {
