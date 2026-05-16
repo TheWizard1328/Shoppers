@@ -80,13 +80,10 @@ import { getLayoutStyles } from './components/layout/layoutStyles';
 import { useWakeLockAndVisibility } from './components/layout/useWakeLockAndVisibility';
 import { mergePatients } from './components/layout/layoutDataHelpers';
 import { initializeAppLoadDataFlow, executeAppLoadDataSync } from './components/layout/AppLoadDataManager';
+import { initializeGlobalFilters, createMergedUser, hasCurrentUserRefreshImpact } from './components/layout/initializeGlobalFilters';
 
 // App version will be loaded from AppSettings
 const DEFAULT_APP_VERSION = 'v1.0.0';
-
-const createMergedUser = (authUser, appUser) => {if (!authUser && !appUser) return null;if (!authUser && appUser) return { id: appUser.user_id, user_id: appUser.user_id, email: null, full_name: appUser.user_name || 'Unknown User', user_name: appUser.user_name || 'Unknown User', display_name: appUser.user_name || 'Unknown User', app_roles: Array.isArray(appUser.app_roles) ? appUser.app_roles : [], status: appUser.status || 'inactive', driver_status: appUser.driver_status, city_id: appUser.city_id, store_ids: appUser.store_ids, sort_order: appUser.sort_order, phone: appUser.phone, home_latitude: appUser.home_latitude, home_longitude: appUser.home_longitude, current_latitude: appUser.current_latitude, current_longitude: appUser.current_longitude, location_updated_at: appUser.location_updated_at, location_tracking_enabled: appUser.location_tracking_enabled };let merged = { ...authUser, id: authUser.id, user_name: authUser.full_name, display_name: authUser.full_name, app_roles: [], status: 'inactive' };if (appUser) {merged = { ...merged, ...appUser, id: authUser.id, user_name: appUser.user_name ?? merged.user_name, display_name: appUser.user_name ?? merged.display_name, app_roles: Array.isArray(appUser.app_roles) ? appUser.app_roles : merged.app_roles, status: appUser.status ?? merged.status };}return merged;};
-const CURRENT_USER_REFRESH_KEYS = ['app_roles', 'store_ids', 'city_id', 'status', 'user_name', 'company_id', 'square_location_ids'];
-const hasCurrentUserRefreshImpact = (currentUser, updateData = {}) => !!currentUser && !!updateData && CURRENT_USER_REFRESH_KEYS.some((key) => key in updateData && JSON.stringify(currentUser[key] ?? null) !== JSON.stringify(updateData[key] ?? null));
 
 import QuickStats from './components/layout/DashboardQuickStats';
 
@@ -289,9 +286,8 @@ export default function Layout({ children, currentPageName }) {
           if (s.sidebar_width) setSidebarWidth(s.sidebar_width);
           if (s.theme_preference && isMobileDeviceForTheme()) setThemePreference(s.theme_preference);else setThemePreference('light');
           if (s.data_source) setDataSource(s.data_source);
-          // Initialize globalFilters from UserSettings (selected_date and selected_driver_id)
-          if (s.selected_date) globalFilters.setSelectedDate(s.selected_date, fetchedUser.id);
-          if (s.selected_driver_id) globalFilters.setSelectedDriverId(s.selected_driver_id, fetchedUser.id);
+          // Role-based initial filter prioritization
+          initializeGlobalFilters(fetchedUser, s);
           setUserSettingsLoaded(true);
         } catch {setUserSettingsLoaded(true);}
         const ms = manifest.appSettings || {};
@@ -323,7 +319,8 @@ export default function Layout({ children, currentPageName }) {
         setSquareLocationConfigs((await odb.getAll(odb.STORES.SQUARE_LOCATION_CONFIGS)) || []);
         setCatalogItems((await odb.getAll(odb.STORES.SQUARE_CATALOG_ITEMS)) || []);
         setSquareTransactions((await odb.getAll(odb.STORES.SQUARE_TRANSACTIONS)) || []);
-        const today = new Date();if (!globalFilters.getSelectedDate()) globalFilters.setSelectedDate(today);
+        // Ensure fallback defaults if initializeGlobalFilters didn't run (e.g. error path)
+        if (!globalFilters.getSelectedDate()) globalFilters.setSelectedDate(format(new Date(), 'yyyy-MM-dd'));
         if (!globalFilters.getSelectedDriverId()) globalFilters.setSelectedDriverId('all');
         
         // STEP 1: Load data from offline DB FIRST for immediate UI display
