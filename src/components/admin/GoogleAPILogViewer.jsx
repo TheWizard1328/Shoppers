@@ -12,7 +12,7 @@ import { format, isWithinInterval, startOfDay, endOfDay, subDays, subHours } fro
 
 const getDateRangeSummaryLabel = (dateFilter) => {
   if (dateFilter === 'hourly') return 'Calls Last Hour';
-  if (dateFilter === 'today') return 'Calls Last 24 Hours';
+  if (dateFilter === 'today') return 'Calls Today';
   if (dateFilter === 'yesterday') return 'Calls Yesterday';
   if (dateFilter === 'week') return 'Calls Last 7 Days';
   if (dateFilter === 'custom') return 'Calls in Range';
@@ -535,7 +535,7 @@ export default function GoogleAPILogViewer() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="hourly">Last Hour</SelectItem>
-                    <SelectItem value="today">Last 24 Hours</SelectItem>
+                    <SelectItem value="today">Today</SelectItem>
                     <SelectItem value="yesterday">Yesterday</SelectItem>
                     <SelectItem value="week">Last 7 Days</SelectItem>
                     <SelectItem value="all">All Time</SelectItem>
@@ -638,7 +638,7 @@ export default function GoogleAPILogViewer() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="hourly">Last Hour</SelectItem>
-                    <SelectItem value="today">Last 24 Hours</SelectItem>
+                    <SelectItem value="today">Today</SelectItem>
                     <SelectItem value="yesterday">Yesterday</SelectItem>
                     <SelectItem value="week">Last 7 Days</SelectItem>
                     <SelectItem value="all">All Time</SelectItem>
@@ -741,7 +741,7 @@ export default function GoogleAPILogViewer() {
           <div className="bg-white border rounded-lg p-4">
             <h3 className="font-semibold text-slate-900 mb-4">
               {dateFilter === 'hourly' ? 'Last Hour Call Volume' :
-                dateFilter === 'today' ? 'Last 24 Hours Call Volume' :
+                dateFilter === 'today' ? 'Today\'s Call Volume' :
                 dateFilter === 'yesterday' ? 'Yesterday\'s Call Volume (00:00-23:59)' :
                 dateFilter === 'week' ? 'Last 7 Days Call Volume (6-hour periods)' :
                 'Call Volume by Day'}
