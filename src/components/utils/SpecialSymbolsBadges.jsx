@@ -8,15 +8,12 @@ export function getCodSymbolColorClass(delivery) {
     new Set((delivery?.cod_payments || []).map((payment) => String(payment?.type || '').toLowerCase()).filter(Boolean))
   );
 
-  const collectedByCard = paymentTypes.some((type) => type === 'debit' || type === 'credit');
-  if (collectedByCard) return 'text-green-600';
+  // Green only if collected via Debit or Credit
+  if (paymentTypes.some((type) => type === 'debit' || type === 'credit')) return 'text-green-600';
 
-  // Not collected and delivery is complete → red
-  const isComplete = delivery?.status === 'completed';
-  if (isComplete && !paymentTypes.length) return 'text-red-600';
-  if (isComplete && paymentTypes.some((type) => type === 'cash')) return 'text-green-600';
+  // Red if delivery is complete but not collected by Debit/Credit
+  if (delivery?.status === 'completed') return 'text-red-600';
 
-  if (paymentTypes.some((type) => type === 'cash')) return 'text-green-600';
   return 'text-black dark:text-black';
 }
 
