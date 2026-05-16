@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 
 export function ResizableDivider({ 
   storageKey, 
-  defaultWidth = 240, 
+  defaultWidth = 260, 
   minWidth = 200, 
   maxWidth = 400,
   onWidthChange,

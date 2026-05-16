@@ -194,7 +194,7 @@ export default function Layout({ children, currentPageName }) {
 
   // Remove unused driverLocationIntervalRef - now handled by unified refresh
 
-  const [sidebarWidth, setSidebarWidth] = useState(240); // Will be loaded from user settings
+  const [sidebarWidth, setSidebarWidth] = useState(260); // Will be loaded from user settings
   const [themePreference, setThemePreference] = useState('auto');
   const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
 
@@ -1926,7 +1926,7 @@ export default function Layout({ children, currentPageName }) {
                 {!isMobile && !isSnapshotModeActive &&
             <ResizableDivider
               storageKey="rxdeliver_sidebar_width"
-              defaultWidth={240}
+              defaultWidth={260}
               minWidth={200}
               maxWidth={400}
               onWidthChange={(width) => {
