@@ -20,25 +20,35 @@ export async function runAcceptAllBatchPipeline({
   patients = [],
   currentLocalTime,
   deliveryTimeStart,
-  updateDeliveriesLocally
+  updateDeliveriesLocally,
+  localDeviceTodayStr
 }) {
   const routeDeliveries = allDeliveries.filter((item) => item && item.driver_id === triggerDelivery.driver_id && item.delivery_date === triggerDelivery.delivery_date);
   const scopedPendingDeliveries = routeDeliveries.filter((item) => item?.store_id === triggerDelivery.store_id && item.status === 'pending');
 
+  // RETRO RULES: For past dates, use pickup start time; for current/future, add 5 minutes
+  const isRetroDate = triggerDelivery.delivery_date < localDeviceTodayStr;
   const pickupStartTime = currentLocalTime;
-  const defaultTransitionTime = addMinutesToTimeString(currentLocalTime, 5);
+  const defaultTransitionTime = isRetroDate 
+    ? addMinutesToTimeString(currentLocalTime, 5)
+    : addMinutesToTimeString(currentLocalTime, 5);
 
   const stagedRoute = routeDeliveries.map((item) => {
-    if (!item) return item;
-    if (item.id === triggerDelivery.id) {
-      return {
-        ...item,
-        status: item.status === 'pending' ? 'in_transit' : item.status,
-        isNextDelivery: true,
-        delivery_time_start: pickupStartTime,
-        ...(item.active === false ? { active: true } : {})
-      };
-    }
+     if (!item) return item;
+     if (item.id === triggerDelivery.id) {
+       // RETRO RULES: For retro pickup (first stop), set delivery_time_eta to delivery_time_start
+       const pickupUpdate = {
+         ...item,
+         status: item.status === 'pending' ? 'in_transit' : item.status,
+         isNextDelivery: true,
+         delivery_time_start: pickupStartTime,
+         ...(item.active === false ? { active: true } : {})
+       };
+       if (isRetroDate) {
+         pickupUpdate.delivery_time_eta = pickupStartTime;
+       }
+       return pickupUpdate;
+     }
     // CRITICAL: Only transition strictly 'pending' stops - never touch en_route/in_transit stops
     if (item.store_id === triggerDelivery.store_id && item.status === 'pending') {
       // CRITICAL: Check if patient has time_window_start - if so, use it instead of default transition time
@@ -119,7 +129,8 @@ export async function runAcceptAllBatchPipeline({
    forceFullRemainingRouteOptimization: true,
    bypassDriverStatus: true,
    bypassDeduplication: true,
-   bypassHistoricalCheck: true
+   bypassHistoricalCheck: true,
+   allowPolylineGenerationForRetroDate: true
   });
   const optimizeData = optimizeResponse?.data || optimizeResponse || {};
 

@@ -224,11 +224,23 @@ export default function useStopCardActions(params) {
         return;
       }
 
-      const now = new Date();
-      const currentMinutes = now.getHours() * 60 + now.getMinutes();
-      const startMinutes = currentMinutes + 5;
-      const deliveryTimeStart = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
-      const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      // RETRO RULES: Check if delivery_date is in the past
+      const isRetroDate = delivery.delivery_date < localDeviceTodayStr;
+
+      let deliveryTimeStart;
+      let currentLocalTime;
+      if (isRetroDate) {
+        // For retro dates, use the pickup's existing delivery_time_start
+        deliveryTimeStart = delivery.delivery_time_start || '09:00';
+        currentLocalTime = deliveryTimeStart;
+      } else {
+        // For today and future: use current time + 5 minutes
+        const now = new Date();
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        const startMinutes = currentMinutes + 5;
+        deliveryTimeStart = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
+        currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      }
 
       fabControlEvents.notifyAcceptAllClicked();
 
@@ -239,7 +251,8 @@ export default function useStopCardActions(params) {
         patients,
         currentLocalTime,
         deliveryTimeStart,
-        updateDeliveriesLocally
+        updateDeliveriesLocally,
+        localDeviceTodayStr
       });
 
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAll', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true, freshDeliveries: [...stagedChangedDeliveries, ...finalOfflineUpdates], alreadyOptimized: true } }));
