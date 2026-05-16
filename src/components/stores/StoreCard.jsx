@@ -211,7 +211,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                 </div>}
               </div>
               
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>{store.address}</p>
                   {store.phone &&
@@ -226,7 +226,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                   }
                 </div>
                 
-                {/* Call and navigate buttons - mobile only, right aligned */}
+                {/* Call and navigate buttons - mobile only, right aligned at top */}
                 {store.phone && store.latitude && store.longitude &&
                 <div className="flex gap-2 flex-shrink-0 md:hidden">
                     <a
