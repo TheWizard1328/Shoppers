@@ -1,0 +1,179 @@
+{
+  "name": "Payroll",
+  "type": "object",
+  "properties": {
+    "driver_id": {
+      "type": "string",
+      "description": "ID of the driver (user_id from AppUser) this payroll record belongs to"
+    },
+    "city_id": {
+      "type": "string",
+      "description": "ID of the city this payroll period belongs to"
+    },
+    "pay_period_start": {
+      "type": "string",
+      "format": "date",
+      "description": "Start date of the pay period"
+    },
+    "pay_period_end": {
+      "type": "string",
+      "format": "date",
+      "description": "End date of the pay period"
+    },
+    "pay_period_type": {
+      "type": "string",
+      "enum": [
+        "weekly",
+        "biweekly",
+        "semimonthly",
+        "monthly"
+      ],
+      "description": "Type of pay period"
+    },
+    "total_deliveries": {
+      "type": "number",
+      "default": 0,
+      "description": "Total number of deliveries in this pay period"
+    },
+    "total_extra_km": {
+      "type": "number",
+      "default": 0,
+      "description": "Total extra kilometers driven in this pay period"
+    },
+    "total_oversized_deliveries": {
+      "type": "number",
+      "default": 0,
+      "description": "Total number of oversized deliveries in this pay period"
+    },
+    "total_after_hours_deliveries": {
+      "type": "number",
+      "default": 0,
+      "description": "Total number of after-hours deliveries in this pay period"
+    },
+    "gross_pay": {
+      "type": "number",
+      "default": 0,
+      "description": "Calculated gross pay for this period"
+    },
+    "net_pay": {
+      "type": "number",
+      "default": 0,
+      "description": "Calculated net pay (gross - Deductions) for this period"
+    },
+    "paid_amount": {
+      "type": "number",
+      "default": 0,
+      "description": "Actual paid amount for this payroll period, which may differ from net pay"
+    },
+    "tax_amount": {
+      "type": "number",
+      "default": 0,
+      "description": "Actual tax amount (GST/HST) calculated for this period"
+    },
+    "deductions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the deduction (e.g., 'Uniform Fee', 'Loan Repayment')"
+          },
+          "amount": {
+            "type": "number",
+            "description": "Amount of the deduction"
+          }
+        },
+        "required": [
+          "name",
+          "amount"
+        ]
+      },
+      "description": "List of individual deductions applied in this pay period"
+    },
+    "total_deductions": {
+      "type": "number",
+      "default": 0,
+      "description": "Total amount of all deductions for this period"
+    },
+    "bonus_pay": {
+      "type": "number",
+      "default": 0,
+      "description": "Bonus pay amount added to this driver's payroll for this period"
+    },
+    "app_fee_percentage": {
+      "type": "number",
+      "default": 0,
+      "description": "App fee percentage deducted from driver's pay (admin-only adjustment)"
+    },
+    "app_fee_amount": {
+      "type": "number",
+      "default": 0,
+      "description": "Actual app fee amount charged for this period (for YTD calculations)"
+    },
+    "pay_rate_per_delivery": {
+      "type": "number",
+      "description": "Driver's pay rate per delivery for this period (historical snapshot)"
+    },
+    "extra_km_rate": {
+      "type": "number",
+      "description": "Driver's extra kilometer rate for this period (historical snapshot)"
+    },
+    "extra_km_limit": {
+      "type": "number",
+      "description": "Driver's extra kilometer limit before extra pay kicks in (historical snapshot)"
+    },
+    "oversized_item_rate": {
+      "type": "number",
+      "description": "Driver's oversized item rate for this period (historical snapshot)"
+    },
+    "after_hours_rate": {
+      "type": "number",
+      "description": "Driver's after-hours delivery rate for this period (historical snapshot)"
+    },
+    "gst_hst_enabled": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether GST/HST was enabled for this driver during this period"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "driver_finalized",
+        "admin_finalized",
+        "paid"
+      ],
+      "default": "draft",
+      "description": "Status of the payroll record - drivers finalize first, then admin"
+    },
+    "driver_finalized_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when driver finalized their payroll"
+    },
+    "admin_finalized_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when admin finalized the payroll"
+    },
+    "admin_finalized_by": {
+      "type": "string",
+      "description": "User ID of admin who finalized the payroll"
+    },
+    "admin_notes": {
+      "type": "string",
+      "description": "Private notes visible to admins only"
+    },
+    "driver_notes": {
+      "type": "string",
+      "description": "Shared notes visible to the selected driver and all admins"
+    }
+  },
+  "required": [
+    "driver_id",
+    "pay_period_start",
+    "pay_period_end",
+    "pay_period_type"
+  ]
+}
