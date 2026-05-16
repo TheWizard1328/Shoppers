@@ -208,134 +208,165 @@ export default function DriverSettings() {
         {filteredDrivers.length} driver{filteredDrivers.length !== 1 ? 's' : ''} found
       </div>
 
-      {/* Drivers List - 2 per row */}
-      <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(360px,1fr))]">
-        {filteredDrivers.length === 0 ?
-        <Card className="col-span-full" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-            <CardContent className="py-8 text-center" style={{ color: 'var(--text-slate-500)' }}>
-              {searchQuery ? 'No drivers match your search' : 'No drivers found'}
-            </CardContent>
-          </Card> :
+      {/* Drivers List */}
+      {(() => {
+        const isAdmin = currentUser?.app_roles?.includes('admin');
+        return (
+          <div className={`grid gap-3 ${isAdmin ? '[grid-template-columns:repeat(auto-fit,minmax(360px,1fr))]' : '[grid-template-columns:repeat(auto-fill,minmax(240px,1fr))]'}`}>
+            {filteredDrivers.length === 0 ?
+            <Card className="col-span-full" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                <CardContent className="py-8 text-center" style={{ color: 'var(--text-slate-500)' }}>
+                  {searchQuery ? 'No drivers match your search' : 'No drivers found'}
+                </CardContent>
+              </Card> :
 
-        filteredDrivers.map((driver) => {
-          // Get latest appUser data for this driver from fresh data
-          const latestAppUser = mergedAppUsers.find((au) => au?.user_id === driver.id);
-          const dutyStatus = getDriverDutyStatus(driver);
+            filteredDrivers.map((driver) => {
+              const latestAppUser = mergedAppUsers.find((au) => au?.user_id === driver.id);
+              const dutyStatus = getDriverDutyStatus(driver);
+              const avatarColor = driver.app_roles?.includes('admin') ?
+                'bg-gradient-to-br from-blue-500 to-blue-600' :
+                driver.app_roles?.includes('dispatcher') ?
+                'bg-gradient-to-br from-red-500 to-red-600' :
+                'bg-gradient-to-br from-emerald-500 to-emerald-600';
 
-          return (
-            <Card key={driver.id} className="rounded-xl border bg-card text-card-foreground shadow hover:shadow-md transition-shadow min-h-[210px] h-full" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                <CardContent className="p-4 h-full">
-                  <div className="flex items-start gap-4 h-full">
-                    {/* Avatar */}
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
-                  driver.app_roles?.includes('admin') ?
-                  'bg-gradient-to-br from-blue-500 to-blue-600' :
-                  driver.app_roles?.includes('dispatcher') ?
-                  'bg-gradient-to-br from-red-500 to-red-600' :
-                  'bg-gradient-to-br from-emerald-500 to-emerald-600'}`
-                  }>
-                      <span className="text-white font-bold text-lg">
-                        {(getDriverDisplayName(driver) || 'D')?.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
+              const gpsLabel = (() => {
+                if (!latestAppUser?.location_updated_at || dutyStatus.label === 'Off Duty') return null;
+                const diffMins = Math.floor((Date.now() - new Date(latestAppUser.location_updated_at).getTime()) / 60000);
+                const isRecent = diffMins < 5;
+                const label = diffMins < 1 ? '<1m' : diffMins > 60 ? `>${Math.floor(diffMins / 60)}h` : `${diffMins}m`;
+                return { label, isRecent };
+              })();
 
-                    {/* Driver Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-semibold truncate" style={{ color: 'var(--text-slate-900)' }}>
-                          {getDriverDisplayName(driver)}
-                        </h3>
-                        <Badge className={`text-xs ${driver.status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
-                          {driver.status === 'active' ? 'Active' : 'Inactive'}
-                        </Badge>
-                        <Badge className={`text-xs ${dutyStatus.color}`}>
-                          {dutyStatus.label}
-                        </Badge>
-                        {latestAppUser?.location_updated_at && dutyStatus.label !== 'Off Duty' && (() => {
-                        const updatedAt = new Date(latestAppUser.location_updated_at);
-                        const diffMs = Date.now() - updatedAt.getTime();
-                        const diffMins = Math.floor(diffMs / 60000);
-                        const isRecent = diffMins < 5;
-                        const gpsLabel = diffMins < 1 ? '<1m' : diffMins > 60 ? `>${Math.floor(diffMins / 60)}h` : `${diffMins}m`;
-                        return (
-                          <Badge className={`text-xs gap-1 ${isRecent ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
-                              <Navigation className="w-3 h-3" />
-                              GPS: {gpsLabel}
-                            </Badge>);
-
-                      })()}
-                      </div>
-                      
-                      <div className="flex flex-col gap-1 mt-1 text-sm" style={{ color: 'var(--text-slate-600)' }}>
-                        {driver.phone &&
-                      <div className="flex items-center gap-1">
-                            <Phone className="w-3.5 h-3.5" />
-                            <a href={`tel:${driver.phone}`} className="hover:opacity-80">
+              if (!isAdmin) {
+                // Compact card for drivers/dispatchers
+                return (
+                  <Card key={driver.id} className="rounded-xl border shadow hover:shadow-md transition-shadow" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                    <CardContent className="p-3">
+                      <div className="flex items-center gap-3">
+                        {/* Avatar */}
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${avatarColor}`}>
+                          <span className="text-white font-bold text-sm">
+                            {(getDriverDisplayName(driver) || 'D')?.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm truncate" style={{ color: 'var(--text-slate-900)' }}>
+                            {getDriverDisplayName(driver)}
+                          </p>
+                          <div className="flex items-center gap-1 flex-wrap mt-0.5">
+                            <Badge className={`text-xs py-0 h-4 ${dutyStatus.color}`}>{dutyStatus.label}</Badge>
+                            {gpsLabel &&
+                            <Badge className={`text-xs py-0 h-4 gap-0.5 ${gpsLabel.isRecent ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
+                                <Navigation className="w-2.5 h-2.5" />
+                                {gpsLabel.label}
+                              </Badge>
+                            }
+                          </div>
+                          {driver.phone &&
+                          <a href={`tel:${driver.phone}`} className="flex items-center gap-1 mt-1 text-xs hover:opacity-80" style={{ color: 'var(--text-slate-500)' }}>
+                              <Phone className="w-3 h-3" />
                               {formatPhoneNumber(driver.phone)}
                             </a>
-                          </div>
-                      }
-                        {driver.email &&
-                      <div className="flex items-center gap-1 truncate">
-                            <User className="w-3.5 h-3.5 flex-shrink-0" />
-                            <span className="truncate text-xs">{driver.email}</span>
-                          </div>
-                      }
+                          }
+                        </div>
                       </div>
-                      
-                      {/* Pay rates display - admins only */}
-                       {currentUser?.app_roles?.includes('admin') && (latestAppUser?.pay_cycle_type || latestAppUser?.pay_rate_per_delivery > 0) &&
-                      <div className="flex items-center gap-1.5 mt-1.5 text-xs flex-wrap" style={{ color: 'var(--text-slate-500)' }}>
-                           {latestAppUser?.pay_cycle_type &&
-                       <span className="capitalize">{latestAppUser.pay_cycle_type === 'biweekly' ? 'Bi-Weekly' : latestAppUser.pay_cycle_type === 'semimonthly' ? 'Semi-Monthly' : latestAppUser.pay_cycle_type}</span>
-                       }
-                           {latestAppUser?.pay_cycle_type && latestAppUser?.pay_rate_per_delivery > 0 && <span>•</span>}
-                           {latestAppUser?.pay_rate_per_delivery > 0 &&
-                       <span>${Number(latestAppUser.pay_rate_per_delivery).toFixed(2)}/delivery</span>
-                       }
-                         </div>
-                      }
-                       {currentUser?.app_roles?.includes('admin') && (latestAppUser?.extra_km_rate > 0 || latestAppUser?.extra_km_limit > 0 || latestAppUser?.oversized_item_rate > 0) &&
-                      <div className="flex items-center gap-1.5 mt-0.5 text-xs flex-wrap" style={{ color: 'var(--text-slate-500)' }}>
-                           {latestAppUser?.extra_km_rate > 0 &&
-                       <span>${Number(latestAppUser.extra_km_rate).toFixed(2)}/km</span>
-                       }
-                           {latestAppUser?.extra_km_rate > 0 && latestAppUser?.extra_km_limit > 0 && <span>•</span>}
-                           {latestAppUser?.extra_km_limit > 0 &&
-                       <span>{Number(latestAppUser.extra_km_limit).toFixed(2)}km limit</span>
-                       }
-                           {(latestAppUser?.extra_km_rate > 0 || latestAppUser?.extra_km_limit > 0) && latestAppUser?.oversized_item_rate > 0 && <span>•</span>}
-                           {latestAppUser?.oversized_item_rate > 0 &&
-                       <span>${Number(latestAppUser.oversized_item_rate).toFixed(2)}/oversized</span>
-                       }
-                         </div>
-                      }
+                    </CardContent>
+                  </Card>
+                );
+              }
+
+              // Full card for admins
+              return (
+                <Card key={driver.id} className="rounded-xl border bg-card text-card-foreground shadow hover:shadow-md transition-shadow min-h-[210px] h-full" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                  <CardContent className="p-4 h-full">
+                    <div className="flex items-start gap-4 h-full">
+                      {/* Avatar */}
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${avatarColor}`}>
+                        <span className="text-white font-bold text-lg">
+                          {(getDriverDisplayName(driver) || 'D')?.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+
+                      {/* Driver Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-semibold truncate" style={{ color: 'var(--text-slate-900)' }}>
+                            {getDriverDisplayName(driver)}
+                          </h3>
+                          <Badge className={`text-xs ${driver.status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
+                            {driver.status === 'active' ? 'Active' : 'Inactive'}
+                          </Badge>
+                          <Badge className={`text-xs ${dutyStatus.color}`}>
+                            {dutyStatus.label}
+                          </Badge>
+                          {gpsLabel &&
+                          <Badge className={`text-xs gap-1 ${gpsLabel.isRecent ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
+                              <Navigation className="w-3 h-3" />
+                              GPS: {gpsLabel.label}
+                            </Badge>
+                          }
+                        </div>
+
+                        <div className="flex flex-col gap-1 mt-1 text-sm" style={{ color: 'var(--text-slate-600)' }}>
+                          {driver.phone &&
+                          <div className="flex items-center gap-1">
+                              <Phone className="w-3.5 h-3.5" />
+                              <a href={`tel:${driver.phone}`} className="hover:opacity-80">
+                                {formatPhoneNumber(driver.phone)}
+                              </a>
+                            </div>
+                          }
+                          {driver.email &&
+                          <div className="flex items-center gap-1 truncate">
+                              <User className="w-3.5 h-3.5 flex-shrink-0" />
+                              <span className="truncate text-xs">{driver.email}</span>
+                            </div>
+                          }
+                        </div>
+
+                        {/* Pay rates display - admins only */}
+                        {(latestAppUser?.pay_cycle_type || latestAppUser?.pay_rate_per_delivery > 0) &&
+                        <div className="flex items-center gap-1.5 mt-1.5 text-xs flex-wrap" style={{ color: 'var(--text-slate-500)' }}>
+                            {latestAppUser?.pay_cycle_type &&
+                            <span className="capitalize">{latestAppUser.pay_cycle_type === 'biweekly' ? 'Bi-Weekly' : latestAppUser.pay_cycle_type === 'semimonthly' ? 'Semi-Monthly' : latestAppUser.pay_cycle_type}</span>
+                            }
+                            {latestAppUser?.pay_cycle_type && latestAppUser?.pay_rate_per_delivery > 0 && <span>•</span>}
+                            {latestAppUser?.pay_rate_per_delivery > 0 &&
+                            <span>${Number(latestAppUser.pay_rate_per_delivery).toFixed(2)}/delivery</span>
+                            }
+                          </div>
+                        }
+                        {(latestAppUser?.extra_km_rate > 0 || latestAppUser?.extra_km_limit > 0 || latestAppUser?.oversized_item_rate > 0) &&
+                        <div className="flex items-center gap-1.5 mt-0.5 text-xs flex-wrap" style={{ color: 'var(--text-slate-500)' }}>
+                            {latestAppUser?.extra_km_rate > 0 && <span>${Number(latestAppUser.extra_km_rate).toFixed(2)}/km</span>}
+                            {latestAppUser?.extra_km_rate > 0 && latestAppUser?.extra_km_limit > 0 && <span>•</span>}
+                            {latestAppUser?.extra_km_limit > 0 && <span>{Number(latestAppUser.extra_km_limit).toFixed(2)}km limit</span>}
+                            {(latestAppUser?.extra_km_rate > 0 || latestAppUser?.extra_km_limit > 0) && latestAppUser?.oversized_item_rate > 0 && <span>•</span>}
+                            {latestAppUser?.oversized_item_rate > 0 && <span>${Number(latestAppUser.oversized_item_rate).toFixed(2)}/oversized</span>}
+                          </div>
+                        }
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex flex-col gap-2 items-end self-start">
+                        <Button variant="outline" size="sm" onClick={() => setEditingDriver(driver)} className="h-8 gap-1">
+                          <Edit className="w-3.5 h-3.5" />
+                          <span className="text-xs">Edit</span>
+                        </Button>
+                        <Badge variant="outline" className="text-xs" style={{ borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-600)' }}>
+                          #{driver.sort_order || '—'}
+                        </Badge>
+                      </div>
                     </div>
-
-                    {/* Actions - admins only */}
-                     {currentUser?.app_roles?.includes('admin') &&
-                     <div className="flex flex-col gap-2 items-end self-start">
-                       <Button
-                       variant="outline"
-                       size="sm"
-                       onClick={() => setEditingDriver(driver)}
-                       className="h-8 gap-1">
-
-                         <Edit className="w-3.5 h-3.5" />
-                         <span className="text-xs">Edit</span>
-                       </Button>
-                       <Badge variant="outline" className="text-xs" style={{ borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-600)' }}>
-                         #{driver.sort_order || '—'}
-                       </Badge>
-                     </div>
-                     }
-                  </div>
-                </CardContent>
-              </Card>);
-
-        })
-        }
-      </div>
+                  </CardContent>
+                </Card>
+              );
+            })
+            }
+          </div>
+        );
+      })()}
       
       {/* Edit Driver Form - admins only */}
        {currentUser?.app_roles?.includes('admin') && editingDriver && (() => {
