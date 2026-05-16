@@ -445,7 +445,15 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                     const driver = drivers.find((d) => d && (d.id === driverId || d.user_id === driverId));
                     if (driver) {
                       name = driver.user_name || driver.full_name || fallbackName || 'Unknown';
+                    } else {
+                      // If driver not found in list but driverId is set, still show fallbackName instead of "No driver"
+                      if (fallbackName && fallbackName !== 'No driver') {
+                        name = fallbackName;
+                      }
                     }
+                  } else if (fallbackName && fallbackName !== 'No driver') {
+                    // If no drivers array but fallback name exists, use it
+                    name = fallbackName;
                   }
                   // If format is "X Word" (single letter + space + word), return the second word
                   const parts = name.trim().split(' ');
