@@ -17,6 +17,7 @@ import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
 import { globalFilters } from '../components/utils/globalFilters';
 import { getData } from '../components/utils/dataManager';
 import { isMobileDevice } from '../components/utils/deviceUtils';
+import { subscribeMutations } from '../components/utils/entityMutations';
 
 export default function DriverSettings() {
   const { users, appUsers, stores, cities = [], refreshData } = useAppData();
@@ -60,9 +61,22 @@ export default function DriverSettings() {
     // Fetch immediately on mount
     fetchFreshData();
 
+    // Subscribe to AppUser mutations for real-time updates
+    const unsubscribeMutations = subscribeMutations(async (mutation) => {
+      if (mutation.entity === 'AppUser') {
+        console.log('🔔 [DriverSettings] AppUser mutation received:', mutation.type, mutation.id);
+        // Refresh data on any AppUser change
+        await fetchFreshData();
+      }
+    });
+
     // Only refresh on manual action or long intervals to avoid rate limits
     const interval = setInterval(fetchFreshData, 60000); // Refresh every 60 seconds max
-    return () => clearInterval(interval);
+
+    return () => {
+      clearInterval(interval);
+      unsubscribeMutations();
+    };
   }, []); // Run once on mount
 
   // Merge fresh AppUser data with context appUsers
