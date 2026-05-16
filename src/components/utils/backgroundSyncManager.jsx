@@ -34,10 +34,10 @@ class BackgroundSyncManager {
     // Default configuration
     this.config = {
       enabled: true,
-      syncInterval: 30 * 60 * 1000, // 30 minutes
+      syncInterval: 60 * 60 * 1000, // 60 minutes (increased from 30)
       historicalDaysToSync: 90, // Sync past 90 days
       batchSize: 50, // Number of records per batch
-      maxAPICallsPerCycle: 2, // Very small limit to avoid 429s
+      maxAPICallsPerCycle: 1, // Single API call per cycle to avoid 429s
       // Historical sync: after 8 PM only, incremental count-based
       deferHistoricalOnLoad: true,
       historicalDeferMinutes: 15,
@@ -305,13 +305,13 @@ class BackgroundSyncManager {
   }
 
   /**
-   * Sync patient data incrementally — one store per cycle, after 8 PM only.
-   * Compares offline count to online count per store; skips if they match.
+   * Sync patient data incrementally — one store per cycle, after 8 PM ONLY.
+   * VERY conservative: skips if store has > 50 patients (too expensive). Compares offline count to online count per store.
    */
   async syncPatients() {
     if (this.currentCycleAPICalls >= this.config.maxAPICallsPerCycle) return;
 
-    // GATE: Only run after 8 PM local time
+    // GATE: Only run after 8 PM local time (strict limit)
     if (new Date().getHours() < 20) {
       console.log('🌙 [BackgroundSync] Skipping patient sync (before 8 PM)');
       return;
@@ -329,17 +329,25 @@ class BackgroundSyncManager {
       const store = stores[storeIndex];
       if (!store?.id) return;
 
-      // Count offline patients for this store
+      // CRITICAL: Skip stores with > 50 patients to avoid 429s on Patient.filter() calls
       const allOfflinePatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
       const offlineCount = (allOfflinePatients || []).filter(p => p?.store_id === store.id).length;
 
-      // Count online patients for this store
+      if (offlineCount > 50) {
+        console.log(`⏭️ [BackgroundSync] Skipping store ${store.name} (${offlineCount} patients > 50 limit to avoid rate limits)`);
+        // Still advance to next store
+        const nextIndex = (storeIndex + 1) >= stores.length ? 0 : storeIndex + 1;
+        localStorage.setItem(resumeKey, String(nextIndex));
+        return;
+      }
+
+      // Only sync stores with < 50 patients (lightweight stores only)
       const onlinePatients = await base44.entities.Patient.filter({ store_id: store.id, status: 'active' });
       const onlineCount = (onlinePatients || []).length;
       this.currentCycleAPICalls++;
 
       if (onlineCount === offlineCount && offlineCount > 0) {
-        console.log(`✅ [BackgroundSync] Patients for store ${store.name} already synced (${offlineCount}) — skipping`);
+        console.log(`✅ [BackgroundSync] Store ${store.name} already synced (${offlineCount}) — skipping save`);
       } else {
         await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, onlinePatients || []);
         console.log(`🔄 [BackgroundSync] Synced ${onlineCount} patients for store ${store.name} (was ${offlineCount})`);
@@ -351,8 +359,8 @@ class BackgroundSyncManager {
       localStorage.setItem(resumeKey, String(nextIndex));
       this.notifySubscribers({ type: 'patients_synced', storeId: store.id, count: onlineCount });
     } catch (error) {
-      if (error.response?.status === 429 || error.message?.includes('429')) {
-        console.log('⏰ [BackgroundSync] Rate limited - stopping patient sync');
+      if (error.response?.status === 429 || error.message?.includes('429') || error.message?.includes('rate limit')) {
+        console.log('⏰ [BackgroundSync] Rate limited - stopping patient sync for this cycle');
         return;
       }
       console.warn('⚠️ [BackgroundSync] Patient sync failed:', error.message);
