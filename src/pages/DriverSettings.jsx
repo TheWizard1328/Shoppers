@@ -88,6 +88,11 @@ export default function DriverSettings() {
   const filteredDrivers = useMemo(() => {
     let result = drivers;
 
+    // Non-admins only see active drivers
+    if (!currentUser?.app_roles?.includes('admin')) {
+      result = result.filter((driver) => driver.status === 'active');
+    }
+
     // Filter by city (admins see all)
     if (!currentUser?.app_roles?.includes('admin') && selectedCityId && selectedCityId !== 'waiting-for-selection') {
       result = result.filter((driver) => {
