@@ -39,7 +39,7 @@ export function usePayrollBadge(currentUser, appUsers, dataLoaded) {
         );
 
         if (match) {
-          setCurrentPayrollNetPay(match.net_pay ?? null);
+          setCurrentPayrollNetPay(match.gross_pay ?? null);
           return;
         }
 
@@ -51,7 +51,7 @@ export function usePayrollBadge(currentUser, appUsers, dataLoaded) {
         const c = (ps || []).find(p =>
           p.pay_period_start <= selectedDate && p.pay_period_end >= selectedDate
         );
-        setCurrentPayrollNetPay(c ? (c.net_pay ?? null) : null);
+        setCurrentPayrollNetPay(c ? (c.gross_pay ?? null) : null);
       } catch {
         setCurrentPayrollNetPay(null);
       }
