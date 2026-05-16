@@ -450,7 +450,34 @@ export default function useStopCardActions(params) {
           await new Promise((resolve) => setTimeout(resolve, 100));
           const driverDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
           const newStatus = isPickup ? 'en_route' : 'in_transit';
-          const restartedRouteDeliveries = reorderActiveRouteLocally(driverDeliveries.map((item) => item?.id === delivery.id ? { ...item, status: newStatus, isNextDelivery: true, actual_delivery_time: null, delivery_notes: '', finished_leg_encoded_polyline: null, travel_dist: 0, PolylineUpdated: false } : { ...item, isNextDelivery: false }), delivery.id);
+          const isRetroDate = delivery.delivery_date < localDeviceTodayStr;
+          
+          // RETRO RULES: For retro dates, recalculate all remaining ETAs from restarted stop
+          const restartedRouteDeliveries = reorderActiveRouteLocally(driverDeliveries.map((item, index) => {
+            if (item?.id === delivery.id) {
+              return { ...item, status: newStatus, isNextDelivery: true, actual_delivery_time: null, delivery_notes: '', finished_leg_encoded_polyline: null, travel_dist: 0, PolylineUpdated: false };
+            }
+            if (isRetroDate && index > 0) {
+              // Calculate ETA from previous stop's actual_delivery_time + duration for retro dates
+              const prevStop = driverDeliveries[index - 1];
+              if (prevStop?.actual_delivery_time) {
+                const timeMatch = prevStop.actual_delivery_time.match(/(\d{1,2}):(\d{2})/);
+                if (timeMatch) {
+                  const hours = parseInt(timeMatch[1], 10);
+                  const mins = parseInt(timeMatch[2], 10);
+                  const prevDuration = Number(prevStop.estimated_duration_minutes) || 5;
+                  const baseMinutes = hours * 60 + mins + prevDuration;
+                  const currDuration = Number(item.estimated_duration_minutes) || 5;
+                  const etaMinutes = (baseMinutes + currDuration) % 1440;
+                  const etaHours = Math.floor(etaMinutes / 60);
+                  const etaMins = etaMinutes % 60;
+                  const newEta = `${String(etaHours).padStart(2, '0')}:${String(etaMins).padStart(2, '0')}`;
+                  return { ...item, isNextDelivery: false, delivery_time_eta: newEta };
+                }
+              }
+            }
+            return { ...item, isNextDelivery: false };
+          }), delivery.id);
           await Promise.all(restartedRouteDeliveries.filter((item) => item && (item.id === delivery.id || item.isNextDelivery === false)).map((item) => {
             const existingRouteItem = driverDeliveries.find((routeItem) => routeItem?.id === item.id);
             if (!existingRouteItem) return Promise.resolve(null);
@@ -801,32 +828,53 @@ export default function useStopCardActions(params) {
         await setAndCenterNextDelivery({ driverDeliveries: routeDeliveries, targetDeliveryId: nextStop?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true, persistToBackend: true });
         
         // CRITICAL: ALWAYS recalculate ETAs for remaining stops when completing ANY stop (not just next delivery)
-         // Use local ETA recalculation with estimated_duration_minutes (no API call)
-         if (remainingEtaDeliveries.length > 0) {
-           try {
-             // Use current device time, not completion timestamp
-             const now = new Date();
-             let baseTimeMinutes = now.getHours() * 60 + now.getMinutes() + 5; // Current time + 5min buffer
+          // Use local ETA recalculation with estimated_duration_minutes (no API call)
+          if (remainingEtaDeliveries.length > 0) {
+            try {
+              const isRetroDate = delivery.delivery_date < localDeviceTodayStr;
+              let baseTimeMinutes;
 
-             console.log(`[Complete ETA] Starting recalc: currentTime=${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}, remainingStops=${remainingEtaDeliveries.length}, baseTimeMinutes=${baseTimeMinutes}`);
+              if (isRetroDate) {
+                // RETRO RULES: Chain from completed stop's actual_delivery_time + its duration
+                const completedActualTime = completionUpdate.actual_delivery_time || delivery.actual_delivery_time;
+                if (completedActualTime) {
+                  const timeMatch = completedActualTime.match(/(\d{1,2}):(\d{2})/);
+                  if (timeMatch) {
+                    const hours = parseInt(timeMatch[1], 10);
+                    const mins = parseInt(timeMatch[2], 10);
+                    const completedDuration = Number(delivery.estimated_duration_minutes) || 5;
+                    baseTimeMinutes = hours * 60 + mins + completedDuration;
+                  }
+                }
+              } else {
+                // NON-RETRO RULES: Use current device time + 5min buffer
+                const now = new Date();
+                baseTimeMinutes = now.getHours() * 60 + now.getMinutes() + 5;
+              }
 
-             const etaUpdates = [];
-             remainingEtaDeliveries.forEach((stop) => {
-               // Add estimated_duration_minutes for this stop
-               const duration = Number(stop.estimated_duration_minutes) || 5;
-               baseTimeMinutes += duration;
+              if (!Number.isFinite(baseTimeMinutes)) {
+                baseTimeMinutes = 0; // Fallback
+              }
 
-               const etaHours = Math.floor((baseTimeMinutes % 1440) / 60);
-               const etaMins = baseTimeMinutes % 60;
-               const newEta = `${String(etaHours).padStart(2, '0')}:${String(etaMins).padStart(2, '0')}`;
+              console.log(`[Complete ETA] Starting recalc (retro=${isRetroDate}): remainingStops=${remainingEtaDeliveries.length}, baseTimeMinutes=${baseTimeMinutes}`);
 
-               console.log(`[Complete ETA] Stop ${stop.id}: duration=${duration}min, newEta=${newEta}, baseTimeMinutes=${baseTimeMinutes}`);
+              const etaUpdates = [];
+              remainingEtaDeliveries.forEach((stop) => {
+                // Add estimated_duration_minutes for this stop
+                const duration = Number(stop.estimated_duration_minutes) || 5;
+                baseTimeMinutes += duration;
 
-               etaUpdates.push({
-                 id: stop.id,
-                 delivery_time_eta: newEta
-               });
-             });
+                const etaHours = Math.floor((baseTimeMinutes % 1440) / 60);
+                const etaMins = baseTimeMinutes % 60;
+                const newEta = `${String(etaHours).padStart(2, '0')}:${String(etaMins).padStart(2, '0')}`;
+
+                console.log(`[Complete ETA] Stop ${stop.id}: duration=${duration}min, newEta=${newEta}, baseTimeMinutes=${baseTimeMinutes}`);
+
+                etaUpdates.push({
+                  id: stop.id,
+                  delivery_time_eta: newEta
+                });
+              });
 
              if (etaUpdates.length > 0) {
                console.log(`[Complete ETA] Persisting ${etaUpdates.length} ETA updates to offline DB (backend will sync in background)`);
@@ -993,31 +1041,52 @@ export default function useStopCardActions(params) {
         await setAndCenterNextDelivery({ driverDeliveries, targetDeliveryId: incompleteDeliveries[0]?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true, persistToBackend: true });
         
         // CRITICAL: ALWAYS recalculate ETAs for remaining stops when failing/cancelling ANY stop
-         if (remainingEtaDeliveries.length > 0) {
-           try {
-             // Use current device time, not failure timestamp
-             const now = new Date();
-             let baseTimeMinutes = now.getHours() * 60 + now.getMinutes() + 5; // Current time + 5min buffer
+          if (remainingEtaDeliveries.length > 0) {
+            try {
+              const isRetroDate = delivery.delivery_date < localDeviceTodayStr;
+              let baseTimeMinutes;
 
-             console.log(`[Failure ETA] Starting recalc: currentTime=${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}, remainingStops=${remainingEtaDeliveries.length}, baseTimeMinutes=${baseTimeMinutes}`);
+              if (isRetroDate) {
+                // RETRO RULES: Chain from completed stop's actual_delivery_time + its duration
+                const failedActualTime = criticalUpdate.actual_delivery_time || delivery.actual_delivery_time;
+                if (failedActualTime) {
+                  const timeMatch = failedActualTime.match(/(\d{1,2}):(\d{2})/);
+                  if (timeMatch) {
+                    const hours = parseInt(timeMatch[1], 10);
+                    const mins = parseInt(timeMatch[2], 10);
+                    const failedDuration = Number(delivery.estimated_duration_minutes) || 5;
+                    baseTimeMinutes = hours * 60 + mins + failedDuration;
+                  }
+                }
+              } else {
+                // NON-RETRO RULES: Use current device time + 5min buffer
+                const now = new Date();
+                baseTimeMinutes = now.getHours() * 60 + now.getMinutes() + 5;
+              }
 
-             const etaUpdates = [];
-             remainingEtaDeliveries.forEach((stop) => {
-               // Add estimated_duration_minutes for this stop
-               const duration = Number(stop.estimated_duration_minutes) || 5;
-               baseTimeMinutes += duration;
+              if (!Number.isFinite(baseTimeMinutes)) {
+                baseTimeMinutes = 0; // Fallback
+              }
 
-               const etaHours = Math.floor((baseTimeMinutes % 1440) / 60);
-               const etaMins = baseTimeMinutes % 60;
-               const newEta = `${String(etaHours).padStart(2, '0')}:${String(etaMins).padStart(2, '0')}`;
+              console.log(`[Failure ETA] Starting recalc (retro=${isRetroDate}): remainingStops=${remainingEtaDeliveries.length}, baseTimeMinutes=${baseTimeMinutes}`);
 
-               console.log(`[Failure ETA] Stop ${stop.id}: duration=${duration}min, newEta=${newEta}, baseTimeMinutes=${baseTimeMinutes}`);
+              const etaUpdates = [];
+              remainingEtaDeliveries.forEach((stop) => {
+                // Add estimated_duration_minutes for this stop
+                const duration = Number(stop.estimated_duration_minutes) || 5;
+                baseTimeMinutes += duration;
 
-               etaUpdates.push({
-                 id: stop.id,
-                 delivery_time_eta: newEta
-               });
-             });
+                const etaHours = Math.floor((baseTimeMinutes % 1440) / 60);
+                const etaMins = baseTimeMinutes % 60;
+                const newEta = `${String(etaHours).padStart(2, '0')}:${String(etaMins).padStart(2, '0')}`;
+
+                console.log(`[Failure ETA] Stop ${stop.id}: duration=${duration}min, newEta=${newEta}, baseTimeMinutes=${baseTimeMinutes}`);
+
+                etaUpdates.push({
+                  id: stop.id,
+                  delivery_time_eta: newEta
+                });
+              });
 
              if (etaUpdates.length > 0) {
                console.log(`[Failure ETA] Persisting ${etaUpdates.length} ETA updates to offline DB (backend will sync in background)`);
