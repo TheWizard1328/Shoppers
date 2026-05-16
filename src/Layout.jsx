@@ -1035,10 +1035,10 @@ export default function Layout({ children, currentPageName }) {
 
 
 
+
       // Silent fail
     }}; //const currentUser = currentUser;
   const handleCitySelected = useCallback(async (cityId) => {try {globalFilters.setSelectedCityId(cityId);const today = new Date();globalFilters.setSelectedDate(today);
-
         const refreshedUser = await getEffectiveUser();
         if (refreshedUser) {
           setCurrentUser(refreshedUser);
@@ -1180,9 +1180,9 @@ export default function Layout({ children, currentPageName }) {
 
 
 
+
       // Admins see all
-    } else if (userHasRole(currentUser, 'dispatcher')) {const sIds = currentUser.store_ids || [];if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;const pIds = new Set(patients.filter((p) => p && relIds.includes(p.store_id)).map((p) => p.id));data = data.filter((d) => d && (d.patient_id ? pIds.has(d.patient_id) : relIds.includes(d.store_id)));} else if (userHasRole(currentUser, 'driver')) {data = data.filter((d) => d && d.driver_id === currentUser.id);if (selectedStoreId && selectedStoreId !== 'all' && currentUser.store_id !== selectedStoreId) return [];
-    }
+    } else if (userHasRole(currentUser, 'dispatcher')) {const sIds = currentUser.store_ids || [];if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;const pIds = new Set(patients.filter((p) => p && relIds.includes(p.store_id)).map((p) => p.id));data = data.filter((d) => d && (d.patient_id ? pIds.has(d.patient_id) : relIds.includes(d.store_id)));} else if (userHasRole(currentUser, 'driver')) {data = data.filter((d) => d && d.driver_id === currentUser.id);if (selectedStoreId && selectedStoreId !== 'all' && currentUser.store_id !== selectedStoreId) return [];}
 
     return data;
   }, [deliveries, currentUser, patients, selectedStoreId]);
@@ -1203,9 +1203,9 @@ export default function Layout({ children, currentPageName }) {
 
 
 
+
       // Admins see all
-    } else if (userHasRole(currentUser, 'dispatcher')) {const sIds = currentUser.store_ids || [];if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;data = data.filter((p) => p && relIds.includes(p.store_id));}return data;}, [patients, currentUser, selectedStoreId]);
-  // Route count - for dispatchers: unique dates with at least 1 delivery for their stores (YTD)
+    } else if (userHasRole(currentUser, 'dispatcher')) {const sIds = currentUser.store_ids || [];if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;data = data.filter((p) => p && relIds.includes(p.store_id));}return data;}, [patients, currentUser, selectedStoreId]); // Route count - for dispatchers: unique dates with at least 1 delivery for their stores (YTD)
   // for others: count driver-routes (each driver-date combination) for the selected month
   const totalRoutesCount = useMemo(() => {
     if (!deliveries || deliveries.length === 0 || !currentUser) return 0;
@@ -1670,10 +1670,10 @@ export default function Layout({ children, currentPageName }) {
                 </div>
 
                 <div className="pt-1 pr-3 pb-3 pl-3 flex-1 overflow-y-auto custom-scrollbar" style={{ background: 'var(--bg-white)' }} onClickCapture={(e) => {if ((isMobile || isTabletPortrait) && e.target?.closest?.('a')) {window.dispatchEvent(new CustomEvent('overlayNavigateClose'));}}}>
-                  <div className="">
+                  <div className="py-0.5">
                     <Link
                     to={constructUrlWithParams("Dashboard")}
-                    onClick={() => setSidebarOpen(false)} className="px-4 py-2 rounded-xl flex items-center gap-3 transition-all duration-200 hover:opacity-80"
+                    onClick={() => setSidebarOpen(false)} className="px-4 rounded-xl flex items-center gap-3 transition-all duration-200 hover:opacity-80 py-1"
 
                     style={currentPageName === 'Dashboard' ? {
                       background: 'var(--bg-slate-100)',
