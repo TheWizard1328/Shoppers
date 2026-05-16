@@ -235,7 +235,7 @@ export default function Layout({ children, currentPageName }) {
   const [adminImportEnabled, setAdminImportEnabled] = useState(false);
   const [isSnapshotModeActive, setIsSnapshotModeActive] = useState(false);
   const [showInviteQRModal, setShowInviteQRModal] = useState(false);
-  const [deviceRegistered, setDeviceRegistered] = useState(false);
+  const [currentPayrollNetPay, setCurrentPayrollNetPay] = useState(null); const [deviceRegistered, setDeviceRegistered] = useState(false);
   const [showDeviceSelectionModal, setShowDeviceSelectionModal] = useState(false);
   const [deviceTypeDetected, setDeviceTypeDetected] = useState(null);
   const [isSettingUpDevice, setIsSettingUpDevice] = useState(false);
@@ -1314,14 +1314,11 @@ export default function Layout({ children, currentPageName }) {
   // REMOVED: Backend stats polling for sidebar - now using local data only
   useEffect(() => {
     if (!currentUser || !dataLoaded) return;
-
-    // Calculate entity counts locally
-    setEntityCounts({
-      patients: patients.length,
-      cities: cities.length,
-      stores: stores.length,
-      users: users.length
-    });
+    setEntityCounts({ patients: patients.length, cities: cities.length, stores: stores.length, users: users.length });
+    const driverId = userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') ? currentUser.id : (globalFilters.getSelectedDriverId() !== 'all' ? globalFilters.getSelectedDriverId() : null);
+    if (!driverId) { setCurrentPayrollNetPay(null); return; }
+    const today = new Date().toISOString().slice(0, 10);
+    base44.entities.Payroll.filter({ driver_id: driverId }).then((payrolls) => { const cur = (payrolls || []).find(p => p.pay_period_start <= today && p.pay_period_end >= today); setCurrentPayrollNetPay(cur ? (cur.net_pay ?? null) : null); }).catch(() => setCurrentPayrollNetPay(null));
   }, [currentUser, dataLoaded, patients.length, cities.length, stores.length, users.length]);
 
   // Calculate online user counts
@@ -1807,6 +1804,11 @@ export default function Layout({ children, currentPageName }) {
                     }}>
                           <DollarSign className="w-5 h-5" />
                           <span className="font-semibold">Driver Payroll</span>
+                          {currentPayrollNetPay != null && (
+                            <Badge variant="secondary" className="ml-auto justify-center w-auto px-2 rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>
+                              ${currentPayrollNetPay.toFixed(2)}
+                            </Badge>
+                          )}
                           </Link>
                   }
 
