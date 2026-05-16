@@ -195,7 +195,9 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
   });
 
   // Sort drivers, users and cities for display
-  const sortedDrivers = sortUsers(drivers);
+  // Filter drivers to include all available users who can be assigned to slots (drivers, dispatchers, admins)
+  const filteredDrivers = drivers.filter(d => d && (d.app_roles?.includes('driver') || d.app_roles?.includes('dispatcher') || d.app_roles?.includes('admin')));
+  const sortedDrivers = sortUsers(filteredDrivers.length > 0 ? filteredDrivers : drivers);
   const sortedUsers = sortUsers(allUsers);
   const sortedCities = [...cities].sort((a, b) => a.name.localeCompare(b.name));
 
