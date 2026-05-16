@@ -50,15 +50,15 @@
       "default": 0,
       "description": "Total number of after-hours deliveries in this pay period"
     },
-    "net_pay": {
-      "type": "number",
-      "default": 0,
-      "description": "Calculated net pay (gross - Deductions) for this period"
-    },
     "gross_pay": {
       "type": "number",
       "default": 0,
       "description": "Calculated gross pay for this period"
+    },
+    "net_pay": {
+      "type": "number",
+      "default": 0,
+      "description": "Calculated net pay (gross - Deductions) for this period"
     },
     "paid_amount": {
       "type": "number",
