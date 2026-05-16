@@ -226,9 +226,9 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                   }
                 </div>
                 
-                {/* Call and navigate buttons - right aligned */}
+                {/* Call and navigate buttons - mobile only, right aligned */}
                 {store.phone && store.latitude && store.longitude && (
-                  <div className="flex gap-2 flex-shrink-0">
+                  <div className="flex gap-2 flex-shrink-0 md:hidden">
                     <a
                       href={`tel:${store.phone.replace(/\D/g, '')}`}
                       onClick={(e) => e.stopPropagation()}
