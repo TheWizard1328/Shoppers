@@ -113,6 +113,28 @@ export default function ResetPolylinesButton({
                 return (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0);
               });
 
+            // Resequence stop_order numbers based on the new sort order
+            const resequenceUpdates = orderedDeliveries
+              .map((delivery, index) => ({ id: delivery.id, newStopOrder: index + 1 }))
+              .filter(({ id, newStopOrder }) => {
+                const current = Number(orderedDeliveries.find(d => d.id === id)?.stop_order) || 0;
+                return current !== newStopOrder;
+              });
+
+            if (resequenceUpdates.length > 0) {
+              await Promise.all(
+                resequenceUpdates.map(({ id, newStopOrder }) =>
+                  base44.entities.Delivery.update(id, { stop_order: newStopOrder })
+                )
+              );
+              // Apply new stop_order values locally before building ordered IDs
+              resequenceUpdates.forEach(({ id, newStopOrder }) => {
+                const delivery = orderedDeliveries.find(d => d.id === id);
+                if (delivery) delivery.stop_order = newStopOrder;
+              });
+              console.log(`[ResetPolylinesButton] Resequenced ${resequenceUpdates.length} stop_order values for driver ${driverId}`);
+            }
+
             const orderedStopIds = orderedDeliveries
               .map((delivery) => delivery.id)
               .filter(Boolean);
