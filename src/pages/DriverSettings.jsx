@@ -87,8 +87,8 @@ export default function DriverSettings() {
   const filteredDrivers = useMemo(() => {
     let result = drivers;
 
-    // Filter by city
-    if (selectedCityId && selectedCityId !== 'waiting-for-selection') {
+    // Filter by city (admins see all)
+    if (!currentUser?.app_roles?.includes('admin') && selectedCityId && selectedCityId !== 'waiting-for-selection') {
       result = result.filter((driver) => {
         const cityIds = Array.isArray(driver.city_ids) ? driver.city_ids : driver.city_id ? [driver.city_id] : [];
         return cityIds.includes(selectedCityId);
