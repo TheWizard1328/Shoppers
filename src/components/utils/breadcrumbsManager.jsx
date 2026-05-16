@@ -71,23 +71,43 @@ export async function loadBreadcrumbsForDriver(driverId, selectedDateStr, appUse
     const cacheKey = `${driverId}:${selectedDateStr}`;
     if (historical.length === 0 && base44.entities?.DeliveryBreadcrumbs && !_apiFetchedKeys.has(cacheKey)) {
       _apiFetchedKeys.add(cacheKey);
-      const apiBreadcrumbs = await base44.entities.DeliveryBreadcrumbs.filter({
-        driver_id: driverId,
-        delivery_date: selectedDateStr
-      });
 
-      if (Array.isArray(apiBreadcrumbs) && apiBreadcrumbs.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.DELIVERY_BREADCRUMBS, apiBreadcrumbs);
+      // Cheap probe: fetch just 1 record to check if server has any data for this driver/date.
+      // If empty, skip the full fetch — server is likely empty too.
+      const probe = await base44.entities.DeliveryBreadcrumbs.filter(
+        { driver_id: driverId, delivery_date: selectedDateStr },
+        '-created_date',
+        1
+      );
 
-        historical = apiBreadcrumbs
-          .filter(record => record?.encoded_polyline)
-          .map(record => ({
-            id: record.delivery_id,
-            driver_id: record.driver_id,
-            encoded_polyline: record.encoded_polyline,
-            timestamps: record.timestamps
-          }));
+      if (Array.isArray(probe) && probe.length > 0) {
+        // Server has data — fetch full set, save to offline DB, then read back
+        const apiBreadcrumbs = await base44.entities.DeliveryBreadcrumbs.filter({
+          driver_id: driverId,
+          delivery_date: selectedDateStr
+        });
+
+        if (Array.isArray(apiBreadcrumbs) && apiBreadcrumbs.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERY_BREADCRUMBS, apiBreadcrumbs);
+
+          // Read back from offline DB (source of truth going forward)
+          const saved = await offlineDB.getByCompoundIndex(
+            offlineDB.STORES.DELIVERY_BREADCRUMBS,
+            'date_driver',
+            [selectedDateStr, driverId]
+          );
+
+          historical = (saved || apiBreadcrumbs)
+            .filter(record => record?.encoded_polyline)
+            .map(record => ({
+              id: record.delivery_id,
+              driver_id: record.driver_id,
+              encoded_polyline: record.encoded_polyline,
+              timestamps: record.timestamps
+            }));
+        }
       }
+      // If probe returned empty — server has no data, nothing to do
     }
   } catch (e) {
     console.warn('⚠️ Failed to load breadcrumbs:', e.message);
