@@ -238,7 +238,10 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
       if (cityStores.length > 0) deliveryFilter.store_id = { $in: cityStores };
     }
     const deliveries = await Delivery.filter(deliveryFilter, '-updated_date', 5000);
-    await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr, deliveries || []);
+    // CRITICAL: Use bulkSave to merge, not replaceRecordsByIndex which clears data
+    if (deliveries && deliveries.length > 0) {
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+    }
     invalidateEntityCache('Delivery');
     notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 55, count: deliveries.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
@@ -554,14 +557,8 @@ export const manualSyncSelected = async (selectedDateStr, selectedCityId = null)
     }
     const deliveries = await Delivery.filter(deliveryFilter, '-updated_date', 5000);
 
-    // Purge + replace deliveries for selected date/city in offline DB
-    const offlineDeliveriesForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-    const deliveryIdsToDelete = (offlineDeliveriesForDate || [])
-      .filter((delivery) => !selectedCityId || cityStoreIds.includes(delivery?.store_id))
-      .map((delivery) => delivery?.id)
-      .filter(Boolean);
-    await Promise.all(deliveryIdsToDelete.map((id) => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id)));
-    if (deliveries.length > 0) {
+    // CRITICAL: Merge deliveries, never delete — user edits must be preserved
+    if (deliveries && deliveries.length > 0) {
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
     }
     invalidateEntityCache('Delivery');
