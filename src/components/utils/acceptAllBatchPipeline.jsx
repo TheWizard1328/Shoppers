@@ -71,7 +71,7 @@ export async function runAcceptAllBatchPipeline({
            delivery_time_eta = addMinutesToTimeString(pickupStartTime, triggerDelivery.estimated_duration_minutes);
          } else if (index > triggerIndex + 1) {
            // Subsequent deliveries: previous stop's actual delivery time + previous stop's duration
-           const previousStop = stagedRoute[index - 1];
+           const previousStop = routeDeliveries[index - 1];
            if (previousStop?.actual_delivery_time) {
              const prevDuration = previousStop.estimated_duration_minutes || 5;
              delivery_time_eta = addMinutesToTimeString(previousStop.actual_delivery_time, prevDuration);
