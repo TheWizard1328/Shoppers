@@ -12,7 +12,7 @@ export function calculateDistanceKm(from, to) {
   const deltaLat = toRadians(Number(to.latitude) - Number(from.latitude));
   const deltaLon = toRadians(Number(to.longitude) - Number(from.longitude));
   const a = Math.sin(deltaLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) ** 2;
-  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * 1.25; // Add a 25% multiplyer to offset direct line of sight
 }
 
 export function getCurrentDriverLocation({ currentUser, appUsers = [], driverLocation = null }) {
