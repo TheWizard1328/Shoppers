@@ -1,6 +1,6 @@
 import React from "react";
 import { Badge } from "@/components/ui/badge";
-import { Phone, Bell, BellOff, Mailbox, StickyNote } from "lucide-react";
+import { Phone, Bell, BellOff, Mailbox, StickyNote, PenLine } from "lucide-react";
 import HelpTooltip, { HELP_CONTENT } from "../common/HelpTooltip";
 
 export function getCodSymbolColorClass(delivery) {
@@ -8,7 +8,14 @@ export function getCodSymbolColorClass(delivery) {
     new Set((delivery?.cod_payments || []).map((payment) => String(payment?.type || '').toLowerCase()).filter(Boolean))
   );
 
-  if (paymentTypes.some((type) => type === 'debit' || type === 'credit')) return 'text-blue-600';
+  const collectedByCard = paymentTypes.some((type) => type === 'debit' || type === 'credit');
+  if (collectedByCard) return 'text-green-600';
+
+  // Not collected and delivery is complete → red
+  const isComplete = delivery?.status === 'completed';
+  if (isComplete && !paymentTypes.length) return 'text-red-600';
+  if (isComplete && paymentTypes.some((type) => type === 'cash')) return 'text-green-600';
+
   if (paymentTypes.some((type) => type === 'cash')) return 'text-green-600';
   return 'text-black dark:text-black';
 }
@@ -107,7 +114,7 @@ export default function SpecialSymbolsBadges({
         {isFirstDelivery && <span className={`text-blue-800 ${isCardSize ? config.text : ''}`}>N</span>}
         {hasOversized && <span className={`text-orange-800 ${isCardSize ? config.text : ''}`}>O</span>}
         {hasFridge && <span className={`text-cyan-800 ${isCardSize ? config.text : ''}`}>F</span>}
-        {hasSignature && <span className={`text-purple-800 ${isCardSize ? config.text : ''}`}>S</span>}
+        {hasSignature && <PenLine className={`${config.icon} text-green-700`} />}
         
         {/* Preference icons - intuitive colors */}
         {hasCallOnArrival && <Phone className={`${config.icon} text-orange-600`} />}
