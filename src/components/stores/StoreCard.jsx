@@ -157,98 +157,88 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
 
         <CardContent className="p-4 flex flex-col justify-between h-full">
           <div>
-            {/* Header with Store Name, Address, Phone, and Edit/Delete buttons */}
-            <div className="grid grid-cols-[1fr_auto] gap-4">
-              {/* Left column: Name and Details */}
-              <div>
-                {/* Row 1: Store name and badges */}
-                <div className="flex items-center gap-2 mb-2">
+            {/* Header with Store Name, Address, Phone (first 4 rows in limited view) */}
+            <div className="flex items-start justify-between">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
                   <h3 className="font-semibold truncate text-xl" style={{ color: 'var(--text-slate-900)' }}>
                     {store.name}
                   </h3>
                   {store.abbreviation &&
                   <Badge className="px-2.5 py-0.5 text-xs font-semibold rounded-[10px] inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent shadow hover:bg-primary/80"
+
                   style={{ backgroundColor: currentStoreColor, color: 'white' }}>
-                    {store.abbreviation}
-                  </Badge>
+
+                      {store.abbreviation}
+                    </Badge>
                   }
                   {store.square_location_config_id &&
                   <Badge variant="outline" className="px-1.5 py-0.5 text-xs font-medium rounded-md inline-flex items-center gap-1" style={{ borderColor: '#10b981', color: '#059669' }}>
-                    <CreditCard className="w-3 h-3" />
-                  </Badge>
+                      <CreditCard className="w-3 h-3" />
+                    </Badge>
                   }
                 </div>
-                
-                {/* Row 2: Address */}
                 <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>{store.address}</p>
-                
-                {/* Row 3: Phone */}
                 {store.phone &&
                 <p className="text-sm mt-1" style={{ color: 'var(--text-slate-500)' }}>
-                  {formatPhoneNumber(store.phone)}
-                </p>
+                    {formatPhoneNumber(store.phone)}
+                  </p>
                 }
-              </div>
-              
-              {/* Right column: Edit/Delete buttons (row 1) and Mobile call/navigate buttons (rows 2-3) */}
-              {!hideEditDelete && <div className="flex flex-col gap-2">
-                {/* Row 1: Edit and Delete buttons */}
-                <div className="flex gap-2 items-center">
-                  <Button variant="ghost" size="sm" onClick={(e) => {e.stopPropagation();onEdit(store);}} className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:bg-accent h-8 rounded-md px-3 text-xs text-red-600 hover:text-accent-foreground">
-                    <Edit className="w-4 h-4" />
-                  </Button>
-                  {currentUser && userHasRole(currentUser, 'admin') &&
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={(e) => e.stopPropagation()}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Store</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Are you sure you want to delete {store.name}? This action cannot be undone.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => onDelete(store.id)}
-                          className="bg-red-600 hover:bg-red-700">
-                          Delete
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                  }
                 </div>
-                
-                {/* Rows 2-3: Mobile-only call and navigate buttons (side by side) */}
-                {store.phone && store.latitude && store.longitude && (
-                  <div className="flex flex-row gap-2 md:hidden">
-                    <a
-                      href={`tel:${store.phone.replace(/\D/g, '')}`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="h-full flex-1 rounded-full flex items-center justify-center transition-colors hover:opacity-80"
-                      style={{ backgroundColor: '#d1fae5' }}>
-                      <Phone className="w-5 h-5" style={{ color: '#059669' }} />
-                    </a>
-                    <a
-                      href={`https://maps.google.com/?q=${store.latitude},${store.longitude}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="h-full flex-1 rounded-full flex items-center justify-center transition-colors hover:opacity-80"
-                      style={{ backgroundColor: '#dbeafe' }}>
-                      <MapPin className="w-5 h-5" style={{ color: '#2563eb' }} />
-                    </a>
+                {!hideEditDelete && <div className="space-y-2">
+                  <div className="flex gap-2 items-center">
+                    <Button variant="ghost" size="sm" onClick={(e) => {e.stopPropagation();onEdit(store);}} className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:bg-accent h-8 rounded-md px-3 text-xs text-red-600 hover:text-accent-foreground flex-1">
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                    {currentUser && userHasRole(currentUser, 'admin') &&
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700 flex-1" onClick={(e) => e.stopPropagation()}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Store</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to delete {store.name}? This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => onDelete(store.id)}
+                            className="bg-red-600 hover:bg-red-700">
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                    }
                   </div>
-                )}
-              </div>}
-            </div>
-            
-            {/* Row 4: GPS Coordinates */}
+                  
+                  {/* Mobile-only call and navigate buttons */}
+                  {store.phone && store.latitude && store.longitude && (
+                    <div className="flex gap-2 md:hidden">
+                      <a
+                        href={`tel:${store.phone.replace(/\D/g, '')}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 transition-colors hover:opacity-80"
+                        style={{ backgroundColor: '#d1fae5' }}>
+                        <Phone className="w-5 h-5" style={{ color: '#059669' }} />
+                      </a>
+                      <a
+                        href={`https://maps.google.com/?q=${store.latitude},${store.longitude}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 transition-colors hover:opacity-80"
+                        style={{ backgroundColor: '#dbeafe' }}>
+                        <MapPin className="w-5 h-5" style={{ color: '#2563eb' }} />
+                      </a>
+                    </div>
+                  )}
+                </div>}
             </div>
 
             {/* Coordinates display */}
@@ -631,9 +621,10 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                   </>);
 
               })()}
-              </div>
+            </div>
+          </div>
 
-              {/* Bottom Actions - Store ID, Dispatcher ID and Delete button - Admin only */}
+          {/* Bottom Actions - Store ID, Dispatcher ID and Delete button - Admin only */}
           {!isLimitedView && <div className="space-y-0" style={{ borderTop: '1px solid var(--border-slate-100)' }}>
             {/* Store ID with Copy */}
             <div className="flex items-center">
