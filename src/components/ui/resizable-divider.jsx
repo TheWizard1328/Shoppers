@@ -4,7 +4,7 @@ export function ResizableDivider({
   storageKey, 
   defaultWidth = 260, 
   minWidth = 260, 
-  maxWidth = 400,
+  maxWidth = 300,
   onWidthChange,
   side = 'left' // 'left' or 'right'
 }) {
