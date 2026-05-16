@@ -1752,7 +1752,7 @@ export default function Layout({ children, currentPageName }) {
 
                           {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                   <Link
-                    to={constructUrlWithParams(createPageUrl('Drivers'))}
+                    to={constructUrlWithParams('DriverSettings')}
                     onClick={() => setSidebarOpen(false)}
                     className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
                     currentPageName === 'Drivers' ?
