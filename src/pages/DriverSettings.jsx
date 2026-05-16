@@ -16,6 +16,7 @@ import DriverEditForm from '../components/drivers/DriverEditForm';
 import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
 import { globalFilters } from '../components/utils/globalFilters';
 import { getData } from '../components/utils/dataManager';
+import { isMobileDevice } from '../components/utils/deviceUtils';
 
 export default function DriverSettings() {
   const { users, appUsers, stores, cities = [], refreshData } = useAppData();
@@ -238,40 +239,51 @@ export default function DriverSettings() {
               })();
 
               if (!isAdmin) {
+                const isMobile = isMobileDevice();
                 // Compact card for drivers/dispatchers
-                return (
-                  <Card key={driver.id} className="rounded-xl border shadow hover:shadow-md transition-shadow" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                    <CardContent className="p-3">
-                      <div className="flex items-center gap-3">
-                        {/* Avatar */}
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${avatarColor}`}>
-                          <span className="text-white font-bold text-sm">
-                            {(getDriverDisplayName(driver) || 'D')?.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                        {/* Info */}
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-sm truncate" style={{ color: 'var(--text-slate-900)' }}>
-                            {getDriverDisplayName(driver)}
-                          </p>
-                          <div className="flex items-center gap-1 flex-wrap mt-0.5">
-                            <Badge className={`text-xs py-0 h-4 ${dutyStatus.color}`}>{dutyStatus.label}</Badge>
-                            {gpsLabel &&
-                            <Badge className={`text-xs py-0 h-4 gap-0.5 ${gpsLabel.isRecent ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
-                                <Navigation className="w-2.5 h-2.5" />
-                                {gpsLabel.label}
-                              </Badge>
-                            }
-                          </div>
-                          {driver.phone &&
-                          <a href={`tel:${driver.phone}`} className="flex items-center gap-1 mt-1 text-xs hover:opacity-80" style={{ color: 'var(--text-slate-500)' }}>
-                              <Phone className="w-3 h-3" />
-                              {formatPhoneNumber(driver.phone)}
-                            </a>
+                const cardContent = (
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-3">
+                      {/* Avatar */}
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${avatarColor}`}>
+                        <span className="text-white font-bold text-sm">
+                          {(getDriverDisplayName(driver) || 'D')?.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm truncate" style={{ color: 'var(--text-slate-900)' }}>
+                          {getDriverDisplayName(driver)}
+                        </p>
+                        <div className="flex items-center gap-1 flex-wrap mt-0.5">
+                          <Badge className={`text-xs py-0 h-4 ${dutyStatus.color}`}>{dutyStatus.label}</Badge>
+                          {gpsLabel &&
+                          <Badge className={`text-xs py-0 h-4 gap-0.5 ${gpsLabel.isRecent ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
+                              <Navigation className="w-2.5 h-2.5" />
+                              {gpsLabel.label}
+                            </Badge>
                           }
                         </div>
+                        {driver.phone &&
+                        <div className="flex items-center gap-1 mt-1 text-xs" style={{ color: 'var(--text-slate-500)' }}>
+                            <Phone className="w-3 h-3" />
+                            {formatPhoneNumber(driver.phone)}
+                          </div>
+                        }
                       </div>
-                    </CardContent>
+                    </div>
+                  </CardContent>
+                );
+
+                return isMobile && driver.phone ? (
+                  <a key={driver.id} href={`tel:${driver.phone}`} className="block">
+                    <Card className="rounded-xl border shadow hover:shadow-md transition-shadow active:opacity-70" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                      {cardContent}
+                    </Card>
+                  </a>
+                ) : (
+                  <Card key={driver.id} className="rounded-xl border shadow hover:shadow-md transition-shadow" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                    {cardContent}
                   </Card>
                 );
               }
