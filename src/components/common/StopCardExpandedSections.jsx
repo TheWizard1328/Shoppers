@@ -126,7 +126,7 @@ export function StopCardCodSection(props) {
 
 }
 
-export function StopCardPatientInfoSection({ isStrippedForDriver, isFinishedDelivery, isPickup, isPastDate, patient, currentUser, appUsers = [], preferredTravelMode, onTravelModeChange, travelModeDisabled = false }) {
+export function StopCardPatientInfoSection({ isStrippedForDriver, isFinishedDelivery, isPickup, isPastDate, patient, delivery, currentUser, appUsers = [], preferredTravelMode, onTravelModeChange, travelModeDisabled = false }) {
   if (isStrippedForDriver || isPickup || !patient) return null;
 
   if (isFinishedDelivery && !isPastDate && patient.notes) {
@@ -166,6 +166,14 @@ export function StopCardPatientInfoSection({ isStrippedForDriver, isFinishedDeli
                   {patient.call_upon_arrival && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-amber-50 border-amber-200 text-amber-700">Call on Arrival</Badge>}
                   {patient.dont_ring_bell && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-red-50 border-red-200 text-red-700">Don't Ring Bell</Badge>}
                   {patient.back_door && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-purple-50 border-purple-200 text-purple-700">Back Door</Badge>}
+                </div>
+            }
+              {delivery && (delivery.fridge_item || delivery.oversized || delivery.after_hours_pickup || delivery.no_charge) &&
+            <div className="flex flex-wrap gap-1">
+                  {delivery.fridge_item && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-cyan-50 border-cyan-200 text-cyan-700">Refrigerated</Badge>}
+                  {delivery.oversized && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-orange-50 border-orange-200 text-orange-700">Oversized</Badge>}
+                  {delivery.after_hours_pickup && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-indigo-50 border-indigo-200 text-indigo-700">After Hours</Badge>}
+                  {delivery.no_charge && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-gray-50 border-gray-200 text-gray-700">No Charge</Badge>}
                 </div>
             }
               {patient.recurring &&
