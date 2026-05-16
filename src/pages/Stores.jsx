@@ -273,6 +273,8 @@ export default function StoresPage() {
                   onSave={handleSaveStore}
                   currentUser={currentUser}
                   drivers={drivers}
+                  isLimitedView={currentUser && !userHasRole(currentUser, 'admin')}
+                  hideEditDelete={currentUser && userHasRole(currentUser, 'dispatcher')}
                 />
               ))}
             </div>

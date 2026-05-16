@@ -27,7 +27,7 @@ import { formatPhoneNumber } from "../utils/formatters";
 import { userHasRole } from "../utils/userRoles";
 import { updateStoreLocal } from "@/components/utils/offlineMutations";
 
-export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser, drivers, onSelect, isSelected }) {
+export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser, drivers, onSelect, isSelected, isLimitedView, hideEditDelete }) {
   const [editingColor, setEditingColor] = useState(false);
   const [editableStore, setEditableStore] = useState({ ...store });
   const [copiedId, setCopiedId] = useState(false);
@@ -157,7 +157,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
 
         <CardContent className="p-4 flex flex-col justify-between h-full">
           <div>
-            {/* Header with Store Name, Address, Phone, and Edit Button */}
+            {/* Header with Store Name, Address, Phone (first 4 rows in limited view) */}
             <div className="flex items-start justify-between">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
@@ -185,7 +185,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                   </p>
                 }
                 </div>
-                <div className="flex flex-col gap-1 items-center">
+                {!hideEditDelete && <div className="flex flex-col gap-1 items-center">
                 <Button variant="ghost" size="sm" onClick={(e) => {e.stopPropagation();onEdit(store);}} className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:bg-accent h-8 rounded-md px-3 text-xs text-red-600 hover:text-accent-foreground flex-shrink-0">
                   <Edit className="w-4 h-4" />
                 </Button>
@@ -214,7 +214,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                   </AlertDialogContent>
                 </AlertDialog>
                 }
-                </div>
+                </div>}
             </div>
 
             {/* Coordinates display */}
@@ -224,8 +224,8 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
               </div>
             }
 
-            {/* Pays App Fees Checkbox */}
-            {currentUser && userHasRole(currentUser, 'admin') && (() => {
+            {/* Pays App Fees Checkbox - Admin only */}
+            {!isLimitedView && currentUser && userHasRole(currentUser, 'admin') && (() => {
               const history = store.app_fee_history || [];
               const sortedHistory = [...history].sort((a, b) =>
               new Date(b.effective_date) - new Date(a.effective_date)
@@ -364,8 +364,8 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
 
             })()}
 
-            {/* Color Selector */}
-            <div className="flex items-center gap-2 mb-4">
+            {/* Color Selector - Admin only */}
+            {!isLimitedView && <div className="flex items-center gap-2 mb-4">
               {editingColor ?
               <div className="flex items-center gap-2">
                   <Input
@@ -404,10 +404,10 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                   <span>Store Color</span>
                 </button>
               }
-            </div>
+              </div>}
 
-            {/* Full Schedule Drivers - FIXED TO RESPECT ENABLED FLAGS */}
-            <div className="space-y-2" style={{ background: 'var(--bg-slate-50)', borderTop: '1px solid var(--border-slate-200)' }}>
+              {/* Driver Assignments Section */}
+              <div className="space-y-2 pt-2" style={{ background: 'var(--bg-slate-50)', borderTop: '1px solid var(--border-slate-200)' }}>
               <h4 className="font-semibold text-sm" style={{ color: 'var(--text-slate-800)' }}>Driver Assignments & Pickup Times</h4>
 
               {(() => {
@@ -594,8 +594,8 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
             </div>
           </div>
 
-          {/* Bottom Actions - Store ID, Dispatcher ID and Delete button */}
-          <div className="space-y-0" style={{ borderTop: '1px solid var(--border-slate-100)' }}>
+          {/* Bottom Actions - Store ID, Dispatcher ID and Delete button - Admin only */}
+          {!isLimitedView && <div className="space-y-0" style={{ borderTop: '1px solid var(--border-slate-100)' }}>
             {/* Store ID with Copy */}
             <div className="flex items-center">
               <span className="text-xs font-mono w-28 flex-shrink-0" style={{ color: 'var(--text-slate-500)' }}>Store ID:</span>
@@ -645,9 +645,9 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
               </Button>
             </div>
             }
-          </div>
-        </CardContent>
-      </Card>
+            </div>}
+            </CardContent>
+            </Card>
       <Dialog open={!!editingSlot} onOpenChange={(open) => !open && setEditingSlot(null)}>
         <DialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }} onClick={(e) => e.stopPropagation()}>
           <DialogHeader>

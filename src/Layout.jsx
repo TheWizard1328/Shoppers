@@ -1729,7 +1729,7 @@ export default function Layout({ children, currentPageName }) {
                           </Link>
                   }
 
-                          {userHasRole(currentUser, 'admin') &&
+                          {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                   <Link
                     to={constructUrlWithParams(createPageUrl('Stores'))}
                     onClick={() => setSidebarOpen(false)}
@@ -1750,7 +1750,7 @@ export default function Layout({ children, currentPageName }) {
                           </Link>
                   }
 
-                          {userHasRole(currentUser, 'admin') &&
+                          {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                   <Link
                     to={constructUrlWithParams(createPageUrl('Drivers'))}
                     onClick={() => setSidebarOpen(false)}
