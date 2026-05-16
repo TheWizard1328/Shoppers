@@ -412,13 +412,19 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
 
               {(() => {
                 const getDriverName = (driverId, fallbackName) => {
+                  let name = fallbackName || 'No driver';
                   if (driverId && drivers && drivers.length > 0) {
                     const driver = drivers.find((d) => d && d.id === driverId);
                     if (driver) {
-                      return driver.user_name || driver.full_name || fallbackName || 'Unknown';
+                      name = driver.user_name || driver.full_name || fallbackName || 'Unknown';
                     }
                   }
-                  return fallbackName || 'No driver';
+                  // If format is "X Word" (single letter + space + word), return the second word
+                  const parts = name.trim().split(' ');
+                  if (parts.length >= 2 && parts[0].length === 1) {
+                    return parts.slice(1).join(' ');
+                  }
+                  return name;
                 };
 
                 return (
@@ -439,7 +445,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                           {store.weekday_am_enabled !== false && (store.weekday_am_driver_id || store.driver_weekday_am) ?
                           <>
                               <div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
-                                {getDriverName(store.weekday_am_driver_id, store.driver_weekday_am).split(' ')[0]}
+                                {getDriverName(store.weekday_am_driver_id, store.driver_weekday_am)}
                               </div>
                               {store.weekday_am_start && store.weekday_am_end &&
                             <div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
@@ -464,7 +470,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                           {store.saturday_am_enabled !== false && (store.saturday_am_driver_id || store.saturday_am_driver) ?
                           <>
                               <div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
-                                {getDriverName(store.saturday_am_driver_id, store.saturday_am_driver).split(' ')[0]}
+                                {getDriverName(store.saturday_am_driver_id, store.saturday_am_driver)}
                               </div>
                               {store.saturday_am_start && store.saturday_am_end &&
                             <div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
@@ -489,7 +495,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                           {store.sunday_am_enabled !== false && (store.sunday_am_driver_id || store.driver_sunday_am) ?
                           <>
                               <div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
-                                {getDriverName(store.sunday_am_driver_id, store.driver_sunday_am).split(' ')[0]}
+                                {getDriverName(store.sunday_am_driver_id, store.driver_sunday_am)}
                               </div>
                               {store.sunday_am_start && store.sunday_am_end &&
                             <div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
@@ -522,7 +528,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                           {store.weekday_pm_enabled !== false && (store.weekday_pm_driver_id || store.driver_weekday_pm) ?
                           <>
                               <div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
-                                {getDriverName(store.weekday_pm_driver_id, store.driver_weekday_pm).split(' ')[0]}
+                                {getDriverName(store.weekday_pm_driver_id, store.driver_weekday_pm)}
                               </div>
                               {store.weekday_pm_start && store.weekday_pm_end &&
                             <div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
@@ -547,7 +553,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                           {store.saturday_pm_enabled !== false && (store.saturday_pm_driver_id || store.saturday_pm_driver) ?
                           <>
                               <div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
-                                {getDriverName(store.saturday_pm_driver_id, store.saturday_pm_driver).split(' ')[0]}
+                                {getDriverName(store.saturday_pm_driver_id, store.saturday_pm_driver)}
                               </div>
                               {store.saturday_pm_start && store.saturday_pm_end &&
                             <div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
@@ -572,7 +578,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                           {store.sunday_pm_enabled !== false && (store.sunday_pm_driver_id || store.driver_sunday_pm) ?
                           <>
                               <div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
-                                {getDriverName(store.sunday_pm_driver_id, store.driver_sunday_pm).split(' ')[0]}
+                                {getDriverName(store.sunday_pm_driver_id, store.driver_sunday_pm)}
                               </div>
                               {store.sunday_pm_start && store.sunday_pm_end &&
                             <div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
