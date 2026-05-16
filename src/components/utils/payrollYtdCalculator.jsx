@@ -46,8 +46,8 @@ const getTaxRateForDriver = (driverCity) => {
  * @returns {Object} YTD totals
  */
 export const calculateYtdPayroll = (ytdRecords, driverData, cities = [], appUser = null) => {
-  // Sum all net pay from payroll records, rounding to 2 decimals
-  const ytdNetPay = Math.round(ytdRecords.reduce((sum, r) => sum + (r.net_pay || 0), 0) * 100) / 100;
+  // Sum all net pay from payroll records (stored in gross_pay field due to historical swap)
+  const ytdNetPay = Math.round(ytdRecords.reduce((sum, r) => sum + (r.gross_pay || 0), 0) * 100) / 100;
   
   // Sum all deductions from payroll records, rounding to 2 decimals
   const ytdDeductionsAmount = Math.round(ytdRecords.reduce((sum, r) => sum + (r.total_deductions || 0), 0) * 100) / 100;
@@ -61,8 +61,8 @@ export const calculateYtdPayroll = (ytdRecords, driverData, cities = [], appUser
   // Sum all tax amounts from payroll records (not calculated), rounding to 2 decimals
   const ytdTaxAmount = Math.round(ytdRecords.reduce((sum, r) => sum + (r.tax_amount || 0), 0) * 100) / 100;
 
-  // Calculate YTD Gross = YTD Net + YTD Tax - YTD Deductions + YTD Bonus + YTD App Fees
-  const ytdGrossPay = Math.round((ytdNetPay + ytdTaxAmount - ytdDeductionsAmount + ytdBonusAmount + ytdAppFeeAmount) * 100) / 100;
+  // Calculate YTD Gross (stored in net_pay field due to historical swap) = base pay before deductions/bonus
+  const ytdGrossPay = Math.round(ytdRecords.reduce((sum, r) => sum + (r.net_pay || 0), 0) * 100) / 100;
 
   return {
     ytdNetPay,
