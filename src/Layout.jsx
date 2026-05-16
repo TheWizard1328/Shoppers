@@ -1034,10 +1034,10 @@ export default function Layout({ children, currentPageName }) {
 
 
 
+
       // Silent fail
     }}; //const currentUser = currentUser;
-  const handleCitySelected = useCallback(async (cityId) => {try {globalFilters.setSelectedCityId(cityId);const today = new Date();
-        globalFilters.setSelectedDate(today);
+  const handleCitySelected = useCallback(async (cityId) => {try {globalFilters.setSelectedCityId(cityId);const today = new Date();globalFilters.setSelectedDate(today);
 
         const refreshedUser = await getEffectiveUser();
         if (refreshedUser) {
@@ -1179,9 +1179,9 @@ export default function Layout({ children, currentPageName }) {
 
 
 
+
       // Admins see all
-    } else if (userHasRole(currentUser, 'dispatcher')) {const sIds = currentUser.store_ids || [];if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;const pIds = new Set(patients.filter((p) => p && relIds.includes(p.store_id)).map((p) => p.id));data = data.filter((d) => d && (d.patient_id ? pIds.has(d.patient_id) : relIds.includes(d.store_id)));} else if (userHasRole(currentUser, 'driver')) {data = data.filter((d) => d && d.driver_id === currentUser.id);
-      if (selectedStoreId && selectedStoreId !== 'all' && currentUser.store_id !== selectedStoreId) return [];
+    } else if (userHasRole(currentUser, 'dispatcher')) {const sIds = currentUser.store_ids || [];if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;const pIds = new Set(patients.filter((p) => p && relIds.includes(p.store_id)).map((p) => p.id));data = data.filter((d) => d && (d.patient_id ? pIds.has(d.patient_id) : relIds.includes(d.store_id)));} else if (userHasRole(currentUser, 'driver')) {data = data.filter((d) => d && d.driver_id === currentUser.id);if (selectedStoreId && selectedStoreId !== 'all' && currentUser.store_id !== selectedStoreId) return [];
     }
 
     return data;
@@ -1202,9 +1202,9 @@ export default function Layout({ children, currentPageName }) {
 
 
 
+
       // Admins see all
     } else if (userHasRole(currentUser, 'dispatcher')) {const sIds = currentUser.store_ids || [];if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;data = data.filter((p) => p && relIds.includes(p.store_id));}return data;}, [patients, currentUser, selectedStoreId]);
-
   // Route count - for dispatchers: unique dates with at least 1 delivery for their stores (YTD)
   // for others: count driver-routes (each driver-date combination) for the selected month
   const totalRoutesCount = useMemo(() => {
@@ -1845,7 +1845,7 @@ export default function Layout({ children, currentPageName }) {
                   <Link
                     to={createPageUrl('DeviceSettings')}
                     onClick={() => setSidebarOpen(false)}
-                    className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                    className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
                     currentPageName === 'DeviceSettings' ?
                     'shadow-sm' :
                     'hover:opacity-80'}`
