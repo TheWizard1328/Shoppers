@@ -1037,10 +1037,10 @@ export default function Layout({ children, currentPageName }) {
 
 
 
+
       // Silent fail
     }}; //const currentUser = currentUser;
-  const handleCitySelected = useCallback(async (cityId) => {try {globalFilters.setSelectedCityId(cityId);const today = new Date();globalFilters.setSelectedDate(today);const refreshedUser = await getEffectiveUser();
-        if (refreshedUser) {
+  const handleCitySelected = useCallback(async (cityId) => {try {globalFilters.setSelectedCityId(cityId);const today = new Date();globalFilters.setSelectedDate(today);const refreshedUser = await getEffectiveUser();if (refreshedUser) {
           setCurrentUser(refreshedUser);
           globalFilters.setSelectedDriverId('all');
         }
@@ -1182,9 +1182,9 @@ export default function Layout({ children, currentPageName }) {
 
 
 
+
       // Admins see all
-    } else if (userHasRole(currentUser, 'dispatcher')) {const sIds = currentUser.store_ids || [];if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;const pIds = new Set(patients.filter((p) => p && relIds.includes(p.store_id)).map((p) => p.id));data = data.filter((d) => d && (d.patient_id ? pIds.has(d.patient_id) : relIds.includes(d.store_id)));} else if (userHasRole(currentUser, 'driver')) {data = data.filter((d) => d && d.driver_id === currentUser.id);if (selectedStoreId && selectedStoreId !== 'all' && currentUser.store_id !== selectedStoreId) return [];}
-    return data;
+    } else if (userHasRole(currentUser, 'dispatcher')) {const sIds = currentUser.store_ids || [];if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;const pIds = new Set(patients.filter((p) => p && relIds.includes(p.store_id)).map((p) => p.id));data = data.filter((d) => d && (d.patient_id ? pIds.has(d.patient_id) : relIds.includes(d.store_id)));} else if (userHasRole(currentUser, 'driver')) {data = data.filter((d) => d && d.driver_id === currentUser.id);if (selectedStoreId && selectedStoreId !== 'all' && currentUser.store_id !== selectedStoreId) return [];}return data;
   }, [deliveries, currentUser, patients, selectedStoreId]);
 
   const filteredPatients = useMemo(() => {
@@ -1205,11 +1205,11 @@ export default function Layout({ children, currentPageName }) {
 
 
 
+
       // Admins see all
     } else if (userHasRole(currentUser, 'dispatcher')) {const sIds = currentUser.store_ids || [];if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;data = data.filter((p) => p && relIds.includes(p.store_id));}return data;}, [patients, currentUser, selectedStoreId]); // Route count - for dispatchers: unique dates with at least 1 delivery for their stores (YTD)
   // for others: count driver-routes (each driver-date combination) for the selected month
   const totalRoutesCount = useMemo(() => {if (!deliveries || deliveries.length === 0 || !currentUser) return 0;
-
       const selectedDateStr = globalFilters.getSelectedDate();
       if (!selectedDateStr) return 0;
 
@@ -1704,7 +1704,7 @@ export default function Layout({ children, currentPageName }) {
                     }}>
                           <Users className="w-5 h-5" />
                           <span className="font-semibold">Patients</span>
-                          <Badge variant="secondary" className="ml-auto justify-center w-[45px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{userHasRole(currentUser, 'admin') ? entityCounts.patients : patients.filter((p) => p && currentUser?.store_ids?.includes(p.store_id)).length}</Badge>
+                          <Badge variant="secondary" className="ml-auto justify-center rounded-[10px] w-[50px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{userHasRole(currentUser, 'admin') ? entityCounts.patients : patients.filter((p) => p && currentUser?.store_ids?.includes(p.store_id)).length}</Badge>
                           </Link>
                   }
 
@@ -1725,7 +1725,7 @@ export default function Layout({ children, currentPageName }) {
                     }}>
                           <Package className="w-5 h-5" />
                           <span className="font-semibold">Routes</span>
-                          <Badge variant="secondary" className="ml-auto justify-center w-[45px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{totalRoutesCount}</Badge>
+                          <Badge variant="secondary" className="ml-auto justify-center rounded-[10px] w-[50px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{totalRoutesCount}</Badge>
                           </Link>
                   }
 
