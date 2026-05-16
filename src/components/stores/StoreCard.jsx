@@ -161,7 +161,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
             <div className="flex items-start justify-between">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-semibold text-base truncate" style={{ color: 'var(--text-slate-900)' }}>
+                  <h3 className="font-semibold truncate text-x" style={{ color: 'var(--text-slate-900)' }}>
                     {store.name}
                   </h3>
                   {store.abbreviation &&
@@ -178,24 +178,24 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                     </Badge>
                   }
                 </div>
-                {store.latitude && store.longitude ? (
-                  <a
-                    href={`https://maps.google.com/?q=${store.latitude},${store.longitude}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-sm underline decoration-dotted"
-                    style={{ color: 'var(--text-slate-600)' }}>
+                {store.latitude && store.longitude ?
+                <a
+                  href={`https://maps.google.com/?q=${store.latitude},${store.longitude}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="underline decoration-dotted text-md"
+                  style={{ color: 'var(--text-slate-600)' }}>
                     {store.address}
-                  </a>
-                ) : (
-                  <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>{store.address}</p>
-                )}
+                  </a> :
+
+                <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>{store.address}</p>
+                }
                 {store.phone &&
                 <a
                   href={`tel:${store.phone.replace(/\D/g, '')}`}
                   onClick={(e) => e.stopPropagation()}
-                  className="text-sm mt-1 underline decoration-dotted block"
+                  className="mt-1 underline decoration-dotted block text-md"
                   style={{ color: 'var(--text-slate-500)' }}>
                     {formatPhoneNumber(store.phone)}
                   </a>
@@ -455,7 +455,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                         <div
                           className={`p-2 rounded min-h-[76px] flex flex-col justify-between space-y-1 transition-all duration-200 ${!isLimitedView && canQuickEditSlot('weekday_am') ? 'cursor-pointer hover:ring-1 hover:ring-emerald-400' : 'cursor-default'}`}
                           style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.weekday_am_enabled, store.weekday_am_driver_id || store.driver_weekday_am) }}
-                          onClick={(e) => { if (isLimitedView) return; e.stopPropagation();openSlotEditor('weekday_am');}}>
+                          onClick={(e) => {if (isLimitedView) return;e.stopPropagation();openSlotEditor('weekday_am');}}>
 
                           <div className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>Weekdays</div>
                           {store.weekday_am_enabled !== false && (store.weekday_am_driver_id || store.driver_weekday_am) ?
@@ -480,7 +480,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                         <div
                           className={`p-2 rounded min-h-[76px] flex flex-col justify-between space-y-1 transition-all duration-200 ${!isLimitedView && canQuickEditSlot('saturday_am') ? 'cursor-pointer hover:ring-1 hover:ring-emerald-400' : 'cursor-default'}`}
                           style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.saturday_am_enabled, store.saturday_am_driver_id || store.saturday_am_driver) }}
-                          onClick={(e) => { if (isLimitedView) return; e.stopPropagation();openSlotEditor('saturday_am');}}>
+                          onClick={(e) => {if (isLimitedView) return;e.stopPropagation();openSlotEditor('saturday_am');}}>
 
                           <div className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>Saturdays</div>
                           {store.saturday_am_enabled !== false && (store.saturday_am_driver_id || store.saturday_am_driver) ?
@@ -505,7 +505,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                         <div
                           className={`p-2 rounded min-h-[76px] flex flex-col justify-between space-y-1 transition-all duration-200 ${!isLimitedView && canQuickEditSlot('sunday_am') ? 'cursor-pointer hover:ring-1 hover:ring-emerald-400' : 'cursor-default'}`}
                           style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.sunday_am_enabled, store.sunday_am_driver_id || store.driver_sunday_am) }}
-                          onClick={(e) => { if (isLimitedView) return; e.stopPropagation();openSlotEditor('sunday_am');}}>
+                          onClick={(e) => {if (isLimitedView) return;e.stopPropagation();openSlotEditor('sunday_am');}}>
 
                           <div className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>Sundays</div>
                           {store.sunday_am_enabled !== false && (store.sunday_am_driver_id || store.driver_sunday_am) ?
@@ -538,7 +538,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                         <div
                           className={`p-2 rounded min-h-[76px] flex flex-col justify-between space-y-1 transition-all duration-200 ${!isLimitedView && canQuickEditSlot('weekday_pm') ? 'cursor-pointer hover:ring-1 hover:ring-emerald-400' : 'cursor-default'}`}
                           style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.weekday_pm_enabled, store.weekday_pm_driver_id || store.driver_weekday_pm) }}
-                          onClick={(e) => { if (isLimitedView) return; e.stopPropagation();openSlotEditor('weekday_pm');}}>
+                          onClick={(e) => {if (isLimitedView) return;e.stopPropagation();openSlotEditor('weekday_pm');}}>
 
                           <div className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>Weekdays</div>
                           {store.weekday_pm_enabled !== false && (store.weekday_pm_driver_id || store.driver_weekday_pm) ?
@@ -563,7 +563,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                         <div
                           className={`p-2 rounded min-h-[76px] flex flex-col justify-between space-y-1 transition-all duration-200 ${!isLimitedView && canQuickEditSlot('saturday_pm') ? 'cursor-pointer hover:ring-1 hover:ring-emerald-400' : 'cursor-default'}`}
                           style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.saturday_pm_enabled, store.saturday_pm_driver_id || store.saturday_pm_driver) }}
-                          onClick={(e) => { if (isLimitedView) return; e.stopPropagation();openSlotEditor('saturday_pm');}}>
+                          onClick={(e) => {if (isLimitedView) return;e.stopPropagation();openSlotEditor('saturday_pm');}}>
 
                           <div className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>Saturdays</div>
                           {store.saturday_pm_enabled !== false && (store.saturday_pm_driver_id || store.saturday_pm_driver) ?
@@ -588,7 +588,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                         <div
                           className={`p-2 rounded min-h-[76px] flex flex-col justify-between space-y-1 transition-all duration-200 ${!isLimitedView && canQuickEditSlot('sunday_pm') ? 'cursor-pointer hover:ring-1 hover:ring-emerald-400' : 'cursor-default'}`}
                           style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.sunday_pm_enabled, store.sunday_pm_driver_id || store.driver_sunday_pm) }}
-                          onClick={(e) => { if (isLimitedView) return; e.stopPropagation();openSlotEditor('sunday_pm');}}>
+                          onClick={(e) => {if (isLimitedView) return;e.stopPropagation();openSlotEditor('sunday_pm');}}>
 
                           <div className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>Sundays</div>
                           {store.sunday_pm_enabled !== false && (store.sunday_pm_driver_id || store.driver_sunday_pm) ?
