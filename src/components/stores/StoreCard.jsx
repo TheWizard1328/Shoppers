@@ -414,7 +414,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                 const getDriverName = (driverId, fallbackName) => {
                   let name = fallbackName || 'No driver';
                   if (driverId && drivers && drivers.length > 0) {
-                    const driver = drivers.find((d) => d && d.id === driverId);
+                    const driver = drivers.find((d) => d && (d.id === driverId || d.user_id === driverId));
                     if (driver) {
                       name = driver.user_name || driver.full_name || fallbackName || 'Unknown';
                     }
