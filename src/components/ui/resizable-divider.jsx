@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 export function ResizableDivider({ 
   storageKey, 
   defaultWidth = 260, 
-  minWidth = 200, 
+  minWidth = 260, 
   maxWidth = 400,
   onWidthChange,
   side = 'left' // 'left' or 'right'
