@@ -231,8 +231,7 @@ export default function GoogleAPILogViewer() {
     return sortUsers(
       users.filter((user) => logUserNames.has(user.user_name))
     )
-      .map((user) => user.user_name)
-      .slice(0, 10);
+      .map((user) => user.user_name);
   }, [filteredLogs, users]);
 
   const storeLegendNames = useMemo(() => {
