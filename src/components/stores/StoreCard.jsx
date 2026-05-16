@@ -220,33 +220,33 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                     </p>
                   }
                   {store.latitude && store.longitude &&
-                  <p className="text-xs mt-2" style={{ color: 'var(--text-slate-500)' }}>
+                  <p className="text-xs mt-2 mb-2" style={{ color: 'var(--text-slate-500)' }}>
                       GPS: {store.latitude.toFixed(4)}, {store.longitude.toFixed(4)}
                     </p>
                   }
                 </div>
                 
                 {/* Call and navigate buttons - mobile only, right aligned */}
-                {store.phone && store.latitude && store.longitude && (
-                  <div className="flex gap-2 flex-shrink-0 md:hidden">
+                {store.phone && store.latitude && store.longitude &&
+                <div className="flex gap-2 flex-shrink-0 md:hidden">
                     <a
-                      href={`tel:${store.phone.replace(/\D/g, '')}`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 transition-colors hover:opacity-80"
-                      style={{ backgroundColor: '#d1fae5' }}>
+                    href={`tel:${store.phone.replace(/\D/g, '')}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 transition-colors hover:opacity-80"
+                    style={{ backgroundColor: '#d1fae5' }}>
                       <Phone className="w-5 h-5" style={{ color: '#059669' }} />
                     </a>
                     <a
-                      href={`https://maps.google.com/?q=${store.latitude},${store.longitude}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 transition-colors hover:opacity-80"
-                      style={{ backgroundColor: '#dbeafe' }}>
+                    href={`https://maps.google.com/?q=${store.latitude},${store.longitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 transition-colors hover:opacity-80"
+                    style={{ backgroundColor: '#dbeafe' }}>
                       <MapPin className="w-5 h-5" style={{ color: '#2563eb' }} />
                     </a>
                   </div>
-                )}
+                }
               </div>
             </div>
 
@@ -393,7 +393,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
             })()}
 
             {/* Color Selector - Admin only */}
-            {!isLimitedView && <div className="flex items-center gap-2 mb-4">
+            {!isLimitedView && <div className="flex items-center gap-2 mb-1">
               {editingColor ?
               <div className="flex items-center gap-2">
                   <Input
