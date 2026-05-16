@@ -158,10 +158,10 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
         <CardContent className="p-4 flex flex-col justify-between h-full">
           <div>
             {/* Header with Store Name, Address, Phone (first 4 rows in limited view) */}
-            <div className="flex items-start justify-between">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-semibold truncate text-xl" style={{ color: 'var(--text-slate-900)' }}>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 flex-wrap flex-1">
+                  <h3 className="font-semibold text-xl" style={{ color: 'var(--text-slate-900)' }}>
                     {store.name}
                   </h3>
                   {store.abbreviation &&
@@ -178,67 +178,69 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                     </Badge>
                   }
                 </div>
+                
+                {!hideEditDelete && <div className="flex gap-2 items-center flex-shrink-0">
+                  <Button variant="ghost" size="sm" onClick={(e) => {e.stopPropagation();onEdit(store);}} className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:bg-accent h-8 rounded-md px-3 text-xs text-red-600 hover:text-accent-foreground">
+                    <Edit className="w-4 h-4" />
+                  </Button>
+                  {currentUser && userHasRole(currentUser, 'admin') &&
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={(e) => e.stopPropagation()}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Store</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Are you sure you want to delete {store.name}? This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => onDelete(store.id)}
+                          className="bg-red-600 hover:bg-red-700">
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                  }
+                </div>}
+              </div>
+              
+              <div className="flex-1 min-w-0">
                 <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>{store.address}</p>
                 {store.phone &&
                 <p className="text-sm mt-1" style={{ color: 'var(--text-slate-500)' }}>
                     {formatPhoneNumber(store.phone)}
                   </p>
                 }
+              </div>
+              
+              {/* Mobile-only call and navigate buttons */}
+              {store.phone && store.latitude && store.longitude && (
+                <div className="flex gap-2 md:hidden">
+                  <a
+                    href={`tel:${store.phone.replace(/\D/g, '')}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 transition-colors hover:opacity-80"
+                    style={{ backgroundColor: '#d1fae5' }}>
+                    <Phone className="w-5 h-5" style={{ color: '#059669' }} />
+                  </a>
+                  <a
+                    href={`https://maps.google.com/?q=${store.latitude},${store.longitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 transition-colors hover:opacity-80"
+                    style={{ backgroundColor: '#dbeafe' }}>
+                    <MapPin className="w-5 h-5" style={{ color: '#2563eb' }} />
+                  </a>
                 </div>
-                {!hideEditDelete && <div className="space-y-2">
-                  <div className="flex gap-2 items-center">
-                    <Button variant="ghost" size="sm" onClick={(e) => {e.stopPropagation();onEdit(store);}} className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:bg-accent h-8 rounded-md px-3 text-xs text-red-600 hover:text-accent-foreground flex-1">
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    {currentUser && userHasRole(currentUser, 'admin') &&
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700 flex-1" onClick={(e) => e.stopPropagation()}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete Store</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Are you sure you want to delete {store.name}? This action cannot be undone.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => onDelete(store.id)}
-                            className="bg-red-600 hover:bg-red-700">
-                            Delete
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                    }
-                  </div>
-                  
-                  {/* Mobile-only call and navigate buttons */}
-                  {store.phone && store.latitude && store.longitude && (
-                    <div className="flex gap-2 md:hidden">
-                      <a
-                        href={`tel:${store.phone.replace(/\D/g, '')}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 transition-colors hover:opacity-80"
-                        style={{ backgroundColor: '#d1fae5' }}>
-                        <Phone className="w-5 h-5" style={{ color: '#059669' }} />
-                      </a>
-                      <a
-                        href={`https://maps.google.com/?q=${store.latitude},${store.longitude}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 transition-colors hover:opacity-80"
-                        style={{ backgroundColor: '#dbeafe' }}>
-                        <MapPin className="w-5 h-5" style={{ color: '#2563eb' }} />
-                      </a>
-                    </div>
-                  )}
-                </div>}
+              )}
             </div>
 
             {/* Coordinates display */}
