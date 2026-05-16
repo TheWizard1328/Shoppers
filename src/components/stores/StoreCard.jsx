@@ -239,18 +239,18 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                       <a
                         href={`tel:${store.phone.replace(/\D/g, '')}`}
                         onClick={(e) => e.stopPropagation()}
-                        className="flex-1 h-8 px-3 rounded-md text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-1">
-                        <Phone className="w-4 h-4" />
-                        Call
+                        className="h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 transition-colors hover:opacity-80"
+                        style={{ backgroundColor: '#d1fae5' }}>
+                        <Phone className="w-5 h-5" style={{ color: '#059669' }} />
                       </a>
                       <a
                         href={`https://maps.google.com/?q=${store.latitude},${store.longitude}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className="flex-1 h-8 px-3 rounded-md text-xs font-medium bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-1">
-                        <MapPin className="w-4 h-4" />
-                        Navigate
+                        className="h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 transition-colors hover:opacity-80"
+                        style={{ backgroundColor: '#dbeafe' }}>
+                        <MapPin className="w-5 h-5" style={{ color: '#2563eb' }} />
                       </a>
                     </div>
                   )}
