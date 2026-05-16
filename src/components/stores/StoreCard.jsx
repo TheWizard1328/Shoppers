@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Edit, Trash2, Palette, Save, X, Copy, Check, DollarSign, Calendar, CreditCard } from "lucide-react";
+import { Edit, Trash2, Palette, Save, X, Copy, Check, DollarSign, Calendar, CreditCard, Phone, MapPin } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
@@ -201,35 +201,59 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                   </a>
                 }
                 </div>
-                {!hideEditDelete && <div className="flex flex-col gap-1 items-center">
-                <Button variant="ghost" size="sm" onClick={(e) => {e.stopPropagation();onEdit(store);}} className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:bg-accent h-8 rounded-md px-3 text-xs text-red-600 hover:text-accent-foreground flex-shrink-0">
-                  <Edit className="w-4 h-4" />
-                </Button>
-                {currentUser && userHasRole(currentUser, 'admin') &&
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                      <Trash2 className="w-4 h-4" />
+                {!hideEditDelete && <div className="space-y-2">
+                  <div className="flex gap-2 items-center">
+                    <Button variant="ghost" size="sm" onClick={(e) => {e.stopPropagation();onEdit(store);}} className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:bg-accent h-8 rounded-md px-3 text-xs text-red-600 hover:text-accent-foreground flex-1">
+                      <Edit className="w-4 h-4" />
                     </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Delete Store</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Are you sure you want to delete {store.name}? This action cannot be undone.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={() => onDelete(store.id)}
-                        className="bg-red-600 hover:bg-red-700">
-                        Delete
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-                }
+                    {currentUser && userHasRole(currentUser, 'admin') &&
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700 flex-1" onClick={(e) => e.stopPropagation()}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Store</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to delete {store.name}? This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => onDelete(store.id)}
+                            className="bg-red-600 hover:bg-red-700">
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                    }
+                  </div>
+                  
+                  {/* Mobile-only call and navigate buttons */}
+                  {store.phone && store.latitude && store.longitude && (
+                    <div className="flex gap-2 md:hidden">
+                      <a
+                        href={`tel:${store.phone.replace(/\D/g, '')}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex-1 h-8 px-3 rounded-md text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-1">
+                        <Phone className="w-4 h-4" />
+                        Call
+                      </a>
+                      <a
+                        href={`https://maps.google.com/?q=${store.latitude},${store.longitude}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex-1 h-8 px-3 rounded-md text-xs font-medium bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-1">
+                        <MapPin className="w-4 h-4" />
+                        Navigate
+                      </a>
+                    </div>
+                  )}
                 </div>}
             </div>
 
