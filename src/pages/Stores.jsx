@@ -30,7 +30,7 @@ export default function StoresPage() {
   const [drivers, setDrivers] = useState(() => {
     if (!contextUsers.length) return [];
     return contextUsers
-      .filter(u => u && u.status === 'active' && (userHasRole(u, 'driver') || userHasRole(u, 'admin')))
+      .filter(u => u && u.status === 'active' && (userHasRole(u, 'driver') || userHasRole(u, 'dispatcher') || userHasRole(u, 'admin')))
       .sort((a, b) => {
         const orderA = a.sort_order ?? Infinity;
         const orderB = b.sort_order ?? Infinity;
@@ -114,7 +114,7 @@ export default function StoresPage() {
         const activeDrivers = contextUsers.filter(user =>
           user &&
           user.status === 'active' &&
-          (userHasRole(user, 'driver') || userHasRole(user, 'admin'))
+          (userHasRole(user, 'driver') || userHasRole(user, 'dispatcher') || userHasRole(user, 'admin'))
         );
         const sortedDrivers = activeDrivers.sort((a, b) => {
           const orderA = a.sort_order ?? Infinity;
@@ -152,11 +152,11 @@ export default function StoresPage() {
       // Merge users
       const mergedUsers = mergeUsersWithAppUsers(authUsers || [], appUsers || []);
 
-      // Filter to only active drivers/admins
+      // Filter to only active drivers/dispatchers/admins
       const activeDrivers = mergedUsers.filter(user =>
         user &&
         user.status === 'active' &&
-        (userHasRole(user, 'driver') || userHasRole(user, 'admin'))
+        (userHasRole(user, 'driver') || userHasRole(user, 'dispatcher') || userHasRole(user, 'admin'))
       );
 
       // Sort stores and drivers
