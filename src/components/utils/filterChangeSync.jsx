@@ -117,29 +117,8 @@ export const syncOnFilterChange = async (selectedDateStr, selectedCityId, applyS
       }
     }
 
-    // ── BACKGROUND: Incremental full patient sync (no DB clear, adds/updates only) ──
-    // Runs after UI is already updated — fixes missing patients for search without blocking the view
-    setTimeout(async () => {
-      try {
-        console.log('🔄 [FilterSync] Background — incremental full patient sync (no DB clear)');
-        let offset = 0;
-        const BATCH_SIZE = 100;
-        let totalSynced = 0;
-        while (true) {
-          const batch = await Patient.filter({ status: 'active' }, '-updated_date', BATCH_SIZE, offset).catch(() => []);
-          if (!batch || batch.length === 0) break;
-          await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, batch).catch(() => {});
-          totalSynced += batch.length;
-          offset += BATCH_SIZE;
-          if (batch.length < BATCH_SIZE) break;
-          await new Promise(r => setTimeout(r, 300));
-        }
-        invalidateEntityCache('Patient');
-        console.log(`✅ [FilterSync] Background patient sync complete — ${totalSynced} active patients merged`);
-      } catch (err) {
-        console.warn('⚠️ [FilterSync] Background patient sync failed:', err.message);
-      }
-    }, 2000); // Start 2s after UI is updated
+    // DISABLED: Background full patient sync removed to prevent 429 rate limits
+    // Priority sync (step 3c) already loads patients needed for the current date/city view
 
   } catch (err) {
     console.warn('⚠️ [FilterSync] Sync failed — unlocking UI with offline data', err.message);
