@@ -63,6 +63,7 @@ import { realtimeSync, subscribeToRealtime } from './components/utils/realtimeSy
 import ConflictManager from './components/dashboard/ConflictManager';
 import PWAInstallPrompt from './components/common/PWAInstallPrompt';
 import { calculateUserCodTotal } from './components/utils/codTotalCalculator';
+import { calculateCodOutstanding } from './components/utils/payCalculator';
 import BatteryIndicator from './components/layout/BatteryIndicator';
 import SettingsMenu from './components/layout/SettingsMenu';
 import { getCompanyBranding, applyBrandingStyles } from './components/utils/brandingManager';
@@ -1308,6 +1309,7 @@ export default function Layout({ children, currentPageName }) {
   }, [filteredDeliveries, users]);
 
   const patientStoreData = getPatientStoreData();
+  const codOutstanding = calculateCodOutstanding(filteredDeliveries);
 
   const [entityCounts, setEntityCounts] = useState({ patients: '...', companies: '...', cities: '...', stores: '...', users: '...' });
 
@@ -1779,8 +1781,8 @@ export default function Layout({ children, currentPageName }) {
                     }}>
                           <DollarSign className="w-5 h-5" />
                           <span className="font-semibold">Square COD</span>
-                          <Badge variant="secondary" className="ml-auto justify-center w-auto px-2 rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>
-                            ${totalCodsDue.toFixed(2)}
+                          <Badge variant="secondary" className="ml-auto justify-center w-auto px-2 rounded-[10px]" style={{ background: codOutstanding > 0 ? '#fef2f2' : 'var(--bg-slate-200)', color: codOutstanding > 0 ? '#dc2626' : 'var(--text-slate-600)' }}>
+                            ${codOutstanding.toFixed(2)}
                           </Badge>
                           </Link>
                   }

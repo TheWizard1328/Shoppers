@@ -316,7 +316,7 @@ export default function StatsPanel({
               liveDistance={liveDistance}
               liveTimeOnDuty={finalizedDutyTime ?? liveTimeOnDuty}
               isLoadingPayrollStats={isLoadingPayrollStats}
-              filteredDeliveries={filteredDeliveries} />
+              />
             {!isDispatcherLockedExpanded &&
             <Button variant="ghost" size="sm" onClick={(e) => {e.stopPropagation();setIsExpanded(!isExpanded);}} className="h-8 w-8 p-0 flex-shrink-0">
                 {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
