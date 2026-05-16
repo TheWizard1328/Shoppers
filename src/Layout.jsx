@@ -1314,10 +1314,10 @@ export default function Layout({ children, currentPageName }) {
   useEffect(() => { if (!currentUser || !dataLoaded) return; setEntityCounts({ patients: patients.length, cities: cities.length, stores: stores.length, users: users.length }); }, [currentUser, dataLoaded, patients.length, cities.length, stores.length, users.length]);
   useEffect(() => {
     if (!currentUser || !dataLoaded) return;
-    const fetchPayroll = () => { const driverId = userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') ? currentUser.id : (globalFilters.getSelectedDriverId() !== 'all' ? globalFilters.getSelectedDriverId() : null); if (!driverId) { setCurrentPayrollNetPay(null); return; } const today = new Date().toISOString().slice(0, 10); base44.entities.Payroll.filter({ driver_id: driverId }).then((payrolls) => { const cur = (payrolls || []).find(p => p.pay_period_start <= today && p.pay_period_end >= today); setCurrentPayrollNetPay(cur ? (cur.net_pay ?? null) : null); }).catch(() => setCurrentPayrollNetPay(null)); };
+    const fetchPayroll = () => { const did = userHasRole(currentUser,'driver')&&!userHasRole(currentUser,'admin')?currentUser.id:(globalFilters.getSelectedDriverId()!=='all'?globalFilters.getSelectedDriverId():null); if(!did){setCurrentPayrollNetPay(null);return;} const t=new Date().toISOString().slice(0,10); base44.entities.Payroll.filter({driver_id:did}).then(ps=>{const c=(ps||[]).find(p=>p.pay_period_start<=t&&p.pay_period_end>=t);setCurrentPayrollNetPay(c?(c.net_pay??null):null);}).catch(()=>setCurrentPayrollNetPay(null));};
     fetchPayroll();
-    const unsubscribe = globalFilters.subscribe(fetchPayroll);
-    return unsubscribe;
+    window.addEventListener('globalFiltersChanged',fetchPayroll);
+    return ()=>window.removeEventListener('globalFiltersChanged',fetchPayroll);
   }, [currentUser, dataLoaded]);
 
   // Calculate online user counts
