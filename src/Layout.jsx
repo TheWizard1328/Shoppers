@@ -1311,15 +1311,14 @@ export default function Layout({ children, currentPageName }) {
 
   const [entityCounts, setEntityCounts] = useState({ patients: '...', companies: '...', cities: '...', stores: '...', users: '...' });
 
-  // REMOVED: Backend stats polling for sidebar - now using local data only
+  useEffect(() => { if (!currentUser || !dataLoaded) return; setEntityCounts({ patients: patients.length, cities: cities.length, stores: stores.length, users: users.length }); }, [currentUser, dataLoaded, patients.length, cities.length, stores.length, users.length]);
   useEffect(() => {
     if (!currentUser || !dataLoaded) return;
-    setEntityCounts({ patients: patients.length, cities: cities.length, stores: stores.length, users: users.length });
-    const driverId = userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') ? currentUser.id : (globalFilters.getSelectedDriverId() !== 'all' ? globalFilters.getSelectedDriverId() : null);
-    if (!driverId) { setCurrentPayrollNetPay(null); return; }
-    const today = new Date().toISOString().slice(0, 10);
-    base44.entities.Payroll.filter({ driver_id: driverId }).then((payrolls) => { const cur = (payrolls || []).find(p => p.pay_period_start <= today && p.pay_period_end >= today); setCurrentPayrollNetPay(cur ? (cur.net_pay ?? null) : null); }).catch(() => setCurrentPayrollNetPay(null));
-  }, [currentUser, dataLoaded, patients.length, cities.length, stores.length, users.length]);
+    const fetchPayroll = () => { const driverId = userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') ? currentUser.id : (globalFilters.getSelectedDriverId() !== 'all' ? globalFilters.getSelectedDriverId() : null); if (!driverId) { setCurrentPayrollNetPay(null); return; } const today = new Date().toISOString().slice(0, 10); base44.entities.Payroll.filter({ driver_id: driverId }).then((payrolls) => { const cur = (payrolls || []).find(p => p.pay_period_start <= today && p.pay_period_end >= today); setCurrentPayrollNetPay(cur ? (cur.net_pay ?? null) : null); }).catch(() => setCurrentPayrollNetPay(null)); };
+    fetchPayroll();
+    const unsubscribe = globalFilters.subscribe(fetchPayroll);
+    return unsubscribe;
+  }, [currentUser, dataLoaded]);
 
   // Calculate online user counts
   const onlineCounts = useMemo(() => {
