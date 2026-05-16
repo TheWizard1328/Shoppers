@@ -126,12 +126,13 @@ export default function HereType1Polylines({
     return getDriverMode(driverId);
   };
   const isCurrentLeg = (stop) => stop?.isNextDelivery === true;
+  const isPM = (delivery) => delivery?.ampm_deliveries === 'PM';
   const getDriverRouteStyle = (driverId, opacityOverride, delivery) => {
     const mode = getDeliveryMode(delivery, driverId);
-    const base = getTravelModeLineStyle(mode, CURRENT_LEG_COLOR);
+    const base = getTravelModeLineStyle(mode, CURRENT_LEG_COLOR, isPM(delivery));
     return {
       ...base,
-      color: CURRENT_LEG_COLOR,
+      color: isPM(delivery) ? base.color : CURRENT_LEG_COLOR,
       opacity: opacityOverride ?? 0.95,
       lineJoin: 'round',
       lineCap: 'round'
@@ -292,7 +293,7 @@ export default function HereType1Polylines({
         seenKeys.add(key);
 
         const mode = getDeliveryMode(stop, driverId);
-        const driverStyle = getTravelModeLineStyle(mode, driverColor);
+        const driverStyle = getTravelModeLineStyle(mode, driverColor, isPM(stop));
         lines.push(
           <Polyline
             key={`type1-remaining-line-${driverId}-${stop.id}-${i}`}

@@ -11,8 +11,14 @@ export function normalizeTravelMode(mode) {
   return ['driving', 'cycling', 'pedestrian'].includes(mode) ? mode : 'driving';
 }
 
-export function getTravelModeLineStyle(mode, color) {
+export function getTravelModeLineStyle(mode, color, isPM = false) {
   const normalized = normalizeTravelMode(mode);
+  // PM stops always use a dashed line regardless of travel mode
+  if (isPM) {
+    const weight = normalized === 'cycling' ? 4 : 3;
+    const lineColor = normalized === 'cycling' ? '#16A34A' : color;
+    return { color: lineColor, weight, opacity: 0.9, dashArray: '10,6' };
+  }
   if (normalized === 'cycling') {
     return { color: '#16A34A', weight: 4, opacity: 0.9, dashArray: '2 8' };
   }

@@ -78,11 +78,12 @@ export default function HereType2Polylines({
     if (delivery?.transport_mode) return normalizeTravelMode(delivery.transport_mode);
     return getDriverMode(driverId);
   };
+  const isPM = (delivery) => delivery?.ampm_deliveries === 'PM';
   const getDriverRouteStyle = (driverId, opacityOverride, delivery) => {
     const mode = getDeliveryMode(delivery, driverId);
     const isCycling = mode === 'cycling';
     const sortOrder = driverSortOrderMap.get(driverId);
-    const base = getTravelModeLineStyle(mode, getPolylineColorForDriver(driverId, sortOrder));
+    const base = getTravelModeLineStyle(mode, getPolylineColorForDriver(driverId, sortOrder), isPM(delivery));
     return {
       ...base,
       color: isCycling ? '#16A34A' : base.color,
