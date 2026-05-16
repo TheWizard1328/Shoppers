@@ -1,6 +1,9 @@
 import { offlineDB } from '@/components/utils/offlineDatabase';
 import { base44 } from '@/api/base44Client';
 
+// In-memory cache to prevent repeated API calls for the same driver/date within a session
+const _apiFetchedKeys = new Set();
+
 function getEdmontonDateString(value = Date.now()) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Edmonton',
@@ -64,8 +67,10 @@ export async function loadBreadcrumbsForDriver(driverId, selectedDateStr, appUse
         }));
     }
 
-    // Fall back to API if offline DB is empty
-    if (historical.length === 0 && base44.entities?.DeliveryBreadcrumbs) {
+    // Fall back to API only once per driver/date per session to avoid rate limits
+    const cacheKey = `${driverId}:${selectedDateStr}`;
+    if (historical.length === 0 && base44.entities?.DeliveryBreadcrumbs && !_apiFetchedKeys.has(cacheKey)) {
+      _apiFetchedKeys.add(cacheKey);
       const apiBreadcrumbs = await base44.entities.DeliveryBreadcrumbs.filter({
         driver_id: driverId,
         delivery_date: selectedDateStr
