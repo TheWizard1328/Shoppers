@@ -166,6 +166,7 @@ export default function StopCardBody({
               isPickup={isPickup}
               isPastDate={isPastDate}
               patient={patient}
+              delivery={delivery}
               currentUser={currentUser}
               appUsers={appUsers}
               preferredTravelMode={preferredTravelMode}
