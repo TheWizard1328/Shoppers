@@ -1746,7 +1746,7 @@ export default function Layout({ children, currentPageName }) {
                           }}>
                           <Building className="w-5 h-5" />
                           <span className="font-semibold">Stores</span>
-                          <Badge variant="secondary" className="ml-auto justify-center w-[45px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{stores.length}</Badge>
+                          <Badge variant="secondary" className="ml-auto justify-center w-[50px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{stores.length}</Badge>
                           </Link>
                           }
 
@@ -1767,7 +1767,7 @@ export default function Layout({ children, currentPageName }) {
                           }}>
                           <Truck className="w-5 h-5" />
                           <span className="font-semibold">Drivers</span>
-                          <Badge variant="secondary" className="ml-auto justify-center w-[45px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{drivers.length}</Badge>
+                          <Badge variant="secondary" className="ml-auto justify-center w-[50px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{drivers.length}</Badge>
                           </Link>
                           }
 
