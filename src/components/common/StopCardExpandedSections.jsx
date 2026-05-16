@@ -168,8 +168,9 @@ export function StopCardPatientInfoSection({ isStrippedForDriver, isFinishedDeli
                   {patient.back_door && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-purple-50 border-purple-200 text-purple-700">Back Door</Badge>}
                 </div>
             }
-              {delivery && (delivery.fridge_item || delivery.oversized || delivery.after_hours_pickup || delivery.no_charge) &&
+              {delivery && (delivery.fridge_item || delivery.oversized || delivery.after_hours_pickup || delivery.no_charge || delivery.signature_needed) &&
             <div className="flex flex-wrap gap-1">
+                  {delivery.signature_needed && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-red-50 border-red-200 text-red-700">Signature Required</Badge>}
                   {delivery.fridge_item && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-cyan-50 border-cyan-200 text-cyan-700">Refrigerated</Badge>}
                   {delivery.oversized && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-orange-50 border-orange-200 text-orange-700">Oversized</Badge>}
                   {delivery.after_hours_pickup && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-indigo-50 border-indigo-200 text-indigo-700">After Hours</Badge>}
