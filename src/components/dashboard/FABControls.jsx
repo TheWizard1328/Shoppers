@@ -284,15 +284,10 @@ export default function FABControls({
                   const orderedDeliveryIds = Array.isArray(data?.orderedDeliveryIds) && data.orderedDeliveryIds.length > 0
                     ? data.orderedDeliveryIds
                     : null;
-                  // Pass trueOriginCoords from optimizeRemainingStops so purgeAndRegeneratePolylines
-                  // can include the first leg (origin â†’ stop1) in its single HERE Router call.
-                  // This reduces the total HERE API hit count for optimize+polyline from 2-3 to 1.
-                  const trueOriginCoords = data?.trueOriginCoords || null;
                   await base44.functions.invoke('purgeAndRegeneratePolylines', {
                     driverId: targetDriverId,
                     deliveryDate,
                     ...(orderedDeliveryIds ? { orderedDeliveryIds } : { scope: 'active_only' }),
-                    ...(trueOriginCoords ? { currentPosition: trueOriginCoords } : {}),
                     reason: 'post_sequence_optimization',
                     sourcePage: 'Dashboard',
                     bypassDriverStatus: true,

@@ -51,7 +51,7 @@ export default function ActivePayStats({
   performanceStats, // { totalPay, totalKm, totalExtraKm, totalTimeOnDuty }
   liveDistance = 0, // Live travel_dist from current next delivery
   liveTimeOnDuty = null, // Live time on duty (null = use backend value)
-  isLoadingPayrollStats = false,
+  isLoadingPayrollStats = false
 }) {
   // Use localStats directly - always reflect the current date's data
   const stats = localStats || {

@@ -42,26 +42,3 @@ export const formatPay = (amount) => {
   if (amount === 0) return '$0.00';
   return `$${amount.toFixed(2)}`;
 };
-
-/**
- * Calculate outstanding COD amount still to be collected for a set of deliveries.
- * Outstanding = sum of cod_total_amount_required minus any Debit or Credit payments already collected.
- * @param {Array} deliveries - Array of delivery objects
- * @returns {number} - Outstanding COD amount in dollars
- */
-export const calculateCodOutstanding = (deliveries = []) => {
-  let outstanding = 0;
-  for (const delivery of deliveries) {
-    if (!delivery) continue;
-    const required = Number(delivery.cod_total_amount_required) || 0;
-    if (required <= 0) continue;
-    const collected = (delivery.cod_payments || []).reduce((sum, p) => {
-      if (p?.type === 'Debit' || p?.type === 'Credit') {
-        return sum + (Number(p.amount) || 0);
-      }
-      return sum;
-    }, 0);
-    outstanding += Math.max(0, required - collected);
-  }
-  return outstanding;
-};
