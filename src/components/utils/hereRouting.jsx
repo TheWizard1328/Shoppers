@@ -5,11 +5,14 @@ const fetchingKeys = new Set();
 const memoryCache = new Map();
 const routeRequestTimestamps = new Map();
 const inFlightPromises = new Map();
+// The selected API key name is seeded from the bootstrap manifest via hereApiKeyStore.
+// Do NOT query AppSettings from the frontend — that causes 429s.
+// This state is kept only so getSelectedApiKeyName() continues to work for legacy callers.
 const apiKeySelectionState = {
-  loaded: false,
+  loaded: true,
   loading: null,
   selectedApiKey: 'HERE_API_KEY',
-  lastLoadedAt: 0
+  lastLoadedAt: Date.now()
 };
 const backoffCache = new Map();
 const backoffNoticeCache = new Map();
@@ -41,47 +44,17 @@ function buildSegmentKey(fromStop, toStop, mode = 'driving') {
 }
 
 
+// No-op: the selected key is always seeded at boot from getBootstrapManifest → hereApiKeyStore.
+// Keeping this export so existing call sites (getHerePolyline, etc.) compile without changes.
 export async function ensureSelectedApiKeyLoaded() {
-  const now = Date.now();
-  if (apiKeySelectionState.loaded && now - apiKeySelectionState.lastLoadedAt < 300000) {
-    return apiKeySelectionState.selectedApiKey;
-  }
-  if (apiKeySelectionState.loading) return apiKeySelectionState.loading;
-
-  apiKeySelectionState.loading = (async () => {
-    try {
-      const appSettings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
-      apiKeySelectionState.selectedApiKey = appSettings?.[0]?.setting_value?.selected_api_key || apiKeySelectionState.selectedApiKey || 'HERE_API_KEY';
-      apiKeySelectionState.loaded = true;
-      apiKeySelectionState.lastLoadedAt = Date.now();
-      return apiKeySelectionState.selectedApiKey;
-    } catch (error) {
-      console.warn('[HERE][client] Using cached API key selection after AppSettings rate limit/error', error?.message || error);
-      apiKeySelectionState.loaded = true;
-      apiKeySelectionState.lastLoadedAt = Date.now();
-      return apiKeySelectionState.selectedApiKey || 'HERE_API_KEY';
-    } finally {
-      apiKeySelectionState.loading = null;
-    }
-  })();
-
-  return apiKeySelectionState.loading;
+  return apiKeySelectionState.selectedApiKey;
 }
 
 export function getSelectedApiKeyName() {
   return apiKeySelectionState.selectedApiKey;
 }
 
-if (typeof window !== 'undefined') {
-  window.addEventListener('app-settings-updated', (event) => {
-    const selectedApiKey = event?.detail?.settings?.selected_api_key;
-    if (selectedApiKey) {
-      apiKeySelectionState.selectedApiKey = selectedApiKey;
-      apiKeySelectionState.loaded = true;
-      apiKeySelectionState.lastLoadedAt = Date.now();
-    }
-  });
-}
+
 
 
 const pendingPolylinePayloads = [];

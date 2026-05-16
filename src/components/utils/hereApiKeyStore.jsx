@@ -28,10 +28,13 @@ export const seedHereApiKey = (key) => {
 
 /**
  * Initialize the HERE API key from the backend (fallback if not seeded at boot).
- * Safe to call multiple times.
+ * Fires at most ONE backend call per page session — the global promise is reused
+ * by every subsequent caller so only a single getActiveHereApiKey invocation occurs.
  */
 export const initHereApiKey = async () => {
+  // Already available — no network call needed
   if (_cachedApiKey) return _cachedApiKey;
+  // Re-use the in-flight (or already-resolved) promise so concurrent callers collapse
   if (_loadPromise) return _loadPromise;
 
   _isLoading = true;
@@ -42,11 +45,15 @@ export const initHereApiKey = async () => {
       const key = response?.data?.apiKey || response?.apiKey || null;
       if (key) {
         _cachedApiKey = key;
-        console.log('✅ [HereApiKeyStore] HERE API key fetched and cached');
+        // Also expose via window so any late seedHereApiKey callers can pick it up
+        if (typeof window !== 'undefined') window.__hereApiKey = key;
+        console.log('✅ [HereApiKeyStore] HERE API key fetched and cached (fallback path)');
       }
       return key;
     } catch (error) {
       console.warn('⚠️ [HereApiKeyStore] Failed to fetch HERE API key:', error?.message);
+      // Do NOT null out _loadPromise — prevents a retry storm on repeated failures.
+      // The next page reload will try again fresh.
       return null;
     } finally {
       _isLoading = false;

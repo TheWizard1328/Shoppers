@@ -1,5 +1,25 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
+// Module-level HERE API key cache — avoids an AppSettings query on every routing call.
+// Cache TTL is 5 minutes so key rotation takes effect promptly without hammering the DB.
+const _HERE_SECRET_MAP = { HERE_API_KEY: 'HERE_API_KEY', Here_API_Key_2: 'Here_API_Key_2', Here_API_Key_3: 'Here_API_Key_3' };
+let _hereSecretName = null;
+let _hereSecretExpiresAt = 0;
+const _HERE_CACHE_TTL_MS = 5 * 60 * 1000;
+
+async function getHereApiKey(base44) {
+  const now = Date.now();
+  if (_hereSecretName && now < _hereSecretExpiresAt) {
+    return Deno.env.get(_hereSecretName) || null;
+  }
+  const settings = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }, '-updated_date', 1);
+  const val = settings?.[0]?.setting_value || {};
+  const selected = val.selected_api_key || val.selected_here_api_key || 'HERE_API_KEY';
+  _hereSecretName = _HERE_SECRET_MAP[selected] || 'HERE_API_KEY';
+  _hereSecretExpiresAt = now + _HERE_CACHE_TTL_MS;
+  return Deno.env.get(_hereSecretName) || null;
+}
+
 const logApiUsage = async ({
   base44,
   appUserId,
@@ -635,14 +655,9 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Missing origin or destination' }, { status: 400 });
     }
 
-    const SECRET_NAME_MAP = { HERE_API_KEY: 'HERE_API_KEY', Here_API_Key_2: 'Here_API_Key_2', Here_API_Key_3: 'Here_API_Key_3' };
-    const hereKeySettings = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' }, '-updated_date', 1);
-    const hereKeySettingValue = hereKeySettings?.[0]?.setting_value || {};
-    const selectedHereSecretName = hereKeySettingValue.selected_api_key || hereKeySettingValue.selected_here_api_key || 'HERE_API_KEY';
-    const resolvedHereSecretName = SECRET_NAME_MAP[selectedHereSecretName] || 'HERE_API_KEY';
-    const hereApiKey = Deno.env.get(resolvedHereSecretName);
+    const hereApiKey = await getHereApiKey(base44);
     if (!hereApiKey) {
-      return Response.json({ error: `HERE API key secret not set: ${resolvedHereSecretName}` }, { status: 500 });
+      return Response.json({ error: 'HERE API key secret not configured' }, { status: 500 });
     }
 
     const dateStr = String(body?.deliveryDate || body?.date || new Date().toISOString().slice(0, 10));
