@@ -1036,10 +1036,10 @@ export default function Layout({ children, currentPageName }) {
 
 
 
+
       // Silent fail
     }}; //const currentUser = currentUser;
-  const handleCitySelected = useCallback(async (cityId) => {try {globalFilters.setSelectedCityId(cityId);const today = new Date();globalFilters.setSelectedDate(today);
-        const refreshedUser = await getEffectiveUser();
+  const handleCitySelected = useCallback(async (cityId) => {try {globalFilters.setSelectedCityId(cityId);const today = new Date();globalFilters.setSelectedDate(today);const refreshedUser = await getEffectiveUser();
         if (refreshedUser) {
           setCurrentUser(refreshedUser);
           globalFilters.setSelectedDriverId('all');
@@ -1181,9 +1181,9 @@ export default function Layout({ children, currentPageName }) {
 
 
 
+
       // Admins see all
     } else if (userHasRole(currentUser, 'dispatcher')) {const sIds = currentUser.store_ids || [];if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;const pIds = new Set(patients.filter((p) => p && relIds.includes(p.store_id)).map((p) => p.id));data = data.filter((d) => d && (d.patient_id ? pIds.has(d.patient_id) : relIds.includes(d.store_id)));} else if (userHasRole(currentUser, 'driver')) {data = data.filter((d) => d && d.driver_id === currentUser.id);if (selectedStoreId && selectedStoreId !== 'all' && currentUser.store_id !== selectedStoreId) return [];}
-
     return data;
   }, [deliveries, currentUser, patients, selectedStoreId]);
 
@@ -1204,71 +1204,71 @@ export default function Layout({ children, currentPageName }) {
 
 
 
+
       // Admins see all
     } else if (userHasRole(currentUser, 'dispatcher')) {const sIds = currentUser.store_ids || [];if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;data = data.filter((p) => p && relIds.includes(p.store_id));}return data;}, [patients, currentUser, selectedStoreId]); // Route count - for dispatchers: unique dates with at least 1 delivery for their stores (YTD)
   // for others: count driver-routes (each driver-date combination) for the selected month
-  const totalRoutesCount = useMemo(() => {
-    if (!deliveries || deliveries.length === 0 || !currentUser) return 0;
+  const totalRoutesCount = useMemo(() => {if (!deliveries || deliveries.length === 0 || !currentUser) return 0;
 
-    const selectedDateStr = globalFilters.getSelectedDate();
-    if (!selectedDateStr) return 0;
+      const selectedDateStr = globalFilters.getSelectedDate();
+      if (!selectedDateStr) return 0;
 
-    const selectedDate = new Date(selectedDateStr + 'T00:00:00');
-    const selectedYear = selectedDate.getFullYear();
-    const selectedMonth = selectedDate.getMonth();
+      const selectedDate = new Date(selectedDateStr + 'T00:00:00');
+      const selectedYear = selectedDate.getFullYear();
+      const selectedMonth = selectedDate.getMonth();
 
-    // CRITICAL: Filter deliveries based on user role
-    let relevantDeliveries = deliveries;
+      // CRITICAL: Filter deliveries based on user role
+      let relevantDeliveries = deliveries;
 
-    if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
-      // DISPATCHERS: Count unique dates with at least 1 delivery in their stores (YTD)
-      const dispatcherStoreIds = new Set(currentUser.store_ids || []);
+      if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
+        // DISPATCHERS: Count unique dates with at least 1 delivery in their stores (YTD)
+        const dispatcherStoreIds = new Set(currentUser.store_ids || []);
 
-      // Filter to deliveries from dispatcher's stores only
-      const storeDeliveries = deliveries.filter((d) => d && dispatcherStoreIds.has(d.store_id));
+        // Filter to deliveries from dispatcher's stores only
+        const storeDeliveries = deliveries.filter((d) => d && dispatcherStoreIds.has(d.store_id));
 
-      // Get unique dates in the current year
-      const uniqueDates = new Set();
-      storeDeliveries.forEach((delivery) => {
-        if (!delivery || !delivery.delivery_date) return;
+        // Get unique dates in the current year
+        const uniqueDates = new Set();
+        storeDeliveries.forEach((delivery) => {
+          if (!delivery || !delivery.delivery_date) return;
+
+          const deliveryDate = new Date(delivery.delivery_date + 'T00:00:00');
+          if (deliveryDate.getFullYear() !== selectedYear) return;
+
+          uniqueDates.add(delivery.delivery_date);
+        });
+
+        return uniqueDates.size;
+      } else if (userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) {
+        // Drivers: only count their own routes
+        relevantDeliveries = relevantDeliveries.filter((d) => d && d.driver_id === currentUser.id);
+      }
+
+      // For admins and drivers: For each date in the selected month, count unique drivers
+      const dateDriverMap = new Map();
+
+      relevantDeliveries.forEach((delivery) => {
+        if (!delivery || !delivery.delivery_date || !delivery.driver_id) return;
 
         const deliveryDate = new Date(delivery.delivery_date + 'T00:00:00');
-        if (deliveryDate.getFullYear() !== selectedYear) return;
+        if (deliveryDate.getFullYear() !== selectedYear ||
+        deliveryDate.getMonth() !== selectedMonth) return;
 
-        uniqueDates.add(delivery.delivery_date);
+        const dateKey = delivery.delivery_date;
+        if (!dateDriverMap.has(dateKey)) {
+          dateDriverMap.set(dateKey, new Set());
+        }
+        dateDriverMap.get(dateKey).add(delivery.driver_id);
       });
 
-      return uniqueDates.size;
-    } else if (userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) {
-      // Drivers: only count their own routes
-      relevantDeliveries = relevantDeliveries.filter((d) => d && d.driver_id === currentUser.id);
-    }
+      // Sum up the number of drivers across all dates
+      let totalRoutes = 0;
+      dateDriverMap.forEach((driverSet) => {
+        totalRoutes += driverSet.size;
+      });
 
-    // For admins and drivers: For each date in the selected month, count unique drivers
-    const dateDriverMap = new Map();
-
-    relevantDeliveries.forEach((delivery) => {
-      if (!delivery || !delivery.delivery_date || !delivery.driver_id) return;
-
-      const deliveryDate = new Date(delivery.delivery_date + 'T00:00:00');
-      if (deliveryDate.getFullYear() !== selectedYear ||
-      deliveryDate.getMonth() !== selectedMonth) return;
-
-      const dateKey = delivery.delivery_date;
-      if (!dateDriverMap.has(dateKey)) {
-        dateDriverMap.set(dateKey, new Set());
-      }
-      dateDriverMap.get(dateKey).add(delivery.driver_id);
-    });
-
-    // Sum up the number of drivers across all dates
-    let totalRoutes = 0;
-    dateDriverMap.forEach((driverSet) => {
-      totalRoutes += driverSet.size;
-    });
-
-    return totalRoutes;
-  }, [deliveries, currentUser]);
+      return totalRoutes;
+    }, [deliveries, currentUser]);
 
   const getPatientStoreData = useCallback(() => {
     if (!stores.length || !patients.length) return [];
@@ -1771,7 +1771,7 @@ export default function Layout({ children, currentPageName }) {
                           </Link>
                   }
 
-                          <div className="border-t mb-2 py-0.5" style={{ borderColor: 'var(--border-slate-200)' }}></div>
+                          <div className="border-t mb-2 py-0.5 mt-1" style={{ borderColor: 'var(--border-slate-200)' }}></div>
 
                     {/* Square COD - Admins and Drivers only */}
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
@@ -1839,7 +1839,7 @@ export default function Layout({ children, currentPageName }) {
                       </Link>
                   }
 
-                    <div className="border-t mb-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
+                    <div className="border-t mb-2 mt-1" style={{ borderColor: 'var(--border-slate-200)' }}></div>
 
                     {(userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) &&
                   <Link
