@@ -559,7 +559,7 @@ export default function StatsPanel({
               {legendData.map((route) =>
             <button
               key={route.driverId}
-              type="button" className="my-1 px-0.5 py-0 text-base leading-none rounded inline-flex h-auto min-h-0 items-center gap-0.5 self-center hover:bg-slate-100 transition-colors"
+              type="button" className={`my-1 px-0.5 py-0 text-base leading-none rounded inline-flex h-auto min-h-0 items-center gap-0.5 self-center hover:bg-slate-100 transition-colors ${selectedDriverId === route.driverId ? 'underline underline-offset-2 font-semibold' : ''}`}
               onClick={(e) => {
                 e.stopPropagation();
                 handleDriverChange(route.driverId);
