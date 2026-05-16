@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +14,7 @@ import { sortUsers } from "@/components/utils/sorting";
 import { getDriverDisplayName } from "@/components/utils/driverUtils";
 
 export default function DriversPage() {
+  const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCityId, setSelectedCityId] = useState("all");
@@ -155,8 +157,9 @@ export default function DriversPage() {
           {filteredDrivers.map((driver) => (
             <Card
               key={driver.id}
-              className="bg-white rounded-xl border shadow hover:shadow-lg transition-shadow"
+              className="bg-white rounded-xl border shadow hover:shadow-lg transition-shadow cursor-pointer"
               style={{ borderColor: "var(--border-slate-200)" }}
+              onClick={() => navigate(`/DriverSettings?id=${driver.user_id}`)}
             >
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center justify-between gap-2">
