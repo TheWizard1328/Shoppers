@@ -1729,7 +1729,7 @@ export default function Layout({ children, currentPageName }) {
                           </Link>
                   }
 
-                  // Add Stores and Drivers links here
+                  /* Add Stores and Drivers links here */
                   
                     <div className="border-t mb-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
 
