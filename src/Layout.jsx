@@ -231,7 +231,7 @@ export default function Layout({ children, currentPageName }) {
   const [initialConversation, setInitialConversation] = useState(null);
   const [appVersion, setAppVersion] = useState(DEFAULT_APP_VERSION);
   const [adminImportEnabled, setAdminImportEnabled] = useState(false);
-  const [isSnapshotModeActive, setIsSnapshotModeActive] = useState(false);
+
   const [showInviteQRModal, setShowInviteQRModal] = useState(false);
   const [deviceRegistered, setDeviceRegistered] = useState(false);
   const [showDeviceSelectionModal, setShowDeviceSelectionModal] = useState(false);
@@ -1563,7 +1563,7 @@ export default function Layout({ children, currentPageName }) {
           updatePatientsLocally: ({ upserts = [], deleteIds = [] }) => setPatients((prev) => {const map = new Map((prev || []).filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id));(deleteIds || []).forEach((id) => map.delete(id));(upserts || []).forEach((item) => {if (item?.id) map.set(item.id, map.has(item.id) ? { ...map.get(item.id), ...item } : item);});return Array.from(map.values());}),
           isFormOverlayOpen: isFormOverlayOpen, setIsFormOverlayOpen: setIsFormOverlayOpen, isEntityUpdating: isEntityUpdating, setIsEntityUpdating: setIsEntityUpdating,
           smartRefreshActivity: smartRefreshActivity, setSmartRefreshActivity: setSmartRefreshActivity, setOnSmartRefreshComplete: (callback) => {onSmartRefreshCompleteRef.current = callback;},
-          dataReadyForSelectedDate: dataLoaded, isSnapshotModeActive: isSnapshotModeActive, setIsSnapshotModeActive: setIsSnapshotModeActive, dataSource: dataSource
+          dataReadyForSelectedDate: dataLoaded, dataSource: dataSource
         }}>
             <div className={`app-container ${isTabletPortrait ? 'tablet-portrait' : isMobile ? 'mobile-device' : 'desktop-device'}`}>
               {(isMobile || isTabletPortrait) && sidebarOpen &&
@@ -1572,8 +1572,7 @@ export default function Layout({ children, currentPageName }) {
               onClick={() => setSidebarOpen(false)} />
             }
 
-              {/* Sidebar - Hidden in snapshot mode */}
-              {!isSnapshotModeActive &&
+              {/* Sidebar */}
             <div className={`app-sidebar ${sidebarOpen ? 'sidebar-open' : ''} border-r flex flex-col z-[200]`} style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
                 <div className="border-b p-4 flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)' }}>
                   <div className="flex items-center justify-between gap-3">
@@ -1690,19 +1689,13 @@ export default function Layout({ children, currentPageName }) {
 
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
                   <Link
-                    to={createPageUrl('Patients')}
-                    onClick={(e) => {
-                      if (isSnapshotModeActive) {
-                        e.preventDefault();
-                        return;
-                      }
-                      setSidebarOpen(false);
-                    }}
-                    className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
-                    currentPageName === 'Patients' ?
-                    'shadow-sm' :
-                    'hover:opacity-80'} ${isSnapshotModeActive ? 'opacity-50 cursor-not-allowed' : ''}`
-                    }
+                   to={createPageUrl('Patients')}
+                   onClick={() => setSidebarOpen(false)}
+                   className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                   currentPageName === 'Patients' ?
+                   'shadow-sm' :
+                   'hover:opacity-80'}`
+                   }
                     style={currentPageName === 'Patients' ? {
                       background: 'var(--bg-slate-100)',
                       color: 'var(--text-slate-900)'
@@ -1717,19 +1710,13 @@ export default function Layout({ children, currentPageName }) {
 
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                   <Link
-                    to={getRouteNavigationUrl('Deliveries')}
-                    onClick={(e) => {
-                      if (isSnapshotModeActive) {
-                        e.preventDefault();
-                        return;
-                      }
-                      setSidebarOpen(false);
-                    }}
-                    className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
-                    currentPageName === 'Deliveries' ?
-                    'shadow-sm' :
-                    'hover:opacity-80'} ${isSnapshotModeActive ? 'opacity-50 cursor-not-allowed' : ''}`
-                    }
+                   to={getRouteNavigationUrl('Deliveries')}
+                   onClick={() => setSidebarOpen(false)}
+                   className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                   currentPageName === 'Deliveries' ?
+                   'shadow-sm' :
+                   'hover:opacity-80'}`
+                   }
                     style={currentPageName === 'Deliveries' ? {
                       background: 'var(--bg-slate-100)',
                       color: 'var(--text-slate-900)'
@@ -1746,19 +1733,13 @@ export default function Layout({ children, currentPageName }) {
                     {/* Square COD - Admins and Drivers only */}
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
                   <Link
-                    to={createPageUrl('SquareManagement')}
-                    onClick={(e) => {
-                      if (isSnapshotModeActive) {
-                        e.preventDefault();
-                        return;
-                      }
-                      setSidebarOpen(false);
-                    }}
-                    className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
-                    currentPageName === 'SquareManagement' ?
-                    'shadow-sm' :
-                    'hover:opacity-80'} ${isSnapshotModeActive ? 'opacity-50 cursor-not-allowed' : ''}`
-                    }
+                   to={createPageUrl('SquareManagement')}
+                   onClick={() => setSidebarOpen(false)}
+                   className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                   currentPageName === 'SquareManagement' ?
+                   'shadow-sm' :
+                   'hover:opacity-80'}`
+                   }
                     style={currentPageName === 'SquareManagement' ? {
                       background: 'var(--bg-slate-100)',
                       color: 'var(--text-slate-900)'
@@ -1774,19 +1755,13 @@ export default function Layout({ children, currentPageName }) {
                     {/* Driver Payroll - Admins and Drivers */}
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
                   <Link
-                    to={createPageUrl('DriverPayroll')}
-                    onClick={(e) => {
-                      if (isSnapshotModeActive) {
-                        e.preventDefault();
-                        return;
-                      }
-                      setSidebarOpen(false);
-                    }}
-                    className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
-                    currentPageName === 'DriverPayroll' ?
-                    'shadow-sm' :
-                    'hover:opacity-80'} ${isSnapshotModeActive ? 'opacity-50 cursor-not-allowed' : ''}`
-                    }
+                   to={createPageUrl('DriverPayroll')}
+                   onClick={() => setSidebarOpen(false)}
+                   className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                   currentPageName === 'DriverPayroll' ?
+                   'shadow-sm' :
+                   'hover:opacity-80'}`
+                   }
                     style={currentPageName === 'DriverPayroll' ? {
                       background: 'var(--bg-slate-100)',
                       color: 'var(--text-slate-900)'
@@ -1805,19 +1780,13 @@ export default function Layout({ children, currentPageName }) {
 
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                   <Link
-                    to={constructUrlWithParams(createPageUrl("DeliveryMetrics"))}
-                    onClick={(e) => {
-                      if (isSnapshotModeActive) {
-                        e.preventDefault();
-                        return;
-                      }
-                      setSidebarOpen(false);
-                    }}
-                    className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
-                    currentPageName === 'DeliveryMetrics' ?
-                    'shadow-sm' :
-                    'hover:opacity-80'} ${isSnapshotModeActive ? 'opacity-50 cursor-not-allowed' : ''}`
-                    }
+                   to={constructUrlWithParams(createPageUrl("DeliveryMetrics"))}
+                   onClick={() => setSidebarOpen(false)}
+                   className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                   currentPageName === 'DeliveryMetrics' ?
+                   'shadow-sm' :
+                   'hover:opacity-80'}`
+                   }
                     style={currentPageName === 'DeliveryMetrics' ? {
                       background: 'var(--bg-slate-100)',
                       color: 'var(--text-slate-900)'
@@ -1831,44 +1800,15 @@ export default function Layout({ children, currentPageName }) {
 
                     <div className="border-t mb-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
 
-                    {/* Snapshot Mode - App Owner Only */}
-                    {isAppOwner(currentUser) &&
-                  <button
-                    onClick={() => {
-                      setIsSnapshotModeActive(!isSnapshotModeActive);
-                      setSidebarOpen(false);
-                    }}
-                    className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
-                    isSnapshotModeActive ?
-                    'shadow-sm' :
-                    'hover:opacity-80'}`
-                    }
-                    style={isSnapshotModeActive ? {
-                      background: 'var(--bg-slate-100)',
-                      color: 'var(--text-slate-900)'
-                    } : {
-                      color: 'var(--text-slate-600)'
-                    }}>
-                          <Clock className="w-5 h-5" />
-                          <span className="font-semibold">Snapshot Mode</span>
-                          </button>
-                  }
-
                     {(userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) &&
                   <Link
-                    to={createPageUrl('DeviceSettings')}
-                    onClick={(e) => {
-                      if (isSnapshotModeActive) {
-                        e.preventDefault();
-                        return;
-                      }
-                      setSidebarOpen(false);
-                    }}
-                    className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
-                    currentPageName === 'DeviceSettings' ?
-                    'shadow-sm' :
-                    'hover:opacity-80'} ${isSnapshotModeActive ? 'opacity-50 cursor-not-allowed' : ''}`
-                    }
+                   to={createPageUrl('DeviceSettings')}
+                   onClick={() => setSidebarOpen(false)}
+                   className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                   currentPageName === 'DeviceSettings' ?
+                   'shadow-sm' :
+                   'hover:opacity-80'}`
+                   }
                     style={currentPageName === 'DeviceSettings' ? {
                       background: 'var(--bg-slate-100)',
                       color: 'var(--text-slate-900)'
@@ -1920,10 +1860,9 @@ export default function Layout({ children, currentPageName }) {
                 filteredDeliveries={filteredDeliveries} />
 
                 </div>
-            }
 
                 {/* Resizable Divider for Sidebar - Only on desktop */}
-                {!isMobile && !isSnapshotModeActive &&
+                {!isMobile &&
             <ResizableDivider
               storageKey="rxdeliver_sidebar_width"
               defaultWidth={260}
@@ -1939,10 +1878,10 @@ export default function Layout({ children, currentPageName }) {
             }
 
               {/* Main Content Area */}
-              <div className="main-content-area" style={isSnapshotModeActive ? { width: '100vw' } : {}}>
+              <div className="main-content-area">
 
                 {/* Mobile Header - Integrated header with logo/back button + controls */}
-                {!isSnapshotModeActive && (isMobile || isTabletPortrait) &&
+                {(isMobile || isTabletPortrait) &&
               <MobileHeader
                 logo={branding.logo_url}
                 sidebarOpen={sidebarOpen}
@@ -1973,7 +1912,7 @@ export default function Layout({ children, currentPageName }) {
                     </main>
 
                     {/* Mobile Bottom Nav - inside main-content-area so flex column shrinks main naturally */}
-                    {!isSnapshotModeActive && !sidebarOpen && currentUser && (screenWidth < 768 || isTabletPortrait) &&
+                    {!sidebarOpen && currentUser && (screenWidth < 768 || isTabletPortrait) &&
               <MobileBottomNav currentUser={currentUser} currentPageName={currentPageName} onSidebarToggle={() => setSidebarOpen(true)} />
               }
               </div>
