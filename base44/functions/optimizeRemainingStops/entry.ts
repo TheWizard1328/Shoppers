@@ -368,10 +368,21 @@ Deno.serve(async (req) => {
     const stampDedupeOnly = body?._stampDedupeOnly === true;
 
     const dedupeKey = dedupeKeyFor(driverId, deliveryDate);
+
+    // -- Optimistic-lock deduplication -------------------------------------------
+    // Problem: two automation invocations can fire within milliseconds of each other.
+    // Both read the dedupe record simultaneously (before either writes), see "not
+    // recent", and both proceed to call HERE - doubling the API hit count.
+    // Fix: write a candidate lock_id FIRST, wait a short jitter, then re-read to
+    // verify we are the winner. Losers skip immediately. bypassDeduplication callers
+    // (FAB, batch pipeline) skip this check entirely since they own their invocation.
+    // -----------------------------------------------------------------------------
     const dedupeCheck = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: dedupeKey }, '-updated_date', 1);
     const dedupeRecord = dedupeCheck?.[0] || null;
     const lastRunAt = dedupeRecord?.setting_value?.last_run_at ? new Date(dedupeRecord.setting_value.last_run_at).getTime() : 0;
+
     if (!bypassDeduplication && lastRunAt && Date.now() - lastRunAt < AUTOMATION_DEDUPE_WINDOW_MS) {
+      console.log(`⏭️ [optimizeRemainingStops] Skipping - deduped (ran ${Math.round((Date.now() - lastRunAt) / 1000)}s ago) | driver=${driverId} | date=${deliveryDate}`);
       return Response.json({
         success: true,
         skipped: true,
@@ -383,23 +394,45 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Write the lock IMMEDIATELY before any HERE work begins.
+    // Concurrent callers that read AFTER this write will see it and skip.
+    const lockId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const lockPayload = {
+      last_run_at: new Date().toISOString(),
+      lock_id: lockId,
+      trigger_source: stampDedupeOnly ? 'batch_dedupe_stamp' : triggerSource
+    };
     if (dedupeRecord?.id) {
       await base44.asServiceRole.entities.AppSettings.update(dedupeRecord.id, {
-        setting_value: {
-          ...(dedupeRecord.setting_value || {}),
-          last_run_at: new Date().toISOString(),
-          trigger_source: stampDedupeOnly ? 'batch_dedupe_stamp' : triggerSource
-        }
+        setting_value: { ...(dedupeRecord.setting_value || {}), ...lockPayload }
       });
     } else {
       await base44.asServiceRole.entities.AppSettings.create({
         setting_key: dedupeKey,
         description: 'Recent optimizeRemainingStops execution lock',
-        setting_value: {
-          last_run_at: new Date().toISOString(),
-          trigger_source: stampDedupeOnly ? 'batch_dedupe_stamp' : triggerSource
-        }
+        setting_value: lockPayload
       });
+    }
+
+    // If NOT a bypassed call, verify we own the lock (optimistic lock check).
+    // Wait a short jitter so any concurrent write has time to land, then re-read.
+    if (!bypassDeduplication) {
+      await new Promise(resolve => setTimeout(resolve, 150 + Math.floor(Math.random() * 100)));
+      const recheckRows = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: dedupeKey }, '-updated_date', 1);
+      const recheckRecord = recheckRows?.[0] || null;
+      const winner = recheckRecord?.setting_value?.lock_id;
+      if (winner && winner !== lockId) {
+        console.log(`⏭️ [optimizeRemainingStops] Lost optimistic lock (winner=${winner}, ours=${lockId}) - skipping duplicate | driver=${driverId} | date=${deliveryDate}`);
+        return Response.json({
+          success: true,
+          skipped: true,
+          reason: 'deduped_optimistic_lock',
+          triggerSource,
+          routeChanged: false,
+          optimizedCount: 0,
+          apiCallsMade: 0
+        });
+      }
     }
 
     // Early exit after stamping dedupe key — no HERE calls needed
@@ -904,7 +937,9 @@ Deno.serve(async (req) => {
         hereSequenceResult = null;
       }
 
-      // Call 2: First leg polyline (trueOrigin → lockedNextStop), only when locked stop exists
+      // First-leg ETA (trueOrigin -> lockedNextStop): cache-only, NO HERE call.
+      // The actual polyline for this leg is generated inside purgeAndRegeneratePolylines
+      // via a single HERE Router call, keeping optimizeRemainingStops to 1 HERE call total.
       let firstLegPolyline = null;
       let firstLegDistKm = lockedNextStop
         ? calculateCrowFliesDistance(trueOrigin.lat, trueOrigin.lng, lockedNextStop.lat, lockedNextStop.lng)
@@ -912,52 +947,22 @@ Deno.serve(async (req) => {
       let firstLegDurMin = Math.ceil((firstLegDistKm / 40) * 60 * 1.3);
 
       if (lockedNextStop) {
-        // Cache check: reuse existing first-leg data if the origin hasn't changed.
         const COORD_MATCH_THRESHOLD = 0.0002; // ~22m
         const existingDelivery = lockedNextStop.delivery;
         const cachedOriginLat = existingDelivery?.first_leg_origin_lat != null ? Number(existingDelivery.first_leg_origin_lat) : null;
         const cachedOriginLng = existingDelivery?.first_leg_origin_lng != null ? Number(existingDelivery.first_leg_origin_lng) : null;
-        const cachedPolyline = existingDelivery?.encoded_polyline || null;
         const cachedDistKm = existingDelivery?.estimated_distance_km != null ? Number(existingDelivery.estimated_distance_km) : null;
         const cachedDurMin = existingDelivery?.estimated_duration_minutes != null ? Number(existingDelivery.estimated_duration_minutes) : null;
-
         const originUnchanged = cachedOriginLat != null && cachedOriginLng != null
           && Math.abs(cachedOriginLat - trueOrigin.lat) < COORD_MATCH_THRESHOLD
           && Math.abs(cachedOriginLng - trueOrigin.lng) < COORD_MATCH_THRESHOLD;
-        const hasCachedData = cachedPolyline && cachedDistKm != null && cachedDurMin != null;
-
-        if (originUnchanged && hasCachedData) {
-          firstLegPolyline = cachedPolyline;
+        const hasCachedEta = cachedDistKm != null && cachedDurMin != null;
+        if (originUnchanged && hasCachedEta) {
           firstLegDistKm = cachedDistKm;
           firstLegDurMin = cachedDurMin;
-          console.log(`♻️ [optimizeRemainingStops] First-leg CACHE HIT — reusing existing polyline (origin unchanged, dist=${firstLegDistKm}km, dur=${firstLegDurMin}min)`);
+          console.log(`♻️ [optimizeRemainingStops] First-leg ETA cache HIT - dist=${firstLegDistKm}km, dur=${firstLegDurMin}min (polyline delegated to purgeAndRegeneratePolylines)`);
         } else {
-          console.log(`🔄 [optimizeRemainingStops] First-leg cache MISS — ${!originUnchanged ? `origin changed from (${cachedOriginLat},${cachedOriginLng}) to (${trueOrigin.lat},${trueOrigin.lng})` : 'no cached polyline data'}`);
-          try {
-            const legResp = await base44.asServiceRole.functions.invoke('getHereDirections', {
-              origin: trueOrigin,
-              destination: { lat: lockedNextStop.lat, lng: lockedNextStop.lng },
-              waypoints: [],
-              routeContext: [],
-              transportMode: routingTravelMode,
-              deliveryDate,
-              departureTime: resolvedDepartureTime,
-              caller: 'optimizeRemainingStops:firstLeg',
-              preserveWaypointOrder: true,
-              skipSequenceApi: true,
-            });
-            const legResult = legResp?.data || legResp || null;
-            const legSection = Array.isArray(legResult?.sections) ? legResult.sections[0] : null;
-            if (legSection?.encoded_polyline) {
-              firstLegPolyline = legSection.encoded_polyline;
-              firstLegDistKm = legSection.estimated_distance_km ?? firstLegDistKm;
-              firstLegDurMin = legSection.estimated_duration_minutes ?? firstLegDurMin;
-            }
-            attemptedHereCalls += 1;
-            console.log(`📡 [optimizeRemainingStops] First-leg call: polyline=${firstLegPolyline ? 'YES' : 'NO'}, dist=${firstLegDistKm}km`);
-          } catch (err) {
-            console.warn('⚠️ [optimizeRemainingStops] First-leg call failed — using crow-flies fallback:', err?.message);
-          }
+          console.log(`[optimizeRemainingStops] First-leg ETA using crow-flies (${firstLegDistKm.toFixed(2)}km) - polyline delegated to purgeAndRegeneratePolylines`);
         }
       }
 
@@ -1391,6 +1396,7 @@ Deno.serve(async (req) => {
       nextDeliveryId: nextStopId,
       shouldRefreshPolylines: true,
       orderedDeliveryIds: finalDeliveryWriteBatch.map(item => item.id),
+      trueOriginCoords: resolvedTrueOrigin ? { lat: resolvedTrueOrigin.lat, lon: resolvedTrueOrigin.lng } : null,
       skippedStopsCount: skippedStops.length,
       skippedStops: skippedStops,
       optimizedRoute: activeStops.map((stop, index) => ({
