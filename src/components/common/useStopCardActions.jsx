@@ -513,11 +513,18 @@ export default function useStopCardActions(params) {
 
           if ((delivery.cod_total_amount_required || 0) > 0 && !isPickup) triggerSquareCodUpsert({ deliveryId: delivery.id, patientName: patient?.full_name || delivery.patient_name || 'Patient', storeAbbreviation: store?.abbreviation || '', codAmount: delivery.cod_total_amount_required, deliveryDate: delivery.delivery_date, storeId: delivery.store_id });
 
-          let restartOptimizeData = null;
-          try {
-            const optimizationResult = await optimizeRouteAndApplyNextDelivery({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, updateDeliveryLocal, updateDeliveriesLocally, forceRefreshDriverDeliveries, shouldRegeneratePolylines: false, fallbackNextDeliveryId: delivery.id, runOptimization: true });
-            restartOptimizeData = optimizationResult?.optimizeData || null;
-          } catch {}
+           // CRITICAL: Skip route optimization if restarting the most recent finished stop
+           const finishedStops = driverDeliveries.filter((d) => d && FINISHED_STATUSES.includes(d.status)).sort((a, b) => (b.stop_order || 0) - (a.stop_order || 0));
+           const mostRecentFinishedStop = finishedStops[0] || null;
+           const isRestartingMostRecentFinished = mostRecentFinishedStop && mostRecentFinishedStop.id === delivery.id;
+
+           let restartOptimizeData = null;
+           if (!isRestartingMostRecentFinished) {
+             try {
+               const optimizationResult = await optimizeRouteAndApplyNextDelivery({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, updateDeliveryLocal, updateDeliveriesLocally, forceRefreshDriverDeliveries, shouldRegeneratePolylines: false, fallbackNextDeliveryId: delivery.id, runOptimization: true });
+               restartOptimizeData = optimizationResult?.optimizeData || null;
+             } catch {}
+           }
 
           if (restartOptimizeData?.success && Array.isArray(restartOptimizeData.optimizedRoute) && restartOptimizeData.optimizedRoute.length > 0) {
             window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: delivery.driver_id, updates: restartOptimizeData.optimizedRoute.map((stop) => ({ deliveryId: stop.deliveryId || stop.delivery_id, newEta: stop.newETA || stop.eta })).filter((stop) => stop.deliveryId && stop.newEta) } }));
