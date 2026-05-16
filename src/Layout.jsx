@@ -1750,8 +1750,9 @@ export default function Layout({ children, currentPageName }) {
                           </Link>
                   }
 
+                          {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                   <Link
-                    to={constructUrlWithParams('/Drivers')}
+                    to={constructUrlWithParams(createPageUrl('Drivers'))}
                     onClick={() => setSidebarOpen(false)}
                     className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
                     currentPageName === 'Drivers' ?
@@ -1768,6 +1769,7 @@ export default function Layout({ children, currentPageName }) {
                           <span className="font-semibold">Drivers</span>
                           <Badge variant="secondary" className="ml-auto justify-center w-[50px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{`${onlineCounts.onlineDriversCount}/${drivers.length}`}</Badge>
                           </Link>
+                  }
 
                           <div className="border-t mb-2 py-0.5 mt-1" style={{ borderColor: 'var(--border-slate-200)' }}></div>
 
