@@ -33,7 +33,7 @@ export async function runAcceptAllBatchPipeline({
     ? addMinutesToTimeString(currentLocalTime, 5)
     : addMinutesToTimeString(currentLocalTime, 5);
 
-  const stagedRoute = routeDeliveries.map((item) => {
+  const stagedRoute = routeDeliveries.map((item, index) => {
      if (!item) return item;
      if (item.id === triggerDelivery.id) {
        // RETRO RULES: For retro pickup (first stop), set delivery_time_eta to delivery_time_start
@@ -49,31 +49,52 @@ export async function runAcceptAllBatchPipeline({
        }
        return pickupUpdate;
      }
-    // CRITICAL: Only transition strictly 'pending' stops - never touch en_route/in_transit stops
-    if (item.store_id === triggerDelivery.store_id && item.status === 'pending') {
-      // CRITICAL: Check if patient has time_window_start - if so, use it instead of default transition time
-      let delivery_time_start = defaultTransitionTime;
-      if (item.patient_id) {
-        const patient = patients.find((p) => p?.id === item.patient_id);
-        if (patient?.time_window_start) {
-          delivery_time_start = patient.time_window_start;
-        }
-      }
-      return {
-        ...item,
-        status: 'in_transit',
-        isNextDelivery: false,
-        delivery_time_start,
-        ampm_deliveries: item.ampm_deliveries || triggerDelivery.ampm_deliveries || (pickupStartTime >= '15:00' ? 'PM' : 'AM'),
-        ...(item.active === false ? { active: true } : {})
-      };
-    }
-    // CRITICAL: Only clear isNextDelivery from non-active stops. Preserve en_route/in_transit ETAs.
-    if (item.isNextDelivery === true && item.status !== 'en_route' && item.status !== 'in_transit') {
-      return { ...item, isNextDelivery: false };
-    }
-    return item;
-  });
+     // CRITICAL: Only transition strictly 'pending' stops - never touch en_route/in_transit stops
+     if (item.store_id === triggerDelivery.store_id && item.status === 'pending') {
+       // CRITICAL: Check if patient has time_window_start - if so, use it instead of default transition time
+       let delivery_time_start = defaultTransitionTime;
+       if (item.patient_id) {
+         const patient = patients.find((p) => p?.id === item.patient_id);
+         if (patient?.time_window_start) {
+           delivery_time_start = patient.time_window_start;
+         }
+       }
+
+       // RETRO RULES: For retro dates, calculate ETA from previous stop's actual delivery time + duration
+       let delivery_time_eta = undefined;
+       if (isRetroDate) {
+         const triggerIndex = routeDeliveries.findIndex(d => d?.id === triggerDelivery.id);
+         const isFirstDeliveryAfterPickup = index === triggerIndex + 1;
+
+         if (isFirstDeliveryAfterPickup && triggerDelivery.estimated_duration_minutes) {
+           // First delivery: pickup ETA + pickup duration
+           delivery_time_eta = addMinutesToTimeString(pickupStartTime, triggerDelivery.estimated_duration_minutes);
+         } else if (index > triggerIndex + 1) {
+           // Subsequent deliveries: previous stop's actual delivery time + previous stop's duration
+           const previousStop = stagedRoute[index - 1];
+           if (previousStop?.actual_delivery_time) {
+             const prevDuration = previousStop.estimated_duration_minutes || 5;
+             delivery_time_eta = addMinutesToTimeString(previousStop.actual_delivery_time, prevDuration);
+           }
+         }
+       }
+
+       return {
+         ...item,
+         status: 'in_transit',
+         isNextDelivery: false,
+         delivery_time_start,
+         ...(delivery_time_eta ? { delivery_time_eta } : {}),
+         ampm_deliveries: item.ampm_deliveries || triggerDelivery.ampm_deliveries || (pickupStartTime >= '15:00' ? 'PM' : 'AM'),
+         ...(item.active === false ? { active: true } : {})
+       };
+     }
+     // CRITICAL: Only clear isNextDelivery from non-active stops. Preserve en_route/in_transit ETAs.
+     if (item.isNextDelivery === true && item.status !== 'en_route' && item.status !== 'in_transit') {
+       return { ...item, isNextDelivery: false };
+     }
+     return item;
+   });
 
   const stagedChangedDeliveries = stagedRoute.filter((item, index) => {
     const original = routeDeliveries[index];
