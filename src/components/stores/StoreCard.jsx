@@ -177,27 +177,6 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                       <CreditCard className="w-3 h-3" />
                     </Badge>
                   }
-                  {/* Mobile-only call and navigate buttons */}
-                  {store.phone && store.latitude && store.longitude && (
-                    <div className="flex gap-2 md:hidden ml-auto">
-                      <a
-                        href={`tel:${store.phone.replace(/\D/g, '')}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 transition-colors hover:opacity-80"
-                        style={{ backgroundColor: '#d1fae5' }}>
-                        <Phone className="w-5 h-5" style={{ color: '#059669' }} />
-                      </a>
-                      <a
-                        href={`https://maps.google.com/?q=${store.latitude},${store.longitude}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 transition-colors hover:opacity-80"
-                        style={{ backgroundColor: '#dbeafe' }}>
-                        <MapPin className="w-5 h-5" style={{ color: '#2563eb' }} />
-                      </a>
-                    </div>
-                  )}
                 </div>
                 <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>{store.address}</p>
                 {store.phone &&
@@ -237,6 +216,28 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                     </AlertDialog>
                     }
                   </div>
+                  
+                  {/* Mobile-only call and navigate buttons */}
+                  {store.phone && store.latitude && store.longitude && (
+                    <div className="flex gap-2 md:hidden">
+                      <a
+                        href={`tel:${store.phone.replace(/\D/g, '')}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 transition-colors hover:opacity-80"
+                        style={{ backgroundColor: '#d1fae5' }}>
+                        <Phone className="w-5 h-5" style={{ color: '#059669' }} />
+                      </a>
+                      <a
+                        href={`https://maps.google.com/?q=${store.latitude},${store.longitude}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 transition-colors hover:opacity-80"
+                        style={{ backgroundColor: '#dbeafe' }}>
+                        <MapPin className="w-5 h-5" style={{ color: '#2563eb' }} />
+                      </a>
+                    </div>
+                  )}
                 </div>}
             </div>
 
