@@ -224,13 +224,13 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                   }
                 </div>
                 
-                {/* Rows 2-3: Mobile-only call and navigate buttons */}
+                {/* Rows 2-3: Mobile-only call and navigate buttons (side by side) */}
                 {store.phone && store.latitude && store.longitude && (
-                  <div className="flex flex-col gap-2 md:hidden">
+                  <div className="flex flex-row gap-2 md:hidden">
                     <a
                       href={`tel:${store.phone.replace(/\D/g, '')}`}
                       onClick={(e) => e.stopPropagation()}
-                      className="h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 transition-colors hover:opacity-80"
+                      className="h-full flex-1 rounded-full flex items-center justify-center transition-colors hover:opacity-80"
                       style={{ backgroundColor: '#d1fae5' }}>
                       <Phone className="w-5 h-5" style={{ color: '#059669' }} />
                     </a>
@@ -239,7 +239,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={(e) => e.stopPropagation()}
-                      className="h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 transition-colors hover:opacity-80"
+                      className="h-full flex-1 rounded-full flex items-center justify-center transition-colors hover:opacity-80"
                       style={{ backgroundColor: '#dbeafe' }}>
                       <MapPin className="w-5 h-5" style={{ color: '#2563eb' }} />
                     </a>
