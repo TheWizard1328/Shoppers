@@ -15,6 +15,7 @@ import MobileTabScrollManager from '@/components/navigation/MobileTabScrollManag
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import SquareSyncAudit from '@/pages/SquareSyncAudit';
 import Companies from '@/pages/Companies';
+import Drivers from '@/pages/Drivers';
 
 const cleanupLocalStorageQuota = () => {
   try {
@@ -108,6 +109,14 @@ const AuthenticatedApp = () => {
         element={
           <LayoutWrapper currentPageName="SquareSyncAudit">
             <SquareSyncAudit />
+          </LayoutWrapper>
+        }
+      />
+      <Route
+        path="/Drivers"
+        element={
+          <LayoutWrapper currentPageName="Drivers">
+            <Drivers />
           </LayoutWrapper>
         }
       />
