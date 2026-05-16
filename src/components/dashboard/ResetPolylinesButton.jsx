@@ -93,9 +93,25 @@ export default function ResetPolylinesButton({
               5000
             );
 
+            const FINISHED_STATUSES = new Set(['completed', 'failed', 'cancelled', 'returned']);
+            const getCompletionTime = (d) => {
+              const t = d?.actual_delivery_time || d?.arrival_time || d?.updated_date;
+              if (t) { const ms = new Date(t).getTime(); if (Number.isFinite(ms)) return ms; }
+              return Number.MAX_SAFE_INTEGER;
+            };
+
             const orderedDeliveries = (routeDeliveries || [])
               .filter(Boolean)
-              .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0));
+              .sort((a, b) => {
+                const aFinished = FINISHED_STATUSES.has(a?.status);
+                const bFinished = FINISHED_STATUSES.has(b?.status);
+                // Finished stops first, sorted by completion time
+                if (aFinished && bFinished) return getCompletionTime(a) - getCompletionTime(b);
+                if (aFinished && !bFinished) return -1;
+                if (!aFinished && bFinished) return 1;
+                // Non-finished stops sorted by stop_order
+                return (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0);
+              });
 
             const orderedStopIds = orderedDeliveries
               .map((delivery) => delivery.id)
