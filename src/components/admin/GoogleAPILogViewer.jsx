@@ -189,9 +189,8 @@ export default function GoogleAPILogViewer() {
         const oneHourAgo = subHours(new Date(), 1);
         passesDateFilter = logDate >= oneHourAgo;
       } else if (dateFilter === 'today') {
-        // Last 24 hours from current time
-        const twentyFourHoursAgo = subHours(new Date(), 24);
-        passesDateFilter = logDate >= twentyFourHoursAgo;
+        // Today's calendar day
+        passesDateFilter = format(logDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
       } else if (dateFilter === 'yesterday') {
         passesDateFilter = format(logDate, 'yyyy-MM-dd') === format(subDays(new Date(), 1), 'yyyy-MM-dd');
       } else if (dateFilter === 'week') {
@@ -299,15 +298,14 @@ export default function GoogleAPILogViewer() {
 
       return Object.values(hourlyMap).sort((a, b) => a.sortOrder - b.sortOrder);
     } else if (dateFilter === 'today') {
-      // HOURLY VIEW: Last 24 hours from current time
-      const now = new Date();
+      // HOURLY VIEW: Today 00:00 to 23:00 (calendar day)
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
       const hourlyMap = {};
 
-      // Initialize last 24 hours (starting from 24 hours ago)
-      for (let i = 23; i >= 0; i--) {
-        const hourDate = subHours(now, i);
-        const hourKey = format(hourDate, 'MMM dd HH:00');
-        hourlyMap[hourKey] = { hour: format(hourDate, 'HH:00'), calls: 0, sortOrder: 23 - i };
+      // Initialize all 24 hours for today
+      for (let i = 0; i < 24; i++) {
+        const hourKey = `${String(i).padStart(2, '0')}:00`;
+        hourlyMap[hourKey] = { hour: hourKey, calls: 0, sortOrder: i };
 
         if (isAllUsers) {
           uniqueUsers.forEach((user) => {
@@ -316,10 +314,11 @@ export default function GoogleAPILogViewer() {
         }
       }
 
-      // Count calls per hour
+      // Count calls per hour for today only
       filteredLogs.forEach((log) => {
         const logDate = new Date(log.timestamp);
-        const hourKey = format(logDate, 'MMM dd HH:00');
+        if (format(logDate, 'yyyy-MM-dd') !== todayStr) return;
+        const hourKey = format(logDate, 'HH:00');
         if (hourlyMap[hourKey]) {
           const callCount = getApiLogCallCount(log);
           hourlyMap[hourKey].calls += callCount;
