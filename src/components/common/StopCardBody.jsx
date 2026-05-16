@@ -7,8 +7,8 @@ import {
   StopCardCodSection,
   StopCardPatientInfoSection,
   StopCardPendingPickupsSection,
-  StopCardNotesSection
-} from "./StopCardExpandedSections";
+  StopCardNotesSection } from
+"./StopCardExpandedSections";
 
 export default function StopCardBody({
   isExpanded,
@@ -89,20 +89,20 @@ export default function StopCardBody({
 
     const currentDeliveryDate = parseISO(`${delivery.delivery_date}T00:00:00`);
 
-    const priorCompletedDates = (allDeliveries || [])
-      .filter((item) =>
-        item &&
-        item.id !== delivery.id &&
-        item.patient_id === delivery.patient_id &&
-        item.delivery_date &&
-        item.status === 'completed'
-      )
-      .map((item) => item.delivery_date)
-      .filter((dateStr) => {
-        const itemDate = parseISO(`${dateStr}T00:00:00`);
-        return isBefore(itemDate, currentDeliveryDate);
-      })
-      .sort((a, b) => b.localeCompare(a));
+    const priorCompletedDates = (allDeliveries || []).
+    filter((item) =>
+    item &&
+    item.id !== delivery.id &&
+    item.patient_id === delivery.patient_id &&
+    item.delivery_date &&
+    item.status === 'completed'
+    ).
+    map((item) => item.delivery_date).
+    filter((dateStr) => {
+      const itemDate = parseISO(`${dateStr}T00:00:00`);
+      return isBefore(itemDate, currentDeliveryDate);
+    }).
+    sort((a, b) => b.localeCompare(a));
 
     if (priorCompletedDates[0]) return priorCompletedDates[0];
 
@@ -128,76 +128,76 @@ export default function StopCardBody({
           transition={{ duration: 0.2 }}
           className="overflow-hidden">
           
-            <div className="pt-1 space-y-2 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+            <div className="space-y-2 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
               <StopCardPhoneRow
-                isPickup={isPickup}
-                finalDisplayPhone={finalDisplayPhone}
-                alternateDisplayPhone={alternateDisplayPhone}
-              />
+              isPickup={isPickup}
+              finalDisplayPhone={finalDisplayPhone}
+              alternateDisplayPhone={alternateDisplayPhone} />
+            
 
               <StopCardCodSection
-                hasCODRequired={hasCODRequired}
-                isPickup={isPickup}
-                codTotalRequired={codTotalRequired}
-                currentUser={currentUser}
-                userHasRole={userHasRole}
-                isStrippedForDriver={isStrippedForDriver}
-                codPayments={codPayments}
-                setCodPayments={setCodPayments}
-                showCODCollection={showCODCollection}
-                setShowCODCollection={setShowCODCollection}
-                codTotalCollected={codTotalCollected}
-                isFinishedDelivery={isFinishedDelivery}
-                onCODUpdate={onCODUpdate}
-                delivery={delivery}
-                allDeliveries={allDeliveries}
-                FINISHED_STATUSES={FINISHED_STATUSES}
-                forceRefreshDriverDeliveries={forceRefreshDriverDeliveries}
-                isCompleting={isCompleting}
-                setIsCompleting={setIsCompleting}
-                onSelectionChange={onSelectionChange}
-                onClick={onClick}
-                isCODComplete={isCODComplete}
-              />
+              hasCODRequired={hasCODRequired}
+              isPickup={isPickup}
+              codTotalRequired={codTotalRequired}
+              currentUser={currentUser}
+              userHasRole={userHasRole}
+              isStrippedForDriver={isStrippedForDriver}
+              codPayments={codPayments}
+              setCodPayments={setCodPayments}
+              showCODCollection={showCODCollection}
+              setShowCODCollection={setShowCODCollection}
+              codTotalCollected={codTotalCollected}
+              isFinishedDelivery={isFinishedDelivery}
+              onCODUpdate={onCODUpdate}
+              delivery={delivery}
+              allDeliveries={allDeliveries}
+              FINISHED_STATUSES={FINISHED_STATUSES}
+              forceRefreshDriverDeliveries={forceRefreshDriverDeliveries}
+              isCompleting={isCompleting}
+              setIsCompleting={setIsCompleting}
+              onSelectionChange={onSelectionChange}
+              onClick={onClick}
+              isCODComplete={isCODComplete} />
+            
 
               <StopCardPatientInfoSection
-                isStrippedForDriver={isStrippedForDriver}
-                isFinishedDelivery={isFinishedDelivery}
-                isPickup={isPickup}
-                isPastDate={isPastDate}
-                patient={patient}
-                currentUser={currentUser}
-                appUsers={appUsers}
-                preferredTravelMode={preferredTravelMode}
-                onTravelModeChange={onTravelModeChange}
-                travelModeDisabled={travelModeDisabled}
-              />
+              isStrippedForDriver={isStrippedForDriver}
+              isFinishedDelivery={isFinishedDelivery}
+              isPickup={isPickup}
+              isPastDate={isPastDate}
+              patient={patient}
+              currentUser={currentUser}
+              appUsers={appUsers}
+              preferredTravelMode={preferredTravelMode}
+              onTravelModeChange={onTravelModeChange}
+              travelModeDisabled={travelModeDisabled} />
+            
 
               <StopCardPendingPickupsSection
-                isFinishedDelivery={isFinishedDelivery}
-                isPickup={isPickup}
-                delivery={delivery}
-                pendingPickups={pendingPickups}
-                canAccessAcceptButtons={canAccessAcceptButtons}
-                isAcceptingAll={isAcceptingAll}
-                handleAcceptAllStops={handleAcceptAllStops}
-                acceptButtonText={acceptButtonText}
-                onEdit={onEdit}
-                patients={patients}
-                store={store}
-                isAtStoreLocation={isAtStoreLocation}
-              />
+              isFinishedDelivery={isFinishedDelivery}
+              isPickup={isPickup}
+              delivery={delivery}
+              pendingPickups={pendingPickups}
+              canAccessAcceptButtons={canAccessAcceptButtons}
+              isAcceptingAll={isAcceptingAll}
+              handleAcceptAllStops={handleAcceptAllStops}
+              acceptButtonText={acceptButtonText}
+              onEdit={onEdit}
+              patients={patients}
+              store={store}
+              isAtStoreLocation={isAtStoreLocation} />
+            
 
               <StopCardNotesSection
-                lastDeliveryBadgeDate={lastDeliveryBadgeDate}
-                notesInput={notesInput}
-                setNotesInput={setNotesInput}
-                handleNotesBlur={handleNotesBlur}
-                handleNotesKeyDown={handleNotesKeyDown}
-                delivery={delivery}
-                onNotesUpdate={onNotesUpdate}
-                Textarea={Textarea}
-              />
+              lastDeliveryBadgeDate={lastDeliveryBadgeDate}
+              notesInput={notesInput}
+              setNotesInput={setNotesInput}
+              handleNotesBlur={handleNotesBlur}
+              handleNotesKeyDown={handleNotesKeyDown}
+              delivery={delivery}
+              onNotesUpdate={onNotesUpdate}
+              Textarea={Textarea} />
+            
             </div>
                 </motion.div>
         }

@@ -88,7 +88,7 @@ export default function StopCardCODCollection({
         animate={{ opacity: 1, height: "auto" }}
         exit={{ opacity: 0, height: 0 }}
         transition={{ duration: 0.2 }}
-        className="overflow-visible rounded-md p-3 space-y-2 w-full relative z-[10000]"
+        className="overflow-visible rounded-md space-y-2 w-full relative z-[10000] px-3 py-1"
         style={{ background: 'var(--bg-slate-50)' }}
         onAnimationStart={() => {
           if (!codRefreshPauseRef.current) {
@@ -100,10 +100,10 @@ export default function StopCardCODCollection({
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm md:text-xs font-semibold" style={{ color: 'var(--text-slate-700)' }}>Collect COD Payments</span>
             <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={async (e) => {
-              if (codRefreshPauseRef.current) {
-                smartRefreshManager.resume();
-                codRefreshPauseRef.current = false;
-              }
+            if (codRefreshPauseRef.current) {
+              smartRefreshManager.resume();
+              codRefreshPauseRef.current = false;
+            }
             e.stopPropagation();
             setCodPayments([]);
             if (onCODUpdate) {
@@ -160,7 +160,7 @@ export default function StopCardCODCollection({
             Add Payment
           </Button>
 
-          <div className="flex items-center justify-between pt-2" style={{ borderTopWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
+          <div className="flex items-center justify-between" style={{ borderTopWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
             <div className="text-sm md:text-xs">
               <span style={{ color: 'var(--text-slate-600)' }}>Total: </span>
               <span className="font-bold" style={{ color: isCODComplete ? 'var(--text-emerald-600)' : 'var(--text-amber-600)' }}>
@@ -185,15 +185,15 @@ export default function StopCardCODCollection({
                 }
 
                 // Process Square based on current COD collection type
-                const hasCashCheck = codPayments.some(p => p.type === 'Cash' || p.type === 'Check');
-                const hasDebitCredit = codPayments.some(p => p.type === 'Debit' || p.type === 'Credit');
+                const hasCashCheck = codPayments.some((p) => p.type === 'Cash' || p.type === 'Check');
+                const hasDebitCredit = codPayments.some((p) => p.type === 'Debit' || p.type === 'Credit');
                 const totalAmount = codPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
 
                 if (hasCashCheck && totalAmount > 0) {
                   // Recreate catalog item for Cash/Check
-                  const store = allDeliveries?.find(d => d?.id === delivery.id)?.store_id 
-                    ? await base44.entities.Store.filter({ id: delivery.store_id })
-                    : null;
+                  const store = allDeliveries?.find((d) => d?.id === delivery.id)?.store_id ?
+                  await base44.entities.Store.filter({ id: delivery.store_id }) :
+                  null;
                   await base44.functions.invoke('squareCreateCodItem', {
                     deliveryId: delivery.id,
                     patientName: delivery.patient_name,
