@@ -1751,7 +1751,7 @@ export default function Layout({ children, currentPageName }) {
                   }
 
                   <Link
-                    to={constructUrlWithParams(createPageUrl('AppUsers'))}
+                    to={constructUrlWithParams('/Drivers')}
                     onClick={() => setSidebarOpen(false)}
                     className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
                     currentPageName === 'Drivers' ?
