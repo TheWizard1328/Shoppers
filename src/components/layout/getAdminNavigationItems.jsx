@@ -28,20 +28,6 @@ export default function getAdminNavigationItems({
       icon: MapPinned
     },
     {
-      title: 'Stores',
-      pageName: 'Stores',
-      count: isAdmin ? `${onlineCounts.onlineStoresCount}/${stores.length}` : entityCounts.stores,
-      url: createPageUrl('Stores'),
-      icon: Building
-    },
-    {
-      title: 'Drivers',
-      pageName: 'DriverSettings',
-      count: isAdmin ? `${onlineCounts.onlineDriversCount}/${drivers.length}` : drivers.length,
-      url: createPageUrl('DriverSettings'),
-      icon: Truck
-    },
-    {
       title: 'Users',
       pageName: 'AppUsers',
       count: isAdmin ? `${onlineCounts.onlineNonDriverNonDispatcherUsersCount}/${users.length}` : entityCounts.users,
