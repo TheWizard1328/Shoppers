@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { Package, Truck, CheckCircle, XCircle, DollarSign, Route, TrendingUp, Clock } from 'lucide-react';
+import { Package, Truck, CheckCircle, XCircle, DollarSign, Route, TrendingUp, Clock, CreditCard } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { calculateCodOutstanding } from '@/components/utils/payCalculator';
 
 const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCount, small }) => {
   const colorClasses = {
@@ -51,7 +52,8 @@ export default function ActivePayStats({
   performanceStats, // { totalPay, totalKm, totalExtraKm, totalTimeOnDuty }
   liveDistance = 0, // Live travel_dist from current next delivery
   liveTimeOnDuty = null, // Live time on duty (null = use backend value)
-  isLoadingPayrollStats = false
+  isLoadingPayrollStats = false,
+  filteredDeliveries = [], // Deliveries for the selected driver/date
 }) {
   // Use localStats directly - always reflect the current date's data
   const stats = localStats || {
@@ -67,6 +69,8 @@ export default function ActivePayStats({
     inTransitDrivers: 0,
     completedDrivers: 0
   };
+
+  const codOutstanding = calculateCodOutstanding(filteredDeliveries);
 
   // Use actual performanceStats (no estimates)
   const displayPay = performanceStats?.totalPay || 0;
@@ -96,7 +100,8 @@ export default function ActivePayStats({
     pay: isLoadingPayrollStats ? 'Loading...' : `Total Pay: $${displayPay.toFixed(2)} (excl. N/C)`,
     distance: isLoadingPayrollStats ? 'Loading...' : liveDistance > 0 ? `Total Distance (Live): ${displayKm.toFixed(2)} km` : `Total Distance: ${displayKm.toFixed(2)} km`,
     extraKm: isLoadingPayrollStats ? 'Loading...' : `Extra Km (beyond ${extraKmLimit} km limit): ${displayExtraKm.toFixed(2)} km (excl. N/C)`,
-    time: isLoadingPayrollStats ? 'Loading...' : `Time on Duty: ${displayTime} (first stop to now, minus breaks)`
+    time: isLoadingPayrollStats ? 'Loading...' : `Time on Duty: ${displayTime} (first stop to now, minus breaks)`,
+    cod: `COD Outstanding: $${codOutstanding.toFixed(2)} (total required minus Debit/Credit collected)`
   };
 
   return (
@@ -135,9 +140,9 @@ export default function ActivePayStats({
           tooltip={tooltipValues.failed} />
       </div>
 
-      {/* Row 2: Performance Stats - 4 columns - Show for drivers only, NOT dispatchers */}
+      {/* Row 2: Performance Stats - Show for drivers only, NOT dispatchers */}
       {!isDispatcher &&
-      <div className="grid grid-cols-4 gap-1">
+      <div className={`grid gap-1 ${codOutstanding > 0 ? 'grid-cols-5' : 'grid-cols-4'}`}>
           <StatBadge
           icon={DollarSign}
           value={isLoadingPayrollStats ? '...' : `${displayPay.toFixed(2)}`}
@@ -169,6 +174,16 @@ export default function ActivePayStats({
           label="Duty"
           tooltip={tooltipValues.time}
           small />
+
+          {codOutstanding > 0 &&
+          <StatBadge
+            icon={CreditCard}
+            value={`$${codOutstanding.toFixed(2)}`}
+            color="red"
+            label="COD Due"
+            tooltip={tooltipValues.cod}
+            small />
+          }
         </div>
       }
     </div>);
