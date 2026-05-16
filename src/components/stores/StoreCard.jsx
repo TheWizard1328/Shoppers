@@ -161,7 +161,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
             <div className="flex items-start justify-between">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-semibold truncate text-x" style={{ color: 'var(--text-slate-900)' }}>
+                  <h3 className="font-semibold truncate text-xl" style={{ color: 'var(--text-slate-900)' }}>
                     {store.name}
                   </h3>
                   {store.abbreviation &&
