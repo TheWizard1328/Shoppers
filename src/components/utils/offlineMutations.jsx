@@ -494,11 +494,10 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
   const { skipSmartRefresh = false, isBatchOperation = false } = options;
   console.warn('[OfflineMutations][updateDeliveryLocal] incoming', { deliveryId, updates, options });
   
-  // CRITICAL: Check if mutations are paused
-  if (mutationsPaused) {
-    console.log('⏸️ [OfflineMutations] updateDeliveryLocal skipped - mutations paused');
-    throw new Error('Mutations are paused during route optimization');
-  }
+  // NOTE: updateDeliveryLocal intentionally bypasses the mutationsPaused check.
+  // Driver actions (completing stops, status updates) are time-sensitive and must
+  // always proceed even during route optimization. Route optimization only pauses
+  // bulk/structural mutations (create, delete, batch).
 
   // CRITICAL: Pause smart refresh during mutation (unless skipped or in batch operation)
   let smartRefreshManager = null;
