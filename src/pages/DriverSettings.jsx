@@ -283,50 +283,52 @@ export default function DriverSettings() {
                       }
                       </div>
                       
-                      {/* Pay rates display */}
-                      {(latestAppUser?.pay_cycle_type || latestAppUser?.pay_rate_per_delivery > 0) &&
-                    <div className="flex items-center gap-1.5 mt-1.5 text-xs flex-wrap" style={{ color: 'var(--text-slate-500)' }}>
-                          {latestAppUser?.pay_cycle_type &&
-                      <span className="capitalize">{latestAppUser.pay_cycle_type === 'biweekly' ? 'Bi-Weekly' : latestAppUser.pay_cycle_type === 'semimonthly' ? 'Semi-Monthly' : latestAppUser.pay_cycle_type}</span>
+                      {/* Pay rates display - admins only */}
+                       {currentUser?.app_roles?.includes('admin') && (latestAppUser?.pay_cycle_type || latestAppUser?.pay_rate_per_delivery > 0) &&
+                      <div className="flex items-center gap-1.5 mt-1.5 text-xs flex-wrap" style={{ color: 'var(--text-slate-500)' }}>
+                           {latestAppUser?.pay_cycle_type &&
+                       <span className="capitalize">{latestAppUser.pay_cycle_type === 'biweekly' ? 'Bi-Weekly' : latestAppUser.pay_cycle_type === 'semimonthly' ? 'Semi-Monthly' : latestAppUser.pay_cycle_type}</span>
+                       }
+                           {latestAppUser?.pay_cycle_type && latestAppUser?.pay_rate_per_delivery > 0 && <span>•</span>}
+                           {latestAppUser?.pay_rate_per_delivery > 0 &&
+                       <span>${Number(latestAppUser.pay_rate_per_delivery).toFixed(2)}/delivery</span>
+                       }
+                         </div>
                       }
-                          {latestAppUser?.pay_cycle_type && latestAppUser?.pay_rate_per_delivery > 0 && <span>•</span>}
-                          {latestAppUser?.pay_rate_per_delivery > 0 &&
-                      <span>${Number(latestAppUser.pay_rate_per_delivery).toFixed(2)}/delivery</span>
+                       {currentUser?.app_roles?.includes('admin') && (latestAppUser?.extra_km_rate > 0 || latestAppUser?.extra_km_limit > 0 || latestAppUser?.oversized_item_rate > 0) &&
+                      <div className="flex items-center gap-1.5 mt-0.5 text-xs flex-wrap" style={{ color: 'var(--text-slate-500)' }}>
+                           {latestAppUser?.extra_km_rate > 0 &&
+                       <span>${Number(latestAppUser.extra_km_rate).toFixed(2)}/km</span>
+                       }
+                           {latestAppUser?.extra_km_rate > 0 && latestAppUser?.extra_km_limit > 0 && <span>•</span>}
+                           {latestAppUser?.extra_km_limit > 0 &&
+                       <span>{Number(latestAppUser.extra_km_limit).toFixed(2)}km limit</span>
+                       }
+                           {(latestAppUser?.extra_km_rate > 0 || latestAppUser?.extra_km_limit > 0) && latestAppUser?.oversized_item_rate > 0 && <span>•</span>}
+                           {latestAppUser?.oversized_item_rate > 0 &&
+                       <span>${Number(latestAppUser.oversized_item_rate).toFixed(2)}/oversized</span>
+                       }
+                         </div>
                       }
-                        </div>
-                    }
-                      {(latestAppUser?.extra_km_rate > 0 || latestAppUser?.extra_km_limit > 0 || latestAppUser?.oversized_item_rate > 0) &&
-                    <div className="flex items-center gap-1.5 mt-0.5 text-xs flex-wrap" style={{ color: 'var(--text-slate-500)' }}>
-                          {latestAppUser?.extra_km_rate > 0 &&
-                      <span>${Number(latestAppUser.extra_km_rate).toFixed(2)}/km</span>
-                      }
-                          {latestAppUser?.extra_km_rate > 0 && latestAppUser?.extra_km_limit > 0 && <span>•</span>}
-                          {latestAppUser?.extra_km_limit > 0 &&
-                      <span>{Number(latestAppUser.extra_km_limit).toFixed(2)}km limit</span>
-                      }
-                          {(latestAppUser?.extra_km_rate > 0 || latestAppUser?.extra_km_limit > 0) && latestAppUser?.oversized_item_rate > 0 && <span>•</span>}
-                          {latestAppUser?.oversized_item_rate > 0 &&
-                      <span>${Number(latestAppUser.oversized_item_rate).toFixed(2)}/oversized</span>
-                      }
-                        </div>
-                    }
                     </div>
 
-                    {/* Actions */}
-                    <div className="flex flex-col gap-2 items-end self-start">
-                      <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setEditingDriver(driver)}
-                      className="h-8 gap-1">
+                    {/* Actions - admins only */}
+                     {currentUser?.app_roles?.includes('admin') &&
+                     <div className="flex flex-col gap-2 items-end self-start">
+                       <Button
+                       variant="outline"
+                       size="sm"
+                       onClick={() => setEditingDriver(driver)}
+                       className="h-8 gap-1">
 
-                        <Edit className="w-3.5 h-3.5" />
-                        <span className="text-xs">Edit</span>
-                      </Button>
-                      <Badge variant="outline" className="text-xs" style={{ borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-600)' }}>
-                        #{driver.sort_order || '—'}
-                      </Badge>
-                    </div>
+                         <Edit className="w-3.5 h-3.5" />
+                         <span className="text-xs">Edit</span>
+                       </Button>
+                       <Badge variant="outline" className="text-xs" style={{ borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-600)' }}>
+                         #{driver.sort_order || '—'}
+                       </Badge>
+                     </div>
+                     }
                   </div>
                 </CardContent>
               </Card>);
@@ -335,8 +337,8 @@ export default function DriverSettings() {
         }
       </div>
       
-      {/* Edit Driver Form */}
-      {editingDriver && (() => {
+      {/* Edit Driver Form - admins only */}
+       {currentUser?.app_roles?.includes('admin') && editingDriver && (() => {
         const latestAppUser = mergedAppUsers.find((au) => au?.user_id === editingDriver.id);
         const sourceDriver = latestAppUser || editingDriver;
         const mergedDriver = {
