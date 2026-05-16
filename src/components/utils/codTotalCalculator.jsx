@@ -59,6 +59,43 @@ export const calculateUserCodTotal = (currentUser, catalogItems = [], locationCo
 };
 
 /**
+ * Calculate outstanding COD balance for a specific driver+date based on delivery records.
+ * Outstanding = sum(cod_total_amount_required) - sum(Debit + Credit payments collected)
+ *
+ * @param {Array} deliveries - All deliveries
+ * @param {string} driverId - Selected driver ID ('all' or specific ID)
+ * @param {string} dateStr - Selected date string (YYYY-MM-DD)
+ * @returns {number} - Outstanding COD balance
+ */
+export const calculateRouteCodBalance = (deliveries = [], driverId, dateStr) => {
+  if (!deliveries || deliveries.length === 0) return 0;
+
+  let relevant = deliveries.filter(d => d && d.cod_total_amount_required > 0);
+
+  if (driverId && driverId !== 'all') {
+    relevant = relevant.filter(d => d.driver_id === driverId);
+  }
+  if (dateStr) {
+    const date = typeof dateStr === 'string' ? dateStr : (dateStr instanceof Date ? dateStr.toISOString().slice(0, 10) : null);
+    if (date) relevant = relevant.filter(d => d.delivery_date === date);
+  }
+
+  let totalRequired = 0;
+  let totalCollected = 0;
+
+  relevant.forEach(d => {
+    totalRequired += d.cod_total_amount_required || 0;
+    (d.cod_payments || []).forEach(p => {
+      if (p.type === 'Debit' || p.type === 'Credit') {
+        totalCollected += p.amount || 0;
+      }
+    });
+  });
+
+  return Math.max(0, totalRequired - totalCollected);
+};
+
+/**
  * Fetch fresh catalog items from the database
  * @returns {Promise<Array>} - Array of catalog items
  */
