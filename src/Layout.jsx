@@ -81,6 +81,7 @@ import { useWakeLockAndVisibility } from './components/layout/useWakeLockAndVisi
 import { mergePatients } from './components/layout/layoutDataHelpers';
 import { initializeAppLoadDataFlow, executeAppLoadDataSync } from './components/layout/AppLoadDataManager';
 import { initializeGlobalFilters, createMergedUser, hasCurrentUserRefreshImpact } from './components/layout/initializeGlobalFilters';
+import { usePayrollBadge } from './components/layout/usePayrollBadge';
 
 // App version will be loaded from AppSettings
 const DEFAULT_APP_VERSION = 'v1.0.0';
@@ -232,7 +233,7 @@ export default function Layout({ children, currentPageName }) {
   const [adminImportEnabled, setAdminImportEnabled] = useState(false);
   const [isSnapshotModeActive, setIsSnapshotModeActive] = useState(false);
   const [showInviteQRModal, setShowInviteQRModal] = useState(false);
-  const [currentPayrollNetPay, setCurrentPayrollNetPay] = useState(null); const [deviceRegistered, setDeviceRegistered] = useState(false);
+  const [deviceRegistered, setDeviceRegistered] = useState(false);
   const [showDeviceSelectionModal, setShowDeviceSelectionModal] = useState(false);
   const [deviceTypeDetected, setDeviceTypeDetected] = useState(null);
   const [isSettingUpDevice, setIsSettingUpDevice] = useState(false);
@@ -1309,13 +1310,7 @@ export default function Layout({ children, currentPageName }) {
   const [entityCounts, setEntityCounts] = useState({ patients: '...', companies: '...', cities: '...', stores: '...', users: '...' });
 
   useEffect(() => { if (!currentUser || !dataLoaded) return; setEntityCounts({ patients: patients.length, cities: cities.length, stores: stores.length, users: users.length }); }, [currentUser, dataLoaded, patients.length, cities.length, stores.length, users.length]);
-  useEffect(() => {
-    if (!currentUser || !dataLoaded) return;
-    const fetchPayroll = () => { const did = userHasRole(currentUser,'driver')&&!userHasRole(currentUser,'admin')?currentUser.id:(globalFilters.getSelectedDriverId()!=='all'?globalFilters.getSelectedDriverId():null); if(!did){setCurrentPayrollNetPay(null);return;} const t=new Date().toISOString().slice(0,10); base44.entities.Payroll.filter({driver_id:did}).then(ps=>{const c=(ps||[]).find(p=>p.pay_period_start<=t&&p.pay_period_end>=t);setCurrentPayrollNetPay(c?(c.net_pay??null):null);}).catch(()=>setCurrentPayrollNetPay(null));};
-    fetchPayroll();
-    window.addEventListener('globalFiltersChanged',fetchPayroll);
-    return ()=>window.removeEventListener('globalFiltersChanged',fetchPayroll);
-  }, [currentUser, dataLoaded]);
+  const currentPayrollNetPay = usePayrollBadge(currentUser, appUsers, dataLoaded);
 
   // Calculate online user counts
   const onlineCounts = useMemo(() => {
