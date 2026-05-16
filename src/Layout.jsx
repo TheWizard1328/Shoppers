@@ -7,14 +7,14 @@ import { smartRefreshManager } from './components/utils/smartRefreshManager';
 import { backgroundSyncManager } from './components/utils/backgroundSyncManager';
 import { offlineDB } from './components/utils/offlineDatabase';
 import {
-  LayoutDashboard,  Users,  Package,  MapPin,  Truck,  Bell,  HeartPulse,  Building,  Building2,  BarChart3,
-  LogOut,  UserCheck,  Clock,  CheckCircle,  AlertCircle,  ChevronDown,  Undo2,  Menu,  X,  RefreshCw,  Phone,  
-  BellRing,  Settings,  Home,  Wrench,  UserCog,  Stethoscope,  MoreVertical,  MessageCircle,  DollarSign,
+  LayoutDashboard, Users, Package, MapPin, Truck, Bell, HeartPulse, Building, Building2, BarChart3,
+  LogOut, UserCheck, Clock, CheckCircle, AlertCircle, ChevronDown, Undo2, Menu, X, RefreshCw, Phone,
+  BellRing, Settings, Home, Wrench, UserCog, Stethoscope, MoreVertical, MessageCircle, DollarSign,
   Smartphone } from
 "lucide-react";
 import {
   DropdownMenu,
-  DropdownMenuContent,  DropdownMenuItem,  DropdownMenuLabel,  DropdownMenuSeparator,  DropdownMenuTrigger } from
+  DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from
 "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -323,16 +323,16 @@ export default function Layout({ children, currentPageName }) {
         // Ensure fallback defaults if initializeGlobalFilters didn't run (e.g. error path)
         if (!globalFilters.getSelectedDate()) globalFilters.setSelectedDate(format(new Date(), 'yyyy-MM-dd'));
         if (!globalFilters.getSelectedDriverId()) globalFilters.setSelectedDriverId('all');
-        
+
         // STEP 1: Load data from offline DB FIRST for immediate UI display
         try {
           const [offlineDels, offlinePats, offlineAppUsers, offlineStores, offlineCities] = await Promise.all([
-            offlineDB.getAll(offlineDB.STORES.DELIVERIES).catch(() => []),
-            offlineDB.getAll(offlineDB.STORES.PATIENTS).catch(() => []),
-            offlineDB.getAll(offlineDB.STORES.APP_USERS).catch(() => []),
-            offlineDB.getAll(offlineDB.STORES.STORES).catch(() => []),
-            offlineDB.getAll(offlineDB.STORES.CITIES).catch(() => [])
-          ]);
+          offlineDB.getAll(offlineDB.STORES.DELIVERIES).catch(() => []),
+          offlineDB.getAll(offlineDB.STORES.PATIENTS).catch(() => []),
+          offlineDB.getAll(offlineDB.STORES.APP_USERS).catch(() => []),
+          offlineDB.getAll(offlineDB.STORES.STORES).catch(() => []),
+          offlineDB.getAll(offlineDB.STORES.CITIES).catch(() => [])]
+          );
           if (offlineDels?.length) setDeliveries(offlineDels);
           if (offlinePats?.length) setPatients(offlinePats);
           if (offlineAppUsers?.length) setAppUsers(offlineAppUsers);
@@ -727,7 +727,7 @@ export default function Layout({ children, currentPageName }) {
       }
       if (freshStores && freshStores.length > 0) setStores(freshStores);
       if (freshAppUsers && freshAppUsers.length > 0) {
-        setAppUsers((prev) => { const m = new Map(prev.map((u) => [u.id, u])); freshAppUsers.forEach((u) => { if (u?.id) m.set(u.id, u); }); return Array.from(m.values()); });
+        setAppUsers((prev) => {const m = new Map(prev.map((u) => [u.id, u]));freshAppUsers.forEach((u) => {if (u?.id) m.set(u.id, u);});return Array.from(m.values());});
       }
     };
     window.addEventListener('pullToSyncDataReady', handlePullToSyncDataReady);
@@ -1029,9 +1029,9 @@ export default function Layout({ children, currentPageName }) {
       });
     } catch (error) {
 
+
       // Silent fail
-    }};
-  //const currentUser = currentUser;
+    }}; //const currentUser = currentUser;
 
   const handleCitySelected = useCallback(async (cityId) => {
     try {
@@ -1080,10 +1080,10 @@ export default function Layout({ children, currentPageName }) {
       // CRITICAL: Load Square data from offline DB first (non-blocking, no API call)
       const { offlineDB } = await import('./components/utils/offlineDatabase');
       const [sqConfigs, sqTx, sqCatalog] = await Promise.all([
-        offlineDB.getAll(offlineDB.STORES.SQUARE_LOCATION_CONFIGS),
-        offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS),
-        offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS)
-      ]);
+      offlineDB.getAll(offlineDB.STORES.SQUARE_LOCATION_CONFIGS),
+      offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS),
+      offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS)]
+      );
       setSquareLocationConfigs(sqConfigs || []);
       setCatalogItems(sqCatalog || []);
       setSquareTransactions(sqTx || []);
@@ -1103,9 +1103,9 @@ export default function Layout({ children, currentPageName }) {
         });
         const initialUsers = Array.from(mergedUsersMap.values()).filter(Boolean);
         const activeDrivers = sortUsers(initialUsers.filter((user) =>
-          user && Array.isArray(user.app_roles) &&
-          (user.app_roles.includes('driver') || user.app_roles.includes('admin')) &&
-          user.user_name && user.status === 'active'
+        user && Array.isArray(user.app_roles) && (
+        user.app_roles.includes('driver') || user.app_roles.includes('admin')) &&
+        user.user_name && user.status === 'active'
         ));
         setUsers(initialUsers);
         setDrivers(activeDrivers);
@@ -1174,9 +1174,9 @@ export default function Layout({ children, currentPageName }) {
 
     if (userHasRole(currentUser, 'admin')) {
 
+
       // Admins see all
-    } else if (userHasRole(currentUser, 'dispatcher')) {const sIds = currentUser.store_ids || [];if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];
-      const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;
+    } else if (userHasRole(currentUser, 'dispatcher')) {const sIds = currentUser.store_ids || [];if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;
       const pIds = new Set(patients.filter((p) => p && relIds.includes(p.store_id)).map((p) => p.id));
       data = data.filter((d) => d && (d.patient_id ? pIds.has(d.patient_id) : relIds.includes(d.store_id)));
     } else if (userHasRole(currentUser, 'driver')) {
@@ -1197,9 +1197,9 @@ export default function Layout({ children, currentPageName }) {
 
     if (userHasRole(currentUser, 'admin')) {
 
+
       // Admins see all
-    } else if (userHasRole(currentUser, 'dispatcher')) {const sIds = currentUser.store_ids || [];if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];
-      const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;
+    } else if (userHasRole(currentUser, 'dispatcher')) {const sIds = currentUser.store_ids || [];if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;
       data = data.filter((p) => p && relIds.includes(p.store_id));
     }
     return data;
@@ -1309,7 +1309,7 @@ export default function Layout({ children, currentPageName }) {
 
   const [entityCounts, setEntityCounts] = useState({ patients: '...', companies: '...', cities: '...', stores: '...', users: '...' });
 
-  useEffect(() => { if (!currentUser || !dataLoaded) return; setEntityCounts({ patients: patients.length, cities: cities.length, stores: stores.length, users: users.length }); }, [currentUser, dataLoaded, patients.length, cities.length, stores.length, users.length]);
+  useEffect(() => {if (!currentUser || !dataLoaded) return;setEntityCounts({ patients: patients.length, cities: cities.length, stores: stores.length, users: users.length });}, [currentUser, dataLoaded, patients.length, cities.length, stores.length, users.length]);
   const currentPayrollNetPay = usePayrollBadge(currentUser, appUsers, dataLoaded);
 
   // Calculate online user counts
@@ -1689,13 +1689,13 @@ export default function Layout({ children, currentPageName }) {
 
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
                   <Link
-                   to={createPageUrl('Patients')}
-                   onClick={() => setSidebarOpen(false)}
-                   className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
-                   currentPageName === 'Patients' ?
-                   'shadow-sm' :
-                   'hover:opacity-80'}`
-                   }
+                    to={createPageUrl('Patients')}
+                    onClick={() => setSidebarOpen(false)}
+                    className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                    currentPageName === 'Patients' ?
+                    'shadow-sm' :
+                    'hover:opacity-80'}`
+                    }
                     style={currentPageName === 'Patients' ? {
                       background: 'var(--bg-slate-100)',
                       color: 'var(--text-slate-900)'
@@ -1710,13 +1710,13 @@ export default function Layout({ children, currentPageName }) {
 
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                   <Link
-                   to={getRouteNavigationUrl('Deliveries')}
-                   onClick={() => setSidebarOpen(false)}
-                   className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
-                   currentPageName === 'Deliveries' ?
-                   'shadow-sm' :
-                   'hover:opacity-80'}`
-                   }
+                    to={getRouteNavigationUrl('Deliveries')}
+                    onClick={() => setSidebarOpen(false)}
+                    className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                    currentPageName === 'Deliveries' ?
+                    'shadow-sm' :
+                    'hover:opacity-80'}`
+                    }
                     style={currentPageName === 'Deliveries' ? {
                       background: 'var(--bg-slate-100)',
                       color: 'var(--text-slate-900)'
@@ -1727,62 +1727,62 @@ export default function Layout({ children, currentPageName }) {
                           <span className="font-semibold">Routes</span>
                           <Badge variant="secondary" className="ml-auto justify-center w-[45px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{totalRoutesCount}</Badge>
                           </Link>
-                          }
+                  }
 
                           {userHasRole(currentUser, 'admin') &&
-                          <Link
-                          to={constructUrlWithParams(createPageUrl('Stores'))}
-                          onClick={() => setSidebarOpen(false)}
-                          className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
-                          currentPageName === 'Stores' ?
-                          'shadow-sm' :
-                          'hover:opacity-80'}`
-                          }
-                          style={currentPageName === 'Stores' ? {
-                          background: 'var(--bg-slate-100)',
-                          color: 'var(--text-slate-900)'
-                          } : {
-                          color: 'var(--text-slate-600)'
-                          }}>
+                  <Link
+                    to={constructUrlWithParams(createPageUrl('Stores'))}
+                    onClick={() => setSidebarOpen(false)}
+                    className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                    currentPageName === 'Stores' ?
+                    'shadow-sm' :
+                    'hover:opacity-80'}`
+                    }
+                    style={currentPageName === 'Stores' ? {
+                      background: 'var(--bg-slate-100)',
+                      color: 'var(--text-slate-900)'
+                    } : {
+                      color: 'var(--text-slate-600)'
+                    }}>
                           <Building className="w-5 h-5" />
                           <span className="font-semibold">Stores</span>
                           <Badge variant="secondary" className="ml-auto justify-center w-[50px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{`${onlineCounts.onlineStoresCount}/${stores.length}`}</Badge>
                           </Link>
-                          }
+                  }
 
                           {userHasRole(currentUser, 'admin') &&
-                          <Link
-                          to={constructUrlWithParams(createPageUrl('Drivers'))}
-                          onClick={() => setSidebarOpen(false)}
-                          className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
-                          currentPageName === 'Drivers' ?
-                          'shadow-sm' :
-                          'hover:opacity-80'}`
-                          }
-                          style={currentPageName === 'Drivers' ? {
-                          background: 'var(--bg-slate-100)',
-                          color: 'var(--text-slate-900)'
-                          } : {
-                          color: 'var(--text-slate-600)'
-                          }}>
+                  <Link
+                    to={constructUrlWithParams(createPageUrl('Drivers'))}
+                    onClick={() => setSidebarOpen(false)}
+                    className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                    currentPageName === 'Drivers' ?
+                    'shadow-sm' :
+                    'hover:opacity-80'}`
+                    }
+                    style={currentPageName === 'Drivers' ? {
+                      background: 'var(--bg-slate-100)',
+                      color: 'var(--text-slate-900)'
+                    } : {
+                      color: 'var(--text-slate-600)'
+                    }}>
                           <Truck className="w-5 h-5" />
                           <span className="font-semibold">Drivers</span>
                           <Badge variant="secondary" className="ml-auto justify-center w-[50px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{`${onlineCounts.onlineDriversCount}/${drivers.length}`}</Badge>
                           </Link>
-                          }
+                  }
 
                           <div className="border-t mb-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
 
                     {/* Square COD - Admins and Drivers only */}
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
                   <Link
-                   to={createPageUrl('SquareManagement')}
-                   onClick={() => setSidebarOpen(false)}
-                   className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
-                   currentPageName === 'SquareManagement' ?
-                   'shadow-sm' :
-                   'hover:opacity-80'}`
-                   }
+                    to={createPageUrl('SquareManagement')}
+                    onClick={() => setSidebarOpen(false)}
+                    className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-1 ${
+                    currentPageName === 'SquareManagement' ?
+                    'shadow-sm' :
+                    'hover:opacity-80'}`
+                    }
                     style={currentPageName === 'SquareManagement' ? {
                       background: 'var(--bg-slate-100)',
                       color: 'var(--text-slate-900)'
@@ -1791,20 +1791,20 @@ export default function Layout({ children, currentPageName }) {
                     }}>
                           <DollarSign className="w-5 h-5" />
                           <span className="font-semibold">Square COD</span>
-                          {(() => { const bal = calculateRouteCodBalance(deliveries, globalFilters.getSelectedDriverId(), globalFilters.getSelectedDate()); return <Badge variant="secondary" className="ml-auto justify-center w-auto px-2 rounded-[10px]" style={{ background: bal > 0 ? '#fef3c7' : 'var(--bg-slate-200)', color: bal > 0 ? '#92400e' : 'var(--text-slate-600)' }}>${bal.toFixed(2)}</Badge>; })()}
+                          {(() => {const bal = calculateRouteCodBalance(deliveries, globalFilters.getSelectedDriverId(), globalFilters.getSelectedDate());return <Badge variant="secondary" className="ml-auto justify-center w-auto px-2 rounded-[10px]" style={{ background: bal > 0 ? '#fef3c7' : 'var(--bg-slate-200)', color: bal > 0 ? '#92400e' : 'var(--text-slate-600)' }}>${bal.toFixed(2)}</Badge>;})()}
                           </Link>
                   }
 
                     {/* Driver Payroll - Admins and Drivers */}
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
                   <Link
-                   to={createPageUrl('DriverPayroll')}
-                   onClick={() => setSidebarOpen(false)}
-                   className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
-                   currentPageName === 'DriverPayroll' ?
-                   'shadow-sm' :
-                   'hover:opacity-80'}`
-                   }
+                    to={createPageUrl('DriverPayroll')}
+                    onClick={() => setSidebarOpen(false)}
+                    className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-1 ${
+                    currentPageName === 'DriverPayroll' ?
+                    'shadow-sm' :
+                    'hover:opacity-80'}`
+                    }
                     style={currentPageName === 'DriverPayroll' ? {
                       background: 'var(--bg-slate-100)',
                       color: 'var(--text-slate-900)'
@@ -1820,10 +1820,10 @@ export default function Layout({ children, currentPageName }) {
                   }
 
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
-                    <Link
+                  <Link
                     to={constructUrlWithParams(createPageUrl("DeliveryMetrics"))}
                     onClick={() => setSidebarOpen(false)}
-                    className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                    className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0 ${
                     currentPageName === 'DeliveryMetrics' ?
                     'shadow-sm' :
                     'hover:opacity-80'}`
@@ -1837,19 +1837,19 @@ export default function Layout({ children, currentPageName }) {
                         <BarChart3 className="w-5 h-5" />
                         <span className="font-semibold">Route Metrics</span>
                       </Link>
-                    }
+                  }
 
                     <div className="border-t mb-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
 
                     {(userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) &&
                   <Link
-                   to={createPageUrl('DeviceSettings')}
-                   onClick={() => setSidebarOpen(false)}
-                   className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
-                   currentPageName === 'DeviceSettings' ?
-                   'shadow-sm' :
-                   'hover:opacity-80'}`
-                   }
+                    to={createPageUrl('DeviceSettings')}
+                    onClick={() => setSidebarOpen(false)}
+                    className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                    currentPageName === 'DeviceSettings' ?
+                    'shadow-sm' :
+                    'hover:opacity-80'}`
+                    }
                     style={currentPageName === 'DeviceSettings' ? {
                       background: 'var(--bg-slate-100)',
                       color: 'var(--text-slate-900)'
