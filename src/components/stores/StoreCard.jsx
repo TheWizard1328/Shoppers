@@ -219,6 +219,11 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                       {formatPhoneNumber(store.phone)}
                     </p>
                   }
+                  {store.latitude && store.longitude &&
+                  <p className="text-xs mt-2" style={{ color: 'var(--text-slate-500)' }}>
+                      GPS: {store.latitude.toFixed(4)}, {store.longitude.toFixed(4)}
+                    </p>
+                  }
                 </div>
                 
                 {/* Call and navigate buttons - right aligned */}
@@ -245,12 +250,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
               </div>
             </div>
 
-            {/* Coordinates display */}
-            {store.latitude && store.longitude &&
-            <div className="text-xs mb-4" style={{ color: 'var(--text-slate-500)' }}>
-                GPS Location: {store.latitude.toFixed(4)}, {store.longitude.toFixed(4)}
-              </div>
-            }
+
 
             {/* Pays App Fees Checkbox - Admin only */}
             {!isLimitedView && currentUser && userHasRole(currentUser, 'admin') && (() => {
