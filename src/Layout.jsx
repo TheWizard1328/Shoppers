@@ -1727,11 +1727,51 @@ export default function Layout({ children, currentPageName }) {
                           <span className="font-semibold">Routes</span>
                           <Badge variant="secondary" className="ml-auto justify-center w-[45px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{totalRoutesCount}</Badge>
                           </Link>
-                  }
+                          }
 
-                  {/* Add Stores and Drivers links here */}
-                  
-                    <div className="border-t mb-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
+                          {userHasRole(currentUser, 'admin') &&
+                          <Link
+                          to={constructUrlWithParams(createPageUrl('Stores'))}
+                          onClick={() => setSidebarOpen(false)}
+                          className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                          currentPageName === 'Stores' ?
+                          'shadow-sm' :
+                          'hover:opacity-80'}`
+                          }
+                          style={currentPageName === 'Stores' ? {
+                          background: 'var(--bg-slate-100)',
+                          color: 'var(--text-slate-900)'
+                          } : {
+                          color: 'var(--text-slate-600)'
+                          }}>
+                          <Building className="w-5 h-5" />
+                          <span className="font-semibold">Stores</span>
+                          <Badge variant="secondary" className="ml-auto justify-center w-[45px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{stores.length}</Badge>
+                          </Link>
+                          }
+
+                          {userHasRole(currentUser, 'admin') &&
+                          <Link
+                          to={constructUrlWithParams(createPageUrl('Drivers'))}
+                          onClick={() => setSidebarOpen(false)}
+                          className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                          currentPageName === 'Drivers' ?
+                          'shadow-sm' :
+                          'hover:opacity-80'}`
+                          }
+                          style={currentPageName === 'Drivers' ? {
+                          background: 'var(--bg-slate-100)',
+                          color: 'var(--text-slate-900)'
+                          } : {
+                          color: 'var(--text-slate-600)'
+                          }}>
+                          <Truck className="w-5 h-5" />
+                          <span className="font-semibold">Drivers</span>
+                          <Badge variant="secondary" className="ml-auto justify-center w-[45px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{drivers.length}</Badge>
+                          </Link>
+                          }
+
+                          <div className="border-t mb-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
 
                     {/* Square COD - Admins and Drivers only */}
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
