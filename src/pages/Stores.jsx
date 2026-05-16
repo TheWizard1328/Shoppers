@@ -25,10 +25,20 @@ export default function StoresPage() {
     appUsers: contextAppUsers = [],
     isDataLoaded: contextDataLoaded 
   } = useAppData();
-  const [stores, setStores] = useState([]);
-  const [cities, setCities] = useState([]);
-  const [drivers, setDrivers] = useState([]);
-  const [allUsers, setAllUsers] = useState([]);
+  const [stores, setStores] = useState(() => contextStores.length ? sortStores(contextStores) : []);
+  const [cities, setCities] = useState(() => contextCities.length ? contextCities : []);
+  const [drivers, setDrivers] = useState(() => {
+    if (!contextUsers.length) return [];
+    return contextUsers
+      .filter(u => u && u.status === 'active' && (userHasRole(u, 'driver') || userHasRole(u, 'admin')))
+      .sort((a, b) => {
+        const orderA = a.sort_order ?? Infinity;
+        const orderB = b.sort_order ?? Infinity;
+        if (orderA !== orderB) return orderA - orderB;
+        return (a.user_name || a.full_name || '').localeCompare(b.user_name || b.full_name || '');
+      });
+  });
+  const [allUsers, setAllUsers] = useState(() => contextUsers.length ? contextUsers : []);
   const [showForm, setShowForm] = useState(false);
   const [editingStore, setEditingStore] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
