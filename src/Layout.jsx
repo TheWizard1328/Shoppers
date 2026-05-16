@@ -1030,9 +1030,9 @@ export default function Layout({ children, currentPageName }) {
     } catch (error) {
 
 
+
       // Silent fail
     }}; //const currentUser = currentUser;
-
   const handleCitySelected = useCallback(async (cityId) => {
     try {
       globalFilters.setSelectedCityId(cityId);
@@ -1175,9 +1175,9 @@ export default function Layout({ children, currentPageName }) {
     if (userHasRole(currentUser, 'admin')) {
 
 
+
       // Admins see all
-    } else if (userHasRole(currentUser, 'dispatcher')) {const sIds = currentUser.store_ids || [];if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;
-      const pIds = new Set(patients.filter((p) => p && relIds.includes(p.store_id)).map((p) => p.id));
+    } else if (userHasRole(currentUser, 'dispatcher')) {const sIds = currentUser.store_ids || [];if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;const pIds = new Set(patients.filter((p) => p && relIds.includes(p.store_id)).map((p) => p.id));
       data = data.filter((d) => d && (d.patient_id ? pIds.has(d.patient_id) : relIds.includes(d.store_id)));
     } else if (userHasRole(currentUser, 'driver')) {
       data = data.filter((d) => d && d.driver_id === currentUser.id);
@@ -1198,9 +1198,9 @@ export default function Layout({ children, currentPageName }) {
     if (userHasRole(currentUser, 'admin')) {
 
 
+
       // Admins see all
-    } else if (userHasRole(currentUser, 'dispatcher')) {const sIds = currentUser.store_ids || [];if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;
-      data = data.filter((p) => p && relIds.includes(p.store_id));
+    } else if (userHasRole(currentUser, 'dispatcher')) {const sIds = currentUser.store_ids || [];if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;data = data.filter((p) => p && relIds.includes(p.store_id));
     }
     return data;
   }, [patients, currentUser, selectedStoreId]);
@@ -1754,7 +1754,7 @@ export default function Layout({ children, currentPageName }) {
                   <Link
                     to={constructUrlWithParams(createPageUrl('Drivers'))}
                     onClick={() => setSidebarOpen(false)}
-                    className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                    className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
                     currentPageName === 'Drivers' ?
                     'shadow-sm' :
                     'hover:opacity-80'}`
@@ -1778,7 +1778,7 @@ export default function Layout({ children, currentPageName }) {
                   <Link
                     to={createPageUrl('SquareManagement')}
                     onClick={() => setSidebarOpen(false)}
-                    className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-1 ${
+                    className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
                     currentPageName === 'SquareManagement' ?
                     'shadow-sm' :
                     'hover:opacity-80'}`
@@ -1800,7 +1800,7 @@ export default function Layout({ children, currentPageName }) {
                   <Link
                     to={createPageUrl('DriverPayroll')}
                     onClick={() => setSidebarOpen(false)}
-                    className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-1 ${
+                    className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
                     currentPageName === 'DriverPayroll' ?
                     'shadow-sm' :
                     'hover:opacity-80'}`
