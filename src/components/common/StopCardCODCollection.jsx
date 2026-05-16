@@ -88,7 +88,7 @@ export default function StopCardCODCollection({
         animate={{ opacity: 1, height: "auto" }}
         exit={{ opacity: 0, height: 0 }}
         transition={{ duration: 0.2 }}
-        className="overflow-visible rounded-md space-y-2 w-full relative z-[10000] px-3 py-1"
+        className="overflow-visible rounded-md space-y-2 w-full relative z-[10000] px-3"
         style={{ background: 'var(--bg-slate-50)' }}
         onAnimationStart={() => {
           if (!codRefreshPauseRef.current) {
@@ -121,7 +121,7 @@ export default function StopCardCODCollection({
 
           <div className="space-y-2 max-h-48 overflow-y-visible">
             {codPayments.map((payment, index) =>
-          <div key={index} className="flex items-center gap-2 rounded px-2" style={{ background: 'var(--bg-white)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
+          <div key={index} className="flex items-center gap-2 rounded px-1" style={{ background: 'var(--bg-white)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
                 <Select value={payment.type} onValueChange={(value) => handleCODPaymentChange(index, 'type', value)} onOpenChange={(open) => {if (open) setShowCODCollection(true);}}>
                   <SelectTrigger className="h-7 text-sm md:text-xs w-24" onClick={(e) => e.stopPropagation()} data-cod-select-index={index}>
                     <SelectValue placeholder="Type" />
