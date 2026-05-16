@@ -16,6 +16,7 @@ import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import SquareSyncAudit from '@/pages/SquareSyncAudit';
 import Companies from '@/pages/Companies';
 import Drivers from '@/pages/Drivers';
+import DriverSettings from '@/pages/DriverSettings';
 
 const cleanupLocalStorageQuota = () => {
   try {
@@ -117,6 +118,14 @@ const AuthenticatedApp = () => {
         element={
           <LayoutWrapper currentPageName="Drivers">
             <Drivers />
+          </LayoutWrapper>
+        }
+      />
+      <Route
+        path="/DriverSettings"
+        element={
+          <LayoutWrapper currentPageName="DriverSettings">
+            <DriverSettings />
           </LayoutWrapper>
         }
       />
