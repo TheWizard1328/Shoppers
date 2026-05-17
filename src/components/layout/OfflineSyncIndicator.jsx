@@ -285,14 +285,17 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
 
           <div className="flex items-center gap-2">
             {getStatusIcon()}
-            <span className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>
-              {isSyncing ? 'Syncing...' : 'Offline DB'}
-            </span>
-            {shouldRenderStats &&
-            <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
-                ({liveTotalRecords})
+            <div>
+              <span className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>
+                {isSyncing ? 'Syncing...' : 'Offline DB'}
               </span>
-            }
+              {shouldRenderStats &&
+              <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
+                  ({liveTotalRecords})
+                </span>
+              }
+              <div className="text-[10px] font-mono" style={{ color: 'var(--text-slate-400)' }}>rxdeliver_persistent_offline_v2</div>
+            </div>
           </div>
           {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
         </button>
@@ -520,14 +523,17 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
           }}>
 
           {getStatusIcon()}
-          <span className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>
-            {isSyncing ? 'Syncing...' : 'Offline DB'}
-          </span>
-          {shouldRenderStats &&
-          <span className="text-xs ml-1" style={{ color: 'var(--text-slate-500)' }}>
-              ({liveTotalRecords} records)
+          <div>
+            <span className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>
+              {isSyncing ? 'Syncing...' : 'Offline DB'}
             </span>
-          }
+            {shouldRenderStats &&
+            <span className="text-xs ml-1" style={{ color: 'var(--text-slate-500)' }}>
+                ({liveTotalRecords} records)
+              </span>
+            }
+            <div className="text-[10px] font-mono" style={{ color: 'var(--text-slate-400)' }}>rxdeliver_persistent_offline_v2</div>
+          </div>
         </button>
 
         {/* Expanded View */}
