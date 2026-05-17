@@ -594,10 +594,10 @@ export default function StopDetailsPanel({
                   </div>
               }
               </> :
-            patient ?
+            patient || delivery.patient_id ?
             <div className="flex gap-4">
-              {/* LEFT column: address, phone, COD, preferences */}
-              <div className="w-[60%] min-w-0 space-y-3">
+             {/* LEFT column: address, phone, COD, preferences */}
+             <div className="w-[60%] min-w-0 space-y-3">
                 {/* Address with unit number */}
                 {!isPickup && finalDisplayAddress &&
                 <div className="flex items-start gap-2">
@@ -722,16 +722,16 @@ export default function StopDetailsPanel({
               </div>
 
               {/* RIGHT column: Patient Notes + Driver Notes */}
-              {(patient.notes || delivery.delivery_notes) &&
+              {(patient?.notes || delivery.delivery_notes) &&
               <div className="w-[40%] flex-shrink-0 space-y-3">
-                {patient.notes &&
+                {patient?.notes &&
                 <div>
-                  <p className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
-                    <StickyNote className="w-3 h-3" /> Patient Notes
-                  </p>
-                  <p className="text-sm" style={{ color: 'var(--text-slate-700)' }}>{patient.notes}</p>
-                </div>
-                }
+                   <p className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
+                     <StickyNote className="w-3 h-3" /> Patient Notes
+                   </p>
+                   <p className="text-sm" style={{ color: 'var(--text-slate-700)' }}>{patient.notes}</p>
+                 </div>
+                 }
                 {delivery.delivery_notes &&
                 <div>
                   <p className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
