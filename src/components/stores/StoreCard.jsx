@@ -123,6 +123,9 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
       setEditableStore(updatedStore);
       const { invalidate } = await import('@/components/utils/dataManager');
       invalidate('Store');
+      // Broadcast store update via WebSocket so all connected clients see the change immediately
+      const { broadcastMutation } = await import('@/components/utils/realtimeSync');
+      broadcastMutation('Store', 'update', store.id, updatedStore);
       window.dispatchEvent(new CustomEvent('storeUpdated', { detail: { storeId: store.id, updatedStore } }));
       setEditingSlot(null);
     } catch (error) {

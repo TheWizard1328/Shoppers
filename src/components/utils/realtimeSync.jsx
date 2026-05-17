@@ -644,6 +644,7 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
       entity === 'Delivery' ? offlineDB.STORES.DELIVERIES :
       entity === 'Patient' ? offlineDB.STORES.PATIENTS :
       entity === 'Payroll' ? offlineDB.STORES.PAYROLL :
+      entity === 'Store' ? offlineDB.STORES.STORES :
       null;
 
     if (storeName) {
@@ -764,6 +765,12 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
           deletedIds: action === 'delete' ? [id] : [],
           fromRealtime: true
         }
+      }));
+    }
+
+    if (entity === 'Store' && data) {
+      window.dispatchEvent(new CustomEvent('storeUpdated', {
+        detail: { storeId: id, updatedStore: data, fromRealtime: true }
       }));
     }
 
