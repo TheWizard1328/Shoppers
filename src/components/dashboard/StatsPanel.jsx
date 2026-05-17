@@ -317,7 +317,7 @@ export default function StatsPanel({
               liveTimeOnDuty={finalizedDutyTime ?? liveTimeOnDuty}
               isLoadingPayrollStats={isLoadingPayrollStats} />
             {!isDispatcherLockedExpanded &&
-            <Button variant="ghost" size="sm" onClick={(e) => {e.stopPropagation();setIsExpanded(!isExpanded);}} className="h-8 w-8 p-0 flex-shrink-0">
+            <Button variant="ghost" size="sm" onClick={(e) => {e.stopPropagation();setIsExpanded(!isExpanded);}} disabled={currentUser?.status === 'inactive' && isDriver && !isAdmin} className={`h-8 w-8 p-0 flex-shrink-0 ${currentUser?.status === 'inactive' && isDriver && !isAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}>
                 {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </Button>
             }
