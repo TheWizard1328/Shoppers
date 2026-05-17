@@ -23,7 +23,7 @@ export function useDeliveryDisplayInfo({
       return delivery.patient_name || patient?.full_name || `${store?.name || 'Unknown Store'} Pickup`;
     }
     if (isPickup) return `${store?.name || 'Unknown Store'} Pickup`;
-    return patient?.full_name || 'Unknown';
+    return patient?.full_name || delivery.patient_name || 'Unknown';
   }, [delivery, isPickup, isInterStorePickup, store, patient]);
 
   const displayAddress = useMemo(() => {
