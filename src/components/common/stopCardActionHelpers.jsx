@@ -651,7 +651,21 @@ export async function optimizeRouteAndApplyNextDelivery({
       optimizeData = optimizeResponse?.data || optimizeResponse || optimizeData;
     }
 
-    const refreshedDriverDeliveries = await base44.entities.Delivery.filter({ driver_id: driverId, delivery_date: deliveryDate });
+    // CRITICAL: Wait for backend propagation to complete before fetching deliveries
+    // This prevents UI flickering from temporarily incomplete delivery lists
+    await new Promise((resolve) => setTimeout(resolve, 400));
+
+    // Fetch and validate deliveries are stable before updating UI
+    let refreshedDriverDeliveries = await base44.entities.Delivery.filter({ driver_id: driverId, delivery_date: deliveryDate });
+    
+    // If list seems incomplete, wait and retry to ensure consistency
+    if (refreshedDriverDeliveries && refreshedDriverDeliveries.length > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      const validateFetch = await base44.entities.Delivery.filter({ driver_id: driverId, delivery_date: deliveryDate });
+      if (validateFetch && validateFetch.length >= refreshedDriverDeliveries.length) {
+        refreshedDriverDeliveries = validateFetch;
+      }
+    }
     const firstEligibleActiveStop = (refreshedDriverDeliveries || [])
       .filter((item) => item && !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(item.status))
       .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0))[0] || null;
