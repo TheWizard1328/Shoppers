@@ -1029,7 +1029,7 @@ export default function StopDetailsPanel({
       </div>
 
       {/* Action Buttons - Drivers */}
-      {currentUser?.app_roles?.includes('driver') && ['completed', 'failed', 'cancelled'].includes(delivery.status) && onRestart &&
+      {currentUser?.app_roles?.includes('driver') && ['completed', 'failed', 'cancelled'].includes(delivery.status) && onRestart && !isRouteCompleted(delivery, allDeliveries) &&
       <div className="flex-shrink-0 p-4 border-t" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
           <div className="flex gap-2">
             <Button
