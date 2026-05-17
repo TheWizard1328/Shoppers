@@ -294,7 +294,7 @@ export default function DriverSettings() {
                   </CardContent>
                 );
 
-                return isMobile && driver.phone ? (
+                return driver.phone ? (
                   <a key={driver.id} href={`tel:${driver.phone}`} className="block">
                     <Card className="rounded-xl border shadow hover:shadow-md transition-shadow active:opacity-70" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                       {cardContent}
