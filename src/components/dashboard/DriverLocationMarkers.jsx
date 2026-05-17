@@ -294,7 +294,9 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     }
 
     // RULE 5: Driver sees other drivers ONLY if they are on_duty AND location sharing is ON
+    // Inactive drivers cannot see other drivers' shared location markers
     if (isDriver && !isSelf) {
+      if (currentUser?.status === 'inactive') return false;
       if (user.driver_status === 'off_duty') return false;
       if (!user.location_tracking_enabled) return false;
 

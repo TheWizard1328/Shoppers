@@ -58,10 +58,12 @@ export default function ExpandedStatsControls({
   setShowBreadcrumbs,
   setBreadcrumbsData,
 }) {
+  const isInactiveDriver = currentUser?.status === 'inactive';
+
   return (
     <>
-      <div className="pt-1 pb-1 border-t flex items-center gap-2" style={{ borderColor: 'var(--border-slate-200)' }}>
-        <Select value={selectedDriverId} onValueChange={handleDriverChange} disabled={isDriverDropdownDisabled}>
+      <div className="pt-1 pb-1 border-t flex items-center gap-2" style={{ borderColor: 'var(--border-slate-200)', opacity: isInactiveDriver ? 0.5 : 1, pointerEvents: isInactiveDriver ? 'none' : 'auto' }}>
+        <Select value={selectedDriverId} onValueChange={handleDriverChange} disabled={isDriverDropdownDisabled || isInactiveDriver}>
           <SelectTrigger className="whitespace-nowrap border-input bg-transparent shadow-sm data-[placeholder]:text-muted-foreground flex h-10 w-full items-center justify-between rounded-md border px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 flex-1" style={{ pointerEvents: 'auto', touchAction: 'manipulation', background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
             <SelectValue placeholder="All Drivers" />
           </SelectTrigger>
@@ -76,11 +78,12 @@ export default function ExpandedStatsControls({
         </Select>
 
         {isDriver && !isAllDriversMode && (
-          <div className="flex items-center flex-shrink-0">
+          <div className="flex items-center flex-shrink-0" style={{ opacity: isInactiveDriver ? 0.5 : 1, pointerEvents: isInactiveDriver ? 'none' : 'auto' }}>
             <div className="flex flex-col items-center gap-1">
               <Button
                 variant="outline"
                 size="icon"
+                disabled={isInactiveDriver}
                 onClick={async () => {
                   const checked = !showAllDriverMarkers;
                   setShowAllDriverMarkers(checked);
@@ -162,42 +165,46 @@ export default function ExpandedStatsControls({
         )}
 
         <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setShowOptimizationSettings(true)}
-          className="h-8 w-8 p-0 flex-shrink-0"
-          title="Route Optimization Settings"
-          style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
+           variant="outline"
+           size="sm"
+           disabled={isInactiveDriver}
+           onClick={() => setShowOptimizationSettings(true)}
+           className="h-8 w-8 p-0 flex-shrink-0"
+           title="Route Optimization Settings"
+           style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
         >
           <Settings className="w-3.5 h-3.5" />
         </Button>
 
         <Button
-          variant="default"
-          size="s"
-          onClick={() => {
-            setShowRoutes(!showRoutes);
-            setIsExpanded(false);
-          }}
-          className={`${showRoutes ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'} text-white px-2 text-sm font-medium rounded-md inline-flex min-h-11 min-w-11 items-center justify-center whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow gap-2 h-6 flex-shrink-0`}
+           variant="default"
+           size="s"
+           disabled={isInactiveDriver}
+           onClick={() => {
+             setShowRoutes(!showRoutes);
+             setIsExpanded(false);
+           }}
+           className={`${showRoutes ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'} text-white px-2 text-sm font-medium rounded-md inline-flex min-h-11 min-w-11 items-center justify-center whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow gap-2 h-6 flex-shrink-0`}
         >
-          Route Lines
+           Route Lines
         </Button>
       </div>
 
-      <DriverRouteControlsSlot
-        shouldShowLocationToggle={shouldShowLocationToggle}
-        currentUser={currentUser}
-        refreshUser={refreshUser}
-        isDriver={isDriver}
-        setShowQuickAdjustments={setShowQuickAdjustments}
-        setShowSmartPrioritization={setShowSmartPrioritization}
-        appUsers={appUsers}
-        preferredTravelMode={preferredTravelMode}
-        setPreferredTravelMode={setPreferredTravelMode}
-        isRouteComplete={isRouteComplete}
-        filteredDeliveries={deliveries}
-      />
+      <div style={{ opacity: isInactiveDriver ? 0.5 : 1, pointerEvents: isInactiveDriver ? 'none' : 'auto' }}>
+        <DriverRouteControlsSlot
+          shouldShowLocationToggle={shouldShowLocationToggle}
+          currentUser={currentUser}
+          refreshUser={refreshUser}
+          isDriver={isDriver}
+          setShowQuickAdjustments={setShowQuickAdjustments}
+          setShowSmartPrioritization={setShowSmartPrioritization}
+          appUsers={appUsers}
+          preferredTravelMode={preferredTravelMode}
+          setPreferredTravelMode={setPreferredTravelMode}
+          isRouteComplete={isRouteComplete}
+          filteredDeliveries={deliveries}
+        />
+      </div>
 
       {isStatsCardCentered && (
         <>

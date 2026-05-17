@@ -9,7 +9,13 @@ import { getReturnCountFromPatientId } from '../utils/returnDeliveryUtils';
 
 export default function DashboardQuickStats({ currentUser, storeIds = [], isMobile, screenWidth }) {
   const [selectedDateStr, setSelectedDateStr] = useState(() => globalFilters.getSelectedDate());
-  const [selectedDriverId, setSelectedDriverIdLocal] = useState(() => globalFilters.getSelectedDriverId());
+  const [selectedDriverId, setSelectedDriverIdLocal] = useState(() => {
+    // For drivers, default to their own ID
+    if (currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) {
+      return currentUser.id;
+    }
+    return globalFilters.getSelectedDriverId();
+  });
   const [stats, setStats] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
