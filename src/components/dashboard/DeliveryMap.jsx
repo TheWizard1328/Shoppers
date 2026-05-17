@@ -29,6 +29,7 @@ import HereTileUsageTracker from "./HereTileUsageTracker";
 import HereType1Polylines from "./HereType1Polylines";
 import HereType2Polylines from "./HereType2Polylines";
 import CompletedBreadcrumbPolylines from "./CompletedBreadcrumbPolylines";
+import FinishedStopsPolylines from "./FinishedStopsPolylines";
 import PickupMarkers from "./PickupMarkers";
 import DeliveryMarkers from "./DeliveryMarkers";
 import HomeMarkers from "./HomeMarkers";
@@ -1256,6 +1257,14 @@ export default function DeliveryMap({
         )}
 
         <DriverLocationMarkers users={routeAwareDriverLocationMarkers} currentUser={currentUser} activeDriver={null} deliveries={deliveriesForLocationFilter} selectedDate={selectedDate} />
+
+        {userHasRole(currentUser, "admin") && selectedDriverId && selectedDriverId !== "all" && (
+          <FinishedStopsPolylines
+            deliveryMarkers={deliveryMarkers}
+            pickupMarkers={pickupMarkers}
+            selectedDriverId={selectedDriverId}
+          />
+        )}
 
         {(showRoutes || (typeof window !== "undefined" && localStorage.getItem("rxdeliver_show_routes") === "true")) && (!showBreadcrumbs || hasIncompleteStops) && (
           <>
