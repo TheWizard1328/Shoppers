@@ -206,13 +206,13 @@ const DeliveryRow = memo(({
         </div>
 
         {/* Notes column */}
-        <div className="flex min-w-0 items-start py-1 text-xs text-slate-700">
-          <div className="min-w-0 w-full space-y-1 whitespace-normal break-words leading-4">
+        <div className="flex min-w-0 items-start py-1 text-xs text-slate-700 overflow-hidden">
+          <div className="min-w-0 w-full space-y-1 overflow-hidden leading-4">
             {patient?.notes &&
-          <div className="w-full"><span className="text-slate-500">P:</span> {patient.notes}</div>
+          <div className="w-full truncate"><span className="text-slate-500">P:</span> {patient.notes}</div>
           }
             {delivery?.delivery_notes &&
-          <div className="w-full"><span className="text-slate-500">D:</span> {delivery.delivery_notes}</div>
+          <div className="w-full truncate"><span className="text-slate-500">D:</span> {delivery.delivery_notes}</div>
           }
           </div>
         </div>
@@ -577,7 +577,7 @@ const DeliveryListView = ({
             onScroll={syncHeaderScroll}
             className="delivery-list-header-scroll max-w-full overflow-x-auto overflow-y-hidden">
             
-              <div className="grid min-w-max grid-cols-[120px_100px_100px_200px_minmax(300px,1fr)_110px_110px_110px_110px_110px] gap-1 py-2 text-sm font-semibold" style={{ color: 'var(--text-slate-700)', width: listWidth }}>
+              <div className="grid min-w-max grid-cols-[120px_100px_100px_200px_minmax(0,1fr)_110px_110px_110px_110px_110px] gap-1 py-2 text-sm font-semibold" style={{ color: 'var(--text-slate-700)', width: listWidth }}>
                 {bulkEditMode &&
               <div className="flex items-center justify-center">
                     <Checkbox
