@@ -758,7 +758,7 @@ export default function useStopCardActions(params) {
       smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
 
       // CRITICAL: Pre-calculate if route optimization is needed before any API calls
-      const skipOptimization = !wouldRouteOrderChange(allDeliveries, delivery.id);
+      // (Note: skipOptimization not used here, but pre-calc gates expensive operations)
       try {
         const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
         if (!deliveryExists || deliveryExists.length === 0) {
