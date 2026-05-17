@@ -930,8 +930,9 @@ export default function useStopCardActions(params) {
         }
         fabControlEvents.notifyPhaseTwoCompleteRecenter();
         fabControlEvents.reactivateFAB(true, { suppressIfPhase1: true, reason: 'stop_status_change' });
-        // Only sync patient last delivery date if this is a delivery (not a pickup) and has COD
-        if (!isPickup && patient?.id && Number(delivery?.cod_total_amount_required || 0) > 0) {
+        // Only sync patient last delivery date if this is a delivery (not a pickup)
+        if (!isPickup && patient?.id) { 
+          {/* && Number(delivery?.cod_total_amount_required || 0) > 0) { */}
           await base44.functions.invoke('syncPatientLastDeliveryDate', {
             data: { ...delivery, ...completionUpdate, patient_id: patient.id },
             old_data: { status: delivery.status },
