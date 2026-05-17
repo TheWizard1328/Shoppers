@@ -149,21 +149,21 @@ export async function runAcceptAllBatchPipeline({
     }
   }
 
-  // CRITICAL: For historical/retro dates, skip route optimization entirely — stop orders
-  // don't need resequencing and HERE API calls are wasteful on past routes.
-  const optimizeResponse = isRetroDate ? { data: {} } : await base44.functions.invoke('optimizeRemainingStops', {
+  const optimizeResponse = await base44.functions.invoke('optimizeRemainingStops', {
    driverId: triggerDelivery.driver_id,
    deliveryDate: triggerDelivery.delivery_date,
    currentLocalTime,
    deviceTime: new Date().toISOString(),
    forceFullRemainingRouteOptimization: true,
    bypassDriverStatus: true,
-   bypassDeduplication: true
+   bypassDeduplication: true,
+   bypassHistoricalCheck: true,
+   allowPolylineGenerationForRetroDate: true
   });
   const optimizeData = optimizeResponse?.data || optimizeResponse || {};
 
-  // Generate polylines for the optimized route order — skip for historical/retro dates
-  const orderedDeliveryIds = !isRetroDate && Array.isArray(optimizeData?.orderedDeliveryIds) && optimizeData.orderedDeliveryIds.length > 0
+  // Generate polylines for the optimized route order
+  const orderedDeliveryIds = Array.isArray(optimizeData?.orderedDeliveryIds) && optimizeData.orderedDeliveryIds.length > 0
     ? optimizeData.orderedDeliveryIds
     : null;
   if (orderedDeliveryIds) {
