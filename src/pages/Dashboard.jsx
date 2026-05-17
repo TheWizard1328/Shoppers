@@ -2510,7 +2510,7 @@ function Dashboard() {
     setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current = null;setAreCardsVisible(false);setCurrentToNextPolyline(null);setDriverRoutes([]);
     hasShownSummaryRef.current.clear();setIsCalendarOpen(false);
     setSelectedDate(date);
-    globalFilters.setSelectedDate(date);
+    globalFilters.setSelectedDate(date, currentUser?.id);
     const dateStr = format(date, 'yyyy-MM-dd');
     setIsEntityUpdating(true);
     smartRefreshManager.clearPendingUpdates();
@@ -2553,7 +2553,7 @@ function Dashboard() {
     hasShownSummaryRef.current.clear();
     const nextTrigger = mapViewTrigger + 1;
     lastAppliedTriggerRef.current = nextTrigger;
-    setSelectedDriverId(driverId);globalFilters.setSelectedDriverId(driverId);
+    setSelectedDriverId(driverId);globalFilters.setSelectedDriverId(driverId, currentUser?.id);
     try {
       setIsExpanded(false);setSelectedCardId(null);cardExpandedAtRef.current = null;setAreCardsVisible(false);setCurrentToNextPolyline(null);setDriverRoutes([]);window.dispatchEvent(new CustomEvent('clearRoutePolylines'));
       setIsEntityUpdating(true);
