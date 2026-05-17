@@ -756,6 +756,15 @@ export default function useStopCardActions(params) {
       smartRefreshManager.pause();
       backgroundSyncManager.pause();
       smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
+
+      // CRITICAL: Pre-calculate if route optimization is needed before any API calls
+      const { wouldRouteOrderChange } = await import('../utils/routeChangeDetector.js');
+      const skipOptimization = !wouldRouteOrderChange({
+        completingDeliveryId: delivery.id,
+        allDeliveries,
+        driverId: delivery.driver_id,
+        deliveryDate: delivery.delivery_date
+      });
       try {
         const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
         if (!deliveryExists || deliveryExists.length === 0) {
@@ -828,7 +837,7 @@ export default function useStopCardActions(params) {
         await setAndCenterNextDelivery({ driverDeliveries: routeDeliveries, targetDeliveryId: nextStop?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true, persistToBackend: true });
         
         // CRITICAL: ALWAYS recalculate ETAs for remaining stops when completing ANY stop (not just next delivery)
-          // Use local ETA recalculation with estimated_duration_minutes (no API call)
+          // Use local ETA recalculation with estimated_duration_minutes (no API call — skipOptimization=true)
           if (remainingEtaDeliveries.length > 0) {
             try {
               const isRetroDate = delivery.delivery_date < localDeviceTodayStr;

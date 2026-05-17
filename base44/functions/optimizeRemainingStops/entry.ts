@@ -351,10 +351,13 @@ Deno.serve(async (req) => {
     }
 
     if (shouldSkipAutomationEvent(context)) {
+      const { eventType, data, changedFields } = context;
+      const isTerminalTransition = changedFields?.includes?.('status') && ['completed', 'failed', 'cancelled', 'returned'].includes(String(data?.status || ''));
+      console.log(`⏭️ [optimizeRemainingStops] Skipping non-optimization event — type=${eventType}, terminal=${isTerminalTransition}, driver=${driverId}, date=${deliveryDate}`);
       return Response.json({
         success: true,
         skipped: true,
-        reason: 'non_optimization_event',
+        reason: isTerminalTransition ? 'terminal_status_transition' : 'non_optimization_event',
         triggerSource,
         routeChanged: false,
         optimizedCount: 0,

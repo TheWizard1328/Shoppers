@@ -149,24 +149,33 @@ export async function runAcceptAllBatchPipeline({
     }
   }
 
-  const optimizeResponse = await base44.functions.invoke('optimizeRemainingStops', {
-   driverId: triggerDelivery.driver_id,
-   deliveryDate: triggerDelivery.delivery_date,
-   currentLocalTime,
-   deviceTime: new Date().toISOString(),
-   forceFullRemainingRouteOptimization: true,
-   bypassDriverStatus: true,
-   bypassDeduplication: true,
-   bypassHistoricalCheck: true,
-   allowPolylineGenerationForRetroDate: true
-  });
-  const optimizeData = optimizeResponse?.data || optimizeResponse || {};
+  // CRITICAL: Only optimize if accepting new stops actually changes the remaining route
+  // Skip optimization if no pending deliveries were transitioned (nothing to optimize)
+  const hasRealChanges = stagedChangedDeliveries.length > 0;
+  let optimizeData = {};
 
-  // Generate polylines for the optimized route order
+  if (hasRealChanges) {
+    const optimizeResponse = await base44.functions.invoke('optimizeRemainingStops', {
+      driverId: triggerDelivery.driver_id,
+      deliveryDate: triggerDelivery.delivery_date,
+      currentLocalTime,
+      deviceTime: new Date().toISOString(),
+      forceFullRemainingRouteOptimization: true,
+      bypassDriverStatus: true,
+      bypassDeduplication: true,
+      bypassHistoricalCheck: true,
+      allowPolylineGenerationForRetroDate: true
+    });
+    optimizeData = optimizeResponse?.data || optimizeResponse || {};
+  }
+
+  // Generate polylines ONLY if optimization actually changed the route order
+  const routeOrderChanged = optimizeData?.routeChanged === true;
   const orderedDeliveryIds = Array.isArray(optimizeData?.orderedDeliveryIds) && optimizeData.orderedDeliveryIds.length > 0
     ? optimizeData.orderedDeliveryIds
     : null;
-  if (orderedDeliveryIds) {
+
+  if (routeOrderChanged && orderedDeliveryIds) {
     // CRITICAL: Skip the first stop (the pickup/trigger delivery) — its Type 1 polyline already
     // exists and does not need to be regenerated. Only regenerate stops 2+ (Type 2 forward polylines).
     const polylineIds = orderedDeliveryIds.filter((id) => id !== triggerDelivery.id);
@@ -185,6 +194,8 @@ export async function runAcceptAllBatchPipeline({
         ...(pickupOrigin ? { currentPosition: pickupOrigin } : {})
       }).catch(() => {});
     }
+  } else if (!routeOrderChanged) {
+    console.log(`⏭️ [acceptAllBatchPipeline] Skipping polyline regeneration — route order unchanged`);
   }
 
   const offlineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
