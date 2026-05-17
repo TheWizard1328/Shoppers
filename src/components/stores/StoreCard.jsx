@@ -498,7 +498,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                         <DropdownMenuItem onSelect={() => handleSlotDriverSelect(slotKey, 'null')} style={{ color: 'var(--text-slate-500)' }}>
                           No Driver
                         </DropdownMenuItem>
-                        {(drivers || []).map((driver) =>
+                        {(drivers || []).filter((driver) => driver?.app_roles?.includes('driver')).map((driver) =>
                           <DropdownMenuItem key={driver.id} onSelect={() => handleSlotDriverSelect(slotKey, driver.id)} style={{ color: 'var(--text-slate-900)' }}>
                             {driver.user_name || driver.full_name}
                           </DropdownMenuItem>
