@@ -605,11 +605,11 @@ export default function StopDetailsPanel({
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>{finalDisplayAddress}</p>
-                      {patient.unit_number &&
+                      {patient?.unit_number &&
                       <Badge variant="secondary" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>Unit {patient.unit_number}</Badge>
                       }
                     </div>
-                    {patient.distance_from_store &&
+                    {patient?.distance_from_store &&
                     <p className="text-xs mt-0.5" style={{ color: 'var(--text-slate-400)' }}>
                       {patient.distance_from_store.toFixed(1)} km from store
                     </p>
@@ -633,7 +633,7 @@ export default function StopDetailsPanel({
                 </div>
                 }
 
-                {patient.phone_secondary &&
+                {patient?.phone_secondary &&
                 <div className="flex items-center gap-2">
                   <Phone className="w-4 h-4" style={{ color: 'var(--text-slate-400)' }} />
                   <a href={`tel:${patient.phone_secondary}`} className="text-sm hover:underline" style={{ color: 'var(--text-slate-700)' }}>
@@ -693,27 +693,27 @@ export default function StopDetailsPanel({
 
                 {/* Patient Preferences */}
                 <div className="flex flex-wrap gap-2 pt-2">
-                  {patient.mailbox_ok &&
+                  {patient?.mailbox_ok &&
                   <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
                     <Mail className="w-3 h-3 mr-1" /> Mailbox OK
                   </Badge>
                   }
-                  {patient.call_upon_arrival &&
+                  {patient?.call_upon_arrival &&
                   <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
                     <Phone className="w-3 h-3 mr-1" /> Call on Arrival
                   </Badge>
                   }
-                  {patient.ring_bell && !patient.dont_ring_bell &&
+                  {patient?.ring_bell && !patient?.dont_ring_bell &&
                   <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
                     <Bell className="w-3 h-3 mr-1" /> Ring Bell
                   </Badge>
                   }
-                  {patient.dont_ring_bell &&
+                  {patient?.dont_ring_bell &&
                   <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: '#ea580c', borderColor: '#fdba74' }}>
                     <BellOff className="w-3 h-3 mr-1" /> Don't Ring
                   </Badge>
                   }
-                  {patient.back_door &&
+                  {patient?.back_door &&
                   <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
                     <Home className="w-3 h-3 mr-1" /> Back Door
                   </Badge>
