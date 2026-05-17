@@ -1734,7 +1734,7 @@ export default function Layout({ children, currentPageName }) {
                           {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                           <div
                           className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
-                          currentUser?.status === 'inactive' ? 'opacity-50 cursor-not-allowed' : currentPageName === 'Stores' ? 'shadow-sm hover:opacity-80' : 'hover:opacity-80'
+                          currentUser?.status === 'inactive' ? 'opacity-50 cursor-not-allowed' : currentPageName === 'Stores' ? 'shadow-sm hover:opacity-80 cursor-pointer' : 'hover:opacity-80 cursor-pointer'
                           }`}
                           onClick={() => {if (currentUser?.status !== 'inactive') window.location.href = constructUrlWithParams(createPageUrl('Stores'));}}
                           style={currentPageName === 'Stores' ? {
@@ -1752,7 +1752,7 @@ export default function Layout({ children, currentPageName }) {
                           {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                           <div
                           className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
-                          currentUser?.status === 'inactive' ? 'opacity-50 cursor-not-allowed' : currentPageName === 'Drivers' ? 'shadow-sm hover:opacity-80' : 'hover:opacity-80'
+                          currentUser?.status === 'inactive' ? 'opacity-50 cursor-not-allowed' : currentPageName === 'Drivers' ? 'shadow-sm hover:opacity-80 cursor-pointer' : 'hover:opacity-80 cursor-pointer'
                           }`}
                           onClick={() => {if (currentUser?.status !== 'inactive') window.location.href = constructUrlWithParams('DriverSettings');}}
                           style={currentPageName === 'Drivers' ? {
@@ -1773,7 +1773,7 @@ export default function Layout({ children, currentPageName }) {
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
                     <div
                     className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
-                      currentUser?.status === 'inactive' ? 'opacity-50 cursor-not-allowed' : currentPageName === 'SquareManagement' ? 'shadow-sm hover:opacity-80' : 'hover:opacity-80'
+                      currentUser?.status === 'inactive' ? 'opacity-50 cursor-not-allowed' : currentPageName === 'SquareManagement' ? 'shadow-sm hover:opacity-80 cursor-pointer' : 'hover:opacity-80 cursor-pointer'
                     }`}
                     onClick={() => {if (currentUser?.status !== 'inactive') window.location.href = createPageUrl('SquareManagement');}}
                     style={currentPageName === 'SquareManagement' ? {
