@@ -892,9 +892,9 @@ function Dashboard() {
 
   // Filter drivers based on role - NEVER based on deliveries (except dispatcher)
   const driversList = useMemo(() => {
-    // CRITICAL: Build drivers from AppUsers ONLY (most reliable source)
+    const _ds=format(selectedDate,'yyyy-MM-dd'),_iok=isAdmin?new Set((deliveries||[]).filter((d)=>d&&d.delivery_date===_ds&&d.driver_id).map((d)=>d.driver_id)):new Set();
     const driversSource = (appUsers || [])
-    .filter((au) => au && au.user_id && au.app_roles?.includes('driver') && au.status === 'active')
+    .filter((au) => au && au.user_id && au.app_roles?.includes('driver') && (au.status === 'active' || _iok.has(au.user_id)))
     .map((au) => ({
       ...au,
       id: au.user_id,
