@@ -155,6 +155,18 @@ export async function runAcceptAllBatchPipeline({
   });
   const optimizeData = optimizeResponse?.data || optimizeResponse || {};
 
+  // Generate polylines for the optimized route order
+  const orderedDeliveryIds = Array.isArray(optimizeData?.orderedDeliveryIds) && optimizeData.orderedDeliveryIds.length > 0
+    ? optimizeData.orderedDeliveryIds
+    : null;
+  if (orderedDeliveryIds) {
+    base44.functions.invoke('purgeAndRegeneratePolylines', {
+      driverId: triggerDelivery.driver_id,
+      deliveryDate: triggerDelivery.delivery_date,
+      orderedDeliveryIds
+    }).catch(() => {});
+  }
+
   const offlineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
   const stagedStatusMap = new Map(stagedRoute.filter(Boolean).map((item) => [item.id, item]));
   const optimizedMap = new Map();
