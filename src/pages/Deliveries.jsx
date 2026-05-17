@@ -978,11 +978,11 @@ export default function DeliveriesPage() {
 
   const effectiveDeliveries = useMemo(() => {
     if (!currentUser || !allDeliveries || !Array.isArray(allDeliveries)) return [];
-    if (userHasRole(currentUser, 'admin')) return allDeliveries.filter((d) => d && d.status !== 'failed');
+    if (userHasRole(currentUser, 'admin')) return allDeliveries.filter((d) => d);
 
     if (userHasRole(currentUser, 'dispatcher')) {
       const dispatcherStoreIds = currentUser.store_ids || [];
-      return allDeliveries.filter((d) => d?.status !== 'failed').filter((d) => {
+      return allDeliveries.filter((d) => d).filter((d) => {
         if (!d) return false;
         if (d.store_id && dispatcherStoreIds.includes(d.store_id)) {
           return true;
@@ -999,7 +999,7 @@ export default function DeliveriesPage() {
     }
 
     if (userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) {
-      return allDeliveries.filter((d) => d?.status !== 'failed').filter((d) =>
+      return allDeliveries.filter((d) =>
       d && (
       d.driver_id && d.driver_id === currentUser.id ||
       !d.driver_id && d.driver_name && (d.driver_name === currentUser.full_name || d.driver_name === currentUser.user_name))
