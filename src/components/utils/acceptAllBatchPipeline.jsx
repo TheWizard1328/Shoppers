@@ -171,10 +171,18 @@ export async function runAcceptAllBatchPipeline({
     // exists and does not need to be regenerated. Only regenerate stops 2+ (Type 2 forward polylines).
     const polylineIds = orderedDeliveryIds.filter((id) => id !== triggerDelivery.id);
     if (polylineIds.length > 0) {
+      // CRITICAL: Use the pickup/store location as the origin for the first segment after the pickup.
+      // Without this, purgeAndRegeneratePolylines falls back to driver home as the origin.
+      const triggerStore = stores.find((s) => s && s.id === triggerDelivery.store_id);
+      const pickupOrigin = triggerStore?.latitude && triggerStore?.longitude
+        ? { lat: Number(triggerStore.latitude), lon: Number(triggerStore.longitude) }
+        : null;
+
       base44.functions.invoke('purgeAndRegeneratePolylines', {
         driverId: triggerDelivery.driver_id,
         deliveryDate: triggerDelivery.delivery_date,
-        orderedDeliveryIds: polylineIds
+        orderedDeliveryIds: polylineIds,
+        ...(pickupOrigin ? { currentPosition: pickupOrigin } : {})
       }).catch(() => {});
     }
   }
