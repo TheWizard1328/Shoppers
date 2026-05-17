@@ -362,6 +362,23 @@ Deno.serve(async (req) => {
       });
     }
 
+    // CRITICAL: When triggered by an entity automation, the trigger delivery data is available.
+    // If the triggered delivery is in a finished state (completed/failed/cancelled/returned),
+    // always skip — stop order doesn't change on terminal transitions so no optimization needed.
+    const FINISHED_STATUSES_SET = new Set(['completed', 'failed', 'cancelled', 'returned']);
+    if (context?.eventType === 'update' && FINISHED_STATUSES_SET.has(String(context?.data?.status || ''))) {
+      console.log(`⏭️ [optimizeRemainingStops] Skipping — triggered by terminal status (${context.data.status}) | driver=${driverId} | date=${deliveryDate}`);
+      return Response.json({
+        success: true,
+        skipped: true,
+        reason: 'terminal_status_trigger',
+        triggerSource,
+        routeChanged: false,
+        optimizedCount: 0,
+        apiCallsMade: 0
+      });
+    }
+
     // CRITICAL: _stampDedupeOnly = true means the caller just wants to pre-lock the dedupe key
     // to suppress any automation-triggered calls from individual delivery saves in the same batch.
     // Write the key and return immediately — no HERE API calls made.
