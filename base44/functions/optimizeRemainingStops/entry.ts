@@ -909,6 +909,13 @@ Deno.serve(async (req) => {
       console.log('✅ [optimizeRemainingStops] Preserving existing order and refreshing ETAs only');
     } else if (stopsToSequence.length > 0) {
        // -------------------------------------------------------------------
+       // CRITICAL: Pre-check if route order would actually change
+       // Only call HERE if a true reordering is detected
+       // -------------------------------------------------------------------
+       const currentActiveOrder = optimizationStops.map(s => s.delivery.id);
+       const wouldHereChangeOrder = currentActiveOrder.length !== stopsForHere.length
+         || currentActiveOrder.some((id, idx) => id !== stopsForHere[idx]?.delivery?.id);
+
        // TWO-CALL STRATEGY:
        // Call 1 (Sequence): lockedNextStop → [stopsForHere optimized by HERE] → home
        // Call 2 (First Leg): trueOrigin → lockedNextStop (point-to-point)
@@ -918,7 +925,7 @@ Deno.serve(async (req) => {
        const destinationForDirections = resolvedHomePosition
          || (stopsForHere.length > 0 ? { lat: stopsForHere[stopsForHere.length - 1].lat, lng: stopsForHere[stopsForHere.length - 1].lng } : trueOrigin);
 
-       console.log(`🏠 [optimizeRemainingStops] trueOrigin=(${trueOrigin.lat},${trueOrigin.lng}) | dest=${resolvedHomePosition ? 'HOME' : 'LAST_STOP'} | lockedNextStop=${lockedNextStop?.delivery?.id || 'none'}`);
+       console.log(`🏠 [optimizeRemainingStops] trueOrigin=(${trueOrigin.lat},${trueOrigin.lng}) | dest=${resolvedHomePosition ? 'HOME' : 'LAST_STOP'} | lockedNextStop=${lockedNextStop?.delivery?.id || 'none'} | wouldHereChangeOrder=${wouldHereChangeOrder}`);
 
       const sequenceOrigin = lockedNextStop
         ? { lat: lockedNextStop.lat, lng: lockedNextStop.lng }
@@ -934,27 +941,33 @@ Deno.serve(async (req) => {
       }));
 
       let hereSequenceResult = null;
-      try {
-        const seqResp = await base44.asServiceRole.functions.invoke('getHereDirections', {
-          origin: sequenceOrigin,
-          destination: destinationForDirections,
-          waypoints: sequenceWaypoints,
-          routeContext: sequenceRouteContext,
-          transportMode: routingTravelMode,
-          deliveryDate,
-          departureTime: resolvedDepartureTime,
-          caller: 'optimizeRemainingStops:sequence',
-          preserveWaypointOrder: false,
-          skipSequenceApi: false,
-          skipRoutingApi: true,
-        });
-        hereSequenceResult = seqResp?.data || seqResp || null;
-        attemptedHereCalls += Number(hereSequenceResult?.api_call_count || 1);
-        usedTimeWindows = hereSequenceResult?.used_time_windows ?? true;
-        console.log(`📡 [optimizeRemainingStops] Sequence call: ${hereSequenceResult?.sections?.length || 0} sections`);
-      } catch (err) {
-        console.error('❌ [optimizeRemainingStops] Sequence call failed:', err?.message || err);
-        hereSequenceResult = null;
+
+      // CRITICAL: Only call HERE if the order would actually change
+      if (wouldHereChangeOrder) {
+        try {
+          const seqResp = await base44.asServiceRole.functions.invoke('getHereDirections', {
+            origin: sequenceOrigin,
+            destination: destinationForDirections,
+            waypoints: sequenceWaypoints,
+            routeContext: sequenceRouteContext,
+            transportMode: routingTravelMode,
+            deliveryDate,
+            departureTime: resolvedDepartureTime,
+            caller: 'optimizeRemainingStops:sequence',
+            preserveWaypointOrder: false,
+            skipSequenceApi: false,
+            skipRoutingApi: true,
+          });
+          hereSequenceResult = seqResp?.data || seqResp || null;
+          attemptedHereCalls += Number(hereSequenceResult?.api_call_count || 1);
+          usedTimeWindows = hereSequenceResult?.used_time_windows ?? true;
+          console.log(`📡 [optimizeRemainingStops] Sequence call: ${hereSequenceResult?.sections?.length || 0} sections`);
+        } catch (err) {
+          console.error('❌ [optimizeRemainingStops] Sequence call failed:', err?.message || err);
+          hereSequenceResult = null;
+        }
+      } else {
+        console.log(`⏭️ [optimizeRemainingStops] Route order unchanged — skipping HERE API call, using existing order for ETA recalculation`);
       }
 
       // First-leg ETA (trueOrigin -> lockedNextStop): cache-only, NO HERE call.
