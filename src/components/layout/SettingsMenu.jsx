@@ -105,16 +105,18 @@ export default function SettingsMenu({
       {/* Settings header and Admin Import toggle - only for admins/app owners */}
 
 
-      {/* Display Settings */}
-      <DropdownMenuLabel 
-        className="px-2 font-semibold uppercase tracking-wider text-slate-500" 
-        style={{ fontSize: isMobileDeviceForUI ? '13px' : '12px' }}
-      >
-        Display
-      </DropdownMenuLabel>
-      
-      {/* Theme Toggle - Mobile Devices Only (based on user agent, not screen width) */}
-      {isMobileForTheme && (
+      {/* Display Settings - Admin/Dispatcher Only */}
+      {currentUser?.app_roles?.includes('admin') || currentUser?.app_roles?.includes('dispatcher') ? (
+        <>
+          <DropdownMenuLabel 
+            className="px-2 font-semibold uppercase tracking-wider text-slate-500" 
+            style={{ fontSize: isMobileDeviceForUI ? '13px' : '12px' }}
+          >
+            Display
+          </DropdownMenuLabel>
+          
+          {/* Theme Toggle - Mobile Devices Only (based on user agent, not screen width) */}
+          {isMobileForTheme && (
         <div className="px-2 py-2">
           <label 
             className="font-medium mb-1.5 block" 
@@ -164,6 +166,8 @@ export default function SettingsMenu({
           )}
         </div>
       )}
+        </>
+      ) : null}
 
       {/* Import Buttons */}
 
