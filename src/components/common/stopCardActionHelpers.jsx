@@ -629,7 +629,9 @@ export async function optimizeRouteAndApplyNextDelivery({
   }
 
   const optimizationPromise = (async () => {
-    await refreshDriverRoute({ driverId, deliveryDate, forceRefreshDriverDeliveries, triggeredBy: 'nextDeliverySyncOnly' });
+    // CRITICAL: Skip full route refresh — just invalidate cache to allow smart refresh later
+    // This prevents the incomplete delivery list flicker that happens during forceRefreshDriverDeliveries
+    invalidate("Delivery");
 
     let optimizeData = {
       skipped: true,
@@ -651,21 +653,10 @@ export async function optimizeRouteAndApplyNextDelivery({
       optimizeData = optimizeResponse?.data || optimizeResponse || optimizeData;
     }
 
-    // CRITICAL: Wait for backend propagation to complete before fetching deliveries
-    // This prevents UI flickering from temporarily incomplete delivery lists
-    await new Promise((resolve) => setTimeout(resolve, 400));
+    // CRITICAL: Wait for backend propagation before fetching deliveries
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
-    // Fetch and validate deliveries are stable before updating UI
-    let refreshedDriverDeliveries = await base44.entities.Delivery.filter({ driver_id: driverId, delivery_date: deliveryDate });
-    
-    // If list seems incomplete, wait and retry to ensure consistency
-    if (refreshedDriverDeliveries && refreshedDriverDeliveries.length > 0) {
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      const validateFetch = await base44.entities.Delivery.filter({ driver_id: driverId, delivery_date: deliveryDate });
-      if (validateFetch && validateFetch.length >= refreshedDriverDeliveries.length) {
-        refreshedDriverDeliveries = validateFetch;
-      }
-    }
+    const refreshedDriverDeliveries = await base44.entities.Delivery.filter({ driver_id: driverId, delivery_date: deliveryDate });
     const firstEligibleActiveStop = (refreshedDriverDeliveries || [])
       .filter((item) => item && !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(item.status))
       .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0))[0] || null;
