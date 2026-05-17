@@ -1302,6 +1302,14 @@ Deno.serve(async (req) => {
       // This matches encoded_polyline and travel_dist which are also inbound.
       // The first stop's values come from the first-leg call (trueOrigin → lockedNextStop) or
       // the sequence section matched by waypoint_id, so all stops including the first get populated.
+      // CRITICAL: Only overwrite encoded_polyline / distance / duration if we actually have
+      // a new value from HERE. Writing null here would clear the existing polyline for active
+      // legs that were not re-computed in this pass (e.g. the current leg that hasn't changed),
+      // which is the root cause of the "current leg polyline wiped after accepting a batch" bug.
+      const hasNewPolyline = !isPendingStop && !!segmentPolyline?.encodedPolyline;
+      const hasNewDistKm = !isPendingStop && typeof segmentPolyline?.estimatedDistanceKm === 'number';
+      const hasNewDurMin = !isPendingStop && typeof segmentPolyline?.estimatedDurationMinutes === 'number';
+
       const updateData = {
         stop_order: newOrder,
         display_stop_order: newOrder,
@@ -1313,13 +1321,11 @@ Deno.serve(async (req) => {
         travel_dist: Number(directionsLegs[i]?.distance)
           ? Number((Number(directionsLegs[i].distance) / 1000).toFixed(3))
           : null,
-        encoded_polyline: isPendingStop ? null : (segmentPolyline?.encodedPolyline || null),
-        estimated_duration_minutes: (!isPendingStop && typeof segmentPolyline?.estimatedDurationMinutes === 'number')
-          ? segmentPolyline.estimatedDurationMinutes
-          : null,
-        estimated_distance_km: (!isPendingStop && typeof segmentPolyline?.estimatedDistanceKm === 'number')
-          ? segmentPolyline.estimatedDistanceKm
-          : null,
+        // Pending stops always get null; active stops only get overwritten when HERE returned a real polyline
+        ...(isPendingStop ? { encoded_polyline: null, estimated_distance_km: null, estimated_duration_minutes: null } : {}),
+        ...(hasNewPolyline ? { encoded_polyline: segmentPolyline.encodedPolyline } : {}),
+        ...(hasNewDistKm ? { estimated_distance_km: segmentPolyline.estimatedDistanceKm } : {}),
+        ...(hasNewDurMin ? { estimated_duration_minutes: segmentPolyline.estimatedDurationMinutes } : {}),
         // Persist first-leg origin on the isNextDelivery stop so future runs can cache-hit
         ...(stop.id === nextStopId && resolvedTrueOrigin ? {
           first_leg_origin_lat: resolvedTrueOrigin.lat,
