@@ -1610,8 +1610,8 @@ export default function Layout({ children, currentPageName }) {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {/* Show controls in navigation panel when tablet landscape OR desktop admin */}
-                      {deviceType === 'Tablet' && !isTabletPortrait || !isMobile && !isTabletPortrait && userHasRole(currentUser, 'admin') && cities && cities.length > 0 ?
+                      {/* Show controls in navigation panel when tablet landscape OR desktop admin/driver */}
+                      {(deviceType === 'Tablet' && !isTabletPortrait) || (!isMobile && !isTabletPortrait && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) && cities && cities.length > 0) ?
                     <>
                           {/* Settings Menu */}
                           <DropdownMenu>
