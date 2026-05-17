@@ -629,8 +629,8 @@ export async function optimizeRouteAndApplyNextDelivery({
   }
 
   const optimizationPromise = (async () => {
-    // CRITICAL: Skip full route refresh — just invalidate cache to allow smart refresh later
-    // This prevents the incomplete delivery list flicker that happens during forceRefreshDriverDeliveries
+    // CRITICAL: Do NOT fetch deliveries immediately after completion
+    // This causes UI flicker from incomplete lists. Let mutation handlers and smart refresh update the UI naturally.
     invalidate("Delivery");
 
     let optimizeData = {
@@ -653,47 +653,12 @@ export async function optimizeRouteAndApplyNextDelivery({
       optimizeData = optimizeResponse?.data || optimizeResponse || optimizeData;
     }
 
-    // CRITICAL: Wait for backend propagation before fetching deliveries
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    const refreshedDriverDeliveries = await base44.entities.Delivery.filter({ driver_id: driverId, delivery_date: deliveryDate });
-    const firstEligibleActiveStop = (refreshedDriverDeliveries || [])
-      .filter((item) => item && !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(item.status))
-      .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0))[0] || null;
-    const resolvedNextDeliveryId = fallbackNextDeliveryId || refreshedDriverDeliveries.find((item) => item?.isNextDelivery === true)?.id || firstEligibleActiveStop?.id || null;
-    await setAndCenterNextDelivery({
-      driverDeliveries: refreshedDriverDeliveries,
-      targetDeliveryId: resolvedNextDeliveryId,
-      updateDeliveryLocal,
-      updateDeliveriesLocally,
-      driverId,
-      deliveryDate
-    });
-
-    if (shouldRegeneratePolylines) {
-      const activeCount = (refreshedDriverDeliveries || []).filter((item) => item && !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(item.status)).length;
-      const orderedIds = (refreshedDriverDeliveries || [])
-        .filter(Boolean)
-        .sort((a, b) => (Number(a?.stop_order) || 0) - (Number(b?.stop_order) || 0))
-        .map((item) => item.id)
-        .filter(Boolean);
-      return {
-        optimizeData: {
-          ...optimizeData,
-          optimizedRoute: orderedIds,
-          activeCount
-        },
-        optimizedRoute: orderedIds,
-        nextOptimizedStopId: resolvedNextDeliveryId,
-        refreshedDriverDeliveries
-      };
-    }
-
+    // Return minimal response without fetching deliveries
     return {
       optimizeData,
       optimizedRoute: Array.isArray(optimizeData?.optimizedRoute) ? optimizeData.optimizedRoute : [],
-      nextOptimizedStopId: resolvedNextDeliveryId,
-      refreshedDriverDeliveries
+      nextOptimizedStopId: fallbackNextDeliveryId || null,
+      refreshedDriverDeliveries: []
     };
   })();
 
