@@ -328,7 +328,7 @@ export default function StatsPanel({
               <div className="pt-1 pb-1 border-t flex items-center gap-2" style={{ borderColor: 'var(--border-slate-200)' }}>
                 <Select value={selectedDriverId} onValueChange={handleDriverChange} disabled={isDriverDropdownDisabled}>
                   <SelectTrigger className="flex h-8 w-full items-center justify-between rounded-md border px-3 py-2 text-sm flex-1" style={{ pointerEvents: 'auto', touchAction: 'manipulation', background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                    <SelectValue placeholder="All Drivers" />
+                    <SelectValue placeholder="All Drivers">{selectedDriverId === 'all' ? 'All Drivers' : driversList.find((d) => d?.id === selectedDriverId)?.user_name || driversList.find((d) => d?.id === selectedDriverId)?.full_name || 'Driver'}</SelectValue>
                   </SelectTrigger>
                   <SelectContent className="z-[10001]" style={{ pointerEvents: 'auto', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
                     <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Drivers</SelectItem>
