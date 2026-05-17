@@ -81,7 +81,8 @@ const fetchGoogleDirections = async (startLat, startLon, endLat, endLon, googleA
   try {
     const response = await base44.functions.invoke('getHereDirections', {
       origin: { lat: startLat, lng: startLon },
-      destination: { lat: endLat, lng: endLon }
+      destination: { lat: endLat, lng: endLon },
+      caller: 'routePolylineManager:fetchGoogleDirections'
     });
 
     if (!response.data) {

@@ -367,7 +367,8 @@ async function getMultiStopRoute(base44, points, transportMode = 'driving') {
     destination: { lat: validPoints[validPoints.length - 1].lat, lng: validPoints[validPoints.length - 1].lon },
     waypoints: validPoints.slice(1, -1).map((point) => ({ lat: point.lat, lng: point.lon })),
     routeContext: validPoints.map((point) => ({ lat: point.lat, lng: point.lon })),
-    transportMode
+    transportMode,
+    caller: 'regenerateType1Polyline'
   });
 
   const data = response?.data || response || {};
