@@ -8,7 +8,9 @@ import { FixedSizeList as List } from 'react-window';
 import { RouteManagementStopDetailsOverlay } from '../deliveries/RouteManagementHeader';
 import BarcodeThumb from '../deliveries/BarcodeThumb';
 import { getCodSymbolColorClass } from '../utils/SpecialSymbolsBadges';
-import { isAppOwner } from '../utils/userRoles';
+import { isAppOwner, userHasRole } from '../utils/userRoles';
+import { useDeliveryDisplayInfo } from '../common/StopCardRedaction';
+import { formatAddressWithUnit, cleanBuzzerFromAddress } from '../utils/addressCleaner';
 
 // Memoized row component to prevent re-renders
 const DeliveryRow = memo(({
@@ -29,6 +31,18 @@ const DeliveryRow = memo(({
 }) => {
   const isPickup = !delivery.patient_id;
   const isNextDelivery = delivery.isNextDelivery === true;
+  
+  const { finalDisplayName, finalDisplayAddress, shouldRedact } = useDeliveryDisplayInfo({
+    delivery,
+    patient,
+    store,
+    currentUser,
+    isPickup,
+    isInterStore: false,
+    isInterStorePickup: false,
+    isStrippedDelivery: false,
+    isStrippedForDispatcher: false,
+  });
 
   const desktopGridClass = bulkEditMode ?
   'grid min-w-max grid-cols-[44px_120px_120px_90px_minmax(300px,1fr)_minmax(200px,1fr)_100px_100px_40px_100px_120px] gap-2' :
@@ -81,7 +95,7 @@ const DeliveryRow = memo(({
           {/* Row 2 Left: Patient/Pickup */}
           <div className="min-w-0 mt-1">
             <span className={`font-medium whitespace-normal break-words ${isPickup ? 'text-blue-600 dark:text-blue-300' : 'text-slate-900 dark:text-slate-100'}`}>
-              {patient?.full_name || delivery.patient_name || (store?.name ? `${store.name} Pickup` : 'Store Pickup')}
+              {finalDisplayName}
             </span>
           </div>
 
@@ -94,8 +108,8 @@ const DeliveryRow = memo(({
         {/* Row 3: Address & Unit */}
         <div className="mt-1 min-w-0">
           <div className="flex items-center gap-2 min-w-0">
-            {patient?.address &&
-              <span className="text-xs text-slate-500 truncate">{patient.address}</span>
+            {!isPickup && finalDisplayAddress &&
+              <span className="text-xs text-slate-500 truncate">{finalDisplayAddress}</span>
               }
             {(patient?.unit_number || delivery.unit_number) &&
               <Badge variant="secondary" className="text-[10px] px-2 py-0.5" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
@@ -183,10 +197,10 @@ const DeliveryRow = memo(({
         <div className="flex items-center min-w-0">
           <div className="flex flex-col min-w-0">
             <span className={`font-medium whitespace-normal break-words ${isPickup ? 'text-blue-600 dark:text-blue-300' : 'text-slate-900 dark:text-slate-100'}`}>
-              {patient?.full_name || delivery.patient_name || (store?.name ? `${store.name} Pickup` : 'Store Pickup')}
+              {finalDisplayName}
             </span>
-            {patient?.address &&
-          <span className="text-xs text-slate-500 truncate">{patient.address}</span>
+            {!isPickup && finalDisplayAddress &&
+          <span className="text-xs text-slate-500 truncate">{finalDisplayAddress}</span>
           }
           </div>
         </div>

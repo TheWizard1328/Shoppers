@@ -47,6 +47,8 @@ import { toast } from "sonner";
 import { calculateRealTimeETA } from "@/functions/calculateRealTimeETA";
 import { recalculateAndUpdateStopOrders } from "../utils/stopOrderManager";
 import { isRouteCompleted } from "../utils/routeCompletionChecker";
+import { useDeliveryDisplayInfo } from "../common/StopCardRedaction";
+import { userHasRole } from "../utils/userRoles";
 
 const statusConfig = {
   pending: { color: 'bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-700', label: 'Pending', icon: Clock },
@@ -97,6 +99,20 @@ export default function StopDetailsPanel({
       delivery?.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'HH:mm') : format(new Date(), 'HH:mm')
     );
   }, [delivery?.id, delivery?.status, delivery?.delivery_time_start, delivery?.delivery_time_end, delivery?.actual_delivery_time]);
+
+  // Must be called before any early returns to satisfy React hooks rules
+  const isPickupForHook = !delivery?.patient_id;
+  const { finalDisplayName, finalDisplayAddress, finalDisplayPhone, shouldRedact } = useDeliveryDisplayInfo({
+    delivery: delivery || {},
+    patient,
+    store,
+    currentUser,
+    isPickup: isPickupForHook,
+    isInterStore: false,
+    isInterStorePickup: false,
+    isStrippedDelivery: false,
+    isStrippedForDispatcher: false,
+  });
 
   if (!delivery) {
     return (
@@ -526,9 +542,9 @@ export default function StopDetailsPanel({
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between gap-2">
               {/* Patient Name */}
-              <p className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>
-                {patient.full_name || delivery.patient_name || 'Unknown Patient'}
-              </p>
+                <p className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>
+                  {finalDisplayName}
+                </p>
               {/* Edit/Delete Buttons inline with name */}
               {canManageStop &&
               <div className="flex items-center gap-1 flex-shrink-0">
@@ -583,12 +599,12 @@ export default function StopDetailsPanel({
               {/* LEFT column: address, phone, COD, preferences */}
               <div className="w-[60%] min-w-0 space-y-3">
                 {/* Address with unit number */}
-                {patient.address &&
+                {!isPickup && finalDisplayAddress &&
                 <div className="flex items-start gap-2">
                   <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: 'var(--text-slate-400)' }} />
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>{patient.address}</p>
+                      <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>{finalDisplayAddress}</p>
                       {patient.unit_number &&
                       <Badge variant="secondary" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>Unit {patient.unit_number}</Badge>
                       }
@@ -602,12 +618,18 @@ export default function StopDetailsPanel({
                 </div>
                 }
 
-                {patient.phone &&
+                {finalDisplayPhone &&
                 <div className="flex items-center gap-2">
                   <Phone className="w-4 h-4" style={{ color: 'var(--text-slate-400)' }} />
-                  <a href={`tel:${patient.phone}`} className="text-sm hover:underline" style={{ color: 'var(--text-slate-700)' }}>
-                    {formatPhoneNumber(patient.phone)}
-                  </a>
+                  {shouldRedact ? (
+                    <span className="text-sm" style={{ color: 'var(--text-slate-700)' }}>
+                      {finalDisplayPhone}
+                    </span>
+                  ) : (
+                    <a href={`tel:${patient.phone}`} className="text-sm hover:underline" style={{ color: 'var(--text-slate-700)' }}>
+                      {finalDisplayPhone}
+                    </a>
+                  )}
                 </div>
                 }
 
