@@ -259,20 +259,13 @@ export default function useStopCardActions(params) {
       window.dispatchEvent(new CustomEvent('pendingToInTransit', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
       invalidate('Delivery');
 
-      // STEP 1: Sync COD data with Square BEFORE route optimization
+      // STEP 1: Sync COD data with Square (non-blocking)
       if (codBatch.length > 0) {
         base44.functions.invoke('syncSquareCods', { items: codBatch }).catch((e) => console.warn('⚠️ [Square] Batch COD sync failed to start:', e));
       }
 
-      // STEP 2: Dispatch manual route optimization event with polyline regeneration
-      window.dispatchEvent(new CustomEvent('triggerManualRouteOptimization', {
-        detail: {
-          driverId: delivery.driver_id,
-          deliveryDate: delivery.delivery_date,
-          source: 'accept_all',
-          shouldRegeneratePolylines: true
-        }
-      }));
+      // NOTE: No second optimizeRemainingStops call needed here.
+      // runAcceptAllBatchPipeline already called optimizeRemainingStops with bypassDeduplication:true.
 
       const refreshedDeliveries = await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
       const refreshedList = Array.isArray(refreshedDeliveries)
