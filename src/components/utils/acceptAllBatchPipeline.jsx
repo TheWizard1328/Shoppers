@@ -105,9 +105,16 @@ export async function runAcceptAllBatchPipeline({
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, stagedChangedDeliveries);
     updateDeliveriesLocally?.(stagedChangedDeliveries, false);
 
-    // CRITICAL: Batch-save all status transitions in parallel.
-    // The explicit optimizeRemainingStops call below (with bypassDeduplication: true) is the
-    // single authoritative optimization — no pre-stamp call needed.
+    // CRITICAL: Pre-stamp the dedup key BEFORE individual writes to suppress automation-triggered
+    // optimizeRemainingStops calls that fire from each in_transit write. The explicit call below
+    // (with bypassDeduplication: true) is the single authoritative optimization.
+    base44.functions.invoke('optimizeRemainingStops', {
+      driverId: triggerDelivery.driver_id,
+      deliveryDate: triggerDelivery.delivery_date,
+      _stampDedupeOnly: true,
+      bypassDeduplication: false
+    }).catch(() => {});
+
     await Promise.all(stagedChangedDeliveries.map((item) =>
       base44.entities.Delivery.update(item.id, {
         status: item.status,
