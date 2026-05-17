@@ -35,6 +35,13 @@ export function buildBulkEditBaseUpdates({ values, initialValues, currentUser, b
         baseUpdates.driver_name = getDriverNameForStorage(selectedDriver);
       }
     }
+    // Driver changed — clear the isNextDelivery flag
+    baseUpdates.isNextDelivery = false;
+  }
+
+  // Date changed — clear the isNextDelivery flag
+  if (values.delivery_date && values.delivery_date !== initialValues?.delivery_date) {
+    baseUpdates.isNextDelivery = false;
   }
 
   // Only apply travel mode if it was changed and is not "mixed"

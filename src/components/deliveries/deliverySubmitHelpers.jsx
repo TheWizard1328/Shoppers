@@ -65,6 +65,15 @@ export const prepareDeliverySaveData = ({ formData, delivery, isCompletionStatus
     dataToSave.status = 'en_route';
   }
 
+  // If driver or date changed on an existing delivery/pickup, clear the isNextDelivery flag
+  if (delivery?.id) {
+    const driverChanged = delivery.driver_id !== dataToSave.driver_id;
+    const dateChanged = delivery.delivery_date !== dataToSave.delivery_date;
+    if (driverChanged || dateChanged) {
+      dataToSave.isNextDelivery = false;
+    }
+  }
+
   const isInterstoreStop = !dataToSave.patient_id && !!dataToSave.store_id;
   const transitionedToInTransit = dataToSave.status === 'in_transit' && delivery?.status !== 'in_transit';
   if (isInterstoreStop && transitionedToInTransit) {
