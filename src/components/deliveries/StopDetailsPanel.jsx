@@ -748,7 +748,7 @@ export default function StopDetailsPanel({
             }
 
             {/* Status & Timing */}
-            {canEdit && typeof onStatusUpdate === 'function' && (isAdminUser || isDispatcherUser || !isRouteCompleted(delivery, allDeliveries)) &&
+            {canEdit && typeof onStatusUpdate === 'function' &&
             <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-100)' }}>
                 <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-slate-500)' }}>
                   Status & Timing
@@ -759,7 +759,7 @@ export default function StopDetailsPanel({
                     <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                       {isPickup ? 'Pickup Status' : 'Delivery Status'}
                     </Label>
-                    <Select value={editableStatus} onValueChange={handleStatusChange} disabled={isUpdating || canEditTimeWindows}>
+                    <Select value={editableStatus} onValueChange={handleStatusChange} disabled={isUpdating || canEditTimeWindows || (isDriverUser && isRouteCompleted(delivery, allDeliveries))}>
                       <SelectTrigger className="h-9">
                         <SelectValue />
                       </SelectTrigger>
@@ -790,7 +790,7 @@ export default function StopDetailsPanel({
                           Start
                         </Label>
                         <div className="relative">
-                          <Input type="time" value={deliveryTimeStart} onChange={(e) => setDeliveryTimeStart(e.target.value)} onKeyDown={handleTimeFieldKeyDown} disabled={isUpdating} className={`h-9 text-sm ${showDesktopClearButtons ? 'pr-8 stop-details-time-input-desktop' : ''}`} />
+                          <Input type="time" value={deliveryTimeStart} onChange={(e) => setDeliveryTimeStart(e.target.value)} onKeyDown={handleTimeFieldKeyDown} disabled={isUpdating || (isDriverUser && isRouteCompleted(delivery, allDeliveries))} className={`h-9 text-sm ${showDesktopClearButtons ? 'pr-8 stop-details-time-input-desktop' : ''}`} />
                           {showDesktopClearButtons && deliveryTimeStart &&
                       <button type="button" onClick={() => setDeliveryTimeStart('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" disabled={isUpdating}>
                               <X className="w-4 h-4" />
@@ -803,7 +803,7 @@ export default function StopDetailsPanel({
                           End
                         </Label>
                         <div className="relative">
-                          <Input type="time" value={deliveryTimeEnd} onChange={(e) => setDeliveryTimeEnd(e.target.value)} onKeyDown={handleTimeFieldKeyDown} disabled={isUpdating} className={`h-9 text-sm ${showDesktopClearButtons ? 'pr-8 stop-details-time-input-desktop' : ''}`} />
+                          <Input type="time" value={deliveryTimeEnd} onChange={(e) => setDeliveryTimeEnd(e.target.value)} onKeyDown={handleTimeFieldKeyDown} disabled={isUpdating || (isDriverUser && isRouteCompleted(delivery, allDeliveries))} className={`h-9 text-sm ${showDesktopClearButtons ? 'pr-8 stop-details-time-input-desktop' : ''}`} />
                           {showDesktopClearButtons && deliveryTimeEnd &&
                       <button type="button" onClick={() => setDeliveryTimeEnd('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" disabled={isUpdating}>
                               <X className="w-4 h-4" />
@@ -821,7 +821,7 @@ export default function StopDetailsPanel({
                           Completion
                         </Label>
                         <div className="relative">
-                        <Input ref={completionTimeRef} type="time" value={completionTime} onChange={(e) => setCompletionTime(e.target.value)} onKeyDown={handleTimeFieldKeyDown} disabled={isUpdating} className={`h-9 text-sm ${showDesktopClearButtons ? 'pr-8 stop-details-time-input-desktop' : ''}`} />
+                        <Input ref={completionTimeRef} type="time" value={completionTime} onChange={(e) => setCompletionTime(e.target.value)} onKeyDown={handleTimeFieldKeyDown} disabled={isUpdating || (isDriverUser && isRouteCompleted(delivery, allDeliveries))} className={`h-9 text-sm ${showDesktopClearButtons ? 'pr-8 stop-details-time-input-desktop' : ''}`} />
                         {showDesktopClearButtons && completionTime &&
                       <button type="button" onClick={() => setCompletionTime('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" disabled={isUpdating}>
                             <X className="w-4 h-4" />
@@ -849,7 +849,7 @@ export default function StopDetailsPanel({
                     </>
                 }
 
-                  <Button onClick={handleApplyStatusTiming} disabled={isUpdating || !hasStatusTimingChanges} size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 px-3 whitespace-nowrap">
+                  <Button onClick={handleApplyStatusTiming} disabled={isUpdating || !hasStatusTimingChanges || (isDriverUser && isRouteCompleted(delivery, allDeliveries))} size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 px-3 whitespace-nowrap">
                     Apply
                   </Button>
                 </div>
