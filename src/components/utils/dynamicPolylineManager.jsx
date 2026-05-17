@@ -116,7 +116,8 @@ export const fetchPolylineForSegment = async (originLat, originLon, destLat, des
       destination: { lat: Number(routePoints[routePoints.length - 1].lat), lng: Number(routePoints[routePoints.length - 1].lon) },
       waypoints: routePoints.slice(1, -1).map((point) => ({ lat: Number(point.lat), lng: Number(point.lon) })),
       routeContext: routePoints.map((point) => ({ lat: Number(point.lat), lng: Number(point.lon) })),
-      transportMode
+      transportMode,
+      caller: 'dynamicPolylineManager:currentToNextPolyline'
     });
 
     const polylines = response?.data?.polylines;
