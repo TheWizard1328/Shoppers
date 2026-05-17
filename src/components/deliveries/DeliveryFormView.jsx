@@ -1024,18 +1024,6 @@ export default function DeliveryFormView({
                   if (delivery) {handleCancelClick();return;}
                   if (shouldClear) {
                     setFormData((prev) => ({ ...prev, barcode_values: [], receipt_barcode_values: [], _preview_barcode: null }));
-                    if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
-                      const dispatcherStoreId = (currentUser.store_ids || [])[0];
-                      const dispatcherStore = stores?.find((s) => s && s.id === dispatcherStoreId);
-                      const today = formData?.delivery_date || new Date().toISOString().slice(0, 10);
-                      const dateObj = new Date(today + 'T00:00:00');
-                      const day = dateObj.getDay();
-                      const prefix = day === 0 ? 'sunday' : day === 6 ? 'saturday' : 'weekday';
-                      const defaultDriverId = dispatcherStore?.[`${prefix}_am_driver_id`] || dispatcherStore?.[`${prefix}_pm_driver_id`] || 'all';
-                      globalFilters.setSelectedDriverId(defaultDriverId);
-                    } else {
-                      globalFilters.setSelectedDriverId('all');
-                    }
                     handleClearForm();
                   } else {
                     handleCancelClick();

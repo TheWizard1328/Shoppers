@@ -51,6 +51,7 @@ import { buildRecurringLabel } from './recurringLabels';
 import { sortFilteredPatients } from './patientSearchSorter';
 import { resumeDeliveryFormManagers } from './resumeDeliveryFormManagers';
 import { clearRecurringSelection } from './recurringHelpers';
+import { resetDriverFilterOnClear } from './deliveryClearFormHelper';
 import { handleBatchSave as runHandleBatchSave } from './handleBatchSave';
 import { pauseOfflineSync, resumeOfflineSync } from '../utils/offlineSync';
 import { cleanupSquareCodCatalogForDate } from '../utils/squareCodCatalogCleanup';
@@ -1247,13 +1248,8 @@ export default function DeliveryForm({
       focusRef: patientSearchInputRef,
       setNewPatientMode
     });
-    // CRITICAL: Reset driver filter to "all" for dispatchers and admins when clearing the form
-    if (currentUser && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher'))) {
-      import('../utils/globalFilters').then(({ globalFilters }) => {
-        globalFilters.setSelectedDriverId('all');
-      }).catch(() => {});
-    }
-  }, [stagedDeliveries, shouldAutoFocusFields, currentUser]);
+    resetDriverFilterOnClear(currentUser, stores, userHasRole);
+  }, [stagedDeliveries, shouldAutoFocusFields, currentUser, stores]);
 
   const handleBatchSave = useCallback(async () => {
     const shouldCreateImmediateStagedDelivery = shouldUseImmediateAddToRouteStage({
