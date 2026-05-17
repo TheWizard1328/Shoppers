@@ -246,22 +246,26 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
     return '📊';
   };
 
+  // CRITICAL: During sync, always show the ACTUAL offline DB counts from `stats`
+  // (last confirmed DB state). Never substitute runtimeStats counts — they only reflect
+  // the entity currently being fetched from the server, not what's in the local DB,
+  // which makes it falsely appear that 21k records dropped to 12 during a sync pass.
   const liveCounts = stats ? {
-    patients: runtimeStats.patients ?? stats.patients?.count ?? 0,
-    deliveries: runtimeStats.deliveries ?? stats.deliveries?.count ?? 0,
-    appUsers: runtimeStats.appusers ?? stats.appUsers?.count ?? 0,
-    cities: runtimeStats.cities ?? stats.cities?.count ?? 0,
-    driverOverviewStats: runtimeStats.driveroverviewstats ?? stats.driverOverviewStats?.count ?? 0,
-    squareTransactions: runtimeStats.squaretransactions ?? stats.squareTransactions?.count ?? 0,
+    patients: stats.patients?.count ?? 0,
+    deliveries: stats.deliveries?.count ?? 0,
+    appUsers: stats.appUsers?.count ?? 0,
+    cities: stats.cities?.count ?? 0,
+    driverOverviewStats: stats.driverOverviewStats?.count ?? 0,
+    squareTransactions: stats.squareTransactions?.count ?? 0,
   } : null;
 
   const liveLastSync = stats ? {
-    patients: runtimeStats.patients !== undefined ? new Date().toISOString() : stats.patients?.lastSync,
-    deliveries: runtimeStats.deliveries !== undefined ? new Date().toISOString() : stats.deliveries?.lastSync,
-    appUsers: runtimeStats.appusers !== undefined ? new Date().toISOString() : stats.appUsers?.lastSync,
-    cities: runtimeStats.cities !== undefined ? new Date().toISOString() : stats.cities?.lastSync,
-    driverOverviewStats: runtimeStats.driveroverviewstats !== undefined ? new Date().toISOString() : (stats.driverOverviewStats?.lastSync || stats.deliveries?.lastSync),
-    squareTransactions: runtimeStats.squaretransactions !== undefined ? new Date().toISOString() : stats.squareTransactions?.lastSync,
+    patients: stats.patients?.lastSync,
+    deliveries: stats.deliveries?.lastSync,
+    appUsers: stats.appUsers?.lastSync,
+    cities: stats.cities?.lastSync,
+    driverOverviewStats: stats.driverOverviewStats?.lastSync || stats.deliveries?.lastSync,
+    squareTransactions: stats.squareTransactions?.lastSync,
   } : null;
 
   const liveTotalRecords = liveCounts
