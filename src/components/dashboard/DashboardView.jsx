@@ -371,7 +371,7 @@ export default function DashboardView({
           />
           <StopCardsSection
             currentUser={currentUser} isDriver={isDriver} isAdmin={isAdmin} isDispatcher={isDispatcher} isMobile={isMobile}
-            deliveries={deliveries} patients={patients} stores={stores} drivers={drivers} deliveriesWithStopOrder={deliveriesWithStopOrder}
+            deliveries={deliveries} patients={patients} stores={stores} drivers={driversList || drivers} deliveriesWithStopOrder={deliveriesWithStopOrder}
             selectedDate={selectedDate} isAllDriversMode={isAllDriversMode} isSnapshotModeActive={isSnapshotModeActive}
             mapViewPhase={mapViewPhase} isMapViewLocked={isMapViewLocked} setIsMapViewLocked={setIsMapViewLocked} setMapViewPhase={setMapViewPhase}
             setShouldFitBounds={setShouldFitBounds} setMapCenter={setMapCenter} setMapZoom={setMapZoom} getMapPadding={getMapPadding}
