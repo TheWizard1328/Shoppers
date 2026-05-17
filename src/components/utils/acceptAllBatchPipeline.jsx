@@ -167,11 +167,16 @@ export async function runAcceptAllBatchPipeline({
     ? optimizeData.orderedDeliveryIds
     : null;
   if (orderedDeliveryIds) {
-    base44.functions.invoke('purgeAndRegeneratePolylines', {
-      driverId: triggerDelivery.driver_id,
-      deliveryDate: triggerDelivery.delivery_date,
-      orderedDeliveryIds
-    }).catch(() => {});
+    // CRITICAL: Skip the first stop (the pickup/trigger delivery) — its Type 1 polyline already
+    // exists and does not need to be regenerated. Only regenerate stops 2+ (Type 2 forward polylines).
+    const polylineIds = orderedDeliveryIds.filter((id) => id !== triggerDelivery.id);
+    if (polylineIds.length > 0) {
+      base44.functions.invoke('purgeAndRegeneratePolylines', {
+        driverId: triggerDelivery.driver_id,
+        deliveryDate: triggerDelivery.delivery_date,
+        orderedDeliveryIds: polylineIds
+      }).catch(() => {});
+    }
   }
 
   const offlineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
