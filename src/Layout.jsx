@@ -302,9 +302,11 @@ export default function Layout({ children, currentPageName }) {
           const { seedHereApiKey } = await import('./components/utils/hereApiKeyStore');
           seedHereApiKey(ms.hereApiKey);
         }
+        // Allow inactive users to login, but restrict certain actions
+        // Dispatchers should not be inactive; if they are, deny access
         if (userHasRole(fetchedUser, 'dispatcher') && fetchedUser.status === 'inactive') {
           sessionStorage.clear();clearUserCache();clearSettingsCache();
-          alert('Access Denied: Your account is currently inactive. Please contact an administrator.');
+          alert('Access Denied: Your dispatcher account is currently inactive. Please contact an administrator.');
           try {await base44.auth.logout();} catch (e) {}
           window.location.href = '/';return;
         }
@@ -1730,59 +1732,50 @@ export default function Layout({ children, currentPageName }) {
                   }
 
                           {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
-                  <Link
-                    to={constructUrlWithParams(createPageUrl('Stores'))}
-                    onClick={() => setSidebarOpen(false)}
-                    className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
-                    currentPageName === 'Stores' ?
-                    'shadow-sm' :
-                    'hover:opacity-80'}`
-                    }
-                    style={currentPageName === 'Stores' ? {
-                      background: 'var(--bg-slate-100)',
-                      color: 'var(--text-slate-900)'
-                    } : {
-                      color: 'var(--text-slate-600)'
-                    }}>
-                          <Building className="w-5 h-5" />
-                          <span className="font-semibold">Stores</span>
-                          <Badge variant="secondary" className="ml-auto justify-center w-[50px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{`${onlineCounts.onlineStoresCount}/${stores.length}`}</Badge>
-                          </Link>
-                  }
+                          <div
+                          className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
+                          currentUser?.status === 'inactive' ? 'opacity-50 cursor-not-allowed' : currentPageName === 'Stores' ? 'shadow-sm hover:opacity-80' : 'hover:opacity-80'
+                          }`}
+                          onClick={() => {if (currentUser?.status !== 'inactive') window.location.href = constructUrlWithParams(createPageUrl('Stores'));}}
+                          style={currentPageName === 'Stores' ? {
+                          background: 'var(--bg-slate-100)',
+                          color: 'var(--text-slate-900)'
+                          } : {
+                          color: 'var(--text-slate-600)'
+                          }}>
+                           <Building className="w-5 h-5" />
+                           <span className="font-semibold">Stores</span>
+                           <Badge variant="secondary" className="ml-auto justify-center w-[50px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{`${onlineCounts.onlineStoresCount}/${stores.length}`}</Badge>
+                           </div>
+                          }
 
                           {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
-                  <Link
-                    to={constructUrlWithParams('DriverSettings')}
-                    onClick={() => setSidebarOpen(false)}
-                    className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
-                    currentPageName === 'Drivers' ?
-                    'shadow-sm' :
-                    'hover:opacity-80'}`
-                    }
-                    style={currentPageName === 'Drivers' ? {
-                      background: 'var(--bg-slate-100)',
-                      color: 'var(--text-slate-900)'
-                    } : {
-                      color: 'var(--text-slate-600)'
-                    }}>
-                          <Truck className="w-5 h-5" />
-                          <span className="font-semibold">Drivers</span>
-                          <Badge variant="secondary" className="ml-auto justify-center w-[50px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{`${onlineCounts.onlineDriversCount}/${drivers.length}`}</Badge>
-                          </Link>
-                  }
+                          <div
+                          className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
+                          currentUser?.status === 'inactive' ? 'opacity-50 cursor-not-allowed' : currentPageName === 'Drivers' ? 'shadow-sm hover:opacity-80' : 'hover:opacity-80'
+                          }`}
+                          onClick={() => {if (currentUser?.status !== 'inactive') window.location.href = constructUrlWithParams('DriverSettings');}}
+                          style={currentPageName === 'Drivers' ? {
+                          background: 'var(--bg-slate-100)',
+                          color: 'var(--text-slate-900)'
+                          } : {
+                          color: 'var(--text-slate-600)'
+                          }}>
+                           <Truck className="w-5 h-5" />
+                           <span className="font-semibold">Drivers</span>
+                           <Badge variant="secondary" className="ml-auto justify-center w-[50px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{`${onlineCounts.onlineDriversCount}/${drivers.length}`}</Badge>
+                           </div>
+                          }
 
                           <div className="border-t mb-2 py-0.5 mt-1" style={{ borderColor: 'var(--border-slate-200)' }}></div>
 
-                    {/* Square COD - Admins and Drivers only */}
+                    {/* Square COD - Admins and Drivers only, clickable only if active */}
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
-                  <Link
-                    to={createPageUrl('SquareManagement')}
-                    onClick={() => setSidebarOpen(false)}
+                    <div
                     className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
-                    currentPageName === 'SquareManagement' ?
-                    'shadow-sm' :
-                    'hover:opacity-80'}`
-                    }
+                      currentUser?.status === 'inactive' ? 'opacity-50 cursor-not-allowed' : currentPageName === 'SquareManagement' ? 'shadow-sm hover:opacity-80' : 'hover:opacity-80'
+                    }`}
+                    onClick={() => {if (currentUser?.status !== 'inactive') window.location.href = createPageUrl('SquareManagement');}}
                     style={currentPageName === 'SquareManagement' ? {
                       background: 'var(--bg-slate-100)',
                       color: 'var(--text-slate-900)'
@@ -1792,12 +1785,12 @@ export default function Layout({ children, currentPageName }) {
                           <DollarSign className="w-5 h-5" />
                           <span className="font-semibold">Square COD</span>
                           {(() => {const bal = calculateRouteCodBalance(deliveries, globalFilters.getSelectedDriverId(), globalFilters.getSelectedDate());return <Badge variant="secondary" className="ml-auto justify-center w-auto px-2 rounded-[10px]" style={{ background: bal > 0 ? '#fef3c7' : 'var(--bg-slate-200)', color: bal > 0 ? '#92400e' : 'var(--text-slate-600)' }}>${bal.toFixed(2)}</Badge>;})()}
-                          </Link>
-                  }
+                          </div>
+                    }
 
-                    {/* Driver Payroll - Admins and Drivers */}
+                    {/* Driver Payroll - Admins and Drivers, always clickable to see payroll */}
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
-                  <Link
+                    <Link
                     to={createPageUrl('DriverPayroll')}
                     onClick={() => setSidebarOpen(false)}
                     className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
@@ -1817,7 +1810,7 @@ export default function Layout({ children, currentPageName }) {
                             ${(currentPayrollNetPay ?? 0).toFixed(2)}
                           </Badge>
                           </Link>
-                  }
+                    }
 
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                   <Link

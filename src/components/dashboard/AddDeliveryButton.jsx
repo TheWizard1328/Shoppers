@@ -5,7 +5,7 @@ import { Plus } from "lucide-react";
 import SpotlightOverlay from "@/components/common/SpotlightOverlay";
 
 const AddDeliveryButton = forwardRef(function AddDeliveryButton(
-  { onClick, disabled, hasRateLimitError = false },
+  { onClick, disabled, hasRateLimitError = false, isInactiveDriver = false },
   ref
 ) {
   const localRef = useRef(null);
@@ -22,7 +22,7 @@ const AddDeliveryButton = forwardRef(function AddDeliveryButton(
   }, []);
 
   const baseClasses = `h-8 w-8 p-0 transition-colors ${
-    hasRateLimitError ? 'bg-red-500 hover:bg-red-600' : 'bg-emerald-500 hover:bg-emerald-600'
+    isInactiveDriver ? 'bg-slate-300 cursor-not-allowed' : hasRateLimitError ? 'bg-red-500 hover:bg-red-600' : 'bg-emerald-500 hover:bg-emerald-600'
   }`;
 
   return (
@@ -41,7 +41,7 @@ const AddDeliveryButton = forwardRef(function AddDeliveryButton(
             </Button>
           </TooltipTrigger>
           <TooltipContent side="bottom" align="center" className="relative z-[1000]">
-            <div className="text-xs">Start here to add new stop locations to your driver(s).</div>
+            <div className="text-xs">{isInactiveDriver ? 'You cannot add deliveries as an inactive driver.' : 'Start here to add new stop locations to your driver(s).'}</div>
             <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rotate-45 bg-white border-l border-t border-slate-200" />
           </TooltipContent>
         </Tooltip>

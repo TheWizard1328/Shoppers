@@ -291,11 +291,11 @@ export default function StatsPanel({
               </Popover>
 
               <Button
-                onClick={() => {setEditingDelivery(null);setShowDeliveryForm(true);}}
+                onClick={() => {if (currentUser?.status === 'inactive' && isDriver && !isAdmin) return; setEditingDelivery(null);setShowDeliveryForm(true);}}
                 size="sm"
-                className={`relative h-8 w-8 p-0 transition-colors ${hasRateLimitError ? 'bg-red-500 hover:bg-red-600' : isDemoModeActive ? 'bg-blue-500 hover:bg-blue-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}
-                disabled={isDateFinished && !isAdmin}
-                title={hasRateLimitError ? 'Rate limit detected - please wait' : isDemoModeActive ? 'Add demo delivery' : 'Add delivery'}>
+                className={`relative h-8 w-8 p-0 transition-colors ${currentUser?.status === 'inactive' && isDriver && !isAdmin ? 'bg-slate-300 cursor-not-allowed' : hasRateLimitError ? 'bg-red-500 hover:bg-red-600' : isDemoModeActive ? 'bg-blue-500 hover:bg-blue-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}
+                disabled={(isDateFinished && !isAdmin) || (currentUser?.status === 'inactive' && isDriver && !isAdmin)}
+                title={currentUser?.status === 'inactive' && isDriver && !isAdmin ? 'Inactive drivers cannot add deliveries' : hasRateLimitError ? 'Rate limit detected - please wait' : isDemoModeActive ? 'Add demo delivery' : 'Add delivery'}>
                 <Plus className="w-4 h-4" />
                 {isDemoModeActive && !hasRateLimitError &&
                 <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white text-[8px] font-bold leading-none text-blue-600">
