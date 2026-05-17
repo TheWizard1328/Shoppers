@@ -179,7 +179,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                   }
                 </div>
                 
-                {!hideEditDelete && <div className="flex gap-2 items-center flex-shrink-0">
+                {!hideEditDelete && currentUser && userHasRole(currentUser, 'admin') && <div className="flex gap-2 items-center flex-shrink-0">
                   <Button variant="ghost" size="sm" onClick={(e) => {e.stopPropagation();onEdit(store);}} className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:bg-accent h-8 rounded-md px-3 text-xs text-red-600 hover:text-accent-foreground">
                     <Edit className="w-4 h-4" />
                   </Button>
