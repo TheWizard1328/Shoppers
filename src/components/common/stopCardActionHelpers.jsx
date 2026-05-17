@@ -526,7 +526,7 @@ export async function syncNextDeliveryFlagsLocally({ driverDeliveries = [], next
   }
 
   if (updateDeliveriesLocally) {
-    updateDeliveriesLocally(updatedDeliveries, true);
+    updateDeliveriesLocally(updatedDeliveries, false);
   }
 
   if (persistToBackend) {
