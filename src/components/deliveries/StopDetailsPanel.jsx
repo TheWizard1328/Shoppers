@@ -748,7 +748,7 @@ export default function StopDetailsPanel({
             }
 
             {/* Status & Timing */}
-            {canEdit && typeof onStatusUpdate === 'function' &&
+            {canEdit && typeof onStatusUpdate === 'function' && (isAdminUser || isDispatcherUser || !isRouteCompleted(delivery, allDeliveries)) &&
             <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-100)' }}>
                 <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-slate-500)' }}>
                   Status & Timing
