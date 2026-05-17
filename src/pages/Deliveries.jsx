@@ -1221,29 +1221,26 @@ export default function DeliveriesPage() {
       console.log(`👔 [Deliveries] Dispatcher filter: ${deliveriesToGroup.length} of ${driverFilteredDeliveries.length} deliveries in assigned stores`);
     }
 
-    // When in Route Management mode (not Driver Overview), only show dates in selected month
-    if (!isDriverOverviewMode && selectedYear !== undefined && selectedMonth !== undefined) {
+    // When in Route Management mode for admins/dispatchers (not Driver Overview or driver-only), only show dates in selected month
+    const isDriverOnlyUser = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher');
+    if (!isDriverOverviewMode && !isDriverOnlyUser && selectedYear !== undefined && selectedMonth !== undefined) {
       const monthStart = new Date(selectedYear, selectedMonth, 1);
       const monthEnd = new Date(selectedYear, selectedMonth + 1, 0);
-
       const filtered = deliveriesToGroup.filter((d) => {
         if (!d || !d.delivery_date) return false;
         const [y, m, day] = d.delivery_date.split('-').map(Number);
         const deliveryDate = new Date(y, m - 1, day);
         return deliveryDate >= monthStart && deliveryDate <= monthEnd;
       });
-
       return filtered.reduce((acc, delivery) => {
         const dateKey = delivery.delivery_date.substring(0, 10);
-        if (!acc[dateKey]) {
-          acc[dateKey] = [];
-        }
+        if (!acc[dateKey]) acc[dateKey] = [];
         acc[dateKey].push(delivery);
         return acc;
       }, {});
     }
 
-    // Driver Overview: show all dates
+    // Driver Overview OR driver-only users: show all dates
     return deliveriesToGroup.reduce((acc, delivery) => {
       if (!delivery || !delivery.delivery_date) {
         return acc;
