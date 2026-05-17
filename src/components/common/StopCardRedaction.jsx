@@ -41,8 +41,9 @@ export function useDeliveryDisplayInfo({
   const shouldRedact = useMemo(() => {
     if (!delivery || !currentUser) return false;
     if (isPickup || isInterStore || isInterStorePickup) return false;
+    // Only redact for completed deliveries for drivers, NOT failed deliveries
     if (
-      (delivery.status === 'completed' || delivery.status === 'failed') &&
+      delivery.status === 'completed' &&
       !userHasRole(currentUser, 'admin') &&
       !userHasRole(currentUser, 'dispatcher') &&
       userHasRole(currentUser, 'driver')
