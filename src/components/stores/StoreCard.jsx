@@ -226,9 +226,9 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                   }
                 </div>
                 
-                {/* Call and navigate buttons - mobile only, right aligned at top */}
+                {/* Call and navigate buttons - always visible for limited view (drivers/dispatchers), mobile-only for admins */}
                 {store.phone && store.latitude && store.longitude &&
-                <div className="flex gap-2 flex-shrink-0 md:hidden">
+                <div className={`flex gap-2 flex-shrink-0 ${isLimitedView ? '' : 'md:hidden'}`}>
                     <a
                     href={`tel:${store.phone.replace(/\D/g, '')}`}
                     onClick={(e) => e.stopPropagation()}
