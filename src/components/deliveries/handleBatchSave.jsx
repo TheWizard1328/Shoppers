@@ -385,8 +385,17 @@ export async function handleBatchSave({
         }
 
         if (refreshDriverId && refreshDeliveryDate) {
-          if (hasInTransitTransition && newPickupsCreated) {
+          if (routeStructureChanged) {
+            // Always recalculate stop orders; pass skipPolylineRegeneration=true so we
+            // can guarantee purgeAndRegeneratePolylines is called below even when no
+            // reordering occurs (e.g. first single stop added to a new route).
             await recalculateAndUpdateStopOrders(refreshDriverId, refreshDeliveryDate, true);
+            // Always regenerate polylines when the route structure changed (new stops added).
+            await base44.functions.invoke('purgeAndRegeneratePolylines', {
+              driverId: refreshDriverId,
+              deliveryDate: refreshDeliveryDate,
+              scope: 'active_only'
+            }).catch(() => null);
           }
 
           await base44.functions.invoke('recalculateTrackingNumbers', {
