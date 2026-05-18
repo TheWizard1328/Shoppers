@@ -108,10 +108,21 @@ export default function DashboardDialogs({
                   .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
                 const activeIds = new Set(orderedDeliveryIds);
+                const finishedStatuses = new Set(['completed', 'failed', 'cancelled', 'returned']);
                 const nonActiveDeliveries = allRouteDeliveries.filter(d => !activeIds.has(d.id));
 
-                // Assign new stop_order values: active stops first (in dragged order), then non-active
-                const fullOrderedIds = [...orderedDeliveryIds, ...nonActiveDeliveries.map(d => d.id)];
+                // Completed/finished stops go first (sorted by existing stop_order),
+                // then manually dragged active stops, then remaining (pending) at the end
+                const finishedDeliveries = nonActiveDeliveries
+                  .filter(d => finishedStatuses.has(d.status))
+                  .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+                const pendingDeliveries = nonActiveDeliveries.filter(d => !finishedStatuses.has(d.status));
+
+                const fullOrderedIds = [
+                  ...finishedDeliveries.map(d => d.id),
+                  ...orderedDeliveryIds,
+                  ...pendingDeliveries.map(d => d.id)
+                ];
 
                 // Persist new stop_order to backend
                 await Promise.all(
