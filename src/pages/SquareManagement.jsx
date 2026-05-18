@@ -846,8 +846,8 @@ export default function SquareManagement() {
         collectionType,
         subtext: delivery.driver_name || null,
         actions: hasMatch ?
-        <Button variant="secondary" size="sm" className="border border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Matched</Button> :
-        <Button variant="secondary" size="sm" className="border border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-100">No Match</Button>
+        <Button variant="secondary" size="sm" className="border border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">Matched</Button> :
+        <Button variant="secondary" size="sm" className="border border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-300">No Match</Button>
       };
     });
 
@@ -938,7 +938,7 @@ export default function SquareManagement() {
         subtext: collectedByName ? `Collected by ${collectedByName}` : transaction.payment_method || null,
         notes: transaction.raw_square_data?.note || transaction.raw_square_data?.notes || null,
         actions: matchedDelivery ?
-        <Button variant="secondary" size="sm" className="border border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Collected</Button> :
+        <Button variant="secondary" size="sm" className="border border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">Collected</Button> :
         null
       };
     }).sort((a, b) => String(b.itemName || '').localeCompare(String(a.itemName || ''), undefined, { sensitivity: 'base' }));
@@ -1055,7 +1055,7 @@ export default function SquareManagement() {
             ? Array.from(new Set(delivery.cod_payments.map((payment) => payment?.type).filter(Boolean))).join(', ')
             : null,
           subtext: delivery.driver_name || null,
-          actions: <Button variant="secondary" size="sm" className="border border-red-300 bg-red-100 text-red-800 hover:bg-red-100">Unmatched</Button>
+          actions: <Button variant="secondary" size="sm" className="border border-red-300 bg-red-100 text-red-800 hover:bg-red-100 dark:border-red-700 dark:bg-red-900/40 dark:text-red-300">Unmatched</Button>
         };
       });
 
