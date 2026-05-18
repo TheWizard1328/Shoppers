@@ -1756,16 +1756,16 @@ function Dashboard() {
             if (appUsers?.find((au) => au?.user_id === location.driver_id)?.driver_status !== 'on_duty') return;
             // CRITICAL: Phase 1 "Show All" mode - include rendered markers in bounds
 
-            // Dispatcher filtering - check ALL date deliveries, not just selected driver
+            // Dispatcher filtering - only active deliveries in dispatcher's stores
             if (isDispatcher && !isAdmin) {
               const dispatcherStoreIds = new Set((currentUser?.store_ids || []).map((id) => String(id)));
-              const allDateDeliveries = deliveries.filter((d) => d && d.delivery_date === selectedDateStr);
-              const hasDeliveryInDispatcherStore = allDateDeliveries.some((delivery) =>
-              delivery &&
-              delivery.driver_id === location.driver_id &&
-              dispatcherStoreIds.has(String(delivery.store_id))
+              const _fin = ['completed', 'failed', 'cancelled', 'returned'];
+              const hasActive = deliveries.some((d) =>
+              d && d.delivery_date === selectedDateStr &&
+              d.driver_id === location.driver_id &&
+              dispatcherStoreIds.has(String(d.store_id)) && !_fin.includes(d.status)
               );
-              if (!hasDeliveryInDispatcherStore) {
+              if (!hasActive) {
                 return;
               }
             }
