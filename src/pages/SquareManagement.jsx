@@ -1157,7 +1157,7 @@ export default function SquareManagement() {
         </div>
 
         <div className="flex flex-col gap-2">
-          <div className="grid grid-cols-2 gap-2 md:flex md:flex-row md:flex-wrap md:items-center md:gap-3 w-full [&>button]:col-span-2 md:[&>button]:col-span-1">
+          <div className="grid grid-cols-2 gap-2 md:flex md:flex-row md:flex-wrap md:items-center md:gap-3 w-full">
             {currentUser && isAppOwner(currentUser) && drivers.length > 0 &&
             <Select value={selectedDriverFilter} onValueChange={setSelectedDriverFilter}>
                 <SelectTrigger className="w-full min-w-0 px-2 text-xs md:w-[130px] md:px-3 md:text-sm">
