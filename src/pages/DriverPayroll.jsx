@@ -311,29 +311,35 @@ export default function DriverPayroll() {
   const sortedDrivers = useMemo(() => {
     if (!payrollData?.drivers || !payrollData?.appUsers) return [];
 
-    const matchingDriverIds = new Set();
     const appUsersByDriverId = new Map();
-
     payrollData.appUsers.forEach((au) => {
-      if (au?.user_id) {
-        appUsersByDriverId.set(au.user_id, au);
-      }
-      // Include inactive drivers too (admins see all, drivers see themselves)
-      if (au.pay_cycle_type === payPeriod) {
-        matchingDriverIds.add(au.user_id);
-      }
+      if (au?.user_id) appUsersByDriverId.set(au.user_id, au);
     });
+
+    // Only include drivers who have deliveries in the current pay period
+    const periodStart = currentPeriod ? toLocalYMD(currentPeriod.start) : null;
+    const periodEnd = currentPeriod ? toLocalYMD(currentPeriod.end) : null;
+    const driversWithDeliveriesInPeriod = new Set();
+    if (periodStart && periodEnd && Array.isArray(payrollData?.deliveries)) {
+      payrollData.deliveries.forEach((d) => {
+        if (d?.driver_id && d.delivery_date >= periodStart && d.delivery_date <= periodEnd) {
+          driversWithDeliveriesInPeriod.add(d.driver_id);
+        }
+      });
+    }
 
     return sortUsers(
       payrollData.drivers.
       filter((d) => {
         if (!d) return false;
         const driverId = d.user_id || d.id;
-        return matchingDriverIds.has(driverId);
+        const au = appUsersByDriverId.get(driverId);
+        if (au?.pay_cycle_type !== payPeriod) return false;
+        return driversWithDeliveriesInPeriod.has(driverId);
       }).
       map((d) => ({ ...d, ...(appUsersByDriverId.get(d.user_id || d.id) || {}) }))
     );
-  }, [payrollData?.drivers, payrollData?.appUsers, payPeriod]);
+  }, [payrollData?.drivers, payrollData?.appUsers, payrollData?.deliveries, payPeriod, currentPeriod]);
 
   const availablePayCycles = useMemo(() => {
     if (!payrollData?.appUsers) return [];
@@ -348,26 +354,28 @@ export default function DriverPayroll() {
   }, [payrollData?.appUsers]);
 
   const driversInPayCycle = useMemo(() => {
-    if (!payrollData?.appUsers || !payrollData?.drivers) {
-      return [];
-    }
+    if (!payrollData?.appUsers || !payrollData?.drivers) return [];
 
-    const driverIdsToShow = new Set();
     const appUsersByDriverId = new Map();
-
     payrollData.appUsers.forEach((au) => {
-      if (au?.user_id) {
-        appUsersByDriverId.set(au.user_id, au);
-      }
-      // Include all drivers (active and inactive) in the pay cycle
-      if (au.pay_cycle_type === payPeriod) {
-        driverIdsToShow.add(au.user_id);
-      }
+      if (au?.user_id) appUsersByDriverId.set(au.user_id, au);
     });
+
+    // Only show drivers who have deliveries in the current pay period
+    const periodStart = currentPeriod ? toLocalYMD(currentPeriod.start) : null;
+    const periodEnd = currentPeriod ? toLocalYMD(currentPeriod.end) : null;
+    const driversWithDeliveriesInPeriod = new Set();
+    if (periodStart && periodEnd && Array.isArray(payrollData?.deliveries)) {
+      payrollData.deliveries.forEach((d) => {
+        if (d?.driver_id && d.delivery_date >= periodStart && d.delivery_date <= periodEnd) {
+          driversWithDeliveriesInPeriod.add(d.driver_id);
+        }
+      });
+    }
 
     // CRITICAL: Always include the currently selected driver to prevent dropdown mismatch during transitions
     if (selectedDriverId !== 'all') {
-      driverIdsToShow.add(selectedDriverId);
+      driversWithDeliveriesInPeriod.add(selectedDriverId);
     }
 
     const result = sortUsers(
@@ -375,14 +383,15 @@ export default function DriverPayroll() {
       filter((d) => {
         if (!d) return false;
         const driverId = d.user_id || d.id;
-        return driverIdsToShow.has(driverId);
+        const au = appUsersByDriverId.get(driverId);
+        if (au?.pay_cycle_type !== payPeriod) return false;
+        return driversWithDeliveriesInPeriod.has(driverId);
       }).
       map((d) => ({ ...d, ...(appUsersByDriverId.get(d.user_id || d.id) || {}) }))
     );
 
-    console.log(`📋 [driversInPayCycle] Showing ${result.length} active drivers for pay period: ${payPeriod}`);
     return result;
-  }, [payrollData?.appUsers, payrollData?.drivers, payPeriod, selectedDriverId]);
+  }, [payrollData?.appUsers, payrollData?.drivers, payrollData?.deliveries, payPeriod, currentPeriod, selectedDriverId]);
 
   // Calculate available pay cycles and their counts for the selected city/year
   const payCycleInfo = useMemo(() => {

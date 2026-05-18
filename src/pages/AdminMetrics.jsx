@@ -324,6 +324,7 @@ export default function AdminMetrics() {
     backgroundSyncStartedRef.current = false;
     servedOfflineForSelectionRef.current = '';
     setSelectedYear(newYear);
+    setSelectedDriverId('all');
   };
 
   // Handle city change
@@ -643,6 +644,19 @@ export default function AdminMetrics() {
     return () => clearTimeout(timer);
   }, [needsCitySelection]);
 
+  // Drivers who have deliveries in the selected month (or any month of the year)
+  const driversWithDeliveries = useMemo(() => {
+    if (!metricsData?.driverData) return [];
+    const all = metricsData.driverData;
+    if (!selectedMonth) return all.filter((d) => (d.billable || 0) + (d.nonBillable || 0) > 0);
+    const monthDriverData = metricsData.dailyDriverData?.[selectedMonth];
+    if (!monthDriverData) return [];
+    const driverIdsInMonth = new Set(
+      Object.values(monthDriverData).flat().filter((d) => (d.billable || 0) + (d.nonBillable || 0) > 0).map((d) => d.driverId)
+    );
+    return all.filter((d) => driverIdsInMonth.has(d.driverId));
+  }, [metricsData, selectedMonth]);
+
   const renderHeaderSection = () =>
   <div className="shrink-0 space-y-3">
       <div>
@@ -672,6 +686,22 @@ export default function AdminMetrics() {
           )}
           </SelectContent>
         </Select>
+
+        {/* Driver filter - only shows drivers with deliveries in the selected period */}
+        {driversWithDeliveries.length > 0 &&
+        <Select value={selectedDriverId} onValueChange={(v) => setSelectedDriverId(v)}>
+            <SelectTrigger className="w-[5.5rem] sm:w-[7rem] md:w-[140px]">
+              <SelectValue placeholder="All Drivers" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Drivers</SelectItem>
+              {driversWithDeliveries.map((d) =>
+            <SelectItem key={d.driverId} value={d.driverId}>{d.name}</SelectItem>
+            )}
+            </SelectContent>
+          </Select>
+        }
+
         <div className="ml-0 md:ml-auto flex items-center gap-1.5 md:gap-2 shrink-0">
           <Button
           variant="outline"
@@ -887,7 +917,8 @@ export default function AdminMetrics() {
                 } else {
                   setSelectedMonth(month);
                   setSelectedStoreMonth(null);
-                  setShowDayByDay(true); // Default to Day by Day when a month is clicked
+                  setShowDayByDay(true);
+                  setSelectedDriverId('all'); // Reset driver filter when month changes
                 }
               }}
               onStoreMonthClick={(month, storeId, storeAbbr, storeName) => {

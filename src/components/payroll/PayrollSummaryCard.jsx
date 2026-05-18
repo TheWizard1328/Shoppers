@@ -84,7 +84,7 @@ export default function PayrollSummaryCard({
 
   const payrollData = useMemo(() => {
     if (!deliveries || !drivers || !appUsers || !currentPeriod) return [];
-    const driversToCalc = selectedDriverId === 'all' ? drivers.filter((d) => d && d.status === 'active') : drivers.filter((d) => d && (d.id === selectedDriverId || d.user_id === selectedDriverId));
+    const driversToCalc = selectedDriverId === 'all' ? drivers.filter((d) => d) : drivers.filter((d) => d && (d.id === selectedDriverId || d.user_id === selectedDriverId));
     return driversToCalc.map((driver) => {
       const driverId = driver.user_id || driver.id;
       const appUser = appUsers.find((au) => au && (au.user_id === driverId || au.id === driver.id)) || driver;
