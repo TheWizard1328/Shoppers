@@ -19,33 +19,50 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
   const monthlyStoreFees = metricsData.monthlyStoreFees || {};
   const monthlyStoreExtraKm = metricsData?.monthlyStoreExtraKm || {};
 
-  // When a driver is selected, rebuild monthlyStoreData from dailyDriverData filtered by driver
+  // When a driver is selected, rebuild monthlyStoreData from driverDataByStore/storeDataByMonth
+  // dailyDriverData[month][driverId] = [{ day, billable, nonBillable }] — no storeId on entries
+  // So we sum driverDataByMonth totals and scale storeDataByMonth proportionally per driver share
   const monthlyStoreData = useMemo(() => {
     if (!selectedDriverId || selectedDriverId === 'all') return rawMonthlyStoreData;
-    const dailyDriverData = metricsData?.dailyDriverData || {};
+
+    const storeDataByMonth = metricsData?.storeDataByMonth || {};
+    const driverDataByMonth = metricsData?.driverDataByMonth || {};
+    const driverDataByStore = metricsData?.driverDataByStore || {};
+
     const result = {};
     for (let m = 1; m <= 12; m++) {
-      const storeMap = {};
-      const monthDriverData = dailyDriverData[m] || {};
-      Object.entries(monthDriverData).forEach(([storeId, entries]) => {
-        const filtered = entries.filter((e) => e.driverId === selectedDriverId);
-        if (!filtered.length) return;
-        const sample = (rawMonthlyStoreData[m] || []).find((s) => s.storeId === storeId) || {};
-        const completed = filtered.reduce((s, e) => s + (e.billable || 0), 0);
-        const failed = filtered.reduce((s, e) => s + (e.nonBillable || 0), 0); // nonBillable used as proxy; failed not in driver data
-        const extraKm = filtered.reduce((s, e) => s + (e.extra_km || e.extraKm || 0), 0);
-        storeMap[storeId] = {
-          ...sample,
-          storeId,
+      const allStoresThisMonth = storeDataByMonth[m] || [];
+      const allDriversThisMonth = driverDataByMonth[m] || [];
+
+      // Total deliveries for this driver this month
+      const driverMonthEntry = allDriversThisMonth.find((d) => d.driverId === selectedDriverId);
+      const driverTotal = (driverMonthEntry?.billable || 0) + (driverMonthEntry?.nonBillable || 0);
+      if (driverTotal === 0) { result[m] = []; continue; }
+
+      // Total deliveries across all drivers this month
+      const monthTotal = allDriversThisMonth.reduce((s, d) => s + (d.billable || 0) + (d.nonBillable || 0), 0);
+      const driverRatio = monthTotal > 0 ? driverTotal / monthTotal : 0;
+
+      result[m] = allStoresThisMonth.map((store) => {
+        // Use driverDataByStore if available for a more accurate per-store split
+        const storeDriverEntries = driverDataByStore[store.storeId] || [];
+        const storeDriverEntry = storeDriverEntries.find((d) => d.driverId === selectedDriverId);
+
+        // Use driverDataByStore for accurate per-store driver counts
+        // (available when viewing a single month summary; may be 0 for merged year data)
+        const completed = storeDriverEntry ? (storeDriverEntry.billable || 0) : Math.round(((store.completed || 0) + (store.failed || 0) + (store.afterHours || 0)) * driverRatio);
+        const nonBillable = storeDriverEntry ? (storeDriverEntry.nonBillable || 0) : 0;
+
+        return {
+          ...store,
           completed,
-          failed: 0,
+          failed: nonBillable,
           afterHours: 0,
-          extraKm,
-          extra_km: extraKm,
-          fees: sample.fees || 0
+          extra_km: 0,
+          extraKm: 0,
+          fees: store.fees || 0
         };
-      });
-      result[m] = Object.values(storeMap);
+      }).filter((s) => (s.completed || 0) + (s.failed || 0) > 0);
     }
     return result;
   }, [rawMonthlyStoreData, metricsData, selectedDriverId]);
