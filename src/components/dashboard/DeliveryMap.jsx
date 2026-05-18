@@ -765,7 +765,10 @@ export default function DeliveryMap({
 
   useEffect(() => {
     window.__mapHomeMarkers = driverHomeMarkers;
-    window.__mapDriverLocationMarkers = routeAwareDriverLocationMarkers;
+    // CRITICAL: FAB bounds only includes on_duty drivers — off_duty and on_break are excluded
+    window.__mapDriverLocationMarkers = routeAwareDriverLocationMarkers.filter(
+      (m) => m?.driver_status === 'on_duty'
+    );
     window.__mapDeliveryMarkers = deliveryMarkers;
     window.__mapPickupMarkers = pickupMarkers;
     return () => {
