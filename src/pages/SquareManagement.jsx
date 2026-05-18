@@ -225,6 +225,8 @@ export default function SquareManagement() {
   }, [locationConfigs]);
 
   const reconciliationRowsRef = useRef([]);
+  const visibleStoreIdsRef = useRef(new Set());
+  const selectedDriverUserIdsRef = useRef(new Set());
 
   const runReconcile = useCallback(async (currentReconciliationRows) => {
     const rows = currentReconciliationRows || reconciliationRowsRef.current;
@@ -233,10 +235,10 @@ export default function SquareManagement() {
     try {
       const filteredItems = rows.filter((row) => {
         if (!row?.rawDelivery) return false;
-        if (!visibleStoreIds.has(row.rawStoreId)) return false;
+        if (!visibleStoreIdsRef.current.has(row.rawStoreId)) return false;
         if (selectedDriverFilter === 'all') return true;
-        if (selectedDriverUserIds.size === 0) return false;
-        return selectedDriverUserIds.has(row.rawDelivery.driver_id);
+        if (selectedDriverUserIdsRef.current.size === 0) return false;
+        return selectedDriverUserIdsRef.current.has(row.rawDelivery.driver_id);
       });
       if (filteredItems.length === 0) return;
 
@@ -308,7 +310,7 @@ export default function SquareManagement() {
     } finally {
       setIsReconciling(false);
     }
-  }, [visibleStoreIds, selectedDriverFilter, selectedDriverUserIds]);
+  }, [selectedDriverFilter]);
 
   const syncFromSquare = async () => {
     const now = Date.now();
@@ -847,9 +849,13 @@ export default function SquareManagement() {
   const selectedDriverUserIds = useMemo(() => {
     if (selectedDriverFilter && selectedDriverFilter !== 'all') {
       const selectedDriver = drivers.find((driver) => driver?.id === selectedDriverFilter);
-      return new Set(selectedDriver?.user_id ? [selectedDriver.user_id] : []);
+      const result = new Set(selectedDriver?.user_id ? [selectedDriver.user_id] : []);
+      selectedDriverUserIdsRef.current = result;
+      return result;
     }
-    return new Set((drivers || []).map((driver) => driver?.user_id).filter(Boolean));
+    const result = new Set((drivers || []).map((driver) => driver?.user_id).filter(Boolean));
+    selectedDriverUserIdsRef.current = result;
+    return result;
   }, [drivers, selectedDriverFilter]);
 
   const lookbackStart = useMemo(() => {
@@ -879,7 +885,9 @@ export default function SquareManagement() {
 
   const visibleStoreIds = useMemo(() => {
     const scopedStores = selectedStoreFilter && selectedStoreFilter !== 'all' ? availableStoresForFilter.filter((store) => store?.id === selectedStoreFilter) : availableStoresForFilter;
-    return new Set(scopedStores.map((store) => store?.id).filter(Boolean));
+    const result = new Set(scopedStores.map((store) => store?.id).filter(Boolean));
+    visibleStoreIdsRef.current = result;
+    return result;
   }, [availableStoresForFilter, selectedStoreFilter]);
 
 
