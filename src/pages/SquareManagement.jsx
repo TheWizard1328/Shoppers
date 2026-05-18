@@ -431,24 +431,41 @@ export default function SquareManagement() {
   };
 
   const parseSquareItemName = (itemName) => {
-    if (!itemName) return null;
+    if (!itemName) return { deliveryDate: null, storeAbbr: null, patientName: null };
     try {
-      const dateMatch = itemName.match(/^(\d{2})[\/-](\d{2})/);
-      if (!dateMatch) return null;
-      const month = Number(dateMatch[1]);
-      const day = Number(dateMatch[2]);
       const today = new Date();
-      const inferredDate = new Date(today.getFullYear(), month - 1, day);
       const msInDay = 24 * 60 * 60 * 1000;
-      if (inferredDate.getTime() - today.getTime() > 45 * msInDay) inferredDate.setFullYear(inferredDate.getFullYear() - 1);
-      const deliveryDate = format(inferredDate, 'yyyy-MM-dd');
-      const storeMatch = itemName.match(/\(([^)]+)\)/);
-      const storeAbbr = storeMatch ? storeMatch[1] : null;
-      const nameMatch = itemName.match(/\)-(.+)$/);
-      const patientName = nameMatch ? nameMatch[1].trim() : null;
+      let tempName = itemName;
+      let deliveryDate = null;
+      let storeAbbr = null;
+
+      // 1. Try to extract date (M/D or MM/DD) from the start of the string
+      const dateMatch = tempName.match(/^(\d{1,2})[\/-](\d{1,2})/);
+      if (dateMatch) {
+        const month = Number(dateMatch[1]);
+        const day = Number(dateMatch[2]);
+        if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+          const inferredDate = new Date(today.getFullYear(), month - 1, day);
+          if (inferredDate.getTime() - today.getTime() > 45 * msInDay) inferredDate.setFullYear(inferredDate.getFullYear() - 1);
+          deliveryDate = format(inferredDate, 'yyyy-MM-dd');
+          tempName = tempName.substring(dateMatch[0].length);
+        }
+      }
+
+      // 2. Try to extract store abbreviation from anywhere in the remaining string e.g. (LD)
+      const storeMatch = tempName.match(/\(([^)]+)\)/);
+      if (storeMatch) {
+        storeAbbr = storeMatch[1].trim();
+        tempName = tempName.replace(storeMatch[0], '');
+      }
+
+      // 3. Whatever remains is the patient name — strip leading separators
+      const patientNameRaw = tempName.replace(/^[\s\-\u2014\(\)]+/, '').trim();
+      const patientName = patientNameRaw.length > 1 ? patientNameRaw : null;
+
       return { deliveryDate, storeAbbr, patientName };
     } catch {
-      return null;
+      return { deliveryDate: null, storeAbbr: null, patientName: null };
     }
   };
 
@@ -640,7 +657,10 @@ export default function SquareManagement() {
       );
       const locationMatches = !!normalizedLocationId && !!transactionLocationId && normalizedLocationId === transactionLocationId;
 
-      return dateMatches || locationMatches || abbreviationMatches;
+      // If date matches → strong match regardless of which card was used (handles wrong-card collections)
+      if (dateMatches) return true;
+      // No date → fall back to requiring location OR abbreviation as a tiebreaker
+      return locationMatches || abbreviationMatches;
     });
   }, [allTransactions, patients, stores, getTransactionCreatedDate]);
 
