@@ -483,22 +483,28 @@ export default function PayrollSummaryCard({
         ? payrollRecords.map((record) => record.id === existingRecord.id ? mergedRecord : record)
         : [...payrollRecords, mergedRecord];
 
+      // Update UI immediately — no need to wait for background tasks
       setPayrollRecords(nextPayrollRecords);
       if (onPayrollRecordsChange) onPayrollRecordsChange(nextPayrollRecords);
-      try {
-        const { broadcastMutation } = await import('../utils/realtimeSync');
-        await broadcastMutation('Payroll', existingRecord ? 'update' : 'create', mergedRecord.id, mergedRecord);
-      } catch (e) {/* ignore */}
+      setIsFinalizing(false);
+      setShowConfirmDialog(false);
 
-      try {
-        const { offlineDB } = await import('../utils/offlineDatabase');
-        await offlineDB.save(offlineDB.STORES.PAYROLL, mergedRecord);
-      } catch (e) {/* ignore */}
-
-      try {await notifyDriverConfirmedPayroll({ driver: currentUser, periodLabel: currentPeriod?.label || 'this period', appUsers, excludeUserId: isAdmin ? currentUser?.id : null });} catch (e) {/* ignore */}
-      if (refreshPayrollRecords) await refreshPayrollRecords();
-    } catch (error) {console.error('❌ [Payroll] Failed to finalize:', error);alert('Failed to save payroll confirmation.');} finally
-    {setIsFinalizing(false);setShowConfirmDialog(false);}
+      // Fire-and-forget background tasks (don't await — UI is already updated)
+      Promise.all([
+        import('../utils/realtimeSync').then(({ broadcastMutation }) =>
+          broadcastMutation('Payroll', existingRecord ? 'update' : 'create', mergedRecord.id, mergedRecord)
+        ).catch(() => {}),
+        import('../utils/offlineDatabase').then(({ offlineDB }) =>
+          offlineDB.save(offlineDB.STORES.PAYROLL, mergedRecord)
+        ).catch(() => {}),
+        notifyDriverConfirmedPayroll({ driver: currentUser, periodLabel: currentPeriod?.label || 'this period', appUsers, excludeUserId: isAdmin ? currentUser?.id : null }).catch(() => {})
+      ]);
+    } catch (error) {
+      console.error('❌ [Payroll] Failed to finalize:', error);
+      alert('Failed to save payroll confirmation.');
+      setIsFinalizing(false);
+      setShowConfirmDialog(false);
+    }
   };
 
   // Handle admin finalization (all drivers)
