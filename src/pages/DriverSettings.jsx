@@ -309,7 +309,7 @@ export default function DriverSettings() {
 
               // Full card for admins
               return (
-                <Card key={driver.id} className="rounded-xl border bg-card text-card-foreground shadow hover:shadow-md transition-shadow min-h-[210px] h-full max-w-[400px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                <Card key={driver.id} className="rounded-xl border bg-card text-card-foreground shadow hover:shadow-md transition-shadow min-h-[210px] h-full min-w-[400px] max-w-[500px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                   <CardContent className="p-4 h-full">
                     <div className="flex items-start gap-4 h-full">
                       {/* Avatar */}
