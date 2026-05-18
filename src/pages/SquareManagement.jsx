@@ -1322,11 +1322,7 @@ export default function SquareManagement() {
                 <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : 'Sync'}</span>
                 <span className="sm:hidden">{isSyncing ? 'Syncing' : 'Sync'}</span>
               </Button>
-              <Button onClick={() => runReconcile()} disabled={isReconciling || isSyncing} className="w-full gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 md:w-[130px] shrink-0 justify-center self-start">
-                <RefreshCw className={`w-4 h-4 flex-shrink-0 ${isReconciling ? 'animate-spin' : ''}`} />
-                <span className="hidden sm:inline">{isReconciling ? 'Reconciling...' : 'Reconcile'}</span>
-                <span className="sm:hidden">{isReconciling ? 'Reconciling' : 'Reconcile'}</span>
-              </Button>
+
             </>
             }
           </div>
@@ -1334,10 +1330,9 @@ export default function SquareManagement() {
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between w-full">
             <SquareCodViewSwitcher activeView={activeView} onChange={setActiveView} counts={viewCounts} />
             {activeView === 'reconciliation' &&
-            <Button onClick={() => runReconcile()} disabled={isReconciling || isSyncing} className="gap-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 md:ml-3">
-                <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isReconciling ? 'animate-pulse' : ''}`} />
-                <span className="hidden sm:inline">{isReconciling ? 'Updating...' : 'Update Catalog'}</span>
-                <span className="sm:hidden">{isReconciling ? 'Updating' : 'Update'}</span>
+            <Button onClick={() => runReconcile()} disabled={isReconciling || isSyncing} className="ml-auto gap-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+                <RefreshCw className={`w-4 h-4 flex-shrink-0 ${isReconciling ? 'animate-spin' : ''}`} />
+                <span>{isReconciling ? 'Reconciling...' : 'Reconcile'}</span>
               </Button>
             }
           </div>
