@@ -907,10 +907,10 @@ export default function PayrollSummaryCard({
             {/* Driver Finalized Status - for drivers OR admin-drivers viewing their own payroll */}
             {(isDriver && isCurrentDriverFinalized ||
               isAdmin && userHasRole(currentUser, 'driver') && selectedDriverId === currentUser?.id && isCurrentDriverFinalized) &&
-              <div className="flex items-center gap-1 text-sm text-emerald-600 font-medium px-2">
-                <CheckCircle className="w-4 h-4" />
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold">
+                <CheckCircle className="w-3.5 h-3.5" />
                 Confirmed
-              </div>
+              </span>
               }
 
             {/* Admin View: Show finalization progress - but only in multi-driver view, NOT if viewing single driver */}
