@@ -578,19 +578,20 @@ export default function AdminMetrics() {
       }
 
       if (selectedDriverId === 'all') return displayMetricsData.monthlyData;
-      return displayMetricsData.dailyDeliveryData ?
-      Object.values(metricsData.dailyDeliveryData).flat().filter((d) => d.driverId === selectedDriverId).reduce((acc, entry) => {
-        const existing = acc[entry.month - 1];
-        if (existing) {
-          existing.billable += entry.billable;
-          existing.nonBillable += entry.nonBillable;
-          existing.adjustedDeliveries += entry.adjustedDeliveries || 0;
-        } else {
-          acc[entry.month - 1] = { billable: entry.billable, nonBillable: entry.nonBillable, adjustedDeliveries: entry.adjustedDeliveries || 0, month: entry.month };
+      // dailyDeliveryData is keyed by month number (1-12), each value is array of day entries
+      const result = Array(12).fill(null).map((_, i) => ({ billable: 0, nonBillable: 0, adjustedDeliveries: 0, month: MONTH_NAMES[i] }));
+      if (metricsData.dailyDeliveryData) {
+        for (let m = 1; m <= 12; m++) {
+          const monthEntries = metricsData.dailyDeliveryData[m] || [];
+          const driverEntries = monthEntries.filter((d) => d.driverId === selectedDriverId);
+          driverEntries.forEach((entry) => {
+            result[m - 1].billable += entry.billable || 0;
+            result[m - 1].nonBillable += entry.nonBillable || 0;
+            result[m - 1].adjustedDeliveries += entry.adjustedDeliveries || 0;
+          });
         }
-        return acc;
-      }, Array(12).fill(null).map((_, i) => ({ billable: 0, nonBillable: 0, adjustedDeliveries: 0, month: i + 1 }))) :
-      metricsData.monthlyData;
+      }
+      return result;
     }
 
     const daysInMonth = new Date(parseInt(selectedYear), selectedMonth, 0).getDate();

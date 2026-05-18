@@ -98,7 +98,7 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
 
     if (targetYear < currentYear) return 12;
     if (targetYear > currentYear) return 0;
-    return Math.max(0, currentMonth - 1);
+    return currentMonth; // include current month
   };
 
   // Calculate totals and averages per store (yearly)
