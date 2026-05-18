@@ -941,11 +941,7 @@ export default function SquareManagement() {
         || stores.find((candidateStore) => candidateStore?.square_location_config_id && locationConfigs.find((config) => config?.id === candidateStore.square_location_config_id)?.square_location_id === item.location_id)
         || null;
       if (!store?.square_location_config_id || !visibleSquareLocationConfigIds.has(store.square_location_config_id)) return false;
-      const itemDateValue = item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate;
-      if (itemDateValue) {
-        const itemDate = new Date(`${String(itemDateValue).slice(0, 10)}T00:00:00`);
-        if (!(itemDate instanceof Date) || Number.isNaN(itemDate.getTime()) || itemDate < lookbackStart) return false;
-      }
+      // Catalog page always shows all items regardless of the Days filter
       return true;
     }).
     map((item) => {
