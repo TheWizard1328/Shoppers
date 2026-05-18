@@ -318,7 +318,8 @@ export default function DriverPayroll() {
       if (au?.user_id) {
         appUsersByDriverId.set(au.user_id, au);
       }
-      if (au.status === 'active' && au.pay_cycle_type === payPeriod) {
+      // Include inactive drivers too (admins see all, drivers see themselves)
+      if (au.pay_cycle_type === payPeriod) {
         matchingDriverIds.add(au.user_id);
       }
     });
@@ -326,7 +327,7 @@ export default function DriverPayroll() {
     return sortUsers(
       payrollData.drivers.
       filter((d) => {
-        if (!d || d.status !== 'active') return false;
+        if (!d) return false;
         const driverId = d.user_id || d.id;
         return matchingDriverIds.has(driverId);
       }).
@@ -338,7 +339,7 @@ export default function DriverPayroll() {
     if (!payrollData?.appUsers) return [];
     const cycles = new Set();
     payrollData.appUsers.forEach((au) => {
-      if (au.pay_cycle_type && au.status === 'active') {
+      if (au.pay_cycle_type) {
         cycles.add(au.pay_cycle_type);
       }
     });
@@ -358,7 +359,8 @@ export default function DriverPayroll() {
       if (au?.user_id) {
         appUsersByDriverId.set(au.user_id, au);
       }
-      if (au.status === 'active' && au.pay_cycle_type === payPeriod) {
+      // Include all drivers (active and inactive) in the pay cycle
+      if (au.pay_cycle_type === payPeriod) {
         driverIdsToShow.add(au.user_id);
       }
     });
@@ -371,7 +373,7 @@ export default function DriverPayroll() {
     const result = sortUsers(
       payrollData.drivers.
       filter((d) => {
-        if (!d || d.status !== 'active') return false;
+        if (!d) return false;
         const driverId = d.user_id || d.id;
         return driverIdsToShow.has(driverId);
       }).
@@ -386,9 +388,9 @@ export default function DriverPayroll() {
   const payCycleInfo = useMemo(() => {
     if (!payrollData?.appUsers) return { cycles: ['weekly', 'biweekly', 'semimonthly', 'monthly'], mostCommon: 'monthly', disabled: false };
 
-    // Filter appUsers to drivers only
+    // Filter appUsers to drivers only (include inactive — admins and drivers see all)
     let filteredAppUsers = payrollData.appUsers.filter((au) =>
-    au.status === 'active' && au.app_roles && au.app_roles.includes('driver')
+    au.app_roles && au.app_roles.includes('driver')
     );
 
     // If no drivers found, allow all cycle types
@@ -449,11 +451,11 @@ export default function DriverPayroll() {
       filtered = filtered.filter((d) => d && d.delivery_date >= periodStart && d.delivery_date <= periodEnd);
     }
 
-    // Filter by pay cycle
+    // Filter by pay cycle (include inactive drivers)
     if (payrollData?.appUsers && payPeriod) {
       const matchingDriverIds = new Set();
       payrollData.appUsers.forEach((au) => {
-        if (au.status === 'active' && au.pay_cycle_type === payPeriod) {
+        if (au.pay_cycle_type === payPeriod) {
           matchingDriverIds.add(au.user_id);
         }
       });
@@ -826,7 +828,7 @@ export default function DriverPayroll() {
       let determinedPayCycle = 'monthly'; // fallback
       try {
         const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
-        const activeDrivers = (offlineAppUsers || []).filter((au) => au.status === 'active' && au.app_roles?.includes('driver'));
+        const activeDrivers = (offlineAppUsers || []).filter((au) => au.app_roles?.includes('driver'));
 
         if (isDriver) {
           const myAppUser = activeDrivers.find((au) => au.user_id === currentUser.id);
