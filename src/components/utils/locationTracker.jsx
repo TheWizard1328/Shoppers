@@ -624,6 +624,28 @@ class LocationTracker {
         const providerName = (this.locationProvider?.name || 'web').toUpperCase();
         console.log(`📍 [${providerName} PROVIDER] Starting location watch...`);
 
+        // CRITICAL: Fire an immediate GPS fix BEFORE watchPosition starts
+        // This ensures the driver marker appears on all devices the moment the app loads
+        this.locationProvider.getCurrentPosition({
+          enableHighAccuracy: true,
+          timeout: 8000,
+          maximumAge: 10000,
+          requestPermissions: true
+        }).then(async (immediatePos) => {
+          this.lastPosition = {
+            latitude: immediatePos.coords.latitude,
+            longitude: immediatePos.coords.longitude,
+            accuracy: immediatePos.coords.accuracy
+          };
+          console.log(`⚡ [${providerName} PROVIDER] Immediate GPS fix on app load — uploading now`);
+          await this.updateLocationInDatabase(
+            immediatePos.coords.latitude,
+            immediatePos.coords.longitude,
+            immediatePos.coords.accuracy,
+            true, false, true
+          );
+        }).catch(() => {}); // Non-fatal — watchPosition will still handle tracking
+
         this.watchId = await this.locationProvider.watchPosition(
           async (position) => {
             if (!this.isTracking) {
@@ -649,6 +671,7 @@ class LocationTracker {
 
               resolve();
               return;
+
             }
 
             await this.handleLocationSuccess(position);
@@ -991,10 +1014,10 @@ if (typeof document !== 'undefined') {
 
     if (
       locationTracker.isTracking &&
-      locationTracker.driverStatus === 'on_duty' &&
       referenceTime > 0 &&
       now - referenceTime > 15000
     ) {
+      // Fire for any active driver (not just on_duty) so marker appears on other devices after screen wake
       locationTracker.refreshNow({ source: 'visibility-return' });
     }
   });
