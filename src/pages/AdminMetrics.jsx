@@ -578,16 +578,14 @@ export default function AdminMetrics() {
       }
 
       if (selectedDriverId === 'all') return displayMetricsData.monthlyData;
-      // dailyDeliveryData is keyed by month number (1-12), each value is array of day entries
+      // dailyDriverData is keyed by month (1-12), then by driverId, entries have { day, billable, nonBillable }
       const result = Array(12).fill(null).map((_, i) => ({ billable: 0, nonBillable: 0, adjustedDeliveries: 0, month: MONTH_NAMES[i] }));
-      if (metricsData.dailyDeliveryData) {
+      if (metricsData.dailyDriverData) {
         for (let m = 1; m <= 12; m++) {
-          const monthEntries = metricsData.dailyDeliveryData[m] || [];
-          const driverEntries = monthEntries.filter((d) => d.driverId === selectedDriverId);
+          const driverEntries = metricsData.dailyDriverData[m]?.[selectedDriverId] || [];
           driverEntries.forEach((entry) => {
             result[m - 1].billable += entry.billable || 0;
             result[m - 1].nonBillable += entry.nonBillable || 0;
-            result[m - 1].adjustedDeliveries += entry.adjustedDeliveries || 0;
           });
         }
       }
@@ -627,9 +625,12 @@ export default function AdminMetrics() {
       });
     }
 
-    let rawDailyData = metricsData.dailyDeliveryData?.[selectedMonth] || [];
+    let rawDailyData;
     if (selectedDriverId !== 'all') {
-      rawDailyData = rawDailyData.filter((d) => d.driverId === selectedDriverId);
+      // dailyDriverData[month][driverId] = [{ day, billable, nonBillable }]
+      rawDailyData = metricsData.dailyDriverData?.[selectedMonth]?.[selectedDriverId] || [];
+    } else {
+      rawDailyData = metricsData.dailyDeliveryData?.[selectedMonth] || [];
     }
 
     const dataByDay = new Map(rawDailyData.map((d) => [d.day, d]));
