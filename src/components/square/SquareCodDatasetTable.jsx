@@ -140,26 +140,26 @@ export default function SquareCodDatasetTable({
 
                   <div className="p-4 space-y-3">
                     <div className="grid grid-cols-2 gap-2">
-                      <div className="rounded-xl bg-slate-50 dark:bg-slate-900/50 px-3 py-2">
-                        <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Store</div>
-                        <div className="mt-1 text-sm font-medium text-slate-900 dark:text-slate-50 truncate">{row.storeName || 'Unknown'}</div>
+                      <div className="rounded-xl bg-slate-50 dark:bg-slate-700 px-3 py-2">
+                        <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-300">Store</div>
+                        <div className="mt-1 text-sm font-medium text-slate-900 dark:text-white truncate">{row.storeName || 'Unknown'}</div>
                       </div>
-                      <div className="rounded-xl bg-slate-50 dark:bg-slate-900/50 px-3 py-2">
-                        <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Date</div>
-                        <div className="mt-1 text-sm font-medium text-slate-900 dark:text-slate-50">{formatDate(row.collectionDate || row.deliveryDate)}</div>
+                      <div className="rounded-xl bg-slate-50 dark:bg-slate-700 px-3 py-2">
+                        <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-300">Date</div>
+                        <div className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{formatDate(row.collectionDate || row.deliveryDate)}</div>
                       </div>
                     </div>
 
                     {showLocationColumn &&
-                <div className="rounded-xl bg-slate-50 dark:bg-slate-900/50 px-3 py-2">
-                        <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Square Location ID</div>
-                        <div className="mt-1 text-xs font-mono text-slate-700 dark:text-slate-300 break-all">{row.locationId || '--'}</div>
+                <div className="rounded-xl bg-slate-50 dark:bg-slate-700 px-3 py-2">
+                        <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-300">Square Location ID</div>
+                        <div className="mt-1 text-xs font-mono text-slate-800 dark:text-white break-all">{row.locationId || '--'}</div>
                       </div>
                 }
 
-                    <div className="rounded-xl bg-slate-50 dark:bg-slate-900/50 px-3 py-2">
-                      <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Transaction ID</div>
-                      <div className="mt-1 text-xs font-mono text-slate-700 dark:text-slate-300 break-all">{row.catalogId || '--'}</div>
+                    <div className="rounded-xl bg-slate-50 dark:bg-slate-700 px-3 py-2">
+                      <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-300">Transaction ID</div>
+                      <div className="mt-1 text-xs font-mono text-slate-800 dark:text-white break-all">{row.catalogId || '--'}</div>
                     </div>
 
                     {row.notes &&
