@@ -1003,6 +1003,66 @@ export default function DriverPayroll() {
     triedPreviousPeriodRef.current = false;
   }, [selectedYear]);
 
+  // Listen for real-time Payroll WebSocket updates and merge into local state immediately
+  useEffect(() => {
+    const handlePayrollUpdated = (event) => {
+      const { type, id, data, payrollRecords: freshRecords, fullReplacement } = event.detail || {};
+
+      if (fullReplacement && Array.isArray(freshRecords)) {
+        // Full replacement from offline DB flush — update both payrollData and filtered records
+        setPayrollData((prev) => {
+          if (!prev) return prev;
+          const next = { ...prev, payrollRecords: freshRecords };
+          fullYearPayrollDataRef.current = next;
+          return next;
+        });
+        setPayrollRecords((prev) => {
+          // Re-filter using the current period
+          if (!currentPeriod) return freshRecords;
+          const periodStart = toLocalYMD(currentPeriod.start);
+          const periodEnd = toLocalYMD(currentPeriod.end);
+          return freshRecords.filter((r) => r.pay_period_start === periodStart && r.pay_period_end === periodEnd);
+        });
+        return;
+      }
+
+      if ((type === 'create' || type === 'update') && data?.id) {
+        // Merge single record update
+        setPayrollData((prev) => {
+          if (!prev) return prev;
+          const existing = prev.payrollRecords || [];
+          const idx = existing.findIndex((r) => r.id === data.id);
+          const updated = idx >= 0
+            ? existing.map((r) => r.id === data.id ? { ...r, ...data } : r)
+            : [...existing, data];
+          const next = { ...prev, payrollRecords: updated };
+          fullYearPayrollDataRef.current = next;
+          return next;
+        });
+        setPayrollRecords((prev) => {
+          const idx = prev.findIndex((r) => r.id === data.id);
+          if (idx >= 0) return prev.map((r) => r.id === data.id ? { ...r, ...data } : r);
+          // Only add if it matches the current period
+          if (currentPeriod) {
+            const periodStart = toLocalYMD(currentPeriod.start);
+            const periodEnd = toLocalYMD(currentPeriod.end);
+            if (data.pay_period_start === periodStart && data.pay_period_end === periodEnd) {
+              return [...prev, data];
+            }
+          }
+          return prev;
+        });
+      }
+    };
+
+    window.addEventListener('payrollUpdated', handlePayrollUpdated);
+    window.addEventListener('payrollRecordsUpdated', handlePayrollUpdated);
+    return () => {
+      window.removeEventListener('payrollUpdated', handlePayrollUpdated);
+      window.removeEventListener('payrollRecordsUpdated', handlePayrollUpdated);
+    };
+  }, [currentPeriod]);
+
   // Conditional rendering without early return to maintain hook order
   if (!isPayrollPageActive) return null;
 
