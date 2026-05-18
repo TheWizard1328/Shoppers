@@ -1,3 +1,4 @@
+/** Redeployed on 2026-06-17
 /**
  * handleStartDelivery - Extracted from Dashboard.jsx for maintainability.
  * Handles the full start-delivery flow:
@@ -108,6 +109,8 @@ export async function handleStartDelivery({
     } catch (_) {}
 
     // STEP 5: Optimize remaining stops with driver location for accurate ETAs
+    // ONE-CALL STRATEGY: optimizeRemainingStops handles sequencing only.
+    // purgeAndRegeneratePolylines then generates ALL polylines (including first leg) in one HERE Router call.
     let optimizedRouteFromBackend = null;
     try {
       const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -124,9 +127,28 @@ export async function handleStartDelivery({
         bypassHistoricalCheck: true,
         bypassDriverStatus: true
       });
-      optimizedRouteFromBackend = optimizeResponse?.data?.optimizedRoute || optimizeResponse?.optimizedRoute || null;
+      const optimizeData = optimizeResponse?.data || optimizeResponse || null;
+      optimizedRouteFromBackend = optimizeData?.optimizedRoute || null;
+
+      // CRITICAL: Call purgeAndRegeneratePolylines after sequencing to generate ALL polylines
+      // in a single HERE Router call (first leg + all subsequent legs).
+      if (optimizeData?.success) {
+        const orderedDeliveryIds = Array.isArray(optimizeData?.orderedDeliveryIds) && optimizeData.orderedDeliveryIds.length > 0
+          ? optimizeData.orderedDeliveryIds : null;
+        const trueOriginCoords = optimizeData?.trueOriginCoords || null;
+        base44.functions.invoke('purgeAndRegeneratePolylines', {
+          driverId,
+          deliveryDate,
+          ...(orderedDeliveryIds ? { orderedDeliveryIds } : { scope: 'active_only' }),
+          ...(trueOriginCoords ? { currentPosition: trueOriginCoords } : {}),
+          reason: 'post_start_delivery',
+          sourcePage: 'Dashboard',
+          bypassDriverStatus: true,
+          recalculateEtas: false,
+        }).catch((e) => console.warn('âš ï¸ [handleStartDelivery] purgeAndRegeneratePolylines failed:', e?.message));
+      }
     } catch (optimizeError) {
-      console.warn('⚠️ [handleStartDelivery] Route optimization failed:', optimizeError.message);
+      console.warn('âš ï¸ [handleStartDelivery] Route optimization failed:', optimizeError.message);
     }
 
     // STEP 6: Fetch fresh deliveries from backend
@@ -173,7 +195,7 @@ export async function handleStartDelivery({
       detail: { driverId, deliveryDate, triggeredBy: 'startDelivery', freshDeliveries: refreshedDeliveries, fullReplacement: false }
     }));
 
-    // STEP 10: Update blue polyline (driver → next stop)
+    // STEP 10: Update blue polyline (driver â†’ next stop)
     try {
       const driver = users.find((u) => u && u.id === driverId);
       if (driver && driver.driver_status === 'on_duty' && driver.location_tracking_enabled === true) {
@@ -186,7 +208,7 @@ export async function handleStartDelivery({
         }
       }
     } catch (polylineError) {
-      console.warn('⚠️ [handleStartDelivery] Blue polyline update failed:', polylineError.message);
+      console.warn('âš ï¸ [handleStartDelivery] Blue polyline update failed:', polylineError.message);
     }
 
     // STEP 11: Scroll to next delivery card
@@ -209,11 +231,11 @@ export async function handleStartDelivery({
         appUsers
       });
     } catch (notifyError) {
-      console.warn('⚠️ [handleStartDelivery] Notification failed:', notifyError);
+      console.warn('âš ï¸ [handleStartDelivery] Notification failed:', notifyError);
     }
 
   } catch (error) {
-    console.error('❌ [handleStartDelivery] Error:', error);
+    console.error('âŒ [handleStartDelivery] Error:', error);
     if (error.response?.status === 401 || error.message?.includes('Unauthorized') || error.message?.includes('session')) {
       alert('Your session has expired. The page will now reload.');
       window.location.reload();
@@ -239,7 +261,7 @@ export async function handleStartDelivery({
         }));
       }
     } catch (refreshError) {
-      console.error('❌ [handleStartDelivery] Final refresh failed:', refreshError);
+      console.error('âŒ [handleStartDelivery] Final refresh failed:', refreshError);
     }
 
     await new Promise((resolve) => setTimeout(resolve, 5000));
