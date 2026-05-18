@@ -19,50 +19,16 @@ function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onSt
   const monthlyStoreFees = metricsData.monthlyStoreFees || {};
   const monthlyStoreExtraKm = metricsData?.monthlyStoreExtraKm || {};
 
-  // When a driver is selected, rebuild monthlyStoreData from driverDataByStore/storeDataByMonth
-  // dailyDriverData[month][driverId] = [{ day, billable, nonBillable }] — no storeId on entries
-  // So we sum driverDataByMonth totals and scale storeDataByMonth proportionally per driver share
+  // When a driver is selected, rebuild monthlyStoreData from driverStoreByMonth (exact per-store-per-month-per-driver counts)
   const monthlyStoreData = useMemo(() => {
     if (!selectedDriverId || selectedDriverId === 'all') return rawMonthlyStoreData;
 
-    const storeDataByMonth = metricsData?.storeDataByMonth || {};
-    const driverDataByMonth = metricsData?.driverDataByMonth || {};
-    const driverDataByStore = metricsData?.driverDataByStore || {};
+    const driverStoreByMonth = metricsData?.driverStoreByMonth || {};
 
     const result = {};
     for (let m = 1; m <= 12; m++) {
-      const allStoresThisMonth = storeDataByMonth[m] || [];
-      const allDriversThisMonth = driverDataByMonth[m] || [];
-
-      // Total deliveries for this driver this month
-      const driverMonthEntry = allDriversThisMonth.find((d) => d.driverId === selectedDriverId);
-      const driverTotal = (driverMonthEntry?.billable || 0) + (driverMonthEntry?.nonBillable || 0);
-      if (driverTotal === 0) { result[m] = []; continue; }
-
-      // Total deliveries across all drivers this month
-      const monthTotal = allDriversThisMonth.reduce((s, d) => s + (d.billable || 0) + (d.nonBillable || 0), 0);
-      const driverRatio = monthTotal > 0 ? driverTotal / monthTotal : 0;
-
-      result[m] = allStoresThisMonth.map((store) => {
-        // Use driverDataByStore if available for a more accurate per-store split
-        const storeDriverEntries = driverDataByStore[store.storeId] || [];
-        const storeDriverEntry = storeDriverEntries.find((d) => d.driverId === selectedDriverId);
-
-        // Use driverDataByStore for accurate per-store driver counts
-        // (available when viewing a single month summary; may be 0 for merged year data)
-        const completed = storeDriverEntry ? (storeDriverEntry.billable || 0) : Math.round(((store.completed || 0) + (store.failed || 0) + (store.afterHours || 0)) * driverRatio);
-        const nonBillable = storeDriverEntry ? (storeDriverEntry.nonBillable || 0) : 0;
-
-        return {
-          ...store,
-          completed,
-          failed: nonBillable,
-          afterHours: 0,
-          extra_km: 0,
-          extraKm: 0,
-          fees: store.fees || 0
-        };
-      }).filter((s) => (s.completed || 0) + (s.failed || 0) > 0);
+      const driverStores = driverStoreByMonth[m]?.[selectedDriverId] || {};
+      result[m] = Object.values(driverStores).filter((s) => (s.completed || 0) + (s.failed || 0) + (s.afterHours || 0) > 0);
     }
     return result;
   }, [rawMonthlyStoreData, metricsData, selectedDriverId]);

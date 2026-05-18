@@ -219,6 +219,7 @@ const mergeMetrics = (baseMetrics, incomingMetrics) => {
     storeDataByMonth: {},
     driverDataByMonth: {},
     driverDataByStore: {},
+    driverStoreByMonth: {},
     dailyDriverData: {},
     storeData: [],
     driverData: [],
@@ -280,6 +281,28 @@ const mergeMetrics = (baseMetrics, incomingMetrics) => {
       mergedDailyDriver[driverId] = mergeArrayByKey(baseDailyDriver[driverId], incomingDailyDriver[driverId], 'day');
     });
     merged.dailyDriverData[month] = mergedDailyDriver;
+
+    // Merge driverStoreByMonth: { [driverId]: { [storeId]: { completed, failed, afterHours } } }
+    const baseDriverStore = baseMetrics.driverStoreByMonth?.[month] || {};
+    const incomingDriverStore = incomingMetrics.driverStoreByMonth?.[month] || {};
+    const mergedDriverStore = {};
+    [...new Set([...Object.keys(baseDriverStore), ...Object.keys(incomingDriverStore)])].forEach((driverId) => {
+      const baseStores = baseDriverStore[driverId] || {};
+      const incomingStores = incomingDriverStore[driverId] || {};
+      mergedDriverStore[driverId] = {};
+      [...new Set([...Object.keys(baseStores), ...Object.keys(incomingStores)])].forEach((storeId) => {
+        const b = baseStores[storeId] || {};
+        const inc = incomingStores[storeId] || {};
+        mergedDriverStore[driverId][storeId] = {
+          storeId, abbreviation: b.abbreviation || inc.abbreviation, name: b.name || inc.name,
+          color: b.color || inc.color, sortOrder: b.sortOrder ?? inc.sortOrder,
+          completed: (b.completed || 0) + (inc.completed || 0),
+          failed: (b.failed || 0) + (inc.failed || 0),
+          afterHours: (b.afterHours || 0) + (inc.afterHours || 0)
+        };
+      });
+    });
+    merged.driverStoreByMonth[month] = mergedDriverStore;
   }
 
   merged.storeData = mergeArrayByKey(baseMetrics.storeData, incomingMetrics.storeData, 'storeId');
@@ -920,6 +943,7 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
     storeDataByMonth: {},
     driverDataByMonth: {},
     driverDataByStore: {},
+    driverStoreByMonth: {}, // { [month]: { [driverId]: { [storeId]: { completed, failed, afterHours } } } }
     dailyDriverData: {},
     storeData: [],
     driverData: [],
@@ -1065,6 +1089,22 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
           }
           if (isBillable) storeDriverEntry.billable++;
           else storeDriverEntry.nonBillable++;
+
+          // driverStoreByMonth: per-month per-driver per-store counts for accurate grid filtering
+          const m = monthIndex + 1;
+          if (!metrics.driverStoreByMonth[m]) metrics.driverStoreByMonth[m] = {};
+          if (!metrics.driverStoreByMonth[m][delivery.driver_id]) metrics.driverStoreByMonth[m][delivery.driver_id] = {};
+          if (!metrics.driverStoreByMonth[m][delivery.driver_id][delivery.store_id]) {
+            const s = storeMap.get(delivery.store_id);
+            metrics.driverStoreByMonth[m][delivery.driver_id][delivery.store_id] = {
+              storeId: delivery.store_id, abbreviation: s?.abbreviation, name: s?.name,
+              color: s?.color, sortOrder: s?.sort_order, completed: 0, failed: 0, afterHours: 0
+            };
+          }
+          const dsEntry = metrics.driverStoreByMonth[m][delivery.driver_id][delivery.store_id];
+          if (isCountableCompletedDelivery(delivery)) dsEntry.completed++;
+          if (isCountableFailedDelivery(delivery)) dsEntry.failed++;
+          if (isCountableAfterHoursPickup(delivery)) dsEntry.afterHours++;
         }
       }
     }
