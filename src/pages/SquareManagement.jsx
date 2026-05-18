@@ -1144,7 +1144,7 @@ export default function SquareManagement() {
   }, [activeView, filteredCatalogRows, filteredDeliveryRows, filteredTransactionRows, reconciliationRows, visibleStoreIds]);
 
   return (
-    <div className="px-4 md:px-6 pt-4 md:pt-6 bg-background text-foreground w-full h-full overflow-hidden flex flex-col">
+    <div className="px-4 md:px-6 pt-4 md:pt-6 bg-background text-foreground w-full h-full overflow-y-auto md:overflow-hidden flex flex-col">
       <div className="flex flex-col gap-4 mb-6 flex-shrink-0">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
@@ -1157,7 +1157,7 @@ export default function SquareManagement() {
         </div>
 
         <div className="flex flex-col gap-2">
-          <div className="grid grid-cols-2 gap-2 md:flex md:flex-row md:flex-wrap md:items-center md:gap-3 w-full">
+          <div className="grid grid-cols-2 gap-2 md:flex md:flex-row md:flex-wrap md:items-center md:gap-3 w-full [&>button]:col-span-2 md:[&>button]:col-span-1">
             {currentUser && isAppOwner(currentUser) && drivers.length > 0 &&
             <Select value={selectedDriverFilter} onValueChange={setSelectedDriverFilter}>
                 <SelectTrigger className="w-full min-w-0 px-2 text-xs md:w-[130px] md:px-3 md:text-sm">
@@ -1343,7 +1343,7 @@ export default function SquareManagement() {
           </div>
         }
 
-        <div className="grid grid-cols-3 gap-2 md:gap-4 mb-6 md:mb-8">
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-3 md:gap-4 mb-4 md:mb-8">
           <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
             <CardContent className="p-3 md:p-4">
               <div className="text-xs md:text-sm text-slate-600 dark:text-slate-400">{activeViewStats.primaryLabel}</div>
