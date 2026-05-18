@@ -140,26 +140,26 @@ export default function SquareCodDatasetTable({
 
                   <div className="p-4 space-y-3">
                     <div className="grid grid-cols-2 gap-2">
-                      <div className="rounded-xl bg-slate-50 dark:bg-slate-700 px-3 py-2">
-                        <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-300">Store</div>
-                        <div className="mt-1 text-sm font-medium text-slate-900 dark:text-white truncate">{row.storeName || 'Unknown'}</div>
+                      <div className="rounded-xl px-3 py-2" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
+                        <div className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--text-slate-500)' }}>Store</div>
+                        <div className="mt-1 text-sm font-medium truncate" style={{ color: 'var(--text-slate-900)' }}>{row.storeName || 'Unknown'}</div>
                       </div>
-                      <div className="rounded-xl bg-slate-50 dark:bg-slate-700 px-3 py-2">
-                        <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-300">Date</div>
-                        <div className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{formatDate(row.collectionDate || row.deliveryDate)}</div>
+                      <div className="rounded-xl px-3 py-2" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
+                        <div className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--text-slate-500)' }}>Date</div>
+                        <div className="mt-1 text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>{formatDate(row.collectionDate || row.deliveryDate)}</div>
                       </div>
                     </div>
 
                     {showLocationColumn &&
-                <div className="rounded-xl bg-slate-50 dark:bg-slate-700 px-3 py-2">
-                        <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-300">Square Location ID</div>
-                        <div className="mt-1 text-xs font-mono text-slate-800 dark:text-white break-all">{row.locationId || '--'}</div>
+                <div className="rounded-xl px-3 py-2" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
+                        <div className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--text-slate-500)' }}>Square Location ID</div>
+                        <div className="mt-1 text-xs font-mono break-all" style={{ color: 'var(--text-slate-700)' }}>{row.locationId || '--'}</div>
                       </div>
                 }
 
-                    <div className="rounded-xl bg-slate-50 dark:bg-slate-700 px-3 py-2">
-                      <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-300">Transaction ID</div>
-                      <div className="mt-1 text-xs font-mono text-slate-800 dark:text-white break-all">{row.catalogId || '--'}</div>
+                    <div className="rounded-xl px-3 py-2" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
+                      <div className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--text-slate-500)' }}>Transaction ID</div>
+                      <div className="mt-1 text-xs font-mono break-all" style={{ color: 'var(--text-slate-700)' }}>{row.catalogId || '--'}</div>
                     </div>
 
                     {row.notes &&
