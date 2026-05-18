@@ -358,66 +358,124 @@ export default function AdminMetrics() {
   const filteredData = useMemo(() => {
     if (!metricsData) return null;
 
+    // Helper: filter daily driver data by selectedDriverId
+    const filterDailyByDriver = (entries = []) => {
+      if (selectedDriverId === 'all') return entries;
+      return entries.filter((d) => d.driverId === selectedDriverId);
+    };
+
+    // Helper: aggregate store totals from daily driver data (respects driver filter)
+    const aggregateStoreFromDriverData = (monthNumber) => {
+      const dailyDriverData = metricsData.dailyDriverData?.[monthNumber] || {};
+      const storeAgg = {};
+      Object.entries(dailyDriverData).forEach(([storeId, entries]) => {
+        const filtered = filterDailyByDriver(entries);
+        if (!filtered.length) return;
+        if (!storeAgg[storeId]) storeAgg[storeId] = { storeId, completed: 0, failed: 0, afterHours: 0, fees: 0, extraKm: 0 };
+        filtered.forEach((e) => {
+          storeAgg[storeId].completed += e.billable || 0;
+          storeAgg[storeId].nonBillable = (storeAgg[storeId].nonBillable || 0) + (e.nonBillable || 0);
+          storeAgg[storeId].extraKm += e.extra_km || e.extraKm || 0;
+        });
+      });
+      return storeAgg;
+    };
+
     // Store + Month selected: show day-by-day breakdown for that store
     if (selectedStoreMonth) {
-      const dailyData = metricsData.dailyStoreData?.[selectedStoreMonth.month]?.[selectedStoreMonth.storeId] || [];
-      // Use per-day fees directly from backend - already respects app_fee_history effective_date
+      let dailyData = metricsData.dailyStoreData?.[selectedStoreMonth.month]?.[selectedStoreMonth.storeId] || [];
+      // If driver filter is active, approximate by filtering dailyDriverData for this store
+      if (selectedDriverId !== 'all') {
+        const driverEntries = filterDailyByDriver(
+          (metricsData.dailyDriverData?.[selectedStoreMonth.month]?.[selectedStoreMonth.storeId] || [])
+        );
+        const byDay = driverEntries.reduce((acc, e) => {
+          if (!acc[e.day]) acc[e.day] = { day: e.day, completed: 0, failed: 0, afterHours: 0, fees: 0, extraKm: 0 };
+          acc[e.day].completed += e.billable || 0;
+          acc[e.day].extraKm += e.extra_km || e.extraKm || 0;
+          return acc;
+        }, {});
+        dailyData = Object.values(byDay);
+      }
       const dailyDataWithFees = dailyData.map((day) => ({ ...day, fees: day.fees || 0 }));
-
-      return {
-        ...metricsData,
-        storeData: dailyDataWithFees, // Daily breakdown for the store with fees
-        isDailyBreakdown: true
-      };
+      return { ...metricsData, storeData: dailyDataWithFees, isDailyBreakdown: true };
     }
 
-    // Only month selected: filter all graphs by month
+    // Only month selected: filter all graphs by month (and driver if set)
     if (selectedMonth) {
       const monthStoreData = metricsData.storeDataByMonth?.[selectedMonth] || metricsData.storeData;
       const monthStoreDataWithFees = metricsData.monthlyStoreData?.[selectedMonth] || metricsData.monthlyStoreFees?.[selectedMonth] || [];
       const monthFees = feeTotals?.monthly_fees?.[selectedMonth - 1] ?? feeTotals?.monthlyFees?.[selectedMonth - 1] ?? 0;
 
-      // Merge fees from monthlyStoreData into storeData
-      const mergedStoreData = (monthStoreData || []).map((store) => {
-        const feeData = monthStoreDataWithFees.find((s) => s.abbreviation === store.abbreviation || s.storeAbbr === store.abbreviation);
-        return {
-          ...store,
-          fees: feeData?.fees ?? feeData?.total_fees ?? 0
-        };
-      });
+      let mergedStoreData;
+      if (selectedDriverId !== 'all') {
+        // Re-aggregate store totals from driver-filtered daily data
+        const driverAgg = aggregateStoreFromDriverData(selectedMonth);
+        mergedStoreData = (monthStoreData || []).map((store) => {
+          const agg = driverAgg[store.storeId] || {};
+          const feeData = monthStoreDataWithFees.find((s) => s.abbreviation === store.abbreviation || s.storeAbbr === store.abbreviation);
+          return {
+            ...store,
+            completed: agg.completed || 0,
+            failed: agg.failed || 0,
+            afterHours: agg.afterHours || 0,
+            extraKm: agg.extraKm || 0,
+            fees: feeData?.fees ?? feeData?.total_fees ?? 0
+          };
+        });
+      } else {
+        mergedStoreData = (monthStoreData || []).map((store) => {
+          const feeData = monthStoreDataWithFees.find((s) => s.abbreviation === store.abbreviation || s.storeAbbr === store.abbreviation);
+          return { ...store, fees: feeData?.fees ?? feeData?.total_fees ?? 0 };
+        });
+      }
 
-      return {
-        ...metricsData,
-        storeData: mergedStoreData,
-        displayedFees: monthFees,
-        isDailyBreakdown: false
-      };
+      return { ...metricsData, storeData: mergedStoreData, displayedFees: monthFees, isDailyBreakdown: false };
     }
 
-    // Nothing selected: return all year data with fees merged
+    // Nothing selected: return all year data with fees merged (driver filter applied via getFilteredDriverData elsewhere)
     const allMonthsStoreFees = {};
     for (let m = 1; m <= 12; m++) {
       const monthData = metricsData.monthlyStoreData?.[m] || metricsData.monthlyStoreFees?.[m] || [];
       monthData.forEach((s) => {
         const abbr = s.abbreviation || s.storeAbbr;
         if (!abbr) return;
-        if (!allMonthsStoreFees[abbr]) {
-          allMonthsStoreFees[abbr] = 0;
-        }
+        if (!allMonthsStoreFees[abbr]) allMonthsStoreFees[abbr] = 0;
         allMonthsStoreFees[abbr] += s.fees ?? s.total_fees ?? 0;
       });
     }
 
-    const storeDataWithFees = (metricsData.storeData || []).map((store) => ({
-      ...store,
-      fees: allMonthsStoreFees[store.abbreviation] || 0
-    }));
+    let storeDataWithFees;
+    if (selectedDriverId !== 'all') {
+      // Aggregate across all months for the selected driver
+      const yearAgg = {};
+      for (let m = 1; m <= 12; m++) {
+        const agg = aggregateStoreFromDriverData(m);
+        Object.entries(agg).forEach(([storeId, vals]) => {
+          if (!yearAgg[storeId]) yearAgg[storeId] = { storeId, completed: 0, failed: 0, afterHours: 0, extraKm: 0 };
+          yearAgg[storeId].completed += vals.completed || 0;
+          yearAgg[storeId].failed += vals.failed || 0;
+          yearAgg[storeId].afterHours += vals.afterHours || 0;
+          yearAgg[storeId].extraKm += vals.extraKm || 0;
+        });
+      }
+      storeDataWithFees = (metricsData.storeData || []).map((store) => ({
+        ...store,
+        completed: yearAgg[store.storeId]?.completed || 0,
+        failed: yearAgg[store.storeId]?.failed || 0,
+        afterHours: yearAgg[store.storeId]?.afterHours || 0,
+        extraKm: yearAgg[store.storeId]?.extraKm || 0,
+        fees: allMonthsStoreFees[store.abbreviation] || 0
+      }));
+    } else {
+      storeDataWithFees = (metricsData.storeData || []).map((store) => ({
+        ...store,
+        fees: allMonthsStoreFees[store.abbreviation] || 0
+      }));
+    }
 
-    return {
-      ...metricsData,
-      storeData: storeDataWithFees
-    };
-  }, [metricsData, selectedMonth, selectedStoreMonth, selectedDriverId]);
+    return { ...metricsData, storeData: storeDataWithFees };
+  }, [metricsData, selectedMonth, selectedStoreMonth, selectedDriverId, feeTotals]);
 
   // Filter driver data based on selected driver
   const getFilteredDriverData = useCallback((driverData) => {
@@ -909,6 +967,7 @@ export default function AdminMetrics() {
               selectedMonth={selectedMonth}
               selectedStoreMonth={selectedStoreMonth}
               metricsViewMode={metricsViewMode}
+              selectedDriverId={selectedDriverId}
               showEnvelopeAdjustedTotals={showEnvelopeAdjustedTotals}
               onMonthClick={(month) => {
                 if (selectedMonth === month && !selectedStoreMonth) {

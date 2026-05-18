@@ -13,11 +13,42 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
  * 1. Total deliveries per store per month
  * 2. Total payable app fees per store per month
  */
-function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onStoreMonthClick, selectedMonth, selectedStoreMonth, onResetView, onViewModeChange, metricsViewMode, showEnvelopeAdjustedTotals, onEnvelopeToggleChange }) {
+function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onStoreMonthClick, selectedMonth, selectedStoreMonth, onResetView, onViewModeChange, metricsViewMode, showEnvelopeAdjustedTotals, onEnvelopeToggleChange, selectedDriverId }) {
 
-  const monthlyStoreData = metricsData?.monthlyStoreData || {};
+  const rawMonthlyStoreData = metricsData?.monthlyStoreData || {};
   const monthlyStoreFees = metricsData.monthlyStoreFees || {};
   const monthlyStoreExtraKm = metricsData?.monthlyStoreExtraKm || {};
+
+  // When a driver is selected, rebuild monthlyStoreData from dailyDriverData filtered by driver
+  const monthlyStoreData = useMemo(() => {
+    if (!selectedDriverId || selectedDriverId === 'all') return rawMonthlyStoreData;
+    const dailyDriverData = metricsData?.dailyDriverData || {};
+    const result = {};
+    for (let m = 1; m <= 12; m++) {
+      const storeMap = {};
+      const monthDriverData = dailyDriverData[m] || {};
+      Object.entries(monthDriverData).forEach(([storeId, entries]) => {
+        const filtered = entries.filter((e) => e.driverId === selectedDriverId);
+        if (!filtered.length) return;
+        const sample = (rawMonthlyStoreData[m] || []).find((s) => s.storeId === storeId) || {};
+        const completed = filtered.reduce((s, e) => s + (e.billable || 0), 0);
+        const failed = filtered.reduce((s, e) => s + (e.nonBillable || 0), 0); // nonBillable used as proxy; failed not in driver data
+        const extraKm = filtered.reduce((s, e) => s + (e.extra_km || e.extraKm || 0), 0);
+        storeMap[storeId] = {
+          ...sample,
+          storeId,
+          completed,
+          failed: 0,
+          afterHours: 0,
+          extraKm,
+          extra_km: extraKm,
+          fees: sample.fees || 0
+        };
+      });
+      result[m] = Object.values(storeMap);
+    }
+    return result;
+  }, [rawMonthlyStoreData, metricsData, selectedDriverId]);
 
   // Default metricsViewMode if not provided
   const viewMode = metricsViewMode || 'deliveries';
