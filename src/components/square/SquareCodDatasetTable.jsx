@@ -35,11 +35,11 @@ export default function SquareCodDatasetTable({
   onRowClick
 }) {
   return (
-    <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 flex flex-col flex-1 min-h-0">
+    <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 flex flex-col md:flex-1 md:min-h-0">
       <CardHeader className="sticky top-0 z-10 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
         <CardTitle className="text-base md:text-lg text-slate-900 dark:text-slate-50">{title}</CardTitle>
       </CardHeader>
-      <CardContent className="p-0 overflow-hidden flex flex-col flex-1 min-h-0">
+      <CardContent className="p-0 overflow-hidden flex flex-col md:flex-1 md:min-h-0">
         {isLoading ?
         <div className="flex items-center justify-center py-12 px-6">
             <div className="animate-spin w-8 h-8 border-4 rounded-full" style={{ borderColor: 'var(--border-emerald-500)', borderTopColor: 'transparent' }} />

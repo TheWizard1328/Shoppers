@@ -1299,7 +1299,7 @@ export default function SquareManagement() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 flex flex-col">
+      <div className="md:flex-1 md:min-h-0 flex flex-col">
         {syncStatus &&
         <div className="mb-2">
             <SyncStatusIndicator
