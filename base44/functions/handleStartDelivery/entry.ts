@@ -76,44 +76,66 @@ Deno.serve(async (req) => {
 
     const reorderedRoute = [...completedStops, ...reorderedActiveStops, ...pendingStops].filter(Boolean);
     
-    // CRITICAL: Update ALL deliveries with correct stop_order and isNextDelivery
-    // Also clear first_leg_origin_lat/lng if they exist to force fresh polyline calculation
+    // CRITICAL: Update ALL deliveries with correct stop_order and isNextDelivery.
+    // first_leg_origin_lat/lng logic:
+    //   - isNextDelivery stop (the one being started): STAMP it with the last completed stop's
+    //     coords (or live GPS if available) so optimizeRemainingStops can cache-hit on next run.
+    //   - All other non-completed stops: CLEAR their first_leg_origin so stale origins don't
+    //     pollute polyline generation after a re-order.
+    //   - Completed stops: leave unchanged.
+    const lastCompletedStop = completedStops[completedStops.length - 1] || null;
+    const liveOriginLat = driverCurrentLatitude != null ? Number(driverCurrentLatitude) : null;
+    const liveOriginLng = driverCurrentLongitude != null ? Number(driverCurrentLongitude) : null;
+
+    // Departure origin for the isNextDelivery stop:
+    // Prefer live GPS, fall back to last completed stop coords, then null (force fresh calc).
+    const departureOriginLat = Number.isFinite(liveOriginLat) ? liveOriginLat
+      : (lastCompletedStop?.first_leg_origin_lat != null ? Number(lastCompletedStop.first_leg_origin_lat)
+        : null);
+    const departureOriginLng = Number.isFinite(liveOriginLng) ? liveOriginLng
+      : (lastCompletedStop?.first_leg_origin_lng != null ? Number(lastCompletedStop.first_leg_origin_lng)
+        : null);
+
+    const finishedSet = new Set(['completed', 'failed', 'cancelled', 'returned']);
+
     const allUpdates = reorderedRoute.map((delivery, index) => {
       const nextOrder = index + 1;
       const isTargetDelivery = delivery.id === deliveryId;
+      const isFinished = finishedSet.has(delivery.status);
       const payload = {
         stop_order: nextOrder,
         display_stop_order: nextOrder,
         isNextDelivery: isTargetDelivery
       };
-      
-      // Conditionally clear first_leg_origin_lat if it exists
-      if (delivery.first_leg_origin_lat !== null && delivery.first_leg_origin_lat !== undefined) {
-        payload.first_leg_origin_lat = null;
+
+      if (isTargetDelivery) {
+        // Stamp departure origin onto the isNextDelivery stop for cache-hit on next optimize run
+        if (departureOriginLat != null) payload.first_leg_origin_lat = departureOriginLat;
+        if (departureOriginLng != null) payload.first_leg_origin_lng = departureOriginLng;
+      } else if (!isFinished) {
+        // Clear stale first_leg_origin from all other active stops so they get fresh values
+        if (delivery.first_leg_origin_lat != null) payload.first_leg_origin_lat = null;
+        if (delivery.first_leg_origin_lng != null) payload.first_leg_origin_lng = null;
       }
-      
-      // Conditionally clear first_leg_origin_lng if it exists
-      if (delivery.first_leg_origin_lng !== null && delivery.first_leg_origin_lng !== undefined) {
-        payload.first_leg_origin_lng = null;
-      }
-      
+
       return { delivery, payload };
     });
 
     // Only update if there's an actual change
     const updatesToPersist = allUpdates.filter(({ delivery, payload }) => {
-      return Number(delivery?.stop_order || 0) !== Number(payload.stop_order)
-        || Number(delivery?.display_stop_order || 0) !== Number(payload.display_stop_order)
-        || Boolean(delivery?.isNextDelivery) !== Boolean(payload.isNextDelivery)
-        || (delivery.first_leg_origin_lat !== payload.first_leg_origin_lat && payload.first_leg_origin_lat === null)
-        || (delivery.first_leg_origin_lng !== payload.first_leg_origin_lng && payload.first_leg_origin_lng === null);
+      if (Number(delivery?.stop_order || 0) !== Number(payload.stop_order)) return true;
+      if (Number(delivery?.display_stop_order || 0) !== Number(payload.display_stop_order)) return true;
+      if (Boolean(delivery?.isNextDelivery) !== Boolean(payload.isNextDelivery)) return true;
+      if ('first_leg_origin_lat' in payload && payload.first_leg_origin_lat !== (delivery.first_leg_origin_lat ?? null)) return true;
+      if ('first_leg_origin_lng' in payload && payload.first_leg_origin_lng !== (delivery.first_leg_origin_lng ?? null)) return true;
+      return false;
     });
 
     await Promise.all(
       updatesToPersist.map(({ delivery, payload }) =>
         base44.asServiceRole.entities.Delivery.update(delivery.id, payload).catch((error) => {
           if (!isNotFoundError(error) && !isRateLimitError(error)) {
-            console.warn(`⚠️ [handleStartDelivery] Failed updating stop ${delivery.id}:`, error?.message || error);
+            console.warn(`âš ï¸ [handleStartDelivery] Failed updating stop ${delivery.id}:`, error?.message || error);
           }
           if (isRateLimitError(error)) throw error;
           return null;
@@ -121,7 +143,7 @@ Deno.serve(async (req) => {
       )
     );
 
-    console.log(`🔄 [handleStartDelivery] Route serialized for stop ${deliveryId} (${updatesToPersist.length}/${allUpdates.length} updated)`);
+    console.log(`ðŸ”„ [handleStartDelivery] Route serialized for stop ${deliveryId} (${updatesToPersist.length}/${allUpdates.length} updated)`);
 
     return Response.json({
       success: true,
