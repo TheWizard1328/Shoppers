@@ -224,8 +224,10 @@ export default function SquareManagement() {
     locationConfigsRef.current = locationConfigs || [];
   }, [locationConfigs]);
 
+  const reconciliationRowsRef = useRef([]);
+
   const runReconcile = useCallback(async (currentReconciliationRows) => {
-    const rows = currentReconciliationRows || reconciliationRows;
+    const rows = currentReconciliationRows || reconciliationRowsRef.current;
     if (!rows || rows.length === 0) return;
     setIsReconciling(true);
     try {
@@ -306,7 +308,7 @@ export default function SquareManagement() {
     } finally {
       setIsReconciling(false);
     }
-  }, [reconciliationRows, visibleStoreIds, selectedDriverFilter, selectedDriverUserIds]);
+  }, [visibleStoreIds, selectedDriverFilter, selectedDriverUserIds]);
 
   const syncFromSquare = async () => {
     const now = Date.now();
@@ -1171,6 +1173,8 @@ export default function SquareManagement() {
       return true;
     });
   }, [deliveries, stores, visibleSquareLocationConfigIds, lookbackStart, selectedDriverFilter, selectedDriverUserIds, locationConfigs, allTransactions, hasMatchingSquareTransaction, patients, formatItemNameForDisplay]);
+
+  reconciliationRowsRef.current = reconciliationRows;
 
   const codDeliveriesCount = useMemo(() => deliveries.filter((delivery) => {
     if (!delivery || Number(delivery.cod_total_amount_required || 0) <= 0) return false;
