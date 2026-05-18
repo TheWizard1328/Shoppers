@@ -624,23 +624,24 @@ export default function SquareManagement() {
     const patient = patients.find((p) => p?.id === delivery?.patient_id || p?.patient_id === delivery?.patient_id);
     const patientName = patient?.full_name || '';
     const store = stores.find((s) => s?.id === delivery?.store_id);
-    const deliveryAmountCents = Math.round(Number(delivery?.cod_total_amount_required || 0) * 100);
+    const deliveryAmountSet = getDeliveryPaymentAmountSet(delivery);
     const deliveryDateString = delivery?.delivery_date ? String(delivery.delivery_date).slice(0, 10) : null;
     const storeAbbreviation = String(store?.abbreviation || '').trim().toLowerCase();
     const normalizedLocationId = String(locationId || '').trim();
 
+    // Also check internal cod_payments: if all amounts are accounted for as Cash/Debit/Credit
+    // and a matching Square transaction exists by amount+date alone (loose), consider it matched.
+    const hasInternalPayments = Array.isArray(delivery?.cod_payments) && delivery.cod_payments.length > 0;
+
     return (transactionsPool || []).some((transactionLike) => {
       const transaction = transactionLike?.rawTransaction || transactionLike;
       if (!transaction || isTransferTransaction(transaction)) return false;
-      if (!transaction.square_payment_id) return false;
       if (transaction.type !== 'collection') return false;
-      if (!['completed', 'refunded'].includes(transaction.status)) return false;
+      if (!['completed', 'refunded', 'pending'].includes(transaction.status)) return false;
 
-      const transactionAmountCents = Math.round(Number(transaction.amount || 0) * 100);
-      if (transactionAmountCents !== deliveryAmountCents) return false;
-
-      const searchableText = String(transaction.item_name || transaction.raw_square_data?.note || transaction.raw_square_data?.notes || '').trim();
-      if (!searchableText || !patientNamesMatch(patientName, searchableText)) return false;
+      // Flexible amount matching: delivery total OR any split payment must intersect with transaction amount
+      const transactionAmountSet = getTransactionAmountSet(transaction);
+      if (!amountSetsIntersect(deliveryAmountSet, transactionAmountSet)) return false;
 
       const parsed = parseSquareItemName(String(transaction.item_name || '').trim());
       const parsedTransactionDateString = parsed?.deliveryDate || null;
@@ -651,16 +652,30 @@ export default function SquareManagement() {
       const transactionLocationId = String(transaction.location_id || '').trim();
 
       const dateMatches = !!deliveryDateString && !!transactionDateString && deliveryDateString === transactionDateString;
+      // Location is a soft hint — don't require it if date+amount already match
+      const locationMatches = !!normalizedLocationId && !!transactionLocationId && normalizedLocationId === transactionLocationId;
       const abbreviationMatches = !!storeAbbreviation && (
         (!!transactionStoreAbbreviation && storeAbbreviation === transactionStoreAbbreviation) ||
-        searchableText.toLowerCase().includes(storeAbbreviation)
+        String(transaction.item_name || '').toLowerCase().includes(storeAbbreviation)
       );
-      const locationMatches = !!normalizedLocationId && !!transactionLocationId && normalizedLocationId === transactionLocationId;
 
-      // If date matches → strong match regardless of which card was used (handles wrong-card collections)
+      // Strongest signal: date + amount match (location ID mismatch is acceptable — wrong card scenario)
       if (dateMatches) return true;
-      // No date → fall back to requiring location OR abbreviation as a tiebreaker
-      return locationMatches || abbreviationMatches;
+
+      // Strong signal: amount + location match (no date in item name)
+      if (locationMatches) return true;
+
+      // Check patient name only as an additional tiebreaker when date is missing
+      const searchableText = String(transaction.item_name || transaction.raw_square_data?.note || transaction.raw_square_data?.notes || '').trim();
+      const nameMatches = !!patientName && !!searchableText && patientNamesMatch(patientName, searchableText);
+
+      // Amount + (abbreviation or name) is sufficient when no date/location signal
+      if (abbreviationMatches && nameMatches) return true;
+
+      // For internal Cash/Debit deliveries: amount + date proximity is sufficient
+      if (hasInternalPayments && (abbreviationMatches || nameMatches)) return true;
+
+      return false;
     });
   }, [allTransactions, patients, stores, getTransactionCreatedDate]);
 
@@ -826,7 +841,8 @@ export default function SquareManagement() {
       const linkedCatalog = catalogItems.find((item) => item?.delivery_id === delivery.id);
       // Fallback: if config join fails, infer location_id from a matching transaction for this store
       const resolvedLocationId = config?.square_location_id || null;
-      const hasMatch = resolvedLocationId ? hasMatchingSquareTransaction(delivery, resolvedLocationId, allTransactions) : false;
+      // Try matching even without a resolved location ID (loose match by amount+date)
+      const hasMatch = hasMatchingSquareTransaction(delivery, resolvedLocationId, allTransactions);
       const collectionType = Array.isArray(delivery?.cod_payments) && delivery.cod_payments.length > 0 ?
       Array.from(new Set(delivery.cod_payments.map((payment) => payment?.type).filter(Boolean))).join(', ') :
       null;
@@ -939,7 +955,7 @@ export default function SquareManagement() {
         notes: transaction.raw_square_data?.note || transaction.raw_square_data?.notes || null,
         actions: matchedDelivery ?
         <Button variant="secondary" size="sm" className="border border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">Collected</Button> :
-        null
+        <Button variant="secondary" size="sm" className="border border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-300">No Match</Button>
       };
     }).sort((a, b) => String(b.itemName || '').localeCompare(String(a.itemName || ''), undefined, { sensitivity: 'base' }));
 
