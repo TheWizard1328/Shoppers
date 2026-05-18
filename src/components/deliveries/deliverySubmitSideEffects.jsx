@@ -113,6 +113,46 @@ export async function runDeliverySubmitSideEffects({
     }, 0);
   }
 
+  if ((driverChanged || dateChanged) && delivery) {
+    // Reoptimize OLD driver/date route (background, non-blocking)
+    const oldDriverId = delivery.driver_id;
+    const oldDate = delivery.delivery_date;
+    if (oldDriverId && oldDate) {
+      setTimeout(() => {
+        base44.functions.invoke('optimizeRemainingStops', {
+          driverId: oldDriverId,
+          deliveryDate: oldDate,
+          bypassDriverStatus: true
+        }).then(() =>
+          base44.functions.invoke('purgeAndRegeneratePolylines', {
+            driverId: oldDriverId,
+            deliveryDate: oldDate,
+            scope: 'active_only'
+          })
+        ).catch(() => {});
+      }, 500);
+    }
+
+    // Reoptimize NEW driver/date route (background, non-blocking)
+    const newDriverId = formData.driver_id;
+    const newDate = formData.delivery_date;
+    if (newDriverId && newDate && (newDriverId !== oldDriverId || newDate !== oldDate)) {
+      setTimeout(() => {
+        base44.functions.invoke('optimizeRemainingStops', {
+          driverId: newDriverId,
+          deliveryDate: newDate,
+          bypassDriverStatus: true
+        }).then(() =>
+          base44.functions.invoke('purgeAndRegeneratePolylines', {
+            driverId: newDriverId,
+            deliveryDate: newDate,
+            scope: 'active_only'
+          })
+        ).catch(() => {});
+      }, 1000);
+    }
+  }
+
   if (isPickupMode && delivery && (driverChanged || dateChanged)) {
     const previousPickupKey = delivery.stop_id || delivery.puid || delivery.id;
     const transferredPendingDeliveries = allDeliveries.filter((d) =>
