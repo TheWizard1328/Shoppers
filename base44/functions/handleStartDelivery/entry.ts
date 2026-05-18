@@ -88,14 +88,33 @@ Deno.serve(async (req) => {
     const liveOriginLat = driverCurrentLatitude != null ? Number(driverCurrentLatitude) : null;
     const liveOriginLng = driverCurrentLongitude != null ? Number(driverCurrentLongitude) : null;
 
+    // Resolve the ACTUAL coordinates of the last completed stop (its destination, not its origin).
+    // We need to look up patient or store coordinates for that stop.
+    let lastCompletedCoords = null;
+    if (lastCompletedStop) {
+      try {
+        if (lastCompletedStop.patient_id) {
+          const patients = await base44.asServiceRole.entities.Patient.filter({ id: lastCompletedStop.patient_id }, '-created_date', 1);
+          const patient = patients?.[0];
+          if (patient?.latitude != null && patient?.longitude != null) {
+            lastCompletedCoords = { lat: Number(patient.latitude), lng: Number(patient.longitude) };
+          }
+        } else if (lastCompletedStop.store_id) {
+          const stores = await base44.asServiceRole.entities.Store.filter({ id: lastCompletedStop.store_id }, '-created_date', 1);
+          const store = stores?.[0];
+          if (store?.latitude != null && store?.longitude != null) {
+            lastCompletedCoords = { lat: Number(store.latitude), lng: Number(store.longitude) };
+          }
+        }
+      } catch (_) {/* non-critical, fall through */}
+    }
+
     // Departure origin for the isNextDelivery stop:
-    // Prefer live GPS, fall back to last completed stop coords, then null (force fresh calc).
+    // Prefer live GPS, fall back to last completed stop's ACTUAL location (patient/store coords).
     const departureOriginLat = Number.isFinite(liveOriginLat) ? liveOriginLat
-      : (lastCompletedStop?.first_leg_origin_lat != null ? Number(lastCompletedStop.first_leg_origin_lat)
-        : null);
+      : (lastCompletedCoords ? lastCompletedCoords.lat : null);
     const departureOriginLng = Number.isFinite(liveOriginLng) ? liveOriginLng
-      : (lastCompletedStop?.first_leg_origin_lng != null ? Number(lastCompletedStop.first_leg_origin_lng)
-        : null);
+      : (lastCompletedCoords ? lastCompletedCoords.lng : null);
 
     const finishedSet = new Set(['completed', 'failed', 'cancelled', 'returned']);
 
