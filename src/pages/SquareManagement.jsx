@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { CheckCircle, Clock, CreditCard, Loader2, CloudDownload } from "lucide-react";
+import { CheckCircle, Clock, CreditCard, Loader2, CloudDownload, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { isAppOwner } from "@/components/utils/userRoles";
 import LocationSummaryCard from "@/components/square/LocationSummaryCard";
@@ -50,7 +50,7 @@ export default function SquareManagement() {
   const [selectedDriverFilter, setSelectedDriverFilter] = useState('all');
   const [selectedStoreFilter, setSelectedStoreFilter] = useState('all');
   const [selectedDaysRange, setSelectedDaysRange] = useState(() => localStorage.getItem('square_cod_days_range') || '90');
-  const [isUpdatingReconciliationCatalog, setIsUpdatingReconciliationCatalog] = useState(false);
+
   const [hasInitialLoadCompleted, setHasInitialLoadCompleted] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [selectedCODItem, setSelectedCODItem] = useState(null);
@@ -63,6 +63,7 @@ export default function SquareManagement() {
   const [lastCleanup] = useState(null);
   const [navHeight, setNavHeight] = useState(0);
   const [bgSyncProgress, setBgSyncProgress] = useState({ stage: 'idle' });
+  const [isReconciling, setIsReconciling] = useState(false);
   const realtimeRefreshTimeoutRef = useRef(null);
   const lastRealtimeRefreshAtRef = useRef(0);
   const locationConfigsRef = useRef([]);
@@ -223,6 +224,90 @@ export default function SquareManagement() {
     locationConfigsRef.current = locationConfigs || [];
   }, [locationConfigs]);
 
+  const runReconcile = useCallback(async (currentReconciliationRows) => {
+    const rows = currentReconciliationRows || reconciliationRows;
+    if (!rows || rows.length === 0) return;
+    setIsReconciling(true);
+    try {
+      const filteredItems = rows.filter((row) => {
+        if (!row?.rawDelivery) return false;
+        if (!visibleStoreIds.has(row.rawStoreId)) return false;
+        if (selectedDriverFilter === 'all') return true;
+        if (selectedDriverUserIds.size === 0) return false;
+        return selectedDriverUserIds.has(row.rawDelivery.driver_id);
+      });
+      if (filteredItems.length === 0) return;
+
+      const syncResponse = await base44.functions.invoke('squareCodCore', {
+        action: 'syncSquareCods',
+        items: filteredItems.map((row) => ({
+          deliveryId: row.rawDelivery?.id,
+          patientName: row.itemName,
+          codAmount: row.amount,
+          deliveryDate: row.rawDelivery?.delivery_date,
+          storeId: row.rawStoreId,
+        })),
+      });
+
+      const syncResults = syncResponse?.data?.results || syncResponse?.results || [];
+      const successfulDeliveryIds = new Set(
+        syncResults
+          .filter((entry) => entry?.action === 'upsert' && entry?.status === 'ok' && entry?.result?.catalogObjectId)
+          .map((entry) => entry.deliveryId)
+          .filter(Boolean)
+      );
+
+      const createdCatalogRows = filteredItems
+        .filter((row) => successfulDeliveryIds.has(row.rawDelivery?.id))
+        .map((row) => {
+          const entry = syncResults.find((result) => result.deliveryId === row.rawDelivery?.id);
+          if (!row?.rawDelivery || !entry?.result?.catalogObjectId) return null;
+          return {
+            id: entry.result.catalogObjectId,
+            catalog_object_id: entry.result.catalogObjectId,
+            square_catalog_object_id: entry.result.catalogObjectId,
+            square_catalog_version: entry.result.catalogVersion || null,
+            name: entry.result.itemName || row.itemName,
+            item_name: entry.result.itemName || row.itemName,
+            description: '',
+            price_cents: Math.round(Number(row.amount || 0) * 100),
+            price_dollars: Number(row.amount || 0),
+            amount: Number(row.amount || 0),
+            amount_cents: Math.round(Number(row.amount || 0) * 100),
+            delivery_id: row.rawDelivery.id,
+            delivery_date: row.rawDelivery.delivery_date || null,
+            patient_id: row.rawDelivery.patient_id || null,
+            store_id: row.rawStoreId || null,
+            location_id: row.locationId || null,
+            status: 'active',
+            is_sold: false
+          };
+        })
+        .filter(Boolean);
+
+      if (createdCatalogRows.length > 0) {
+        setCatalogItems((prev) => {
+          const preserved = (prev || []).filter((item) => !successfulDeliveryIds.has(item.delivery_id));
+          return [...createdCatalogRows, ...preserved];
+        });
+      }
+
+      setDeliveries((prev) => (prev || []).map((delivery) => (
+        successfulDeliveryIds.has(delivery?.id)
+          ? { ...delivery, square_catalog_uploaded: true }
+          : delivery
+      )));
+
+      if (successfulDeliveryIds.size > 0) {
+        toast.success(`${successfulDeliveryIds.size} item${successfulDeliveryIds.size === 1 ? '' : 's'} added to Catalog`);
+      }
+    } catch (err) {
+      toast.error('Reconcile failed: ' + err.message);
+    } finally {
+      setIsReconciling(false);
+    }
+  }, [reconciliationRows, visibleStoreIds, selectedDriverFilter, selectedDriverUserIds]);
+
   const syncFromSquare = async () => {
     const now = Date.now();
     if (syncInFlightRef.current || now - lastSyncAtRef.current < 30000) {
@@ -303,6 +388,9 @@ export default function SquareManagement() {
       setIsSyncing(false);
       setIsLoading(false);
       toast.success('Square data synced locally');
+
+      // 8) Auto-reconcile after sync: push any unmatched deliveries to Square catalog
+      setTimeout(() => runReconcile(), 500);
 
       // 8) No write-back during page/manual sync
       let onlineSyncError = null;
@@ -394,7 +482,7 @@ export default function SquareManagement() {
       if (realtimeRefreshTimeoutRef.current) clearTimeout(realtimeRefreshTimeoutRef.current);
 
       realtimeRefreshTimeoutRef.current = setTimeout(async () => {
-        if (!isActive || isSyncing || isUpdatingReconciliationCatalog || syncInFlightRef.current) return;
+        if (!isActive || isSyncing || isReconciling || syncInFlightRef.current) return;
         lastRealtimeRefreshAtRef.current = Date.now();
         await refreshOfflineSquareFromOnlineEntities();
         await refreshUiFromOfflineOnly();
@@ -410,7 +498,7 @@ export default function SquareManagement() {
       unsubscribeCatalogItems?.();
       unsubscribeTransactions?.();
     };
-  }, [hasInitialLoadCompleted, isSyncing, isUpdatingReconciliationCatalog, refreshOfflineSquareFromOnlineEntities, refreshUiFromOfflineOnly]);
+  }, [hasInitialLoadCompleted, isSyncing, isReconciling, refreshOfflineSquareFromOnlineEntities, refreshUiFromOfflineOnly]);
 
   const getStoreColor = (storeId) => {
     const colors = [
@@ -1216,99 +1304,28 @@ export default function SquareManagement() {
             </Select>
 
             {currentUser && isAppOwner(currentUser) &&
-            <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="w-full gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 md:w-[130px] shrink-0 justify-center self-start">
+            <>
+              <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="w-full gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 md:w-[130px] shrink-0 justify-center self-start">
                 <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
                 <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : 'Sync'}</span>
                 <span className="sm:hidden">{isSyncing ? 'Syncing' : 'Sync'}</span>
               </Button>
+              <Button onClick={() => runReconcile()} disabled={isReconciling || isSyncing} className="w-full gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 md:w-[130px] shrink-0 justify-center self-start">
+                <RefreshCw className={`w-4 h-4 flex-shrink-0 ${isReconciling ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">{isReconciling ? 'Reconciling...' : 'Reconcile'}</span>
+                <span className="sm:hidden">{isReconciling ? 'Reconciling' : 'Reconcile'}</span>
+              </Button>
+            </>
             }
           </div>
 
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between w-full">
             <SquareCodViewSwitcher activeView={activeView} onChange={setActiveView} counts={viewCounts} />
             {activeView === 'reconciliation' &&
-            <Button onClick={async () => {
-              try {
-                setIsUpdatingReconciliationCatalog(true);
-                const filteredReconciliationItems = reconciliationRows.filter((row) => {
-                  if (!row?.rawDelivery) return false;
-                  if (!visibleStoreIds.has(row.rawStoreId)) return false;
-                  if (selectedDriverFilter === 'all') return true;
-                  if (selectedDriverUserIds.size === 0) return false;
-                  return selectedDriverUserIds.has(row.rawDelivery.driver_id);
-                });
-
-                const visibleReconciliationItems = [...filteredReconciliationItems];
-                const syncResponse = await base44.functions.invoke('squareCodCore', {
-                  action: 'syncSquareCods',
-                  items: visibleReconciliationItems.map((row) => ({
-                    deliveryId: row.rawDelivery?.id,
-                    patientName: row.itemName,
-                    codAmount: row.amount,
-                    deliveryDate: row.rawDelivery?.delivery_date,
-                    storeId: row.rawStoreId,
-                  })),
-                });
-
-                const syncResults = syncResponse?.data?.results || syncResponse?.results || [];
-                const successfulDeliveryIds = new Set(
-                  syncResults
-                    .filter((entry) => entry?.action === 'upsert' && entry?.status === 'ok' && entry?.result?.catalogObjectId)
-                    .map((entry) => entry.deliveryId)
-                    .filter(Boolean)
-                );
-
-                const createdCatalogRows = visibleReconciliationItems
-                  .filter((row) => successfulDeliveryIds.has(row.rawDelivery?.id))
-                  .map((row) => {
-                    const entry = syncResults.find((result) => result.deliveryId === row.rawDelivery?.id);
-                    if (!row?.rawDelivery || !entry?.result?.catalogObjectId) return null;
-                    return {
-                      id: entry.result.catalogObjectId,
-                      catalog_object_id: entry.result.catalogObjectId,
-                      square_catalog_object_id: entry.result.catalogObjectId,
-                      square_catalog_version: entry.result.catalogVersion || null,
-                      name: entry.result.itemName || row.itemName,
-                      item_name: entry.result.itemName || row.itemName,
-                      description: '',
-                      price_cents: Math.round(Number(row.amount || 0) * 100),
-                      price_dollars: Number(row.amount || 0),
-                      amount: Number(row.amount || 0),
-                      amount_cents: Math.round(Number(row.amount || 0) * 100),
-                      delivery_id: row.rawDelivery.id,
-                      delivery_date: row.rawDelivery.delivery_date || null,
-                      patient_id: row.rawDelivery.patient_id || null,
-                      store_id: row.rawStoreId || null,
-                      location_id: row.locationId || null,
-                      status: 'active',
-                      is_sold: false
-                    };
-                  })
-                  .filter(Boolean);
-
-                if (createdCatalogRows.length > 0) {
-                  setCatalogItems((prev) => {
-                    const preserved = (prev || []).filter((item) => !successfulDeliveryIds.has(item.delivery_id));
-                    return [...createdCatalogRows, ...preserved];
-                  });
-                }
-
-                setDeliveries((prev) => (prev || []).map((delivery) => (
-                  successfulDeliveryIds.has(delivery?.id)
-                    ? { ...delivery, square_catalog_uploaded: true }
-                    : delivery
-                )));
-
-                toast.success(`${successfulDeliveryIds.size} item${successfulDeliveryIds.size === 1 ? '' : 's'} added to Catalog`);
-              } catch (err) {
-                toast.error('Failed to update catalog: ' + err.message);
-              } finally {
-                setIsUpdatingReconciliationCatalog(false);
-              }
-            }} disabled={isUpdatingReconciliationCatalog} className="gap-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 md:ml-3">
-                <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isUpdatingReconciliationCatalog ? 'animate-pulse' : ''}`} />
-                <span className="hidden sm:inline">{isUpdatingReconciliationCatalog ? 'Updating...' : 'Update Catalog'}</span>
-                <span className="sm:hidden">{isUpdatingReconciliationCatalog ? 'Updating' : 'Update'}</span>
+            <Button onClick={() => runReconcile()} disabled={isReconciling || isSyncing} className="gap-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 md:ml-3">
+                <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isReconciling ? 'animate-pulse' : ''}`} />
+                <span className="hidden sm:inline">{isReconciling ? 'Updating...' : 'Update Catalog'}</span>
+                <span className="sm:hidden">{isReconciling ? 'Updating' : 'Update'}</span>
               </Button>
             }
           </div>
