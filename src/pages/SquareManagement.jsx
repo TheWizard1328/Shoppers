@@ -1343,7 +1343,7 @@ export default function SquareManagement() {
           </div>
         }
 
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-3 md:gap-4 mb-4 md:mb-8">
+        <div className="grid grid-cols-3 gap-2 md:gap-4 mb-4 md:mb-8">
           <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
             <CardContent className="p-3 md:p-4">
               <div className="text-xs md:text-sm text-slate-600 dark:text-slate-400">{activeViewStats.primaryLabel}</div>
