@@ -1278,26 +1278,27 @@ export default function PayrollSummaryCard({
                 <div key={data.driver.id} className="hidden md:block p-3 rounded-lg" style={{ background: idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
               {/* Driver Name - Top Left with optional Confirm button for admin-drivers */}
               <div className="flex items-center justify-between mb-1">
-                <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
+                <h3 className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                   {data.driver.user_name || data.driver.full_name}
-                  {showBadge &&
-                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500" title={isAdmin ? 'Driver confirmed' : 'Admin finalized'}>
-                      <CheckCircle className="w-3.5 h-3.5 text-white" />
-                    </span>
-                      }
                 </h3>
-                {canShowConfirmButton &&
+                <div className="flex items-center gap-2">
+                  {canShowConfirmButton &&
                     <Button
                       size="sm"
                       onClick={() => handleDriverFinalize(data)}
                       disabled={isFinalizing || driverHasConfirmed}
                       className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-xs h-7 px-2"
                       title={driverHasConfirmed ? 'Already confirmed' : ''}>
-
-                     <CheckCircle className="w-3 h-3" />
-                     {isFinalizing ? '...' : 'Confirm My Payroll'}
-                   </Button>
-                    }
+                      <CheckCircle className="w-3 h-3" />
+                      {isFinalizing ? '...' : 'Confirm My Payroll'}
+                    </Button>
+                  }
+                  {showBadge &&
+                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500" title={isAdmin ? 'Driver confirmed' : 'Admin finalized'}>
+                      <CheckCircle className="w-3.5 h-3.5 text-white" />
+                    </span>
+                  }
+                </div>
               </div>
 
               {/* Stats and Pay Summary - Side by Side */}
