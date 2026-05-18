@@ -244,10 +244,10 @@ export default function DriverSettings() {
               const latestAppUser = mergedAppUsers.find((au) => au?.user_id === driver.id);
               const dutyStatus = getDriverDutyStatus(driver);
               const avatarColor = driver.app_roles?.includes('admin') ?
-                'bg-gradient-to-br from-blue-500 to-blue-600' :
-                driver.app_roles?.includes('dispatcher') ?
-                'bg-gradient-to-br from-red-500 to-red-600' :
-                'bg-gradient-to-br from-emerald-500 to-emerald-600';
+              'bg-gradient-to-br from-blue-500 to-blue-600' :
+              driver.app_roles?.includes('dispatcher') ?
+              'bg-gradient-to-br from-red-500 to-red-600' :
+              'bg-gradient-to-br from-emerald-500 to-emerald-600';
 
               const gpsLabel = (() => {
                 if (!latestAppUser?.location_updated_at || dutyStatus.label === 'Off Duty') return null;
@@ -260,8 +260,8 @@ export default function DriverSettings() {
               if (!isAdmin) {
                 const isMobile = isMobileDevice();
                 // Compact card for drivers/dispatchers
-                const cardContent = (
-                  <CardContent className="p-3">
+                const cardContent =
+                <CardContent className="p-3">
                     <div className="flex items-center gap-3">
                       {/* Avatar */}
                       <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${avatarColor}`}>
@@ -277,39 +277,39 @@ export default function DriverSettings() {
                         <div className="flex items-center gap-1 flex-wrap mt-0.5">
                           <Badge className={`text-xs py-0 h-4 ${dutyStatus.color}`}>{dutyStatus.label}</Badge>
                           {gpsLabel &&
-                          <Badge className={`text-xs py-0 h-4 gap-0.5 ${gpsLabel.isRecent ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
+                        <Badge className={`text-xs py-0 h-4 gap-0.5 ${gpsLabel.isRecent ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
                               <Navigation className="w-2.5 h-2.5" />
                               {gpsLabel.label}
                             </Badge>
-                          }
+                        }
                         </div>
                         {driver.phone &&
-                        <div className="flex items-center gap-1 mt-1 text-xs" style={{ color: 'var(--text-slate-500)' }}>
+                      <div className="flex items-center gap-1 mt-1 text-xs" style={{ color: 'var(--text-slate-500)' }}>
                             <Phone className="w-3 h-3" />
                             {formatPhoneNumber(driver.phone)}
                           </div>
-                        }
+                      }
                       </div>
                     </div>
-                  </CardContent>
-                );
+                  </CardContent>;
 
-                return driver.phone ? (
-                  <a key={driver.id} href={`tel:${driver.phone}`} className="block">
+
+                return driver.phone ?
+                <a key={driver.id} href={`tel:${driver.phone}`} className="block">
                     <Card className="rounded-xl border shadow hover:shadow-md transition-shadow active:opacity-70" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                       {cardContent}
                     </Card>
-                  </a>
-                ) : (
-                  <Card key={driver.id} className="rounded-xl border shadow hover:shadow-md transition-shadow" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                  </a> :
+
+                <Card key={driver.id} className="rounded-xl border shadow hover:shadow-md transition-shadow" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                     {cardContent}
-                  </Card>
-                );
+                  </Card>;
+
               }
 
               // Full card for admins
               return (
-                <Card key={driver.id} className="rounded-xl border bg-card text-card-foreground shadow hover:shadow-md transition-shadow min-h-[210px] h-full" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                <Card key={driver.id} className="rounded-xl border bg-card text-card-foreground shadow hover:shadow-md transition-shadow min-h-[210px] h-full max-w-[400px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                   <CardContent className="p-4 h-full">
                     <div className="flex items-start gap-4 h-full">
                       {/* Avatar */}
@@ -360,12 +360,12 @@ export default function DriverSettings() {
                         {(latestAppUser?.pay_cycle_type || latestAppUser?.pay_rate_per_delivery > 0) &&
                         <div className="flex items-center gap-1.5 mt-1.5 text-xs flex-wrap" style={{ color: 'var(--text-slate-500)' }}>
                             {latestAppUser?.pay_cycle_type &&
-                            <span className="capitalize">{latestAppUser.pay_cycle_type === 'biweekly' ? 'Bi-Weekly' : latestAppUser.pay_cycle_type === 'semimonthly' ? 'Semi-Monthly' : latestAppUser.pay_cycle_type}</span>
-                            }
+                          <span className="capitalize">{latestAppUser.pay_cycle_type === 'biweekly' ? 'Bi-Weekly' : latestAppUser.pay_cycle_type === 'semimonthly' ? 'Semi-Monthly' : latestAppUser.pay_cycle_type}</span>
+                          }
                             {latestAppUser?.pay_cycle_type && latestAppUser?.pay_rate_per_delivery > 0 && <span>•</span>}
                             {latestAppUser?.pay_rate_per_delivery > 0 &&
-                            <span>${Number(latestAppUser.pay_rate_per_delivery).toFixed(2)}/delivery</span>
-                            }
+                          <span>${Number(latestAppUser.pay_rate_per_delivery).toFixed(2)}/delivery</span>
+                          }
                           </div>
                         }
                         {(latestAppUser?.extra_km_rate > 0 || latestAppUser?.extra_km_limit > 0 || latestAppUser?.oversized_item_rate > 0) &&
@@ -391,12 +391,12 @@ export default function DriverSettings() {
                       </div>
                     </div>
                   </CardContent>
-                </Card>
-              );
+                </Card>);
+
             })
             }
-          </div>
-        );
+          </div>);
+
       })()}
       
       {/* Edit Driver Form - admins only */}
