@@ -1,3 +1,4 @@
+// Redeployed on 2026-06-17 - Via Superagent The Boss
 import { useCallback } from "react";
 import { toast } from "sonner";
 import { base44 } from "@/api/base44Client";
@@ -35,7 +36,7 @@ const queueConsolidateBreadcrumbs = ({ driverId, deliveryDate, stopOrder, status
       stop_order: Number(stopOrder),
       delivery_status: status
     }).catch((error) => {
-      console.warn('⚠️ [Breadcrumbs] Consolidation failed:', error?.message || error);
+      console.warn('âš ï¸ [Breadcrumbs] Consolidation failed:', error?.message || error);
     })
   );
 };
@@ -261,7 +262,7 @@ export default function useStopCardActions(params) {
 
       // STEP 1: Sync COD data with Square (non-blocking)
       if (codBatch.length > 0) {
-        base44.functions.invoke('syncSquareCods', { items: codBatch }).catch((e) => console.warn('⚠️ [Square] Batch COD sync failed to start:', e));
+        base44.functions.invoke('syncSquareCods', { items: codBatch }).catch((e) => console.warn('âš ï¸ [Square] Batch COD sync failed to start:', e));
       }
 
       // NOTE: No second optimizeRemainingStops call needed here.
@@ -295,7 +296,7 @@ export default function useStopCardActions(params) {
         if (assignedDriver) notifyDispatcherAssignedAll({ dispatcher: currentUser, driver: assignedDriver, store, deliveries: scopedPendingDeliveries, patients }).catch(() => {});
       }
     } catch (error) {
-      console.error('❌ [Accept All] Error:', error);
+      console.error('âŒ [Accept All] Error:', error);
       toast.error(`Failed to accept all: ${error.message}`);
       throw error;
     } finally {
@@ -368,7 +369,7 @@ export default function useStopCardActions(params) {
               await updateDeliveryLocal(createdReturnDeliveryId, { stop_order: highestStopOrder + 1, isNextDelivery: false }, { skipSmartRefresh: true });
               await base44.entities.Delivery.update(createdReturnDeliveryId, { stop_order: highestStopOrder + 1, isNextDelivery: false }).catch(() => null);
             }
-            // Return adds a new stop to the route — run full optimization including HERE API
+            // Return adds a new stop to the route â€” run full optimization including HERE API
             await optimizeRouteAndApplyNextDelivery({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, updateDeliveryLocal, updateDeliveriesLocally, forceRefreshDriverDeliveries, shouldRegeneratePolylines: true, runOptimization: true });
           })());
           if (userHasRole(currentUser, 'driver')) backgroundTasks.push(notifyDriverReturn({ driver: currentUser, patientName: displayName, delivery, store, appUsers }));
@@ -415,7 +416,7 @@ export default function useStopCardActions(params) {
           }
           await ensureDriverOnline();
           try {
-            // Retry adds a new stop to the route — run full optimization including HERE API
+            // Retry adds a new stop to the route â€” run full optimization including HERE API
             await optimizeRouteAndApplyNextDelivery({ driverId: delivery.driver_id, deliveryDate: retryDate, updateDeliveryLocal, updateDeliveriesLocally, forceRefreshDriverDeliveries, shouldRegeneratePolylines: true, runOptimization: true });
           } catch {}
           if (userHasRole(currentUser, 'driver')) await notifyDriverRetry({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : displayName, delivery, store, appUsers });
@@ -654,7 +655,7 @@ export default function useStopCardActions(params) {
                ? refreshedImmediately.deliveries
                : null;
 
-           // Step 2b: ETAs will be set by route optimization — don't override here
+           // Step 2b: ETAs will be set by route optimization â€” don't override here
 
            if (Array.isArray(refreshedListImmediate) && refreshedListImmediate.length > 0) {
              await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', delivery.delivery_date, refreshedListImmediate);
@@ -665,7 +666,7 @@ export default function useStopCardActions(params) {
                  const { broadcastMutation } = await import('../utils/realtimeSync');
                  await Promise.all(refreshedListImmediate.map((item) => broadcastMutation('Delivery', 'update', item.id, item)));
                } catch (broadcastError) {
-                 console.warn('⚠️ [Start] delivery broadcast failed:', broadcastError?.message || broadcastError);
+                 console.warn('âš ï¸ [Start] delivery broadcast failed:', broadcastError?.message || broadcastError);
                }
              });
 
@@ -725,7 +726,7 @@ export default function useStopCardActions(params) {
            }
         } catch (optErr) {
           const isNotFound = optErr?.status === 404 || optErr?.response?.status === 404 || String(optErr?.message || '').includes('404');
-          if (!isNotFound) console.warn('⚠️ [Start] background start update failed:', optErr?.message || optErr);
+          if (!isNotFound) console.warn('âš ï¸ [Start] background start update failed:', optErr?.message || optErr);
         }
       } catch (error) {
         toast.error(`Failed to start: ${error.message}`);
@@ -829,9 +830,25 @@ export default function useStopCardActions(params) {
         const incompleteDeliveries = routeDeliveries.filter((d) => d && d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending').sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
         const nextStop = incompleteDeliveries[0] || null;
         await setAndCenterNextDelivery({ driverDeliveries: routeDeliveries, targetDeliveryId: nextStop?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true, persistToBackend: true });
-        
+
+        // STAMP first_leg_origin on the new next stop using the just-completed stop's coords.
+        // This lets optimizeRemainingStops cache-hit on the first-leg ETA without a HERE call.
+        if (nextStop?.id) {
+          const completedPatLat = patient?.latitude != null ? Number(patient.latitude) : null;
+          const completedPatLng = patient?.longitude != null ? Number(patient.longitude) : null;
+          const completedStoreLat = store?.latitude != null ? Number(store.latitude) : null;
+          const completedStoreLng = store?.longitude != null ? Number(store.longitude) : null;
+          const completedOriginLat = delivery.patient_id ? completedPatLat : completedStoreLat;
+          const completedOriginLng = delivery.patient_id ? completedPatLng : completedStoreLng;
+          if (completedOriginLat != null && completedOriginLng != null) {
+            const originUpdate = { first_leg_origin_lat: completedOriginLat, first_leg_origin_lng: completedOriginLng };
+            await updateDeliveryLocal(nextStop.id, originUpdate, { skipSmartRefresh: true });
+            console.log(`âœ… [Complete] Stamped first_leg_origin (${completedOriginLat}, ${completedOriginLng}) on next stop ${nextStop.id}`);
+          }
+        }
+
         // CRITICAL: ALWAYS recalculate ETAs for remaining stops when completing ANY stop (not just next delivery)
-          // Use local ETA recalculation with estimated_duration_minutes (no API call — skipOptimization=true)
+          // Use local ETA recalculation with estimated_duration_minutes (no API call â€” skipOptimization=true)
           if (remainingEtaDeliveries.length > 0) {
             try {
               const isRetroDate = delivery.delivery_date < localDeviceTodayStr;
