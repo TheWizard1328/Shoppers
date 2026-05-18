@@ -1,4 +1,4 @@
-// Redeployed on 2026-06-17 - fixed estimated_distance_km/duration to use INBOUND leg (segment arriving AT this stop)
+// Redeployed on 2026-06-17
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
