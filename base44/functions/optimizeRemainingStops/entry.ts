@@ -1,4 +1,4 @@
-// Redeployed on 2026-06-17
+// Redeployed on 2026-06-17 - Via Superagent The Boss
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
