@@ -313,6 +313,7 @@ export async function handleBatchSave({
       }
     }
 
+    // CLOSE THE FORM IMMEDIATELY after data is saved, before background operations
     resetBatchSaveDraftState({
       setStagedDeliveries,
       setProjectedDeliveries,
@@ -322,7 +323,7 @@ export async function handleBatchSave({
       unblockPredictions,
       setIsLoadingPredictions
     });
-    await closeBatchFormThenResumeManagers({ handleClearForm, onCancel });
+    closeBatchFormThenResumeManagers({ handleClearForm, onCancel });
 
     Promise.resolve().then(async () => {
       try {
