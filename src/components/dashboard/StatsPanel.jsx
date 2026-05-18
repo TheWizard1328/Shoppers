@@ -344,7 +344,9 @@ export default function StatsPanel({
                 <div className="flex items-center flex-shrink-0">
                     <div className="flex flex-col items-center gap-1">
                       <Button variant="outline" size="icon"
+                    disabled={currentUser?.status === 'inactive' && isDriver && !isAdmin}
                     onClick={async () => {
+                      if (currentUser?.status === 'inactive' && isDriver && !isAdmin) return;
                       const checked = !showAllDriverMarkers;
                       setShowAllDriverMarkers(checked);
                       if (currentUser?.id) saveSetting(currentUser.id, 'show_all_driver_markers', checked);
