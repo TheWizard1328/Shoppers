@@ -69,21 +69,21 @@ class OfflineManager {
     this.pendingActions = []; 
     return; // Exit early - no IndexedDB in preview 
   };
-  //constructor() {
-  //  this.isOnline = navigator.onLine;
-  //  this.listeners = new Set();
-  //  this.conflictListeners = new Set();
-  //  this.pendingActions = [];
-  //  this.cachedData = {
-  //    deliveries: null,
-  //    patients: null,
-  //    stores: null,
-  //    drivers: null,
-  //    users: null,
-  //    userSettings: null,
-  //    lastUpdate: null
-  //  };
-    
+
+    this.isOnline = navigator.onLine;
+    this.listeners = new Set();
+    this.conflictListeners = new Set();
+    this.pendingActions = [];
+    this.cachedData = {
+      deliveries: null,
+      patients: null,
+      stores: null,
+      drivers: null,
+      users: null,
+      userSettings: null,
+      lastUpdate: null
+    };
+
     // Sync state
     this.isSyncing = false;
     this.syncRetryCount = 0;
