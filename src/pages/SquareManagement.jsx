@@ -229,18 +229,12 @@ export default function SquareManagement() {
   const selectedDriverUserIdsRef = useRef(new Set());
 
   const runReconcile = useCallback(async (currentReconciliationRows) => {
-    const rows = currentReconciliationRows || reconciliationRowsRef.current;
+    // Use whatever rows are passed in directly — they're already filtered by store/driver via the useMemo
+    const filteredItems = (currentReconciliationRows || reconciliationRowsRef.current || []).filter((row) => !!row?.rawDelivery);
     setIsReconciling(true);
     // Pause background syncs to avoid rate-limit collisions during reconcile
     window.dispatchEvent(new CustomEvent('pauseBackgroundSync'));
     try {
-      const filteredItems = (rows || []).filter((row) => {
-        if (!row?.rawDelivery) return false;
-        if (!visibleStoreIdsRef.current.has(row.rawStoreId)) return false;
-        if (selectedDriverFilter === 'all') return true;
-        if (selectedDriverUserIdsRef.current.size === 0) return false;
-        return selectedDriverUserIdsRef.current.has(row.rawDelivery.driver_id);
-      });
       if (filteredItems.length === 0) {
         toast.info('No unmatched deliveries to reconcile');
         return;
@@ -1327,7 +1321,7 @@ export default function SquareManagement() {
                 {isSyncing ? 'Syncing...' : 'Sync'}
               </Button>
               {activeView === 'reconciliation' &&
-              <Button onClick={() => runReconcile(reconciliationRowsRef.current)} disabled={isReconciling || isSyncing} className="w-full md:w-[160px] gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 justify-center">
+              <Button onClick={() => runReconcile(reconciliationRows)} disabled={isReconciling || isSyncing} className="w-full md:w-[160px] gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 justify-center">
                 <RefreshCw className={`w-4 h-4 flex-shrink-0 ${isReconciling ? 'animate-spin' : ''}`} />
                 {isReconciling ? 'Reconciling...' : 'Reconcile'}
               </Button>
