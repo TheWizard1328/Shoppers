@@ -279,8 +279,8 @@ export default function SquareManagement() {
       try {
         const codResponse = await base44.functions.invoke('squareGetCODData', {
           forceDeliveryRefresh: true,
-          daysBack: 7,        // Only pull last 7 days from Square API — offline DB retains 90-day history
-          mergeWithExisting: true  // Signal backend to merge, not replace, 90-day offline data
+          daysBack: 90,       // Pull full 90-day history from Square API each sync
+          mergeWithExisting: true
         });
         const codData = codResponse?.data || codResponse || {};
         const catalogRecords = codData.catalogRecords || [];
