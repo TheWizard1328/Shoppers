@@ -77,11 +77,11 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
     setSelectedStores([]);
   };
 
-  const availableRoles = isAdmin ?
-  ['admin', 'dispatcher', 'driver', 'patient'] :
-  isDispatcher ?
-  ['dispatcher', 'driver', 'patient'] :
-  ['driver', 'dispatcher', 'patient'];
+  const availableRoles = isAdmin ? 
+    ['admin', 'dispatcher', 'driver', 'patient'] : 
+    isDispatcher ? 
+      ['dispatcher', 'driver', 'patient'] : 
+      ['driver', 'dispatcher', 'patient'];
 
   const handleGenerateQR = async () => {
     if (!selectedRole) {
@@ -100,7 +100,7 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
       const response = await base44.functions.invoke('generateInviteQRCode', {
         role: selectedRole,
         store_ids: getStoreIds(selectedStores),
-        app_origin: 'https://wizardworxx.com'
+        app_origin: window.location.origin
       });
 
       if (response.data?.success || response.success) {
@@ -138,13 +138,13 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-full max-w-md px-6 py-6">
+      <DialogContent className="w-full max-w-md">
         <DialogHeader>
           <DialogTitle>Generate Invite QR Code</DialogTitle>
         </DialogHeader>
 
-        {!qrUrl ?
-        <div className="space-y-4">
+        {!qrUrl ? (
+          <div className="space-y-4">
             {/* Role Selection */}
             <div>
               <label className="text-sm font-medium mb-2 block">Role</label>
@@ -153,58 +153,58 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
                   <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
                 <SelectContent className="z-[10010]">
-                  {availableRoles.map((role) =>
-                <SelectItem key={role} value={role}>
+                  {availableRoles.map((role) => (
+                    <SelectItem key={role} value={role}>
                       {role.charAt(0).toUpperCase() + role.slice(1)}
                     </SelectItem>
-                )}
+                  ))}
                 </SelectContent>
               </Select>
             </div>
 
             {/* Store Selection */}
-            {(selectedRole === 'driver' || selectedRole === 'dispatcher') &&
-          <div>
+            {(selectedRole === 'driver' || selectedRole === 'dispatcher') && (
+              <div>
                 <label className="text-sm font-medium mb-2 block">
                   Assign Stores {isDispatcher && !isAdmin ? '(Your Stores)' : ''}
                 </label>
-                {isDispatcher && !isAdmin ?
-            <div className="space-y-2">
-                    {stores.
-              filter((s) => currentUser.store_ids?.includes(s.id)).
-              map((store) =>
-              <div key={store.id} className="text-sm p-2 bg-slate-50 rounded">
+                {isDispatcher && !isAdmin ? (
+                  <div className="space-y-2">
+                    {stores
+                      .filter((s) => currentUser.store_ids?.includes(s.id))
+                      .map((store) => (
+                        <div key={store.id} className="text-sm p-2 bg-slate-50 rounded">
                           {store.name}
                         </div>
-              )}
-                  </div> :
-
-            <MultiSelect
-              options={buildStoreOptions(selectedRole)}
-              value={selectedStores}
-              onChange={setSelectedStores}
-              placeholder="Select stores" />
-
-            }
+                      ))}
+                  </div>
+                ) : (
+                  <MultiSelect
+                    options={buildStoreOptions(selectedRole)}
+                    value={selectedStores}
+                    onChange={setSelectedStores}
+                    placeholder="Select stores"
+                  />
+                )}
               </div>
-          }
+            )}
 
             <Button
-            onClick={handleGenerateQR}
-            disabled={isGenerating}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 py-2">
-            
+              onClick={handleGenerateQR}
+              disabled={isGenerating}
+              className="w-full bg-emerald-600 hover:bg-emerald-700"
+            >
               {isGenerating ? 'Generating...' : 'Generate QR Code'}
             </Button>
-          </div> :
-
-        <div className="space-y-4 flex flex-col items-center">
+          </div>
+        ) : (
+          <div className="space-y-4 flex flex-col items-center">
             <div className="p-4 bg-white rounded-lg border">
-              <img
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=${encodeURIComponent(qrUrl)}`}
-              alt="Invite QR Code"
-              className="w-64 h-64" />
-            
+              <img 
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=${encodeURIComponent(qrUrl)}`}
+                alt="Invite QR Code"
+                className="w-64 h-64"
+              />
             </div>
 
             <p className="text-xs text-slate-500 text-center">
@@ -213,39 +213,39 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
 
             <div className="space-y-2 w-full">
               <Button
-              onClick={handleCopyURL}
-              variant="outline"
-              className="w-full gap-2">
-              
+                onClick={handleCopyURL}
+                variant="outline"
+                className="w-full gap-2"
+              >
                 <Copy className="w-4 h-4" />
                 Copy URL
               </Button>
               <Button
-              onClick={() => {
-                const link = document.createElement('a');
-                link.href = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=${encodeURIComponent(qrUrl)}`;
-                link.download = 'invite-qr-code.png';
-                link.click();
-              }}
-              variant="outline"
-              className="w-full gap-2">
-              
+                onClick={() => {
+                  const link = document.createElement('a');
+                  link.href = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=${encodeURIComponent(qrUrl)}`;
+                  link.download = 'invite-qr-code.png';
+                  link.click();
+                }}
+                variant="outline"
+                className="w-full gap-2"
+              >
                 <Download className="w-4 h-4" />
                 Download QR Code
               </Button>
               <Button
-              onClick={() => {
-                setQrUrl(null);
-                setInviteUrl(null);
-              }}
-              className="w-full bg-slate-200 text-slate-900 hover:bg-slate-300">
-              
+                onClick={() => {
+                  setQrUrl(null);
+                  setInviteUrl(null);
+                }}
+                className="w-full bg-slate-200 text-slate-900 hover:bg-slate-300"
+              >
                 Generate Another
               </Button>
             </div>
           </div>
-        }
+        )}
       </DialogContent>
-    </Dialog>);
-
+    </Dialog>
+  );
 }
