@@ -150,19 +150,17 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
 
   const shouldShowTimeWindows = !['completed', 'failed'].includes(values.statusChoice);
 
-  // Patient time windows — shown as read-only reference when a single delivery is selected
-  const singlePatient = useMemo(() => {
-    if (!selectedDeliveries || selectedDeliveries.length !== 1 || !patients) return null;
-    const delivery = selectedDeliveries[0];
-    return (patients || []).find((p) => p?.id === delivery?.patient_id || p?.patient_id === delivery?.patient_id) || null;
-  }, [selectedDeliveries, patients]);
-
+  // Patient time windows — shown as read-only reference for all selected stops that have a patient
   const patientWindowSummary = useMemo(() => {
-    if (!selectedDeliveries || !patients) return null;
-    const windows = selectedDeliveries
-      .map((d) => patients.find((p) => p?.id === d?.patient_id || p?.patient_id === d?.patient_id))
-      .filter((p) => p?.time_window_start || p?.time_window_end)
-      .map((p) => `${p.time_window_start || '--'} – ${p.time_window_end || '--'}`);
+    if (!selectedDeliveries?.length || !patients?.length) return null;
+    const patientDeliveries = selectedDeliveries.filter((d) => d?.patient_id);
+    if (patientDeliveries.length === 0) return null;
+    const windows = patientDeliveries
+      .map((d) => patients.find((p) => p?.id === d?.patient_id))
+      .filter(Boolean)
+      .map((p) => (p.time_window_start || p.time_window_end)
+        ? `${p.time_window_start || '--'} – ${p.time_window_end || '--'}`
+        : 'No window set');
     if (windows.length === 0) return null;
     const unique = [...new Set(windows)];
     return unique.length === 1 ? unique[0] : `${unique.length} different windows`;
