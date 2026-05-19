@@ -443,6 +443,22 @@ const subscribeToEntity = (entityName) => {
                 : entityName;
             console.log(`💾 [RealtimeSync] Saved ${savedLabel} to offline DB - changed: ${changedFields.join(', ')}`);
           }
+
+          // PATIENT DATA SINK: When a Delivery is received, always fetch + save the associated patient
+          // to ensure other devices never show "unknown patient" for newly pushed deliveries.
+          if (entityName === 'Delivery' && data?.patient_id) {
+            try {
+              const patient = await base44.entities.Patient.get(data.patient_id);
+              if (patient?.id) {
+                await offlineDB.save(offlineDB.STORES.PATIENTS, patient);
+                console.log(`💾 [RealtimeSync] Patient sink: saved patient "${patient.full_name}" for delivery ${data.id}`);
+                // Broadcast the patient update so the UI state reflects it immediately
+                bufferEvent('Patient', { entityType: 'Patient', eventType: 'update', data: patient, id: patient.id, updatedBy: 'system', changedFields: [] });
+              }
+            } catch (patientErr) {
+              console.warn(`⚠️ [RealtimeSync] Patient sink fetch failed for patient_id ${data.patient_id}:`, patientErr.message);
+            }
+          }
         } else if (type === 'delete') {
           const storeName = entityName === 'AppUser' ? offlineDB.STORES.APP_USERS :
                             entityName === 'Delivery' ? offlineDB.STORES.DELIVERIES :
