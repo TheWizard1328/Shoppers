@@ -619,8 +619,8 @@ Deno.serve(async (req) => {
     const stops = optimizableDeliveries.map(delivery => {
       const coords = getDeliveryCoords(delivery, patientMap, storeMap);
       const patient = delivery.patient_id ? patientMap.get(delivery.patient_id) : null;
-      let windowStart = (patient?.time_window_start) || delivery.delivery_time_start || delivery.time_window_start || null;
-      let windowEnd = (patient?.time_window_end) || delivery.delivery_time_end || delivery.time_window_end || null;
+      let windowStart = delivery.delivery_time_start || patient?.time_window_start || null;
+      let windowEnd = delivery.delivery_time_end || patient?.time_window_end || null;
 
       if (delivery.patient_id && delivery.puid && pickupWindowByStopId.has(delivery.puid)) {
         const pickupWindow = pickupWindowByStopId.get(delivery.puid);
@@ -1320,8 +1320,7 @@ Deno.serve(async (req) => {
         delivery_time_eta: resolvedEta,
         isNextDelivery: stop.id === nextStopId,
         transport_mode: safeTransportMode,
-        ...(patientWindowStart ? { delivery_time_start: patientWindowStart } : {}),
-        ...(patientWindowEnd ? { delivery_time_end: patientWindowEnd } : {}),
+        // NOTE: delivery_time_start/end are not overwritten by optimizer — they are set at creation/edit time
         travel_dist: Number(directionsLegs[i]?.distance)
           ? Number((Number(directionsLegs[i].distance) / 1000).toFixed(3))
           : null,
