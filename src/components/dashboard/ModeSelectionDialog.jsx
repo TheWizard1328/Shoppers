@@ -38,7 +38,7 @@ export default function ModeSelectionDialog({
       <DialogContent
         className={isMobile
           ? 'sm:max-w-full w-full max-w-full rounded-t-2xl rounded-b-none p-0 border-0 shadow-2xl'
-          : 'sm:max-w-md rounded-2xl p-0 overflow-hidden shadow-2xl'
+          : 'sm:max-w-md w-full rounded-2xl p-0 overflow-hidden shadow-2xl top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2'
         }
         style={isMobile ? {
           position: 'fixed',
@@ -50,7 +50,12 @@ export default function ModeSelectionDialog({
           margin: 0,
           width: '100%',
           maxWidth: '100vw',
-        } : {}}
+        } : {
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+        }}
       >
         {/* Header */}
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
@@ -63,7 +68,7 @@ export default function ModeSelectionDialog({
         <div className="max-h-[55vh] overflow-y-auto divide-y divide-border">
           {nearbyStops.length === 0 && (
             <div className="px-6 py-8 text-sm text-muted-foreground text-center">
-              No active or pending stops found within 5 km.
+              No stops found on this route.
             </div>
           )}
 
