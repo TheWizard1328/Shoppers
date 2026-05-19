@@ -15,7 +15,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
   const [isSyncing, setIsSyncing] = useState(false);
   const [runtimeStats, setRuntimeStats] = useState({});
 
-  const isVisible = currentUser && isAppOwner(currentUser);
+  const isVisible = !!currentUser;
 
   useEffect(() => {
     if (!isVisible) return;
