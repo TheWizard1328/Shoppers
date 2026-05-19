@@ -51,11 +51,19 @@ export default function DeliveryPatientSearch({
   const visiblePatients = React.useMemo(() => {
     let list = (filteredPatients || []).filter((patient) => !patient?._isDeletedLocally);
     // Drivers only see patients from their assigned stores
+    // Store assignment for drivers is determined by which stores list the driver in any driver slot
     if (userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher')) {
-      const assignedStoreIds = new Set([
-        ...(currentUser?.store_ids || []),
-        ...(currentUser?.store_id ? [currentUser.store_id] : [])
-      ]);
+      const driverId = currentUser?.id;
+      const driverSlotKeys = [
+        'weekday_am_driver_id', 'weekday_pm_driver_id',
+        'saturday_am_driver_id', 'saturday_pm_driver_id',
+        'sunday_am_driver_id', 'sunday_pm_driver_id'
+      ];
+      const assignedStoreIds = new Set(
+        (stores || [])
+          .filter((s) => s && driverSlotKeys.some((key) => s[key] === driverId))
+          .map((s) => s.id)
+      );
       // Always filter for drivers — if no stores assigned, show nothing
       list = list.filter((patient) => assignedStoreIds.has(patient?.store_id));
     }
