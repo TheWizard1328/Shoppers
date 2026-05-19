@@ -1045,9 +1045,9 @@ export default function SquareManagement() {
       const matchedDelivery = findMatchingDeliveryForTransaction(transaction, transaction.store_id || null);
       const store = stores.find((s) => s?.id === transaction.store_id) || (matchedDelivery ? stores.find((s) => s?.id === matchedDelivery.store_id) : null) || stores.find((s) => s?.square_location_config_id === config?.id) || null;
       const resolvedConfig = config || locationConfigs.find((c) => c?.id === store?.square_location_config_id) || null;
-      const collectionDate = getTransactionEffectiveDateString(transaction);
-      const parsedDeliveryDate = parseSquareItemName(transaction.item_name)?.deliveryDate;
-      const displayDate = matchedDelivery?.delivery_date || collectionDate || parsedDeliveryDate || transaction.created_date;
+      const squareCreatedAt = transaction?.raw_square_data?.created_at || null;
+      const collectionDate = squareCreatedAt ? squareCreatedAt.slice(0, 10) : getTransactionEffectiveDateString(transaction);
+      const displayDate = collectionDate;
       const collectedByName = matchedDelivery?.driver_name || drivers.find((driver) => driver?.user_id === matchedDelivery?.driver_id)?.user_name || null;
       const collectionType = Array.isArray(matchedDelivery?.cod_payments) && matchedDelivery.cod_payments.length > 0 ?
       Array.from(new Set(matchedDelivery.cod_payments.map((payment) => payment?.type).filter(Boolean))).join(', ') :
