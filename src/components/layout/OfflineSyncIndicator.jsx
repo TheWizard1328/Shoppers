@@ -501,10 +501,11 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
 
   }
 
-  // Floating mode for map (desktop)
-  // CRITICAL: Always render stats if we have the object
+  // Floating mode is disabled - only embedded mode is used
+  return null;
+
+  // Dead code kept for reference
   const shouldRenderStats = stats;
-  
   return (
     <div className="fixed top-2 left-1 z-[100000]">
       <motion.div
