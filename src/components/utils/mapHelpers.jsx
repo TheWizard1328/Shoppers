@@ -1,3 +1,40 @@
+/**
+ * Returns true if the current device is running iOS (iPhone, iPad, iPod).
+ */
+export const isIOS = () => {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+};
+
+/**
+ * Returns a URL that opens the native Maps app on iOS (Apple Maps via maps://)
+ * or falls back to Google Maps on other platforms.
+ * @param {string} address - The destination address string
+ */
+export const getMapsUrl = (address) => {
+  if (!address) return null;
+  const encoded = encodeURIComponent(address);
+  if (isIOS()) {
+    return `maps://?daddr=${encoded}`;
+  }
+  return `https://www.google.com/maps/dir/?api=1&destination=${encoded}`;
+};
+
+/**
+ * Opens the appropriate maps app for the current platform.
+ * On iOS: forces Apple Maps via maps:// protocol.
+ * On other platforms: opens Google Maps in a new tab.
+ * @param {string} address - The destination address string
+ */
+export const openInMaps = (address) => {
+  const url = getMapsUrl(address);
+  if (!url) return;
+  if (isIOS()) {
+    window.location.href = url;
+  } else {
+    window.open(url, '_blank');
+  }
+};
+
 export const calculateFannedPosition = (originalLat, originalLng, markerIndex, totalMarkers, stopOrder, currentZoom) => {
   if (currentZoom < 11 || currentZoom > 18) {
     return [originalLat, originalLng];

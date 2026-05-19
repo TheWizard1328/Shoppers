@@ -35,6 +35,7 @@ import {
 import { format } from "date-fns";
 import { formatPhoneNumber } from "../utils/phoneFormatter";
 import { isAppOwner } from "../utils/userRoles";
+import { openInMaps } from "../utils/mapHelpers";
 import SpecialSymbolsBadges from "../utils/SpecialSymbolsBadges";
 import SignatureCapture from "../common/SignatureCapture";
 import PhotoCapture from "../common/PhotoCapture";
@@ -601,10 +602,22 @@ export default function StopDetailsPanel({
                 {/* Address with unit number */}
                 {!isPickup && finalDisplayAddress &&
                 <div className="flex items-start gap-2">
-                  <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: 'var(--text-slate-400)' }} />
+                  <button
+                    type="button"
+                    onClick={() => openInMaps(finalDisplayAddress)}
+                    className="mt-0.5 flex-shrink-0 hover:opacity-70 transition-opacity"
+                    title="Navigate"
+                  >
+                    <MapPin className="w-4 h-4" style={{ color: '#2563eb' }} />
+                  </button>
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>{finalDisplayAddress}</p>
+                      <button
+                        type="button"
+                        onClick={() => openInMaps(finalDisplayAddress)}
+                        className="text-sm text-left hover:underline"
+                        style={{ color: '#2563eb' }}
+                      >{finalDisplayAddress}</button>
                       {patient?.unit_number &&
                       <Badge variant="secondary" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>Unit {patient.unit_number}</Badge>
                       }
