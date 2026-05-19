@@ -15,10 +15,6 @@
       "type": "number",
       "description": "Stop order of the delivery this leg leads TO"
     },
-    "delivery_id": {
-      "type": "string",
-      "description": "ID of the Delivery record this leg belongs to"
-    },
     "encoded_polyline": {
       "type": "string",
       "description": "Polyline-encoded string of GPS coordinates for the actual path taken (Google/HERE flexible polyline format)"

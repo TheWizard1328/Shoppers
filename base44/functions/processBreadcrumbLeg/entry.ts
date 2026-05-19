@@ -31,9 +31,7 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, skipped: true, reason: 'polyline_already_exists', delivery_id });
     }
 
-    // Find the matching DeliveryBreadcrumbs record using the robust triple key:
-    // driver_id + delivery_date + stop_order
-    // (delivery_id on the breadcrumb may be stale if a stop was changed mid-route)
+    // Look up the matching DeliveryBreadcrumbs record by composite key: driver_id + delivery_date + stop_order
     const breadcrumbRecords = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
       driver_id,
       delivery_date,
@@ -75,17 +73,11 @@ Deno.serve(async (req) => {
       encoded_polyline: encodedPolyline,
     });
 
-    // Log if delivery_id on the breadcrumb didn't match — useful for debugging mid-route changes
-    const breadcrumbDeliveryId = breadcrumb.delivery_id;
-    const deliveryIdMismatch = breadcrumbDeliveryId && breadcrumbDeliveryId !== delivery_id;
-
     return Response.json({
       success: true,
       delivery_id,
       stop_order,
       point_count: pointCount,
-      delivery_id_mismatch: deliveryIdMismatch,
-      breadcrumb_delivery_id: deliveryIdMismatch ? breadcrumbDeliveryId : undefined,
     });
 
   } catch (error) {

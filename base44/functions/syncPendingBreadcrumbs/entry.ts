@@ -78,6 +78,7 @@ Deno.serve(async (req) => {
       return Response.json({ status: 'skipped', reason: 'empty_breadcrumbs', deliveryId, sourcePendingKey, stopOrder, breadcrumbDate });
     }
 
+    // Fetch the delivery to get the composite key fields
     const deliveries = await base44.asServiceRole.entities.Delivery.filter({ id: deliveryId });
     const delivery = deliveries?.[0];
     if (!delivery) {
@@ -92,27 +93,17 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Check for existing DeliveryBreadcrumbs record for this stop
+    // Look up existing record by composite key (driver_id + delivery_date + stop_order)
     const existingRecords = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
-      delivery_id: deliveryId,
+      driver_id: delivery.driver_id,
+      delivery_date: delivery.delivery_date,
+      stop_order: Number(delivery.stop_order),
     }).catch(() => []);
     const existingRecord = existingRecords?.[0] || null;
 
-    if (!overwrite && existingRecord?.encoded_polyline) {
-      return Response.json({
-        status: 'skipped',
-        reason: 'already_present',
-        deliveryId,
-        sourcePendingKey,
-        stopOrder,
-        breadcrumbDate,
-        breadcrumbCount: newPoints.length
-      });
-    }
-
-    // Merge with existing points if not overwriting
+    // Always append new points to existing ones (merge by timestamp order)
     let allPoints = newPoints;
-    if (!overwrite && existingRecord?.encoded_polyline && existingRecord?.timestamps) {
+    if (existingRecord?.encoded_polyline && existingRecord?.timestamps && !overwrite) {
       const existingCoords = decodePolyline(existingRecord.encoded_polyline);
       const existingTs = existingRecord.timestamps.split(',').map(Number);
       const existingPoints = existingCoords.map((coord, i) => [coord[0], coord[1], existingTs[i] || 0]);
@@ -125,8 +116,7 @@ Deno.serve(async (req) => {
     const breadcrumbData = {
       driver_id: delivery.driver_id,
       delivery_date: delivery.delivery_date,
-      stop_order: delivery.stop_order,
-      delivery_id: deliveryId,
+      stop_order: Number(delivery.stop_order),
       encoded_polyline: encodedPolyline,
       timestamps,
       transport_mode: delivery.transport_mode || 'driving',

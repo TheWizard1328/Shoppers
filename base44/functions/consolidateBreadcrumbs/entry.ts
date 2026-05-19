@@ -102,7 +102,6 @@ function encodePolylineValue(value) {
 }
 
 function encodePolyline(points) {
-  // points: [[lat, lon, ts?], ...]
   let prevLat = 0, prevLon = 0;
   let result = '';
   for (const point of points) {
@@ -197,7 +196,7 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, skipped: true, reason: 'missing_leg_end_time', delivery_id: currentDelivery.id });
     }
 
-    // Fetch existing DeliveryBreadcrumbs record for this stop to merge
+    // Fetch existing DeliveryBreadcrumbs record by composite key (driver_id + delivery_date + stop_order)
     const existingBreadcrumbRecords = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
       driver_id, delivery_date, stop_order: numericStopOrder
     }).catch(() => []);
@@ -223,12 +222,11 @@ Deno.serve(async (req) => {
     const encodedPolyline = encodePolyline(sortedPoints);
     const timestamps = sortedPoints.map((p) => p[2]).join(',');
 
-    // Save or update DeliveryBreadcrumbs record
+    // Save or update DeliveryBreadcrumbs record (no delivery_id — composite key is the canonical lookup)
     const breadcrumbData = {
       driver_id,
       delivery_date,
       stop_order: numericStopOrder,
-      delivery_id: currentDelivery.id,
       encoded_polyline: encodedPolyline,
       timestamps,
       transport_mode: currentDelivery.transport_mode || 'driving',
