@@ -53,8 +53,8 @@ export default function DeliveryPatientSearch({
     // Drivers only see patients from their assigned stores
     // Store assignment for drivers is determined by which stores list the driver in any driver slot
     if (userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher')) {
-      // Check both id and user_id since the merged user object may carry either
-      const driverIds = new Set([currentUser?.id, currentUser?.user_id].filter(Boolean));
+      // Store driver slots store AppUser.user_id, so match against user_id primarily
+      const driverIds = new Set([currentUser?.user_id, currentUser?.id].filter(Boolean));
       const driverSlotKeys = [
         'weekday_am_driver_id', 'weekday_pm_driver_id',
         'saturday_am_driver_id', 'saturday_pm_driver_id',
