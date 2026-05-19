@@ -69,7 +69,7 @@ const openDatabase = async () => {
   // PREVIEW GUARD: Skip IndexedDB entirely in preview/sandbox environments
   // to prevent flickering between isolated IndexedDB buckets per frame origin.
   const isPreview = typeof window !== 'undefined' && (
-    window.location.hostname.includes('sandbox')
+    window.location.hostname.includes('rx-deliver')
   ); // window.location.hostname.includes('preview') ||
     
   if (isPreview) return null;
