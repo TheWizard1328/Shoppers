@@ -6,31 +6,49 @@ export const isIOS = () => {
 };
 
 /**
- * Returns a URL that opens the native Maps app on iOS (Apple Maps via maps://)
- * or falls back to Google Maps on other platforms.
- * @param {string} address - The destination address string
+ * Returns a Google Maps web URL for the given address.
  */
 export const getMapsUrl = (address) => {
   if (!address) return null;
   const encoded = encodeURIComponent(address);
-  if (isIOS()) {
-    // Use https://maps.apple.com/ — Safari on iOS handles this URL natively,
-    // opening Apple Maps without requiring the maps:// custom scheme
-    return `https://maps.apple.com/?daddr=${encoded}`;
-  }
   return `https://www.google.com/maps/dir/?api=1&destination=${encoded}`;
 };
 
 /**
- * Opens the appropriate maps app for the current platform.
- * On iOS: opens maps.apple.com which Safari intercepts and hands off to Apple Maps.
+ * Opens navigation for the given address.
+ * On iOS (PWA): tries Google Maps app first, then Apple Maps app, then falls back to opening
+ * Google Maps in a new Safari tab (outside the PWA webview) using a universal link.
  * On other platforms: opens Google Maps in a new tab.
- * @param {string} address - The destination address string
  */
 export const openInMaps = (address) => {
-  const url = getMapsUrl(address);
-  if (!url) return;
-  window.open(url, '_blank');
+  if (!address) return;
+  const encoded = encodeURIComponent(address);
+
+  if (isIOS()) {
+    // Try Google Maps native app first via its URL scheme
+    const googleMapsApp = `comgooglemaps://?daddr=${encoded}&directionsmode=driving`;
+    // Apple Maps native app scheme
+    const appleMapsApp = `maps://?daddr=${encoded}`;
+    // Final fallback: open Google Maps in Safari (new tab, outside PWA webview)
+    const googleMapsWeb = `https://www.google.com/maps/dir/?api=1&destination=${encoded}`;
+
+    // Attempt Google Maps app; if the page is still visible after 300ms it didn't open
+    window.location.href = googleMapsApp;
+
+    setTimeout(() => {
+      if (document.visibilityState !== 'visible') return; // Google Maps app opened
+      // Try Apple Maps app
+      window.location.href = appleMapsApp;
+
+      setTimeout(() => {
+        if (document.visibilityState !== 'visible') return; // Apple Maps app opened
+        // Neither app installed — open in a new Safari tab
+        window.open(googleMapsWeb, '_blank');
+      }, 300);
+    }, 300);
+  } else {
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${encoded}`, '_blank');
+  }
 };
 
 export const calculateFannedPosition = (originalLat, originalLng, markerIndex, totalMarkers, stopOrder, currentZoom) => {
