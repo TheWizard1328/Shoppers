@@ -231,6 +231,8 @@ export default function SquareManagement() {
   const runReconcile = useCallback(async (currentReconciliationRows) => {
     const rows = currentReconciliationRows || reconciliationRowsRef.current;
     setIsReconciling(true);
+    // Pause background syncs to avoid rate-limit collisions during reconcile
+    window.dispatchEvent(new CustomEvent('pauseBackgroundSync'));
     try {
       const filteredItems = (rows || []).filter((row) => {
         if (!row?.rawDelivery) return false;
@@ -311,6 +313,7 @@ export default function SquareManagement() {
       toast.error('Reconcile failed: ' + err.message);
     } finally {
       setIsReconciling(false);
+      window.dispatchEvent(new CustomEvent('resumeBackgroundSync'));
     }
   }, [selectedDriverFilter]);
 
