@@ -527,7 +527,7 @@ export default function StatsPanel({
                 </div>
               </>}
 
-              {isStatsCardCentered && <>
+              {(isStatsCardCentered || isMobile) && <>
                 <div className="border-t border-slate-200 mt-2 pt-2"></div>
                 <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} />
               </>}
