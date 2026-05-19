@@ -13,7 +13,6 @@ import { base44 } from "@/api/base44Client";
 import { format } from 'date-fns';
 import { globalFilters } from "@/components/utils/globalFilters";
 import { offlineDB } from "@/components/utils/offlineDatabase";
-import { isAppOwner } from '@/components/utils/userRoles';
 import { driverLocationPoller } from "@/components/utils/driverLocationPoller";
 import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
 import SmartRefreshIndicator from "@/components/layout/SmartRefreshIndicator";
@@ -528,7 +527,7 @@ export default function StatsPanel({
                 </div>
               </>}
 
-              {isStatsCardCentered && isAppOwner(currentUser) && <>
+              {isStatsCardCentered && <>
                 <div className="border-t border-slate-200 mt-2 pt-2"></div>
                 <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} />
               </>}
