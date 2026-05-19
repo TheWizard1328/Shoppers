@@ -138,7 +138,7 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-full max-w-md px-6 py-8">
+      <DialogContent className="w-full max-w-md px-6 py-6">
         <DialogHeader>
           <DialogTitle>Generate Invite QR Code</DialogTitle>
         </DialogHeader>
@@ -192,7 +192,7 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
             <Button
             onClick={handleGenerateQR}
             disabled={isGenerating}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 py-2">
+            className="w-full bg-emerald-600 hover:bg-emerald-700 py-3">
             
               {isGenerating ? 'Generating...' : 'Generate QR Code'}
             </Button>
