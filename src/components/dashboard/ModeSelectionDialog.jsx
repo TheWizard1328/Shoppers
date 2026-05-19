@@ -1,5 +1,5 @@
 import React from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { isMobileDevice } from '@/components/utils/deviceUtils';
@@ -33,96 +33,102 @@ export default function ModeSelectionDialog({
 }) {
   const isMobile = isMobileDevice();
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className={isMobile
-          ? 'sm:max-w-full w-full max-w-full rounded-t-2xl rounded-b-none p-0 border-0 shadow-2xl'
-          : 'sm:max-w-md w-full rounded-2xl p-0 overflow-hidden shadow-2xl top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2'
-        }
-        style={isMobile ? {
-          position: 'fixed',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          top: 'auto',
-          transform: 'none',
-          margin: 0,
-          width: '100%',
-          maxWidth: '100vw',
-        } : {
-          position: 'fixed',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-        }}
-      >
-        {/* Header */}
-        <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
-          <DialogTitle className="text-xl font-bold text-foreground">
-            Select Stops for Cycling Mode
-          </DialogTitle>
-        </DialogHeader>
+  if (!open) return null;
 
-        {/* Stop list */}
-        <div className="max-h-[55vh] overflow-y-auto divide-y divide-border">
-          {nearbyStops.length === 0 && (
-            <div className="px-6 py-8 text-sm text-muted-foreground text-center">
-              No stops found on this route.
-            </div>
-          )}
+  const panelContent = (
+    <>
+      {/* Header */}
+      <div className="px-6 pt-6 pb-4 border-b border-slate-200" style={{ borderColor: 'var(--border-slate-200)' }}>
+        <h2 className="text-xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
+          Select Stops for Cycling Mode
+        </h2>
+      </div>
 
-          {nearbyStops.map((stop) => {
-            const checked = selectedStopIds.includes(stop.id);
-            return (
-              <label
-                key={stop.id}
-                className="flex items-center gap-4 px-6 py-4 cursor-pointer hover:bg-muted/40 transition-colors"
-              >
-                {/* Text + badge */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-base font-bold text-foreground">{stop.label}</span>
-                    <StatusBadge status={stop.status} />
-                  </div>
-                  <div className="flex items-center gap-1 mt-1">
-                    <span className="text-sm text-muted-foreground">Distance</span>
-                    <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-0.5 text-sm font-medium text-foreground ml-1">
-                      {stop.distanceKm != null ? `${stop.distanceKm.toFixed(1)} km` : '— km'}
-                    </span>
-                  </div>
+      {/* Stop list */}
+      <div className="max-h-[55vh] overflow-y-auto divide-y" style={{ borderColor: 'var(--border-slate-200)' }}>
+        {nearbyStops.length === 0 && (
+          <div className="px-6 py-8 text-sm text-center" style={{ color: 'var(--text-slate-500)' }}>
+            No stops found on this route.
+          </div>
+        )}
+
+        {nearbyStops.map((stop) => {
+          const checked = selectedStopIds.includes(stop.id);
+          return (
+            <label
+              key={stop.id}
+              className="flex items-center gap-4 px-6 py-4 cursor-pointer hover:bg-slate-50 transition-colors"
+            >
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-base font-bold" style={{ color: 'var(--text-slate-900)' }}>{stop.label}</span>
+                  <StatusBadge status={stop.status} />
                 </div>
+                <div className="flex items-center gap-1 mt-1">
+                  <span className="text-sm" style={{ color: 'var(--text-slate-500)' }}>
+                    {stop.distanceKm != null ? `${stop.distanceKm.toFixed(1)} km away` : 'Distance unknown'}
+                  </span>
+                </div>
+              </div>
+              <Checkbox
+                checked={checked}
+                onCheckedChange={() => onToggleStop(stop.id)}
+                className="h-5 w-5 shrink-0 rounded-md border-2 border-slate-300 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+              />
+            </label>
+          );
+        })}
+      </div>
 
-                {/* Checkbox */}
-                <Checkbox
-                  checked={checked}
-                  onCheckedChange={() => onToggleStop(stop.id)}
-                  className="h-5 w-5 shrink-0 rounded-md border-2 border-slate-300 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
-                />
-              </label>
-            );
-          })}
-        </div>
+      {/* Footer */}
+      <div className="flex gap-3 px-6 py-4 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+        <Button
+          variant="outline"
+          onClick={() => onOpenChange?.(false)}
+          disabled={isSubmitting}
+          className="flex-1 h-12 rounded-xl text-base font-bold border-2"
+        >
+          Cancel
+        </Button>
+        <Button
+          onClick={onOptimize}
+          disabled={isSubmitting || selectedStopIds.length === 0}
+          className="flex-1 h-12 rounded-xl text-base font-bold bg-blue-600 hover:bg-blue-700 text-white border-0"
+        >
+          {isSubmitting ? 'Processing…' : 'Continue'}
+        </Button>
+      </div>
+    </>
+  );
 
-        {/* Footer buttons */}
-        <div className="flex gap-3 px-6 py-4 border-t border-border">
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange?.(false)}
-            disabled={isSubmitting}
-            className="flex-1 h-12 rounded-xl text-base font-bold border-2"
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={onOptimize}
-            disabled={isSubmitting || selectedStopIds.length === 0}
-            className="flex-1 h-12 rounded-xl text-base font-bold bg-blue-600 hover:bg-blue-700 text-white border-0"
-          >
-            {isSubmitting ? 'Processing…' : 'Continue'}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+  return createPortal(
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 9999,
+        display: 'flex',
+        alignItems: isMobile ? 'flex-end' : 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(0,0,0,0.5)',
+      }}
+      onClick={(e) => { if (e.target === e.currentTarget) onOpenChange?.(false); }}
+    >
+      <div
+        style={{
+          background: 'var(--bg-white, #fff)',
+          width: isMobile ? '100%' : undefined,
+          minWidth: isMobile ? undefined : 420,
+          maxWidth: isMobile ? '100vw' : 480,
+          borderRadius: isMobile ? '16px 16px 0 0' : 16,
+          boxShadow: '0 25px 50px rgba(0,0,0,0.25)',
+          overflow: 'hidden',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {panelContent}
+      </div>
+    </div>,
+    document.body
   );
 }
