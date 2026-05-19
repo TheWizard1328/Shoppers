@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { subscribeSyncStatus, getSyncStats, manualSyncSelected } from '@/components/utils/offlineSync';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@/components/utils/UserContext';
-import { isAppOwner } from '@/components/utils/userRoles';
 import { formatDistanceToNow } from 'date-fns';
 
 export default function OfflineSyncIndicator({ embedded = false, inline = false }) {
@@ -19,117 +18,73 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
 
   useEffect(() => {
     if (!isVisible) return;
-    // Load initial stats
-    getSyncStats().then(stats => {
-      console.log('📊 [OfflineSyncIndicator] Initial stats loaded:', stats);
-      setStats(stats);
-    }).catch(error => {
-      console.error('❌ [OfflineSyncIndicator] Failed to load stats:', error);
-    });
 
-    // Subscribe to sync updates (manual sync)
+    getSyncStats().then(stats => {
+      setStats(stats);
+    }).catch(() => {});
+
     const unsubscribe = subscribeSyncStatus((status) => {
       setSyncStatus(status);
       setIsSyncing(status.status === 'syncing' || status.status === 'force_syncing');
 
-      // CRITICAL: Update runtime stats with entity count during sync
       if (status.entity && status.count !== undefined) {
-        setRuntimeStats(prev => ({
-          ...prev,
-          [status.entity.toLowerCase()]: status.count
-        }));
-        console.log(`🔄 [OfflineSyncIndicator] ${status.entity} syncing - count: ${status.count} (progress: ${status.progress || 0}%)`);
+        setRuntimeStats(prev => ({ ...prev, [status.entity.toLowerCase()]: status.count }));
       }
-      
-      // CRITICAL: Refresh stats on sync complete
+
       if (status.status === 'complete' || status.status === 'synced') {
         getSyncStats().then(newStats => {
-          console.log('📊 [OfflineSyncIndicator] Sync complete - updated stats:', newStats);
           setStats(newStats);
-          setRuntimeStats({}); // Clear runtime stats when sync completes
-        }).catch(error => {
-          console.error('❌ [OfflineSyncIndicator] Failed to refresh stats:', error);
-        });
+          setRuntimeStats({});
+        }).catch(() => {});
       }
-      
-      // CRITICAL: Update UI in real-time if syncing entities relevant to current screen
+
       const relevantEntities = ['Deliveries', 'Patients', 'AppUsers', 'Cities'];
       if (status.entity && relevantEntities.includes(status.entity)) {
-        // Trigger partial UI refresh for relevant data
         if (status.entity === 'Deliveries' || status.entity === 'Patients') {
           window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
         }
-        
         if (status.entity === 'AppUsers') {
-          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-            detail: { appUsers: null }
-          }));
+          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: null } }));
         }
       }
     });
 
-    // CRITICAL: Listen for periodic sync progress from smartRefreshManager
     const handlePeriodicSync = (event) => {
       const { entity, count, isComplete } = event.detail;
-      
-      // Show syncing state
       setIsSyncing(true);
       setSyncStatus({ status: 'syncing', entity, count, progress: isComplete ? 100 : 50 });
-      
-      // Update runtime stats
-      setRuntimeStats(prev => ({
-        ...prev,
-        [entity.toLowerCase()]: count
-      }));
-      
-      console.log(`🔄 [OfflineSyncIndicator] Periodic sync: ${entity} - count: ${count}`);
-      
-      // If sync complete, refresh stats after short delay
+      setRuntimeStats(prev => ({ ...prev, [entity.toLowerCase()]: count }));
       if (isComplete) {
         setTimeout(() => {
           getSyncStats().then(newStats => {
-            console.log('📊 [OfflineSyncIndicator] Periodic sync complete - stats:', newStats);
             setStats(newStats);
             setRuntimeStats({});
             setIsSyncing(false);
-          }).catch(error => {
-            console.error('❌ [OfflineSyncIndicator] Failed to load stats after periodic sync:', error);
-            setIsSyncing(false);
-          });
+          }).catch(() => { setIsSyncing(false); });
         }, 300);
       }
     };
-    
-    // CRITICAL: Listen for auto-sync trigger from Layout
+
     const handleTriggerSyncNow = () => {
-      console.log('⚡ [OfflineSyncIndicator] Received triggerOfflineSyncNow event - starting sync');
-      if (!isSyncing) {
-        handleForceSync();
-      }
+      if (!isSyncing) handleForceSync();
     };
 
-    // CRITICAL: Refresh stats whenever offline DB is updated by WebSocket events
     let refreshDebounceTimer = null;
     const handleRealtimeDBUpdate = () => {
-      // Debounce to avoid hammering IndexedDB on rapid updates
       clearTimeout(refreshDebounceTimer);
       refreshDebounceTimer = setTimeout(() => {
-        getSyncStats().then(newStats => {
-          setStats(newStats);
-        }).catch(() => {});
+        getSyncStats().then(newStats => setStats(newStats)).catch(() => {});
       }, 500);
     };
 
     window.addEventListener('periodicSyncProgress', handlePeriodicSync);
     window.addEventListener('triggerOfflineSyncNow', handleTriggerSyncNow);
-    // Listen for all entity WebSocket updates
     window.addEventListener('realtimeUpdate_AppUser', handleRealtimeDBUpdate);
     window.addEventListener('realtimeUpdate_Delivery', handleRealtimeDBUpdate);
     window.addEventListener('realtimeUpdate_Patient', handleRealtimeDBUpdate);
     window.addEventListener('offlineSyncComplete', handleRealtimeDBUpdate);
     window.addEventListener('deliveriesUpdated', handleRealtimeDBUpdate);
 
-    // Poll every 30 seconds as a safety net
     const pollInterval = setInterval(handleRealtimeDBUpdate, 30000);
 
     return () => {
@@ -146,69 +101,32 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
     };
   }, [isVisible]);
 
-  // Only show to app owners - MUST be after all hooks
-  if (!isVisible) {
-    return null;
-  }
+  if (!isVisible) return null;
 
   const handleForceSync = async () => {
     try {
       setIsSyncing(true);
-      console.log('🔄 [OfflineSyncIndicator] Starting manual sync (merge-only, no clear)...');
-
-      // CRITICAL: Do NOT clear delivery/patient data before syncing.
-      // forceSyncAll uses bulkSave (upsert) which preserves historical records
-      // across the full date range (90 days mobile / all time desktop).
       const { offlineDB } = await import('../utils/offlineDatabase');
-
-      // Compute selected date and city, then run targeted manual sync
       const { globalFilters } = await import('../utils/globalFilters');
       const dateForSync = sessionStorage.getItem('rxdeliver_selected_date') || new Date().toISOString().split('T')[0];
       const selectedCityId = globalFilters?.getSelectedCityId?.();
-      const syncResult = await manualSyncSelected(dateForSync, selectedCityId);
-      console.log('✅ [OfflineSyncIndicator] manualSyncSelected complete:', syncResult);
-      
-      // Wait for DB to settle
+      await manualSyncSelected(dateForSync, selectedCityId);
       await new Promise(resolve => setTimeout(resolve, 500));
-      
       const updatedStats = await getSyncStats();
-      console.log('📊 [OfflineSyncIndicator] Updated stats:', updatedStats);
       setStats(updatedStats);
-      setRuntimeStats({}); // Clear runtime stats
-
-      // Wait for UI to update before dispatching events
+      setRuntimeStats({});
       await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Refresh delivery stats
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-      
-      // Force data refresh on Dashboard/current screen
       window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
-      
-      // Load fresh deliveries and trigger delivery update event
-      const selectedDateStr = sessionStorage.getItem('rxdeliver_selected_date') || 
-                             new Date().toISOString().split('T')[0];
-      
-      const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
-      
+      const freshDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateForSync);
       if (freshDeliveries && freshDeliveries.length > 0) {
-        console.log(`📦 [OfflineSyncIndicator] Triggering deliveriesImported with ${freshDeliveries.length} deliveries`);
         window.dispatchEvent(new CustomEvent('deliveriesImported', {
           detail: { source: 'manual_sync', deliveries: freshDeliveries }
         }));
       }
-      
-      // Trigger driver locations update to refresh map markers
-      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-        detail: { appUsers: null }
-      }));
-      
-      console.log('✅ [OfflineSyncIndicator] Complete offline DB refresh finished');
-      
+      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: null } }));
     } catch (error) {
       console.error('❌ [OfflineSyncIndicator] Force sync failed:', error);
-      console.error('   Error message:', error.message);
-      console.error('   Stack:', error.stack);
     } finally {
       setIsSyncing(false);
     }
@@ -230,11 +148,8 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
 
   const formatLastSync = (lastSync) => {
     if (!lastSync || lastSync === 'Never') return 'Never';
-    try {
-      return formatDistanceToNow(new Date(lastSync), { addSuffix: true });
-    } catch {
-      return 'Unknown';
-    }
+    try { return formatDistanceToNow(new Date(lastSync), { addSuffix: true }); }
+    catch { return 'Unknown'; }
   };
 
   const getEntityIcon = (entityName) => {
@@ -246,10 +161,6 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
     return '📊';
   };
 
-  // CRITICAL: During sync, always show the ACTUAL offline DB counts from `stats`
-  // (last confirmed DB state). Never substitute runtimeStats counts — they only reflect
-  // the entity currently being fetched from the server, not what's in the local DB,
-  // which makes it falsely appear that 21k records dropped to 12 during a sync pass.
   const liveCounts = stats ? {
     patients: stats.patients?.count ?? 0,
     deliveries: stats.deliveries?.count ?? 0,
@@ -272,216 +183,156 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
     ? liveCounts.patients + liveCounts.deliveries + liveCounts.appUsers + liveCounts.cities + liveCounts.driverOverviewStats
     : 0;
 
-  // Inline mode for stats card (mobile) or upper-left (desktop)
-  if (embedded || inline) {
-    // CRITICAL: Always render stats if we have the object (even with 0 counts)
-    const shouldRenderStats = stats;
-    
-    return (
-      <div className="w-full">
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center justify-between w-full px-3 py-2 rounded-lg transition-colors hover:bg-slate-50">
+  const shouldRenderStats = !!stats;
 
-          <div className="flex items-center gap-2">
-            {getStatusIcon()}
-            <div>
-              <span className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>
-                {isSyncing ? 'Syncing...' : 'Offline DB'}
-              </span>
-              {shouldRenderStats &&
+  return (
+    <div className="w-full">
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="flex items-center justify-between w-full px-3 py-2 rounded-lg transition-colors hover:bg-slate-50">
+        <div className="flex items-center gap-2">
+          {getStatusIcon()}
+          <div>
+            <span className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>
+              {isSyncing ? 'Syncing...' : 'Offline DB'}
+            </span>
+            {shouldRenderStats &&
               <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
-                  ({liveTotalRecords})
-                </span>
-              }
-              <div className="text-[10px] font-mono" style={{ color: 'var(--text-slate-400)' }}>rxdeliver_persistent_offline_v2</div>
-            </div>
+                ({liveTotalRecords})
+              </span>
+            }
+            <div className="text-[10px] font-mono" style={{ color: 'var(--text-slate-400)' }}>rxdeliver_persistent_offline_v2</div>
           </div>
-          {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-        </button>
-        
-        <AnimatePresence>
-          {isExpanded &&
+        </div>
+        {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+      </button>
+
+      <AnimatePresence>
+        {isExpanded &&
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden">
-
-              <div className="px-1 py-1 space-y-1 border-t border-slate-200">
-                {shouldRenderStats &&
-              <>
-                    <div className="text-xs space-y-0">
-                      {/* AppUsers */}
-                      <div className="px-2 py-1 rounded-md flex items-start justify-between" style={{ background: 'var(--bg-slate-50)' }}>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-1 mb-1">
-                            <span>{getEntityIcon('appUsers')}</span>
-                            <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Users</span>
-                          </div>
-                          <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
-                            <Clock className="w-3 h-3" />
-                            <span>{formatLastSync(liveLastSync.appUsers)}</span>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.appUsers}</div>
-                          {stats.fullSyncStatus?.appUsers?.completed &&
-                      <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
-                      }
-                        </div>
+            <div className="px-1 py-1 space-y-1 border-t border-slate-200">
+              {shouldRenderStats && <>
+                <div className="text-xs space-y-0">
+                  <div className="px-2 py-1 rounded-md flex items-start justify-between" style={{ background: 'var(--bg-slate-50)' }}>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-1 mb-1">
+                        <span>{getEntityIcon('appUsers')}</span>
+                        <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Users</span>
                       </div>
-
-                      {/* Cities */}
-                      {stats.cities &&
-                  <div className="flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-1 mb-1">
-                              <span>{getEntityIcon('cities')}</span>
-                              <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Cities</span>
-                            </div>
-                            <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
-                              <Clock className="w-3 h-3" />
-                              <span>{formatLastSync(liveLastSync.cities)}</span>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.cities}</div>
-                            {stats.fullSyncStatus?.cities?.completed &&
-                      <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
-                      }
-                          </div>
-                        </div>
-                  }
-
-                      {/* Patients */}
-                      <div className="px-2 py-1 rounded-md flex items-start justify-between" style={{ background: 'var(--bg-slate-50)' }}>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-1 mb-1">
-                            <span>{getEntityIcon('patients')}</span>
-                            <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Patients</span>
-                          </div>
-                          <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
-                            <Clock className="w-3 h-3" />
-                            <span>{formatLastSync(liveLastSync.patients)}</span>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.patients}</div>
-                          {stats.fullSyncStatus?.patients?.completed &&
-                      <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
-                      }
-                        </div>
+                      <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
+                        <Clock className="w-3 h-3" />
+                        <span>{formatLastSync(liveLastSync.appUsers)}</span>
                       </div>
-
-                      {/* Deliveries - Mobile: single row, Desktop: split into 2 rows */}
-                      <div className="hidden md:block">
-                        {/* Desktop: 2 rows */}
-                        <div className="px-2 py-1 rounded-md flex items-start justify-between" style={{ background: 'var(--bg-slate-50)' }}>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-1 mb-1">
-                              <span>{getEntityIcon('deliveries')}</span>
-                              <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Deliveries</span>
-                            </div>
-                            <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
-                              <Clock className="w-3 h-3" />
-                              <span>{formatLastSync(liveLastSync.deliveries)}</span>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.deliveries}</div>
-                            {stats.fullSyncStatus?.deliveries?.completed &&
-                        <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
-                        }
-                          </div>
-                        </div>
-                        <div className="px-2 py-1 rounded-md flex items-start justify-between mt-1" style={{ background: 'var(--bg-slate-50)' }}>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-1 mb-1">
-                              <span>📊</span>
-                              <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Stats</span>
-                            </div>
-                            <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
-                              <Clock className="w-3 h-3" />
-                              <span>{formatLastSync(liveLastSync.driverOverviewStats)}</span>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.driverOverviewStats}</div>
-                          </div>
-                        </div>
-                      </div>
-                      {/* Mobile: single row */}
-                      <div className="md:hidden px-2 py-1 rounded-md flex items-start justify-between" style={{ background: 'var(--bg-slate-50)' }}>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-1 mb-1">
-                            <span>{getEntityIcon('deliveries')}</span>
-                            <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Deliveries / Stats</span>
-                          </div>
-                          <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
-                            <Clock className="w-3 h-3" />
-                            <span>{formatLastSync(liveLastSync.deliveries)}</span>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.deliveries} / {liveCounts.driverOverviewStats}</div>
-                          {stats.fullSyncStatus?.deliveries?.completed &&
-                      <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
-                      }
-                        </div>
-                      </div>
-
-                      {/* Square Transactions */}
-                      {stats.squareTransactions &&
-                  <div className="flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-1 mb-1">
-                              <span>{getEntityIcon('squareTransactions')}</span>
-                              <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Square TX</span>
-                            </div>
-                            <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
-                              <Clock className="w-3 h-3" />
-                              <span>{formatLastSync(liveLastSync.squareTransactions)}</span>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.squareTransactions}</div>
-                            {stats.fullSyncStatus?.squareTransactions?.completed &&
-                      <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
-                      }
-                          </div>
-                        </div>
-                  }
-
-                      {stats.pendingMutations > 0 &&
-                  <div className="flex items-center justify-between p-2 rounded-md bg-amber-50 border border-amber-200">
-                          <span className="text-amber-700 font-medium">Pending sync:</span>
-                          <span className="font-bold text-amber-900">{stats.pendingMutations}</span>
-                        </div>
-                  }
                     </div>
-                    
-                    {isSyncing &&
-                <div className="text-xs space-y-1 p-2 rounded-md bg-blue-50 border border-blue-200">
-                        <div className="flex justify-between text-blue-700">
-                          <span className="font-medium">
-                            {getEntityIcon(syncStatus.entity)} {syncStatus.entity || 'Loading'} 
-                            {syncStatus.count ? ` (${syncStatus.count})` : ''}
-                          </span>
-                          <span className="font-bold">{syncStatus.progress || 0}%</span>
-                        </div>
-                        <div className="w-full rounded-full h-2 bg-blue-100">
-                          <div
-                      className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${syncStatus.progress || 0}%` }} />
+                    <div className="text-right">
+                      <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.appUsers}</div>
+                      {stats.fullSyncStatus?.appUsers?.completed && <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />}
+                    </div>
+                  </div>
 
+                  {stats.cities &&
+                    <div className="flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-1 mb-1">
+                          <span>{getEntityIcon('cities')}</span>
+                          <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Cities</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
+                          <Clock className="w-3 h-3" />
+                          <span>{formatLastSync(liveLastSync.cities)}</span>
                         </div>
                       </div>
-                }
-                  </>
-              }
+                      <div className="text-right">
+                        <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.cities}</div>
+                        {stats.fullSyncStatus?.cities?.completed && <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />}
+                      </div>
+                    </div>
+                  }
 
-                <Button
+                  <div className="px-2 py-1 rounded-md flex items-start justify-between" style={{ background: 'var(--bg-slate-50)' }}>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-1 mb-1">
+                        <span>{getEntityIcon('patients')}</span>
+                        <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Patients</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
+                        <Clock className="w-3 h-3" />
+                        <span>{formatLastSync(liveLastSync.patients)}</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.patients}</div>
+                      {stats.fullSyncStatus?.patients?.completed && <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />}
+                    </div>
+                  </div>
+
+                  <div className="px-2 py-1 rounded-md flex items-start justify-between" style={{ background: 'var(--bg-slate-50)' }}>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-1 mb-1">
+                        <span>{getEntityIcon('deliveries')}</span>
+                        <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Deliveries / Stats</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
+                        <Clock className="w-3 h-3" />
+                        <span>{formatLastSync(liveLastSync.deliveries)}</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.deliveries} / {liveCounts.driverOverviewStats}</div>
+                      {stats.fullSyncStatus?.deliveries?.completed && <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />}
+                    </div>
+                  </div>
+
+                  {stats.squareTransactions &&
+                    <div className="flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-1 mb-1">
+                          <span>{getEntityIcon('squareTransactions')}</span>
+                          <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Square TX</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
+                          <Clock className="w-3 h-3" />
+                          <span>{formatLastSync(liveLastSync.squareTransactions)}</span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.squareTransactions}</div>
+                        {stats.fullSyncStatus?.squareTransactions?.completed && <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />}
+                      </div>
+                    </div>
+                  }
+
+                  {stats.pendingMutations > 0 &&
+                    <div className="flex items-center justify-between p-2 rounded-md bg-amber-50 border border-amber-200">
+                      <span className="text-amber-700 font-medium">Pending sync:</span>
+                      <span className="font-bold text-amber-900">{stats.pendingMutations}</span>
+                    </div>
+                  }
+                </div>
+
+                {isSyncing &&
+                  <div className="text-xs space-y-1 p-2 rounded-md bg-blue-50 border border-blue-200">
+                    <div className="flex justify-between text-blue-700">
+                      <span className="font-medium">
+                        {getEntityIcon(syncStatus.entity)} {syncStatus.entity || 'Loading'}
+                        {syncStatus.count ? ` (${syncStatus.count})` : ''}
+                      </span>
+                      <span className="font-bold">{syncStatus.progress || 0}%</span>
+                    </div>
+                    <div className="w-full rounded-full h-2 bg-blue-100">
+                      <div
+                        className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${syncStatus.progress || 0}%` }} />
+                    </div>
+                  </div>
+                }
+              </>}
+
+              <Button
                 onClick={handleForceSync}
                 disabled={isSyncing}
                 size="sm"
@@ -489,253 +340,13 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                 className="w-full text-xs font-medium"
                 data-offline-sync-button
                 style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-
-                  <RefreshCw className={`w-3 h-3 mr-1.5 ${isSyncing ? 'animate-spin' : ''}`} />
-                  {isSyncing ? 'Syncing...' : 'Manual Sync'}
-                </Button>
-              </div>
-            </motion.div>
-          }
-        </AnimatePresence>
-      </div>);
-
-  }
-
-  // Floating mode is disabled - only embedded mode is used
-  return null;
-
-  // Dead code kept for reference
-  const shouldRenderStats = stats;
-  return (
-    <div className="fixed top-2 left-1 z-[100000]">
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="rounded-lg shadow-lg border overflow-hidden"
-        style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-
-        {/* Collapsed View */}
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center gap-2 px-3 py-2 transition-colors w-full hover:bg-slate-50"
-          style={{
-            background: 'var(--bg-white)',
-            color: 'var(--text-slate-700)'
-          }}>
-
-          {getStatusIcon()}
-          <div>
-            <span className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>
-              {isSyncing ? 'Syncing...' : 'Offline DB'}
-            </span>
-            {shouldRenderStats &&
-            <span className="text-xs ml-1" style={{ color: 'var(--text-slate-500)' }}>
-                ({liveTotalRecords} records)
-              </span>
-            }
-            <div className="text-[10px] font-mono" style={{ color: 'var(--text-slate-400)' }}>rxdeliver_persistent_offline_v2</div>
-          </div>
-        </button>
-
-        {/* Expanded View */}
-        <AnimatePresence>
-          {isExpanded &&
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="border-t"
-            style={{ borderColor: 'var(--border-slate-200)' }}>
-
-              <div className="p-3 space-y-3">
-                {shouldRenderStats &&
-              <>
-                    <div className="text-xs space-y-2">
-                      {/* Patients */}
-                      <div className="flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-1 mb-1">
-                            <span>{getEntityIcon('patients')}</span>
-                            <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Patients</span>
-                          </div>
-                          <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
-                            <Clock className="w-3 h-3" />
-                            <span>{formatLastSync(liveLastSync.patients)}</span>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.patients}</div>
-                          {stats.fullSyncStatus?.patients?.completed &&
-                      <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
-                      }
-                        </div>
-                      </div>
-
-                      {/* Deliveries - Desktop: 2 rows, Mobile: 1 row */}
-                      <div className="hidden md:block">
-                        {/* Desktop: 2 rows */}
-                        <div className="flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-1 mb-1">
-                              <span>{getEntityIcon('deliveries')}</span>
-                              <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Deliveries</span>
-                            </div>
-                            <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
-                              <Clock className="w-3 h-3" />
-                              <span>{formatLastSync(liveLastSync.deliveries)}</span>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.deliveries}</div>
-                            {stats.fullSyncStatus?.deliveries?.completed &&
-                        <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
-                        }
-                          </div>
-                        </div>
-                        <div className="flex items-start justify-between p-2 rounded-md mt-2" style={{ background: 'var(--bg-slate-50)' }}>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-1 mb-1">
-                              <span>📊</span>
-                              <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Stats</span>
-                            </div>
-                            <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
-                              <Clock className="w-3 h-3" />
-                              <span>{formatLastSync(liveLastSync.driverOverviewStats)}</span>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.driverOverviewStats}</div>
-                          </div>
-                        </div>
-                      </div>
-                      {/* Mobile: single row */}
-                      <div className="md:hidden flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-1 mb-1">
-                            <span>{getEntityIcon('deliveries')}</span>
-                            <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Deliveries / Stats</span>
-                          </div>
-                          <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
-                            <Clock className="w-3 h-3" />
-                            <span>{formatLastSync(liveLastSync.deliveries)}</span>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.deliveries} / {liveCounts.driverOverviewStats}</div>
-                          {stats.fullSyncStatus?.deliveries?.completed &&
-                      <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
-                      }
-                        </div>
-                      </div>
-
-                      {/* AppUsers */}
-                      <div className="flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-1 mb-1">
-                            <span>{getEntityIcon('appUsers')}</span>
-                            <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Users</span>
-                          </div>
-                          <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
-                            <Clock className="w-3 h-3" />
-                            <span>{formatLastSync(liveLastSync.appUsers)}</span>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.appUsers}</div>
-                          {stats.fullSyncStatus?.appUsers?.completed &&
-                      <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
-                      }
-                        </div>
-                      </div>
-
-                      {/* Cities */}
-                      {stats.cities &&
-                  <div className="flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-1 mb-1">
-                              <span>{getEntityIcon('cities')}</span>
-                              <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Cities</span>
-                            </div>
-                            <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
-                              <Clock className="w-3 h-3" />
-                              <span>{formatLastSync(liveLastSync.cities)}</span>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.cities}</div>
-                            {stats.fullSyncStatus?.cities?.completed &&
-                      <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
-                      }
-                          </div>
-                        </div>
-                  }
-
-                      {/* Square Transactions */}
-                      {stats.squareTransactions &&
-                  <div className="flex items-start justify-between p-2 rounded-md" style={{ background: 'var(--bg-slate-50)' }}>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-1 mb-1">
-                              <span>{getEntityIcon('squareTransactions')}</span>
-                              <span className="font-medium" style={{ color: 'var(--text-slate-700)' }}>Square TX</span>
-                            </div>
-                            <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-slate-500)' }}>
-                              <Clock className="w-3 h-3" />
-                              <span>{formatLastSync(liveLastSync.squareTransactions)}</span>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="font-bold" style={{ color: 'var(--text-slate-900)' }}>{liveCounts.squareTransactions}</div>
-                            {stats.fullSyncStatus?.squareTransactions?.completed &&
-                      <CheckCircle className="w-3 h-3 text-green-500 ml-auto mt-0.5" />
-                      }
-                          </div>
-                        </div>
-                  }
-
-                      {stats.pendingMutations > 0 &&
-                  <div className="flex items-center justify-between p-2 rounded-md bg-amber-50 border border-amber-200">
-                          <span className="text-amber-700 font-medium">Pending sync:</span>
-                          <span className="font-bold text-amber-900">{stats.pendingMutations}</span>
-                        </div>
-                  }
-                    </div>
-                    
-                    {isSyncing &&
-                <div className="text-xs space-y-1 p-2 rounded-md bg-blue-50 border border-blue-200">
-                        <div className="flex justify-between text-blue-700">
-                          <span className="font-medium">
-                            {getEntityIcon(syncStatus.entity)} {syncStatus.entity || 'Loading'} 
-                            {syncStatus.count ? ` (${syncStatus.count})` : ''}
-                          </span>
-                          <span className="font-bold">{syncStatus.progress || 0}%</span>
-                        </div>
-                        <div className="w-full rounded-full h-2 bg-blue-100">
-                          <div
-                      className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${syncStatus.progress || 0}%` }} />
-
-                        </div>
-                      </div>
-                }
-                  </>
-              }
-
-                <Button
-                onClick={handleForceSync}
-                disabled={isSyncing}
-                size="sm"
-                variant="outline"
-                className="w-full text-xs font-medium"
-                data-offline-sync-button>
-
-                  <RefreshCw className={`w-3 h-3 mr-1.5 ${isSyncing ? 'animate-spin' : ''}`} />
-                  {isSyncing ? 'Syncing...' : 'Manual Sync'}
-                </Button>
-              </div>
-            </motion.div>
-          }
-        </AnimatePresence>
-      </motion.div>
-    </div>);
-
+                <RefreshCw className={`w-3 h-3 mr-1.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                {isSyncing ? 'Syncing...' : 'Manual Sync'}
+              </Button>
+            </div>
+          </motion.div>
+        }
+      </AnimatePresence>
+    </div>
+  );
 }
