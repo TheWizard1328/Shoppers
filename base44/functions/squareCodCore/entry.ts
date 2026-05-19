@@ -7,9 +7,9 @@ const TRANSACTION_RETENTION_DAYS = 90;
 const MATCH_DATE_OFFSET_DAYS = 2;
 const SQUARE_API_MAX_RETRIES = 3;
 const SQUARE_RETRY_BASE_DELAY_MS = 400;
-const SQUARE_REQUEST_SPACING_MS = 350;
-const SQUARE_BATCH_PAUSE_MS = 1200;
-const SQUARE_BATCH_SIZE = 4;
+const SQUARE_REQUEST_SPACING_MS = 100;
+const SQUARE_BATCH_PAUSE_MS = 400;
+const SQUARE_BATCH_SIZE = 8;
 const DELIVERY_BULK_REFRESH_INTERVAL_MS = 60 * 60 * 1000;
 const MAX_TRANSACTION_ORDERS = 2000;
 const BASE44_SYNC_CHUNK_DELAY_MS = 300;
@@ -149,13 +149,13 @@ async function updateCatalogItem({catalogObjectId,catalogVersion,itemName,amount
 
 async function listActiveCatalogItems(accessToken, options={}) {
   const objects=[];let cursor;
-  do{const json=await squareFetch('/v2/catalog/search','POST',accessToken,{object_types:['ITEM'],include_deleted_objects:false,archived_state:'ARCHIVED_STATE_NOT_ARCHIVED',cursor},options);objects.push(...(json.objects||[]));cursor=json.cursor;if(cursor)await sleep(SQUARE_BATCH_PAUSE_MS);}while(cursor);
+  do{const json=await squareFetch('/v2/catalog/search','POST',accessToken,{object_types:['ITEM'],include_deleted_objects:false,archived_state:'ARCHIVED_STATE_NOT_ARCHIVED',limit:1000,cursor},options);objects.push(...(json.objects||[]));cursor=json.cursor;if(cursor)await sleep(200);}while(cursor);
   return objects;
 }
 
-async function listOrders(locationIds, startAt, accessToken, maxOrders=1000, states=['COMPLETED','OPEN'], options={}) {
+async function listOrders(locationIds, startAt, accessToken, maxOrders=2000, states=['COMPLETED','OPEN'], options={}) {
   if(!locationIds.length)return[];const orders=[];let cursor=null;
-  do{const json=await squareFetch('/v2/orders/search','POST',accessToken,{location_ids:locationIds,cursor,limit:500,query:{filter:{state_filter:{states},date_time_filter:{created_at:{start_at:startAt}}},sort:{sort_field:'CREATED_AT',sort_order:'DESC'}}},options);orders.push(...(json.orders||[]));cursor=json.cursor||null;if(cursor&&orders.length<maxOrders)await sleep(SQUARE_BATCH_PAUSE_MS);}while(cursor&&orders.length<maxOrders);
+  do{const json=await squareFetch('/v2/orders/search','POST',accessToken,{location_ids:locationIds,cursor,limit:500,query:{filter:{state_filter:{states},date_time_filter:{created_at:{start_at:startAt}}},sort:{sort_field:'CREATED_AT',sort_order:'DESC'}}},options);orders.push(...(json.orders||[]));cursor=json.cursor||null;if(cursor&&orders.length<maxOrders)await sleep(200);}while(cursor&&orders.length<maxOrders);
   return orders.slice(0,maxOrders);
 }
 
@@ -314,10 +314,15 @@ async function handleGetCodData(base44, payload={}) {
   const startDateStr=formatLocalDate(startDate);const endDateStr=formatLocalDate(endDate);
   const storeSquareEligibility=new Map();
   for(const store of safeStores){const c=activeConfigById.get(store?.square_location_config_id);if(!c?.square_location_id)continue;const fh=Array.isArray(store.app_fee_history)?store.app_fee_history:[];const ae=fh.filter((e)=>e?.pays_app_fees===true&&e?.effective_date).sort((a,b)=>String(a.effective_date).localeCompare(String(b.effective_date)));storeSquareEligibility.set(store.id,ae.length>0?ae[0].effective_date:null);}
+  let deliveryFetchPromise=Promise.resolve([]);
+  if(refreshDeliveries){deliveryFetchPromise=base44.asServiceRole.entities.Delivery.filter({delivery_date:{$gte:startDateStr,$lte:endDateStr}},'-updated_date',5000).catch(()=>[]);}
   let safeDeliveries=[];
-  if(refreshDeliveries){const dr=await base44.asServiceRole.entities.Delivery.filter({delivery_date:{$gte:startDateStr,$lte:endDateStr}},'-updated_date',5000).catch(()=>[]);const all=(Array.isArray(dr)?dr:[]).map(unwrapEntityRecord).filter(Boolean);safeDeliveries=all.filter((d)=>{if(!storeSquareEligibility.has(d?.store_id))return false;const ef=storeSquareEligibility.get(d.store_id);return!(ef&&d.delivery_date<ef);});}
-  const liveCatalogItems=await listActiveCatalogItems(accessToken,{monitor,queue}).catch(()=>[]);
-  const completedOrders=await listOrders(locationIds,getLookbackStartAt(daysBack),accessToken,MAX_TRANSACTION_ORDERS,['COMPLETED','OPEN'],{monitor,queue}).catch(()=>[]);
+  const [liveCatalogItems,completedOrders,rawDeliveries]=await Promise.all([
+    listActiveCatalogItems(accessToken,{monitor,queue}).catch(()=>[]),
+    listOrders(locationIds,getLookbackStartAt(daysBack),accessToken,MAX_TRANSACTION_ORDERS,['COMPLETED','OPEN'],{monitor,queue}).catch(()=>[]),
+    deliveryFetchPromise
+  ]);
+  if(refreshDeliveries){const all=(Array.isArray(rawDeliveries)?rawDeliveries:[]).map(unwrapEntityRecord).filter(Boolean);safeDeliveries=all.filter((d)=>{if(!storeSquareEligibility.has(d?.store_id))return false;const ef=storeSquareEligibility.get(d.store_id);return!(ef&&d.delivery_date<ef);});}
   const paidOrderItems=flattenOrderItems(completedOrders).filter((item)=>{const t=new Date(item?.payment_date||item?.order_created_at||0).getTime();return Number.isFinite(t)&&t>=transactionRetentionStartMs;});
   const catalogRecords=(liveCatalogItems||[]).reduce((acc,item)=>{const ac=getCatalogItemAmountCents(item);const itemName=item?.item_data?.name||'';const lids=Array.from(new Set([...(item?.present_at_location_ids||[]),...(item?.item_data?.variations||[]).flatMap((v)=>v?.present_at_location_ids||[])].filter(Boolean)));if(!lids.length)return acc;const mt=(existingTransactions||[]).find((t)=>normalizeText(t.square_catalog_object_id)===normalizeText(item?.id)||buildItemSignature(t?.item_name,t?.amount_cents??Math.round(Number(t?.amount||0)*100))===buildItemSignature(itemName,ac));const rl=mt?.location_id&&lids.includes(mt.location_id)?mt.location_id:lids.find((l)=>storeByLocationId.has(l))||lids[0];const store=storeByLocationId.get(rl);acc.push({id:item?.id,square_catalog_object_id:item?.id,square_catalog_version:item?.version||null,item_name:itemName,description:item?.item_data?.description||'',amount:ac/100,amount_cents:ac,delivery_id:mt?.delivery_id||null,delivery_date:toIsoDate(itemName),patient_id:mt?.patient_id||null,store_id:mt?.store_id||store?.id||null,location_id:rl,status:'active',created_date:item?.created_at||null,updated_date:item?.updated_at||null});return acc;},[]);
   const seenTxKeys=new Set();const recentTxRecords=[];
@@ -340,13 +345,16 @@ async function handleRecordPayment(base44, payload) {
 
 async function handleSyncCatalogItems(base44) {
   const accessToken=ensureSquareToken();
-  const[deliveries,stores,squareConfigs,squareTransactions]=await Promise.all([base44.asServiceRole.entities.Delivery.list('-updated_date',2000),base44.asServiceRole.entities.Store.list('-updated_date',200),base44.asServiceRole.entities.SquareLocationConfig.list('-updated_date',200),base44.asServiceRole.entities.SquareTransaction.list('-updated_date',2000)]);
+  const[deliveries,stores,squareConfigs,squareTransactions]=await Promise.all([base44.asServiceRole.entities.Delivery.list('-updated_date',5000),base44.asServiceRole.entities.Store.list('-updated_date',200),base44.asServiceRole.entities.SquareLocationConfig.list('-updated_date',200),base44.asServiceRole.entities.SquareTransaction.list('-updated_date',5000)]);
   const activeConfigById=new Map((squareConfigs||[]).filter((c)=>c?.status==='active'&&c?.square_location_id).map((c)=>[c.id,c]));
   const storeById=new Map((stores||[]).map((s)=>[s.id,s]));const deliveryById=new Map((deliveries||[]).map((d)=>[d.id,d]));
   const allSquareLocationIds=Array.from(new Set((stores||[]).map((s)=>activeConfigById.get(s?.square_location_config_id)?.square_location_id).filter(Boolean)));
   const txRetentionMs=getTransactionRetentionStartMs();const allCodDeliveries=(deliveries||[]).filter((d)=>Number(d?.cod_total_amount_required||0)>0);
   const{patientById,patientByPid}=await buildPatientMaps(base44,allCodDeliveries);
   const[allCatalogItems,completedOrders]=await Promise.all([listActiveCatalogItems(accessToken),listOrders(allSquareLocationIds,getLookbackStartAt(TRANSACTION_RETENTION_DAYS),accessToken,MAX_TRANSACTION_ORDERS,['COMPLETED','OPEN'])]);
+  // Pre-fetch ALL patients upfront so the delivery loop never needs individual async lookups
+  const allPatients=await base44.asServiceRole.entities.Patient.list('-updated_date',5000).catch(()=>[]);
+  for(const p of allPatients||[]){if(p?.id&&!patientById.has(p.id))patientById.set(p.id,p);const pid=normalizeText(p?.patient_id);if(pid&&!patientByPid.has(pid))patientByPid.set(pid,p);}
   const recentCatalogItems=allCatalogItems||[];const paidOrderItems=flattenOrderItems(completedOrders);
   const recentSquareTx=(squareTransactions||[]).filter((t)=>{const tm=new Date(t?.created_date||t?.updated_date||0).getTime();return Number.isFinite(tm)&&tm>=txRetentionMs;});
   const catalogBySignature=new Map();const catalogByDateLocationAmount=new Map();
@@ -359,7 +367,10 @@ async function handleSyncCatalogItems(base44) {
   const itemsToDelete=[];const txToCancel=[];const txToComplete=[];const deliveriesToSync=[];const matchedCatIds=new Set();const matchedDLASigs=new Set();
   for(const item of recentCatalogItems){const n=normalizeText(item?.item_data?.name);if(!n)continue;const ac=getCatalogItemAmountCents(item);const isig=buildItemSignature(n,ac);const lids=getCatalogItemLocationIds(item);const compSigs=lids.map((l)=>buildComparableLocationSignature(n,ac,l));const varIds=(item?.item_data?.variations||[]).map((v)=>v?.id).filter(Boolean);const dateSigs=lids.map((l)=>buildLocationDateAmountSignature(l,n,ac));const byPaid=paidCatalogObjectIds.has(item.id)||varIds.some((v)=>paidCatalogObjectIds.has(v))||paidOrderItemSignatures.has(isig)||compSigs.some((s)=>paidOrderComparableSignatures.has(s))||dateSigs.some((s)=>paidOrderItemsByDLA.has(s));const bySettled=settledCatIds.has(item.id)||varIds.some((v)=>settledCatIds.has(v))||settledItemSigs.has(isig)||compSigs.some((s)=>settledComparableSigs.has(s))||dateSigs.some((s)=>settledDLASigs.has(s));if(byPaid||bySettled){matchedCatIds.add(item.id);dateSigs.forEach((s)=>matchedDLASigs.add(s));itemsToDelete.push(item.id);}}
   for(const t of recentSquareTx){if(t?.status!=='pending')continue;const cs=buildLocationDateAmountSignatureCandidates(t?.location_id,deliveryById.get(t?.delivery_id)?.delivery_date||t?.item_name,t?.amount_cents??Math.round(Number(t?.amount||0)*100));if(matchedCatIds.has(t?.square_catalog_object_id)||cs.some((s)=>matchedDLASigs.has(s)))txToComplete.push(t.id);}
-  for(const delivery of allCodDeliveries){const store=storeById.get(delivery.store_id);const ac=activeConfigById.get(store?.square_location_config_id);const rpn=await resolveDeliveryPatientName(base44,delivery,patientById,patientByPid);const rp=await resolveDeliveryPatient(base44,delivery,patientById,patientByPid);const itemName=formatItemName(delivery.delivery_date,store?.abbreviation,rpn);const amountCents=Math.round(Number(delivery.cod_total_amount_required||0)*100);const sig=buildItemSignature(itemName,amountCents);const dSigs=buildLocationDateAmountSignatureCandidates(ac?.square_location_id,delivery.delivery_date,amountCents);let catalogItem=catalogBySignature.get(sig)||dSigs.map((s)=>catalogByDateLocationAmount.get(s)).find(Boolean)||null;const exTx=txByDeliveryId.get(delivery.id)||[];const settledTx=exTx.filter((t)=>t?.status&&t.status!=='pending');const phNames=new Set(buildPlaceholderItemNames(delivery.delivery_date,store?.abbreviation));if(rpn!=='Unknown Patient'&&ac?.square_location_id)for(const pi of recentCatalogItems){const pn=normalizeText(pi?.item_data?.name);if(!phNames.has(pn))continue;if(getCatalogItemAmountCents(pi)!==amountCents)continue;if(isCatalogItemAtLocation(pi,ac.square_location_id))itemsToDelete.push(pi.id);}
+  for(const delivery of allCodDeliveries){const store=storeById.get(delivery.store_id);const ac=activeConfigById.get(store?.square_location_config_id);
+  // Use pre-loaded patient maps — no async lookup needed
+  const rp=patientById.get(delivery.patient_id)||patientByPid.get(normalizeText(delivery.patient_id))||null;
+  const rpn=normalizeText(rp?.full_name||delivery?.patient_name)||'Unknown Patient';const itemName=formatItemName(delivery.delivery_date,store?.abbreviation,rpn);const amountCents=Math.round(Number(delivery.cod_total_amount_required||0)*100);const sig=buildItemSignature(itemName,amountCents);const dSigs=buildLocationDateAmountSignatureCandidates(ac?.square_location_id,delivery.delivery_date,amountCents);let catalogItem=catalogBySignature.get(sig)||dSigs.map((s)=>catalogByDateLocationAmount.get(s)).find(Boolean)||null;const exTx=txByDeliveryId.get(delivery.id)||[];const settledTx=exTx.filter((t)=>t?.status&&t.status!=='pending');const phNames=new Set(buildPlaceholderItemNames(delivery.delivery_date,store?.abbreviation));if(rpn!=='Unknown Patient'&&ac?.square_location_id)for(const pi of recentCatalogItems){const pn=normalizeText(pi?.item_data?.name);if(!phNames.has(pn))continue;if(getCatalogItemAmountCents(pi)!==amountCents)continue;if(isCatalogItemAtLocation(pi,ac.square_location_id))itemsToDelete.push(pi.id);}
   const exPending=exTx.find((t)=>t.status==='pending');if(exPending?.square_catalog_object_id&&(exPending.item_name!==itemName||toAmountCents(exPending.amount_cents)!==amountCents)){itemsToDelete.push(exPending.square_catalog_object_id);if(catalogItem?.id===exPending.square_catalog_object_id)catalogItem=null;}
   const hasCard=hasCollectedCardPayment(delivery);const hasOffline=hasCollectedOfflinePayment(delivery);const hasSquarePaid=paidOrderItemSignatures.has(sig)||paidOrderComparableSignatures.has(buildComparableLocationSignature(itemName,amountCents,ac?.square_location_id))||dSigs.some((s)=>paidOrderItemsByDLA.has(s))||settledTx.length>0||settledItemSigs.has(sig)||settledComparableSigs.has(buildComparableLocationSignature(itemName,amountCents,ac?.square_location_id))||dSigs.some((s)=>settledDLASigs.has(s));
   const delForInvalid=!ac||!store?.square_location_config_id||!ac?.square_location_id||delivery?.status==='failed';const shouldDel=delForInvalid||hasSquarePaid;
@@ -382,9 +393,9 @@ async function handleSyncOnlineSquareEntities(base44, payload) {
   const stripMeta=(r)=>{const{id,created_date,updated_date,created_by,created_by_id,is_sample,...rest}=r||{};return rest;};
   const normCatalog=(r)=>{const c=stripMeta(r);if(!c)return null;return{square_catalog_object_id:c.square_catalog_object_id||c.catalog_object_id||null,square_catalog_version:c.square_catalog_version||c.version||null,item_name:c.item_name||c.name||null,description:c.description||'',amount:c.amount??c.price_dollars??(c.price_cents!=null?Number(c.price_cents)/100:null),amount_cents:c.amount_cents??c.price_cents??null,delivery_id:c.delivery_id||null,delivery_date:c.delivery_date||null,patient_id:c.patient_id||null,store_id:c.store_id||null,location_id:c.location_id||null,status:c.status||'active'};};
   const cleanCatalog=catalogRecords.map(normCatalog).filter((r)=>r?.square_catalog_object_id&&r?.item_name&&r?.amount!=null&&r?.location_id);const cleanTx=transactionRecords.map(stripMeta).filter(Boolean);
-  const bulkCreate=async(api,records)=>{if(!records.length)return;const cs=10;for(let i=0;i<records.length;i+=cs){await api.bulkCreate(records.slice(i,i+cs));if(i+cs<records.length)await sleep(BASE44_SYNC_CHUNK_DELAY_MS*3);}};
-  await paginatedDeleteAll(base44.asServiceRole.entities.SquareCatalogItems,50);if(cleanCatalog.length>0)await bulkCreate(base44.asServiceRole.entities.SquareCatalogItems,cleanCatalog);
-  await paginatedDeleteAll(base44.asServiceRole.entities.SquareTransaction,50);if(cleanTx.length>0)await bulkCreate(base44.asServiceRole.entities.SquareTransaction,cleanTx);
+  const bulkCreate=async(api,records)=>{if(!records.length)return;const cs=20;for(let i=0;i<records.length;i+=cs){await api.bulkCreate(records.slice(i,i+cs));if(i+cs<records.length)await sleep(100);}};
+  await Promise.all([paginatedDeleteAll(base44.asServiceRole.entities.SquareCatalogItems,100),paginatedDeleteAll(base44.asServiceRole.entities.SquareTransaction,100)]);
+  await Promise.all([cleanCatalog.length>0?bulkCreate(base44.asServiceRole.entities.SquareCatalogItems,cleanCatalog):Promise.resolve(),cleanTx.length>0?bulkCreate(base44.asServiceRole.entities.SquareTransaction,cleanTx):Promise.resolve()]);
   return{success:true,paused:false,catalogCount:cleanCatalog.length,transactionCount:cleanTx.length};
 }
 
