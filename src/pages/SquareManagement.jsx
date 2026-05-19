@@ -228,90 +228,58 @@ export default function SquareManagement() {
   const visibleStoreIdsRef = useRef(new Set());
   const selectedDriverUserIdsRef = useRef(new Set());
 
-  const runReconcile = useCallback(async (currentReconciliationRows) => {
-    // reconciliationRows are already filtered to "unmatched" deliveries — just create catalog items for them
-    const unmatchedRows = (currentReconciliationRows || reconciliationRowsRef.current || []).filter((row) => !!row?.rawDelivery);
-    if (unmatchedRows.length === 0) {
-      toast.info('No unmatched deliveries to reconcile');
-      return;
-    }
-
+  const runReconcile = useCallback(async () => {
+    // Reconcile = pull fresh Square transactions + deliveries so the matching logic re-runs
+    // The reconciliationRows list is computed automatically from the refreshed data.
     setIsReconciling(true);
     window.dispatchEvent(new CustomEvent('pauseBackgroundSync'));
-
     try {
       const { offlineDB } = await import('@/components/utils/offlineDatabase');
+      const { startDateStr, endDateStr } = getSourceWindow();
 
-      // Skip deliveries that already have a catalog item in offline DB
-      const catalogDeliveryIds = new Set(catalogItems.map((c) => c.delivery_id).filter(Boolean));
-      const needsCatalog = unmatchedRows.filter((row) => !catalogDeliveryIds.has(row.rawDelivery.id));
+      // Pull fresh Square data
+      const codResponse = await base44.functions.invoke('squareGetCODData', {
+        forceDeliveryRefresh: true,
+        daysBack: 7,
+        mergeWithExisting: true
+      });
+      const codData = codResponse?.data || codResponse || {};
+      const catalogRecords = codData.catalogRecords || [];
+      const transactionRecords = codData.transactionRecords || [];
+      const strippedDeliveries = Array.isArray(codData.deliveries)
+        ? codData.deliveries.map(({ delivery_route_breadcrumbs, encoded_polyline, proof_photo_urls, signature_image_url, ...rest }) => rest)
+        : [];
 
-      if (needsCatalog.length === 0) {
-        toast.info('All unmatched deliveries already have catalog items');
-        return;
-      }
+      // Merge into offline DB
+      const mergeRecords = async (store, freshRecords) => {
+        const existing = (await offlineDB.getAll(store)) || [];
+        const existingMap = new Map(existing.map((r) => [r.id, r]));
+        (freshRecords || []).forEach((r) => { if (r?.id) existingMap.set(r.id, r); });
+        await offlineDB.replaceAllRecords(store, Array.from(existingMap.values()));
+        return Array.from(existingMap.values());
+      };
 
-      let created = 0;
-      let skipped = 0;
+      const [mergedDeliveries, mergedCatalog, mergedTransactions] = await Promise.all([
+        mergeRecords(offlineDB.STORES.DELIVERIES, strippedDeliveries),
+        mergeRecords(offlineDB.STORES.SQUARE_CATALOG_ITEMS, catalogRecords),
+        mergeRecords(offlineDB.STORES.SQUARE_TRANSACTIONS, transactionRecords),
+      ]);
 
-      // Load catalog once before the loop
-      const existingCatalog = (await offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS)) || [];
-      const catalogMap = new Map(existingCatalog.map((c) => [c.id, c]));
+      // Apply to state — reconciliationRows recomputes automatically
+      const windowDeliveries = mergedDeliveries.filter((d) => d && d.delivery_date >= startDateStr && d.delivery_date <= endDateStr);
+      setDeliveries([...(windowDeliveries.length > 0 ? windowDeliveries : mergedDeliveries)]);
+      setCatalogItems([...(mergedCatalog || [])]);
+      setAllTransactions([...(mergedTransactions || [])]);
+      setSoldCatalogItems([...(mergedTransactions || []).filter((tx) => ['completed', 'refunded'].includes(tx.status))]);
 
-      for (const row of needsCatalog) {
-        const d = row.rawDelivery;
-        const response = await base44.functions.invoke('squareCodCore', {
-          action: 'createCodItem',
-          deliveryId: d.id,
-          codAmount: d.cod_total_amount_required,
-          deliveryDate: d.delivery_date,
-          storeId: d.store_id,
-          patientName: d.patient_name || null,
-        });
-        const r = response?.data || response || {};
-
-        if (r?.skipped) {
-          skipped++;
-          continue;
-        }
-
-        if (r?.catalogObjectId) {
-          created++;
-          catalogMap.set(r.catalogObjectId, {
-            id: r.catalogObjectId,
-            square_catalog_object_id: r.catalogObjectId,
-            square_catalog_version: r.catalogVersion || null,
-            item_name: r.itemName || row.itemName,
-            description: '',
-            amount: Number(d.cod_total_amount_required || 0),
-            amount_cents: Math.round(Number(d.cod_total_amount_required || 0) * 100),
-            delivery_id: d.id,
-            delivery_date: d.delivery_date || null,
-            patient_id: d.patient_id || null,
-            store_id: d.store_id || null,
-            location_id: row.locationId || null,
-            status: 'active',
-          });
-        }
-      }
-
-      // Write all new catalog items to offline DB in one shot
-      await offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_CATALOG_ITEMS, Array.from(catalogMap.values()));
-
-      // Refresh UI from offline DB
-      await loadSquareViewFromOffline();
-
-      const parts = [];
-      if (created > 0) parts.push(`${created} catalog item${created === 1 ? '' : 's'} created in Square`);
-      if (skipped > 0) parts.push(`${skipped} skipped (missing patient name)`);
-      toast[created > 0 ? 'success' : 'info'](parts.length > 0 ? parts.join(', ') : 'No new catalog items needed');
+      toast.success('Reconciliation list refreshed');
     } catch (err) {
       toast.error('Reconcile failed: ' + err.message);
     } finally {
       setIsReconciling(false);
       window.dispatchEvent(new CustomEvent('resumeBackgroundSync'));
     }
-  }, [catalogItems, loadSquareViewFromOffline]);
+  }, [getSourceWindow]);
 
   const syncFromSquare = async () => {
     const now = Date.now();
@@ -1329,7 +1297,7 @@ export default function SquareManagement() {
                 {isSyncing ? 'Syncing...' : 'Sync'}
               </Button>
               {activeView === 'reconciliation' &&
-              <Button onClick={() => runReconcile(reconciliationRows)} disabled={isReconciling || isSyncing} className="w-full md:w-[160px] gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 justify-center">
+              <Button onClick={runReconcile} disabled={isReconciling || isSyncing} className="w-full md:w-[160px] gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 justify-center">
                 {isReconciling ? <Loader2 className="w-4 h-4 flex-shrink-0 animate-spin" /> : <RefreshCw className="w-4 h-4 flex-shrink-0" />}
                 {isReconciling ? 'Reconciling...' : 'Reconcile'}
               </Button>
