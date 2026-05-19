@@ -1875,9 +1875,11 @@ export default function Layout({ children, currentPageName }) {
                     screenWidth={screenWidth} />
 
                         {/* Offline DB Monitor - embedded for all users */}
-                        <div className="mt-2 border-t pt-2" style={{ borderColor: 'var(--border-slate-200)' }}>
+                        {(isMobile || screenWidth < 768) &&
+                  <div className="mt-2 border-t pt-2" style={{ borderColor: 'var(--border-slate-200)' }}>
                           <OfflineSyncIndicator embedded={true} />
                         </div>
+                  }
                       </div>
                 }
                 </div>
