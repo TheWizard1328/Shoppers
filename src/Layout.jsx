@@ -1873,13 +1873,13 @@ export default function Layout({ children, currentPageName }) {
                     storeIds={stores.filter((s) => s && s.city_id === globalFilters.getSelectedCityId()).map((s) => s.id)}
                     isMobile={isMobile}
                     screenWidth={screenWidth} />
-
-                        {/* Offline DB Monitor - embedded for all users on all devices */}
-                        <div className="mt-2 border-t pt-2" style={{ borderColor: 'var(--border-slate-200)' }}>
-                          <OfflineSyncIndicator embedded={true} />
-                        </div>
                       </div>
                 }
+
+                  {/* Offline DB Monitor - always visible in sidebar for all users on all devices/pages */}
+                  <div className="mt-2 border-t pt-2" style={{ borderColor: 'var(--border-slate-200)' }}>
+                    <OfflineSyncIndicator embedded={true} />
+                  </div>
                 </div>
 
                 <SidebarUserFooter
