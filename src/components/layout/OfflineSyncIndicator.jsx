@@ -6,7 +6,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@/components/utils/UserContext';
 import { isAppOwner } from '@/components/utils/userRoles';
 import { formatDistanceToNow } from 'date-fns';
-import { isMobileDevice } from '@/components/utils/deviceUtils';
 
 export default function OfflineSyncIndicator({ embedded = false, inline = false }) {
   const { currentUser } = useUser();
@@ -16,8 +15,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
   const [isSyncing, setIsSyncing] = useState(false);
   const [runtimeStats, setRuntimeStats] = useState({});
 
-  // Visible to all logged-in users on all devices
-  const isVisible = !!currentUser;
+  const isVisible = currentUser && isAppOwner(currentUser);
 
   useEffect(() => {
     if (!isVisible) return;
