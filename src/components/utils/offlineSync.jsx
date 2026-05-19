@@ -398,6 +398,46 @@ export { quickReconcile };
 // ==================== INITIAL SYNC (ENTRY POINT) ====================
 
 /**
+ * Full patient sync — fetches ALL active patients store-by-store.
+ * Runs unconditionally (no time-of-day gate) so new/reinstalled users get complete data fast.
+ */
+const performFullPatientSyncForNewUser = async () => {
+  try {
+    const stores = await offlineDB.getAll(offlineDB.STORES.STORES) || [];
+    if (stores.length === 0) return;
+
+    console.log(`🏥 [InitialSync] Starting full patient sync for ${stores.length} stores...`);
+    let totalSynced = 0;
+
+    for (let i = 0; i < stores.length; i++) {
+      const store = stores[i];
+      if (!store?.id) continue;
+
+      try {
+        const storePatients = await Patient.filter({ store_id: store.id, status: 'active' });
+        if (storePatients && storePatients.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, storePatients);
+          totalSynced += storePatients.length;
+          invalidateEntityCache('Patient');
+        }
+        notifySyncStatus({ status: 'syncing', entity: `Patients (${store.name || 'Store'} ${i+1}/${stores.length})`, progress: Math.floor(10 + (i / stores.length) * 85), count: totalSynced });
+      } catch (e) {
+        console.warn(`⚠️ [InitialSync] Failed patient sync for store ${store.name}:`, e.message);
+      }
+
+      // Small cooldown between stores to avoid rate limits
+      await new Promise(r => setTimeout(r, 1500));
+    }
+
+    notifySyncStatus({ status: 'complete', progress: 100 });
+    console.log(`✅ [InitialSync] Full patient sync complete — ${totalSynced} patients across ${stores.length} stores`);
+    window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
+  } catch (error) {
+    console.warn('⚠️ [InitialSync] Full patient sync error:', error.message);
+  }
+};
+
+/**
  * Main entry point for initial sync
  * CRITICAL: For new users, always sync ALL patients to populate offline DB
  */
@@ -415,10 +455,29 @@ export const performInitialSync = async (selectedDate = null, cityId = null) => 
   if (priorityResult.error) {
     return priorityResult;
   }
-  
-  setTimeout(() => {
-    performBackgroundSync(selectedDateStr).catch(() => {});
-  }, 10000);
+
+  // Check if the offline DB has a sparse patient set (new install / reinstall)
+  // If so, kick off a full store-by-store patient sync immediately (no 8PM gate)
+  setTimeout(async () => {
+    try {
+      const existingPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+      const existingCount = (existingPatients || []).length;
+      const stores = await offlineDB.getAll(offlineDB.STORES.STORES) || [];
+
+      // Heuristic: if we have fewer than 10 patients per store on average, treat as new/incomplete install
+      const expectedMinimum = stores.length * 10;
+      if (existingCount < expectedMinimum) {
+        console.log(`🆕 [InitialSync] Sparse patient DB detected (${existingCount} patients, ${stores.length} stores) — running full patient sync`);
+        await performFullPatientSyncForNewUser();
+      } else {
+        console.log(`✅ [InitialSync] Patient DB looks populated (${existingCount} patients) — skipping full sync`);
+        // Still run background sync for deliveries/historical data
+        performBackgroundSync(selectedDateStr).catch(() => {});
+      }
+    } catch (e) {
+      performBackgroundSync(selectedDateStr).catch(() => {});
+    }
+  }, 5000);
   
   return priorityResult;
 };
