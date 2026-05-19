@@ -229,17 +229,36 @@ export default function SquareManagement() {
   const selectedDriverUserIdsRef = useRef(new Set());
 
   const runReconcile = useCallback(async () => {
-    // Reconcile = reload deliveries + transactions from offline DB so reconciliationRows recomputes
+    // Reconcile = compare ALL COD deliveries (90 days) against ALL synced transactions in offline DB
     setIsReconciling(true);
     try {
-      await refreshUiFromOfflineOnly();
+      const { offlineDB } = await import('@/components/utils/offlineDatabase');
+      const { startDateStr, endDateStr } = getSourceWindow();
+
+      // Load ALL deliveries from offline DB for the 90-day window
+      const allOfflineDeliveries = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)) || [];
+      const windowDeliveries = allOfflineDeliveries.filter(
+        (d) => d && d.delivery_date >= startDateStr && d.delivery_date <= endDateStr
+      );
+      setDeliveries(windowDeliveries.length > 0 ? windowDeliveries : allOfflineDeliveries);
+
+      // Load transactions and catalog from offline DB
+      const [offlineCatalog, offlineTransactions] = await Promise.all([
+        offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS),
+        offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS),
+      ]);
+
+      setCatalogItems([...(offlineCatalog || [])]);
+      setAllTransactions([...(offlineTransactions || [])]);
+      setSoldCatalogItems([...(offlineTransactions || []).filter((tx) => ['completed', 'refunded'].includes(tx.status))]);
+
       toast.success('Reconciliation list updated');
     } catch (err) {
       toast.error('Reconcile failed: ' + err.message);
     } finally {
       setIsReconciling(false);
     }
-  }, [refreshUiFromOfflineOnly]);
+  }, [getSourceWindow]);
 
   const syncFromSquare = async () => {
     const now = Date.now();
