@@ -121,6 +121,24 @@ const formatMinutesToTime = (minutes) => {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 };
 
+// Get the store's scheduled time window for a pickup based on delivery date day-of-week and AM/PM slot
+const getStorePickupWindow = (store, deliveryDate, ampm) => {
+  if (!store || !deliveryDate) return { start: null, end: null };
+  const d = new Date(deliveryDate + 'T12:00:00Z');
+  const dow = d.getUTCDay(); // 0=Sun, 1=Mon...6=Sat
+  const slot = String(ampm || '').toUpperCase() === 'AM' ? 'am' : 'pm';
+  let prefix;
+  if (dow === 0) prefix = `sunday_${slot}`;
+  else if (dow === 6) prefix = `saturday_${slot}`;
+  else prefix = `weekday_${slot}`;
+  const enabled = store[`${prefix}_enabled`];
+  if (!enabled) return { start: null, end: null };
+  return {
+    start: store[`${prefix}_start`] || null,
+    end: store[`${prefix}_end`] || null,
+  };
+};
+
 const isLateWindowStop = (windowStart, currentMinutes) => {
   const startMinutes = parseTimeToMinutes(windowStart);
   return Number.isFinite(startMinutes) && startMinutes > currentMinutes;
@@ -619,8 +637,22 @@ Deno.serve(async (req) => {
     const stops = optimizableDeliveries.map(delivery => {
       const coords = getDeliveryCoords(delivery, patientMap, storeMap);
       const patient = delivery.patient_id ? patientMap.get(delivery.patient_id) : null;
-      let windowStart = delivery.delivery_time_start || patient?.time_window_start || null;
-      let windowEnd = delivery.delivery_time_end || patient?.time_window_end || null;
+      const isPickup = !delivery.patient_id;
+
+      // Priority: delivery fields → store slot (pickups only) → patient window (deliveries only)
+      let windowStart = delivery.delivery_time_start || null;
+      let windowEnd = delivery.delivery_time_end || null;
+      if (!windowStart && !windowEnd) {
+        if (isPickup && delivery.store_id) {
+          const store = storeMap.get(delivery.store_id);
+          const storeWindow = getStorePickupWindow(store, deliveryDate, delivery.ampm_deliveries);
+          windowStart = storeWindow.start;
+          windowEnd = storeWindow.end;
+        } else if (patient) {
+          windowStart = patient.time_window_start || null;
+          windowEnd = patient.time_window_end || null;
+        }
+      }
 
       if (delivery.patient_id && delivery.puid && pickupWindowByStopId.has(delivery.puid)) {
         const pickupWindow = pickupWindowByStopId.get(delivery.puid);
@@ -636,7 +668,7 @@ Deno.serve(async (req) => {
         delivery,
         lat: coords?.lat,
         lng: coords?.lng,
-        isPickup: !delivery.patient_id,
+        isPickup,
         windowStart,
         windowEnd,
         hasLateWindow: isLateWindowStop(windowStart, currentMinutes),
