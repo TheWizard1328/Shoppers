@@ -1209,7 +1209,7 @@ export default function Layout({ children, currentPageName }) {
 
 
       // Admins see all
-    } else if (userHasRole(currentUser, 'dispatcher')) {const sIds = currentUser.store_ids || [];if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;data = data.filter((p) => p && relIds.includes(p.store_id));}return data;}, [patients, currentUser, selectedStoreId]); // Route count - for dispatchers: unique dates with at least 1 delivery for their stores (YTD)
+    } else if (userHasRole(currentUser, 'dispatcher')) {const sIds = currentUser.store_ids || [];if (selectedStoreId && selectedStoreId !== 'all' && !sIds.includes(selectedStoreId)) return [];const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;data = data.filter((p) => p && relIds.includes(p.store_id));} else if (userHasRole(currentUser, 'driver')) {const sIds = currentUser.store_ids || (currentUser.store_id ? [currentUser.store_id] : []);if (sIds.length > 0) {const relIds = selectedStoreId && selectedStoreId !== 'all' ? [selectedStoreId] : sIds;data = data.filter((p) => p && relIds.includes(p.store_id));}}return data;}, [patients, currentUser, selectedStoreId]); // Route count - for dispatchers: unique dates with at least 1 delivery for their stores (YTD)
   // for others: count driver-routes (each driver-date combination) for the selected month
   const totalRoutesCount = useMemo(() => {if (!deliveries || deliveries.length === 0 || !currentUser) return 0;
       const selectedDateStr = globalFilters.getSelectedDate();
