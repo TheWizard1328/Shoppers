@@ -229,57 +229,17 @@ export default function SquareManagement() {
   const selectedDriverUserIdsRef = useRef(new Set());
 
   const runReconcile = useCallback(async () => {
-    // Reconcile = pull fresh Square transactions + deliveries so the matching logic re-runs
-    // The reconciliationRows list is computed automatically from the refreshed data.
+    // Reconcile = reload deliveries + transactions from offline DB so reconciliationRows recomputes
     setIsReconciling(true);
-    window.dispatchEvent(new CustomEvent('pauseBackgroundSync'));
     try {
-      const { offlineDB } = await import('@/components/utils/offlineDatabase');
-      const { startDateStr, endDateStr } = getSourceWindow();
-
-      // Pull fresh Square data
-      const codResponse = await base44.functions.invoke('squareGetCODData', {
-        forceDeliveryRefresh: true,
-        daysBack: 7,
-        mergeWithExisting: true
-      });
-      const codData = codResponse?.data || codResponse || {};
-      const catalogRecords = codData.catalogRecords || [];
-      const transactionRecords = codData.transactionRecords || [];
-      const strippedDeliveries = Array.isArray(codData.deliveries)
-        ? codData.deliveries.map(({ delivery_route_breadcrumbs, encoded_polyline, proof_photo_urls, signature_image_url, ...rest }) => rest)
-        : [];
-
-      // Merge into offline DB
-      const mergeRecords = async (store, freshRecords) => {
-        const existing = (await offlineDB.getAll(store)) || [];
-        const existingMap = new Map(existing.map((r) => [r.id, r]));
-        (freshRecords || []).forEach((r) => { if (r?.id) existingMap.set(r.id, r); });
-        await offlineDB.replaceAllRecords(store, Array.from(existingMap.values()));
-        return Array.from(existingMap.values());
-      };
-
-      const [mergedDeliveries, mergedCatalog, mergedTransactions] = await Promise.all([
-        mergeRecords(offlineDB.STORES.DELIVERIES, strippedDeliveries),
-        mergeRecords(offlineDB.STORES.SQUARE_CATALOG_ITEMS, catalogRecords),
-        mergeRecords(offlineDB.STORES.SQUARE_TRANSACTIONS, transactionRecords),
-      ]);
-
-      // Apply to state — reconciliationRows recomputes automatically
-      const windowDeliveries = mergedDeliveries.filter((d) => d && d.delivery_date >= startDateStr && d.delivery_date <= endDateStr);
-      setDeliveries([...(windowDeliveries.length > 0 ? windowDeliveries : mergedDeliveries)]);
-      setCatalogItems([...(mergedCatalog || [])]);
-      setAllTransactions([...(mergedTransactions || [])]);
-      setSoldCatalogItems([...(mergedTransactions || []).filter((tx) => ['completed', 'refunded'].includes(tx.status))]);
-
-      toast.success('Reconciliation list refreshed');
+      await refreshUiFromOfflineOnly();
+      toast.success('Reconciliation list updated');
     } catch (err) {
       toast.error('Reconcile failed: ' + err.message);
     } finally {
       setIsReconciling(false);
-      window.dispatchEvent(new CustomEvent('resumeBackgroundSync'));
     }
-  }, [getSourceWindow]);
+  }, [refreshUiFromOfflineOnly]);
 
   const syncFromSquare = async () => {
     const now = Date.now();
