@@ -230,17 +230,19 @@ export default function SquareManagement() {
 
   const runReconcile = useCallback(async (currentReconciliationRows) => {
     const rows = currentReconciliationRows || reconciliationRowsRef.current;
-    if (!rows || rows.length === 0) return;
     setIsReconciling(true);
     try {
-      const filteredItems = rows.filter((row) => {
+      const filteredItems = (rows || []).filter((row) => {
         if (!row?.rawDelivery) return false;
         if (!visibleStoreIdsRef.current.has(row.rawStoreId)) return false;
         if (selectedDriverFilter === 'all') return true;
         if (selectedDriverUserIdsRef.current.size === 0) return false;
         return selectedDriverUserIdsRef.current.has(row.rawDelivery.driver_id);
       });
-      if (filteredItems.length === 0) return;
+      if (filteredItems.length === 0) {
+        toast.info('No unmatched deliveries to reconcile');
+        return;
+      }
 
       const syncResponse = await base44.functions.invoke('squareCodCore', {
         action: 'syncSquareCods',
@@ -1322,7 +1324,7 @@ export default function SquareManagement() {
                 {isSyncing ? 'Syncing...' : 'Sync'}
               </Button>
               {activeView === 'reconciliation' &&
-              <Button onClick={() => runReconcile()} disabled={isReconciling || isSyncing} className="w-full md:w-[160px] gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 justify-center">
+              <Button onClick={() => runReconcile(reconciliationRowsRef.current)} disabled={isReconciling || isSyncing} className="w-full md:w-[160px] gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 justify-center">
                 <RefreshCw className={`w-4 h-4 flex-shrink-0 ${isReconciling ? 'animate-spin' : ''}`} />
                 {isReconciling ? 'Reconciling...' : 'Reconcile'}
               </Button>
