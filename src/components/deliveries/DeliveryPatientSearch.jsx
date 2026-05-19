@@ -48,10 +48,17 @@ export default function DeliveryPatientSearch({
 }) {
   const showCameraButton = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   const isMobile = isMobileDevice();
-  const visiblePatients = React.useMemo(
-    () => (filteredPatients || []).filter((patient) => !patient?._isDeletedLocally),
-    [filteredPatients]
-  );
+  const visiblePatients = React.useMemo(() => {
+    let list = (filteredPatients || []).filter((patient) => !patient?._isDeletedLocally);
+    // Drivers only see patients from their assigned stores
+    if (userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher')) {
+      const assignedStoreIds = new Set(currentUser?.store_ids || (currentUser?.store_id ? [currentUser.store_id] : []));
+      if (assignedStoreIds.size > 0) {
+        list = list.filter((patient) => assignedStoreIds.has(patient?.store_id));
+      }
+    }
+    return list;
+  }, [filteredPatients, currentUser]);
 
   const handlePatientSearchKeyDown = (e) => {
     if (!visiblePatients.length) {
