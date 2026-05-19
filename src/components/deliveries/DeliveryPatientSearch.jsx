@@ -53,7 +53,8 @@ export default function DeliveryPatientSearch({
     // Drivers only see patients from their assigned stores
     // Store assignment for drivers is determined by which stores list the driver in any driver slot
     if (userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher')) {
-      const driverId = currentUser?.id;
+      // Check both id and user_id since the merged user object may carry either
+      const driverIds = new Set([currentUser?.id, currentUser?.user_id].filter(Boolean));
       const driverSlotKeys = [
         'weekday_am_driver_id', 'weekday_pm_driver_id',
         'saturday_am_driver_id', 'saturday_pm_driver_id',
@@ -61,9 +62,10 @@ export default function DeliveryPatientSearch({
       ];
       const assignedStoreIds = new Set(
         (stores || [])
-          .filter((s) => s && driverSlotKeys.some((key) => s[key] === driverId))
+          .filter((s) => s && driverSlotKeys.some((key) => driverIds.has(s[key])))
           .map((s) => s.id)
       );
+      console.log(`[PatientSearch] driver ids: ${[...driverIds]}, assigned stores: ${[...assignedStoreIds]}, total stores checked: ${(stores||[]).length}`);
       // Always filter for drivers — if no stores assigned, show nothing
       list = list.filter((patient) => assignedStoreIds.has(patient?.store_id));
     }
