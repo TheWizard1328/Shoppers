@@ -256,7 +256,7 @@ Deno.serve(async (req) => {
       }));
     }
 
-    await base44.functions.invoke('optimizeRemainingStops', {
+    await base44.asServiceRole.functions.invoke('optimizeRemainingStops', {
       driverId,
       deliveryDate,
       bypassDriverStatus: true
@@ -265,7 +265,7 @@ Deno.serve(async (req) => {
       return null;
     });
 
-    await base44.functions.invoke('purgeAndRegeneratePolylines', {
+    await base44.asServiceRole.functions.invoke('purgeAndRegeneratePolylines', {
       driverId,
       deliveryDate,
       scope: 'active_only',
@@ -277,7 +277,7 @@ Deno.serve(async (req) => {
       return null;
     });
 
-    await base44.functions.invoke('recalculateTrackingNumbers', {
+    await base44.asServiceRole.functions.invoke('recalculateTrackingNumbers', {
       driverId,
       deliveryDate
     }).catch((error) => {
