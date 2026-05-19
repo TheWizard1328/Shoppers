@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Phone, MessageCircle, QrCode } from 'lucide-react';
-import { formatRoles } from '@/components/utils/userRoles';
+import { formatRoles, userHasRole } from '@/components/utils/userRoles';
 import { getDriverDisplayName } from '@/components/utils/driverUtils';
 import { formatPhoneNumber } from '@/components/utils/phoneFormatter';
 import ExportRouteButton from '@/components/deliveries/ExportRouteButton';
@@ -96,7 +96,14 @@ export default function SidebarUserFooter({
               }
             </button>
             <button
-              onClick={onOpenInviteQR}
+              onClick={() => {
+                const isDriverOrDispatcherOnly = (userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'dispatcher')) && !userHasRole(currentUser, 'admin');
+                if (isDriverOrDispatcherOnly) {
+                  window.open(`https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=${encodeURIComponent('https://wizardworxx.com')}`, '_blank');
+                } else {
+                  onOpenInviteQR();
+                }
+              }}
               className="px-2 py-0 rounded-lg hover:bg-slate-100 transition-colors"
               title="Generate Invite QR Code">
               <QrCode className="w-5 h-5 text-slate-500 hover:text-slate-700" />
