@@ -1321,10 +1321,12 @@ export default function SquareManagement() {
                 <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
                 {isSyncing ? 'Syncing...' : 'Sync'}
               </Button>
+              {activeView === 'reconciliation' &&
               <Button onClick={() => runReconcile()} disabled={isReconciling || isSyncing} className="w-full md:w-[160px] gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 justify-center">
                 <RefreshCw className={`w-4 h-4 flex-shrink-0 ${isReconciling ? 'animate-spin' : ''}`} />
                 {isReconciling ? 'Reconciling...' : 'Reconcile'}
               </Button>
+              }
             </>
             }
           </div>
