@@ -1273,7 +1273,7 @@ export default function SquareManagement() {
         </div>
 
         <div className="flex flex-col gap-2">
-          <div className="grid grid-cols-2 gap-2 md:flex md:flex-row md:flex-wrap md:items-center md:gap-3 w-full md:justify-between">
+          <div className="grid grid-cols-2 gap-2 md:flex md:flex-row md:flex-wrap md:items-center md:gap-3 w-full">
             {currentUser && isAppOwner(currentUser) && drivers.length > 0 &&
             <Select value={selectedDriverFilter} onValueChange={setSelectedDriverFilter}>
                 <SelectTrigger className="w-full min-w-0 px-2 text-xs md:w-[130px] md:px-3 md:text-sm">
@@ -1316,7 +1316,7 @@ export default function SquareManagement() {
             </Select>
 
             {currentUser && isAppOwner(currentUser) &&
-            <div className="col-span-2 flex gap-2 md:ml-auto md:flex-row">
+            <div className="col-span-2 flex gap-2 md:flex-row">
               <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="flex-1 gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 md:w-[130px] md:flex-none shrink-0 justify-center">
                 <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
                 <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : 'Sync'}</span>
@@ -1331,10 +1331,10 @@ export default function SquareManagement() {
             }
           </div>
 
-          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between w-full">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center w-full">
             <SquareCodViewSwitcher activeView={activeView} onChange={setActiveView} counts={viewCounts} />
             {activeView === 'reconciliation' && currentUser && isAppOwner(currentUser) &&
-            <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="ml-auto gap-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800">
+            <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="gap-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800">
                 <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
                 <span>{isSyncing ? 'Updating...' : 'Update Catalog'}</span>
               </Button>
