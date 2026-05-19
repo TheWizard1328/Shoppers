@@ -16,8 +16,8 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
   const [isSyncing, setIsSyncing] = useState(false);
   const [runtimeStats, setRuntimeStats] = useState({});
 
-  // Visible to app owners always, AND to all users on mobile when in embedded mode
-  const isVisible = currentUser && (isAppOwner(currentUser) || (embedded && isMobileDevice()));
+  // Visible to all logged-in users on all devices
+  const isVisible = !!currentUser;
 
   useEffect(() => {
     if (!isVisible) return;
