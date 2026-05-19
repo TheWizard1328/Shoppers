@@ -7,8 +7,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
-import { Edit, Locate, MoreVertical, Navigation, Trash2, User, XCircle } from "lucide-react";
-import { openInMaps } from "../utils/mapHelpers";
+import { Edit, Locate, MoreVertical, Trash2, User, XCircle } from "lucide-react";
 
 export default function StopCardFooterMenu(props) {
   const {
@@ -82,16 +81,6 @@ export default function StopCardFooterMenu(props) {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" side="top" className="p-1 rounded-md min-w-[12rem] overflow-visible border-2 shadow-md z-[9999] bg-white text-slate-900" sideOffset={8} onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)', opacity: 1, visibility: 'visible' }}>
-        {/* Navigate — always shown when there's an address */}
-        {!isPickup && (
-          <DropdownMenuItem
-            inset={false}
-            onClick={(e) => { e.stopPropagation(); const addr = props?.patient?.address; if (addr) openInMaps(addr); }}
-            className="flex cursor-pointer items-center text-base py-2.5 md:py-1.5 text-slate-900 focus:bg-slate-100 focus:text-slate-900"
-          >
-            <Navigation className="w-5 h-5 mr-2 text-blue-600" />Navigate
-          </DropdownMenuItem>
-        )}
         {canShowEdit && (
           <DropdownMenuItem inset={false} onClick={(e) => { blockCardToggle(e); e.stopPropagation(); onEdit?.(delivery); }} className="flex cursor-pointer items-center text-base py-2.5 md:py-1.5 text-slate-900 focus:bg-slate-100 focus:text-slate-900">
             <Edit className="w-5 h-5 mr-2" />{isPickup ? 'Edit Pickup' : 'Edit Delivery'}
