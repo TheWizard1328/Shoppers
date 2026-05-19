@@ -14,25 +14,23 @@ export const getMapsUrl = (address) => {
   if (!address) return null;
   const encoded = encodeURIComponent(address);
   if (isIOS()) {
-    return `maps://?daddr=${encoded}`;
+    // Use https://maps.apple.com/ — Safari on iOS handles this URL natively,
+    // opening Apple Maps without requiring the maps:// custom scheme
+    return `https://maps.apple.com/?daddr=${encoded}`;
   }
   return `https://www.google.com/maps/dir/?api=1&destination=${encoded}`;
 };
 
 /**
  * Opens the appropriate maps app for the current platform.
- * On iOS: forces Apple Maps via maps:// protocol.
+ * On iOS: opens maps.apple.com which Safari intercepts and hands off to Apple Maps.
  * On other platforms: opens Google Maps in a new tab.
  * @param {string} address - The destination address string
  */
 export const openInMaps = (address) => {
   const url = getMapsUrl(address);
   if (!url) return;
-  if (isIOS()) {
-    window.location.href = url;
-  } else {
-    window.open(url, '_blank');
-  }
+  window.open(url, '_blank');
 };
 
 export const calculateFannedPosition = (originalLat, originalLng, markerIndex, totalMarkers, stopOrder, currentZoom) => {
