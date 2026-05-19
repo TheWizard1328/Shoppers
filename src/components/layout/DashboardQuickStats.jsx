@@ -6,8 +6,9 @@ import { globalFilters } from '../utils/globalFilters';
 import { offlineDB } from '../utils/offlineDatabase';
 import { userHasRole } from '../utils/userRoles';
 import { getReturnCountFromPatientId } from '../utils/returnDeliveryUtils';
+import OfflineSyncIndicator from './OfflineSyncIndicator';
 
-export default function DashboardQuickStats({ currentUser, storeIds = [], isMobile, screenWidth }) {
+export default function DashboardQuickStats({ currentUser, storeIds = [], isMobile, screenWidth, showOfflineSync = false }) {
   const [selectedDateStr, setSelectedDateStr] = useState(() => globalFilters.getSelectedDate());
   const [selectedDriverId, setSelectedDriverIdLocal] = useState(() => {
     // For drivers, default to their own ID
@@ -182,6 +183,11 @@ export default function DashboardQuickStats({ currentUser, storeIds = [], isMobi
 
   return (
     <div className="px-3 py-2 space-y-3">
+      {showOfflineSync &&
+        <div className="border-b pb-2" style={{ borderColor: 'var(--border-slate-200)' }}>
+          <OfflineSyncIndicator embedded={true} />
+        </div>
+      }
       <div>
         <h4 className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-slate-500)' }}>
           {isToday ? "Today's Stats:" : format(selectedDate, 'MMM dd, yyyy') + ':'}
