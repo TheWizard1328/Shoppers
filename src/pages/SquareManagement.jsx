@@ -413,8 +413,7 @@ export default function SquareManagement() {
       setIsLoading(false);
       toast.success('Square data synced locally');
 
-      // 8) Auto-reconcile after sync: push any unmatched deliveries to Square catalog
-      setTimeout(() => runReconcile(), 500);
+      // Auto-reconcile removed — user triggers manually to avoid stale-closure issues
 
       // 8) No write-back during page/manual sync
       let onlineSyncError = null;
@@ -1343,7 +1342,7 @@ export default function SquareManagement() {
               </Button>
               {activeView === 'reconciliation' &&
               <Button onClick={() => runReconcile(reconciliationRows)} disabled={isReconciling || isSyncing} className="w-full md:w-[160px] gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 justify-center">
-                <RefreshCw className={`w-4 h-4 flex-shrink-0 ${isReconciling ? 'animate-spin' : ''}`} />
+                {isReconciling ? <Loader2 className="w-4 h-4 flex-shrink-0 animate-spin" /> : <RefreshCw className="w-4 h-4 flex-shrink-0" />}
                 {isReconciling ? 'Reconciling...' : 'Reconcile'}
               </Button>
               }

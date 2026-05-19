@@ -468,16 +468,20 @@ async function handleReconcile(base44, payload) {
     if (bestMatch) {
       usedDeliveryIds.add(bestMatch.id);
       matchResults.push({ transactionId: tx.id, deliveryId: bestMatch.id, matchedBy: 'name_and_amount' });
+    }
+  }
 
-      // Update the transaction in DB to link it to the delivery
-      if (tx.id) {
-        await base44.asServiceRole.entities.SquareTransaction.update(tx.id, {
-          delivery_id: bestMatch.id,
-          patient_id: bestMatch.patient_id || null,
-          store_id: bestMatch.store_id || null,
-          driver_id: bestMatch.driver_id || null,
-        }).catch(() => null);
-      }
+  // Update matched transactions in DB sequentially to avoid rate limits
+  for (const match of matchResults) {
+    const delivery = noMatchDeliveries.find((d) => d.id === match.deliveryId);
+    if (match.transactionId && delivery) {
+      await base44.asServiceRole.entities.SquareTransaction.update(match.transactionId, {
+        delivery_id: delivery.id,
+        patient_id: delivery.patient_id || null,
+        store_id: delivery.store_id || null,
+        driver_id: delivery.driver_id || null,
+      }).catch(() => null);
+      await sleep(150); // rate-limit guard
     }
   }
 
