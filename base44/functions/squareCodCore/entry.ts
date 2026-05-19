@@ -399,6 +399,123 @@ async function handleSyncOnlineSquareEntities(base44, payload) {
   return{success:true,paused:false,catalogCount:cleanCatalog.length,transactionCount:cleanTx.length};
 }
 
+async function handleReconcile(base44, payload) {
+  // payload: { deliveries, transactions, catalogItems, patients, stores, locationConfigs }
+  // All data is passed from the frontend so we don't need extra DB calls for the matching phase.
+  const deliveries = Array.isArray(payload?.deliveries) ? payload.deliveries : [];
+  const transactions = Array.isArray(payload?.transactions) ? payload.transactions : [];
+  const catalogItems = Array.isArray(payload?.catalogItems) ? payload.catalogItems : [];
+  const patients = Array.isArray(payload?.patients) ? payload.patients : [];
+  const stores = Array.isArray(payload?.stores) ? payload.stores : [];
+  const locationConfigs = Array.isArray(payload?.locationConfigs) ? payload.locationConfigs : [];
+
+  const patientById = new Map(patients.map((p) => [p.id, p]));
+  const storeById = new Map(stores.map((s) => [s.id, s]));
+  const configById = new Map(locationConfigs.map((c) => [c.id, c]));
+
+  // ── STEP 1: Identify "No Match" deliveries (in date range, with COD amount) ──
+  const noMatchDeliveries = deliveries.filter((d) => {
+    if (!d || Number(d.cod_total_amount_required || 0) <= 0) return false;
+    if (d.status === 'failed' || d.status === 'cancelled') return false;
+    return true;
+  });
+
+  // ── STEP 2: Identify "No Match" transactions (collection type, pending) ──
+  const noMatchTransactions = transactions.filter((t) => {
+    if (!t) return false;
+    if (t.type !== 'collection') return false;
+    if (!['completed', 'pending'].includes(t.status)) return false;
+    return true;
+  });
+
+  // ── STEP 3: Match transactions → deliveries by patient name + amount ──
+  // Location/store mismatch is acceptable per spec.
+  const matchResults = []; // { transactionId, deliveryId, matchedBy }
+  const usedDeliveryIds = new Set();
+
+  const normalizeN = (v) => String(v || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  const tokenize = (v) => normalizeN(v).split(' ').filter((t) => t.length >= 2);
+  const namesMatch = (a, b) => {
+    const na = normalizeN(a); const nb = normalizeN(b);
+    if (!na || !nb) return false;
+    if (na.includes(nb) || nb.includes(na)) return true;
+    const ta = tokenize(na); const tb = tokenize(nb);
+    if (!ta.length || !tb.length) return false;
+    return ta.every((t) => tb.some((u) => u.includes(t) || t.includes(u) || (Math.max(t.length, u.length) >= 4 && levenshteinDistance(t, u) <= 1)));
+  };
+
+  for (const tx of noMatchTransactions) {
+    const txAmountCents = toAmountCents(tx.amount || (tx.amount_cents / 100));
+    const parsedName = (() => {
+      const n = String(tx.item_name || '');
+      const m = n.match(/\d{1,2}[\/-]\d{1,2}\([^)]+\)-(.+)$/);
+      return m ? m[1].trim() : n.replace(/^\d{1,2}[\/-]\d{1,2}/, '').replace(/\([^)]+\)/, '').replace(/^[-\s]+/, '').trim();
+    })();
+
+    let bestMatch = null;
+    for (const d of noMatchDeliveries) {
+      if (usedDeliveryIds.has(d.id)) continue;
+      const dAmountCents = toAmountCents(d.cod_total_amount_required);
+      if (dAmountCents !== txAmountCents) continue;
+      const patient = patientById.get(d.patient_id);
+      if (!patient?.full_name) continue;
+      if (!namesMatch(patient.full_name, parsedName)) continue;
+      bestMatch = d;
+      break;
+    }
+
+    if (bestMatch) {
+      usedDeliveryIds.add(bestMatch.id);
+      matchResults.push({ transactionId: tx.id, deliveryId: bestMatch.id, matchedBy: 'name_and_amount' });
+
+      // Update the transaction in DB to link it to the delivery
+      if (tx.id) {
+        await base44.asServiceRole.entities.SquareTransaction.update(tx.id, {
+          delivery_id: bestMatch.id,
+          patient_id: bestMatch.patient_id || null,
+          store_id: bestMatch.store_id || null,
+          driver_id: bestMatch.driver_id || null,
+        }).catch(() => null);
+      }
+    }
+  }
+
+  // ── STEP 4: Re-collect deliveries that are STILL unmatched after step 3 ──
+  const nowMatchedDeliveryIds = new Set(matchResults.map((m) => m.deliveryId));
+  // Also consider deliveries that already had a matching transaction (passed in as matched)
+  const stillUnmatched = noMatchDeliveries.filter((d) => !nowMatchedDeliveryIds.has(d.id));
+
+  // ── STEP 5: Filter out deliveries that already have a catalog item ──
+  const catalogDeliveryIds = new Set(catalogItems.map((c) => c.delivery_id).filter(Boolean));
+  const needsCatalogItem = stillUnmatched.filter((d) => !catalogDeliveryIds.has(d.id));
+
+  // ── Create Square catalog items for remaining unmatched deliveries ──
+  const createResults = [];
+  for (const delivery of needsCatalogItem) {
+    try {
+      const r = await handleCreateCodItem(base44, {
+        deliveryId: delivery.id,
+        codAmount: delivery.cod_total_amount_required,
+        deliveryDate: delivery.delivery_date,
+        storeId: delivery.store_id,
+        patientName: delivery.patient_name || null,
+      });
+      createResults.push({ deliveryId: delivery.id, action: 'upsert', status: r?.skipped ? 'skipped' : 'ok', result: r });
+    } catch (err) {
+      createResults.push({ deliveryId: delivery.id, action: 'upsert', status: 'error', error: err?.message || 'Failed' });
+    }
+  }
+
+  return {
+    success: true,
+    matched: matchResults.length,
+    matchResults,
+    stillUnmatched: stillUnmatched.length,
+    needsCatalogItem: needsCatalogItem.length,
+    createResults,
+  };
+}
+
 async function handleSyncSquareCods(base44, payload) {
   const event=payload?.event;
   if(event?.entity_name==='Delivery'){
@@ -442,6 +559,7 @@ Deno.serve(async (req) => {
     if(action==='syncCatalogItems'){await requireAdminIfAuthenticated(base44);return Response.json(await handleSyncCatalogItems(base44));}
     if(action==='syncOnlineSquareEntities'){await requireAdminIfAuthenticated(base44);return Response.json(await handleSyncOnlineSquareEntities(base44,payload));}
     if(action==='syncSquareCods'){await requireUser(base44);return Response.json(await handleSyncSquareCods(base44,payload));}
+    if(action==='reconcile'){await requireUser(base44);return Response.json(await handleReconcile(base44,payload));}
     throw new HttpError(400,'Missing or invalid action');
   } catch(error){const status=error?.status||500;return Response.json({error:error?.message||'Internal Server Error'},{status});}
 });

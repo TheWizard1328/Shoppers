@@ -229,79 +229,88 @@ export default function SquareManagement() {
   const selectedDriverUserIdsRef = useRef(new Set());
 
   const runReconcile = useCallback(async (currentReconciliationRows) => {
-    // Use whatever rows are passed in directly — they're already filtered by store/driver via the useMemo
-    const filteredItems = (currentReconciliationRows || reconciliationRowsRef.current || []).filter((row) => !!row?.rawDelivery);
-    setIsReconciling(true);
-    // Pause background syncs to avoid rate-limit collisions during reconcile
-    window.dispatchEvent(new CustomEvent('pauseBackgroundSync'));
-    try {
-      if (filteredItems.length === 0) {
-        toast.info('No unmatched deliveries to reconcile');
-        return;
-      }
+    // "No Match" deliveries are already computed by the reconciliationRows useMemo
+    const unmatchedRows = (currentReconciliationRows || reconciliationRowsRef.current || []).filter((row) => !!row?.rawDelivery);
+    if (unmatchedRows.length === 0) {
+      toast.info('No unmatched deliveries to reconcile');
+      return;
+    }
 
-      const syncResponse = await base44.functions.invoke('squareCodCore', {
-        action: 'syncSquareCods',
-        items: filteredItems.map((row) => ({
-          deliveryId: row.rawDelivery?.id,
-          patientName: row.itemName,
-          codAmount: row.amount,
-          deliveryDate: row.rawDelivery?.delivery_date,
-          storeId: row.rawStoreId,
-        })),
+    setIsReconciling(true);
+    window.dispatchEvent(new CustomEvent('pauseBackgroundSync'));
+
+    try {
+      // Pass the full context to the backend so it can:
+      // 1. Match "No Match" transactions → deliveries by patient name + amount
+      // 2. Re-collect still-unmatched deliveries
+      // 3. Filter out deliveries already in the catalog
+      // 4. Create Square catalog items for the remainder
+      const response = await base44.functions.invoke('squareCodCore', {
+        action: 'reconcile',
+        deliveries: unmatchedRows.map((row) => row.rawDelivery),
+        transactions: allTransactions,
+        catalogItems: catalogItems,
+        patients: patients,
+        stores: stores,
+        locationConfigs: locationConfigs,
       });
 
-      const syncResults = syncResponse?.data?.results || syncResponse?.results || [];
+      const result = response?.data || response || {};
+      const createResults = result.createResults || [];
+
+      // Build new catalog rows from successfully created items
       const successfulDeliveryIds = new Set(
-        syncResults
+        createResults
           .filter((entry) => entry?.action === 'upsert' && entry?.status === 'ok' && entry?.result?.catalogObjectId)
           .map((entry) => entry.deliveryId)
           .filter(Boolean)
       );
 
-      const createdCatalogRows = filteredItems
-        .filter((row) => successfulDeliveryIds.has(row.rawDelivery?.id))
-        .map((row) => {
-          const entry = syncResults.find((result) => result.deliveryId === row.rawDelivery?.id);
-          if (!row?.rawDelivery || !entry?.result?.catalogObjectId) return null;
-          return {
-            id: entry.result.catalogObjectId,
-            catalog_object_id: entry.result.catalogObjectId,
-            square_catalog_object_id: entry.result.catalogObjectId,
-            square_catalog_version: entry.result.catalogVersion || null,
-            name: entry.result.itemName || row.itemName,
-            item_name: entry.result.itemName || row.itemName,
-            description: '',
-            price_cents: Math.round(Number(row.amount || 0) * 100),
-            price_dollars: Number(row.amount || 0),
-            amount: Number(row.amount || 0),
-            amount_cents: Math.round(Number(row.amount || 0) * 100),
-            delivery_id: row.rawDelivery.id,
-            delivery_date: row.rawDelivery.delivery_date || null,
-            patient_id: row.rawDelivery.patient_id || null,
-            store_id: row.rawStoreId || null,
-            location_id: row.locationId || null,
-            status: 'active',
-            is_sold: false
-          };
-        })
-        .filter(Boolean);
+      if (successfulDeliveryIds.size > 0) {
+        const newCatalogRows = unmatchedRows
+          .filter((row) => successfulDeliveryIds.has(row.rawDelivery?.id))
+          .map((row) => {
+            const entry = createResults.find((e) => e.deliveryId === row.rawDelivery?.id);
+            if (!entry?.result?.catalogObjectId) return null;
+            return {
+              id: entry.result.catalogObjectId,
+              catalog_object_id: entry.result.catalogObjectId,
+              square_catalog_object_id: entry.result.catalogObjectId,
+              square_catalog_version: entry.result.catalogVersion || null,
+              name: entry.result.itemName || row.itemName,
+              item_name: entry.result.itemName || row.itemName,
+              description: '',
+              amount: Number(row.amount || 0),
+              amount_cents: Math.round(Number(row.amount || 0) * 100),
+              price_dollars: Number(row.amount || 0),
+              price_cents: Math.round(Number(row.amount || 0) * 100),
+              delivery_id: row.rawDelivery.id,
+              delivery_date: row.rawDelivery.delivery_date || null,
+              patient_id: row.rawDelivery.patient_id || null,
+              store_id: row.rawStoreId || null,
+              location_id: row.locationId || null,
+              status: 'active',
+              is_sold: false,
+            };
+          })
+          .filter(Boolean);
 
-      if (createdCatalogRows.length > 0) {
         setCatalogItems((prev) => {
           const preserved = (prev || []).filter((item) => !successfulDeliveryIds.has(item.delivery_id));
-          return [...createdCatalogRows, ...preserved];
+          return [...newCatalogRows, ...preserved];
         });
       }
 
-      setDeliveries((prev) => (prev || []).map((delivery) => (
-        successfulDeliveryIds.has(delivery?.id)
-          ? { ...delivery, square_catalog_uploaded: true }
-          : delivery
-      )));
-
-      if (successfulDeliveryIds.size > 0) {
-        toast.success(`${successfulDeliveryIds.size} item${successfulDeliveryIds.size === 1 ? '' : 's'} added to Catalog`);
+      // Surface results to user
+      const matched = result.matched || 0;
+      const created = successfulDeliveryIds.size;
+      const parts = [];
+      if (matched > 0) parts.push(`${matched} transaction${matched === 1 ? '' : 's'} matched to deliveries`);
+      if (created > 0) parts.push(`${created} catalog item${created === 1 ? '' : 's'} created`);
+      if (parts.length > 0) {
+        toast.success(parts.join(', '));
+      } else {
+        toast.info('No new matches or catalog items needed');
       }
     } catch (err) {
       toast.error('Reconcile failed: ' + err.message);
@@ -309,7 +318,7 @@ export default function SquareManagement() {
       setIsReconciling(false);
       window.dispatchEvent(new CustomEvent('resumeBackgroundSync'));
     }
-  }, [selectedDriverFilter]);
+  }, [allTransactions, catalogItems, patients, stores, locationConfigs]);
 
   const syncFromSquare = async () => {
     const now = Date.now();
