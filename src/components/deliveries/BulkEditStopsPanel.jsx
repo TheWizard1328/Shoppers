@@ -92,7 +92,7 @@ function TravelModeButtons({ value, onChange, disabled, isMixed = false }) {
 
 }
 
-function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, currentUser, values, setValues, onApply, onCancel, isSaving, initialValues, hasMixedPuids }) {
+function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, patients, currentUser, values, setValues, onApply, onCancel, isSaving, initialValues, hasMixedPuids, selectedDeliveries }) {
   const isAdmin = userHasRole(currentUser, "admin");
   const isDriver = userHasRole(currentUser, "driver");
   const isMixedTravelMode = initialValues.travelModeChoice === "mixed" && values.travelModeChoice === "mixed";
@@ -149,6 +149,24 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
   }, [initialValues, values]);
 
   const shouldShowTimeWindows = !['completed', 'failed'].includes(values.statusChoice);
+
+  // Patient time windows — shown as read-only reference when a single delivery is selected
+  const singlePatient = useMemo(() => {
+    if (!selectedDeliveries || selectedDeliveries.length !== 1 || !patients) return null;
+    const delivery = selectedDeliveries[0];
+    return (patients || []).find((p) => p?.id === delivery?.patient_id || p?.patient_id === delivery?.patient_id) || null;
+  }, [selectedDeliveries, patients]);
+
+  const patientWindowSummary = useMemo(() => {
+    if (!selectedDeliveries || !patients) return null;
+    const windows = selectedDeliveries
+      .map((d) => patients.find((p) => p?.id === d?.patient_id || p?.patient_id === d?.patient_id))
+      .filter((p) => p?.time_window_start || p?.time_window_end)
+      .map((p) => `${p.time_window_start || '--'} – ${p.time_window_end || '--'}`);
+    if (windows.length === 0) return null;
+    const unique = [...new Set(windows)];
+    return unique.length === 1 ? unique[0] : `${unique.length} different windows`;
+  }, [selectedDeliveries, patients]);
 
   return (
     <form
@@ -288,6 +306,13 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, curr
           }
         </div>
 
+        {patientWindowSummary &&
+        <div className="rounded-lg border px-3 py-2 flex items-center gap-2" style={{ background: "var(--bg-slate-50)", borderColor: "var(--border-slate-200)" }}>
+            <span className="text-xs font-medium" style={{ color: "var(--text-slate-500)" }}>Patient preferred window:</span>
+            <span className="text-xs font-semibold" style={{ color: "var(--text-slate-900)" }}>{patientWindowSummary}</span>
+          </div>
+        }
+
         {shouldShowTimeWindows &&
         <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -334,7 +359,7 @@ const getSharedValue = (items, getter, fallback = "") => {
   return new Set(resolved.map((value) => String(value))).size === 1 ? String(resolved[0]) : fallback;
 };
 
-export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selectedCount, selectedDeliveries = [], drivers, stores = [], allDeliveries = [], currentUser, onApply, isSaving }) {
+export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selectedCount, selectedDeliveries = [], drivers, stores = [], allDeliveries = [], patients = [], currentUser, onApply, isSaving }) {
   // Read the sidebar width directly from the DOM so the modal centers over the map area only
   const [sidebarWidth, setSidebarWidth] = useState(0);
   useEffect(() => {
@@ -389,6 +414,8 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
     drivers={drivers}
     stores={stores}
     allDeliveries={allDeliveries}
+    patients={patients}
+    selectedDeliveries={selectedDeliveries}
     currentUser={currentUser}
     values={values}
     setValues={setValues}

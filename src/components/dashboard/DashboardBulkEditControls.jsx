@@ -23,6 +23,7 @@ export default function DashboardBulkEditControls({
   drivers = [],
   stores = [],
   allDeliveries = [],
+  patients = [],
   currentUser,
   isMobile = false,
   stopCardsBaseHeight = 0,
@@ -318,6 +319,7 @@ export default function DashboardBulkEditControls({
         drivers={drivers}
         stores={stores}
         allDeliveries={allDeliveries}
+        patients={patients}
         currentUser={currentUser}
         onApply={handleApply}
         isSaving={isSaving}

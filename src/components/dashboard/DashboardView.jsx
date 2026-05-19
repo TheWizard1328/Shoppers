@@ -353,6 +353,7 @@ export default function DashboardView({
             drivers={drivers}
             stores={stores}
             allDeliveries={deliveries}
+            patients={patients}
             currentUser={currentUser}
             isMobile={isMobile}
             stopCardsBaseHeight={stopCardsBaseHeight}
