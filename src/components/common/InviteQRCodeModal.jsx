@@ -8,6 +8,8 @@ import { Copy, Download } from 'lucide-react';
 import { userHasRole } from '@/components/utils/userRoles';
 import { toast } from 'sonner';
 
+const PRODUCTION_DOMAIN = 'https://wizardworxx.com';
+
 export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores = [] }) {
   const [selectedRole, setSelectedRole] = useState('driver');
   const [selectedStores, setSelectedStores] = useState([]);
@@ -20,21 +22,35 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
   const isDispatcher = userHasRole(currentUser, 'dispatcher');
   const isDriver = userHasRole(currentUser, 'driver');
 
+  // Drivers and dispatchers (non-admin) just get a "login on another device" QR — no invite needed
+  const isExistingUserOnly = (isDriver || isDispatcher) && !isAdmin;
+
   // Set initial role based on user type
   useEffect(() => {
+    if (!isOpen) return;
+
+    // For existing drivers/dispatchers: immediately show the login QR for their role
+    if (isExistingUserOnly) {
+      const loginUrl = `${PRODUCTION_DOMAIN}`;
+      setQrUrl(loginUrl);
+      setInviteUrl(loginUrl);
+      return;
+    }
+
     if (isDispatcher && !isAdmin) {
       setSelectedRole('dispatcher');
-      // Set to dispatcher's own stores
       setSelectedStores(currentUser.store_ids || []);
     } else if (isDriver && !isAdmin && !isDispatcher) {
       setSelectedRole('driver');
-      // Set to driver's own stores if they have any
-      const driverStores = currentUser.store_ids || [];
-      setSelectedStores(driverStores);
+      setSelectedStores(currentUser.store_ids || []);
     } else {
       setSelectedRole('driver');
       setSelectedStores([]);
     }
+
+    // Reset QR when reopening for admins
+    setQrUrl(null);
+    setInviteUrl(null);
   }, [isOpen]);
 
   // Build store options - for drivers, expand stores with AM/PM slots
@@ -100,7 +116,7 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
       const response = await base44.functions.invoke('generateInviteQRCode', {
         role: selectedRole,
         store_ids: getStoreIds(selectedStores),
-        app_origin: window.location.origin
+        app_origin: PRODUCTION_DOMAIN
       });
 
       if (response.data?.success || response.success) {
@@ -140,7 +156,7 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="w-full max-w-md">
         <DialogHeader>
-          <DialogTitle>Generate Invite QR Code</DialogTitle>
+          <DialogTitle>{isExistingUserOnly ? 'Login on Another Device' : 'Generate Invite QR Code'}</DialogTitle>
         </DialogHeader>
 
         {!qrUrl ? (
@@ -207,9 +223,15 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
               />
             </div>
 
-            <p className="text-xs text-slate-500 text-center">
-              Role: <span className="font-semibold">{selectedRole}</span>
-            </p>
+            {isExistingUserOnly ? (
+              <p className="text-xs text-slate-500 text-center">
+                Scan this QR code to open <span className="font-semibold">wizardworxx.com</span> and log in with your existing account on another device.
+              </p>
+            ) : (
+              <p className="text-xs text-slate-500 text-center">
+                Invite role: <span className="font-semibold">{selectedRole}</span>
+              </p>
+            )}
 
             <div className="space-y-2 w-full">
               <Button
