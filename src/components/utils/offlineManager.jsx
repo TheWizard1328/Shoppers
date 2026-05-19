@@ -60,20 +60,29 @@ const cleanupLegacyCacheDatabases = async () => {
 };
 
 class OfflineManager {
-  constructor() {
-    this.isOnline = navigator.onLine;
-    this.listeners = new Set();
-    this.conflictListeners = new Set();
-    this.pendingActions = [];
-    this.cachedData = {
-      deliveries: null,
-      patients: null,
-      stores: null,
-      drivers: null,
-      users: null,
-      userSettings: null,
-      lastUpdate: null
-    };
+  constructor() { // Skip IndexedDB in editor preview to prevent dual-DB switching 
+  const isPreviewEnv = typeof window !== 'undefined' && ( window.location.hostname.includes('preview') || window.location.hostname.includes('sandbox') ); 
+  if (isPreviewEnv) { 
+    this.isOnline = navigator.onLine; 
+    this.listeners = new Set(); 
+    this.cachedData = {}; 
+    this.pendingActions = []; 
+    return; // Exit early - no IndexedDB in preview 
+  };
+  //constructor() {
+  //  this.isOnline = navigator.onLine;
+  //  this.listeners = new Set();
+  //  this.conflictListeners = new Set();
+  //  this.pendingActions = [];
+  //  this.cachedData = {
+  //    deliveries: null,
+  //    patients: null,
+  //    stores: null,
+  //    drivers: null,
+  //    users: null,
+  //    userSettings: null,
+  //    lastUpdate: null
+  //  };
     
     // Sync state
     this.isSyncing = false;
