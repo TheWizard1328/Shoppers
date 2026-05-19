@@ -66,6 +66,14 @@ const buildDataVersion = (records = []) => {
  * CRITICAL: Uses promise pooling to prevent race conditions
  */
 const openDatabase = async () => {
+  // PREVIEW GUARD: Skip IndexedDB entirely in preview/sandbox environments
+  // to prevent flickering between isolated IndexedDB buckets per frame origin.
+  const isPreview = typeof window !== 'undefined' && (
+    window.location.hostname.includes('preview') ||
+    window.location.hostname.includes('sandbox')
+  );
+  if (isPreview) return null;
+
   // If already open, return immediately
   if (dbInstance && !dbInstance.isClosing) {
     return Promise.resolve(dbInstance);
@@ -239,6 +247,7 @@ const save = async (storeName, record) => {
 
   try {
     const db = await openDatabase();
+    if (!db) return { success: false, error: 'IndexedDB unavailable in preview' };
     const transaction = db.transaction([storeName], 'readwrite');
     const store = transaction.objectStore(storeName);
     const keyPath = store.keyPath;
@@ -293,6 +302,7 @@ const bulkSave = async (storeName, records) => {
 
   try {
     const db = await openDatabase();
+    if (!db) return { success: false, error: 'IndexedDB unavailable in preview' };
     const transaction = db.transaction([storeName], 'readwrite');
     const store = transaction.objectStore(storeName);
 
@@ -321,6 +331,7 @@ const bulkSave = async (storeName, records) => {
 const getAll = async (storeName) => {
   try {
     const db = await openDatabase();
+    if (!db) return [];
     const transaction = db.transaction([storeName], 'readonly');
     const store = transaction.objectStore(storeName);
 
@@ -340,6 +351,7 @@ const getAll = async (storeName) => {
 const getByIndex = async (storeName, indexName, value) => {
   try {
     const db = await openDatabase();
+    if (!db) return [];
     const transaction = db.transaction([storeName], 'readonly');
     const store = transaction.objectStore(storeName);
     const index = store.index(indexName);
@@ -360,6 +372,7 @@ const getByIndex = async (storeName, indexName, value) => {
 const getByCompoundIndex = async (storeName, indexName, values) => {
   try {
     const db = await openDatabase();
+    if (!db) return [];
     const transaction = db.transaction([storeName], 'readonly');
     const store = transaction.objectStore(storeName);
     const index = store.index(indexName);
@@ -387,6 +400,7 @@ const getByDate = async (storeName, dateStr) => {
 const getDeliveriesSortedByDate = async (limit = null) => {
   try {
     const db = await openDatabase();
+    if (!db) return [];
     const transaction = db.transaction([STORES.DELIVERIES], 'readonly');
     const store = transaction.objectStore(STORES.DELIVERIES);
     const index = store.index('delivery_date');
@@ -421,6 +435,7 @@ const getDeliveriesSortedByDate = async (limit = null) => {
 const clearStore = async (storeName) => {
   try {
     const db = await openDatabase();
+    if (!db) return;
     const transaction = db.transaction([storeName], 'readwrite');
     const store = transaction.objectStore(storeName);
 
@@ -447,6 +462,7 @@ const replaceAllRecords = async (storeName, records = []) => {
 const replaceRecordsByIndex = async (storeName, indexName, indexValue, records = []) => {
   try {
     const db = await openDatabase();
+    if (!db) return { success: false, error: 'IndexedDB unavailable in preview' };
     const transaction = db.transaction([storeName], 'readwrite');
     const store = transaction.objectStore(storeName);
     const index = store.index(indexName);
@@ -497,6 +513,7 @@ const replaceRecordsByIndex = async (storeName, indexName, indexValue, records =
 const getSyncStatus = async (entityName) => {
   try {
     const db = await openDatabase();
+    if (!db) return null;
     const transaction = db.transaction([STORES.SYNC_STATUS], 'readonly');
     const store = transaction.objectStore(STORES.SYNC_STATUS);
 
@@ -517,6 +534,7 @@ const getSyncStatus = async (entityName) => {
 const updateSyncStatus = async (entityName, status) => {
   try {
     const db = await openDatabase();
+    if (!db) return;
     const transaction = db.transaction([STORES.SYNC_STATUS], 'readwrite');
     const store = transaction.objectStore(STORES.SYNC_STATUS);
 
@@ -640,6 +658,7 @@ const getStats = async () => {
 const addPendingMutation = async (mutation) => {
   try {
     const db = await openDatabase();
+    if (!db) return null;
     const transaction = db.transaction([STORES.PENDING_MUTATIONS], 'readwrite');
     const store = transaction.objectStore(STORES.PENDING_MUTATIONS);
 
@@ -667,6 +686,7 @@ const addPendingMutation = async (mutation) => {
 const getPendingMutations = async () => {
   try {
     const db = await openDatabase();
+    if (!db) return [];
     const transaction = db.transaction([STORES.PENDING_MUTATIONS], 'readonly');
     const store = transaction.objectStore(STORES.PENDING_MUTATIONS);
 
@@ -686,6 +706,7 @@ const getPendingMutations = async () => {
 const removePendingMutation = async (mutationId) => {
   try {
     const db = await openDatabase();
+    if (!db) return;
     const transaction = db.transaction([STORES.PENDING_MUTATIONS], 'readwrite');
     const store = transaction.objectStore(STORES.PENDING_MUTATIONS);
 
@@ -703,6 +724,7 @@ const removePendingMutation = async (mutationId) => {
 const updateMutationRetry = async (mutationId, retryCount) => {
   try {
     const db = await openDatabase();
+    if (!db) return;
     const transaction = db.transaction([STORES.PENDING_MUTATIONS], 'readwrite');
     const store = transaction.objectStore(STORES.PENDING_MUTATIONS);
 
@@ -731,6 +753,7 @@ const updateMutationRetry = async (mutationId, retryCount) => {
 const getById = async (storeName, recordId) => {
   try {
     const db = await openDatabase();
+    if (!db) return null;
     const transaction = db.transaction([storeName], 'readonly');
     const store = transaction.objectStore(storeName);
 
@@ -750,6 +773,7 @@ const getById = async (storeName, recordId) => {
 const deleteRecord = async (storeName, recordId) => {
   try {
     const db = await openDatabase();
+    if (!db) return { success: false, error: 'IndexedDB unavailable in preview' };
     const transaction = db.transaction([storeName], 'readwrite');
     const store = transaction.objectStore(storeName);
 
@@ -769,6 +793,7 @@ const deleteRecord = async (storeName, recordId) => {
 const getSyncMetadata = async (entityName, scopeKey = DEFAULT_CACHE_SCOPE) => {
   try {
     const db = await openDatabase();
+    if (!db) return null;
     const transaction = db.transaction([STORES.SYNC_METADATA], 'readonly');
     const store = transaction.objectStore(STORES.SYNC_METADATA);
     const metadataKey = buildMetadataKey(entityName, scopeKey);
@@ -796,6 +821,7 @@ const getSyncMetadata = async (entityName, scopeKey = DEFAULT_CACHE_SCOPE) => {
 const updateSyncMetadata = async (entityName, latestServerTimestamp, lastSyncTime = null, additionalMetadata = {}) => {
   try {
     const db = await openDatabase();
+    if (!db) return;
     const transaction = db.transaction([STORES.SYNC_METADATA], 'readwrite');
     const store = transaction.objectStore(STORES.SYNC_METADATA);
     const scopeKey = additionalMetadata.scope_key || DEFAULT_CACHE_SCOPE;
@@ -965,6 +991,7 @@ const deduplicateAppUsers = async () => {
 const deleteDeliveriesByDate = async (dateStr) => {
   try {
     const db = await openDatabase();
+    if (!db) return { success: false, error: 'IndexedDB unavailable in preview' };
     const transaction = db.transaction([STORES.DELIVERIES], 'readwrite');
     const store = transaction.objectStore(STORES.DELIVERIES);
     const index = store.index('delivery_date');

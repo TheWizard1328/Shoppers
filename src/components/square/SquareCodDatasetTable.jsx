@@ -62,7 +62,6 @@ export default function SquareCodDatasetTable({
                       <th className="p-3">Store</th>
                       {showLocationColumn && <th className="p-3">Square Location ID</th>}
                       <th className="p-3">Transaction ID</th>
-                      <th className="p-3">Collection Date</th>
                       <th className="p-3">Actions</th>
                     </tr>
                   </thead>
@@ -79,7 +78,7 @@ export default function SquareCodDatasetTable({
                     
                         <td className="p-3">
                           <div className="font-medium text-sm text-slate-900 dark:text-slate-50">{row.itemName || 'N/A'}</div>
-                          {row.subtext && <div className="text-xs mt-1 text-slate-600 dark:text-slate-400">{row.subtext}</div>}
+                          <div className="text-xs mt-1 text-slate-500 dark:text-slate-400">{formatDate(row.collectionDate || row.deliveryDate)}</div>
                         </td>
                         <td className="p-3">
                           <div className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{formatAmount(row.amount)}</div>
@@ -91,7 +90,10 @@ export default function SquareCodDatasetTable({
                             </div>
                           )}
                         </td>
-                        <td className="p-3 text-sm text-slate-900 dark:text-slate-50">{row.storeName || 'Unknown'}</td>
+                        <td className="p-3">
+                          <div className="text-sm text-slate-900 dark:text-slate-50">{row.storeName || 'Unknown'}</div>
+                          {row.subtext && <div className="text-xs mt-1 text-slate-500 dark:text-slate-400">{row.subtext}</div>}
+                        </td>
                         {showLocationColumn &&
                     <td className="p-3">
                             <div className="text-xs font-mono truncate max-w-[180px] text-slate-600 dark:text-slate-400">{row.locationId || '--'}</div>
@@ -100,7 +102,6 @@ export default function SquareCodDatasetTable({
                         <td className="p-3">
                           <div className="text-xs font-mono truncate max-w-[150px] text-slate-600 dark:text-slate-400">{row.catalogId || '--'}</div>
                         </td>
-                        <td className="p-3 text-xs text-slate-600 dark:text-slate-400">{formatDate(row.collectionDate || row.deliveryDate)}</td>
                         <td className="p-3">
                           <div className="space-y-1">
                             <div className="flex justify-start" onClick={(e) => e.stopPropagation()}>
@@ -132,7 +133,7 @@ export default function SquareCodDatasetTable({
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <p className="font-semibold text-[15px] leading-5 text-slate-900 dark:text-slate-50">{row.itemName || 'N/A'}</p>
-                        {row.subtext && <p className="text-xs mt-1 text-slate-600 dark:text-slate-400 line-clamp-2">{row.subtext}</p>}
+                        <p className="text-xs mt-1 text-slate-500 dark:text-slate-400">{formatDate(row.collectionDate || row.deliveryDate)}</p>
                       </div>
                       <div className="shrink-0 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 px-3 py-2 text-base font-bold leading-none text-emerald-600 dark:text-emerald-400">{formatAmount(row.amount)}</div>
                     </div>
@@ -143,10 +144,7 @@ export default function SquareCodDatasetTable({
                       <div className="rounded-xl px-3 py-2" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
                         <div className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--text-slate-500)' }}>Store</div>
                         <div className="mt-1 text-sm font-medium truncate" style={{ color: 'var(--text-slate-900)' }}>{row.storeName || 'Unknown'}</div>
-                      </div>
-                      <div className="rounded-xl px-3 py-2" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
-                        <div className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--text-slate-500)' }}>Date</div>
-                        <div className="mt-1 text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>{formatDate(row.collectionDate || row.deliveryDate)}</div>
+                        {row.subtext && <div className="mt-0.5 text-xs truncate" style={{ color: 'var(--text-slate-500)' }}>{row.subtext}</div>}
                       </div>
                     </div>
 
