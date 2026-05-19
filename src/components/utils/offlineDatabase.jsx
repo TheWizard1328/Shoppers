@@ -66,11 +66,15 @@ const buildDataVersion = (records = []) => {
  * CRITICAL: Uses promise pooling to prevent race conditions
  */
 const openDatabase = async () => {
-  // PREVIEW GUARD: Skip IndexedDB entirely in preview/sandbox environments
+  // PREVIEW GUARD: Skip IndexedDB entirely in Base44 editor preview/sandbox iframes
   // to prevent flickering between isolated IndexedDB buckets per frame origin.
+  // IMPORTANT: Only block the editor preview frames, NOT the published app.
   const isPreview = typeof window !== 'undefined' && (
-    window.location.hostname.includes('preview') ||
-    window.location.hostname.includes('sandbox')
+    window.location.hostname === 'preview.base44.app' ||
+    window.location.hostname.endsWith('.preview.base44.app') ||
+    window.location.hostname === 'sandbox.base44.app' ||
+    window.location.hostname.endsWith('.sandbox.base44.app') ||
+    (window.self !== window.top && window.location.hostname.includes('base44'))
   );
   if (isPreview) return null;
 
