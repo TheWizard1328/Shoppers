@@ -1873,7 +1873,7 @@ export default function Layout({ children, currentPageName }) {
                     storeIds={stores.filter((s) => s && s.city_id === globalFilters.getSelectedCityId()).map((s) => s.id)}
                     isMobile={isMobile}
                     screenWidth={screenWidth}
-                    showOfflineSync={(isMobile || screenWidth < 768)} />
+                    />
 
 
                       </div>
