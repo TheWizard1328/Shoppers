@@ -192,7 +192,7 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
             <Button
             onClick={handleGenerateQR}
             disabled={isGenerating}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 py-3">
+            className="w-full bg-emerald-600 hover:bg-emerald-700 py-2">
             
               {isGenerating ? 'Generating...' : 'Generate QR Code'}
             </Button>
