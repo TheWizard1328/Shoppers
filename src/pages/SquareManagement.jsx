@@ -1273,23 +1273,23 @@ export default function SquareManagement() {
         </div>
 
         <div className="flex flex-col gap-2">
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-2 w-full">
-            {currentUser && isAppOwner(currentUser) && drivers.length > 0 ?
-              <Select value={selectedDriverFilter} onValueChange={setSelectedDriverFilter}>
-                <SelectTrigger className="w-full text-sm">
+          <div className="grid grid-cols-2 gap-2 md:flex md:flex-row md:flex-wrap md:items-center md:gap-3 w-full">
+            {currentUser && isAppOwner(currentUser) && drivers.length > 0 &&
+            <Select value={selectedDriverFilter} onValueChange={setSelectedDriverFilter}>
+                <SelectTrigger className="w-full md:w-[130px] text-sm">
                   <SelectValue placeholder="All Drivers" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Drivers</SelectItem>
                   {drivers.map((driver) =>
-                  <SelectItem key={driver.id} value={driver.id}>{driver.user_name}</SelectItem>
-                  )}
+                <SelectItem key={driver.id} value={driver.id}>{driver.user_name}</SelectItem>
+                )}
                 </SelectContent>
               </Select>
-            : <div />}
+            }
 
             <Select value={selectedStoreFilter} onValueChange={setSelectedStoreFilter}>
-              <SelectTrigger className="w-full text-sm">
+              <SelectTrigger className="w-full md:w-[130px] text-sm">
                 <SelectValue placeholder="All Stores" />
               </SelectTrigger>
               <SelectContent>
@@ -1301,7 +1301,7 @@ export default function SquareManagement() {
             </Select>
 
             <Select value={selectedDaysRange} onValueChange={setSelectedDaysRange}>
-              <SelectTrigger className="w-full text-sm">
+              <SelectTrigger className="w-full md:w-[130px] text-sm">
                 <SelectValue placeholder="Days" />
               </SelectTrigger>
               <SelectContent>
@@ -1315,16 +1315,18 @@ export default function SquareManagement() {
               </SelectContent>
             </Select>
 
-            {currentUser && isAppOwner(currentUser) ? <>
-              <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="w-full gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 justify-center">
+            {currentUser && isAppOwner(currentUser) &&
+            <>
+              <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="w-full md:w-[130px] gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 justify-center">
                 <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
                 {isSyncing ? 'Syncing...' : 'Sync'}
               </Button>
-              <Button onClick={() => runReconcile()} disabled={isReconciling || isSyncing} className="w-full gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 justify-center">
+              <Button onClick={() => runReconcile()} disabled={isReconciling || isSyncing} className="w-full md:w-[160px] gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 justify-center">
                 <RefreshCw className={`w-4 h-4 flex-shrink-0 ${isReconciling ? 'animate-spin' : ''}`} />
                 {isReconciling ? 'Reconciling...' : 'Reconcile'}
               </Button>
-            </> : <><div /><div /></>}
+            </>
+            }
           </div>
 
           <div className="flex flex-col gap-2 md:flex-row md:items-center w-full">
