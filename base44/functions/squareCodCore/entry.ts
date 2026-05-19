@@ -471,20 +471,6 @@ async function handleReconcile(base44, payload) {
     }
   }
 
-  // Update matched transactions in DB sequentially to avoid rate limits
-  for (const match of matchResults) {
-    const delivery = noMatchDeliveries.find((d) => d.id === match.deliveryId);
-    if (match.transactionId && delivery) {
-      await base44.asServiceRole.entities.SquareTransaction.update(match.transactionId, {
-        delivery_id: delivery.id,
-        patient_id: delivery.patient_id || null,
-        store_id: delivery.store_id || null,
-        driver_id: delivery.driver_id || null,
-      }).catch(() => null);
-      await sleep(150); // rate-limit guard
-    }
-  }
-
   // ── STEP 4: Re-collect deliveries that are STILL unmatched after step 3 ──
   const nowMatchedDeliveryIds = new Set(matchResults.map((m) => m.deliveryId));
   // Also consider deliveries that already had a matching transaction (passed in as matched)

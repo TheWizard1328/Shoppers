@@ -229,7 +229,6 @@ export default function SquareManagement() {
   const selectedDriverUserIdsRef = useRef(new Set());
 
   const runReconcile = useCallback(async (currentReconciliationRows) => {
-    // "No Match" deliveries are already computed by the reconciliationRows useMemo
     const unmatchedRows = (currentReconciliationRows || reconciliationRowsRef.current || []).filter((row) => !!row?.rawDelivery);
     if (unmatchedRows.length === 0) {
       toast.info('No unmatched deliveries to reconcile');
@@ -240,85 +239,115 @@ export default function SquareManagement() {
     window.dispatchEvent(new CustomEvent('pauseBackgroundSync'));
 
     try {
-      // Pass the full context to the backend so it can:
-      // 1. Match "No Match" transactions → deliveries by patient name + amount
-      // 2. Re-collect still-unmatched deliveries
-      // 3. Filter out deliveries already in the catalog
-      // 4. Create Square catalog items for the remainder
-      const response = await base44.functions.invoke('squareCodCore', {
-        action: 'reconcile',
-        deliveries: unmatchedRows.map((row) => row.rawDelivery),
-        transactions: allTransactions,
-        catalogItems: catalogItems,
-        patients: patients,
-        stores: stores,
-        locationConfigs: locationConfigs,
-      });
+      const { offlineDB } = await import('@/components/utils/offlineDatabase');
 
-      const result = response?.data || response || {};
-      const createResults = result.createResults || [];
+      // ── Step 1: Match existing transactions → unmatched deliveries (in-memory) ──
+      const normalize = (v) => String(v || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+      const tokens = (v) => normalize(v).split(' ').filter((t) => t.length >= 2);
+      const namesMatch = (a, b) => {
+        const na = normalize(a); const nb = normalize(b);
+        if (!na || !nb) return false;
+        if (na.includes(nb) || nb.includes(na)) return true;
+        const ta = tokens(na); const tb = tokens(nb);
+        return ta.length > 0 && tb.length > 0 && ta.every((t) => tb.some((u) => u.includes(t) || t.includes(u)));
+      };
 
-      // Build new catalog rows from successfully created items
-      const successfulDeliveryIds = new Set(
-        createResults
-          .filter((entry) => entry?.action === 'upsert' && entry?.status === 'ok' && entry?.result?.catalogObjectId)
-          .map((entry) => entry.deliveryId)
-          .filter(Boolean)
-      );
+      const patientMap = new Map(patients.map((p) => [p.id, p]));
+      const usedDeliveryIds = new Set();
+      const matchResults = []; // { tx, delivery }
 
-      if (successfulDeliveryIds.size > 0) {
-        const newCatalogRows = unmatchedRows
-          .filter((row) => successfulDeliveryIds.has(row.rawDelivery?.id))
-          .map((row) => {
-            const entry = createResults.find((e) => e.deliveryId === row.rawDelivery?.id);
-            if (!entry?.result?.catalogObjectId) return null;
-            return {
-              id: entry.result.catalogObjectId,
-              catalog_object_id: entry.result.catalogObjectId,
-              square_catalog_object_id: entry.result.catalogObjectId,
-              square_catalog_version: entry.result.catalogVersion || null,
-              name: entry.result.itemName || row.itemName,
-              item_name: entry.result.itemName || row.itemName,
-              description: '',
-              amount: Number(row.amount || 0),
-              amount_cents: Math.round(Number(row.amount || 0) * 100),
-              price_dollars: Number(row.amount || 0),
-              price_cents: Math.round(Number(row.amount || 0) * 100),
-              delivery_id: row.rawDelivery.id,
-              delivery_date: row.rawDelivery.delivery_date || null,
-              patient_id: row.rawDelivery.patient_id || null,
-              store_id: row.rawStoreId || null,
-              location_id: row.locationId || null,
-              status: 'active',
-              is_sold: false,
-            };
-          })
-          .filter(Boolean);
+      for (const tx of allTransactions) {
+        if (!tx || tx.type !== 'collection') continue;
+        if (!['completed', 'pending'].includes(tx.status)) continue;
+        const txAmountCents = Math.round(Number(tx.amount || 0) * 100);
+        const parsedName = (() => {
+          const n = String(tx.item_name || '');
+          const m = n.match(/\d{1,2}[\/-]\d{1,2}\([^)]+\)-(.+)$/);
+          return m ? m[1].trim() : n.replace(/^\d{1,2}[\/-]\d{1,2}/, '').replace(/\([^)]+\)/, '').replace(/^[-\s]+/, '').trim();
+        })();
 
-        setCatalogItems((prev) => {
-          const preserved = (prev || []).filter((item) => !successfulDeliveryIds.has(item.delivery_id));
-          return [...newCatalogRows, ...preserved];
+        for (const row of unmatchedRows) {
+          const d = row.rawDelivery;
+          if (usedDeliveryIds.has(d.id)) continue;
+          const dAmountCents = Math.round(Number(d.cod_total_amount_required || 0) * 100);
+          if (dAmountCents !== txAmountCents) continue;
+          const patient = patientMap.get(d.patient_id);
+          if (!patient?.full_name) continue;
+          if (!namesMatch(patient.full_name, parsedName)) continue;
+          usedDeliveryIds.add(d.id);
+          matchResults.push({ tx, delivery: d });
+          break;
+        }
+      }
+
+      // Write matched transactions to offline DB
+      if (matchResults.length > 0) {
+        const existingTx = (await offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS)) || [];
+        const txMap = new Map(existingTx.map((t) => [t.id, t]));
+        for (const { tx, delivery } of matchResults) {
+          txMap.set(tx.id, { ...tx, delivery_id: delivery.id, patient_id: delivery.patient_id || null, store_id: delivery.store_id || null, driver_id: delivery.driver_id || null });
+        }
+        await offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_TRANSACTIONS, Array.from(txMap.values()));
+      }
+
+      // ── Step 2: Create Square catalog items for still-unmatched deliveries ──
+      const catalogDeliveryIds = new Set(catalogItems.map((c) => c.delivery_id).filter(Boolean));
+      const needsCatalog = unmatchedRows
+        .filter((row) => !usedDeliveryIds.has(row.rawDelivery.id) && !catalogDeliveryIds.has(row.rawDelivery.id));
+
+      const createResults = [];
+      for (const row of needsCatalog) {
+        const d = row.rawDelivery;
+        const response = await base44.functions.invoke('squareCodCore', {
+          action: 'createCodItem',
+          deliveryId: d.id,
+          codAmount: d.cod_total_amount_required,
+          deliveryDate: d.delivery_date,
+          storeId: d.store_id,
+          patientName: d.patient_name || null,
         });
+        const r = response?.data || response || {};
+        createResults.push({ deliveryId: d.id, row, result: r });
+
+        // Write new catalog item to offline DB immediately
+        if (r?.catalogObjectId) {
+          const existingCatalog = (await offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS)) || [];
+          const catalogMap = new Map(existingCatalog.map((c) => [c.id, c]));
+          catalogMap.set(r.catalogObjectId, {
+            id: r.catalogObjectId,
+            square_catalog_object_id: r.catalogObjectId,
+            square_catalog_version: r.catalogVersion || null,
+            item_name: r.itemName || row.itemName,
+            description: '',
+            amount: Number(d.cod_total_amount_required || 0),
+            amount_cents: Math.round(Number(d.cod_total_amount_required || 0) * 100),
+            delivery_id: d.id,
+            delivery_date: d.delivery_date || null,
+            patient_id: d.patient_id || null,
+            store_id: d.store_id || null,
+            location_id: row.locationId || null,
+            status: 'active',
+          });
+          await offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_CATALOG_ITEMS, Array.from(catalogMap.values()));
+        }
       }
 
-      // Surface results to user
-      const matched = result.matched || 0;
-      const created = successfulDeliveryIds.size;
+      // Refresh UI from offline DB
+      await loadSquareViewFromOffline();
+
+      const matched = matchResults.length;
+      const created = createResults.filter((r) => r.result?.catalogObjectId).length;
       const parts = [];
-      if (matched > 0) parts.push(`${matched} transaction${matched === 1 ? '' : 's'} matched to deliveries`);
+      if (matched > 0) parts.push(`${matched} transaction${matched === 1 ? '' : 's'} matched`);
       if (created > 0) parts.push(`${created} catalog item${created === 1 ? '' : 's'} created`);
-      if (parts.length > 0) {
-        toast.success(parts.join(', '));
-      } else {
-        toast.info('No new matches or catalog items needed');
-      }
+      toast[parts.length > 0 ? 'success' : 'info'](parts.length > 0 ? parts.join(', ') : 'No new matches or catalog items needed');
     } catch (err) {
       toast.error('Reconcile failed: ' + err.message);
     } finally {
       setIsReconciling(false);
       window.dispatchEvent(new CustomEvent('resumeBackgroundSync'));
     }
-  }, [allTransactions, catalogItems, patients, stores, locationConfigs]);
+  }, [allTransactions, catalogItems, patients, stores, locationConfigs, loadSquareViewFromOffline]);
 
   const syncFromSquare = async () => {
     const now = Date.now();
