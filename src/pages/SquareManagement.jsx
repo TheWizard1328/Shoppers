@@ -358,7 +358,8 @@ export default function SquareManagement() {
       try {
         const codResponse = await base44.functions.invoke('squareGetCODData', {
           forceDeliveryRefresh: true,
-          daysBack: 90
+          daysBack: 7,        // Only pull last 7 days from Square API — offline DB retains 90-day history
+          mergeWithExisting: true  // Signal backend to merge, not replace, 90-day offline data
         });
         const codData = codResponse?.data || codResponse || {};
         const catalogRecords = codData.catalogRecords || [];
@@ -367,14 +368,25 @@ export default function SquareManagement() {
           ? codData.deliveries.map(({ delivery_route_breadcrumbs, encoded_polyline, proof_photo_urls, signature_image_url, ...rest }) => rest)
           : [];
 
-        await offlineDB.replaceAllRecords(offlineDB.STORES.DELIVERIES, strippedDeliveries);
-        await offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_CATALOG_ITEMS, catalogRecords);
-        await offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_TRANSACTIONS, transactionRecords);
+        // MERGE into offline DB — don't wipe the 90-day history, just upsert fresh 7-day data
+        const mergeRecords = async (store, freshRecords) => {
+          const existing = (await offlineDB.getAll(store)) || [];
+          const existingMap = new Map(existing.map((r) => [r.id, r]));
+          (freshRecords || []).forEach((r) => { if (r?.id) existingMap.set(r.id, r); });
+          await offlineDB.replaceAllRecords(store, Array.from(existingMap.values()));
+          return Array.from(existingMap.values());
+        };
 
-        setDeliveries([...(strippedDeliveries || [])]);
-        setCatalogItems([...(catalogRecords || [])]);
-        setAllTransactions([...(transactionRecords || [])]);
-        setSoldCatalogItems([...(transactionRecords || []).filter((tx) => ['completed', 'refunded'].includes(tx.status))]);
+        const [mergedDeliveries, mergedCatalog, mergedTransactions] = await Promise.all([
+          mergeRecords(offlineDB.STORES.DELIVERIES, strippedDeliveries),
+          mergeRecords(offlineDB.STORES.SQUARE_CATALOG_ITEMS, catalogRecords),
+          mergeRecords(offlineDB.STORES.SQUARE_TRANSACTIONS, transactionRecords),
+        ]);
+
+        setDeliveries([...(mergedDeliveries || [])]);
+        setCatalogItems([...(mergedCatalog || [])]);
+        setAllTransactions([...(mergedTransactions || [])]);
+        setSoldCatalogItems([...(mergedTransactions || []).filter((tx) => ['completed', 'refunded'].includes(tx.status))]);
 
         // Sync to online entities so realtime listener re-hydrate is accurate
         await base44.functions.invoke('squareCodCore', {

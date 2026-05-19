@@ -304,6 +304,7 @@ async function handleGetCodData(base44, payload={}) {
   const accessToken=ensureSquareToken();const monitor=createSquareSyncMonitor(base44,'square_get_cod_data');const queue=createSquareRequestQueue(monitor);await monitor.start({action:'getCodData'});
   const daysBack=Math.max(1,Number(payload?.daysBack||TRANSACTION_RETENTION_DAYS)||TRANSACTION_RETENTION_DAYS);
   const transactionRetentionStartMs=Date.now()-daysBack*86400000;const refreshDeliveries=shouldRefreshDeliveries(payload?.lastDeliverySyncAt,payload?.forceDeliveryRefresh===true);
+  // quickSync: only query Square API for the daysBack window — caller merges with existing offline data
   const[locationConfigs,stores,existingTransactions]=await Promise.all([base44.asServiceRole.entities.SquareLocationConfig.filter({status:'active'}).catch(()=>[]),base44.asServiceRole.entities.Store.list('-updated_date',500).catch(()=>[]),base44.asServiceRole.entities.SquareTransaction.list('-updated_date',2000).catch(()=>[])]);
   const safeConfigs=(Array.isArray(locationConfigs)?locationConfigs:[]).map(unwrapEntityRecord).filter(Boolean);
   const safeStores=(Array.isArray(stores)?stores:[]).map(unwrapEntityRecord).filter(Boolean);
