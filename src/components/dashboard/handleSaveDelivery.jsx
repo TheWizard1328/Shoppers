@@ -260,11 +260,6 @@ export async function handleSaveDelivery(deliveryData, ctx) {
       }
     }
 
-    if (driverId && deliveryDate) {
-      const now = new Date();
-      await base44.functions.invoke('optimizeRemainingStops', { driverId, deliveryDate, currentLocalTime: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`, deviceTime: now.toISOString() });
-    }
-
     invalidate('Delivery');
     await refreshData();
     if (driverId && deliveryDate) window.dispatchEvent(new CustomEvent('routeReordered', { detail: { driverId, deliveryDate, source: 'handleSaveDelivery' } }));
