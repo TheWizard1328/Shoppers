@@ -81,6 +81,7 @@ export default function PolylineViewer({ users = [] }) {
   // raw data
   const [deliveries, setDeliveries]     = useState([]);   // for polylines
   const [breadcrumbs, setBreadcrumbs]   = useState([]);   // DeliveryBreadcrumbs entity
+  const [allAppUsers, setAllAppUsers]   = useState([]);   // all AppUsers incl. inactive
 
   // selection / map
   const [selectedIds, setSelectedIds]   = useState(new Set());
@@ -170,10 +171,17 @@ export default function PolylineViewer({ users = [] }) {
 
   useEffect(() => { loadData(); }, [dataSource]);
 
+  // ── Load all AppUsers (incl. inactive) for name resolution ────────────────
+  useEffect(() => {
+    base44.entities.AppUser.list().then(res => setAllAppUsers(res || [])).catch(() => {});
+  }, []);
+
   // ── Driver helper ─────────────────────────────────────────────────────────
   const getDriverName = (id) => {
     if (!id) return 'Unknown';
-    const u = users.find(u => u?.id === id || u?.user_id === id);
+    // Check passed users prop first, then fall back to allAppUsers (includes inactive)
+    const u = users.find(u => u?.id === id || u?.user_id === id)
+           || allAppUsers.find(u => u?.user_id === id || u?.id === id);
     return u ? (u.user_name || u.full_name || getDriverDisplayName(u)) : id.substring(0, 8) + '…';
   };
 
