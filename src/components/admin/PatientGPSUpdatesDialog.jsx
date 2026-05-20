@@ -33,7 +33,9 @@ function LogEntryCard({ log, open, onAction }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [matchesExpanded, setMatchesExpanded] = useState(false);
 
-  const timestamp = log.created_date || new Date().toISOString();
+  // Ensure the timestamp is treated as UTC (append Z if missing)
+  const rawTs = log.created_date || new Date().toISOString();
+  const timestamp = rawTs.endsWith('Z') || rawTs.includes('+') ? rawTs : rawTs + 'Z';
   const hasOldCoords = Number.isFinite(log.old_latitude) && Number.isFinite(log.old_longitude);
 
   const handleAction = async (action) => {
