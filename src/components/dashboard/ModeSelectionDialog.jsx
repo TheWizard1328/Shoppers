@@ -45,7 +45,7 @@ export default function ModeSelectionDialog({
       </div>
 
       {/* Stop list */}
-      <div className="max-h-[55vh] overflow-y-auto divide-y" style={{ borderColor: 'var(--border-slate-200)' }}>
+      <div className="flex-1 overflow-y-auto divide-y" style={{ borderColor: 'var(--border-slate-200)' }}>
         {nearbyStops.length === 0 && (
           <div className="px-6 py-8 text-sm text-center" style={{ color: 'var(--text-slate-500)' }}>
             No stops found on this route.
@@ -62,9 +62,9 @@ export default function ModeSelectionDialog({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-base font-bold" style={{ color: 'var(--text-slate-900)' }}>{stop.label}</span>
-                  <StatusBadge status={stop.status} />
                 </div>
-                <div className="flex items-center gap-1 mt-1">
+                <div className="flex items-center gap-2 mt-0.5">
+                  <StatusBadge status={stop.status} />
                   <span className="text-sm" style={{ color: 'var(--text-slate-500)' }}>
                     {stop.distanceKm != null ? `${stop.distanceKm.toFixed(1)} km away` : 'Distance unknown'}
                   </span>
@@ -108,7 +108,7 @@ export default function ModeSelectionDialog({
         inset: 0,
         zIndex: 9999,
         display: 'flex',
-        alignItems: isMobile ? 'flex-end' : 'center',
+        alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: 'rgba(0,0,0,0.5)',
       }}
@@ -120,9 +120,13 @@ export default function ModeSelectionDialog({
           width: isMobile ? '100%' : undefined,
           minWidth: isMobile ? undefined : 420,
           maxWidth: isMobile ? '100vw' : 480,
-          borderRadius: isMobile ? '16px 16px 0 0' : 16,
+          maxHeight: '95vh',
+          height: isMobile ? '95vh' : undefined,
+          borderRadius: isMobile ? '16px 16px 16px 16px' : 16,
           boxShadow: '0 25px 50px rgba(0,0,0,0.25)',
           overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
         }}
         onClick={(e) => e.stopPropagation()}
       >
