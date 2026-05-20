@@ -28,7 +28,7 @@ function useMatchingPatients(logId, open) {
   return { matchingPatients, loading };
 }
 
-function LogEntryCard({ log, open, onAction }) {
+function LogEntryCard({ log, open, onAction, stores = [] }) {
   const { matchingPatients, loading: loadingMatches } = useMatchingPatients(log.id, open);
   const [isProcessing, setIsProcessing] = useState(false);
   const [matchesExpanded, setMatchesExpanded] = useState(false);
@@ -104,17 +104,21 @@ function LogEntryCard({ log, open, onAction }) {
           matchingPatients.length === 0 ?
           <p className="text-xs text-slate-400 py-1">No other patients found at this address.</p> :
 
-          <ul className="space-y-1.5">
+          <ul className="space-y-1">
                 {matchingPatients.map((p) => {
               const isActive = p.status !== 'inactive';
+              const storeAbbr = stores.find((s) => s.id === p.store_id)?.abbreviation;
               return (
-                <li key={p.id} className={`flex items-center gap-2 text-sm rounded px-2 ${isActive ? 'bg-green-50 text-green-900' : 'bg-red-50 text-red-800'}`}>
+                <li key={p.id} className={`grid items-center gap-x-2 text-sm rounded px-2 py-1 ${isActive ? 'bg-green-50 text-green-900' : 'bg-red-50 text-red-800'}`}
+                  style={{ gridTemplateColumns: '1rem 1fr 3rem 3rem 4rem' }}>
                       <MapPin className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-green-500' : 'text-red-400'}`} />
-                      <span className="font-medium">{p.full_name}</span>
-                      {p.unit_number &&
-                  <span className="text-xs font-mono bg-white border rounded px-1">{p.unit_number}</span>
-                  }
-                      <Badge variant="outline" className={`ml-auto text-xs shrink-0 ${isActive ? 'border-green-300 text-green-700' : 'border-red-300 text-red-600'}`}>
+                      <span className="font-medium truncate">{p.full_name}</span>
+                      <span className="text-xs font-mono text-center">{p.unit_number || ''}</span>
+                      {storeAbbr
+                        ? <Badge variant="secondary" className="text-xs justify-center px-1">{storeAbbr}</Badge>
+                        : <span />
+                      }
+                      <Badge variant="outline" className={`text-xs justify-center ${isActive ? 'border-green-300 text-green-700' : 'border-red-300 text-red-600'}`}>
                         {isActive ? 'Active' : 'Inactive'}
                       </Badge>
                     </li>);
@@ -157,7 +161,7 @@ function LogEntryCard({ log, open, onAction }) {
 
 }
 
-export default function PatientGPSUpdatesDialog({ open, onOpenChange }) {
+export default function PatientGPSUpdatesDialog({ open, onOpenChange, stores = [] }) {
   const queryClient = useQueryClient();
 
   const { data: logs = [], isLoading, isFetching, refetch } = useQuery({
@@ -222,7 +226,7 @@ export default function PatientGPSUpdatesDialog({ open, onOpenChange }) {
             </div> :
 
           pendingLogs.map((log) =>
-          <LogEntryCard key={log.id} log={log} open={open} onAction={handleAction} />
+          <LogEntryCard key={log.id} log={log} open={open} onAction={handleAction} stores={stores} />
           )
           }
         </div>

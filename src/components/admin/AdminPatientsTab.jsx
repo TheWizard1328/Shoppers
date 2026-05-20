@@ -3,8 +3,11 @@ import { Loader2, MapPin, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
 import PatientGPSUpdatesDialog from './PatientGPSUpdatesDialog';
+import { useAppData } from '@/components/utils/AppDataContext';
 
-export default function AdminPatientsTab({ dataViewMode, setDataViewMode, children, onBackfillLastDeliveryDates, isBackfilling: externalBackfillLoading = false }) {
+export default function AdminPatientsTab({ dataViewMode, setDataViewMode, children, onBackfillLastDeliveryDates, isBackfilling: externalBackfillLoading = false, stores: storesProp }) {
+  const { stores: contextStores } = useAppData();
+  const stores = storesProp || contextStores || [];
   const [showPatientGpsUpdates, setShowPatientGpsUpdates] = useState(false);
   const [localBackfillLoading, setLocalBackfillLoading] = useState(false);
 
@@ -77,6 +80,7 @@ export default function AdminPatientsTab({ dataViewMode, setDataViewMode, childr
       <PatientGPSUpdatesDialog
         open={showPatientGpsUpdates}
         onOpenChange={setShowPatientGpsUpdates}
+        stores={stores}
       />
     </>
   );
