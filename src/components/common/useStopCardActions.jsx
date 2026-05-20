@@ -36,7 +36,7 @@ const queueConsolidateBreadcrumbs = ({ driverId, deliveryDate, stopOrder, status
       stop_order: Number(stopOrder),
       delivery_status: status
     }).catch((error) => {
-      console.warn('âš ï¸ [Breadcrumbs] Consolidation failed:', error?.message || error);
+      console.warn('[Breadcrumbs] Consolidation failed:', error?.message || error);
     })
   );
 };
@@ -73,6 +73,44 @@ const resolveTravelDistFallback = (deliveryRecord, retroactiveTravelDist, allRou
   if (!Number.isFinite(estimatedDistanceKm)) return undefined;
   if (!Number.isFinite(currentTravelDist) || estimatedDistanceKm - currentTravelDist > 0.75) return estimatedDistanceKm;
   return undefined;
+};
+
+// Helper: resolve coordinates from a delivery record using patients/stores context
+const resolveDeliveryCoords = (deliveryRecord, patients, stores) => {
+  if (!deliveryRecord) return { lat: null, lng: null };
+  if (deliveryRecord.patient_id) {
+    const pat = Array.isArray(patients) ? patients.find((p) => p && p.id === deliveryRecord.patient_id) : null;
+    const lat = pat?.latitude != null ? Number(pat.latitude) : null;
+    const lng = pat?.longitude != null ? Number(pat.longitude) : null;
+    if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
+  } else if (deliveryRecord.store_id) {
+    const st = Array.isArray(stores) ? stores.find((s) => s && s.id === deliveryRecord.store_id) : null;
+    const lat = st?.latitude != null ? Number(st.latitude) : null;
+    const lng = st?.longitude != null ? Number(st.longitude) : null;
+    if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
+  }
+  return { lat: null, lng: null };
+};
+
+// Helper: clear first_leg_origin from all route deliveries except the one being stamped,
+// then stamp the target delivery with the given coords.
+const applyFirstLegOriginTransition = async ({ routeDeliveries, stampDeliveryId, originLat, originLng }) => {
+  const hasValidOrigin = originLat != null && Number.isFinite(originLat) && originLng != null && Number.isFinite(originLng);
+
+  // Clear from all deliveries that currently have it set (except the finished one)
+  const toClear = routeDeliveries.filter((d) => d && d.id !== stampDeliveryId && (d.first_leg_origin_lat != null || d.first_leg_origin_lng != null));
+  if (toClear.length > 0) {
+    await Promise.all(toClear.map((d) => updateDeliveryLocal(d.id, { first_leg_origin_lat: null, first_leg_origin_lng: null }, { skipSmartRefresh: true })));
+    toClear.forEach((d) => base44.entities.Delivery.update(d.id, { first_leg_origin_lat: null, first_leg_origin_lng: null }).catch(() => null));
+    console.log(`[FirstLegOrigin] Cleared from ${toClear.length} deliveries`);
+  }
+
+  // Stamp the target delivery
+  if (stampDeliveryId && hasValidOrigin) {
+    await updateDeliveryLocal(stampDeliveryId, { first_leg_origin_lat: originLat, first_leg_origin_lng: originLng }, { skipSmartRefresh: true });
+    base44.entities.Delivery.update(stampDeliveryId, { first_leg_origin_lat: originLat, first_leg_origin_lng: originLng }).catch(() => null);
+    console.log(`[FirstLegOrigin] Stamped (${originLat}, ${originLng}) on delivery ${stampDeliveryId}`);
+  }
 };
 
 export default function useStopCardActions(params) {
@@ -262,7 +300,7 @@ export default function useStopCardActions(params) {
 
       // STEP 1: Sync COD data with Square (non-blocking)
       if (codBatch.length > 0) {
-        base44.functions.invoke('syncSquareCods', { items: codBatch }).catch((e) => console.warn('âš ï¸ [Square] Batch COD sync failed to start:', e));
+        base44.functions.invoke('syncSquareCods', { items: codBatch }).catch((e) => console.warn('[Square] Batch COD sync failed to start:', e));
       }
 
       // NOTE: No second optimizeRemainingStops call needed here.
@@ -296,7 +334,7 @@ export default function useStopCardActions(params) {
         if (assignedDriver) notifyDispatcherAssignedAll({ dispatcher: currentUser, driver: assignedDriver, store, deliveries: scopedPendingDeliveries, patients }).catch(() => {});
       }
     } catch (error) {
-      console.error('âŒ [Accept All] Error:', error);
+      console.error('[Accept All] Error:', error);
       toast.error(`Failed to accept all: ${error.message}`);
       throw error;
     } finally {
@@ -369,7 +407,7 @@ export default function useStopCardActions(params) {
               await updateDeliveryLocal(createdReturnDeliveryId, { stop_order: highestStopOrder + 1, isNextDelivery: false }, { skipSmartRefresh: true });
               await base44.entities.Delivery.update(createdReturnDeliveryId, { stop_order: highestStopOrder + 1, isNextDelivery: false }).catch(() => null);
             }
-            // Return adds a new stop to the route â€” run full optimization including HERE API
+            // Return adds a new stop to the route - run full optimization including HERE API
             await optimizeRouteAndApplyNextDelivery({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, updateDeliveryLocal, updateDeliveriesLocally, forceRefreshDriverDeliveries, shouldRegeneratePolylines: true, runOptimization: true });
           })());
           if (userHasRole(currentUser, 'driver')) backgroundTasks.push(notifyDriverReturn({ driver: currentUser, patientName: displayName, delivery, store, appUsers }));
@@ -416,7 +454,7 @@ export default function useStopCardActions(params) {
           }
           await ensureDriverOnline();
           try {
-            // Retry adds a new stop to the route â€” run full optimization including HERE API
+            // Retry adds a new stop to the route - run full optimization including HERE API
             await optimizeRouteAndApplyNextDelivery({ driverId: delivery.driver_id, deliveryDate: retryDate, updateDeliveryLocal, updateDeliveriesLocally, forceRefreshDriverDeliveries, shouldRegeneratePolylines: true, runOptimization: true });
           } catch {}
           if (userHasRole(currentUser, 'driver')) await notifyDriverRetry({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : displayName, delivery, store, appUsers });
@@ -634,17 +672,58 @@ export default function useStopCardActions(params) {
         }
 
         await setAndCenterNextDelivery({ driverDeliveries: startedRouteDeliveries, targetDeliveryId: delivery.id, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true, persistToBackend: true });
+
+        // STAMP first_leg_origin on the started stop:
+        // Use previous isNextDelivery stop's coords, or last finished stop's coords.
+        {
+          // Find the previous isNextDelivery stop (before it was cleared by startedRouteDeliveries)
+          const prevNextDelivery = routeDeliveries.find((d) => d && d.id !== delivery.id && d.isNextDelivery);
+          // Find the last finished stop by stop_order
+          const lastFinishedStop = completedStops.length > 0 ? completedStops[completedStops.length - 1] : null;
+
+          // Prefer previous isNextDelivery stop's stored first_leg_origin, then its patient/store coords,
+          // then last finished stop's coords
+          let originLat = null;
+          let originLng = null;
+
+          if (prevNextDelivery) {
+            // Use the previous next delivery's stored first_leg_origin if available
+            if (prevNextDelivery.first_leg_origin_lat != null && Number.isFinite(Number(prevNextDelivery.first_leg_origin_lat))) {
+              originLat = Number(prevNextDelivery.first_leg_origin_lat);
+              originLng = Number(prevNextDelivery.first_leg_origin_lng);
+            } else {
+              // Fall back to its patient/store coordinates
+              const coords = resolveDeliveryCoords(prevNextDelivery, patients, stores);
+              originLat = coords.lat;
+              originLng = coords.lng;
+            }
+          }
+
+          if ((originLat == null || !Number.isFinite(originLat)) && lastFinishedStop) {
+            const coords = resolveDeliveryCoords(lastFinishedStop, patients, stores);
+            originLat = coords.lat;
+            originLng = coords.lng;
+          }
+
+          await applyFirstLegOriginTransition({
+            routeDeliveries,
+            stampDeliveryId: delivery.id,
+            originLat,
+            originLng
+          });
+        }
+
         window.dispatchEvent(new CustomEvent('centerStopCard', { detail: { deliveryId: delivery.id } }));
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true, freshDeliveries: startedChangedDeliveries } }));
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
 
         // CRITICAL: All stop_order + isNextDelivery changes are already persisted to backend
         // above (lines with base44.entities.Delivery.update). Now call handleStartDelivery to
-        // confirm the backend has the authoritative order, clear origin coords, then trigger
+        // confirm the backend has the authoritative order, then trigger
         // the manual FAB optimization so polylines update only on that explicit action.
         if (!delivery?.id || !delivery?.driver_id || !delivery?.delivery_date) return;
         try {
-          // Step 1: Confirm backend persistence and clear origin coordinates
+          // Step 1: Confirm backend persistence
           await base44.functions.invoke('handleStartDelivery', { deliveryId: delivery.id, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, currentLocalTime });
 
           // Step 2: Fetch fresh deliveries from backend
@@ -655,8 +734,6 @@ export default function useStopCardActions(params) {
                ? refreshedImmediately.deliveries
                : null;
 
-           // Step 2b: ETAs will be set by route optimization â€” don't override here
-
            if (Array.isArray(refreshedListImmediate) && refreshedListImmediate.length > 0) {
              await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', delivery.delivery_date, refreshedListImmediate);
 
@@ -666,7 +743,7 @@ export default function useStopCardActions(params) {
                  const { broadcastMutation } = await import('../utils/realtimeSync');
                  await Promise.all(refreshedListImmediate.map((item) => broadcastMutation('Delivery', 'update', item.id, item)));
                } catch (broadcastError) {
-                 console.warn('âš ï¸ [Start] delivery broadcast failed:', broadcastError?.message || broadcastError);
+                 console.warn('[Start] delivery broadcast failed:', broadcastError?.message || broadcastError);
                }
              });
 
@@ -726,7 +803,7 @@ export default function useStopCardActions(params) {
            }
         } catch (optErr) {
           const isNotFound = optErr?.status === 404 || optErr?.response?.status === 404 || String(optErr?.message || '').includes('404');
-          if (!isNotFound) console.warn('âš ï¸ [Start] background start update failed:', optErr?.message || optErr);
+          if (!isNotFound) console.warn('[Start] background start update failed:', optErr?.message || optErr);
         }
       } catch (error) {
         toast.error(`Failed to start: ${error.message}`);
@@ -740,7 +817,7 @@ export default function useStopCardActions(params) {
     });
 
     if (lockResult?.skipped) return;
-  }, [allDeliveries, appUsers, collapseDriverStopCards, currentUser, delivery, ensureDriverOnline, isCompleting, isCurrentCardStartLocked, isFailing, isGlobalStartLocked, isPickup, isProcessingBackground, isRestarting, isRetrying, isStarting, patient?.full_name, resetActionLocks, setIsEntityUpdating, setIsProcessingBackground, setIsStarting, shouldPreserveWindowTimesOnStart, store, updateDeliveriesLocally, userHasRole]);
+  }, [allDeliveries, appUsers, collapseDriverStopCards, currentUser, delivery, ensureDriverOnline, isCompleting, isCurrentCardStartLocked, isFailing, isGlobalStartLocked, isPickup, isProcessingBackground, isRestarting, isRetrying, isStarting, patient?.full_name, patients, resetActionLocks, setIsEntityUpdating, setIsProcessingBackground, setIsStarting, shouldPreserveWindowTimesOnStart, store, stores, updateDeliveriesLocally, userHasRole]);
 
   const handleCompleteAction = useCallback(async (e) => {
     blockCardToggle(e);
@@ -758,8 +835,6 @@ export default function useStopCardActions(params) {
       backgroundSyncManager.pause();
       smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
 
-      // CRITICAL: Pre-calculate if route optimization is needed before any API calls
-      // (Note: skipOptimization not used here, but pre-calc gates expensive operations)
       try {
         const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
         if (!deliveryExists || deliveryExists.length === 0) {
@@ -773,7 +848,6 @@ export default function useStopCardActions(params) {
         await syncDriverLocationToStop({ currentUser, delivery, patient, store, targetDriverId: delivery.driver_id });
         const autoCODPayment = !isPickup && hasCODRequired && codPayments.length === 0 && onCODUpdate ? [{ type: 'Cash', amount: codTotalRequired }] : null;
         if (autoCODPayment) setCodPayments(autoCODPayment);
-        let pendingBreadcrumbsString = null;
         try {
           await appendBoundaryBreadcrumbPoints({ driverId: delivery.driver_id, delivery, allDeliveries, patients, stores, appUsers, terminalStatus: 'completed', completedAt: delivery.actual_delivery_time || delivery.arrival_time || new Date().toISOString() });
         } catch {}
@@ -819,7 +893,6 @@ export default function useStopCardActions(params) {
             await base44.entities.Patient.update(patient.id, { status: 'active' });
           }
         }
-        // Breadcrumbs cleared automatically by processBreadcrumbLeg backend automation on delivery completion
 
         const optimisticDeliveries = allDeliveries.map((d) => {
           if (!d || d.driver_id !== delivery.driver_id || d.delivery_date !== delivery.delivery_date) return d;
@@ -831,115 +904,77 @@ export default function useStopCardActions(params) {
         const nextStop = incompleteDeliveries[0] || null;
         await setAndCenterNextDelivery({ driverDeliveries: routeDeliveries, targetDeliveryId: nextStop?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true, persistToBackend: true });
 
-        // STAMP first_leg_origin on the new next stop using the just-completed stop's coords.
-        // This lets optimizeRemainingStops cache-hit on the first-leg ETA without a HERE call.
-        if (nextStop?.id) {
+        // CLEAR first_leg_origin from all deliveries, then STAMP the next stop
+        // with the just-completed stop's patient/store coordinates.
+        {
           const completedPatLat = patient?.latitude != null ? Number(patient.latitude) : null;
           const completedPatLng = patient?.longitude != null ? Number(patient.longitude) : null;
           const completedStoreLat = store?.latitude != null ? Number(store.latitude) : null;
           const completedStoreLng = store?.longitude != null ? Number(store.longitude) : null;
           const completedOriginLat = delivery.patient_id ? completedPatLat : completedStoreLat;
           const completedOriginLng = delivery.patient_id ? completedPatLng : completedStoreLng;
-          if (completedOriginLat != null && completedOriginLng != null) {
-            const originUpdate = { first_leg_origin_lat: completedOriginLat, first_leg_origin_lng: completedOriginLng };
-            await updateDeliveryLocal(nextStop.id, originUpdate, { skipSmartRefresh: true });
-            console.log(`âœ… [Complete] Stamped first_leg_origin (${completedOriginLat}, ${completedOriginLng}) on next stop ${nextStop.id}`);
-          }
+
+          await applyFirstLegOriginTransition({
+            routeDeliveries,
+            stampDeliveryId: nextStop?.id || null,
+            originLat: completedOriginLat,
+            originLng: completedOriginLng
+          });
         }
 
-        // CRITICAL: ALWAYS recalculate ETAs for remaining stops when completing ANY stop (not just next delivery)
-          // Use local ETA recalculation with estimated_duration_minutes (no API call â€” skipOptimization=true)
-          if (remainingEtaDeliveries.length > 0) {
-            try {
-              const isRetroDate = delivery.delivery_date < localDeviceTodayStr;
-              let baseTimeMinutes;
+        // CRITICAL: ALWAYS recalculate ETAs for remaining stops when completing ANY stop
+        if (remainingEtaDeliveries.length > 0) {
+          try {
+            const isRetroDate = delivery.delivery_date < localDeviceTodayStr;
+            let baseTimeMinutes;
 
-              if (isRetroDate) {
-                // RETRO RULES: Chain from completed stop's actual_delivery_time + its duration
-                const completedActualTime = completionUpdate.actual_delivery_time || delivery.actual_delivery_time;
-                if (completedActualTime) {
-                  const timeMatch = completedActualTime.match(/(\d{1,2}):(\d{2})/);
-                  if (timeMatch) {
-                    const hours = parseInt(timeMatch[1], 10);
-                    const mins = parseInt(timeMatch[2], 10);
-                    const completedDuration = Number(delivery.estimated_duration_minutes) || 5;
-                    baseTimeMinutes = hours * 60 + mins + completedDuration;
-                  }
+            if (isRetroDate) {
+              const completedActualTime = completionUpdate.actual_delivery_time || delivery.actual_delivery_time;
+              if (completedActualTime) {
+                const timeMatch = completedActualTime.match(/(\d{1,2}):(\d{2})/);
+                if (timeMatch) {
+                  const hours = parseInt(timeMatch[1], 10);
+                  const mins = parseInt(timeMatch[2], 10);
+                  const completedDuration = Number(delivery.estimated_duration_minutes) || 5;
+                  baseTimeMinutes = hours * 60 + mins + completedDuration;
                 }
-              } else {
-                // NON-RETRO RULES: Use current device time + 5min buffer
-                const now = new Date();
-                baseTimeMinutes = now.getHours() * 60 + now.getMinutes() + 5;
               }
+            } else {
+              const now = new Date();
+              baseTimeMinutes = now.getHours() * 60 + now.getMinutes() + 5;
+            }
 
-              if (!Number.isFinite(baseTimeMinutes)) {
-                baseTimeMinutes = 0; // Fallback
+            if (!Number.isFinite(baseTimeMinutes)) baseTimeMinutes = 0;
+
+            const etaUpdates = [];
+            remainingEtaDeliveries.forEach((stop) => {
+              const duration = Number(stop.estimated_duration_minutes) || 5;
+              baseTimeMinutes += duration;
+              const etaHours = Math.floor((baseTimeMinutes % 1440) / 60);
+              const etaMins = baseTimeMinutes % 60;
+              etaUpdates.push({ id: stop.id, delivery_time_eta: `${String(etaHours).padStart(2, '0')}:${String(etaMins).padStart(2, '0')}` });
+            });
+
+            if (etaUpdates.length > 0) {
+              const { offlineDB } = await import('../utils/offlineDatabase');
+              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, etaUpdates);
+              updateDeliveriesLocally?.(etaUpdates.map((update) => ({ ...remainingEtaDeliveries.find((d) => d.id === update.id), delivery_time_eta: update.delivery_time_eta })), false);
+              const { broadcastMutation } = await import('../utils/realtimeSync');
+              for (const item of etaUpdates) {
+                await broadcastMutation('Delivery', 'update', item.id, { delivery_time_eta: item.delivery_time_eta }).catch(() => null);
               }
-
-              console.log(`[Complete ETA] Starting recalc (retro=${isRetroDate}): remainingStops=${remainingEtaDeliveries.length}, baseTimeMinutes=${baseTimeMinutes}`);
-
-              const etaUpdates = [];
-              remainingEtaDeliveries.forEach((stop) => {
-                // Add estimated_duration_minutes for this stop
-                const duration = Number(stop.estimated_duration_minutes) || 5;
-                baseTimeMinutes += duration;
-
-                const etaHours = Math.floor((baseTimeMinutes % 1440) / 60);
-                const etaMins = baseTimeMinutes % 60;
-                const newEta = `${String(etaHours).padStart(2, '0')}:${String(etaMins).padStart(2, '0')}`;
-
-                console.log(`[Complete ETA] Stop ${stop.id}: duration=${duration}min, newEta=${newEta}, baseTimeMinutes=${baseTimeMinutes}`);
-
-                etaUpdates.push({
-                  id: stop.id,
-                  delivery_time_eta: newEta
-                });
+              etaUpdates.forEach((update) => {
+                base44.entities.Delivery.update(update.id, { delivery_time_eta: update.delivery_time_eta }).catch(() => null);
               });
-
-             if (etaUpdates.length > 0) {
-               console.log(`[Complete ETA] Persisting ${etaUpdates.length} ETA updates to offline DB (backend will sync in background)`);
-
-               // CRITICAL: Write to offline DB FIRST for immediate local persistence
-               const { offlineDB } = await import('../utils/offlineDatabase');
-               await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, etaUpdates);
-
-               // Update local UI state immediately
-               updateDeliveriesLocally?.(etaUpdates.map((update) => ({
-                 ...remainingEtaDeliveries.find((d) => d.id === update.id),
-                 delivery_time_eta: update.delivery_time_eta
-               })), false);
-
-               // Broadcast for cross-device propagation (don't await all in parallel to avoid rate limits)
-               const { broadcastMutation } = await import('../utils/realtimeSync');
-               for (const item of etaUpdates) {
-                 await broadcastMutation('Delivery', 'update', item.id, { delivery_time_eta: item.delivery_time_eta }).catch(() => null);
-               }
-
-               console.log(`[Complete ETA] Offline DB persisted, queuing backend sync in background`);
-
-               // Queue backend updates for background sync (don't block on these)
-               etaUpdates.forEach((update) => {
-                 base44.entities.Delivery.update(update.id, { delivery_time_eta: update.delivery_time_eta }).catch(() => null);
-               });
-
-               // Force dispatch delivery update event to trigger UI refresh on all devices
-               window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                 detail: {
-                   triggeredBy: 'eta_recalculation',
-                   driverId: delivery.driver_id,
-                   deliveryDate: delivery.delivery_date,
-                   freshDeliveries: etaUpdates.map((u) => ({ id: u.id, delivery_time_eta: u.delivery_time_eta }))
-                 }
-               }));
-             }
-           } catch (error) {
-             console.warn(`[Complete ETA] Local ETA recalculation failed: ${error?.message || error}`);
-           }
-         }
+              window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'eta_recalculation', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, freshDeliveries: etaUpdates.map((u) => ({ id: u.id, delivery_time_eta: u.delivery_time_eta })) } }));
+            }
+          } catch (error) {
+            console.warn(`[Complete ETA] Local ETA recalculation failed: ${error?.message || error}`);
+          }
+        }
         if (!nextStop) {
           fabControlEvents.notifyDoneButtonClicked();
           window.dispatchEvent(new CustomEvent('showRouteSummary', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
-          // Only update driver status if they're not on duty (off_duty or on_break)
           if (currentUser?.driver_status !== 'on_duty') {
             try { await setDriverStatus({ newStatus: 'off_duty' }); locationTracker.stopTracking(); } catch {}
             if (onDriverStatusChange) onDriverStatusChange('off_duty');
@@ -947,9 +982,7 @@ export default function useStopCardActions(params) {
         }
         fabControlEvents.notifyPhaseTwoCompleteRecenter();
         fabControlEvents.reactivateFAB(true, { suppressIfPhase1: true, reason: 'stop_status_change' });
-        // Only sync patient last delivery date if this is a delivery (not a pickup)
         if (!isPickup && patient?.id) { 
-          {/* && Number(delivery?.cod_total_amount_required || 0) > 0) { */}
           await base44.functions.invoke('syncPatientLastDeliveryDate', {
             data: { ...delivery, ...completionUpdate, patient_id: patient.id },
             old_data: { status: delivery.status },
@@ -966,18 +999,12 @@ export default function useStopCardActions(params) {
           if (interStoreData?.isInterStorePickup) {
             const originatingStoreId = interStoreData?.match?.store_id || null;
             const driverRouteDeliveries = allDeliveries.filter((item) => item && item.driver_id === delivery.driver_id && item.delivery_date === delivery.delivery_date);
-            const hasEnRoutePickupForOriginStore = driverRouteDeliveries.some((item) =>
-              item &&
-              !item.patient_id &&
-              item.store_id === originatingStoreId &&
-              item.status === 'en_route'
-            );
+            const hasEnRoutePickupForOriginStore = driverRouteDeliveries.some((item) => item && !item.patient_id && item.store_id === originatingStoreId && item.status === 'en_route');
             const hasMatchingInTransitDropoff = driverRouteDeliveries.some((item) => {
               if (!item || item.id === delivery.id || item.status !== 'in_transit') return false;
               const notes = String(item.delivery_notes || '').toLowerCase();
               return item.patient_id === interStoreData?.match?.id && (notes.includes('interstore drop-off') || notes.includes('interstore dropoff') || notes.includes('isd'));
             });
-
             if (!hasEnRoutePickupForOriginStore && !hasMatchingInTransitDropoff) {
               setInterStoreMatch?.(interStoreData.match || null);
               setShowInterStoreDialog?.(true);
@@ -996,7 +1023,7 @@ export default function useStopCardActions(params) {
       }
     });
     if (lockResult?.skipped) return;
-  }, [FINISHED_STATUSES, allDeliveries, appUsers, blockCardToggle, codPayments, codTotalRequired, collapseDriverStopCards, currentDriverAppUser?.id, currentUser, delivery, displayName, ensureDriverOnline, executeAcceptAllStops, forceRefreshDriverDeliveries, hasCODRequired, isCompleting, isExpanded, isFailing, isGlobalCompleteLocked, isGlobalRestartLocked, isPickup, isProcessingBackground, localDeviceTodayStr, localNowParts.time, onCODUpdate, onDriverStatusChange, params, patient, pendingPickups, resetActionLocks, safeDriver, setCodPayments, setIsCompleting, setIsProcessingBackground, store, updateDeliveriesLocally, userHasRole]);
+  }, [FINISHED_STATUSES, allDeliveries, appUsers, blockCardToggle, codPayments, codTotalRequired, collapseDriverStopCards, currentDriverAppUser?.id, currentUser, delivery, displayName, ensureDriverOnline, executeAcceptAllStops, forceRefreshDriverDeliveries, hasCODRequired, isCompleting, isExpanded, isFailing, isGlobalCompleteLocked, isGlobalRestartLocked, isPickup, isProcessingBackground, localDeviceTodayStr, localNowParts.time, onCODUpdate, onDriverStatusChange, params, patient, patients, pendingPickups, resetActionLocks, safeDriver, setCodPayments, setIsCompleting, setIsProcessingBackground, store, stores, updateDeliveriesLocally, userHasRole]);
 
   const handleFailureConfirm = useCallback(async (reason) => {
     const status = pendingFailureStatus;
@@ -1024,7 +1051,6 @@ export default function useStopCardActions(params) {
         const localTimeString = generateCompletionTimestamp(delivery, allDeliveries, FINISHED_STATUSES);
         const useRetroactiveTiming = !shouldUseRegularTiming({ deliveryDate: delivery?.delivery_date, todayDateString: localDeviceTodayStr, currentTimeString: localNowParts.time });
         const retroactiveTiming = useRetroactiveTiming ? await calculateRetroactiveStopTiming({ delivery, allDeliveries, patients, stores, todayDateString: localDeviceTodayStr, allowSameDay: true }) : null;
-        let pendingBreadcrumbsString = null;
         try {
           await appendBoundaryBreadcrumbPoints({ driverId: delivery.driver_id, delivery, allDeliveries, patients, stores, appUsers, terminalStatus: status, completedAt: delivery.actual_delivery_time || delivery.arrival_time || new Date().toISOString() });
         } catch {}
@@ -1042,14 +1068,12 @@ export default function useStopCardActions(params) {
         if (shouldDeleteSquareCodBeforeFailure) await deleteCODWithTimeout(delivery.id, `Deleted before marking as ${status}`);
         await Promise.allSettled([updateDeliveryLocal(delivery.id, criticalUpdate, { skipSmartRefresh: true })]);
         if (onStatusUpdate) await onStatusUpdate(delivery.id, status, criticalUpdate, false);
-        // Breadcrumbs cleared automatically by processBreadcrumbLeg backend automation on delivery completion
         const allDriverDeliveries = allDeliveries.filter((d) => d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date);
         const incompleteAfterThis = allDriverDeliveries.filter((d) => d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending');
         const remainingEtaDeliveries = incompleteAfterThis.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
         if (incompleteAfterThis.length === 0) {
           fabControlEvents.notifyDoneButtonClicked();
           window.dispatchEvent(new CustomEvent('showRouteSummary', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
-          // Only update driver status if they're not on duty (off_duty or on_break)
           if (currentUser?.id && currentUser?.driver_status !== 'on_duty') {
             await setDriverStatus({ newStatus: 'off_duty' });
             locationTracker.stopTracking();
@@ -1060,95 +1084,75 @@ export default function useStopCardActions(params) {
         const driverDeliveries = allDriverDeliveries.map((item) => item.id === delivery.id ? { ...item, ...criticalUpdate, isNextDelivery: false } : item);
         const incompleteDeliveries = driverDeliveries.filter((d) => d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending').sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
         await setAndCenterNextDelivery({ driverDeliveries, targetDeliveryId: incompleteDeliveries[0]?.id || null, updateDeliveryLocal, updateDeliveriesLocally, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, skipBackgroundSync: true, persistToBackend: true });
-        
+
+        // CLEAR first_leg_origin from all deliveries, then STAMP the next stop
+        // with the just-failed/cancelled stop's patient/store coordinates.
+        {
+          const failedPatLat = patient?.latitude != null ? Number(patient.latitude) : null;
+          const failedPatLng = patient?.longitude != null ? Number(patient.longitude) : null;
+          const failedStoreLat = store?.latitude != null ? Number(store.latitude) : null;
+          const failedStoreLng = store?.longitude != null ? Number(store.longitude) : null;
+          const failedOriginLat = delivery.patient_id ? failedPatLat : failedStoreLat;
+          const failedOriginLng = delivery.patient_id ? failedPatLng : failedStoreLng;
+
+          await applyFirstLegOriginTransition({
+            routeDeliveries: allRouteDeliveries,
+            stampDeliveryId: incompleteDeliveries[0]?.id || null,
+            originLat: failedOriginLat,
+            originLng: failedOriginLng
+          });
+        }
+
         // CRITICAL: ALWAYS recalculate ETAs for remaining stops when failing/cancelling ANY stop
-          if (remainingEtaDeliveries.length > 0) {
-            try {
-              const isRetroDate = delivery.delivery_date < localDeviceTodayStr;
-              let baseTimeMinutes;
+        if (remainingEtaDeliveries.length > 0) {
+          try {
+            const isRetroDate = delivery.delivery_date < localDeviceTodayStr;
+            let baseTimeMinutes;
 
-              if (isRetroDate) {
-                // RETRO RULES: Chain from completed stop's actual_delivery_time + its duration
-                const failedActualTime = criticalUpdate.actual_delivery_time || delivery.actual_delivery_time;
-                if (failedActualTime) {
-                  const timeMatch = failedActualTime.match(/(\d{1,2}):(\d{2})/);
-                  if (timeMatch) {
-                    const hours = parseInt(timeMatch[1], 10);
-                    const mins = parseInt(timeMatch[2], 10);
-                    const failedDuration = Number(delivery.estimated_duration_minutes) || 5;
-                    baseTimeMinutes = hours * 60 + mins + failedDuration;
-                  }
+            if (isRetroDate) {
+              const failedActualTime = criticalUpdate.actual_delivery_time || delivery.actual_delivery_time;
+              if (failedActualTime) {
+                const timeMatch = failedActualTime.match(/(\d{1,2}):(\d{2})/);
+                if (timeMatch) {
+                  const hours = parseInt(timeMatch[1], 10);
+                  const mins = parseInt(timeMatch[2], 10);
+                  const failedDuration = Number(delivery.estimated_duration_minutes) || 5;
+                  baseTimeMinutes = hours * 60 + mins + failedDuration;
                 }
-              } else {
-                // NON-RETRO RULES: Use current device time + 5min buffer
-                const now = new Date();
-                baseTimeMinutes = now.getHours() * 60 + now.getMinutes() + 5;
               }
+            } else {
+              const now = new Date();
+              baseTimeMinutes = now.getHours() * 60 + now.getMinutes() + 5;
+            }
 
-              if (!Number.isFinite(baseTimeMinutes)) {
-                baseTimeMinutes = 0; // Fallback
+            if (!Number.isFinite(baseTimeMinutes)) baseTimeMinutes = 0;
+
+            const etaUpdates = [];
+            remainingEtaDeliveries.forEach((stop) => {
+              const duration = Number(stop.estimated_duration_minutes) || 5;
+              baseTimeMinutes += duration;
+              const etaHours = Math.floor((baseTimeMinutes % 1440) / 60);
+              const etaMins = baseTimeMinutes % 60;
+              etaUpdates.push({ id: stop.id, delivery_time_eta: `${String(etaHours).padStart(2, '0')}:${String(etaMins).padStart(2, '0')}` });
+            });
+
+            if (etaUpdates.length > 0) {
+              const { offlineDB } = await import('../utils/offlineDatabase');
+              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, etaUpdates);
+              updateDeliveriesLocally?.(etaUpdates.map((update) => ({ ...remainingEtaDeliveries.find((d) => d.id === update.id), delivery_time_eta: update.delivery_time_eta })), false);
+              const { broadcastMutation } = await import('../utils/realtimeSync');
+              for (const item of etaUpdates) {
+                await broadcastMutation('Delivery', 'update', item.id, { delivery_time_eta: item.delivery_time_eta }).catch(() => null);
               }
-
-              console.log(`[Failure ETA] Starting recalc (retro=${isRetroDate}): remainingStops=${remainingEtaDeliveries.length}, baseTimeMinutes=${baseTimeMinutes}`);
-
-              const etaUpdates = [];
-              remainingEtaDeliveries.forEach((stop) => {
-                // Add estimated_duration_minutes for this stop
-                const duration = Number(stop.estimated_duration_minutes) || 5;
-                baseTimeMinutes += duration;
-
-                const etaHours = Math.floor((baseTimeMinutes % 1440) / 60);
-                const etaMins = baseTimeMinutes % 60;
-                const newEta = `${String(etaHours).padStart(2, '0')}:${String(etaMins).padStart(2, '0')}`;
-
-                console.log(`[Failure ETA] Stop ${stop.id}: duration=${duration}min, newEta=${newEta}, baseTimeMinutes=${baseTimeMinutes}`);
-
-                etaUpdates.push({
-                  id: stop.id,
-                  delivery_time_eta: newEta
-                });
+              etaUpdates.forEach((update) => {
+                base44.entities.Delivery.update(update.id, { delivery_time_eta: update.delivery_time_eta }).catch(() => null);
               });
-
-             if (etaUpdates.length > 0) {
-               console.log(`[Failure ETA] Persisting ${etaUpdates.length} ETA updates to offline DB (backend will sync in background)`);
-
-               // CRITICAL: Write to offline DB FIRST for immediate local persistence
-               const { offlineDB } = await import('../utils/offlineDatabase');
-               await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, etaUpdates);
-
-               // Update local UI state immediately
-               updateDeliveriesLocally?.(etaUpdates.map((update) => ({
-                 ...remainingEtaDeliveries.find((d) => d.id === update.id),
-                 delivery_time_eta: update.delivery_time_eta
-               })), false);
-
-               // Broadcast for cross-device propagation (don't await all in parallel to avoid rate limits)
-               const { broadcastMutation } = await import('../utils/realtimeSync');
-               for (const item of etaUpdates) {
-                 await broadcastMutation('Delivery', 'update', item.id, { delivery_time_eta: item.delivery_time_eta }).catch(() => null);
-               }
-
-               console.log(`[Failure ETA] Offline DB persisted, queuing backend sync in background`);
-
-               // Queue backend updates for background sync (don't block on these)
-               etaUpdates.forEach((update) => {
-                 base44.entities.Delivery.update(update.id, { delivery_time_eta: update.delivery_time_eta }).catch(() => null);
-               });
-
-               // Force dispatch delivery update event to trigger UI refresh on all devices
-               window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                 detail: {
-                   triggeredBy: 'eta_recalculation',
-                   driverId: delivery.driver_id,
-                   deliveryDate: delivery.delivery_date,
-                   freshDeliveries: etaUpdates.map((u) => ({ id: u.id, delivery_time_eta: u.delivery_time_eta }))
-                 }
-               }));
-             }
-           } catch (error) {
-             console.warn(`[Failure ETA] Local ETA recalculation failed: ${error?.message || error}`);
-           }
-         }
+              window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'eta_recalculation', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, freshDeliveries: etaUpdates.map((u) => ({ id: u.id, delivery_time_eta: u.delivery_time_eta })) } }));
+            }
+          } catch (error) {
+            console.warn(`[Failure ETA] Local ETA recalculation failed: ${error?.message || error}`);
+          }
+        }
         Promise.resolve().then(() => params.scheduleCompletionSideEffects({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, nextDeliveryId: incompleteDeliveries[0]?.id || null, lastCompletedDeliveryId: delivery.id, setOffDuty: incompleteDeliveries.length === 0, appUserId: currentDriverAppUser?.id || null, skipRouteOptimization: true, skipNextLegPolylineRefresh: true }).catch(() => {}));
         onClick?.(null);
         queueConsolidateBreadcrumbs({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, stopOrder: delivery.stop_order, status });
@@ -1164,7 +1168,7 @@ export default function useStopCardActions(params) {
       }
     });
     if (lockResult?.skipped) return;
-  }, [FINISHED_STATUSES, allDeliveries, appUsers, collapseDriverStopCards, currentUser, delivery, displayName, forceRefreshDriverDeliveries, isPickup, localDeviceTodayStr, localNowParts.time, onClick, onDriverStatusChange, onStatusUpdate, params, patient, pendingFailureStatus, resetActionLocks, safeDriver, setIsFailing, setPendingFailureStatus, setShowFailureReasonDialog, store, updateDeliveriesLocally, userHasRole]);
+  }, [FINISHED_STATUSES, allDeliveries, appUsers, collapseDriverStopCards, currentUser, delivery, displayName, forceRefreshDriverDeliveries, isPickup, localDeviceTodayStr, localNowParts.time, onClick, onDriverStatusChange, onStatusUpdate, params, patient, patients, pendingFailureStatus, resetActionLocks, safeDriver, setIsFailing, setPendingFailureStatus, setShowFailureReasonDialog, store, stores, updateDeliveriesLocally, userHasRole]);
 
   return {
     blockCardToggle,
