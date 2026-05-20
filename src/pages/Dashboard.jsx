@@ -2741,7 +2741,7 @@ function Dashboard() {
 
   const handleSaveDelivery = async (deliveryData) => {
     const { handleSaveDelivery: _doSave } = await import('@/components/dashboard/handleSaveDelivery');
-    return _doSave(deliveryData, { editingDelivery, drivers, deliveries, patients, stores, currentUser, selectedDate, updateDeliveriesLocally, refreshData, setShowDeliveryForm, setEditingDelivery, hasAutoSelectedRef, setIsEntityUpdating, smartRefreshManager, handleDualDriverOptimization });
+    return _doSave(deliveryData, { editingDelivery, drivers, deliveries, patients, stores, currentUser, selectedDate, updateDeliveriesLocally, applyDeliveryChangesLocally, refreshData, setShowDeliveryForm, setEditingDelivery, hasAutoSelectedRef, setIsEntityUpdating, smartRefreshManager, handleDualDriverOptimization });
   };
 
   const handleReoptimizeRoute = async () => {

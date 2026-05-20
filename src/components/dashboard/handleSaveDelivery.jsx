@@ -20,7 +20,7 @@ function addMinutes(time, mins) {
 export async function handleSaveDelivery(deliveryData, ctx) {
   const {
     editingDelivery, drivers, deliveries, patients, stores, currentUser, selectedDate,
-    updateDeliveriesLocally, refreshData, setShowDeliveryForm, setEditingDelivery,
+    updateDeliveriesLocally, applyDeliveryChangesLocally, refreshData, setShowDeliveryForm, setEditingDelivery,
     hasAutoSelectedRef, setIsEntityUpdating, smartRefreshManager,
     handleDualDriverOptimization,
   } = ctx;
@@ -89,7 +89,13 @@ export async function handleSaveDelivery(deliveryData, ctx) {
         if (sortedIncomplete[i]) await updateDeliveryLocal(sortedIncomplete[i].id, { stop_order: startingStopOrder + i + 1 });
       }
       invalidate('Delivery');
-      await refreshData();
+      // CRITICAL: Merge fresh deliveries into existing state instead of full reload
+      // to prevent incomplete stops from disappearing while refreshData() is in flight.
+      if (applyDeliveryChangesLocally) {
+        applyDeliveryChangesLocally({ upserts: freshDeliveries });
+      } else {
+        updateDeliveriesLocally(freshDeliveries, false);
+      }
       setShowDeliveryForm(false); setEditingDelivery(null); fabControlEvents.resetToPhaseOneAfterDone(500);
       return;
     }
