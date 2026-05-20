@@ -57,19 +57,19 @@ export default function ModeSelectionDialog({
           return (
             <label
               key={stop.id}
-              className="flex items-center gap-4 px-6 py-4 cursor-pointer hover:bg-slate-50 transition-colors"
+              className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50 transition-colors"
             >
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-base font-bold" style={{ color: 'var(--text-slate-900)' }}>{stop.label}</span>
-                </div>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <StatusBadge status={stop.status} />
-                  <span className="text-sm" style={{ color: 'var(--text-slate-500)' }}>
-                    {stop.distanceKm != null ? `${stop.distanceKm.toFixed(1)} km away` : 'Distance unknown'}
-                  </span>
-                </div>
-              </div>
+              {/* Name */}
+              <span className="font-semibold text-sm truncate" style={{ color: 'var(--text-slate-900)', flex: '1 1 0', minWidth: 0 }}>
+                {stop.label}
+              </span>
+              {/* Distance */}
+              <span className="text-xs shrink-0 whitespace-nowrap" style={{ color: 'var(--text-slate-500)' }}>
+                {stop.distanceKm != null ? `${stop.distanceKm.toFixed(1)} km` : '—'}
+              </span>
+              {/* Status badge */}
+              <StatusBadge status={stop.status} />
+              {/* Checkbox */}
               <Checkbox
                 checked={checked}
                 onCheckedChange={() => onToggleStop(stop.id)}
