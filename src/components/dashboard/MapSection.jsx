@@ -122,6 +122,8 @@ export default function MapSection({
           }}
           onDoubleTap={() => {
             onImmersiveMapTap?.();
+            // Re-arm proximity triggers so the next location update can re-fire them
+            window.__resetProximityTriggers?.();
             fabControlEvents.reactivateFAB(false, { forceWhileUserInteracting: true, reason: 'map_double_tap' });
             const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
             if (nextCard?.id) {

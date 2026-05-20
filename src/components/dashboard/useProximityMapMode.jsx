@@ -2,10 +2,12 @@ import { useEffect, useRef } from 'react';
 
 /**
  * Watches the driver's live location vs their next stop.
- * - Within 2 km: switches map to Phase 2 + locked (if not already Phase 2+)
- * - Within 1 km: also switches mapStyle to 'satellite'
+ * - Within 2 km: switches map to Phase 2 + locked (fires ONCE per stop)
+ * - Within 1 km: also switches mapStyle to 'satellite' (fires ONCE per stop)
  *
- * Stores the pre-proximity phase/style so Dashboard can restore them after stop completion.
+ * Each threshold triggers at most once per next-stop. They only re-trigger on:
+ *   1. A new next stop (nextStopCoordinates changes)
+ *   2. A map double-tap (call resetProximityTriggers())
  *
  * Only active on the primary device for mobile drivers on today's date.
  */
@@ -28,7 +30,27 @@ export default function useProximityMapMode({
   savedPreProximityStateRef, // passed-in ref so Dashboard can read/clear it
   calculateDistance,
 }) {
-  const proximityPhaseActiveRef = useRef(false); // true while we've auto-switched
+  const proximityPhaseActiveRef = useRef(false);
+  // Track whether each threshold has already been triggered for the current stop
+  const phase2TriggeredRef = useRef(false);
+  const satelliteTriggeredRef = useRef(false);
+  // Track which stop these triggers belong to so we reset on stop change
+  const lastStopKeyRef = useRef(null);
+
+  // Expose a reset function so double-tap can re-arm both triggers
+  const resetProximityTriggers = () => {
+    phase2TriggeredRef.current = false;
+    satelliteTriggeredRef.current = false;
+    proximityPhaseActiveRef.current = false;
+  };
+
+  // Make reset accessible globally so MapSection's double-tap handler can call it
+  // without needing to thread it through 4 layers of props
+  useEffect(() => {
+    if (!isDriver || !isMobile || !isPrimaryDevice) return;
+    window.__resetProximityTriggers = resetProximityTriggers;
+    return () => { delete window.__resetProximityTriggers; };
+  }, [isDriver, isMobile, isPrimaryDevice]);
 
   useEffect(() => {
     // Only run for mobile primary-device drivers on today's routes
@@ -38,6 +60,15 @@ export default function useProximityMapMode({
 
     // Respect manual user interaction — don't override for 5 minutes after a tap
     if (Date.now() - (lastUserInteractionRef?.current || 0) < 300000) return;
+
+    // Reset triggers when the target stop changes
+    const stopKey = `${nextStopCoordinates.lat},${nextStopCoordinates.lon}`;
+    if (stopKey !== lastStopKeyRef.current) {
+      lastStopKeyRef.current = stopKey;
+      phase2TriggeredRef.current = false;
+      satelliteTriggeredRef.current = false;
+      proximityPhaseActiveRef.current = false;
+    }
 
     const distKm = calculateDistance(
       driverLocation.latitude,
@@ -50,7 +81,7 @@ export default function useProximityMapMode({
     const within1km = distKm <= 1.0;
 
     if (within2km) {
-      // First time entering proximity zone — save current state
+      // Save pre-proximity state once
       if (!proximityPhaseActiveRef.current) {
         savedPreProximityStateRef.current = {
           phase: mapViewPhase,
@@ -59,8 +90,9 @@ export default function useProximityMapMode({
         proximityPhaseActiveRef.current = true;
       }
 
-      // Switch to Phase 2 + lock if not already there
-      if (mapViewPhase !== 2 || !isMapViewLocked) {
+      // Switch to Phase 2 + lock — only if not already triggered for this stop
+      if (!phase2TriggeredRef.current) {
+        phase2TriggeredRef.current = true;
         setMapViewPhase(2);
         setIsMapViewLocked(true);
         lastProgrammaticMapMoveRef.current = Date.now();
@@ -68,26 +100,27 @@ export default function useProximityMapMode({
         setMapViewTrigger((prev) => prev + 1);
       }
 
-      // Switch to satellite within 1 km
-      if (within1km && mapStyle !== 'satellite') {
+      // Switch to satellite within 1 km — only if not already triggered for this stop
+      if (within1km && !satelliteTriggeredRef.current) {
+        satelliteTriggeredRef.current = true;
         setMapStyle('satellite');
       }
     } else {
       // Driver moved back beyond 2 km — clear proximity flag but don't restore
       // (restoration happens on stop completion via Dashboard)
       proximityPhaseActiveRef.current = false;
+      // Do NOT reset phase2TriggeredRef / satelliteTriggeredRef here —
+      // if the driver re-enters the zone we still don't want to re-trigger
+      // until a new stop or a double-tap reset.
     }
   }, [
     isDriver,
     isMobile,
     isPrimaryDevice,
     isToday,
-    driverLocation,
+    driverLocation,   // runs on each location update but guards prevent re-firing
     nextStopCoordinates,
-    mapViewPhase,
-    isMapViewLocked,
-    mapStyle,
   ]);
 
-  return { proximityPhaseActiveRef };
+  return { proximityPhaseActiveRef, resetProximityTriggers };
 }
