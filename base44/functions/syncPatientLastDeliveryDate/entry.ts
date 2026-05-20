@@ -185,36 +185,29 @@ const runBackfill = async (base44, backfillDays) => {
 
   let updatedCount = 0;
 
-  // Process updates in small batches with a delay to avoid rate limits
-  const BATCH_SIZE = 10;
-  const entries = [...latestByPatient.entries()];
+  // Process updates sequentially with a delay between each to avoid rate limits
+  for (const [patientId, lastDeliveryDate] of latestByPatient.entries()) {
+    const patient = patientMap.get(patientId);
+    if (!patient) continue;
 
-  for (let i = 0; i < entries.length; i += BATCH_SIZE) {
-    const batch = entries.slice(i, i + BATCH_SIZE);
+    const currentLastDeliveryDate = normalizeDateString(patient.last_delivery_date);
+    const nextLastDeliveryDate =
+      !currentLastDeliveryDate || lastDeliveryDate > currentLastDeliveryDate
+        ? lastDeliveryDate
+        : currentLastDeliveryDate;
 
-    await Promise.all(batch.map(async ([patientId, lastDeliveryDate]) => {
-      const patient = patientMap.get(patientId);
-      if (!patient) return;
+    if (patient.last_delivery_date === nextLastDeliveryDate) continue;
 
-      const currentLastDeliveryDate = normalizeDateString(patient.last_delivery_date);
-      const nextLastDeliveryDate =
-        !currentLastDeliveryDate || lastDeliveryDate > currentLastDeliveryDate
-          ? lastDeliveryDate
-          : currentLastDeliveryDate;
+    await base44.asServiceRole.entities.Patient.update(patient.id, {
+      last_delivery_date: nextLastDeliveryDate
+    }).catch((error) => {
+      if (isNotFoundError(error)) return null;
+      throw error;
+    });
+    updatedCount += 1;
 
-      if (patient.last_delivery_date === nextLastDeliveryDate) return;
-
-      await base44.asServiceRole.entities.Patient.update(patient.id, {
-        last_delivery_date: nextLastDeliveryDate
-      }).catch((error) => {
-        if (isNotFoundError(error)) return null;
-        throw error;
-      });
-      updatedCount += 1;
-    }));
-
-    // Small delay between batches to stay within rate limits
-    if (i + BATCH_SIZE < entries.length) await sleep(300);
+    // Delay between each update to stay within rate limits
+    await sleep(200);
   }
 
   return Response.json({
