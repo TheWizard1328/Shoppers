@@ -66,7 +66,7 @@ function LogEntryCard({ log, open, onAction }) {
           </div>
           <div>
             <span className="font-medium text-slate-700">When:</span>{' '}
-            {format(new Date(timestamp), 'MMM d, yyyy h:mm a')}
+            {new Date(timestamp).toLocaleString('en-CA', { timeZone: 'America/Edmonton', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
           </div>
           <div className="md:col-span-2">
             <span className="font-medium text-slate-700">New coords:</span>{' '}
