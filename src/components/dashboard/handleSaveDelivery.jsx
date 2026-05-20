@@ -73,11 +73,23 @@ export async function handleSaveDelivery(deliveryData, ctx) {
     }
 
     if (isEditing && !driverWasChanged) {
-      await updateDeliveryLocal(editingDelivery.id, deliveryData);
-      const freshDeliveries = await base44.entities.Delivery.filter({ delivery_date: deliveryDate, driver_id: driverId });
       const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-      const completedDeliveries = freshDeliveries.filter((d) => d && finishedStatuses.includes(d.status));
-      const incompleteDeliveries = freshDeliveries.filter((d) => d && !finishedStatuses.includes(d.status));
+
+      // Step 1: Apply the edit to the delivery being changed
+      await updateDeliveryLocal(editingDelivery.id, deliveryData);
+
+      // Step 2: Optimistically update the UI immediately using current in-memory state
+      // so stops don't disappear while we do background work
+      if (applyDeliveryChangesLocally) {
+        applyDeliveryChangesLocally({ upserts: [{ ...editingDelivery, ...deliveryData }] });
+      } else if (updateDeliveriesLocally) {
+        updateDeliveriesLocally([{ ...editingDelivery, ...deliveryData }], false);
+      }
+
+      // Step 3: Reorder stop_orders in the background (non-blocking for UI)
+      const allForDriver = (deliveries || []).filter((d) => d && d.delivery_date === deliveryDate && d.driver_id === driverId);
+      const completedDeliveries = allForDriver.filter((d) => finishedStatuses.includes(d.status));
+      const incompleteDeliveries = allForDriver.filter((d) => !finishedStatuses.includes(d.status));
       let startingStopOrder = completedDeliveries.length > 0 ? Math.max(...completedDeliveries.map((d) => d.stop_order || 0)) : 0;
       const sortedIncomplete = [...incompleteDeliveries].sort((a, b) => {
         if (!a || !b) return 0;
@@ -88,14 +100,8 @@ export async function handleSaveDelivery(deliveryData, ctx) {
       for (let i = 0; i < sortedIncomplete.length; i++) {
         if (sortedIncomplete[i]) await updateDeliveryLocal(sortedIncomplete[i].id, { stop_order: startingStopOrder + i + 1 });
       }
+
       invalidate('Delivery');
-      // CRITICAL: Merge fresh deliveries into existing state instead of full reload
-      // to prevent incomplete stops from disappearing while refreshData() is in flight.
-      if (applyDeliveryChangesLocally) {
-        applyDeliveryChangesLocally({ upserts: freshDeliveries });
-      } else {
-        updateDeliveriesLocally(freshDeliveries, false);
-      }
       setShowDeliveryForm(false); setEditingDelivery(null); fabControlEvents.resetToPhaseOneAfterDone(500);
       return;
     }
