@@ -19,6 +19,8 @@ export function useDeliveryDisplayInfo({
 }) {
   const displayName = useMemo(() => {
     if (!delivery) return '';
+    // Cycling start markers have no patient/store — use delivery_notes as name
+    if (delivery.is_cycling_start_marker) return delivery.delivery_notes || 'Cycling Route Start';
     if (isPickup && isInterStorePickup) {
       return delivery.patient_name || patient?.full_name || `${store?.name || 'Unknown Store'} Pickup`;
     }

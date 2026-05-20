@@ -65,7 +65,13 @@ export default function useModeRouteDialog({
         const nowStr = new Date().toLocaleString('sv-SE', { timeZone: 'America/Edmonton' }).replace(' ', 'T');
 
         try {
+          const now = new Date();
+          const nowHour = now.getHours();
+          const ampmDesignation = nowHour < 14 ? 'AM' : 'PM';
+          const deliveryId = `DID-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
           const newMarker = await base44.entities.Delivery.create({
+            delivery_id: deliveryId,
             driver_id: currentUser.id,
             driver_name: currentUser.user_name || currentUser.full_name || '',
             delivery_date: deliveryDateStr,
@@ -76,8 +82,10 @@ export default function useModeRouteDialog({
             cycling_start_longitude: loc.longitude,
             stop_order: insertStopOrder,
             actual_delivery_time: nowStr,
+            arrival_time: nowStr,
             delivery_notes: 'Cycling Route Start',
             transport_mode: 'cycling',
+            ampm_deliveries: ampmDesignation,
           });
 
           // Trigger polyline refresh for this driver/date after inserting the new marker

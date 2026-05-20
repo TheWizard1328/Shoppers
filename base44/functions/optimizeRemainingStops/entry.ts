@@ -80,6 +80,10 @@ const getDeliveryCoords = (delivery, patientMap, storeMap) => {
       return { lat: Number(patient.latitude), lng: Number(patient.longitude) };
     }
   }
+  // Cycling start markers store their location in dedicated fields
+  if (delivery.is_cycling_start_marker && delivery.cycling_start_latitude != null && delivery.cycling_start_longitude != null) {
+    return { lat: Number(delivery.cycling_start_latitude), lng: Number(delivery.cycling_start_longitude) };
+  }
   const store = storeMap.get(delivery.store_id);
   if (store?.latitude != null && store?.longitude != null) {
     return { lat: Number(store.latitude), lng: Number(store.longitude) };
