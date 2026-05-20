@@ -206,6 +206,8 @@ export default function FABControls({
     <>
       <MapViewCycleFAB currentUser={currentUser} filteredDeliveries={filteredDeliveries} onClick={() => {
         handleMapViewCycle(false);
+        // After cycling, let proximity logic re-check and re-apply the correct phase/style
+        window.dispatchEvent(new CustomEvent('proximityRecheck'));
       }} currentPhase={mapViewPhase} hasVisibleCards={!immersiveHidden && deliveriesWithStopOrder.length > 0} isAIVisible={showAIAssistant && isAIEnabled} isLocked={isMapViewLocked} isEnabled={isMapCycleEnabled} stopCardsHeight={!immersiveHidden && cardsReadyForFAB ? stopCardsBaseHeight : 0} isMotionDimmed={isPrimaryDriverDeviceInMotion} />
 
       {immersiveHidden && (
