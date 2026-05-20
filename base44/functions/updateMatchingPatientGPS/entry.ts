@@ -132,7 +132,7 @@ Deno.serve(async (req) => {
         const hasCoords = pLat != null && pLon != null;
         const withinRadius = !hasCoords || (newLat != null && newLon != null && haversineKm(pLat, pLon, newLat, newLon) <= MATCH_RADIUS_KM);
         if (!withinRadius) continue;
-        matching.push({ id: p.id, full_name: p.full_name, address: p.address, store_id: p.store_id });
+        matching.push({ id: p.id, full_name: p.full_name, address: p.address, unit_number: p.unit_number || null, status: p.status || 'active', store_id: p.store_id });
         seen.add(p.id);
       }
 

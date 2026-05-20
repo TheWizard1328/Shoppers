@@ -5,7 +5,7 @@ import { base44 } from '@/api/base44Client';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, RefreshCw, CheckCircle2, XCircle, MapPin, Users } from 'lucide-react';
+import { Loader2, RefreshCw, CheckCircle2, XCircle, MapPin, Users, ChevronDown, ChevronRight } from 'lucide-react';
 
 // Fetches patients that share the same normalized address as the log entry
 function useMatchingPatients(logId, open) {
@@ -31,6 +31,7 @@ function useMatchingPatients(logId, open) {
 function LogEntryCard({ log, open, onAction }) {
   const { matchingPatients, loading: loadingMatches } = useMatchingPatients(log.id, open);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [matchesExpanded, setMatchesExpanded] = useState(true);
 
   const timestamp = log.created_date || new Date().toISOString();
   const hasOldCoords = Number.isFinite(log.old_latitude) && Number.isFinite(log.old_longitude);
@@ -76,35 +77,50 @@ function LogEntryCard({ log, open, onAction }) {
         </div>
       </div>
 
-      {/* Matching patients at the same address */}
-      <div className="border-t bg-slate-50 px-4 py-3">
-        <div className="flex items-center gap-2 mb-2 text-xs font-semibold text-slate-600 uppercase tracking-wide">
+      {/* Matching patients at the same address — collapsible */}
+      <div className="border-t bg-slate-50">
+        <button
+          onClick={() => setMatchesExpanded((v) => !v)}
+          className="w-full flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-slate-600 uppercase tracking-wide hover:bg-slate-100 transition-colors"
+        >
+          {matchesExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
           <Users className="h-3.5 w-3.5" />
           Patients at same address
-          {!loadingMatches && (
-            <Badge variant="secondary" className="text-xs">{matchingPatients.length}</Badge>
-          )}
-        </div>
+          {loadingMatches
+            ? <Loader2 className="h-3 w-3 animate-spin ml-1" />
+            : <Badge variant="secondary" className="text-xs ml-1">{matchingPatients.length}</Badge>
+          }
+        </button>
 
-        {loadingMatches ? (
-          <div className="flex items-center gap-2 text-xs text-slate-400 py-1">
-            <Loader2 className="h-3 w-3 animate-spin" />
-            Finding matching patients...
+        {matchesExpanded && (
+          <div className="px-4 pb-3">
+            {loadingMatches ? (
+              <div className="flex items-center gap-2 text-xs text-slate-400 py-1">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Finding matching patients...
+              </div>
+            ) : matchingPatients.length === 0 ? (
+              <p className="text-xs text-slate-400 py-1">No other patients found at this address.</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {matchingPatients.map((p) => {
+                  const isActive = p.status !== 'inactive';
+                  return (
+                    <li key={p.id} className={`flex items-center gap-2 text-sm rounded px-2 py-1 ${isActive ? 'bg-green-50 text-green-900' : 'bg-red-50 text-red-800'}`}>
+                      <MapPin className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-green-500' : 'text-red-400'}`} />
+                      <span className="font-medium">{p.full_name}</span>
+                      {p.unit_number && (
+                        <span className="text-xs font-mono bg-white border rounded px-1">{p.unit_number}</span>
+                      )}
+                      <Badge variant="outline" className={`ml-auto text-xs shrink-0 ${isActive ? 'border-green-300 text-green-700' : 'border-red-300 text-red-600'}`}>
+                        {isActive ? 'Active' : 'Inactive'}
+                      </Badge>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
-        ) : matchingPatients.length === 0 ? (
-          <p className="text-xs text-slate-400 py-1">No other patients found at this address.</p>
-        ) : (
-          <ul className="space-y-1">
-            {matchingPatients.map((p) => (
-              <li key={p.id} className="flex items-center gap-2 text-sm text-slate-700">
-                <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                <span>{p.full_name}</span>
-                {p.address && p.address !== log.patient_address && (
-                  <span className="text-xs text-slate-400 truncate">({p.address})</span>
-                )}
-              </li>
-            ))}
-          </ul>
         )}
       </div>
 
