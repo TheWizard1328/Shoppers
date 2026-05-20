@@ -200,7 +200,12 @@ export default function PolylineViewer({ users = [] }) {
 
   const availableDrivers = useMemo(() => {
     const ids = [...new Set(activeItems.map(i => i.driver_id).filter(Boolean))];
-    return ids.map(id => ({ id, name: getDriverName(id) }));
+    return ids
+      .map(id => {
+        const u = users.find(u => u?.id === id);
+        return { id, name: getDriverName(id), sort_order: u?.sort_order ?? Infinity };
+      })
+      .sort((a, b) => a.sort_order - b.sort_order);
   }, [activeItems, users]);
 
   // Reset lazy load on filter change
