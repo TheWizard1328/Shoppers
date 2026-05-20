@@ -123,6 +123,24 @@ Deno.serve(async (req) => {
     const driverAppUser = Array.isArray(driverAppUsers) ? driverAppUsers[0] : null;
     const driverIsOnDuty = driverAppUser?.driver_status === 'on_duty';
 
+    // Helper: parse "HH:mm" to total minutes from midnight
+    const parseTimeToMinutes = (timeStr) => {
+      if (!timeStr || typeof timeStr !== 'string') return null;
+      const parts = timeStr.split(':');
+      const h = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+      return h * 60 + m;
+    };
+
+    // Current local time in Edmonton (minutes from midnight)
+    const now = new Date();
+    const edmontonTimeStr = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Edmonton',
+      hour: '2-digit', minute: '2-digit', hour12: false
+    }).format(now);
+    const currentMinutes = parseTimeToMinutes(edmontonTimeStr) ?? (now.getUTCHours() * 60 + now.getUTCMinutes());
+
     let nextDelivery = null;
     if (driverIsOnDuty) {
       if (targetDeliveryId) {
@@ -130,6 +148,16 @@ Deno.serve(async (req) => {
       }
       if (!nextDelivery) {
         nextDelivery = activeDeliveries[0] || null;
+      }
+
+      // CRITICAL: If the resolved next stop's delivery_time_start is more than 2 hours away,
+      // do NOT set isNextDelivery — the route hasn't effectively started yet.
+      if (nextDelivery) {
+        const firstStopTimeMinutes = parseTimeToMinutes(nextDelivery.delivery_time_start);
+        if (Number.isFinite(firstStopTimeMinutes) && (firstStopTimeMinutes - currentMinutes) > 120) {
+          console.log(`[setNextDeliveryFlag] Suppressing isNextDelivery — first stop (${nextDelivery.delivery_time_start}) is >2h from now (${edmontonTimeStr}) | driver=${driverId}`);
+          nextDelivery = null;
+        }
       }
     }
 
