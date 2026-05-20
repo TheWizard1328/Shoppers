@@ -908,14 +908,24 @@ Deno.serve(async (req) => {
       ? { lat: Number(driverAppUser.home_latitude), lng: Number(driverAppUser.home_longitude) }
       : null;
 
-    const allStopsForDeparture = stopsToSequence;
+    // CRITICAL: For departure time and ETA base, only consider IMMEDIATE stops (not future-windowed ones).
+    // Using a future stop's window as the departure anchor causes HERE to treat all stops as future-route
+    // and sequence the future stops first because they appear "on the way" from that future time.
+    // Immediate stops = no window OR window start is within FUTURE_WINDOW_THRESHOLD_MIN of current time.
+    const immediateStopsForDeparture = stopsToSequence.filter(s => {
+      const wm = parseTimeToMinutes(s.windowStart || s.delivery?.delivery_time_start);
+      return !Number.isFinite(wm) || (wm - currentMinutes) <= FUTURE_WINDOW_THRESHOLD_MIN;
+    });
+    const allStopsForDeparture = immediateStopsForDeparture.length > 0 ? immediateStopsForDeparture : stopsToSequence;
+
     const earliestWindowMinutes = allStopsForDeparture.reduce((earliest, s) => {
       const wm = parseTimeToMinutes(s.windowStart || s.delivery?.delivery_time_start);
       return Number.isFinite(wm) && wm < earliest ? wm : earliest;
     }, Infinity);
 
+    // isFutureRoute only if ALL stops (including immediate ones) are in the future
     const isFutureRoute = isFutureDate
-      || (Number.isFinite(earliestWindowMinutes) && (earliestWindowMinutes - currentMinutes) > 60);
+      || (immediateStopsForDeparture.length === 0 && Number.isFinite(earliestWindowMinutes) && (earliestWindowMinutes - currentMinutes) > 60);
 
     const useWindowBasedDeparture = isFutureRoute || driverIsOffDuty;
 
@@ -939,8 +949,8 @@ Deno.serve(async (req) => {
       console.log(`⏰ [optimizeRemainingStops] Using current-time departureTime=${resolvedDepartureTime}`);
     }
 
-    // If current time is more than 2 hours before the earliest scheduled window, use the window start as ETA base.
-    // Within the 2-hour buffer, use current time as-is.
+    // ETA base: use current time for immediate routes so ETAs are grounded in reality.
+    // Only use a future window anchor if ALL stops are future-windowed (pure future route).
     const TWO_HOURS = 120;
     const etaBaseMinutes = useWindowBasedDeparture && Number.isFinite(earliestWindowMinutes)
       ? earliestWindowMinutes
@@ -950,7 +960,7 @@ Deno.serve(async (req) => {
           ? earliestWindowMinutes
           : currentMinutes;
 
-    console.log(`📅 [optimizeRemainingStops] isFutureDate=${isFutureDate}, isFutureRoute=${isFutureRoute}, etaBase=${formatMinutesToTime(etaBaseMinutes)}, currentTime=${formatMinutesToTime(currentMinutes)}, earliestWindow=${Number.isFinite(earliestWindowMinutes) ? formatMinutesToTime(earliestWindowMinutes) : 'none'}`);
+    console.log(`📅 [optimizeRemainingStops] isFutureDate=${isFutureDate}, isFutureRoute=${isFutureRoute}, etaBase=${formatMinutesToTime(etaBaseMinutes)}, currentTime=${formatMinutesToTime(currentMinutes)}, earliestWindow=${Number.isFinite(earliestWindowMinutes) ? formatMinutesToTime(earliestWindowMinutes) : 'none'}, immediateStops=${immediateStopsForDeparture.length}/${stopsToSequence.length}`);
 
     if (preserveExistingOrder) {
       // Just refresh ETAs using existing order, no HERE call needed
