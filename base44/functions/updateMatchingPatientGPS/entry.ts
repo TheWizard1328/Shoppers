@@ -77,6 +77,68 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action, logId, patientId, storeId, latitude, longitude } = body;
 
+    // ── PREVIEW: find matching patients without updating anything ──────────
+    if (action === 'preview') {
+      const { logId: previewLogId } = body;
+      if (!previewLogId) return Response.json({ error: 'Missing logId' }, { status: 400 });
+
+      const logEntry = await base44.asServiceRole.entities.PatientGPSLog.get(previewLogId).catch((e) => {
+        if (isNotFoundError(e)) return null;
+        throw e;
+      });
+      if (!logEntry) return Response.json({ error: 'Log entry not found' }, { status: 404 });
+
+      const srcPatientId = logEntry.source_patient_id || logEntry.patient_id;
+      const newLat = toNumber(logEntry.new_latitude);
+      const newLon = toNumber(logEntry.new_longitude);
+
+      const sourcePatient = await base44.asServiceRole.entities.Patient.get(srcPatientId).catch((e) => {
+        if (isNotFoundError(e)) return null;
+        throw e;
+      });
+      if (!sourcePatient) return Response.json({ matchingPatients: [] });
+
+      const sourceStore = await base44.asServiceRole.entities.Store.get(logEntry.store_id || sourcePatient.store_id).catch((e) => {
+        if (isNotFoundError(e)) return null;
+        throw e;
+      });
+
+      const sourceStreetKey = extractStreetKey(sourcePatient.address);
+      if (!sourceStreetKey) return Response.json({ matchingPatients: [] });
+
+      const cityStores = sourceStore?.city_id
+        ? await base44.asServiceRole.entities.Store.filter({ city_id: sourceStore.city_id }, 'name', 500)
+        : (sourceStore ? [sourceStore] : []);
+
+      const storeMap = new Map((cityStores || []).filter(Boolean).map((s) => [s.id, s]));
+      if (sourceStore && !storeMap.has(sourceStore.id)) storeMap.set(sourceStore.id, sourceStore);
+
+      const patientGroups = await Promise.all(
+        Array.from(storeMap.keys()).map((cid) =>
+          base44.asServiceRole.entities.Patient.filter({ store_id: cid }, '-updated_date', 1000)
+        )
+      );
+
+      const allPatients = patientGroups.flat().filter(Boolean);
+      const matching = [];
+      const seen = new Set([srcPatientId]);
+
+      for (const p of allPatients) {
+        if (!p?.id || seen.has(p.id)) continue;
+        const key = extractStreetKey(p.address);
+        if (!key || key !== sourceStreetKey) continue;
+        const pLat = toNumber(p.latitude);
+        const pLon = toNumber(p.longitude);
+        const hasCoords = pLat != null && pLon != null;
+        const withinRadius = !hasCoords || (newLat != null && newLon != null && haversineKm(pLat, pLon, newLat, newLon) <= MATCH_RADIUS_KM);
+        if (!withinRadius) continue;
+        matching.push({ id: p.id, full_name: p.full_name, address: p.address, store_id: p.store_id });
+        seen.add(p.id);
+      }
+
+      return Response.json({ matchingPatients: matching });
+    }
+
     // ── CANCEL: just delete the log entry ──────────────────────────────────
     if (action === 'cancel') {
       if (!logId) return Response.json({ error: 'Missing logId' }, { status: 400 });
