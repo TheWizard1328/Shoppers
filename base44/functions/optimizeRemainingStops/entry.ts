@@ -1130,6 +1130,116 @@ Deno.serve(async (req) => {
       }
     }
 
+    // -------------------------------------------------------------------
+    // POST-HERE TIME WINDOW VIOLATION CORRECTION
+    // HERE optimizes for distance/duration but may place windowed stops too late.
+    // After building routeStops, simulate the ETA chain and move any stop that
+    // would arrive AFTER its window end to the earliest position where it fits.
+    // Only applies to non-expired windows with a defined end time.
+    // -------------------------------------------------------------------
+    if (routeStops.length > 1 && !preserveExistingOrder) {
+      let simTime = etaBaseMinutes;
+      let prevSimPos = logicalSegmentOrigin;
+      const simLegs = [];
+
+      // Build sim legs using segment polylines or crow-flies fallback
+      for (let i = 0; i < routeStops.length; i++) {
+        const stop = routeStops[i];
+        const seg = segmentPolylines[i];
+        const durMin = (typeof seg?.estimatedDurationMinutes === 'number' && seg.estimatedDurationMinutes > 0)
+          ? seg.estimatedDurationMinutes
+          : (() => {
+              const dKm = calculateCrowFliesDistance(prevSimPos.lat, prevSimPos.lng, stop.lat, stop.lng);
+              return Math.ceil((dKm / 40) * 60 * 1.3);
+            })();
+        simLegs.push(durMin);
+        prevSimPos = { lat: stop.lat, lng: stop.lng };
+      }
+
+      // Simulate ETAs and detect violations
+      let simCumulative = simTime;
+      const simEtas = [];
+      for (let i = 0; i < routeStops.length; i++) {
+        simCumulative += simLegs[i];
+        // Snap to window start if arriving early
+        const wStart = parseTimeToMinutes(routeStops[i].windowStart || routeStops[i].delivery?.delivery_time_start);
+        if (Number.isFinite(wStart) && simCumulative < wStart) simCumulative = wStart;
+        simEtas.push(simCumulative);
+        simCumulative += routeStops[i].delivery.extra_time || (routeStops[i].isPickup ? 15 : 5);
+      }
+
+      // Find stops violating their window end — skip index 0 (locked next stop)
+      const startIdx = lockedNextStop ? 1 : 0;
+      let correctionMade = false;
+
+      for (let i = startIdx; i < routeStops.length; i++) {
+        const stop = routeStops[i];
+        const windowEnd = parseTimeToMinutes(stop.windowEnd || stop.delivery?.delivery_time_end);
+        if (!Number.isFinite(windowEnd) || isWindowExpired(stop, currentMinutes)) continue;
+        if (simEtas[i] <= windowEnd) continue;
+
+        // This stop arrives after its window end — find earliest position where it fits
+        console.log(`⚠️ [optimizeRemainingStops] POST-CORRECTION: ${stop.delivery.patient_name || 'Stop'} ETA ${formatMinutesToTime(simEtas[i])} > window end ${formatMinutesToTime(windowEnd)} — moving earlier`);
+
+        // Try inserting at earlier positions
+        let bestPos = i;
+        let testCum = etaBaseMinutes;
+        for (let j = startIdx; j < i; j++) {
+          const testSeg = simLegs[j];
+          testCum += testSeg;
+          const wS = parseTimeToMinutes(routeStops[j].windowStart || routeStops[j].delivery?.delivery_time_start);
+          if (Number.isFinite(wS) && testCum < wS) testCum = wS;
+          // If we insert `stop` at position j (before routeStops[j]), check if it fits
+          const dKm = j === 0
+            ? calculateCrowFliesDistance(logicalSegmentOrigin.lat, logicalSegmentOrigin.lng, stop.lat, stop.lng)
+            : calculateCrowFliesDistance(routeStops[j - 1].lat, routeStops[j - 1].lng, stop.lat, stop.lng);
+          const testArrival = (j === 0 ? etaBaseMinutes : testCum - simLegs[j]) + Math.ceil((dKm / 40) * 60 * 1.3);
+          const windowStart = parseTimeToMinutes(stop.windowStart || stop.delivery?.delivery_time_start);
+          const arrivalSnapped = Number.isFinite(windowStart) && testArrival < windowStart ? windowStart : testArrival;
+          if (arrivalSnapped <= windowEnd) {
+            bestPos = j;
+            break;
+          }
+          testCum += routeStops[j].delivery.extra_time || (routeStops[j].isPickup ? 15 : 5);
+        }
+
+        if (bestPos < i) {
+          // Move stop from position i to bestPos
+          const [removedStop] = routeStops.splice(i, 1);
+          const [removedLeg] = directionsLegs.splice(i, 1);
+          const [removedPoly] = segmentPolylines.splice(i, 1);
+          routeStops.splice(bestPos, 0, removedStop);
+          directionsLegs.splice(bestPos, 0, removedLeg);
+          segmentPolylines.splice(bestPos, 0, removedPoly);
+          correctionMade = true;
+          console.log(`✅ [optimizeRemainingStops] Moved ${removedStop.delivery.patient_name || 'Stop'} to position ${bestPos + 1} to respect window end ${formatMinutesToTime(windowEnd)}`);
+
+          // Recalculate simEtas after correction
+          simCumulative = etaBaseMinutes;
+          let prevP = logicalSegmentOrigin;
+          for (let k = 0; k < routeStops.length; k++) {
+            const s = routeStops[k];
+            const dKm = calculateCrowFliesDistance(prevP.lat, prevP.lng, s.lat, s.lng);
+            const seg2 = segmentPolylines[k];
+            const dur2 = (typeof seg2?.estimatedDurationMinutes === 'number' && seg2.estimatedDurationMinutes > 0)
+              ? seg2.estimatedDurationMinutes
+              : Math.ceil((dKm / 40) * 60 * 1.3);
+            simLegs[k] = dur2;
+            simCumulative += dur2;
+            const wS2 = parseTimeToMinutes(s.windowStart || s.delivery?.delivery_time_start);
+            if (Number.isFinite(wS2) && simCumulative < wS2) simCumulative = wS2;
+            simEtas[k] = simCumulative;
+            simCumulative += s.delivery.extra_time || (s.isPickup ? 15 : 5);
+            prevP = { lat: s.lat, lng: s.lng };
+          }
+        }
+      }
+
+      if (correctionMade) {
+        console.log(`🔧 [optimizeRemainingStops] Post-HERE time window corrections applied — final order: ${routeStops.map(s => s.delivery.patient_name || 'Stop').join(' → ')}`);
+      }
+    }
+
     // Co-located stop correction
     if (routeStops.length > 2) {
       const COORD_EPSILON = 0.0002;
