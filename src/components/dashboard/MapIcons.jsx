@@ -365,6 +365,40 @@ export const createLiveLocationDot = () => {
   });
 };
 
+export const createCyclingStartIcon = (isMobile = false) => {
+  const size = isMobile ? 28 : 22;
+  return L.divIcon({
+    html: `
+      <div class="cycling-start-marker" style="width: ${size}px; height: ${size * 1.5}px; position: relative; cursor: pointer;">
+        <svg width="${size}" height="${size * 1.5}" viewBox="0 0 24 36" xmlns="http://www.w3.org/2000/svg">
+          <!-- Pin body -->
+          <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 24 12 24s12-15 12-24C24 5.373 18.627 0 12 0z"
+                fill="#16a34a"
+                stroke="#FFFFFF"
+                stroke-width="1.5"
+                style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.35));" />
+          <!-- Ball top (white circle) -->
+          <circle cx="12" cy="11" r="6" fill="#FFFFFF" opacity="0.97" />
+          <!-- Bike icon inside ball -->
+          <g transform="translate(12,11)" fill="none" stroke="#16a34a" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="-3.5" cy="1.5" r="2.2" />
+            <circle cx="3.5" cy="1.5" r="2.2" />
+            <polyline points="-1.5,-1.5 0,-1.5 2,1.5" />
+            <polyline points="-3.5,1.5 0,-1.5 1.2,-1.5" />
+          </g>
+        </svg>
+      </div>
+      <style>
+        .cycling-start-marker { transition: transform 0.15s ease-out; will-change: transform; }
+        .cycling-start-marker:hover { z-index: 9999 !important; transform: scale(1.15); }
+      </style>
+    `,
+    className: 'custom-cycling-start-icon',
+    iconSize: [size, size * 1.5],
+    iconAnchor: [size / 2, size * 1.5]
+  });
+};
+
 export const createHomeIcon = (color = '#10B981') => {
   const size = 24 * 0.75;
   return L.divIcon({

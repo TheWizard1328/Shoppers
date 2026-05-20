@@ -2,6 +2,8 @@ import { useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { getCurrentDriverLocation, getNearbyModeStops } from '@/components/dashboard/modeButtonHelpers';
 import { updatePreferredTravelMode } from '@/components/dashboard/travelModeHelpers';
+import { base44 } from '@/api/base44Client';
+import { format } from 'date-fns';
 
 export default function useModeRouteDialog({
   currentUser,
@@ -11,6 +13,7 @@ export default function useModeRouteDialog({
   patients,
   stores,
   setPreferredTravelMode,
+  selectedDate,
 }) {
   const [modeDialogOpen, setModeDialogOpen] = useState(false);
   const [selectedModeStopIds, setSelectedModeStopIds] = useState([]);
@@ -43,14 +46,68 @@ export default function useModeRouteDialog({
     if (selectedModeStopIds.length === 0 || !currentUser?.id) return;
     setIsOptimizingModeRoute(true);
     try {
+      // 1. Save cycling mode preference
       await updatePreferredTravelMode(appUsers, currentUser.id, 'cycling');
       setPreferredTravelMode('cycling');
+
+      // 2. Create a "Cycling Route Start" visual marker at the driver's current location
+      const loc = currentModeLocation;
+      if (loc?.latitude && loc?.longitude) {
+        const deliveryDateStr = selectedDate
+          ? (typeof selectedDate === 'string' ? selectedDate : format(selectedDate, 'yyyy-MM-dd'))
+          : format(new Date(), 'yyyy-MM-dd');
+
+        // Find the stop_order just before the first selected stop so the marker slots in correctly
+        const selectedDeliveries = deliveriesWithStopOrder.filter(d => selectedModeStopIds.includes(d.id));
+        const minStopOrder = selectedDeliveries.reduce((min, d) => Math.min(min, d.stop_order || 999), 999);
+        const insertStopOrder = Math.max(0, minStopOrder - 0.5);
+
+        const nowStr = new Date().toLocaleString('sv-SE', { timeZone: 'America/Edmonton' }).replace(' ', 'T');
+
+        try {
+          const newMarker = await base44.entities.Delivery.create({
+            driver_id: currentUser.id,
+            driver_name: currentUser.user_name || currentUser.full_name || '',
+            delivery_date: deliveryDateStr,
+            status: 'completed',
+            no_charge: true,
+            is_cycling_start_marker: true,
+            cycling_start_latitude: loc.latitude,
+            cycling_start_longitude: loc.longitude,
+            stop_order: insertStopOrder,
+            actual_delivery_time: nowStr,
+            delivery_notes: 'Cycling Route Start',
+            transport_mode: 'cycling',
+          });
+
+          // Trigger polyline refresh for this driver/date after inserting the new marker
+          try {
+            await base44.functions.invoke('regenerateType1Polyline', {
+              driverId: currentUser.id,
+              deliveryDate: deliveryDateStr,
+              currentLocation: { lat: loc.latitude, lon: loc.longitude },
+            });
+          } catch (_) { /* non-critical */ }
+
+          // Broadcast so the map refreshes
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+            detail: {
+              triggeredBy: 'cyclingModeStart',
+              freshDeliveries: [newMarker],
+              preserveLocalState: false,
+            }
+          }));
+        } catch (e) {
+          console.warn('Could not create cycling start marker:', e.message);
+        }
+      }
+
       setModeDialogOpen(false);
       toast.success('Cycling mode saved.');
     } finally {
       setIsOptimizingModeRoute(false);
     }
-  }, [selectedModeStopIds, currentUser?.id, appUsers, setPreferredTravelMode]);
+  }, [selectedModeStopIds, currentUser, appUsers, setPreferredTravelMode, currentModeLocation, deliveriesWithStopOrder, selectedDate]);
 
   return {
     modeDialogOpen,

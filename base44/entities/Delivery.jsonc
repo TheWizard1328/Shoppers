@@ -240,6 +240,19 @@
       "type": "boolean",
       "default": false,
       "description": "Whether this driver/date delivery polyline set has already been refreshed"
+    },
+    "is_cycling_start_marker": {
+      "type": "boolean",
+      "default": false,
+      "description": "Visual-only marker placed at driver's location when cycling mode begins. Not counted as a delivery stop."
+    },
+    "cycling_start_latitude": {
+      "type": "number",
+      "description": "Latitude where the cycling route started (used for the cycling start marker pin)"
+    },
+    "cycling_start_longitude": {
+      "type": "number",
+      "description": "Longitude where the cycling route started (used for the cycling start marker pin)"
     }
   },
   "required": [

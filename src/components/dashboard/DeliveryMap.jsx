@@ -34,7 +34,7 @@ import PickupMarkers from "./PickupMarkers";
 import DeliveryMarkers from "./DeliveryMarkers";
 import HomeMarkers from "./HomeMarkers";
 import MapBreadcrumbs from "./MapBreadcrumbs";
-import { createLiveLocationDot } from "./MapIcons";
+import { createLiveLocationDot, createCyclingStartIcon } from "./MapIcons";
 import { useRouteRecalcSignal } from "./useRouteRecalcSignal";
 
 delete L.Icon.Default.prototype._getIconUrl;
@@ -461,6 +461,9 @@ export default function DeliveryMap({
       const isStopInDispatcherStore = !!(isCurrentUserDispatcher && currentUser?.store_ids?.includes(delivery.store_id));
       const useDispatcherPlaceholder = isCurrentUserDispatcher && !isStopInDispatcherStore;
 
+      // Cycling start markers are rendered separately — skip from normal delivery/pickup flow
+      if (delivery.is_cycling_start_marker) return;
+
       if (delivery.patient_id) {
         const patient = safePatients.find((item) => item?.id === delivery.patient_id) || null;
         if (!patient?.latitude || !patient?.longitude) return;
@@ -536,6 +539,16 @@ export default function DeliveryMap({
       hasIncompleteStops: hasIncomplete
     };
   }, [deliveriesToShow, safeStores, safePatients, driverLookupMap, selectedDriverId, currentUser, showOtherDriverDeliveries, isAllDriversMode, currentZoom]);
+
+  const cyclingStartMarkers = useMemo(() => {
+    return deliveriesToShow
+      .filter(d => d?.is_cycling_start_marker && d.cycling_start_latitude && d.cycling_start_longitude)
+      .map(d => ({
+        ...d,
+        latitude: d.cycling_start_latitude,
+        longitude: d.cycling_start_longitude,
+      }));
+  }, [deliveriesToShow]);
 
   const driverLocationMarkers = useMemo(() => {
     const today = getEdmDate();
@@ -668,6 +681,7 @@ export default function DeliveryMap({
     const byDriver = new Map();
     [...deliveryMarkers, ...pickupMarkers].forEach((stop) => {
       if (!stop?.driver_id) return;
+      if (stop.is_cycling_start_marker) return;
       if (!byDriver.has(stop.driver_id)) byDriver.set(stop.driver_id, { complete: 0, incomplete: 0 });
       if (FINISHED_STATUSES.includes(stop.status)) byDriver.get(stop.driver_id).complete += 1;
       else if (stop.status !== "pending") byDriver.get(stop.driver_id).incomplete += 1;
@@ -1297,6 +1311,26 @@ export default function DeliveryMap({
             );
           });
         })()}
+
+        {cyclingStartMarkers.map(marker => (
+          <Marker
+            key={`cycling-start-${marker.id}`}
+            position={[marker.latitude, marker.longitude]}
+            icon={createCyclingStartIcon(isMobile)}
+            zIndexOffset={3500}
+          >
+            <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
+              <div className="min-w-[160px] text-sm">
+                <div className="font-bold text-emerald-700 mb-0.5">🚴 Cycling Route Start</div>
+                {marker.actual_delivery_time && (
+                  <div className="text-slate-500 text-xs">
+                    {new Date(marker.actual_delivery_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
+                  </div>
+                )}
+              </div>
+            </Popup>
+          </Marker>
+        ))}
 
         <PickupMarkers pickupMarkers={pickupMarkers} groupedPickupMarkers={groupedPickupMarkers} groupedDeliveryMarkers={groupedDeliveryMarkers} routeRenderKey={routeRenderKey} currentZoom={currentZoom} ZOOM_LEVELS={ZOOM_LEVELS} isMobile={isMobile} fannedLocationKey={fannedLocationKey} highlightedDeliveryId={highlightedDeliveryId} fadedMarkerHighlights={fadedMarkerHighlights} setFadedMarkerHighlights={setFadedMarkerHighlights} driversWithCompleteRoute={driversWithCompleteRoute} hasIncompleteStops={hasIncompleteStops} calculateFannedPositionWrapperWrapper={calculateFannedPositionWrapperWrapper} onMarkerClick={onMarkerClick} handleMarkerClickForFanning={handleMarkerClickForFanning} handleMarkerDragEnd={handleMarkerDragEnd} markerRefs={markerRefs} safeStores={safeStores} safePatients={safePatients} safeUsers={safeUsers} />
 

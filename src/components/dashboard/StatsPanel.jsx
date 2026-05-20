@@ -60,6 +60,63 @@ export default function StatsPanel({
   const [showMapStyleOptions, setShowMapStyleOptions] = useState(false);
   const [travelModeDialogOpen, setTravelModeDialogOpen] = useState(false);
   const [cyclingSelectedStopIds, setCyclingSelectedStopIds] = useState([]);
+  const [isOptimizingCyclingMode, setIsOptimizingCyclingMode] = useState(false);
+
+  const handleCyclingModeConfirm = async () => {
+    if (cyclingSelectedStopIds.length === 0 || !currentUser?.id) return;
+    setIsOptimizingCyclingMode(true);
+    try {
+      await updatePreferredTravelMode(appUsers, currentUser.id, 'cycling');
+      onTravelModeChange?.('cycling');
+
+      // Create "Cycling Route Start" visual marker at driver's current location
+      const loc = getCurrentDriverLocation({ currentUser, appUsers, driverLocation });
+      if (loc?.latitude && loc?.longitude) {
+        const deliveryDateStr = selectedDateStr || format(new Date(), 'yyyy-MM-dd');
+        const nowStr = new Date().toLocaleString('sv-SE', { timeZone: 'America/Edmonton' }).replace(' ', 'T');
+
+        try {
+          const newMarker = await base44.entities.Delivery.create({
+            driver_id: currentUser.id,
+            driver_name: currentUser.user_name || currentUser.full_name || '',
+            delivery_date: deliveryDateStr,
+            status: 'completed',
+            no_charge: true,
+            is_cycling_start_marker: true,
+            cycling_start_latitude: loc.latitude,
+            cycling_start_longitude: loc.longitude,
+            stop_order: 0.5,
+            actual_delivery_time: nowStr,
+            delivery_notes: 'Cycling Route Start',
+            transport_mode: 'cycling',
+          });
+
+          // Trigger polyline refresh
+          base44.functions.invoke('regenerateType1Polyline', {
+            driverId: currentUser.id,
+            deliveryDate: deliveryDateStr,
+            currentLocation: { lat: loc.latitude, lon: loc.longitude },
+          }).catch(() => {});
+
+          // Broadcast to update map
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+            detail: {
+              triggeredBy: 'cyclingModeStart',
+              freshDeliveries: [newMarker],
+              preserveLocalState: false,
+            }
+          }));
+        } catch (e) {
+          console.warn('Could not create cycling start marker:', e.message);
+        }
+      }
+
+      setTravelModeDialogOpen(false);
+      setCyclingSelectedStopIds([]);
+    } finally {
+      setIsOptimizingCyclingMode(false);
+    }
+  };
 
   useEffect(() => {
     let active = true;
@@ -478,7 +535,8 @@ export default function StatsPanel({
                   nearbyStops={[]}
                   selectedStopIds={cyclingSelectedStopIds}
                   onToggleStop={(id) => setCyclingSelectedStopIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])}
-                  onOptimize={() => setTravelModeDialogOpen(false)}
+                  onOptimize={handleCyclingModeConfirm}
+                  isSubmitting={isOptimizingCyclingMode}
                   renderDialogOutside={true}
                 />
                 }
@@ -550,7 +608,8 @@ export default function StatsPanel({
             })}
             selectedStopIds={cyclingSelectedStopIds}
             onToggleStop={(id) => setCyclingSelectedStopIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])}
-            onOptimize={() => setTravelModeDialogOpen(false)}
+            onOptimize={handleCyclingModeConfirm}
+            isSubmitting={isOptimizingCyclingMode}
           />
         )}
 
