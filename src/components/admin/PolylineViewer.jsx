@@ -325,11 +325,16 @@ export default function PolylineViewer({ users = [] }) {
               </Badge>
             </div>
             <div className="text-xs text-slate-600 space-y-0.5">
-              <div>📅 {item.delivery_date ? format(new Date(item.delivery_date + 'T00:00:00'), 'MMM d, yyyy') : '—'}</div>
-              {isBreadcrumb && <div>📍 Stop #{item.stop_order} · {item.point_count || 0} pts</div>}
-              {!isBreadcrumb && item.stop_order != null && <div>🔢 Stop #{item.stop_order}</div>}
+              <div className="flex items-center justify-between gap-2">
+                <span>📅 {item.delivery_date ? format(new Date(item.delivery_date + 'T00:00:00'), 'MMM d, yyyy') : '—'}</span>
+                {isBreadcrumb && item.stop_order != null && <span className="text-slate-500">Stop #{item.stop_order} · {item.point_count || 0} pts</span>}
+                {!isBreadcrumb && item.stop_order != null && <span className="text-slate-500">Stop #{item.stop_order}</span>}
+              </div>
               {!isBreadcrumb && (item.estimated_distance_km || item.estimated_duration_minutes) && (
-                <div>🕒 {item.estimated_duration_minutes?.toFixed(0) || '?'} min · 📏 {item.estimated_distance_km?.toFixed(2) || '?'} km</div>
+                <div className="flex items-center justify-between gap-2">
+                  <span>🕒 {item.estimated_duration_minutes?.toFixed(0) || '?'} min</span>
+                  <span className="text-slate-500">📏 {item.estimated_distance_km?.toFixed(2) || '?'} km</span>
+                </div>
               )}
               {isBreadcrumb && item.transport_mode && <div>🚗 {item.transport_mode}</div>}
             </div>
