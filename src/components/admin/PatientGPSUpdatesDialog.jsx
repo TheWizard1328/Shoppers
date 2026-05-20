@@ -16,13 +16,13 @@ function useMatchingPatients(logId, open) {
     if (!logId || !open) return;
     let cancelled = false;
     setLoading(true);
-    base44.functions.invoke('updateMatchingPatientGPS', { action: 'preview', logId })
-      .then((res) => {
-        if (!cancelled) setMatchingPatients(res?.data?.matchingPatients || res?.matchingPatients || []);
-      })
-      .catch(() => { if (!cancelled) setMatchingPatients([]); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+    base44.functions.invoke('updateMatchingPatientGPS', { action: 'preview', logId }).
+    then((res) => {
+      if (!cancelled) setMatchingPatients(res?.data?.matchingPatients || res?.matchingPatients || []);
+    }).
+    catch(() => {if (!cancelled) setMatchingPatients([]);}).
+    finally(() => {if (!cancelled) setLoading(false);});
+    return () => {cancelled = true;};
   }, [logId, open]);
 
   return { matchingPatients, loading };
@@ -53,9 +53,9 @@ function LogEntryCard({ log, open, onAction }) {
               <span className="font-semibold text-slate-900">{log.patient_name || 'Unknown Patient'}</span>
               <Badge variant="default" className="shrink-0 text-xs">Direct Change</Badge>
             </div>
-            {log.patient_address && (
-              <div className="mt-1 text-sm text-slate-500 pl-6">{log.patient_address}</div>
-            )}
+            {log.patient_address &&
+            <div className="mt-1 text-sm text-slate-500 pl-6">{log.patient_address}</div>
+            }
           </div>
         </div>
 
@@ -70,9 +70,9 @@ function LogEntryCard({ log, open, onAction }) {
           </div>
           <div className="md:col-span-2">
             <span className="font-medium text-slate-700">New coords:</span>{' '}
-            {hasOldCoords
-              ? `${log.old_latitude?.toFixed(5)}, ${log.old_longitude?.toFixed(5)} → ${log.new_latitude?.toFixed(5)}, ${log.new_longitude?.toFixed(5)}`
-              : `${log.new_latitude?.toFixed(5)}, ${log.new_longitude?.toFixed(5)}`}
+            {hasOldCoords ?
+            `${log.old_latitude?.toFixed(5)}, ${log.old_longitude?.toFixed(5)} → ${log.new_latitude?.toFixed(5)}, ${log.new_longitude?.toFixed(5)}` :
+            `${log.new_latitude?.toFixed(5)}, ${log.new_longitude?.toFixed(5)}`}
           </div>
         </div>
       </div>
@@ -81,63 +81,63 @@ function LogEntryCard({ log, open, onAction }) {
       <div className="border-t bg-slate-50">
         <button
           onClick={() => setMatchesExpanded((v) => !v)}
-          className="w-full flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-slate-600 uppercase tracking-wide hover:bg-slate-100 transition-colors"
-        >
+          className="w-full flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-slate-600 uppercase tracking-wide hover:bg-slate-100 transition-colors">
+          
           {matchesExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
           <Users className="h-3.5 w-3.5" />
           Patients at same address
-          {loadingMatches
-            ? <Loader2 className="h-3 w-3 animate-spin ml-1" />
-            : <Badge variant="secondary" className="text-xs ml-1">{matchingPatients.length}</Badge>
+          {loadingMatches ?
+          <Loader2 className="h-3 w-3 animate-spin ml-1" /> :
+          <Badge variant="secondary" className="text-xs ml-1">{matchingPatients.length}</Badge>
           }
         </button>
 
-        {matchesExpanded && (
-          <div className="px-4 pb-3">
-            {loadingMatches ? (
-              <div className="flex items-center gap-2 text-xs text-slate-400 py-1">
+        {matchesExpanded &&
+        <div className="px-4 pb-3">
+            {loadingMatches ?
+          <div className="flex items-center gap-2 text-xs text-slate-400 py-1">
                 <Loader2 className="h-3 w-3 animate-spin" />
                 Finding matching patients...
-              </div>
-            ) : matchingPatients.length === 0 ? (
-              <p className="text-xs text-slate-400 py-1">No other patients found at this address.</p>
-            ) : (
-              <ul className="space-y-1.5">
+              </div> :
+          matchingPatients.length === 0 ?
+          <p className="text-xs text-slate-400 py-1">No other patients found at this address.</p> :
+
+          <ul className="space-y-1.5">
                 {matchingPatients.map((p) => {
-                  const isActive = p.status !== 'inactive';
-                  return (
-                    <li key={p.id} className={`flex items-center gap-2 text-sm rounded px-2 py-1 ${isActive ? 'bg-green-50 text-green-900' : 'bg-red-50 text-red-800'}`}>
+              const isActive = p.status !== 'inactive';
+              return (
+                <li key={p.id} className={`flex items-center gap-2 text-sm rounded px-2 ${isActive ? 'bg-green-50 text-green-900' : 'bg-red-50 text-red-800'}`}>
                       <MapPin className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-green-500' : 'text-red-400'}`} />
                       <span className="font-medium">{p.full_name}</span>
-                      {p.unit_number && (
-                        <span className="text-xs font-mono bg-white border rounded px-1">{p.unit_number}</span>
-                      )}
+                      {p.unit_number &&
+                  <span className="text-xs font-mono bg-white border rounded px-1">{p.unit_number}</span>
+                  }
                       <Badge variant="outline" className={`ml-auto text-xs shrink-0 ${isActive ? 'border-green-300 text-green-700' : 'border-red-300 text-red-600'}`}>
                         {isActive ? 'Active' : 'Inactive'}
                       </Badge>
-                    </li>
-                  );
-                })}
+                    </li>);
+
+            })}
               </ul>
-            )}
+          }
           </div>
-        )}
+        }
       </div>
 
       {/* Action buttons */}
       <div className="flex items-center gap-3 border-t px-4 py-3 bg-white">
         <p className="flex-1 text-xs text-slate-500">
-          {matchingPatients.length > 0
-            ? `Accept to apply new coords to ${matchingPatients.length} patient(s) above.`
-            : 'Accept to confirm this direct change (no other patients to update).'}
+          {matchingPatients.length > 0 ?
+          `Accept to apply new coords to ${matchingPatients.length} patient(s) above.` :
+          'Accept to confirm this direct change (no other patients to update).'}
         </p>
         <Button
           variant="outline"
           size="sm"
           disabled={isProcessing}
           onClick={() => handleAction('cancel')}
-          className="text-slate-600 border-slate-300"
-        >
+          className="text-slate-600 border-slate-300">
+          
           {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
           Discard
         </Button>
@@ -145,14 +145,14 @@ function LogEntryCard({ log, open, onAction }) {
           size="sm"
           disabled={isProcessing || loadingMatches}
           onClick={() => handleAction('accept')}
-          className="bg-green-600 hover:bg-green-700 text-white"
-        >
+          className="bg-green-600 hover:bg-green-700 text-white">
+          
           {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
           Accept{matchingPatients.length > 0 ? ` (${matchingPatients.length})` : ''}
         </Button>
       </div>
-    </div>
-  );
+    </div>);
+
 }
 
 export default function PatientGPSUpdatesDialog({ open, onOpenChange }) {
@@ -162,7 +162,7 @@ export default function PatientGPSUpdatesDialog({ open, onOpenChange }) {
     queryKey: ['patient-gps-logs'],
     queryFn: () => base44.entities.PatientGPSLog.list('-created_date', 200),
     enabled: open,
-    initialData: [],
+    initialData: []
   });
 
   // Only the most recent direct change per patient
@@ -209,22 +209,22 @@ export default function PatientGPSUpdatesDialog({ open, onOpenChange }) {
         </DialogHeader>
 
         <div className="max-h-[70vh] space-y-4 overflow-y-auto pr-1">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-10 text-slate-500">
+          {isLoading ?
+          <div className="flex items-center justify-center py-10 text-slate-500">
               <Loader2 className="mr-2 h-5 w-5 animate-spin" />
               Loading GPS updates...
-            </div>
-          ) : pendingLogs.length === 0 ? (
-            <div className="rounded-lg border border-dashed p-6 text-center text-sm text-slate-500">
+            </div> :
+          pendingLogs.length === 0 ?
+          <div className="rounded-lg border border-dashed p-6 text-center text-sm text-slate-500">
               No pending GPS updates to review.
-            </div>
-          ) : (
-            pendingLogs.map((log) => (
-              <LogEntryCard key={log.id} log={log} open={open} onAction={handleAction} />
-            ))
-          )}
+            </div> :
+
+          pendingLogs.map((log) =>
+          <LogEntryCard key={log.id} log={log} open={open} onAction={handleAction} />
+          )
+          }
         </div>
       </DialogContent>
-    </Dialog>
-  );
+    </Dialog>);
+
 }
