@@ -59,7 +59,7 @@ export default function StopCardsSection({
         <HorizontalStopCards
           ref={horizontalStopCardsRef}
           pickupCards={deliveriesWithStopOrder.
-          filter((delivery) => delivery && delivery.status !== 'pending').
+          filter((delivery) => delivery && delivery.status !== 'pending' && !delivery.is_cycling_start_marker).
           map((delivery) => {
             if (!delivery) return delivery;
             if (!delivery.patient_id && delivery.status === 'en_route' && delivery.stop_id) {

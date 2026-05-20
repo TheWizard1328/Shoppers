@@ -675,7 +675,7 @@ function Dashboard() {
 
     const groupedByDriver = {};
     filteredDeliveries.forEach((delivery) => {
-      if (!delivery) return;
+      if (!delivery || delivery.is_cycling_start_marker) return;
       const driverId = delivery.driver_id || 'unassigned';
       if (!groupedByDriver[driverId]) {
         groupedByDriver[driverId] = [];
