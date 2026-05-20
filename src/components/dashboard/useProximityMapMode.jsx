@@ -68,7 +68,9 @@ export default function useProximityMapMode({
     if (!nextStopCoordinates?.lat || !nextStopCoordinates?.lon) return;
 
     // Respect manual user interaction — don't override for 5 minutes after a tap
-    if (Date.now() - (lastUserInteractionRef?.current || 0) < 300000) return;
+    // Also check the global stamp set by FABControls on manual FAB press
+    const lastInteraction = Math.max(lastUserInteractionRef?.current || 0, window.__lastUserInteraction || 0);
+    if (Date.now() - lastInteraction < 300000) return;
 
     // Reset triggers when the target stop changes
     const stopKey = `${nextStopCoordinates.lat},${nextStopCoordinates.lon}`;
