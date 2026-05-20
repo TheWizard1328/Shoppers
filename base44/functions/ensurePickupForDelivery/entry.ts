@@ -348,6 +348,17 @@ Deno.serve(async (req) => {
     });
 
     const normalizedPickup = await normalizePickupPuid(base44, newPickup);
+
+    // Trigger polyline regeneration after creating a new pickup
+    base44.functions.invoke('purgeAndRegeneratePolylines', {
+      driverId,
+      deliveryDate,
+      scope: 'active_only',
+      reason: 'manual',
+      sourcePage: 'Dashboard',
+      bypassDriverStatus: true
+    }).catch((err) => console.warn('[ensurePickupForDelivery] polyline regen failed:', err.message));
+
     return Response.json({ puid, pickupId: normalizedPickup?.id || newPickup.id, isNew: true, pickup: normalizedPickup || newPickup });
   } catch (error) {
     console.error('❌ Error in ensurePickupForDelivery:', error.message);
