@@ -387,16 +387,46 @@ export async function handleBatchSave({
 
         if (refreshDriverId && refreshDeliveryDate) {
           if (routeStructureChanged) {
-            // Always recalculate stop orders; pass skipPolylineRegeneration=true so we
-            // can guarantee purgeAndRegeneratePolylines is called below even when no
-            // reordering occurs (e.g. first single stop added to a new route).
+            // Always recalculate stop orders first
             await recalculateAndUpdateStopOrders(refreshDriverId, refreshDeliveryDate, true);
-            // Always regenerate polylines when the route structure changed (new stops added).
-            await base44.functions.invoke('purgeAndRegeneratePolylines', {
+
+            // Optimize the route
+            await base44.functions.invoke('optimizeRemainingStops', {
               driverId: refreshDriverId,
               deliveryDate: refreshDeliveryDate,
-              scope: 'active_only'
+              bypassDriverStatus: true
             }).catch(() => null);
+
+            // Fetch fresh deliveries after optimization to get correct stop_order
+            const freshDeliveries = await base44.entities.Delivery.filter({
+              driver_id: refreshDriverId,
+              delivery_date: refreshDeliveryDate
+            }).catch(() => []);
+
+            const activeStops = (freshDeliveries || [])
+              .filter(d => d?.id && !['completed', 'failed', 'cancelled', 'returned', 'pending', 'Staged'].includes(d?.status))
+              .sort((a, b) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0));
+
+            const orderedDeliveryIds = activeStops.map(d => d.id);
+
+            // If only one active stop, set isNextDelivery on it
+            if (activeStops.length === 1) {
+              await base44.functions.invoke('setNextDeliveryFlag', {
+                driverId: refreshDriverId,
+                deliveryDate: refreshDeliveryDate,
+                targetDeliveryId: activeStops[0].id
+              }).catch(() => null);
+            }
+
+            // Regenerate polylines with ordered IDs
+            if (orderedDeliveryIds.length > 0) {
+              await base44.functions.invoke('purgeAndRegeneratePolylines', {
+                driverId: refreshDriverId,
+                deliveryDate: refreshDeliveryDate,
+                orderedDeliveryIds,
+                bypassDriverStatus: true
+              }).catch(() => null);
+            }
           }
 
           await base44.functions.invoke('recalculateTrackingNumbers', {
