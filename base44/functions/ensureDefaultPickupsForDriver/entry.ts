@@ -265,12 +265,19 @@ Deno.serve(async (req) => {
       return null;
     });
 
+    const allDeliveriesForPolyline = await base44.asServiceRole.entities.Delivery.filter({
+      driver_id: driverId,
+      delivery_date: deliveryDate
+    }, 'stop_order', 50000);
+    const orderedDeliveryIds = (allDeliveriesForPolyline || [])
+      .filter(d => d?.id)
+      .sort((a, b) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0))
+      .map(d => d.id);
+
     await base44.functions.invoke('purgeAndRegeneratePolylines', {
       driverId,
       deliveryDate,
-      scope: 'active_only',
-      reason: 'manual',
-      sourcePage: 'Dashboard',
+      orderedDeliveryIds,
       bypassDriverStatus: true
     }).catch((error) => {
       if (!isNotFoundError(error)) throw error;
