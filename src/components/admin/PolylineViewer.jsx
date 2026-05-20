@@ -318,9 +318,9 @@ export default function PolylineViewer({ users = [] }) {
               if (inSheet) setSheetOpen(false);
             }}
           >
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center justify-between gap-2 mb-1">
               <span className="font-medium text-sm truncate">{getDriverName(item.driver_id)}</span>
-              <Badge variant={isBreadcrumb ? 'secondary' : 'outline'} className="text-xs flex-shrink-0">
+              <Badge variant={isBreadcrumb ? 'secondary' : 'outline'} className="text-xs flex-shrink-0 ml-auto">
                 {isBreadcrumb ? '🛤 BC' : '🗺 Poly'}
               </Badge>
             </div>
