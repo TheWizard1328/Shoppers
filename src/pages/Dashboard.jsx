@@ -103,7 +103,6 @@ import { centerDeliveryCard, centerNextDeliveryCard, getNextDeliveryCard } from 
 import { loadDashboardOfflineDateData, mergeDeliveriesForDate, hasDeliveryDataForSelection } from '@/components/dashboard/dashboardInitialLoadHelpers';
 import useDriverLocationSync from '@/components/dashboard/useDriverLocationSync';
 import { getBoundsSpanKm, getPhaseBoundsMaxZoom } from '@/components/dashboard/mapCycleZoomHelpers';
-import useProximityMapMode from '@/components/dashboard/useProximityMapMode';
 function Dashboard() {
   const { currentUser, isLoadingUser, refreshUser } = useUser();
   const {
@@ -216,7 +215,7 @@ function Dashboard() {
   const proximityLockedMarkersRef = useRef(new Set());
   const lastProximitySnapTimeRef = useRef(0);
   const lastUserInteractionRef = useRef(0);
-  const savedPreProximityStateRef = useRef(null); // { phase, style } saved before proximity auto-switch
+
   const [highlightedCardId, setHighlightedCardId] = useState(null);
   const [currentToNextPolyline, setCurrentToNextPolyline] = useState(null);
   const [hasRateLimitError, setHasRateLimitError] = useState(false);
@@ -1337,9 +1336,6 @@ function Dashboard() {
   });
 
   useDriverLocationSync({ isDriver, currentUser, appUsers, isMobile, deliveriesWithStopOrder, patients, stores, mapViewPhaseRef, isMapViewLockedRef, isMapViewLocked, lastProgrammaticMapMoveRef, lastUserInteractionRef, lastProximitySnapTimeRef, stopCardsContainerRef, setMapViewTrigger, setDriverLocation, calculateDistance, locationTracker });
-
-  // Proximity-based map mode: auto Phase 2 @ 2 km, satellite @ 1 km (primary mobile driver, today only)
-  useProximityMapMode({ isDriver, isMobile, isPrimaryDevice, isToday: format(selectedDate, 'yyyy-MM-dd') === getEdmDate(), driverLocation, nextStopCoordinates, mapViewPhase, isMapViewLocked, mapStyle, lastUserInteractionRef, setMapViewPhase, setIsMapViewLocked, setMapStyle, setMapViewTrigger, lastProgrammaticMapMoveRef, savedPreProximityStateRef, calculateDistance });
 
   // REMOVED: Driver location updates should NOT trigger FAB reactivation
   // FAB only reactivates on:
@@ -3095,14 +3091,9 @@ function Dashboard() {
         updateData.actual_delivery_time = null;
       }
 
-      // Collapse cards + restore pre-proximity map state on finalization
+      // Collapse cards on finalization
       if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
         setSelectedCardId(null); setHighlightedCardId(null); cardExpandedAtRef.current = null;
-        if (savedPreProximityStateRef.current) {
-          const { phase: pp, style: ps } = savedPreProximityStateRef.current; savedPreProximityStateRef.current = null;
-          setMapStyle(ps || 'explore'); setMapViewPhase(pp || 1); setIsMapViewLocked(false);
-          lastProgrammaticMapMoveRef.current = Date.now(); window._lastProgrammaticMapMove = Date.now(); setMapViewTrigger((p) => p + 1);
-        }
       }
 
       // STEP 1: Update isNextDelivery flags LOCALLY (instant)

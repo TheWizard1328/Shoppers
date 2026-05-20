@@ -205,9 +205,6 @@ export default function FABControls({
   return (
     <>
       <MapViewCycleFAB currentUser={currentUser} filteredDeliveries={filteredDeliveries} onClick={() => {
-        // Stamp user interaction so proximity logic respects the 5-min cooldown
-        window.__lastUserInteraction = Date.now();
-        if (window.__setLastUserInteraction) window.__setLastUserInteraction(Date.now());
         handleMapViewCycle(false);
       }} currentPhase={mapViewPhase} hasVisibleCards={!immersiveHidden && deliveriesWithStopOrder.length > 0} isAIVisible={showAIAssistant && isAIEnabled} isLocked={isMapViewLocked} isEnabled={isMapCycleEnabled} stopCardsHeight={!immersiveHidden && cardsReadyForFAB ? stopCardsBaseHeight : 0} isMotionDimmed={isPrimaryDriverDeviceInMotion} />
 
