@@ -853,10 +853,31 @@ Deno.serve(async (req) => {
     const stopsForHereUnfiltered = optimizationStops.filter(s => !lockedNextStop || s.delivery.id !== lockedNextStop.delivery.id);
     const { valid: validWindowStops, expired: expiredWindowStops } = partitionStopsByWindowValidity(stopsForHereUnfiltered);
 
+    // CRITICAL: Further partition valid-window stops into:
+    //   - "immediate" stops: no window, or window start is within 30 min of current time (do these first)
+    //   - "future" stops: window start is more than 30 min away (do these last, they can't be served yet)
+    // This prevents HERE from pulling future-windowed stops to the front just because they're nearby.
+    const FUTURE_WINDOW_THRESHOLD_MIN = 30;
+    const immediateStops = [];
+    const futureWindowStops = [];
+    validWindowStops.forEach(s => {
+      const wStart = parseTimeToMinutes(s.windowStart || s.delivery?.delivery_time_start);
+      if (Number.isFinite(wStart) && (wStart - currentMinutes) > FUTURE_WINDOW_THRESHOLD_MIN) {
+        futureWindowStops.push(s);
+      } else {
+        immediateStops.push(s);
+      }
+    });
+
+    if (futureWindowStops.length > 0) {
+      console.log(`⏳ [optimizeRemainingStops] ${futureWindowStops.length} stop(s) have future windows (>${FUTURE_WINDOW_THRESHOLD_MIN}min away) — will be sequenced after immediate stops`);
+    }
+
     const stopsForHere = preserveExistingOrder
       ? stopsForHereUnfiltered.sort((a, b) => (Number(a.delivery?.stop_order) || 99999) - (Number(b.delivery?.stop_order) || 99999))
       : [
-          ...sortStopsByWindow(validWindowStops),
+          ...sortStopsByWindow(immediateStops),
+          ...sortStopsByWindow(futureWindowStops),
           ...sortStopsByWindow(expiredWindowStops)
         ];
 
