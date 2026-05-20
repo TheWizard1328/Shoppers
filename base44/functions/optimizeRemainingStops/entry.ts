@@ -1010,12 +1010,8 @@ Deno.serve(async (req) => {
       }
 
       // -------------------------------------------------------------------
-      // CRITICAL: First-leg calculation (origin → lockedNextStop)
-      // 
-      // When the route is active (lockedNextStop exists), we get a FRESH HERE
-      // direction call from the driver's actual GPS position so the ETA for the
-      // next stop reflects reality rather than the logical segment origin
-      // (last finished stop coords). Falls back to cached values or crow-flies.
+      // First-leg calculation (origin → lockedNextStop)
+      // Uses cached values if origin hasn't moved, otherwise crow-flies.
       // -------------------------------------------------------------------
       let firstLegPolyline = null;
       let firstLegDistKm = lockedNextStop
@@ -1025,38 +1021,7 @@ Deno.serve(async (req) => {
         ? Math.ceil((firstLegDistKm / 40) * 60 * 1.3)
         : 0;
 
-      if (lockedNextStop && frontendProvidedLocation) {
-        // FRESH HERE call: driver's current GPS → isNextDelivery stop
-        try {
-          console.log(`📡 [optimizeRemainingStops] Real-time first-leg: GPS (${frontendProvidedLocation.lat}, ${frontendProvidedLocation.lng}) → isNextDelivery (${lockedNextStop.lat}, ${lockedNextStop.lng})`);
-          const firstLegResp = await base44.asServiceRole.functions.invoke('getHereDirections', {
-            origin: frontendProvidedLocation,
-            destination: { lat: lockedNextStop.lat, lng: lockedNextStop.lng },
-            waypoints: [],
-            routeContext: [],
-            transportMode: routingTravelMode,
-            deliveryDate,
-            departureTime: resolvedDepartureTime,
-            caller: 'optimizeRemainingStops:realTimeFirstLeg',
-            preserveWaypointOrder: true,
-            skipSequenceApi: true,
-          });
-          const firstLegResult = firstLegResp?.data || firstLegResp || null;
-          const firstLegSection = Array.isArray(firstLegResult?.sections) ? firstLegResult.sections[0] : null;
-          if (firstLegSection) {
-            firstLegDistKm = firstLegSection.estimated_distance_km ?? firstLegDistKm;
-            firstLegDurMin = firstLegSection.estimated_duration_minutes ?? firstLegDurMin;
-            firstLegPolyline = firstLegSection.encoded_polyline || null;
-            attemptedHereCalls += Number(firstLegResult?.api_call_count || 1);
-            console.log(`  ✅ Real-time first leg: dist=${firstLegDistKm}km, dur=${firstLegDurMin}min`);
-          } else {
-            console.warn(`  ⚠️ No real-time first leg result, falling back to crow-flies`);
-          }
-        } catch (err) {
-          console.error('❌ Real-time first leg calculation failed:', err?.message || err);
-          // Fallback to crow-flies (already set above)
-        }
-      } else if (lockedNextStop) {
+      if (lockedNextStop) {
         // No frontend GPS: try to use cached first-leg values if origin hasn't moved
         const COORD_MATCH_THRESHOLD = 0.0002; // ~22m
         const existingDelivery = lockedNextStop.delivery;
@@ -1385,34 +1350,10 @@ Deno.serve(async (req) => {
         console.log(`  ✅ [optimizeRemainingStops] Retro Stop ${i + 1} ${stop.delivery.patient_name || 'Pickup'} - ETA: ${eta} (prev + ${durationMinutes}min)`);
       }
     } else {
-      // -------------------------------------------------------------------
-      // CRITICAL ETA ANCHOR FIX:
-      // When a lockedNextStop (isNextDelivery) exists, the ETA chain MUST start
-      // from the driver's real position and time, not an abstract etaBaseMinutes.
-      //
-      // Correct anchor = max(lastFinishedActualTime, currentMinutes) + firstLegDurMin
-      // This ensures ETAs are always in the future and reflect real route progress.
-      // -------------------------------------------------------------------
       let cumulativeTime;
 
-      if (lockedNextStop) {
-        const actualLatestFinishedMinutes = latestFinishedDelivery
-          ? parseActualDeliveryTime(latestFinishedDelivery.actual_delivery_time)
-          : null;
-        // Use the later of: last finished stop's actual time OR current clock time
-        const routeSegmentStartTime = Number.isFinite(actualLatestFinishedMinutes)
-          ? Math.max(actualLatestFinishedMinutes, currentMinutes)
-          : currentMinutes;
-
-        // Add travel time to the isNextDelivery stop (from fresh HERE call or crow-flies)
-        cumulativeTime = routeSegmentStartTime + firstLegDurMin;
-
-        console.log(`🕒 [optimizeRemainingStops] ETA anchor (lockedNextStop): max(lastFinished=${Number.isFinite(actualLatestFinishedMinutes) ? formatMinutesToTime(actualLatestFinishedMinutes) : 'n/a'}, current=${formatMinutesToTime(currentMinutes)}) + firstLeg=${firstLegDurMin}min → isNextDelivery ETA=${formatMinutesToTime(cumulativeTime)}`);
-      } else {
-        // No locked next stop: use etaBaseMinutes as before (future route or fresh start)
-        cumulativeTime = etaBaseMinutes;
-        console.log(`🕒 [optimizeRemainingStops] ETA anchor (no lockedNextStop): etaBaseMinutes=${formatMinutesToTime(cumulativeTime)}`);
-      }
+      cumulativeTime = etaBaseMinutes;
+      console.log(`🕒 [optimizeRemainingStops] ETA anchor: etaBaseMinutes=${formatMinutesToTime(cumulativeTime)}`);
 
       for (let i = 0; i < routeStops.length; i++) {
         const stop = routeStops[i];
