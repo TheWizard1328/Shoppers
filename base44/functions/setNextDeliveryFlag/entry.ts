@@ -118,12 +118,19 @@ Deno.serve(async (req) => {
 
     const activeDeliveries = getSortedActiveDeliveries(repairedDeliveries);
 
+    // CRITICAL: Only set isNextDelivery if the driver is on_duty
+    const driverAppUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId }, '-updated_date', 1);
+    const driverAppUser = Array.isArray(driverAppUsers) ? driverAppUsers[0] : null;
+    const driverIsOnDuty = driverAppUser?.driver_status === 'on_duty';
+
     let nextDelivery = null;
-    if (targetDeliveryId) {
-      nextDelivery = activeDeliveries.find((delivery) => delivery.id === targetDeliveryId) || null;
-    }
-    if (!nextDelivery) {
-      nextDelivery = activeDeliveries[0] || null;
+    if (driverIsOnDuty) {
+      if (targetDeliveryId) {
+        nextDelivery = activeDeliveries.find((delivery) => delivery.id === targetDeliveryId) || null;
+      }
+      if (!nextDelivery) {
+        nextDelivery = activeDeliveries[0] || null;
+      }
     }
 
     // CRITICAL: Find the last finished delivery to use as origin for next leg

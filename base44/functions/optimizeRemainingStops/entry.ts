@@ -920,11 +920,16 @@ Deno.serve(async (req) => {
       console.log(`â° [optimizeRemainingStops] Using current-time departureTime=${resolvedDepartureTime}`);
     }
 
+    // If current time is more than 2 hours before the earliest scheduled window, use the window start as ETA base.
+    // Within the 2-hour buffer, use current time as-is.
+    const TWO_HOURS = 120;
     const etaBaseMinutes = useWindowBasedDeparture && Number.isFinite(earliestWindowMinutes)
       ? earliestWindowMinutes
       : (hasValidWindows && earliestValidWindowMinutes < currentMinutes)
         ? earliestValidWindowMinutes
-        : currentMinutes;
+        : (Number.isFinite(earliestWindowMinutes) && (earliestWindowMinutes - currentMinutes) > TWO_HOURS)
+          ? earliestWindowMinutes
+          : currentMinutes;
 
     console.log(`ðŸ“… [optimizeRemainingStops] isFutureDate=${isFutureDate}, isFutureRoute=${isFutureRoute}, etaBase=${formatMinutesToTime(etaBaseMinutes)}, currentTime=${formatMinutesToTime(currentMinutes)}, earliestWindow=${Number.isFinite(earliestWindowMinutes) ? formatMinutesToTime(earliestWindowMinutes) : 'none'}`);
 
