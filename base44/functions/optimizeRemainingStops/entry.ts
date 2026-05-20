@@ -1,4 +1,4 @@
-// Redeployed on 2026-06-17 - Via Superagent The Boss
+// Redeployed on 2026-05-20 - ETA anchoring fix: real-time first-leg + last-finished-stop anchor
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
@@ -123,6 +123,14 @@ const formatMinutesToTime = (minutes) => {
   const h = Math.floor(minutes / 60) % 24;
   const m = minutes % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+};
+
+// Parse the time portion from an actual_delivery_time timestamp (YYYY-MM-DDTHH:MM:SS)
+const parseActualDeliveryTime = (actualTimeStr) => {
+  if (!actualTimeStr) return null;
+  const timePart = String(actualTimeStr).split('T')[1];
+  if (!timePart) return null;
+  return parseTimeToMinutes(timePart.substring(0, 5));
 };
 
 // Get the store's scheduled time window for a pickup based on delivery date day-of-week and AM/PM slot
@@ -283,13 +291,13 @@ const shouldSkipAutomationEvent = (context = {}) => {
   const activatedToRoute = changedFields.includes('status')
     && ACTIVE_STATUSES.includes(String(data?.status || ''))
     && !ACTIVE_STATUSES.includes(String(oldData?.status || ''));
-  // CRITICAL: When a delivery transitions FROM active â†’ finished (completed/failed/cancelled/returned),
-  // we must NOT re-optimize â€” the route is contracting, not changing order. Skip entirely.
+  // CRITICAL: When a delivery transitions FROM active → finished (completed/failed/cancelled/returned),
+  // we must NOT re-optimize — the route is contracting, not changing order. Skip entirely.
   const deactivatedFromRoute = changedFields.includes('status')
     && FINISHED_STATUSES.includes(String(data?.status || ''))
     && ACTIVE_STATUSES.includes(String(oldData?.status || ''));
 
-  // If the only trigger is a completion/failure/cancel, skip â€” no HERE calls needed.
+  // If the only trigger is a completion/failure/cancel, skip — no HERE calls needed.
   if (deactivatedFromRoute) return true;
 
   return !(stopOrderChanged || nextDeliveryChanged || activatedToRoute);
@@ -335,7 +343,7 @@ const violatesTimeWindow = (stop, arrivalMinutes, currentMinutes) => {
 };
 
 Deno.serve(async (req) => {
-  console.log('ðŸš€ [optimizeRemainingStops] Function called');
+  console.log('🚀 [optimizeRemainingStops] Function called');
 
   try {
     const base44 = createClientFromRequest(req);
@@ -345,7 +353,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    console.log('âœ… [optimizeRemainingStops] User authenticated:', user.email);
+    console.log('✅ [optimizeRemainingStops] User authenticated:', user.email);
 
     const body = await req.json();
     const context = extractOptimizationContext(body);
@@ -375,7 +383,7 @@ Deno.serve(async (req) => {
     if (shouldSkipAutomationEvent(context)) {
       const { eventType, data, changedFields } = context;
       const isTerminalTransition = changedFields?.includes?.('status') && ['completed', 'failed', 'cancelled', 'returned'].includes(String(data?.status || ''));
-      console.log(`â­ï¸ [optimizeRemainingStops] Skipping non-optimization event â€” type=${eventType}, terminal=${isTerminalTransition}, driver=${driverId}, date=${deliveryDate}`);
+      console.log(`⏭️ [optimizeRemainingStops] Skipping non-optimization event — type=${eventType}, terminal=${isTerminalTransition}, driver=${driverId}, date=${deliveryDate}`);
       return Response.json({
         success: true,
         skipped: true,
@@ -389,10 +397,10 @@ Deno.serve(async (req) => {
 
     // CRITICAL: When triggered by an entity automation, the trigger delivery data is available.
     // If the triggered delivery is in a finished state (completed/failed/cancelled/returned),
-    // always skip â€” stop order doesn't change on terminal transitions so no optimization needed.
+    // always skip — stop order doesn't change on terminal transitions so no optimization needed.
     const FINISHED_STATUSES_SET = new Set(['completed', 'failed', 'cancelled', 'returned']);
     if (context?.eventType === 'update' && FINISHED_STATUSES_SET.has(String(context?.data?.status || ''))) {
-      console.log(`â­ï¸ [optimizeRemainingStops] Skipping â€” triggered by terminal status (${context.data.status}) | driver=${driverId} | date=${deliveryDate}`);
+      console.log(`⏭️ [optimizeRemainingStops] Skipping — triggered by terminal status (${context.data.status}) | driver=${driverId} | date=${deliveryDate}`);
       return Response.json({
         success: true,
         skipped: true,
@@ -406,25 +414,18 @@ Deno.serve(async (req) => {
 
     // CRITICAL: _stampDedupeOnly = true means the caller just wants to pre-lock the dedupe key
     // to suppress any automation-triggered calls from individual delivery saves in the same batch.
-    // Write the key and return immediately â€” no HERE API calls made.
+    // Write the key and return immediately — no HERE API calls made.
     const stampDedupeOnly = body?._stampDedupeOnly === true;
 
     const dedupeKey = dedupeKeyFor(driverId, deliveryDate);
 
     // -- Optimistic-lock deduplication -------------------------------------------
-    // Problem: two automation invocations can fire within milliseconds of each other.
-    // Both read the dedupe record simultaneously (before either writes), see "not
-    // recent", and both proceed to call HERE - doubling the API hit count.
-    // Fix: write a candidate lock_id FIRST, wait a short jitter, then re-read to
-    // verify we are the winner. Losers skip immediately. bypassDeduplication callers
-    // (FAB, batch pipeline) skip this check entirely since they own their invocation.
-    // -----------------------------------------------------------------------------
     const dedupeCheck = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: dedupeKey }, '-updated_date', 1);
     const dedupeRecord = dedupeCheck?.[0] || null;
     const lastRunAt = dedupeRecord?.setting_value?.last_run_at ? new Date(dedupeRecord.setting_value.last_run_at).getTime() : 0;
 
     if (!bypassDeduplication && lastRunAt && Date.now() - lastRunAt < AUTOMATION_DEDUPE_WINDOW_MS) {
-      console.log(`â­ï¸ [optimizeRemainingStops] Skipping - deduped (ran ${Math.round((Date.now() - lastRunAt) / 1000)}s ago) | driver=${driverId} | date=${deliveryDate}`);
+      console.log(`⏭️ [optimizeRemainingStops] Skipping - deduped (ran ${Math.round((Date.now() - lastRunAt) / 1000)}s ago) | driver=${driverId} | date=${deliveryDate}`);
       return Response.json({
         success: true,
         skipped: true,
@@ -437,7 +438,6 @@ Deno.serve(async (req) => {
     }
 
     // Write the lock IMMEDIATELY before any HERE work begins.
-    // Concurrent callers that read AFTER this write will see it and skip.
     const lockId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const lockPayload = {
       last_run_at: new Date().toISOString(),
@@ -457,14 +457,13 @@ Deno.serve(async (req) => {
     }
 
     // If NOT a bypassed call, verify we own the lock (optimistic lock check).
-    // Wait a short jitter so any concurrent write has time to land, then re-read.
     if (!bypassDeduplication) {
       await new Promise(resolve => setTimeout(resolve, 150 + Math.floor(Math.random() * 100)));
       const recheckRows = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: dedupeKey }, '-updated_date', 1);
       const recheckRecord = recheckRows?.[0] || null;
       const winner = recheckRecord?.setting_value?.lock_id;
       if (winner && winner !== lockId) {
-        console.log(`â­ï¸ [optimizeRemainingStops] Lost optimistic lock (winner=${winner}, ours=${lockId}) - skipping duplicate | driver=${driverId} | date=${deliveryDate}`);
+        console.log(`⏭️ [optimizeRemainingStops] Lost optimistic lock (winner=${winner}, ours=${lockId}) - skipping duplicate | driver=${driverId} | date=${deliveryDate}`);
         return Response.json({
           success: true,
           skipped: true,
@@ -477,9 +476,9 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Early exit after stamping dedupe key â€” no HERE calls needed
+    // Early exit after stamping dedupe key — no HERE calls needed
     if (stampDedupeOnly) {
-      console.log(`ðŸ”’ [optimizeRemainingStops] Dedupe key stamped for batch pipeline (${driverId}/${deliveryDate}) â€” returning early`);
+      console.log(`🔒 [optimizeRemainingStops] Dedupe key stamped for batch pipeline (${driverId}/${deliveryDate}) — returning early`);
       return Response.json({
         success: true,
         skipped: true,
@@ -517,7 +516,7 @@ Deno.serve(async (req) => {
     const todayStr = getEdmontonTodayDateString();
     const isFutureDate = String(deliveryDate) > todayStr;
 
-    console.log(`ðŸ”„ [optimizeRemainingStops] Optimizing remaining stops for driver ${driverId} on ${deliveryDate} (today=${todayStr}, isFuture=${isFutureDate})`);
+    console.log(`🔄 [optimizeRemainingStops] Optimizing remaining stops for driver ${driverId} on ${deliveryDate} (today=${todayStr}, isFuture=${isFutureDate})`);
 
     // Resolve AppUser: try AppUser.id first (new standard), fallback to user_id (legacy)
     let driverAppUser = (await base44.asServiceRole.entities.AppUser.filter({ id: driverId }, '-created_date', 1))?.[0] || null;
@@ -536,7 +535,6 @@ Deno.serve(async (req) => {
     }
 
     // CRITICAL: Allow optimization for future dates regardless of driver status.
-    // For today's routes, only skip if driver is off_duty/on_break AND bypassDriverStatus is not set.
     const driverIsOffDuty = driverAppUser.driver_status === 'off_duty' || driverAppUser.driver_status === 'on_break';
     if (!bypassDriverStatus && !isFutureDate && driverIsOffDuty) {
       return Response.json({
@@ -550,10 +548,8 @@ Deno.serve(async (req) => {
     }
 
     // CRITICAL: Skip HERE API for past dates UNLESS this is an explicit add/remove stop action.
-    // bypassHistoricalCheck=true is set when stops are added/removed (retry, return, restart),
-    // which requires a fresh optimization even on historical dates.
     if (isHistoricalRouteDate(deliveryDate) && !bypassHistoricalCheck) {
-      console.log(`â­ï¸ [optimizeRemainingStops] Skipping â€” historical date (${deliveryDate}), no HERE calls needed`);
+      console.log(`⏭️ [optimizeRemainingStops] Skipping — historical date (${deliveryDate}), no HERE calls needed`);
       return Response.json({
         success: true,
         skipped: true,
@@ -565,7 +561,7 @@ Deno.serve(async (req) => {
       });
     }
     if (bypassHistoricalCheck && isHistoricalRouteDate(deliveryDate)) {
-      console.log(`ðŸ”“ [optimizeRemainingStops] bypassHistoricalCheck=true â€” running optimization on historical date (${deliveryDate}) due to stop add/remove`);
+      console.log(`🔓 [optimizeRemainingStops] bypassHistoricalCheck=true — running optimization on historical date (${deliveryDate}) due to stop add/remove`);
     }
 
     const preferredTravelMode = String(driverAppUser?.preferred_travel_mode || 'driving').toLowerCase();
@@ -582,7 +578,7 @@ Deno.serve(async (req) => {
       return Response.json({ message: 'No deliveries found', routeChanged: false });
     }
 
-    console.log(`ðŸ“¦ [optimizeRemainingStops] Found ${allDeliveries.length} deliveries`);
+    console.log(`📦 [optimizeRemainingStops] Found ${allDeliveries.length} deliveries`);
 
     const completedDeliveries = allDeliveries.filter(d => FINISHED_STATUSES.includes(d.status));
     const incompleteDeliveries = allDeliveries.filter(d => !FINISHED_STATUSES.includes(d.status));
@@ -590,12 +586,11 @@ Deno.serve(async (req) => {
     const pendingRouteDeliveries = incompleteDeliveries.filter((delivery) => delivery.status === 'pending');
 
     // CRITICAL: For historical routes with bypassHistoricalCheck (new route creation / Accept All on retro date),
-    // if there are no active stops treat all pending stops as optimizable â€” same as a future/new route.
-    // For normal today/future routes: only optimize ACTIVE deliveries; pending are appended after.
+    // if there are no active stops treat all pending stops as optimizable — same as a future/new route.
     const isRetroNewRoute = bypassHistoricalCheck && isHistoricalRouteDate(deliveryDate) && activeRouteDeliveries.length === 0 && pendingRouteDeliveries.length > 0;
     const optimizableDeliveries = isRetroNewRoute ? pendingRouteDeliveries : activeRouteDeliveries;
     if (isRetroNewRoute) {
-      console.log(`ðŸ•°ï¸ [optimizeRemainingStops] Retro new-route detected â€” promoting ${pendingRouteDeliveries.length} pending stops to optimizable (full HERE sequencing + ETA)`);
+      console.log(`🕰️ [optimizeRemainingStops] Retro new-route detected — promoting ${pendingRouteDeliveries.length} pending stops to optimizable (full HERE sequencing + ETA)`);
     }
 
     if (optimizableDeliveries.length === 0 && pendingRouteDeliveries.length === 0) {
@@ -608,7 +603,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    console.log(`ðŸ“Š [optimizeRemainingStops] Incomplete deliveries breakdown:`);
+    console.log(`📊 [optimizeRemainingStops] Incomplete deliveries breakdown:`);
     incompleteDeliveries.forEach(d => {
       console.log(`   - ${d.patient_name || 'Pickup'}: isNextDelivery=${d.isNextDelivery}, delivery_time_start=${d.delivery_time_start}`);
     });
@@ -660,7 +655,6 @@ Deno.serve(async (req) => {
 
       if (delivery.patient_id && delivery.puid && pickupWindowByStopId.has(delivery.puid)) {
         const pickupWindow = pickupWindowByStopId.get(delivery.puid);
-        // Use the pickup's START time as the earliest the delivery can be ready (not end time)
         const pickupStartMinutes = parseTimeToMinutes(pickupWindow?.start);
         const deliveryStartMinutes = parseTimeToMinutes(windowStart);
         if (Number.isFinite(pickupStartMinutes) && (!Number.isFinite(deliveryStartMinutes) || deliveryStartMinutes < pickupStartMinutes)) {
@@ -685,7 +679,7 @@ Deno.serve(async (req) => {
       return stop;
     });
 
-     console.log(`ðŸ“‹ [optimizeRemainingStops] Coordinate check for ${optimizableDeliveries.length} active deliveries:`);
+     console.log(`📋 [optimizeRemainingStops] Coordinate check for ${optimizableDeliveries.length} active deliveries:`);
      
      // Process stops with geocoding for missing coordinates
      const enhancedStops = [];
@@ -698,7 +692,7 @@ Deno.serve(async (req) => {
        if (!hasCoords && delivery.patient_id && !geocodedPatientIds.has(delivery.patient_id)) {
          const patient = patientMap.get(delivery.patient_id);
          if (patient?.address && (patient.latitude == null || patient.longitude == null)) {
-           console.log(`   ðŸŒ [optimizeRemainingStops] Attempting geocoding for ${delivery.patient_name || 'Patient'} (${patient.address})`);
+           console.log(`   🌍 [optimizeRemainingStops] Attempting geocoding for ${delivery.patient_name || 'Patient'} (${patient.address})`);
            const geocodedCoords = await geocodePatientAddress(patient);
            
            if (geocodedCoords) {
@@ -708,7 +702,7 @@ Deno.serve(async (req) => {
                  latitude: geocodedCoords.latitude,
                  longitude: geocodedCoords.longitude
                });
-               console.log(`   âœ… [optimizeRemainingStops] Geocoded and saved: ${patient.address} -> (${geocodedCoords.latitude}, ${geocodedCoords.longitude})`);
+               console.log(`   ✅ [optimizeRemainingStops] Geocoded and saved: ${patient.address} -> (${geocodedCoords.latitude}, ${geocodedCoords.longitude})`);
                
                // Update patientMap and coords
                patientMap.set(patient.id, { ...patient, latitude: geocodedCoords.latitude, longitude: geocodedCoords.longitude });
@@ -718,10 +712,10 @@ Deno.serve(async (req) => {
                enhancedStops.push({ ...stop, lat: coords.lat, lng: coords.lng });
                continue;
              } catch (error) {
-               console.warn(`   âš ï¸ [optimizeRemainingStops] Failed to save geocoded coords for patient ${patient.id}:`, error?.message);
+               console.warn(`   ⚠️ [optimizeRemainingStops] Failed to save geocoded coords for patient ${patient.id}:`, error?.message);
              }
            } else {
-             console.warn(`   âŒ [optimizeRemainingStops] Geocoding failed for ${patient.address}`);
+             console.warn(`   ❌ [optimizeRemainingStops] Geocoding failed for ${patient.address}`);
              geocodedPatientIds.add(patient.id);
            }
          }
@@ -740,14 +734,14 @@ Deno.serve(async (req) => {
            reason
          });
          
-         console.log(`   âš ï¸ [optimizeRemainingStops] SKIP: ${delivery.id} (${delivery.patient_name || 'Pickup'}) - ${reason}`);
+         console.log(`   ⚠️ [optimizeRemainingStops] SKIP: ${delivery.id} (${delivery.patient_name || 'Pickup'}) - ${reason}`);
        } else {
          enhancedStops.push({ ...stop, lat: coords.lat, lng: coords.lng });
        }
      }
      
      const stopsWithCoords = enhancedStops;
-     console.log(`ðŸ“‹ [optimizeRemainingStops] Prepared ${stopsWithCoords.length} stops for HERE sequencing (${skippedStops.length} skipped due to missing coordinates)`);
+     console.log(`📋 [optimizeRemainingStops] Prepared ${stopsWithCoords.length} stops for HERE sequencing (${skippedStops.length} skipped due to missing coordinates)`);
 
     const historicalRoute = isHistoricalRouteDate(deliveryDate);
     const latestFinishedDelivery = getLatestFinishedDelivery(completedDeliveries);
@@ -776,17 +770,17 @@ Deno.serve(async (req) => {
 
     const DISTANCE_THRESHOLD_KM = 1.0;
 
-    // Rule 1: Route has started â€” always use the last finished stop as segment origin.
+    // Rule 1: Route has started — always use the last finished stop as segment origin.
     if (routeHasStarted && latestFinishedCoords) {
       currentPosition = latestFinishedCoords;
       locationSource = 'last_finished_stop';
     }
-    // Rule 2: Route not started â€” use home as origin if available
+    // Rule 2: Route not started — use home as origin if available
     else if (!routeHasStarted && driverHomePosition) {
       currentPosition = driverHomePosition;
       locationSource = 'home_route_not_started';
     }
-    // Rule 3: Route not started and no home â€” use live GPS as fallback origin
+    // Rule 3: Route not started and no home — use live GPS as fallback origin
     else if (!routeHasStarted && driverGpsPosition) {
       currentPosition = driverGpsPosition;
       locationSource = 'driver_gps_no_home';
@@ -804,21 +798,21 @@ Deno.serve(async (req) => {
       }, { status: 404 });
     }
 
-    // logicalSegmentOrigin is used as the HERE API origin â€” always the last finished stop or home (not mid-route GPS)
+    // logicalSegmentOrigin is used as the HERE API origin — always the last finished stop or home (not mid-route GPS)
     const logicalSegmentOrigin = latestFinishedCoords
       || (driverAppUser.home_latitude != null && driverAppUser.home_longitude != null
         ? { lat: Number(driverAppUser.home_latitude), lng: Number(driverAppUser.home_longitude) }
         : null)
       || currentPosition;
 
-    console.log(`ðŸ“ [optimizeRemainingStops] Starting from: ${locationSource} (${currentPosition.lat}, ${currentPosition.lng})`);
-    console.log(`ðŸŽ¯ [optimizeRemainingStops] Active next stop: ${explicitNextDelivery?.id || 'none'}`);
+    console.log(`📍 [optimizeRemainingStops] Starting from: ${locationSource} (${currentPosition.lat}, ${currentPosition.lng})`);
+    console.log(`🎯 [optimizeRemainingStops] Active next stop: ${explicitNextDelivery?.id || 'none'}`);
 
     const optimizationStops = activeRouteDeliveries
       .map((delivery) => stopsWithCoords.find((item) => item.delivery.id === delivery.id) || null)
       .filter(Boolean);
 
-    // For retro new routes, pending stops are already in optimizationStops â€” don't append them again
+    // For retro new routes, pending stops are already in optimizationStops — don't append them again
     const pendingStops = isRetroNewRoute ? [] : pendingRouteDeliveries
       .map((delivery) => stopsWithCoords.find((item) => item.delivery.id === delivery.id) || null)
       .filter(Boolean);
@@ -847,10 +841,10 @@ Deno.serve(async (req) => {
         return aVal - bVal;
       });
 
-    // For retro new routes, pending stops were promoted to optimizableDeliveries â€” don't treat them as pending-to-append
+    // For retro new routes, pending stops were promoted to optimizableDeliveries — don't treat them as pending-to-append
     const pendingDeliveryIds = new Set(isRetroNewRoute ? [] : pendingRouteDeliveries.map(d => d.id));
 
-    // CRITICAL: Resolve the locked "isNextDelivery" stop â€” this is ALWAYS placed first in the route
+    // CRITICAL: Resolve the locked "isNextDelivery" stop — this is ALWAYS placed first in the route
     const lockedNextStop = explicitNextDelivery
       ? stopsWithCoords.find(s => s.delivery.id === explicitNextDelivery.id) || null
       : null;
@@ -871,16 +865,16 @@ Deno.serve(async (req) => {
       : stopsForHere;
 
     if (lockedNextStop) {
-      console.log(`ðŸ”’ [optimizeRemainingStops] isNextDelivery stop locked at position 1: ${lockedNextStop.delivery.id} (window: ${lockedNextStop.windowStart || 'none'})`);
+      console.log(`🔒 [optimizeRemainingStops] isNextDelivery stop locked at position 1: ${lockedNextStop.delivery.id} (window: ${lockedNextStop.windowStart || 'none'})`);
     }
     const validWindowCount = stopsWithCoords.filter(s => !s.windowExpired && (s.windowStart || s.windowEnd)).length;
     const expiredWindowCount = stopsWithCoords.filter(s => s.windowExpired && (s.windowStart || s.windowEnd)).length;
     if (validWindowCount > 0 || expiredWindowCount > 0) {
-      console.log(`â° [optimizeRemainingStops] TIME WINDOW ENFORCEMENT: ${validWindowCount} stops with active time windows, ${expiredWindowCount} stops with expired windows (will be de-prioritized)`);
+      console.log(`⏰ [optimizeRemainingStops] TIME WINDOW ENFORCEMENT: ${validWindowCount} stops with active time windows, ${expiredWindowCount} stops with expired windows (will be de-prioritized)`);
     }
 
-    console.log(`ðŸ“‹ [optimizeRemainingStops] ${stopsToSequence.length} active stops for HERE, ${pendingDeliveryIds.size} pending (appended to end after sequencing)`);
-    console.log(`\nðŸŽ¯ [optimizeRemainingStops] Optimizing remaining route: ${optimizationStops.length} stops`);
+    console.log(`📋 [optimizeRemainingStops] ${stopsToSequence.length} active stops for HERE, ${pendingDeliveryIds.size} pending (appended to end after sequencing)`);
+    console.log(`\n🎯 [optimizeRemainingStops] Optimizing remaining route: ${optimizationStops.length} stops`);
 
     let attemptedHereCalls = 0;
     let usedTimeWindows = true;
@@ -915,13 +909,13 @@ Deno.serve(async (req) => {
     let resolvedDepartureTime;
     if (useWindowBasedDeparture && Number.isFinite(earliestWindowMinutes)) {
       resolvedDepartureTime = formatMinutesToTime(earliestWindowMinutes);
-      console.log(`â° [optimizeRemainingStops] Using window-based departureTime=${resolvedDepartureTime} (isFutureRoute=${isFutureRoute}, offDuty=${driverIsOffDuty})`);
+      console.log(`⏰ [optimizeRemainingStops] Using window-based departureTime=${resolvedDepartureTime} (isFutureRoute=${isFutureRoute}, offDuty=${driverIsOffDuty})`);
     } else if (hasValidWindows && earliestValidWindowMinutes < currentMinutes) {
       resolvedDepartureTime = formatMinutesToTime(earliestValidWindowMinutes);
-      console.log(`â° [optimizeRemainingStops] Using earliest-valid-window departureTime=${resolvedDepartureTime} (currentTime=${formatMinutesToTime(currentMinutes)}, earliest valid window=${formatMinutesToTime(earliestValidWindowMinutes)})`);
+      console.log(`⏰ [optimizeRemainingStops] Using earliest-valid-window departureTime=${resolvedDepartureTime} (currentTime=${formatMinutesToTime(currentMinutes)}, earliest valid window=${formatMinutesToTime(earliestValidWindowMinutes)})`);
     } else {
       resolvedDepartureTime = currentLocalTime || formatMinutesToTime(currentMinutes);
-      console.log(`â° [optimizeRemainingStops] Using current-time departureTime=${resolvedDepartureTime}`);
+      console.log(`⏰ [optimizeRemainingStops] Using current-time departureTime=${resolvedDepartureTime}`);
     }
 
     // If current time is more than 2 hours before the earliest scheduled window, use the window start as ETA base.
@@ -935,7 +929,7 @@ Deno.serve(async (req) => {
           ? earliestWindowMinutes
           : currentMinutes;
 
-    console.log(`ðŸ“… [optimizeRemainingStops] isFutureDate=${isFutureDate}, isFutureRoute=${isFutureRoute}, etaBase=${formatMinutesToTime(etaBaseMinutes)}, currentTime=${formatMinutesToTime(currentMinutes)}, earliestWindow=${Number.isFinite(earliestWindowMinutes) ? formatMinutesToTime(earliestWindowMinutes) : 'none'}`);
+    console.log(`📅 [optimizeRemainingStops] isFutureDate=${isFutureDate}, isFutureRoute=${isFutureRoute}, etaBase=${formatMinutesToTime(etaBaseMinutes)}, currentTime=${formatMinutesToTime(currentMinutes)}, earliestWindow=${Number.isFinite(earliestWindowMinutes) ? formatMinutesToTime(earliestWindowMinutes) : 'none'}`);
 
     if (preserveExistingOrder) {
       // Just refresh ETAs using existing order, no HERE call needed
@@ -947,13 +941,13 @@ Deno.serve(async (req) => {
         segmentPolylines.push({ deliveryId: stop.delivery.id, encodedPolyline: null, estimatedDistanceKm: distKm, estimatedDurationMinutes: Math.ceil((distKm / 40) * 60) });
         prevPos = { lat: stop.lat, lng: stop.lng };
       }
-      console.log('âœ… [optimizeRemainingStops] Preserving existing order and refreshing ETAs only');
+      console.log('✅ [optimizeRemainingStops] Preserving existing order and refreshing ETAs only');
     } else if (stopsToSequence.length > 0) {
        // -------------------------------------------------------------------
        // CRITICAL: Pre-check if route order would actually change
        // Only call HERE if a true reordering is detected.
        // ONE-CALL STRATEGY: When stopsForHere is empty (only 1 active stop = lockedNextStop),
-       // there is nothing for HERE to sequence â€” skip the API call entirely and use crow-flies.
+       // there is nothing for HERE to sequence — skip the API call entirely and use crow-flies.
        // -------------------------------------------------------------------
        const currentActiveOrder = optimizationStops.map(s => s.delivery.id);
        const wouldHereChangeOrder = stopsForHere.length > 0 && (
@@ -962,15 +956,15 @@ Deno.serve(async (req) => {
        );
 
        // TWO-CALL STRATEGY:
-       // Call 1 (Sequence): lockedNextStop â†’ [stopsForHere optimized by HERE] â†’ home
-       // Call 2 (First Leg): trueOrigin â†’ lockedNextStop (point-to-point)
+       // Call 1 (Sequence): lockedNextStop → [stopsForHere optimized by HERE] → home
+       // Call 2 (First Leg): real-time GPS → lockedNextStop (point-to-point, FRESH)
        // -------------------------------------------------------------------
        const trueOrigin = logicalSegmentOrigin;
        resolvedTrueOrigin = trueOrigin;
        const destinationForDirections = resolvedHomePosition
          || (stopsForHere.length > 0 ? { lat: stopsForHere[stopsForHere.length - 1].lat, lng: stopsForHere[stopsForHere.length - 1].lng } : trueOrigin);
 
-       console.log(`ðŸ  [optimizeRemainingStops] trueOrigin=(${trueOrigin.lat},${trueOrigin.lng}) | dest=${resolvedHomePosition ? 'HOME' : 'LAST_STOP'} | lockedNextStop=${lockedNextStop?.delivery?.id || 'none'} | wouldHereChangeOrder=${wouldHereChangeOrder}`);
+       console.log(`🏠 [optimizeRemainingStops] trueOrigin=(${trueOrigin.lat},${trueOrigin.lng}) | dest=${resolvedHomePosition ? 'HOME' : 'LAST_STOP'} | lockedNextStop=${lockedNextStop?.delivery?.id || 'none'} | wouldHereChangeOrder=${wouldHereChangeOrder}`);
 
       const sequenceOrigin = lockedNextStop
         ? { lat: lockedNextStop.lat, lng: lockedNextStop.lng }
@@ -1006,25 +1000,64 @@ Deno.serve(async (req) => {
           hereSequenceResult = seqResp?.data || seqResp || null;
           attemptedHereCalls += Number(hereSequenceResult?.api_call_count || 1);
           usedTimeWindows = hereSequenceResult?.used_time_windows ?? true;
-          console.log(`ðŸ“¡ [optimizeRemainingStops] Sequence call: ${hereSequenceResult?.sections?.length || 0} sections`);
+          console.log(`📡 [optimizeRemainingStops] Sequence call: ${hereSequenceResult?.sections?.length || 0} sections`);
         } catch (err) {
-          console.error('âŒ [optimizeRemainingStops] Sequence call failed:', err?.message || err);
+          console.error('❌ [optimizeRemainingStops] Sequence call failed:', err?.message || err);
           hereSequenceResult = null;
         }
       } else {
-        console.log(`â­ï¸ [optimizeRemainingStops] ONE-CALL STRATEGY: ${stopsForHere.length === 0 ? 'Only 1 active stop (lockedNextStop) â€” no sequence needed' : 'Route order unchanged'} â€” skipping HERE API call, using crow-flies ETA`);
+        console.log(`⏭️ [optimizeRemainingStops] ONE-CALL STRATEGY: ${stopsForHere.length === 0 ? 'Only 1 active stop (lockedNextStop) — no sequence needed' : 'Route order unchanged'} — skipping HERE API call, using crow-flies ETA`);
       }
 
-      // First-leg ETA (trueOrigin -> lockedNextStop): cache-only, NO HERE call.
-      // The actual polyline for this leg is generated inside purgeAndRegeneratePolylines
-      // via a single HERE Router call, keeping optimizeRemainingStops to 1 HERE call total.
+      // -------------------------------------------------------------------
+      // CRITICAL: First-leg calculation (origin → lockedNextStop)
+      // 
+      // When the route is active (lockedNextStop exists), we get a FRESH HERE
+      // direction call from the driver's actual GPS position so the ETA for the
+      // next stop reflects reality rather than the logical segment origin
+      // (last finished stop coords). Falls back to cached values or crow-flies.
+      // -------------------------------------------------------------------
       let firstLegPolyline = null;
       let firstLegDistKm = lockedNextStop
         ? calculateCrowFliesDistance(trueOrigin.lat, trueOrigin.lng, lockedNextStop.lat, lockedNextStop.lng)
         : 0;
-      let firstLegDurMin = Math.ceil((firstLegDistKm / 40) * 60 * 1.3);
+      let firstLegDurMin = lockedNextStop
+        ? Math.ceil((firstLegDistKm / 40) * 60 * 1.3)
+        : 0;
 
-      if (lockedNextStop) {
+      if (lockedNextStop && frontendProvidedLocation) {
+        // FRESH HERE call: driver's current GPS → isNextDelivery stop
+        try {
+          console.log(`📡 [optimizeRemainingStops] Real-time first-leg: GPS (${frontendProvidedLocation.lat}, ${frontendProvidedLocation.lng}) → isNextDelivery (${lockedNextStop.lat}, ${lockedNextStop.lng})`);
+          const firstLegResp = await base44.asServiceRole.functions.invoke('getHereDirections', {
+            origin: frontendProvidedLocation,
+            destination: { lat: lockedNextStop.lat, lng: lockedNextStop.lng },
+            waypoints: [],
+            routeContext: [],
+            transportMode: routingTravelMode,
+            deliveryDate,
+            departureTime: resolvedDepartureTime,
+            caller: 'optimizeRemainingStops:realTimeFirstLeg',
+            preserveWaypointOrder: true,
+            skipSequenceApi: true,
+          });
+          const firstLegResult = firstLegResp?.data || firstLegResp || null;
+          const firstLegSection = Array.isArray(firstLegResult?.sections) ? firstLegResult.sections[0] : null;
+          if (firstLegSection) {
+            firstLegDistKm = firstLegSection.estimated_distance_km ?? firstLegDistKm;
+            firstLegDurMin = firstLegSection.estimated_duration_minutes ?? firstLegDurMin;
+            firstLegPolyline = firstLegSection.encoded_polyline || null;
+            attemptedHereCalls += Number(firstLegResult?.api_call_count || 1);
+            console.log(`  ✅ Real-time first leg: dist=${firstLegDistKm}km, dur=${firstLegDurMin}min`);
+          } else {
+            console.warn(`  ⚠️ No real-time first leg result, falling back to crow-flies`);
+          }
+        } catch (err) {
+          console.error('❌ Real-time first leg calculation failed:', err?.message || err);
+          // Fallback to crow-flies (already set above)
+        }
+      } else if (lockedNextStop) {
+        // No frontend GPS: try to use cached first-leg values if origin hasn't moved
         const COORD_MATCH_THRESHOLD = 0.0002; // ~22m
         const existingDelivery = lockedNextStop.delivery;
         const cachedOriginLat = existingDelivery?.first_leg_origin_lat != null ? Number(existingDelivery.first_leg_origin_lat) : null;
@@ -1038,9 +1071,9 @@ Deno.serve(async (req) => {
         if (originUnchanged && hasCachedEta) {
           firstLegDistKm = cachedDistKm;
           firstLegDurMin = cachedDurMin;
-          console.log(`â™»ï¸ [optimizeRemainingStops] First-leg ETA cache HIT - dist=${firstLegDistKm}km, dur=${firstLegDurMin}min (polyline delegated to purgeAndRegeneratePolylines)`);
+          console.log(`♻️ [optimizeRemainingStops] First-leg ETA cache HIT - dist=${firstLegDistKm}km, dur=${firstLegDurMin}min`);
         } else {
-          console.log(`[optimizeRemainingStops] First-leg ETA using crow-flies (${firstLegDistKm.toFixed(2)}km) - polyline delegated to purgeAndRegeneratePolylines`);
+          console.log(`[optimizeRemainingStops] First-leg ETA using crow-flies (${firstLegDistKm.toFixed(2)}km)`);
         }
       }
 
@@ -1070,7 +1103,7 @@ Deno.serve(async (req) => {
         routeStops.forEach((stop, index) => {
           // INBOUND LEG CONVENTION:
           // segmentPolylines[i] holds the leg data for the segment arriving AT stop i.
-          // For the first stop (lockedNextStop): use the first-leg result (trueOrigin â†’ lockedNextStop).
+          // For the first stop (lockedNextStop): use the first-leg result.
           // For all other stops: match by waypoint_id from sequence call sections.
           if (index === 0 && lockedNextStop && stop.delivery.id === lockedNextStop.delivery.id) {
             directionsLegs.push({ duration: firstLegDurMin * 60, distance: firstLegDistKm * 1000 });
@@ -1103,13 +1136,13 @@ Deno.serve(async (req) => {
           }
         });
 
-        console.log(`âœ… [optimizeRemainingStops] Route built: ${routeStops.length} stops (locked=${!!lockedNextStop}), ${sections.length} HERE sections, ${attemptedHereCalls} API calls${usedTimeWindows ? ' with time windows' : ''}`);
+        console.log(`✅ [optimizeRemainingStops] Route built: ${routeStops.length} stops (locked=${!!lockedNextStop}), ${sections.length} HERE sections, ${attemptedHereCalls} API calls${usedTimeWindows ? ' with time windows' : ''}`);
         segmentPolylines.forEach((sp, i) => {
           console.log(`   Leg ${i + 1} -> ${sp.deliveryId}: polyline=${sp.encodedPolyline ? 'YES (' + sp.encodedPolyline.length + ' chars)' : 'NONE'}, dist=${sp.estimatedDistanceKm}km, dur=${sp.estimatedDurationMinutes}min`);
         });
       } else {
         // Fallback: locked stop first, rest sorted by time window, crow-flies distances
-        console.log('âš ï¸ [optimizeRemainingStops] HERE sequencing failed â€” using time-window fallback');
+        console.log('⚠️ [optimizeRemainingStops] HERE sequencing failed — using time-window fallback');
         routeStops = lockedNextStop
           ? [lockedNextStop, ...sortStopsByWindow(stopsForHere)]
           : sortStopsByWindow(stopsToSequence);
@@ -1132,10 +1165,6 @@ Deno.serve(async (req) => {
 
     // -------------------------------------------------------------------
     // POST-HERE TIME WINDOW VIOLATION CORRECTION
-    // HERE optimizes for distance/duration but may place windowed stops too late.
-    // After building routeStops, simulate the ETA chain and move any stop that
-    // would arrive AFTER its window end to the earliest position where it fits.
-    // Only applies to non-expired windows with a defined end time.
     // -------------------------------------------------------------------
     if (routeStops.length > 1 && !preserveExistingOrder) {
       let simTime = etaBaseMinutes;
@@ -1189,7 +1218,6 @@ Deno.serve(async (req) => {
           testCum += testSeg;
           const wS = parseTimeToMinutes(routeStops[j].windowStart || routeStops[j].delivery?.delivery_time_start);
           if (Number.isFinite(wS) && testCum < wS) testCum = wS;
-          // If we insert `stop` at position j (before routeStops[j]), check if it fits
           const dKm = j === 0
             ? calculateCrowFliesDistance(logicalSegmentOrigin.lat, logicalSegmentOrigin.lng, stop.lat, stop.lng)
             : calculateCrowFliesDistance(routeStops[j - 1].lat, routeStops[j - 1].lng, stop.lat, stop.lng);
@@ -1259,7 +1287,7 @@ Deno.serve(async (req) => {
             [corrected[i], corrected[j]] = [corrected[j], corrected[i]];
             [correctedLegs[i], correctedLegs[j]] = [correctedLegs[j], correctedLegs[i]];
             [correctedPolylines[i], correctedPolylines[j]] = [correctedPolylines[j], correctedPolylines[i]];
-            console.log(`ðŸ”€ [optimizeRemainingStops] Swapped co-located stops: ${corrected[i].delivery.patient_name || 'Pickup'} (${formatMinutesToTime(wjMin)}) before ${corrected[j].delivery.patient_name || 'Pickup'} (${formatMinutesToTime(wiMin)})`);
+            console.log(`🔀 [optimizeRemainingStops] Swapped co-located stops: ${corrected[i].delivery.patient_name || 'Pickup'} (${formatMinutesToTime(wjMin)}) before ${corrected[j].delivery.patient_name || 'Pickup'} (${formatMinutesToTime(wiMin)})`);
           }
         }
       }
@@ -1283,7 +1311,7 @@ Deno.serve(async (req) => {
         const pickupIdx = pickupIndexByStopId.get(stop.delivery.puid);
         if (pickupIdx == null || pickupIdx < i) continue;
 
-        console.log(`ðŸ”§ [optimizeRemainingStops] Pickup-before-delivery fix: moving pickup (${routeStops[pickupIdx].delivery.stop_id}) from index ${pickupIdx} to ${i} (delivery: ${stop.delivery.patient_name || stop.delivery.id})`);
+        console.log(`🔧 [optimizeRemainingStops] Pickup-before-delivery fix: moving pickup (${routeStops[pickupIdx].delivery.stop_id}) from index ${pickupIdx} to ${i} (delivery: ${stop.delivery.patient_name || stop.delivery.id})`);
         const [removedStop] = routeStops.splice(pickupIdx, 1);
         const [removedLeg] = directionsLegs.splice(pickupIdx, 1);
         const [removedPoly] = segmentPolylines.splice(pickupIdx, 1);
@@ -1301,7 +1329,7 @@ Deno.serve(async (req) => {
         directionsLegs.push({ duration: 0, distance: 0 });
         segmentPolylines.push({ deliveryId: pendingStop.delivery.id, encodedPolyline: null, estimatedDistanceKm: null, estimatedDurationMinutes: null });
       }
-      console.log(`ðŸ“Œ [optimizeRemainingStops] Appended ${pendingStops.length} pending stop(s) to end of route after HERE optimization`);
+      console.log(`📌 [optimizeRemainingStops] Appended ${pendingStops.length} pending stop(s) to end of route after HERE optimization`);
     }
 
     // -------------------------------------------------------------------
@@ -1320,13 +1348,6 @@ Deno.serve(async (req) => {
 
       const lastFinished = completedSorted.length > 0 ? completedSorted[completedSorted.length - 1] : null;
 
-      const parseActualDeliveryTime = (actualTimeStr) => {
-        if (!actualTimeStr) return null;
-        const timePart = String(actualTimeStr).split('T')[1];
-        if (!timePart) return null;
-        return parseTimeToMinutes(timePart.substring(0, 5));
-      };
-
       let cumulativeTime;
       if (lastFinished) {
         const lastFinishedActualMinutes = parseActualDeliveryTime(lastFinished.actual_delivery_time);
@@ -1337,20 +1358,20 @@ Deno.serve(async (req) => {
           cumulativeTime = lastFinishedActualMinutes + dur0;
           const firstEta = formatMinutesToTime(cumulativeTime);
           stageEtaMap.set(firstStop.delivery.id, firstEta);
-          console.log(`  âœ… [optimizeRemainingStops] Retro Stop 1 ${firstStop.delivery.patient_name || 'Pickup'} - ETA: ${firstEta} (last finished actual_delivery_time ${formatMinutesToTime(lastFinishedActualMinutes)} + ${dur0}min)`);
+          console.log(`  ✅ [optimizeRemainingStops] Retro Stop 1 ${firstStop.delivery.patient_name || 'Pickup'} - ETA: ${firstEta} (last finished actual_delivery_time ${formatMinutesToTime(lastFinishedActualMinutes)} + ${dur0}min)`);
         } else {
           const firstStop = routeStops[0];
           const firstStopStartMinutes = parseTimeToMinutes(firstStop.delivery.delivery_time_start);
           cumulativeTime = Number.isFinite(firstStopStartMinutes) ? firstStopStartMinutes : etaBaseMinutes;
           stageEtaMap.set(firstStop.delivery.id, formatMinutesToTime(cumulativeTime));
-          console.log(`  âœ… [optimizeRemainingStops] Retro Stop 1 ${firstStop.delivery.patient_name || 'Pickup'} - ETA: ${formatMinutesToTime(cumulativeTime)} (fallback: delivery_time_start)`);
+          console.log(`  ✅ [optimizeRemainingStops] Retro Stop 1 ${firstStop.delivery.patient_name || 'Pickup'} - ETA: ${formatMinutesToTime(cumulativeTime)} (fallback: delivery_time_start)`);
         }
       } else {
         const firstStop = routeStops[0];
         const firstStopStartMinutes = parseTimeToMinutes(firstStop.delivery.delivery_time_start);
         cumulativeTime = Number.isFinite(firstStopStartMinutes) ? firstStopStartMinutes : etaBaseMinutes;
         stageEtaMap.set(firstStop.delivery.id, formatMinutesToTime(cumulativeTime));
-        console.log(`  âœ… [optimizeRemainingStops] Retro Stop 1 ${firstStop.delivery.patient_name || 'Pickup'} - ETA: ${formatMinutesToTime(cumulativeTime)} (= delivery_time_start)`);
+        console.log(`  ✅ [optimizeRemainingStops] Retro Stop 1 ${firstStop.delivery.patient_name || 'Pickup'} - ETA: ${formatMinutesToTime(cumulativeTime)} (= delivery_time_start)`);
       }
 
       for (let i = 1; i < routeStops.length; i++) {
@@ -1361,28 +1382,61 @@ Deno.serve(async (req) => {
 
         const eta = formatMinutesToTime(cumulativeTime);
         stageEtaMap.set(stop.delivery.id, eta);
-        console.log(`  âœ… [optimizeRemainingStops] Retro Stop ${i + 1} ${stop.delivery.patient_name || 'Pickup'} - ETA: ${eta} (prev + ${durationMinutes}min)`);
+        console.log(`  ✅ [optimizeRemainingStops] Retro Stop ${i + 1} ${stop.delivery.patient_name || 'Pickup'} - ETA: ${eta} (prev + ${durationMinutes}min)`);
       }
     } else {
-      let cumulativeTime = etaBaseMinutes;
-      
+      // -------------------------------------------------------------------
+      // CRITICAL ETA ANCHOR FIX:
+      // When a lockedNextStop (isNextDelivery) exists, the ETA chain MUST start
+      // from the driver's real position and time, not an abstract etaBaseMinutes.
+      //
+      // Correct anchor = max(lastFinishedActualTime, currentMinutes) + firstLegDurMin
+      // This ensures ETAs are always in the future and reflect real route progress.
+      // -------------------------------------------------------------------
+      let cumulativeTime;
+
+      if (lockedNextStop) {
+        const actualLatestFinishedMinutes = latestFinishedDelivery
+          ? parseActualDeliveryTime(latestFinishedDelivery.actual_delivery_time)
+          : null;
+        // Use the later of: last finished stop's actual time OR current clock time
+        const routeSegmentStartTime = Number.isFinite(actualLatestFinishedMinutes)
+          ? Math.max(actualLatestFinishedMinutes, currentMinutes)
+          : currentMinutes;
+
+        // Add travel time to the isNextDelivery stop (from fresh HERE call or crow-flies)
+        cumulativeTime = routeSegmentStartTime + firstLegDurMin;
+
+        console.log(`🕒 [optimizeRemainingStops] ETA anchor (lockedNextStop): max(lastFinished=${Number.isFinite(actualLatestFinishedMinutes) ? formatMinutesToTime(actualLatestFinishedMinutes) : 'n/a'}, current=${formatMinutesToTime(currentMinutes)}) + firstLeg=${firstLegDurMin}min → isNextDelivery ETA=${formatMinutesToTime(cumulativeTime)}`);
+      } else {
+        // No locked next stop: use etaBaseMinutes as before (future route or fresh start)
+        cumulativeTime = etaBaseMinutes;
+        console.log(`🕒 [optimizeRemainingStops] ETA anchor (no lockedNextStop): etaBaseMinutes=${formatMinutesToTime(cumulativeTime)}`);
+      }
+
       for (let i = 0; i < routeStops.length; i++) {
         const stop = routeStops[i];
         const segmentPolyline = segmentPolylineByDeliveryId.get(stop.delivery.id) || null;
-        const travelMinutes = getLegTravelMinutes({ stop, leg: directionsLegs[i], segmentPolyline, fallbackMinutes: i === 0 ? 5 : 10 });
-        cumulativeTime += travelMinutes;
-        cumulativeTime = snapToWindowStart(cumulativeTime, stop);
+
+        if (i === 0 && lockedNextStop) {
+          // First stop ETA is already computed above as cumulativeTime — don't add travel again
+          cumulativeTime = snapToWindowStart(cumulativeTime, stop);
+        } else {
+          const travelMinutes = getLegTravelMinutes({ stop, leg: directionsLegs[i], segmentPolyline, fallbackMinutes: i === 0 ? 5 : 10 });
+          cumulativeTime += travelMinutes;
+          cumulativeTime = snapToWindowStart(cumulativeTime, stop);
+        }
 
         if (!stop.windowExpired && violatesTimeWindow(stop, cumulativeTime, currentMinutes)) {
           const windowStart = parseTimeToMinutes(stop.windowStart || stop.delivery?.delivery_time_start);
           const windowEnd = parseTimeToMinutes(stop.windowEnd || stop.delivery?.delivery_time_end);
-          console.warn(`âš ï¸ [optimizeRemainingStops] STRICT TIME WINDOW VIOLATION: ${stop.delivery.patient_name || 'Pickup'} scheduled arrival ${formatMinutesToTime(cumulativeTime)} violates window [${Number.isFinite(windowStart) ? formatMinutesToTime(windowStart) : 'none'}, ${Number.isFinite(windowEnd) ? formatMinutesToTime(windowEnd) : 'none'}]`);
+          console.warn(`⚠️ [optimizeRemainingStops] STRICT TIME WINDOW VIOLATION: ${stop.delivery.patient_name || 'Pickup'} scheduled arrival ${formatMinutesToTime(cumulativeTime)} violates window [${Number.isFinite(windowStart) ? formatMinutesToTime(windowStart) : 'none'}, ${Number.isFinite(windowEnd) ? formatMinutesToTime(windowEnd) : 'none'}]`);
         }
 
         const eta = formatMinutesToTime(cumulativeTime);
         stageEtaMap.set(stop.delivery.id, eta);
         cumulativeTime += stop.delivery.extra_time || (stop.isPickup ? 15 : 5);
-        console.log(`  âœ… [optimizeRemainingStops] ${stop.delivery.patient_name || 'Pickup'} - ETA: ${eta}${stop.windowExpired ? ' (window expired)' : ''}`);
+        console.log(`  ✅ [optimizeRemainingStops] ${stop.delivery.patient_name || 'Pickup'} - ETA: ${eta}${stop.windowExpired ? ' (window expired)' : ''}`);
       }
     }
 
@@ -1391,7 +1445,7 @@ Deno.serve(async (req) => {
       delivery_time_eta: stageEtaMap.get(stop.delivery.id) || stop.delivery.delivery_time_eta
     }));
 
-    console.log(`\nðŸ”¢ [optimizeRemainingStops] HERE returned ${activeStops.length} ordered stops`);
+    console.log(`\n📢 [optimizeRemainingStops] HERE returned ${activeStops.length} ordered stops`);
 
     const startingOrder = completedDeliveries.length;
     const originalActiveOrder = activeRouteDeliveries
@@ -1404,7 +1458,7 @@ Deno.serve(async (req) => {
       : originalActiveOrder.length !== optimizedActiveOrder.length
         || originalActiveOrder.some((id, index) => id !== optimizedActiveOrder[index]);
 
-    console.log('ðŸ  [optimizeRemainingStops] Final-route distance to home penalty applied:', addRouteToHomePenalty(routeStops, resolvedHomePosition).toFixed(2), 'km');
+    console.log('🏠 [optimizeRemainingStops] Final-route distance to home penalty applied:', addRouteToHomePenalty(routeStops, resolvedHomePosition).toFixed(2), 'km');
     const finalDeliveryWriteBatch = [];
     const finalizedById = new Map(activeStops.map((stop) => [stop.id, stop]));
 
@@ -1452,15 +1506,6 @@ Deno.serve(async (req) => {
       const patientWindowStart = stopObj?.windowStart && stopObj?.delivery?.patient_id ? stopObj.windowStart : null;
       const patientWindowEnd = stopObj?.windowEnd && stopObj?.delivery?.patient_id ? stopObj.windowEnd : null;
 
-      // CRITICAL: estimated_distance_km and estimated_duration_minutes use the INBOUND leg convention:
-      // segmentPolyline[i] holds the leg arriving AT stop i (from stop i-1 to stop i).
-      // This matches encoded_polyline and travel_dist which are also inbound.
-      // The first stop's values come from the first-leg call (trueOrigin â†’ lockedNextStop) or
-      // the sequence section matched by waypoint_id, so all stops including the first get populated.
-      // CRITICAL: Only overwrite encoded_polyline / distance / duration if we actually have
-      // a new value from HERE. Writing null here would clear the existing polyline for active
-      // legs that were not re-computed in this pass (e.g. the current leg that hasn't changed),
-      // which is the root cause of the "current leg polyline wiped after accepting a batch" bug.
       const hasNewPolyline = !isPendingStop && !!segmentPolyline?.encodedPolyline;
       const hasNewDistKm = !isPendingStop && typeof segmentPolyline?.estimatedDistanceKm === 'number';
       const hasNewDurMin = !isPendingStop && typeof segmentPolyline?.estimatedDurationMinutes === 'number';
@@ -1471,7 +1516,6 @@ Deno.serve(async (req) => {
         delivery_time_eta: resolvedEta,
         isNextDelivery: stop.id === nextStopId,
         transport_mode: safeTransportMode,
-        // NOTE: delivery_time_start/end are not overwritten by optimizer — they are set at creation/edit time
         travel_dist: Number(directionsLegs[i]?.distance)
           ? Number((Number(directionsLegs[i].distance) / 1000).toFixed(3))
           : null,
@@ -1511,7 +1555,7 @@ Deno.serve(async (req) => {
     );
 
     if (cyclingBatchItems.length > 0) {
-      console.log(`ðŸš´ [optimizeRemainingStops] Fetching cycling polylines for ${cyclingBatchItems.length} stop(s)...`);
+      console.log(`🚴 [optimizeRemainingStops] Fetching cycling polylines for ${cyclingBatchItems.length} stop(s)...`);
 
       await Promise.all(cyclingBatchItems.map(async (batchItem) => {
         const stopIndex = routeStops.findIndex((s) => s.delivery.id === batchItem.id);
@@ -1540,7 +1584,6 @@ Deno.serve(async (req) => {
           const cycleSection = Array.isArray(cycleResult?.sections) ? cycleResult.sections[0] : null;
 
           if (cycleSection?.encoded_polyline) {
-            // Cycling override updates the CURRENT stop's inbound leg values
             batchItem.data.encoded_polyline = cycleSection.encoded_polyline;
             if (typeof cycleSection.estimated_distance_km === 'number') {
               batchItem.data.estimated_distance_km = cycleSection.estimated_distance_km;
@@ -1548,12 +1591,12 @@ Deno.serve(async (req) => {
             if (typeof cycleSection.estimated_duration_minutes === 'number') {
               batchItem.data.estimated_duration_minutes = cycleSection.estimated_duration_minutes;
             }
-            console.log(`  ðŸš´ Cycling polyline updated for stop ${batchItem.id} (${batchItem.label}), inbound dist/dur updated on this stop`);
+            console.log(`  🚴 Cycling polyline updated for stop ${batchItem.id} (${batchItem.label}), inbound dist/dur updated on this stop`);
           } else {
-            console.warn(`  âš ï¸ No cycling polyline returned for stop ${batchItem.id} - keeping driving polyline`);
+            console.warn(`  ⚠️ No cycling polyline returned for stop ${batchItem.id} - keeping driving polyline`);
           }
         } catch (cycleErr) {
-          console.warn(`  âš ï¸ Cycling polyline fetch failed for stop ${batchItem.id}:`, cycleErr?.message);
+          console.warn(`  ⚠️ Cycling polyline fetch failed for stop ${batchItem.id}:`, cycleErr?.message);
         }
       }));
     }
@@ -1569,10 +1612,10 @@ Deno.serve(async (req) => {
     );
 
     finalDeliveryWriteBatch.forEach(({ data, label }) => {
-      console.log(`  ðŸ”¢ [optimizeRemainingStops] Stop #${data.stop_order}: ${label} | ETA: ${data.delivery_time_eta || 'none'}${data.encoded_polyline ? ' [polyline saved]' : ' [no polyline]'}${data.estimated_distance_km != null ? ` | dist=${data.estimated_distance_km}km` : ''}${data.estimated_duration_minutes != null ? ` dur=${data.estimated_duration_minutes}min` : ''}`);
+      console.log(`  📢 [optimizeRemainingStops] Stop #${data.stop_order}: ${label} | ETA: ${data.delivery_time_eta || 'none'}${data.encoded_polyline ? ' [polyline saved]' : ' [no polyline]'}${data.estimated_distance_km != null ? ` | dist=${data.estimated_distance_km}km` : ''}${data.estimated_duration_minutes != null ? ` dur=${data.estimated_duration_minutes}min` : ''}`);
     });
 
-    console.log(`\nâœ… [optimizeRemainingStops] Route optimization complete - ${activeStops.length} stops sequenced, ${attemptedHereCalls} sequence API calls. Polyline generation delegated to purgeAndRegeneratePolylines.`);
+    console.log(`\n✅ [optimizeRemainingStops] Route optimization complete - ${activeStops.length} stops sequenced, ${attemptedHereCalls} sequence API calls.`);
 
     return Response.json({
       success: true,
@@ -1609,7 +1652,7 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     if (isRateLimitError(error)) {
-      console.warn('âš ï¸ [optimizeRemainingStops] Deferred due to rate limit');
+      console.warn('⚠️ [optimizeRemainingStops] Deferred due to rate limit');
       return Response.json({
         success: false,
         routeChanged: false,
@@ -1620,7 +1663,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    console.error('âŒ [optimizeRemainingStops] ERROR:', error.message);
+    console.error('❌ [optimizeRemainingStops] ERROR:', error.message);
     return Response.json({
       error: error.message,
       stack: error.stack
