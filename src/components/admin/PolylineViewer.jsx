@@ -248,7 +248,6 @@ export default function PolylineViewer({ users = [] }) {
       : focusedItem ? [focusedItem] : [];
 
     return chosen.map((item, idx) => {
-      const isPolyline = 'stop_order' in item && !('driver_id' in breadcrumbs.find(b => b.id === item.id) ?? {});
       const isBreadcrumb = breadcrumbs.some(b => b.id === item.id);
       const isDeliveryPoly = deliveries.some(d => d.id === item.id);
       const coords = decodePolyline(item.encoded_polyline);
