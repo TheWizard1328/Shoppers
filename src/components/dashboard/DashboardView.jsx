@@ -276,7 +276,7 @@ export default function DashboardView({
         >
         <DashboardStatsPanel
           currentUser={currentUser} isDriver={isDriver} isAdmin={isAdmin} isDispatcher={isDispatcher}
-          deliveries={deliveries} filteredDeliveries={filteredDeliveries} drivers={drivers} stores={stores} appUsers={appUsers} driversList={driversList}
+          deliveries={deliveries} filteredDeliveries={filteredDeliveries} patients={patients} drivers={drivers} stores={stores} appUsers={appUsers} driversList={driversList}
           selectedDate={selectedDate} selectedDateStr={selectedDateStr} selectedDriverId={selectedDriverId}
           calendarMonth={calendarMonth} setCalendarMonth={setCalendarMonth}
           isCalendarOpen={isCalendarOpen} setIsCalendarOpen={setIsCalendarOpen}
