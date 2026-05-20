@@ -857,7 +857,7 @@ Deno.serve(async (req) => {
     //   - "immediate" stops: no window, or window start is within 30 min of current time (do these first)
     //   - "future" stops: window start is more than 30 min away (do these last, they can't be served yet)
     // This prevents HERE from pulling future-windowed stops to the front just because they're nearby.
-    const FUTURE_WINDOW_THRESHOLD_MIN = 30;
+    const FUTURE_WINDOW_THRESHOLD_MIN = 120;
     const immediateStops = [];
     const futureWindowStops = [];
     validWindowStops.forEach(s => {
@@ -914,7 +914,7 @@ Deno.serve(async (req) => {
     // Immediate stops = no window OR window start is within FUTURE_WINDOW_THRESHOLD_MIN of current time.
     const immediateStopsForDeparture = stopsToSequence.filter(s => {
       const wm = parseTimeToMinutes(s.windowStart || s.delivery?.delivery_time_start);
-      return !Number.isFinite(wm) || (wm - currentMinutes) <= FUTURE_WINDOW_THRESHOLD_MIN;
+      return !Number.isFinite(wm) || (wm - currentMinutes) <= 120;
     });
     const allStopsForDeparture = immediateStopsForDeparture.length > 0 ? immediateStopsForDeparture : stopsToSequence;
 
