@@ -26,7 +26,7 @@ import { smartRefreshManager } from '../components/utils/smartRefreshManager';
 import AppSettingsPanel from '../components/admin/AppSettingsPanel';
 import AdminUtilitiesExtraTabs from '../components/admin/AdminUtilitiesExtraTabs';
 import { loadUserSettings, saveSetting } from '../components/utils/userSettingsManager';
-import DeliveryForm from '../components/deliveries/DeliveryForm';
+import DeliveryForm from '../components/deliveries/DeliveryForm';import PatientForm from '../components/patients/PatientForm';
 import MessageRulesManager from '../components/admin/MessageRulesManager';
 import PolylineViewer from '../components/admin/PolylineViewer';
 import GoogleAPILogViewer from '../components/admin/GoogleAPILogViewer';
@@ -1477,364 +1477,8 @@ const UserDataTable = ({ users, onEdit, onDelete, onDeleteSelected, isLoadingDat
 
 };
 
-const UserSettingsTable = ({ appUsers, mergedUsers }) => {
-  const [userSettings, setUserSettings] = useState([]);
-  const [localUserSettings, setLocalUserSettings] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [viewMode, setViewMode] = useState('cloud'); // 'cloud' or 'local'
-  const refreshIntervalRef = useRef(null);
-  const { visibleColumns, toggleColumn, config } = useColumnVisibility('userSettings');
-  const [columnWidths, setColumnWidths] = useState(() => {
-    const saved = localStorage.getItem('admin_usersettings_column_widths');
-    return saved ? JSON.parse(saved) : {
-      user_name: 180,
-      device_type: 120,
-      selected_driver: 150,
-      selected_date: 120,
-      show_all_markers: 130,
-      sidebar_width: 120,
-      theme: 100,
-      created: 160,
-      updated: 160,
-      actions: 100
-    };
-  });
-
-  const updateColumnWidth = useCallback((columnId, width) => {
-    setColumnWidths((prev) => {
-      const newWidths = { ...prev, [columnId]: width };
-      localStorage.setItem('admin_usersettings_column_widths', JSON.stringify(newWidths));
-      return newWidths;
-    });
-  }, []);
-
-  const loadSettings = useCallback(async () => {
-    try {
-      // Load cloud settings
-      const settings = await base44.entities.UserSettings.list();
-      setUserSettings(settings || []);
-
-      // Load local cached settings from IndexedDB
-      const { offlineManager } = await import('../components/utils/offlineManager');
-      const localSettings = await offlineManager.getAllCachedUserSettings();
-      console.log('📋 [UserSettingsTable] Loaded local cached settings from IndexedDB:', localSettings?.length || 0);
-      setLocalUserSettings(localSettings || []);
-
-      return settings || [];
-    } catch (error) {
-      console.error('Failed to load user settings:', error);
-      setUserSettings([]);
-      setLocalUserSettings([]);
-      return [];
-    }
-  }, []);
-
-  useEffect(() => {
-    const init = async () => {
-      setIsLoading(true);
-      await loadSettings();
-      setIsLoading(false);
-    };
-    init();
-  }, [loadSettings]);
-
-  // Smart refresh for UserSettings - poll every 15 seconds
-  useEffect(() => {
-    if (isLoading) return;
-
-    const performRefresh = async () => {
-      try {
-        console.log('🔄 [UserSettingsTable] Checking for UserSettings changes...');
-        const freshSettings = await base44.entities.UserSettings.list();
-
-        if (!freshSettings) return;
-
-        // Compare counts first
-        if (freshSettings.length !== userSettings.length) {
-          console.log('✅ [UserSettingsTable] Count changed, updating...');
-          setUserSettings(freshSettings);
-          return;
-        }
-
-        // Compare each setting for changes
-        let hasChanges = false;
-        for (const fresh of freshSettings) {
-          const existing = userSettings.find((s) => s.id === fresh.id);
-          if (!existing) {
-            hasChanges = true;
-            break;
-          }
-          // Check key fields that might change
-          if (existing.selected_driver_id !== fresh.selected_driver_id ||
-          existing.selected_date !== fresh.selected_date ||
-          existing.sidebar_width !== fresh.sidebar_width ||
-          existing.theme_preference !== fresh.theme_preference) {
-            console.log(`✅ [UserSettingsTable] Setting ${fresh.id} changed:`, {
-              driver: `${existing.selected_driver_id} → ${fresh.selected_driver_id}`,
-              date: `${existing.selected_date} → ${fresh.selected_date}`
-            });
-            hasChanges = true;
-            break;
-          }
-        }
-
-        if (hasChanges) {
-          console.log('✅ [UserSettingsTable] Updating with fresh data');
-          setUserSettings(freshSettings);
-        } else {
-          console.log('ℹ️ [UserSettingsTable] No changes detected');
-        }
-      } catch (error) {
-        console.error('❌ [UserSettingsTable] Smart refresh error:', error);
-      }
-    };
-
-    // Initial check after mount
-    const initialTimeout = setTimeout(performRefresh, 2000);
-
-    refreshIntervalRef.current = setInterval(performRefresh, 15000);
-
-    return () => {
-      clearTimeout(initialTimeout);
-      if (refreshIntervalRef.current) {
-        clearInterval(refreshIntervalRef.current);
-      }
-    };
-  }, [isLoading, userSettings]);
-
-  const getUserName = (userId) => {
-    if (!userId) return 'Unknown';
-    const appUser = appUsers.find((au) => au && au.user_id === userId);
-    if (appUser) return appUser.user_name || 'Unknown';
-    const user = mergedUsers.find((u) => u && u.id === userId);
-    if (user) return user.user_name || 'Unknown';
-    return userId.substring(0, 8) + '...';
-  };
-
-  const handleDeleteSetting = async (settingId) => {
-    if (!window.confirm(`Are you sure you want to delete this ${viewMode === 'cloud' ? 'cloud' : 'local cached'} user setting?`)) return;
-    try {
-      if (viewMode === 'cloud') {
-        await base44.entities.UserSettings.delete(settingId);
-        setUserSettings((prev) => prev.filter((s) => s.id !== settingId));
-      } else {
-        // Delete from local IndexedDB cache
-        const setting = localUserSettings.find((s) => s.id === settingId || s._cacheId === settingId);
-        if (!setting) {
-          alert('Setting not found in local cache.');
-          return;
-        }
-
-        const { offlineManager } = await import('../components/utils/offlineManager');
-        const cacheId = setting._cacheId || settingId;
-        const deleted = await offlineManager.deleteCachedUserSettings(cacheId);
-
-        if (deleted) {
-          setLocalUserSettings((prev) => prev.filter((s) => (s._cacheId || s.id) !== cacheId));
-        } else {
-          alert('Failed to delete from local cache.');
-        }
-      }
-    } catch (error) {
-      console.error('Failed to delete setting:', error);
-      alert('Failed to delete setting: ' + error.message);
-    }
-  };
-
-  const displayedSettings = viewMode === 'cloud' ? userSettings : localUserSettings;
-
-  return (
-    <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between" style={{ color: 'var(--text-slate-900)' }}>
-          <div className="flex items-center gap-2">
-            <Settings className="w-5 h-5" />
-            User Settings
-            <Badge variant={viewMode === 'cloud' ? 'default' : 'secondary'}>
-              {viewMode === 'cloud' ? 'Cloud' : 'Local'} ({displayedSettings.length})
-            </Badge>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant={viewMode === 'cloud' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setViewMode('cloud')}
-              style={viewMode !== 'cloud' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' } : {}}>
-              
-              Cloud ({userSettings.length})
-            </Button>
-            <Button
-              variant={viewMode === 'local' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setViewMode('local')}
-              style={viewMode !== 'local' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' } : {}}>
-              
-              Local ({localUserSettings.length})
-            </Button>
-            <ColumnVisibilityControl
-              config={config}
-              visibleColumns={visibleColumns}
-              onToggle={toggleColumn} />
-            
-          </div>
-        </CardTitle>
-        <CardDescription style={{ color: 'var(--text-slate-500)' }}>
-          View and manage per-user, per-device settings. Toggle between Cloud (backend) and Local (IndexedDB) storage.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {isLoading ?
-        <div className="flex justify-center items-center h-40">
-            <Loader2 className="w-6 h-6 animate-spin text-emerald-500" />
-            <span className="ml-2" style={{ color: 'var(--text-slate-600)' }}>Loading user settings...</span>
-          </div> :
-        displayedSettings.length === 0 ?
-        <div className="text-center py-8" style={{ color: 'var(--text-slate-500)' }}>
-            No {viewMode} user settings found.
-          </div> :
-
-        <div className="border rounded-md overflow-hidden" style={{ borderColor: 'var(--border-slate-200)' }}>
-            <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-              <table className="w-full text-sm table-fixed">
-                <thead className="sticky top-0 z-10" style={{ background: 'var(--bg-slate-100)' }}>
-                  <tr>
-                    {visibleColumns.includes('user_name') &&
-                  <ResizableColumnHeader width={columnWidths.user_name} onResize={(w) => updateColumnWidth('user_name', w)}>
-                        <span className="font-semibold">User</span>
-                      </ResizableColumnHeader>
-                  }
-                    {visibleColumns.includes('device_type') &&
-                  <ResizableColumnHeader width={columnWidths.device_type} onResize={(w) => updateColumnWidth('device_type', w)}>
-                        <span className="font-semibold">Device Type</span>
-                      </ResizableColumnHeader>
-                  }
-                    {visibleColumns.includes('selected_driver') &&
-                  <ResizableColumnHeader width={columnWidths.selected_driver} onResize={(w) => updateColumnWidth('selected_driver', w)}>
-                        <span className="font-semibold">Selected Driver</span>
-                      </ResizableColumnHeader>
-                  }
-                    {visibleColumns.includes('selected_date') &&
-                  <ResizableColumnHeader width={columnWidths.selected_date} onResize={(w) => updateColumnWidth('selected_date', w)}>
-                        <span className="font-semibold">Selected Date</span>
-                      </ResizableColumnHeader>
-                  }
-                    {visibleColumns.includes('show_all_markers') &&
-                  <ResizableColumnHeader width={columnWidths.show_all_markers} onResize={(w) => updateColumnWidth('show_all_markers', w)}>
-                        <span className="font-semibold">Show All Markers</span>
-                      </ResizableColumnHeader>
-                  }
-                    {visibleColumns.includes('sidebar_width') &&
-                  <ResizableColumnHeader width={columnWidths.sidebar_width} onResize={(w) => updateColumnWidth('sidebar_width', w)}>
-                        <span className="font-semibold">Sidebar Width</span>
-                      </ResizableColumnHeader>
-                  }
-                    {visibleColumns.includes('theme') &&
-                  <ResizableColumnHeader width={columnWidths.theme} onResize={(w) => updateColumnWidth('theme', w)}>
-                        <span className="font-semibold">Theme</span>
-                      </ResizableColumnHeader>
-                  }
-                    {visibleColumns.includes('created') &&
-                  <ResizableColumnHeader width={columnWidths.created} onResize={(w) => updateColumnWidth('created', w)}>
-                        <span className="font-semibold">Created</span>
-                      </ResizableColumnHeader>
-                  }
-                    {visibleColumns.includes('updated') &&
-                  <ResizableColumnHeader width={columnWidths.updated} onResize={(w) => updateColumnWidth('updated', w)}>
-                        <span className="font-semibold">Updated</span>
-                      </ResizableColumnHeader>
-                  }
-                    {visibleColumns.includes('actions') &&
-                  <ResizableColumnHeader width={columnWidths.actions} onResize={(w) => updateColumnWidth('actions', w)}>
-                        <span className="font-semibold">Actions</span>
-                      </ResizableColumnHeader>
-                  }
-                  </tr>
-                </thead>
-                <tbody>
-                 {displayedSettings.
-                sort((a, b) => {
-                  // Primary sort: updated_date descending
-                  const aUpdated = a.updated ? new Date(a.updated).getTime() : 0;
-                  const bUpdated = b.updated ? new Date(b.updated).getTime() : 0;
-                  if (aUpdated !== bUpdated) {
-                    return bUpdated - aUpdated;
-                  }
-                  // Secondary sort: created_date descending
-                  const aCreated = a.created ? new Date(a.created).getTime() : 0;
-                  const bCreated = b.created ? new Date(b.created).getTime() : 0;
-                  return bCreated - aCreated;
-                }).
-                map((setting) => {
-                  const selectedDriverName = setting.selected_driver_id ?
-                  setting.selected_driver_id === 'all' ? 'All Drivers' : getUserName(setting.selected_driver_id) :
-                  '-';
-
-                  return (
-                    <tr key={setting.id} className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
-                       {visibleColumns.includes('user_name') &&
-                      <td className="p-3 font-medium" style={{ color: 'var(--text-slate-900)' }}>{getUserName(setting.user_id)}</td>
-                      }
-                       {visibleColumns.includes('device_type') &&
-                      <td className="p-3">
-                           <Badge variant={setting.device_type === 'Mobile' ? 'default' : 'secondary'}>
-                             {setting.device_type || 'Unknown'}
-                           </Badge>
-                         </td>
-                      }
-                       {visibleColumns.includes('selected_driver') &&
-                      <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{selectedDriverName}</td>
-                      }
-                       {visibleColumns.includes('selected_date') &&
-                      <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{setting.selected_date || '-'}</td>
-                      }
-                       {visibleColumns.includes('show_all_markers') &&
-                      <td className="p-3">
-                           <Badge variant={setting.show_all_driver_markers ? 'default' : 'secondary'}>
-                             {setting.show_all_driver_markers ? '✓ Enabled' : 'Disabled'}
-                           </Badge>
-                         </td>
-                      }
-                       {visibleColumns.includes('sidebar_width') &&
-                      <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{setting.sidebar_width || 240}px</td>
-                      }
-                       {visibleColumns.includes('theme') &&
-                      <td className="p-3">
-                           <Badge variant="secondary">{setting.theme_preference || 'auto'}</Badge>
-                         </td>
-                      }
-                       {visibleColumns.includes('created') &&
-                      <td className="p-3 text-xs" style={{ color: 'var(--text-slate-600)' }}>
-                           {setting.created ? format(new Date(setting.created), 'MMM d, yyyy h:mm a') : '-'}
-                         </td>
-                      }
-                       {visibleColumns.includes('updated') &&
-                      <td className="p-3 text-xs" style={{ color: 'var(--text-slate-600)' }}>
-                           {setting.updated ? format(new Date(setting.updated), 'MMM d, yyyy h:mm a') : '-'}
-                         </td>
-                      }
-                       {visibleColumns.includes('actions') &&
-                      <td className="p-3">
-                           <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDeleteSetting(setting.id)}>
-                          
-                             <Trash2 className="w-4 h-4" />
-                           </Button>
-                         </td>
-                      }
-                     </tr>);
-
-                })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        }
-      </CardContent>
-    </Card>);
-
-};
+// Extracted to components/admin/UserSettingsTable
+import UserSettingsTable from '../components/admin/UserSettingsTable';
 
 const CityDataTable = ({ cities, onEdit, onDelete, onDeleteSelected, isLoadingData }) => {
   const { visibleColumns, toggleColumn, config } = useColumnVisibility('cities');
@@ -2072,6 +1716,7 @@ export default function AdminUtilities() {
 
   const [showRouteImport, setShowRouteImport] = useState(false);
   const [editingDelivery, setEditingDelivery] = useState(null);
+  const [editingPatient, setEditingPatient] = useState(null);
   const [editingStatusId, setEditingStatusId] = useState(null);
   const [editingDriverId, setEditingDriverId] = useState(null);
 
@@ -3501,13 +3146,8 @@ export default function AdminUtilities() {
   const handleEditEntity = (entity) => {
     console.log('Edit entity:', entity);
 
-    // If it's a delivery, open the form
-    if (activeDataTab === 'deliveries') {
-      setEditingDelivery(entity);
-      return;
-    }
-
-    // For other entities, show message
+    if (activeDataTab === 'deliveries') { setEditingDelivery(entity); return; }
+    if (activeDataTab === 'patients') { setEditingPatient(entity); return; }
     alert('Edit functionality not implemented yet. Please use the dedicated management pages (Patients, Stores, etc.) to edit records.');
   };
 
@@ -3887,6 +3527,8 @@ export default function AdminUtilities() {
         allDeliveries={allDeliveries || []} />
 
       }
+
+      {editingPatient && <PatientForm patient={editingPatient} stores={stores || []} onSave={async (updatedData) => { await base44.entities.Patient.update(editingPatient.id, updatedData); setEditingPatient(null); await refetchPatients(); await refreshData(); }} onCancel={() => setEditingPatient(null)} />}
 
       {editingDelivery &&
       <DeliveryForm
