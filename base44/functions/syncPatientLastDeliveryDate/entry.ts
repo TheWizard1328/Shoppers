@@ -148,12 +148,21 @@ const syncSingleDelivery = async (base44, delivery) => {
   };
 };
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 const runBackfill = async (base44, backfillDays) => {
   const safeDays = Number.isFinite(backfillDays) ? Math.max(1, Math.min(365, backfillDays)) : 90;
   const todayEdmontonDate = getEdmontonDateString();
   const cutoffDate = shiftDateString(todayEdmontonDate, -(safeDays - 1));
 
-  const deliveries = await base44.asServiceRole.entities.Delivery.list('-delivery_date', 5000);
+  // Fetch deliveries and all patients in parallel — single bulk call instead of per-patient queries
+  const [deliveries, allPatients] = await Promise.all([
+    base44.asServiceRole.entities.Delivery.list('-delivery_date', 5000),
+    base44.asServiceRole.entities.Patient.list('full_name', 5000),
+  ]);
+
+  // Build a lookup map by patient id
+  const patientMap = new Map(allPatients.map((p) => [p.id, p]));
 
   const latestByPatient = new Map();
   let deliveriesScanned = 0;
@@ -176,25 +185,36 @@ const runBackfill = async (base44, backfillDays) => {
 
   let updatedCount = 0;
 
-  for (const [patientId, lastDeliveryDate] of latestByPatient.entries()) {
-    const patient = await getPatientById(base44, patientId);
-    if (!patient) continue;
+  // Process updates in small batches with a delay to avoid rate limits
+  const BATCH_SIZE = 10;
+  const entries = [...latestByPatient.entries()];
 
-    const currentLastDeliveryDate = normalizeDateString(patient.last_delivery_date);
-    const nextLastDeliveryDate =
-      !currentLastDeliveryDate || lastDeliveryDate > currentLastDeliveryDate
-        ? lastDeliveryDate
-        : currentLastDeliveryDate;
+  for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+    const batch = entries.slice(i, i + BATCH_SIZE);
 
-    if (patient.last_delivery_date === nextLastDeliveryDate) continue;
+    await Promise.all(batch.map(async ([patientId, lastDeliveryDate]) => {
+      const patient = patientMap.get(patientId);
+      if (!patient) return;
 
-    await base44.asServiceRole.entities.Patient.update(patient.id, {
-      last_delivery_date: nextLastDeliveryDate
-    }).catch((error) => {
-      if (isNotFoundError(error)) return null;
-      throw error;
-    });
-    updatedCount += 1;
+      const currentLastDeliveryDate = normalizeDateString(patient.last_delivery_date);
+      const nextLastDeliveryDate =
+        !currentLastDeliveryDate || lastDeliveryDate > currentLastDeliveryDate
+          ? lastDeliveryDate
+          : currentLastDeliveryDate;
+
+      if (patient.last_delivery_date === nextLastDeliveryDate) return;
+
+      await base44.asServiceRole.entities.Patient.update(patient.id, {
+        last_delivery_date: nextLastDeliveryDate
+      }).catch((error) => {
+        if (isNotFoundError(error)) return null;
+        throw error;
+      });
+      updatedCount += 1;
+    }));
+
+    // Small delay between batches to stay within rate limits
+    if (i + BATCH_SIZE < entries.length) await sleep(300);
   }
 
   return Response.json({
