@@ -413,8 +413,11 @@ Deno.serve(async (req) => {
     if (!currentPosition && driverHomePosition) { currentPosition = driverHomePosition; locationSource = 'home_fallback'; }
     if (!currentPosition) return Response.json({ error: 'Driver location not available' }, { status: 404 });
 
+    // logicalSegmentOrigin is used for HERE sequencing (last finished stop = logical start of remaining route)
+    // etaOrigin is used for ETA calculation of the FIRST stop — always the driver's real current position
     const logicalSegmentOrigin = latestFinishedCoords || driverHomePosition || currentPosition;
-    console.log(`📍 [optimizeRemainingStops] Origin: ${locationSource} (${currentPosition.lat}, ${currentPosition.lng})`);
+    const etaOrigin = driverGpsPosition || currentPosition;
+    console.log(`📍 [optimizeRemainingStops] Origin: ${locationSource} (${currentPosition.lat}, ${currentPosition.lng}), etaOrigin: (${etaOrigin.lat}, ${etaOrigin.lng})`);
 
     // Partition stops
     const optimizationStops = activeRouteDeliveries.map(d => stopsWithCoords.find(s => s.delivery.id === d.id) || null).filter(Boolean);
@@ -569,7 +572,7 @@ Deno.serve(async (req) => {
     if (routeStops.length > 1 && !preserveExistingOrder) {
       const startIdx = lockedNextStop ? 1 : 0;
       // Recalc ETAs with crow-flies for simulation
-      const { etas: simEtas, legs: simLegs } = recalcLegsAndEtas(routeStops, logicalSegmentOrigin, etaBaseMinutes);
+      const { etas: simEtas, legs: simLegs } = recalcLegsAndEtas(routeStops, etaOrigin, etaBaseMinutes);
       let correctionMade = false;
       for (let i = startIdx; i < routeStops.length; i++) {
         const stop = routeStops[i];
@@ -625,9 +628,9 @@ Deno.serve(async (req) => {
       let cumTime = etaBaseMinutes;
       for (let i = 0; i < routeStops.length; i++) {
         const stop = routeStops[i];
-        if (i === 0 && lockedNextStop && stop.delivery.id === lockedNextStop.delivery.id) {
-          // First stop: add travel from origin
-          const dKm = calculateCrowFliesDistance(logicalSegmentOrigin.lat, logicalSegmentOrigin.lng, stop.lat, stop.lng);
+        if (i === 0) {
+          // First stop: travel from driver's actual current GPS position
+          const dKm = calculateCrowFliesDistance(etaOrigin.lat, etaOrigin.lng, stop.lat, stop.lng);
           cumTime += Math.ceil((dKm / 40) * 60 * 1.3);
         } else if (i > 0) {
           const prev = routeStops[i - 1];
