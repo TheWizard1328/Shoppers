@@ -177,26 +177,37 @@ export default function PolylineViewer({ users = [] }) {
   };
 
   // ── Filtered lists ────────────────────────────────────────────────────────
+  const sortItems = (items) => {
+    return [...items].sort((a, b) => {
+      const nameA = getDriverName(a.driver_id);
+      const nameB = getDriverName(b.driver_id);
+      if (nameA !== nameB) return nameA.localeCompare(nameB);
+      const dateCompare = (b.delivery_date || '').localeCompare(a.delivery_date || '');
+      if (dateCompare !== 0) return dateCompare;
+      return (a.stop_order ?? 0) - (b.stop_order ?? 0);
+    });
+  };
+
   const filteredPolylines = useMemo(() => {
-    return deliveries
+    return sortItems(deliveries
       .filter(d => d?.encoded_polyline && d.encoded_polyline.length > 0)
       .filter(d => driverFilter === 'all' || d.driver_id === driverFilter)
       .filter(d => !dateFilter || d.delivery_date === dateFilter)
-      .sort((a, b) => (b.delivery_date || '').localeCompare(a.delivery_date || ''));
-  }, [deliveries, driverFilter, dateFilter]);
+    );
+  }, [deliveries, driverFilter, dateFilter, users]);
 
   const filteredBreadcrumbs = useMemo(() => {
-    return breadcrumbs
+    return sortItems(breadcrumbs
       .filter(b => b?.encoded_polyline && b.encoded_polyline.length > 0)
       .filter(b => driverFilter === 'all' || b.driver_id === driverFilter)
       .filter(b => !dateFilter || b.delivery_date === dateFilter)
-      .sort((a, b) => (b.delivery_date || '').localeCompare(a.delivery_date || ''));
-  }, [breadcrumbs, driverFilter, dateFilter]);
+    );
+  }, [breadcrumbs, driverFilter, dateFilter, users]);
 
   // For combined view, use both
   const activeItems = viewMode === 'polylines' ? filteredPolylines
     : viewMode === 'breadcrumbs' ? filteredBreadcrumbs
-    : [...filteredPolylines, ...filteredBreadcrumbs];
+    : sortItems([...filteredPolylines, ...filteredBreadcrumbs]);
 
   const availableDrivers = useMemo(() => {
     const ids = [...new Set(activeItems.map(i => i.driver_id).filter(Boolean))];
