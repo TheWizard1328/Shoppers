@@ -31,7 +31,7 @@ function useMatchingPatients(logId, open) {
 function LogEntryCard({ log, open, onAction }) {
   const { matchingPatients, loading: loadingMatches } = useMatchingPatients(log.id, open);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [matchesExpanded, setMatchesExpanded] = useState(true);
+  const [matchesExpanded, setMatchesExpanded] = useState(false);
 
   const timestamp = log.created_date || new Date().toISOString();
   const hasOldCoords = Number.isFinite(log.old_latitude) && Number.isFinite(log.old_longitude);
