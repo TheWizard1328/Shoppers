@@ -46,7 +46,7 @@ export function getNearbyModeStops({ deliveries = [], patients = [], stores = []
     .filter((delivery) => delivery && !['completed', 'failed', 'cancelled', 'returned'].includes(delivery.status))
     .map((delivery) => {
       if (delivery.patient_id) {
-        const patient = patients.find((item) => item?.id === delivery.patient_id);
+        const patient = patients.find((item) => item?.id === delivery.patient_id || item?.patient_id === delivery.patient_id);
         const distanceKm = (currentLocation && patient?.latitude && patient?.longitude)
           ? calculateDistanceKm(currentLocation, { latitude: patient.latitude, longitude: patient.longitude })
           : null;

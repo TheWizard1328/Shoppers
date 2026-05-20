@@ -31,6 +31,7 @@ import { sortUsers } from "@/components/utils/sorting";
 export default function StatsPanel({
   currentUser, isDriver, isAdmin, isDispatcher,
   deliveries, filteredDeliveries, patients, drivers, stores, appUsers, driversList,
+  driverLocation,
   selectedDate, selectedDateStr, selectedDriverId, calendarMonth, setCalendarMonth,
   isCalendarOpen, setIsCalendarOpen, handleDateChange, handleDriverChange,
   isDriverDropdownDisabled, isAllDriversMode, isDateFinished,
@@ -544,7 +545,7 @@ export default function StatsPanel({
               deliveries: filteredDeliveries || [],
               patients: patients || [],
               stores,
-              currentLocation: getCurrentDriverLocation({ currentUser, appUsers }),
+              currentLocation: getCurrentDriverLocation({ currentUser, appUsers, driverLocation }),
               radiusKm: 200,
             })}
             selectedStopIds={cyclingSelectedStopIds}

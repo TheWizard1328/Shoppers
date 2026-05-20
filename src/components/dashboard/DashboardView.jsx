@@ -288,6 +288,7 @@ export default function DashboardView({
           statsCardRef={statsCardRef} retractClustersRef={retractClustersRef}
           mapLockTimeoutRef={mapLockTimeoutRef} mapLockExpiresAtRef={mapLockExpiresAtRef} lastProgrammaticMapMoveRef={lastProgrammaticMapMoveRef}
           setMapViewPhase={setMapViewPhase} setIsMapViewLocked={setIsMapViewLocked} setMapViewTrigger={setMapViewTrigger}
+          driverLocation={driverLocation}
           preferredTravelMode={preferredTravelMode} onTravelModeChange={onTravelModeChange}
           statsPanelOpacity={statsPanelOpacity} isExpanded={isExpanded} setIsExpanded={setIsExpanded} areCardsVisible={areCardsVisible}
           handleStatsPanelInteraction={handleStatsPanelInteraction} handleCardInteraction={handleCardInteraction} isStatsCardCentered={isStatsCardCentered}
