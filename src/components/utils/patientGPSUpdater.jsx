@@ -104,12 +104,37 @@ export const updatePatientGPS = async ({ patientId, storeId, stores, mapCrosshai
     // 3) Compute distance from store
     const distanceKm = haversineKm(store.latitude, store.longitude, nextLatitude, nextLongitude);
 
-    // 4) Update ONLY the selected patient
+    // 4) Update ONLY the selected patient directly
+    const existingPatient = await base44.entities.Patient.get(patientId);
     await base44.entities.Patient.update(patientId, {
       latitude: nextLatitude,
       longitude: nextLongitude,
       distance_from_store: distanceKm,
     });
+
+    // 5) Log this as a "Direct Change" pending admin review for bulk propagation
+    try {
+      const currentUser = await base44.auth.me();
+      await base44.entities.PatientGPSLog.create({
+        source_patient_id: patientId,
+        patient_id: patientId,
+        patient_name: existingPatient?.full_name || '',
+        patient_address: existingPatient?.address || '',
+        store_id: storeId,
+        is_source_patient: true,
+        old_latitude: existingPatient?.latitude ?? null,
+        old_longitude: existingPatient?.longitude ?? null,
+        new_latitude: nextLatitude,
+        new_longitude: nextLongitude,
+        updated_by_user_id: currentUser?.id || '',
+        updated_by_user_name: currentUser?.full_name || currentUser?.email || 'Unknown',
+        normalized_address: existingPatient?.address || '',
+        related_patients_updated_count: 0,
+        matched_patient_ids: [],
+      });
+    } catch (logErr) {
+      console.warn('[patientGPSUpdater] Failed to write GPS log:', logErr.message);
+    }
 
     try {
       window.dispatchEvent(new CustomEvent('patientGpsUpdated', {
@@ -125,9 +150,9 @@ export const updatePatientGPS = async ({ patientId, storeId, stores, mapCrosshai
       }));
     } catch {}
 
-    // 4) Notify UI
+    // 6) Notify UI
     toast.success("Patient GPS Updated", {
-      description: `Location saved from ${updateSource === 'crosshair' ? 'map crosshair' : 'device GPS'}. Distance from store: ${distanceKm} km`,
+      description: `Location saved from ${updateSource === 'crosshair' ? 'map crosshair' : 'device GPS'}. Distance from store: ${distanceKm} km. Pending admin review for bulk update.`,
     });
 
     _gpsUpdateInFlight = false;
