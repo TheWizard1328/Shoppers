@@ -64,7 +64,7 @@ export default function ModeSelectionDialog({
                 {stop.label}
               </span>
               {/* Distance */}
-              <span className="text-xs shrink-0 whitespace-nowrap" style={{ color: 'var(--text-slate-500)' }}>
+              <span className="text-xs shrink-0 whitespace-nowrap text-center" style={{ color: 'var(--text-slate-500)', width: 52 }}>
                 {stop.distanceKm != null ? `${stop.distanceKm.toFixed(1)} km` : '—'}
               </span>
               {/* Status badge */}
@@ -101,11 +101,18 @@ export default function ModeSelectionDialog({
     </>
   );
 
+  // Mobile: header ~56px, bottom nav ~60px — panel fits the gap between them
+  const MOBILE_TOP = 56;
+  const MOBILE_BOTTOM = 60;
+
   return createPortal(
     <div
       style={{
         position: 'fixed',
-        inset: 0,
+        top: isMobile ? MOBILE_TOP : 0,
+        bottom: isMobile ? MOBILE_BOTTOM : 0,
+        left: 0,
+        right: 0,
         zIndex: 9999,
         display: 'flex',
         alignItems: 'center',
@@ -117,12 +124,11 @@ export default function ModeSelectionDialog({
       <div
         style={{
           background: 'var(--bg-white, #fff)',
-          width: isMobile ? '100%' : undefined,
+          width: isMobile ? 'calc(100% - 32px)' : undefined,
           minWidth: isMobile ? undefined : 420,
           maxWidth: isMobile ? '100vw' : 480,
-          maxHeight: '95vh',
-          height: isMobile ? '95vh' : undefined,
-          borderRadius: isMobile ? '16px 16px 16px 16px' : 16,
+          maxHeight: isMobile ? '100%' : '90vh',
+          borderRadius: 16,
           boxShadow: '0 25px 50px rgba(0,0,0,0.25)',
           overflow: 'hidden',
           display: 'flex',
