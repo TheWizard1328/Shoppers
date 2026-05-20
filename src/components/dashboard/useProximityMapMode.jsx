@@ -52,65 +52,14 @@ export default function useProximityMapMode({
     return () => { delete window.__resetProximityTriggers; };
   }, [isDriver, isMobile, isPrimaryDevice]);
 
-  // When the FAB cycles phases, re-check proximity immediately and re-apply correct state.
-  // This ensures Phase 2 / satellite are always shown when within range,
-  // and explore (Phase 1) is used when the driver is outside both thresholds.
+  // When the FAB cycles phases, reset the triggers so the normal location-update
+  // effect can re-evaluate and re-apply proximity state on the next GPS tick.
   useEffect(() => {
     if (!isDriver || !isMobile || !isPrimaryDevice || !isToday) return;
-
-    const handleRecheck = () => {
-      if (!driverLocation?.latitude || !driverLocation?.longitude) return;
-      if (!nextStopCoordinates?.lat || !nextStopCoordinates?.lon) return;
-
-      const distKm = calculateDistance(
-        driverLocation.latitude,
-        driverLocation.longitude,
-        nextStopCoordinates.lat,
-        nextStopCoordinates.lon
-      );
-
-      const within2km = distKm <= 2.0;
-      const within1km = distKm <= 1.0;
-
-      // Reset triggers so they re-fire based on current position
-      phase2TriggeredRef.current = false;
-      satelliteTriggeredRef.current = false;
-
-      if (within2km) {
-        if (!proximityPhaseActiveRef.current) {
-          savedPreProximityStateRef.current = { phase: mapViewPhase, style: mapStyle };
-          proximityPhaseActiveRef.current = true;
-        }
-        // Re-apply Phase 2 + lock
-        setMapViewPhase(2);
-        setIsMapViewLocked(true);
-        lastProgrammaticMapMoveRef.current = Date.now();
-        window._lastProgrammaticMapMove = Date.now();
-        setMapViewTrigger((prev) => prev + 1);
-        phase2TriggeredRef.current = true;
-
-        if (within1km) {
-          setMapStyle('satellite');
-          satelliteTriggeredRef.current = true;
-        } else {
-          // Within 2km but not 1km — ensure explore style
-          setMapStyle('explore');
-        }
-      } else {
-        // Outside 2km — go to Phase 1 / explore
-        proximityPhaseActiveRef.current = false;
-        setMapViewPhase(1);
-        setIsMapViewLocked(false);
-        setMapStyle('explore');
-        lastProgrammaticMapMoveRef.current = Date.now();
-        window._lastProgrammaticMapMove = Date.now();
-        setMapViewTrigger((prev) => prev + 1);
-      }
-    };
-
+    const handleRecheck = () => resetProximityTriggers();
     window.addEventListener('proximityRecheck', handleRecheck);
     return () => window.removeEventListener('proximityRecheck', handleRecheck);
-  }, [isDriver, isMobile, isPrimaryDevice, isToday, driverLocation, nextStopCoordinates, mapViewPhase, mapStyle]);
+  }, [isDriver, isMobile, isPrimaryDevice, isToday]);
 
   useEffect(() => {
     // Only run for mobile primary-device drivers on today's routes

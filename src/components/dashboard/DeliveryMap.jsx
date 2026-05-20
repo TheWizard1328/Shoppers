@@ -541,14 +541,43 @@ export default function DeliveryMap({
   }, [deliveriesToShow, safeStores, safePatients, driverLookupMap, selectedDriverId, currentUser, showOtherDriverDeliveries, isAllDriversMode, currentZoom]);
 
   const cyclingStartMarkers = useMemo(() => {
+    const isCyclingNote = (notes) => {
+      if (!notes) return false;
+      const lower = notes.toLowerCase();
+      return lower.includes('cycling mode start') || lower.includes('cycling mode');
+    };
+
     return deliveriesToShow
-      .filter(d => d?.is_cycling_start_marker && d.cycling_start_latitude && d.cycling_start_longitude)
-      .map(d => ({
-        ...d,
-        latitude: d.cycling_start_latitude,
-        longitude: d.cycling_start_longitude,
-      }));
-  }, [deliveriesToShow]);
+      .filter(d => {
+        if (!d) return false;
+        // Explicit cycling start marker with coordinates
+        if (d.is_cycling_start_marker && d.cycling_start_latitude && d.cycling_start_longitude) return true;
+        // Delivery with cycling mode notes — use patient/store coords resolved below
+        if (isCyclingNote(d.delivery_notes)) return true;
+        return false;
+      })
+      .map(d => {
+        // Explicit cycling start marker — use dedicated cycling coords
+        if (d.is_cycling_start_marker && d.cycling_start_latitude && d.cycling_start_longitude) {
+          return { ...d, latitude: d.cycling_start_latitude, longitude: d.cycling_start_longitude };
+        }
+        // Notes-based: resolve coordinates from patient or store
+        if (d.patient_id) {
+          const patient = safePatients.find(p => p?.id === d.patient_id);
+          if (patient?.latitude && patient?.longitude) {
+            return { ...d, latitude: patient.latitude, longitude: patient.longitude };
+          }
+        }
+        if (d.store_id) {
+          const store = safeStores.find(s => s?.id === d.store_id);
+          if (store?.latitude && store?.longitude) {
+            return { ...d, latitude: store.latitude, longitude: store.longitude };
+          }
+        }
+        return null;
+      })
+      .filter(Boolean);
+  }, [deliveriesToShow, safePatients, safeStores]);
 
   const driverLocationMarkers = useMemo(() => {
     const today = getEdmDate();
