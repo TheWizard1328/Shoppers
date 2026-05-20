@@ -962,21 +962,22 @@ Deno.serve(async (req) => {
 
       for (let index = 0; index < orderedDeliveries.length; index += 1) {
         const delivery = orderedDeliveries[index];
-        // CRITICAL: For first stop, prioritize: currentPosition > first_leg_origin_lat/lng > lastFinishedDelivery > home
+        // CRITICAL: Always prioritize first_leg_origin_lat/lng on the delivery itself (set by handleCompleteAction/handleStartAction).
+        // Only fall back to other methods if these fields are missing/invalid.
         let from;
-        if (index === 0) {
+        if (isValidCoordinatePair(Number(delivery.first_leg_origin_lat), Number(delivery.first_leg_origin_lng))) {
+          from = { lat: Number(delivery.first_leg_origin_lat), lon: Number(delivery.first_leg_origin_lng) };
+        } else if (index === 0) {
+          // First stop fallback chain: currentPosition > lastFinishedDelivery > home
           if (currentPosition && isValidCoordinatePair(Number(currentPosition.lat), Number(currentPosition.lon))) {
             from = currentPosition;
-          } else if (isValidCoordinatePair(Number(delivery.first_leg_origin_lat), Number(delivery.first_leg_origin_lng))) {
-            // Use stored first_leg_origin (last finished stop coords)
-            from = { lat: Number(delivery.first_leg_origin_lat), lon: Number(delivery.first_leg_origin_lng) };
           } else if (lastFinishedDelivery) {
-            // Fallback: Use the last finished delivery's location as origin
             from = getLatLon(lastFinishedDelivery);
           } else {
             from = routeOrigin;
           }
         } else {
+          // Subsequent stops fallback: use previous stop's destination
           from = getLatLon(orderedDeliveries[index - 1]);
         }
         const to = getLatLon(delivery);
