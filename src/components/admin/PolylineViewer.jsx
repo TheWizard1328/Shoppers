@@ -172,8 +172,9 @@ export default function PolylineViewer({ users = [] }) {
 
   // ── Driver helper ─────────────────────────────────────────────────────────
   const getDriverName = (id) => {
-    const u = users.find(u => u?.id === id);
-    return u ? getDriverDisplayName(u) : id?.substring(0, 8) + '…' || 'Unknown';
+    if (!id) return 'Unknown';
+    const u = users.find(u => u?.id === id || u?.user_id === id);
+    return u ? (u.user_name || u.full_name || getDriverDisplayName(u)) : id.substring(0, 8) + '…';
   };
 
   // ── Filtered lists ────────────────────────────────────────────────────────
