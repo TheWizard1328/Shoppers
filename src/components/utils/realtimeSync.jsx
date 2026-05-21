@@ -182,9 +182,9 @@ async function flushBuffered(entityName) {
         triggeredBy: 'realtimeBufferedFullRefresh',
         source: 'realtime_sync',
         fromRealtime: true,
-        fullReplacement: true,
+        fullReplacement: false,
         skipMapPhaseOneRefresh: true,
-        preserveLocalState: false,
+        preserveLocalState: true,
         skipDriverLocationRefresh: true,
         forceETAUpdate: hasETAChanges
       }
