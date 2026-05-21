@@ -125,11 +125,12 @@ const getEdmontonTodayDateString = () => new Intl.DateTimeFormat('en-CA', { time
 const isHistoricalRouteDate = (dateStr) => !!dateStr && String(dateStr) < getEdmontonTodayDateString();
 
 const extractOptimizationContext = (body = {}) => {
+  const forceFullRemainingRouteOptimization = body?.forceFullRemainingRouteOptimization === true;
   if (body?.driverId && body?.deliveryDate) {
     return {
       driverId: body.driverId, deliveryDate: body.deliveryDate, currentLocalTime: body.currentLocalTime,
       deviceTime: body.deviceTime, preserveExistingOrder: body.preserveExistingOrder === true,
-      forceFullRemainingRouteOptimization: body.forceFullRemainingRouteOptimization === true,
+      forceFullRemainingRouteOptimization,
       bypassDriverStatus: body.bypassDriverStatus === true, bypassDeduplication: body.bypassDeduplication === true,
       triggerSource: body.triggerSource || 'manual'
     };
@@ -142,7 +143,7 @@ const extractOptimizationContext = (body = {}) => {
     deliveryDate: body?.deliveryDate || data?.delivery_date || oldData?.delivery_date || null,
     currentLocalTime: body.currentLocalTime, deviceTime: body.deviceTime,
     preserveExistingOrder: body.preserveExistingOrder === true,
-    forceFullRemainingRouteOptimization: body.forceFullRemainingRouteOptimization === true,
+    forceFullRemainingRouteOptimization,
     bypassDriverStatus: body.bypassDriverStatus === true, bypassDeduplication: body.bypassDeduplication === true,
     triggerSource: eventType ? `automation:${eventType}` : 'automation',
     eventType, data, oldData, changedFields: Array.isArray(body?.changed_fields) ? body.changed_fields : []
@@ -213,6 +214,7 @@ Deno.serve(async (req) => {
     const {
       driverId, deliveryDate, currentLocalTime, deviceTime,
       preserveExistingOrder = false,
+      forceFullRemainingRouteOptimization = false,
       bypassDriverStatus = false, bypassDeduplication = false,
       triggerSource = 'manual'
     } = context;
@@ -420,13 +422,22 @@ Deno.serve(async (req) => {
     console.log(`📍 [optimizeRemainingStops] Origin: ${locationSource} (${currentPosition.lat}, ${currentPosition.lng}), etaOrigin: (${etaOrigin.lat}, ${etaOrigin.lng})`);
 
     // Partition stops
+    // When forceFullRemainingRouteOptimization is true (accept-all case), ALL active stops are
+    // sequenced together by HERE using time windows — no stops are treated as "already ordered".
     const optimizationStops = activeRouteDeliveries.map(d => stopsWithCoords.find(s => s.delivery.id === d.id) || null).filter(Boolean);
     const pendingStops = isRetroNewRoute ? [] : pendingRouteDeliveries.map(d => stopsWithCoords.find(s => s.delivery.id === d.id) || null).filter(Boolean);
     const pendingDeliveryIds = new Set(isRetroNewRoute ? [] : pendingRouteDeliveries.map(d => d.id));
 
+    // On force-full optimization, ensure newly-accepted stops (those without a stop_order or with
+    // stop_order beyond the existing route end) are interleaved by time window, not appended.
+    // We achieve this by NOT locking any "next delivery" and letting HERE sort everything fresh.
+    const effectiveForceFullOptimization = forceFullRemainingRouteOptimization && optimizationStops.length > 1;
+
     const explicitNextDelivery = (firstStopId ? incompleteDeliveries.find(d => d?.id === firstStopId) : null)
       || incompleteDeliveries.find(d => d?.isNextDelivery === true) || null;
-    const lockedNextStop = explicitNextDelivery ? stopsWithCoords.find(s => s.delivery.id === explicitNextDelivery.id) || null : null;
+    // On force-full optimization (accept-all), don't lock any stop — let HERE sequence everything
+    // by time window from scratch so newly-accepted stops are interleaved correctly.
+    const lockedNextStop = effectiveForceFullOptimization ? null : (explicitNextDelivery ? stopsWithCoords.find(s => s.delivery.id === explicitNextDelivery.id) || null : null);
 
     // Sort stops by window start as a hint to HERE
     const sortByWindow = (arr) => arr.slice().sort((a, b) => {
@@ -440,12 +451,16 @@ Deno.serve(async (req) => {
     const allWindowMins = stopsWithCoords.map(s => parseTimeToMinutes(s.windowStart || s.delivery?.delivery_time_start)).filter(Number.isFinite);
     const earliestWindowMinutes = allWindowMins.length > 0 ? Math.min(...allWindowMins) : Infinity;
     let resolvedDepartureTime;
-    if (isFutureRoute && Number.isFinite(earliestWindowMinutes)) {
+    // For accept-all (force full optimization), always depart from NOW so newly-accepted stops
+    // get sequenced relative to the current time, not the earliest window.
+    if (effectiveForceFullOptimization) {
+      resolvedDepartureTime = currentLocalTime || formatMinutesToTime(currentMinutes);
+    } else if (isFutureRoute && Number.isFinite(earliestWindowMinutes)) {
       resolvedDepartureTime = formatMinutesToTime(earliestWindowMinutes);
     } else {
       resolvedDepartureTime = currentLocalTime || formatMinutesToTime(currentMinutes);
     }
-    const etaBaseMinutes = isFutureRoute && Number.isFinite(earliestWindowMinutes) ? earliestWindowMinutes : currentMinutes;
+    const etaBaseMinutes = (!effectiveForceFullOptimization && isFutureRoute && Number.isFinite(earliestWindowMinutes)) ? earliestWindowMinutes : currentMinutes;
     console.log(`⏰ [optimizeRemainingStops] departureTime=${resolvedDepartureTime}, etaBase=${formatMinutesToTime(etaBaseMinutes)}`);
 
     let routeStops = [];
