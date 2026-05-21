@@ -82,7 +82,9 @@ export const expandStoresForTimeSlots = ({ stores, deliveryDate }) => {
         ? store.sunday_pm_driver_id
         : store.weekday_pm_driver_id;
 
-    if (amDriverId && pmDriverId) {
+    let addedSlot = false;
+
+    if (amDriverId) {
       processedStores.push({
         ...store,
         id: `${store.id}_AM`,
@@ -90,6 +92,10 @@ export const expandStoresForTimeSlots = ({ stores, deliveryDate }) => {
         _originalStoreId: store.id,
         _timeSlot: 'AM'
       });
+      addedSlot = true;
+    }
+
+    if (pmDriverId) {
       processedStores.push({
         ...store,
         id: `${store.id}_PM`,
@@ -97,10 +103,12 @@ export const expandStoresForTimeSlots = ({ stores, deliveryDate }) => {
         _originalStoreId: store.id,
         _timeSlot: 'PM'
       });
-      return;
+      addedSlot = true;
     }
 
-    processedStores.push(store);
+    if (!addedSlot) {
+      processedStores.push(store);
+    }
   });
 
   return processedStores;
