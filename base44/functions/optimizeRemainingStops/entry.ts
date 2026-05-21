@@ -573,7 +573,32 @@ Deno.serve(async (req) => {
       });
       console.log(`🔒 [optimizeRemainingStops] Pre-locked ${imputedSortedByProximity.length} imputed-window stops by proximity; ${hereEligibleStops.length} stops sent to HERE`);
 
-      const sortedHint = sortByWindowThenProximity(hereEligibleStops);
+      // Identify AM/PM pickup pairs from the same store with identical coordinates.
+      // HERE can't reliably differentiate these, so we pre-sequence them (AM before PM)
+      // and exclude them from HERE entirely.
+      const amPmPairMap = new Map(); // key: store_id → {amStop, pmStop}
+      for (const stop of hereEligibleStops) {
+        if (stop.isPickup && stop.delivery.ampm_deliveries && stop.delivery.store_id) {
+          const sid = stop.delivery.store_id;
+          if (!amPmPairMap.has(sid)) amPmPairMap.set(sid, {});
+          const pair = amPmPairMap.get(sid);
+          if (stop.delivery.ampm_deliveries === 'AM') pair.amStop = stop;
+          else if (stop.delivery.ampm_deliveries === 'PM') pair.pmStop = stop;
+        }
+      }
+      const preSequencedAmPmPickups = [];
+      const excludedFromHere = new Set();
+      for (const [sid, pair] of amPmPairMap.entries()) {
+        if (pair.amStop && pair.pmStop) {
+          preSequencedAmPmPickups.push(pair.amStop, pair.pmStop);
+          excludedFromHere.add(pair.amStop.delivery.id);
+          excludedFromHere.add(pair.pmStop.delivery.id);
+          console.log(`🔧 [optimizeRemainingStops] Pre-sequenced AM→PM pickup pair for store ${sid}`);
+        }
+      }
+      const finalHereEligibleStops = hereEligibleStops.filter(s => !excludedFromHere.has(s.delivery.id));
+
+      const sortedHint = sortByWindowThenProximity(finalHereEligibleStops);
 
       // Origin for HERE sequencing is the last imputed stop (if any), otherwise the locked next stop or logical origin
       const sequenceOrigin = imputedSortedByProximity.length > 0
@@ -581,7 +606,7 @@ Deno.serve(async (req) => {
         : lockedNextStop ? { lat: lockedNextStop.lat, lng: lockedNextStop.lng } : logicalSegmentOrigin;
       const destinationForDirections = driverHomePosition || (sortedHint.length > 0 ? { lat: sortedHint[sortedHint.length - 1].lat, lng: sortedHint[sortedHint.length - 1].lng } : logicalSegmentOrigin);
 
-      const sequenceWaypoints = sortedHint.map(s => ({ lat: s.lat, lng: s.lng }));
+      const sequenceWaypoints = finalHereEligibleStops.length > 0 ? sortedHint.map(s => ({ lat: s.lat, lng: s.lng })) : [];
       const sequenceRouteContext = sortedHint.map(s => ({
         id: s.delivery.stop_id || s.delivery.delivery_id || s.delivery.id,
         stop_id: s.delivery.stop_id,
@@ -632,10 +657,11 @@ Deno.serve(async (req) => {
         hereOrderedStops = sortedHint;
       }
 
-      // Final order: locked next stop → proximity-sorted imputed stops → HERE-sequenced remaining stops
+      // Final order: locked next stop → proximity-sorted imputed stops → pre-sequenced AM/PM pairs → HERE-sequenced remaining stops
       routeStops = [
         ...(lockedNextStop ? [lockedNextStop] : []),
         ...imputedSortedByProximity,
+        ...preSequencedAmPmPickups,
         ...hereOrderedStops,
       ];
     }
