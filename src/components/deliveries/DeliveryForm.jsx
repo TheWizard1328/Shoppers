@@ -1071,16 +1071,6 @@ export default function DeliveryForm({
 
       const routeDriverId = createdPickup?.driver_id || formData.driver_id;
       const routeDeliveryDate = createdPickup?.delivery_date || formData.delivery_date;
-      if (routeDriverId && routeDeliveryDate) {
-        await base44.functions.invoke('optimizeRemainingStops', {
-          driverId: routeDriverId,
-          deliveryDate: routeDeliveryDate
-        }).catch(() => null);
-        await base44.functions.invoke('purgeAndRegeneratePolylines', {
-          driverId: routeDriverId,
-          deliveryDate: routeDeliveryDate
-        }).catch(() => null);
-      }
 
       setHasChanges(false);
       setError(null);
