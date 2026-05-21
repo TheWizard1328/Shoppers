@@ -496,11 +496,25 @@ Deno.serve(async (req) => {
       ? stopsWithCoords.find(s => s.delivery.id === explicitNextDelivery.id) || null
       : null;
 
-    // Sort stops by window start as a hint to HERE
-    const sortByWindow = (arr) => arr.slice().sort((a, b) => {
+    // Sort stops by window start first, then by proximity to driver's current position as tiebreaker.
+    // This gives HERE a stronger sequencing hint — nearby stops with the same or earlier window
+    // are listed first so HERE is less likely to defer them in favour of distant same-store pickups.
+    const sortByWindowThenProximity = (arr) => arr.slice().sort((a, b) => {
       const aMin = parseTimeToMinutes(a.windowStart || a.delivery?.delivery_time_start);
       const bMin = parseTimeToMinutes(b.windowStart || b.delivery?.delivery_time_start);
-      return (Number.isFinite(aMin) ? aMin : 99999) - (Number.isFinite(bMin) ? bMin : 99999);
+      const aFinite = Number.isFinite(aMin);
+      const bFinite = Number.isFinite(bMin);
+      // Primary: earlier window start wins; stops with no window go last
+      if (aFinite !== bFinite) return aFinite ? -1 : 1;
+      if (aFinite && bFinite && aMin !== bMin) return aMin - bMin;
+      // Tiebreaker: closer to driver's current position wins
+      const origin = etaOrigin || logicalSegmentOrigin;
+      if (origin) {
+        const aDist = calculateCrowFliesDistance(origin.lat, origin.lng, a.lat, a.lng);
+        const bDist = calculateCrowFliesDistance(origin.lat, origin.lng, b.lat, b.lng);
+        return aDist - bDist;
+      }
+      return 0;
     });
 
     // Departure time
@@ -532,7 +546,7 @@ Deno.serve(async (req) => {
       console.log('✅ [optimizeRemainingStops] Preserving existing order (user-requested)');
     } else if (stopsWithCoords.length > 0) {
       const stopsForHere = optimizationStops.filter(s => !lockedNextStop || s.delivery.id !== lockedNextStop.delivery.id);
-      const sortedHint = sortByWindow(stopsForHere);
+      const sortedHint = sortByWindowThenProximity(stopsForHere);
 
       const sequenceOrigin = lockedNextStop ? { lat: lockedNextStop.lat, lng: lockedNextStop.lng } : logicalSegmentOrigin;
       const destinationForDirections = driverHomePosition || (sortedHint.length > 0 ? { lat: sortedHint[sortedHint.length - 1].lat, lng: sortedHint[sortedHint.length - 1].lng } : logicalSegmentOrigin);
