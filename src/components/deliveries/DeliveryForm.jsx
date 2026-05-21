@@ -195,6 +195,7 @@ export default function DeliveryForm({
   const [payrollLockMessage, setPayrollLockMessage] = useState(null);
   const [isNewRouteWithZeroStops, setIsNewRouteWithZeroStops] = useState(false);
   const [pickupsAddedCount, setPickupsAddedCount] = useState(0);
+  const addedPickupRoutesRef = useRef([]); // [{driverId, deliveryDate}] for routes that need optimization
   const [forceOpenDriverSelectOnLoad, setForceOpenDriverSelectOnLoad] = useState(forceOpenDriverOnLoad);
   const [pidInputValue, setPidInputValue] = useState('');
   const [pidLookupStatus, setPidLookupStatus] = useState(null); // null | 'found' | 'not_found'
@@ -1077,6 +1078,8 @@ export default function DeliveryForm({
 
       setHasChanges(false);
       setPickupsAddedCount((prev) => prev + 1);
+      // Track this route for optimization when Done is clicked
+      addedPickupRoutesRef.current.push({ driverId: routeDriverId, deliveryDate: routeDeliveryDate });
       setError(null);
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryId: createdPickup?.id, deliveryDate: routeDeliveryDate, driverId: routeDriverId, triggeredBy: 'pickupAddWithOptimization' } }));
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
@@ -1303,6 +1306,7 @@ export default function DeliveryForm({
     handleClearForm,
     openMode,
     delivery,
+    pickupsAddedCount,
     formData,
     selectedPatient,
     setStagedDeliveries,
