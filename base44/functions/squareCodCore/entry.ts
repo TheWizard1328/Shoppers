@@ -1,4 +1,4 @@
-// Redeployed on 2026-05-18
+// Redeployed on 2026-05-21 - Via Superagent The Boss
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 const SQUARE_BASE_URL = 'https://connect.squareup.com';
@@ -350,7 +350,15 @@ async function handleSyncCatalogItems(base44) {
   const activeConfigById=new Map((squareConfigs||[]).filter((c)=>c?.status==='active'&&c?.square_location_id).map((c)=>[c.id,c]));
   const storeById=new Map((stores||[]).map((s)=>[s.id,s]));const deliveryById=new Map((deliveries||[]).map((d)=>[d.id,d]));
   const allSquareLocationIds=Array.from(new Set((stores||[]).map((s)=>activeConfigById.get(s?.square_location_config_id)?.square_location_id).filter(Boolean)));
-  const txRetentionMs=getTransactionRetentionStartMs();const allCodDeliveries=(deliveries||[]).filter((d)=>Number(d?.cod_total_amount_required||0)>0);
+  const txRetentionMs=getTransactionRetentionStartMs();
+  // GUARD: Only sync catalog items for today's active deliveries.
+  // Historical/completed deliveries must NEVER recreate catalog items.
+  const todayStr=formatLocalDate(new Date());
+  const allCodDeliveries=(deliveries||[]).filter((d)=>
+    Number(d?.cod_total_amount_required||0)>0 &&
+    (d?.status==='in_transit'||d?.status==='en_route') &&
+    d?.delivery_date===todayStr
+  );
   const{patientById,patientByPid}=await buildPatientMaps(base44,allCodDeliveries);
   const[allCatalogItems,completedOrders]=await Promise.all([listActiveCatalogItems(accessToken),listOrders(allSquareLocationIds,getLookbackStartAt(TRANSACTION_RETENTION_DAYS),accessToken,MAX_TRANSACTION_ORDERS,['COMPLETED','OPEN'])]);
   // Pre-fetch ALL patients upfront so the delivery loop never needs individual async lookups
