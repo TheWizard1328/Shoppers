@@ -969,11 +969,11 @@ export default function DeliveryForm({
     !!formData.delivery_date && !isFormDisabled;
   }, [formData, selectedPickupOption, isPickupMode, delivery, isFormDisabled, editingStagedId]);
 
-  const handleAddToStaging = useCallback(async (overrideFormData) => {
+  const handleAddToStaging = useCallback(async (overrideFormData, extraPickups = []) => {
     const fd = overrideFormData || formData;
     if (!fd.delivery_date || !fd.driver_id || (!fd.store_id)) {
       setError(!fd.delivery_date || !fd.driver_id ? 'Please select both a date and driver before adding.' : 'Please fill all required fields.');
-      return;
+      return null;
     }
     // Temporarily use fd instead of formData for the rest of this invocation
     const formData = fd;
@@ -1046,11 +1046,15 @@ export default function DeliveryForm({
         deliveryDate: formData.delivery_date,
         timeSlot
       });
-      const routeDeliveriesForDriver = (allDeliveries || []).filter((delivery) =>
-        delivery &&
-        delivery.delivery_date === formData.delivery_date &&
-        delivery.driver_id === formData.driver_id
-      );
+      // CRITICAL: Include extraPickups (from same multi-add batch) so tracking numbers don't collide
+      const routeDeliveriesForDriver = [
+        ...(allDeliveries || []).filter((delivery) =>
+          delivery &&
+          delivery.delivery_date === formData.delivery_date &&
+          delivery.driver_id === formData.driver_id
+        ),
+        ...(extraPickups || [])
+      ];
       const routePickups = routeDeliveriesForDriver.filter((delivery) => !delivery?.patient_id);
       const existingPickupTrackingNumbers = routePickups
         .map((delivery) => {
@@ -1088,7 +1092,7 @@ export default function DeliveryForm({
       // CRITICAL: Do NOT close the form after adding a pickup — just clear the fields
       // so the user can add additional pickups without reopening the form.
       handleClearForm();
-      return;
+      return createdPickup;
     } else {
       const puid = await resolvePickupPuid({
         stagedDeliveries,

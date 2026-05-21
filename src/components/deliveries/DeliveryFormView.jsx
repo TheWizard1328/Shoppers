@@ -155,6 +155,7 @@ export default function DeliveryFormView({
     }
 
     // Build the list of stores to add — either multi-select or single (current formData)
+    // Sort by delivery_time_start so pickups are added in chronological order
     const idsToAdd = selectedPickupStoreIds.size > 0
       ? Array.from(selectedPickupStoreIds)
       : selectedPickupOption ? [selectedPickupOption] : [];
@@ -164,9 +165,19 @@ export default function DeliveryFormView({
       return;
     }
 
+    // Sort the store options by their delivery_time_start before processing
+    const sortedIds = [...idsToAdd].sort((a, b) => {
+      const storeA = availableStores.find((s) => s && s.id === a);
+      const storeB = availableStores.find((s) => s && s.id === b);
+      const timeA = storeA?.delivery_time_start || storeA?.weekday_am_start || '';
+      const timeB = storeB?.delivery_time_start || storeB?.weekday_am_start || '';
+      return timeA.localeCompare(timeB);
+    });
+
     setSelectedPickupStoreIds(new Set());
 
-    for (const storeOptionId of idsToAdd) {
+    const createdPickupsThisBatch = [];
+    for (const storeOptionId of sortedIds) {
       const sel = availableStores.find((s) => s && s.id === storeOptionId);
       if (!sel) continue;
       const baseId = sel._originalStoreId || sel.id;
@@ -177,7 +188,9 @@ export default function DeliveryFormView({
         store_id: baseId,
         ampm_deliveries: slot,
       };
-      await handleAddToStaging(overrideFormData);
+      // Pass previously created pickups so tracking numbers don't collide
+      const created = await handleAddToStaging(overrideFormData, createdPickupsThisBatch);
+      if (created) createdPickupsThisBatch.push(created);
     }
   }, [isPickupMode, selectedPickupStoreIds, selectedPickupOption, availableStores, formData, handleAddToStaging]);
   const shouldUseCompactPickupEditHeight = Boolean(delivery && isPickupMode && !useMobileLayout);

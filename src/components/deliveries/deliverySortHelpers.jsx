@@ -17,6 +17,15 @@ export function sortStagedDeliveries({ stagedDeliveries, stores, selectedDriverI
     const sortOrderB = storeB?.sort_order ?? Infinity;
     if (sortOrderA !== sortOrderB) return sortOrderA - sortOrderB;
 
+    // Sort pickups (no patient_id) by delivery_time_start
+    const aIsPickup = !a.patient_id;
+    const bIsPickup = !b.patient_id;
+    if (aIsPickup || bIsPickup) {
+      const timeA = a.delivery_time_start || a.ampm_deliveries || 'ZZ';
+      const timeB = b.delivery_time_start || b.ampm_deliveries || 'ZZ';
+      if (timeA !== timeB) return timeA.localeCompare(timeB);
+    }
+
     const ampmA = a.ampm_deliveries || 'ZZ';
     const ampmB = b.ampm_deliveries || 'ZZ';
     if (ampmA !== ampmB) return ampmA.localeCompare(ampmB);
