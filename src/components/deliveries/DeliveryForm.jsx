@@ -1980,7 +1980,7 @@ export default function DeliveryForm({
       pidInputValue={pidInputValue} setPidInputValue={setPidInputValue} pidLookupStatus={pidLookupStatus} setPidLookupStatus={setPidLookupStatus}
       originalPidRef={originalPidRef} updatePatientLocal={updatePatientLocal} codAmountInputRef={codAmountInputRef}
       handleCancelClick={handleCancelClick} handleBatchSave={handleBatchSave} handleUpdateStaged={handleUpdateStaged} handleAddToStaging={handleAddToStaging}
-      handleSubmit={handleSubmit} buttonState={buttonState} cancelButtonState={cancelButtonState}
+      handleSubmit={handleSubmit} buttonState={buttonState} cancelButtonState={cancelButtonState} pickupsAddedCount={pickupsAddedCount}
       isFormValid={isFormValid} hasChanges={hasChanges} isPatientFormOpen={isPatientFormOpen}
       closeOnSave={closeOnSave} onCancel={onCancel} openMode={openMode}
       forceOpenDriverOnLoad={forceOpenDriverSelectOnLoad}

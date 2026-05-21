@@ -133,7 +133,7 @@ export default function DeliveryFormView({
   handleCancelClick, handleBatchSave, handleUpdateStaged, handleAddToStaging,
   handleSubmit, handleClearForm: _handleClearForm,
   buttonState, cancelButtonState, isFormValid, hasChanges, isPatientFormOpen,
-  closeOnSave, onCancel, openMode, forceOpenDriverOnLoad = false
+  closeOnSave, onCancel, openMode, forceOpenDriverOnLoad = false, pickupsAddedCount = 0
 }) {
   const activeFieldScrollFrameRef = useRef(null);
   const shouldUseCompactPickupEditHeight = Boolean(delivery && isPickupMode && !useMobileLayout);
@@ -1033,7 +1033,7 @@ export default function DeliveryFormView({
                 </Button>
 
                 {buttonState === 'done' ?
-                <Button type="button" size="sm" onClick={(e) => {e.preventDefault();e.stopPropagation();runLockedAction('batch_save', async () => {await handleBatchSave();fabControlEvents.resetToPhaseOneAfterDone(500);});}} className="inline-flex items-center justify-center whitespace-nowrap font-medium h-8 rounded-md px-3 text-xs !text-white bg-emerald-600 hover:bg-emerald-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || openMode !== 'add_to_route' && !hasChanges}>
+                <Button type="button" size="sm" onClick={(e) => {e.preventDefault();e.stopPropagation();runLockedAction('batch_save', async () => {await handleBatchSave();fabControlEvents.resetToPhaseOneAfterDone(500);});}} className="inline-flex items-center justify-center whitespace-nowrap font-medium h-8 rounded-md px-3 text-xs !text-white bg-emerald-600 hover:bg-emerald-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || openMode !== 'add_to_route' && !hasChanges && pickupsAddedCount === 0}>
                     {isSaving ? <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />Saving...</> : <><CheckCircle className="w-4 h-4" />Done</>}
                   </Button> :
                 buttonState === 'updateStaged' ?
