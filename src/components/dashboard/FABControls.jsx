@@ -276,7 +276,7 @@ export default function FABControls({
                 const currentTime = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
                 const localTime = isDateFinished ? (getRetroEtaSeedTime(incompleteStops) || currentTime) : currentTime;
                 window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'optimize_route_fab', driverId: targetDriverId, deliveryDate } }));
-                const response = await base44.functions.invoke('optimizeRemainingStops', { driverId: targetDriverId, deliveryDate, currentLocalTime: localTime, deviceTime: now.toISOString(), bypassDriverStatus: true, bypassDeduplication: true, bypassHistoricalCheck: true });
+                const response = await base44.functions.invoke('optimizeRemainingStops', { driverId: targetDriverId, deliveryDate, currentLocalTime: localTime, deviceTime: now.toISOString(), bypassDriverStatus: true, bypassDeduplication: true, bypassHistoricalCheck: true, forceFullRemainingRouteOptimization: true });
                 const data = response?.data || response;
                 if (data?.success) {
                   // CRITICAL: optimizeRemainingStops now handles ONLY sequencing (findsequence2).
