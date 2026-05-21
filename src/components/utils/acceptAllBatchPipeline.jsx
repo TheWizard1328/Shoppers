@@ -169,13 +169,12 @@ export async function runAcceptAllBatchPipeline({
     optimizeData = optimizeResponse?.data || optimizeResponse || {};
   }
 
-  // Generate polylines ONLY if optimization actually changed the route order
-  const routeOrderChanged = optimizeData?.routeChanged === true;
+  // Generate polylines whenever there are real changes (stops just transitioned to in_transit need polylines)
   const orderedDeliveryIds = Array.isArray(optimizeData?.orderedDeliveryIds) && optimizeData.orderedDeliveryIds.length > 0
     ? optimizeData.orderedDeliveryIds
     : null;
 
-  if (routeOrderChanged && orderedDeliveryIds) {
+  if (hasRealChanges && orderedDeliveryIds) {
     // CRITICAL: Skip the first stop (the pickup/trigger delivery) — its Type 1 polyline already
     // exists and does not need to be regenerated. Only regenerate stops 2+ (Type 2 forward polylines).
     const polylineIds = orderedDeliveryIds.filter((id) => id !== triggerDelivery.id);
@@ -194,8 +193,8 @@ export async function runAcceptAllBatchPipeline({
         ...(pickupOrigin ? { currentPosition: pickupOrigin } : {})
       }).catch(() => {});
     }
-  } else if (!routeOrderChanged) {
-    console.log(`⏭️ [acceptAllBatchPipeline] Skipping polyline regeneration — route order unchanged`);
+  } else if (!hasRealChanges) {
+    console.log(`⏭️ [acceptAllBatchPipeline] Skipping polyline regeneration — no route changes`);
   }
 
   const offlineDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
