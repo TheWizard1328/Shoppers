@@ -1041,8 +1041,8 @@ export default function DeliveryForm({
 
       const pickupTimes = resolvePickupTimeWindow({
         store,
-        driverId: formData.driver_id,
-        deliveryDate: formData.delivery_date
+        deliveryDate: formData.delivery_date,
+        timeSlot
       });
       const routeDeliveriesForDriver = (allDeliveries || []).filter((delivery) =>
         delivery &&
@@ -1251,6 +1251,14 @@ export default function DeliveryForm({
   }, [stagedDeliveries, shouldAutoFocusFields, currentUser, stores]);
 
   const handleBatchSave = useCallback(async () => {
+    // Run optimization for pickup-only sessions when Done is clicked
+    if (addedPickupRoutesRef.current.length > 0 && stagedDeliveries.length === 0 && !hasPendingDeletes) {
+      const uniqueRoutes = Array.from(new Map(addedPickupRoutesRef.current.map((r) => [`${r.driverId}__${r.deliveryDate}`, r])).values());
+      addedPickupRoutesRef.current = [];
+      for (const { driverId, deliveryDate } of uniqueRoutes) { await base44.functions.invoke('optimizeRemainingStops', { driverId, deliveryDate }).catch(() => null); await base44.functions.invoke('purgeAndRegeneratePolylines', { driverId, deliveryDate }).catch(() => null); }
+      import('../utils/deliveryFormActionHelpers').then(({ closeDeliveryFormAfterSave }) => closeDeliveryFormAfterSave({ handleClearForm, onCancel })).catch(() => { handleClearForm(); onCancel?.(); });
+      return;
+    }
     const shouldCreateImmediateStagedDelivery = shouldUseImmediateAddToRouteStage({
       openMode,
       delivery,
@@ -1294,24 +1302,7 @@ export default function DeliveryForm({
       isNewRouteWithZeroStops
     });
   }, [
-    isSaving,
-    stagedDeliveries,
-    hasPendingDeletes,
-    formData,
-    allDeliveries,
-    stores,
-    onCancel,
-    onSave,
-    isNewRouteWithZeroStops,
-    handleClearForm,
-    openMode,
-    delivery,
-    pickupsAddedCount,
-    formData,
-    selectedPatient,
-    setStagedDeliveries,
-    setHasChanges,
-    handleAddToStaging
+    isSaving, stagedDeliveries, hasPendingDeletes, formData, allDeliveries, stores, onCancel, onSave, isNewRouteWithZeroStops, handleClearForm, openMode, delivery, selectedPatient, setStagedDeliveries, setHasChanges
   ]);
 
   const handleSearchKeyDown = useCallback((e) => {
@@ -1520,8 +1511,8 @@ export default function DeliveryForm({
           const pickupStore = stores?.find((s) => s && s.id === pendingRoutePickup.store_id);
           const pickupTimes = resolvePickupTimeWindow({
             store: pickupStore,
-            driverId: pendingRoutePickup.driver_id,
-            deliveryDate: pendingRoutePickup.delivery_date
+            deliveryDate: pendingRoutePickup.delivery_date,
+            timeSlot: pendingRoutePickup.ampm_deliveries || 'AM'
           });
           const createdPickup = await createDeliveryLocal({
             ...pendingRoutePickup,
