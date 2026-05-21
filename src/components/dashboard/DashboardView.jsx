@@ -50,7 +50,6 @@ export default function DashboardView({
   patientFormCallback, setPatientFormCallback, patientFormMode, setPatientFormMode,
   showOptimizationSettings, setShowOptimizationSettings,
   showQuickAdjustments, setShowQuickAdjustments,
-  showSmartPrioritization, setShowSmartPrioritization,
   // Handlers
   handleSaveDelivery, handleSavePatient, handleEditDelivery, handleEditPatient,
   handleDeleteDelivery, handleRestartDelivery, handleStatusUpdate, handleNotesUpdate,
@@ -296,7 +295,7 @@ export default function DashboardView({
           setIsEntityUpdating={setIsEntityUpdating} hasRateLimitError={hasRateLimitError} updateDeliveriesLocally={updateDeliveriesLocally}
           setEditingDelivery={setEditingDelivery} setShowDeliveryForm={setShowDeliveryForm}
           setShowOptimizationSettings={setShowOptimizationSettings}
-          setShowQuickAdjustments={setShowQuickAdjustments} setShowSmartPrioritization={setShowSmartPrioritization}
+          setShowQuickAdjustments={setShowQuickAdjustments}
           deliveryStats={deliveryStats} performanceStats={performanceStats} liveDistance={liveDistance} liveTimeOnDuty={liveTimeOnDuty}
           isLoadingPayrollStats={isLoadingPayrollStats} dailyPolylineCount={dailyPolylineCount} stats={stats}
           finalizedDutyTime={finalizedDutyTime}
@@ -453,7 +452,6 @@ export default function DashboardView({
         patientFormMode={patientFormMode} setPatientFormMode={setPatientFormMode}
         showOptimizationSettings={showOptimizationSettings} setShowOptimizationSettings={setShowOptimizationSettings}
         showQuickAdjustments={showQuickAdjustments} setShowQuickAdjustments={setShowQuickAdjustments}
-        showSmartPrioritization={showSmartPrioritization} setShowSmartPrioritization={setShowSmartPrioritization}
         handleSaveDelivery={handleSaveDelivery} handleSavePatient={handleSavePatient}
         handleCreatePatientFromDelivery={handleCreatePatientFromDelivery}
         handleQuickReorder={handleQuickReorder} handleAddDelay={handleAddDelay} handleStartDelivery={handleStartDelivery}

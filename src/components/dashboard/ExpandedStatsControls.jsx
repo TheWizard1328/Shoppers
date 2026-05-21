@@ -46,7 +46,6 @@ export default function ExpandedStatsControls({
   shouldShowLocationToggle,
   refreshUser,
   setShowQuickAdjustments,
-  setShowSmartPrioritization,
   preferredTravelMode,
   setPreferredTravelMode,
   isRouteComplete,
@@ -197,7 +196,6 @@ export default function ExpandedStatsControls({
           refreshUser={refreshUser}
           isDriver={isDriver}
           setShowQuickAdjustments={setShowQuickAdjustments}
-          setShowSmartPrioritization={setShowSmartPrioritization}
           appUsers={appUsers}
           preferredTravelMode={preferredTravelMode}
           setPreferredTravelMode={setPreferredTravelMode}
