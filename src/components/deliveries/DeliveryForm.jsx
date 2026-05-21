@@ -1086,7 +1086,9 @@ export default function DeliveryForm({
       setError(null);
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryId: createdPickup?.id, deliveryDate: routeDeliveryDate, driverId: routeDriverId, triggeredBy: 'pickupAddWithOptimization' } }));
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-      closeDeliveryFormAfterSave({ handleClearForm, onCancel });
+      // CRITICAL: Do NOT close the form after adding a pickup — just clear the fields
+      // so the user can add additional pickups without reopening the form.
+      handleClearForm();
       return;
     } else {
       const puid = await resolvePickupPuid({
