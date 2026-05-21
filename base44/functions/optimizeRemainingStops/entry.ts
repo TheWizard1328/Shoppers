@@ -486,7 +486,15 @@ Deno.serve(async (req) => {
 
     const explicitNextDelivery = (firstStopId ? incompleteDeliveries.find(d => d?.id === firstStopId) : null)
       || incompleteDeliveries.find(d => d?.isNextDelivery === true) || null;
-    const lockedNextStop = effectiveForceFullOptimization ? null : (explicitNextDelivery ? stopsWithCoords.find(s => s.delivery.id === explicitNextDelivery.id) || null : null);
+
+    // When forceFullRemainingRouteOptimization is true we still lock the current
+    // isNextDelivery stop (the one the driver is actively en-route to) as first,
+    // so HERE only re-sequences everything *after* it. Without this, HERE can
+    // pull a future pickup (e.g. a 6 PM window) to the front just because it has
+    // a tight time window, displacing the stop the driver is already heading to.
+    const lockedNextStop = explicitNextDelivery
+      ? stopsWithCoords.find(s => s.delivery.id === explicitNextDelivery.id) || null
+      : null;
 
     // Sort stops by window start as a hint to HERE
     const sortByWindow = (arr) => arr.slice().sort((a, b) => {
