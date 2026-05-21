@@ -526,7 +526,12 @@ export async function syncNextDeliveryFlagsLocally({ driverDeliveries = [], next
   }
 
   if (updateDeliveriesLocally) {
-    updateDeliveriesLocally(updatedDeliveries, false);
+    // CRITICAL: Only pass the changed deliveries (not the full scoped subset).
+    // Passing updatedDeliveries (all route deliveries for one driver/date) to
+    // updateDeliveriesLocally causes a merge against ALL deliveries in layout,
+    // but because the scoped subset is incomplete it can temporarily drop stops
+    // from other drivers/dates — producing the "incomplete stops vanish" flicker.
+    updateDeliveriesLocally(changedDeliveries, false);
   }
 
   if (persistToBackend) {
