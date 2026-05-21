@@ -1,4 +1,4 @@
-// Redeployed on 2026-05-20 - Simplified: always call HERE, removed stale order-change guard, ETAs recalc after all corrections
+// Redeployed on 2026-05-21 - Added distance-based temporary time window imputation for in_transit deliveries
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
@@ -123,6 +123,42 @@ const buildLocalIso = (dateStr, timeStr) => `${dateStr}T${normalizeTimeString(ti
 
 const getEdmontonTodayDateString = () => new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 const isHistoricalRouteDate = (dateStr) => !!dateStr && String(dateStr) < getEdmontonTodayDateString();
+
+/**
+ * Imputes a temporary delivery_time_end based on distance_from_store when a delivery
+ * is in_transit and has a start time but no end time. This prevents HERE API from
+ * treating these stops as low-priority open-ended deliveries.
+ *
+ * Rules:
+ *   < 5 km  → +2 hrs
+ *   5–10 km → +4 hrs
+ *   > 10 km or unknown → +6 hrs, capped at 21:00
+ */
+const imputeTemporaryWindowEnd = (windowStart, patient) => {
+  if (!windowStart) return null;
+  const startMins = parseTimeToMinutes(windowStart);
+  if (!Number.isFinite(startMins)) return null;
+
+  const dist = patient?.distance_from_store;
+  const MAX_END_MINS = parseTimeToMinutes('21:00'); // 9 PM hard cap
+
+  let offsetMins;
+  let label;
+  if (dist != null && dist < 5) {
+    offsetMins = 2 * 60;
+    label = '<5km → +2hr';
+  } else if (dist != null && dist >= 5 && dist <= 10) {
+    offsetMins = 4 * 60;
+    label = '5-10km → +4hr';
+  } else {
+    offsetMins = 6 * 60;
+    label = '>10km/unknown → +6hr (cap 21:00)';
+  }
+
+  const rawEnd = startMins + offsetMins;
+  const clampedEnd = Math.min(rawEnd, MAX_END_MINS);
+  return { time: formatMinutesToTime(clampedEnd), label };
+};
 
 const extractOptimizationContext = (body = {}) => {
   const forceFullRemainingRouteOptimization = body?.forceFullRemainingRouteOptimization === true;
@@ -349,6 +385,7 @@ Deno.serve(async (req) => {
       const isPickup = !delivery.patient_id;
       let windowStart = delivery.delivery_time_start || null;
       let windowEnd = delivery.delivery_time_end || null;
+
       if (!windowStart && !windowEnd) {
         if (isPickup && delivery.store_id) {
           const sw = getStorePickupWindow(storeMap.get(delivery.store_id), deliveryDate, delivery.ampm_deliveries);
@@ -358,6 +395,24 @@ Deno.serve(async (req) => {
           windowEnd = patient.time_window_end || null;
         }
       }
+
+      // ── Distance-based temporary time window imputation ──────────────────
+      // For active (in_transit/en_route) delivery stops that have a start time but
+      // no end time, impute a temporary end time based on the patient's distance
+      // from the originating store. This prevents HERE from treating these stops as
+      // low-priority open-ended deliveries and pushing them to the end of the route.
+      //
+      //   < 5 km  → start + 2 hrs
+      //   5–10 km → start + 4 hrs
+      //   > 10 km or unknown → start + 6 hrs (capped at 21:00)
+      if (!isPickup && ACTIVE_STATUSES.includes(delivery.status) && windowStart && !windowEnd && patient) {
+        const imputed = imputeTemporaryWindowEnd(windowStart, patient);
+        if (imputed) {
+          windowEnd = imputed.time;
+          console.log(`⏱️ [optimizeRemainingStops] Imputed temp window for delivery ${delivery.id}: ${windowStart}–${windowEnd} (${imputed.label}, dist=${patient.distance_from_store ?? 'n/a'}km)`);
+        }
+      }
+
       // Ensure delivery window starts after its pickup window
       if (delivery.patient_id && delivery.puid && pickupWindowByStopId.has(delivery.puid)) {
         const pw = pickupWindowByStopId.get(delivery.puid);
@@ -367,6 +422,7 @@ Deno.serve(async (req) => {
           windowStart = formatMinutesToTime(pickupStartMin + 5);
         }
       }
+
       return {
         delivery, isPickup, windowStart, windowEnd,
         windowExpired: Number.isFinite(parseTimeToMinutes(windowEnd)) && parseTimeToMinutes(windowEnd) <= currentMinutes,
@@ -422,21 +478,14 @@ Deno.serve(async (req) => {
     console.log(`📍 [optimizeRemainingStops] Origin: ${locationSource} (${currentPosition.lat}, ${currentPosition.lng}), etaOrigin: (${etaOrigin.lat}, ${etaOrigin.lng})`);
 
     // Partition stops
-    // When forceFullRemainingRouteOptimization is true (accept-all case), ALL active stops are
-    // sequenced together by HERE using time windows — no stops are treated as "already ordered".
     const optimizationStops = activeRouteDeliveries.map(d => stopsWithCoords.find(s => s.delivery.id === d.id) || null).filter(Boolean);
     const pendingStops = isRetroNewRoute ? [] : pendingRouteDeliveries.map(d => stopsWithCoords.find(s => s.delivery.id === d.id) || null).filter(Boolean);
     const pendingDeliveryIds = new Set(isRetroNewRoute ? [] : pendingRouteDeliveries.map(d => d.id));
 
-    // On force-full optimization, ensure newly-accepted stops (those without a stop_order or with
-    // stop_order beyond the existing route end) are interleaved by time window, not appended.
-    // We achieve this by NOT locking any "next delivery" and letting HERE sort everything fresh.
     const effectiveForceFullOptimization = forceFullRemainingRouteOptimization && optimizationStops.length > 1;
 
     const explicitNextDelivery = (firstStopId ? incompleteDeliveries.find(d => d?.id === firstStopId) : null)
       || incompleteDeliveries.find(d => d?.isNextDelivery === true) || null;
-    // On force-full optimization (accept-all), don't lock any stop — let HERE sequence everything
-    // by time window from scratch so newly-accepted stops are interleaved correctly.
     const lockedNextStop = effectiveForceFullOptimization ? null : (explicitNextDelivery ? stopsWithCoords.find(s => s.delivery.id === explicitNextDelivery.id) || null : null);
 
     // Sort stops by window start as a hint to HERE
@@ -451,8 +500,6 @@ Deno.serve(async (req) => {
     const allWindowMins = stopsWithCoords.map(s => parseTimeToMinutes(s.windowStart || s.delivery?.delivery_time_start)).filter(Number.isFinite);
     const earliestWindowMinutes = allWindowMins.length > 0 ? Math.min(...allWindowMins) : Infinity;
     let resolvedDepartureTime;
-    // For accept-all (force full optimization), always depart from NOW so newly-accepted stops
-    // get sequenced relative to the current time, not the earliest window.
     if (effectiveForceFullOptimization) {
       resolvedDepartureTime = currentLocalTime || formatMinutesToTime(currentMinutes);
     } else if (isFutureRoute && Number.isFinite(earliestWindowMinutes)) {
@@ -473,14 +520,10 @@ Deno.serve(async (req) => {
     // SEQUENCING
     // ─────────────────────────────────────────────────────────────────────
     if (preserveExistingOrder) {
-      // Preserve existing stop_order but still use HERE for real road ETA data
       routeStops = [...optimizationStops].sort((a, b) => (Number(a.delivery?.stop_order) || 99999) - (Number(b.delivery?.stop_order) || 99999));
       console.log('✅ [optimizeRemainingStops] Preserving existing order (user-requested)');
     } else if (stopsWithCoords.length > 0) {
-      // ── All stops except locked-next go to HERE for sequencing ──────────
       const stopsForHere = optimizationStops.filter(s => !lockedNextStop || s.delivery.id !== lockedNextStop.delivery.id);
-
-      // Build the ordered hint: sort by window start so HERE gets a good starting point
       const sortedHint = sortByWindow(stopsForHere);
 
       const sequenceOrigin = lockedNextStop ? { lat: lockedNextStop.lat, lng: lockedNextStop.lng } : logicalSegmentOrigin;
@@ -492,13 +535,12 @@ Deno.serve(async (req) => {
         stop_id: s.delivery.stop_id,
         delivery_id: s.delivery.delivery_id,
         time_window_start: s.windowStart || null,
-        time_window_end: s.windowEnd || null,
+        time_window_end: s.windowEnd || null, // Includes imputed temporary end time for HERE sequencing
       }));
 
       let hereSequenceResult = null;
 
       if (sortedHint.length > 0) {
-        // ALWAYS call HERE — no "would it change" guard
         try {
           const seqResp = await base44.asServiceRole.functions.invoke('getHereDirections', {
             origin: sequenceOrigin,
@@ -511,7 +553,7 @@ Deno.serve(async (req) => {
             caller: 'optimizeRemainingStops:sequence',
             preserveWaypointOrder: false,
             skipSequenceApi: false,
-            skipRoutingApi: true, // get sequence order only, polylines generated by purgeAndRegeneratePolylines
+            skipRoutingApi: true,
           });
           hereSequenceResult = seqResp?.data || seqResp || null;
           attemptedHereCalls += Number(hereSequenceResult?.api_call_count || 1);
@@ -522,21 +564,18 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Map HERE's ordered waypoint IDs back to stop objects
       const stopLookupById = new Map(sortedHint.map(s => [s.delivery.stop_id || s.delivery.delivery_id || s.delivery.id, s]));
       const optimizedWaypointIds = Array.isArray(hereSequenceResult?.optimized_waypoint_ids) ? hereSequenceResult.optimized_waypoint_ids : null;
 
       let hereOrderedStops;
       if (optimizedWaypointIds && optimizedWaypointIds.length > 0) {
         hereOrderedStops = optimizedWaypointIds.map(id => stopLookupById.get(id) || null).filter(Boolean);
-        // Append any stops HERE didn't return (shouldn't happen, but be safe)
         const returnedIds = new Set(optimizedWaypointIds);
         sortedHint.forEach(s => {
           const key = s.delivery.stop_id || s.delivery.delivery_id || s.delivery.id;
           if (!returnedIds.has(key)) hereOrderedStops.push(s);
         });
       } else {
-        // HERE failed — fall back to time-window sort
         console.warn('⚠️ [optimizeRemainingStops] HERE returned no sequence — using time-window sort fallback');
         hereOrderedStops = sortedHint;
       }
@@ -586,8 +625,7 @@ Deno.serve(async (req) => {
     // 3. Time-window violation correction (move late-arriving stops earlier)
     if (routeStops.length > 1 && !preserveExistingOrder) {
       const startIdx = lockedNextStop ? 1 : 0;
-      // Recalc ETAs with crow-flies for simulation
-      const { etas: simEtas, legs: simLegs } = recalcLegsAndEtas(routeStops, etaOrigin, etaBaseMinutes);
+      const { etas: simEtas } = recalcLegsAndEtas(routeStops, etaOrigin, etaBaseMinutes);
       let correctionMade = false;
       for (let i = startIdx; i < routeStops.length; i++) {
         const stop = routeStops[i];
@@ -644,10 +682,9 @@ Deno.serve(async (req) => {
       for (let i = 0; i < routeStops.length; i++) {
         const stop = routeStops[i];
         if (i === 0) {
-          // First stop: travel from driver's actual current GPS position
           const dKm = calculateCrowFliesDistance(etaOrigin.lat, etaOrigin.lng, stop.lat, stop.lng);
           cumTime += Math.ceil((dKm / 40) * 60 * 1.3);
-        } else if (i > 0) {
+        } else {
           const prev = routeStops[i - 1];
           const dKm = calculateCrowFliesDistance(prev.lat, prev.lng, stop.lat, stop.lng);
           cumTime += Math.ceil((dKm / 40) * 60 * 1.3);
@@ -684,7 +721,6 @@ Deno.serve(async (req) => {
           delivery_time_eta: stop.delivery_time_eta,
           isNextDelivery: stop.id === nextStopId,
           transport_mode: safeTransportMode,
-          // Polylines will be regenerated by purgeAndRegeneratePolylines
           ...(resolvedTrueOrigin && stop.id === nextStopId ? { first_leg_origin_lat: resolvedTrueOrigin.lat, first_leg_origin_lng: resolvedTrueOrigin.lng } : {}),
         }
       });
