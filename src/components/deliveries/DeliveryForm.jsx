@@ -194,6 +194,7 @@ export default function DeliveryForm({
   const [isPayrollLocked, setIsPayrollLocked] = useState(false);
   const [payrollLockMessage, setPayrollLockMessage] = useState(null);
   const [isNewRouteWithZeroStops, setIsNewRouteWithZeroStops] = useState(false);
+  const [pickupsAddedCount, setPickupsAddedCount] = useState(0);
   const [forceOpenDriverSelectOnLoad, setForceOpenDriverSelectOnLoad] = useState(forceOpenDriverOnLoad);
   const [pidInputValue, setPidInputValue] = useState('');
   const [pidLookupStatus, setPidLookupStatus] = useState(null); // null | 'found' | 'not_found'
@@ -431,8 +432,10 @@ export default function DeliveryForm({
     if (delivery) return 'update';
     if (editingStagedId) return 'updateStaged';
     if ((stagedDeliveries.length > 0 || hasPendingDeletes) && !hasFormData && !(isPickupMode && !delivery && (selectedPickupOption || formData.store_id || formData.delivery_notes || formData.after_hours_pickup))) return 'done';
+    // Show Done button after pickups have been added via the Add Pickup tab
+    if (isPickupMode && pickupsAddedCount > 0 && !hasFormData) return 'done';
     return 'add';
-  }, [openMode, delivery, editingStagedId, stagedDeliveries.length, hasFormData, hasPendingDeletes, isPickupMode, selectedPickupOption, formData.store_id, formData.delivery_notes, formData.after_hours_pickup]);
+  }, [openMode, delivery, editingStagedId, stagedDeliveries.length, hasFormData, hasPendingDeletes, isPickupMode, selectedPickupOption, formData.store_id, formData.delivery_notes, formData.after_hours_pickup, pickupsAddedCount]);
 
   const cancelButtonState = useMemo(() => openMode === 'add_to_route' ? 'cancel' : (hasFormData ? 'clear' : 'cancel'), [openMode, hasFormData]);
 
@@ -1073,6 +1076,7 @@ export default function DeliveryForm({
       const routeDeliveryDate = createdPickup?.delivery_date || formData.delivery_date;
 
       setHasChanges(false);
+      setPickupsAddedCount((prev) => prev + 1);
       setError(null);
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryId: createdPickup?.id, deliveryDate: routeDeliveryDate, driverId: routeDriverId, triggeredBy: 'pickupAddWithOptimization' } }));
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
