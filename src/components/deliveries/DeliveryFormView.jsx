@@ -488,7 +488,7 @@ export default function DeliveryFormView({
         ref={formRef}
         initial={{ opacity: 0, scale: useMobileLayout && isMobileDevice ? 1 : 0.95 }}
         animate={{ opacity: 1, y: 0 }}
-        className={`w-full ${useMobileLayout && isMobileDevice ? 'h-full max-h-full overflow-hidden' : shouldUseCompactPickupEditHeight ? 'max-w-[468px] h-auto max-h-[95vh]' : isPickupMode ? 'max-w-[520px] h-[400px] max-h-[400px]' : !delivery ? 'max-w-[65.625rem] h-[95vh] max-h-[95vh]' : 'max-w-[50rem] h-auto max-h-[95vh]'} flex`}
+        className={`w-full ${useMobileLayout && isMobileDevice ? 'h-full max-h-full overflow-hidden' : shouldUseCompactPickupEditHeight ? 'max-w-[468px] h-auto max-h-[95vh]' : isPickupMode ? 'max-w-[520px] h-auto max-h-[90vh]' : !delivery ? 'max-w-[65.625rem] h-[95vh] max-h-[95vh]' : 'max-w-[50rem] h-auto max-h-[95vh]'} flex`}
         style={useMobileLayout && isMobileDevice ? { height: '100%', maxHeight: '100%' } : undefined}>
         <Card
           onKeyDown={handleGlobalKeyDown}
@@ -542,7 +542,7 @@ export default function DeliveryFormView({
             </div>
           }
 
-          <CardContent className={`p-3 relative ${useMobileLayout ? 'flex-1 overflow-y-auto overflow-x-hidden min-h-0' : shouldUseCompactPickupEditHeight ? 'overflow-visible' : delivery ? 'overflow-y-auto overflow-x-hidden' : 'flex-1 overflow-hidden'}`}>
+          <CardContent className={`p-3 relative ${useMobileLayout ? 'flex-1 overflow-y-auto overflow-x-hidden min-h-0' : shouldUseCompactPickupEditHeight ? 'overflow-visible' : isPickupMode && !delivery ? 'overflow-y-auto overflow-x-hidden' : delivery ? 'overflow-y-auto overflow-x-hidden' : 'flex-1 overflow-hidden'}`}>
             <div className={`${!delivery && !useMobileLayout && !isPickupMode ? 'h-full min-h-0 grid-cols-[minmax(0,1fr)_300px]' : 'grid-cols-1'} grid gap-3`}>
               <div className={`flex flex-col gap-3 ${useMobileLayout || delivery ? 'overflow-visible' : 'min-h-0 overflow-hidden'}`}>
 
