@@ -139,61 +139,47 @@ export default function DeliveryFormView({
   const activeFieldScrollFrameRef = useRef(null);
   // Multi-select pickup store IDs (local to view)
   const [selectedPickupStoreIds, setSelectedPickupStoreIds] = React.useState(new Set());
-  const pendingPickupQueueRef = useRef([]); // stores to add sequentially
-  const isProcessingPickupQueueRef = useRef(false);
 
-  // Clear selectedPickupStoreIds when form is cleared
+  // Clear selectedPickupStoreIds when form is cleared (selectedPickupOption reset to '')
   React.useEffect(() => {
     if (!selectedPickupOption && !formData.store_id) {
       setSelectedPickupStoreIds(new Set());
     }
   }, [selectedPickupOption, formData.store_id]);
 
-  // Process queued multi-pickups sequentially
-  React.useEffect(() => {
-    if (!isPickupMode || pendingPickupQueueRef.current.length === 0 || isProcessingPickupQueueRef.current) return;
-    if (formData.store_id) return; // wait for form to be cleared
-    const next = pendingPickupQueueRef.current.shift();
-    if (!next) return;
-    isProcessingPickupQueueRef.current = true;
-    const sel = availableStores.find((s) => s && s.id === next);
-    const baseId = sel?._originalStoreId || next;
-    const slot = sel?._timeSlot || 'AM';
-    setFormData((prev) => ({ ...prev, store_id: baseId, ampm_deliveries: slot }));
-    setSelectedPickupOption(next);
-    // After setting, trigger add
-    setTimeout(async () => {
-      await handleAddToStaging();
-      isProcessingPickupQueueRef.current = false;
-    }, 30);
-  }, [formData.store_id, isPickupMode]);
-
+  // Handle the Add button: iterate through all selected stores sequentially
   const handleAddPickupsMulti = React.useCallback(async () => {
-    if (!isPickupMode || selectedPickupStoreIds.size <= 1) {
+    if (!isPickupMode) {
       await handleAddToStaging();
-      setSelectedPickupStoreIds(new Set());
       return;
     }
-    const ids = Array.from(selectedPickupStoreIds);
-    setSelectedPickupStoreIds(new Set());
-    // Queue all stores — the useEffect above will process them one by one as form clears
-    pendingPickupQueueRef.current = ids;
-    // Trigger first one immediately
-    isProcessingPickupQueueRef.current = false;
-    const first = pendingPickupQueueRef.current.shift();
-    if (first) {
-      const sel = availableStores.find((s) => s && s.id === first);
-      const baseId = sel?._originalStoreId || first;
-      const slot = sel?._timeSlot || 'AM';
-      setFormData((prev) => ({ ...prev, store_id: baseId, ampm_deliveries: slot }));
-      setSelectedPickupOption(first);
-      isProcessingPickupQueueRef.current = true;
-      setTimeout(async () => {
-        await handleAddToStaging();
-        isProcessingPickupQueueRef.current = false;
-      }, 30);
+
+    // Build the list of stores to add — either multi-select or single (current formData)
+    const idsToAdd = selectedPickupStoreIds.size > 0
+      ? Array.from(selectedPickupStoreIds)
+      : selectedPickupOption ? [selectedPickupOption] : [];
+
+    if (idsToAdd.length === 0) {
+      await handleAddToStaging();
+      return;
     }
-  }, [isPickupMode, selectedPickupStoreIds, availableStores, handleAddToStaging]);
+
+    setSelectedPickupStoreIds(new Set());
+
+    for (const storeOptionId of idsToAdd) {
+      const sel = availableStores.find((s) => s && s.id === storeOptionId);
+      if (!sel) continue;
+      const baseId = sel._originalStoreId || sel.id;
+      const slot = sel._timeSlot || 'AM';
+      // Build override form data for this store
+      const overrideFormData = {
+        ...formData,
+        store_id: baseId,
+        ampm_deliveries: slot,
+      };
+      await handleAddToStaging(overrideFormData);
+    }
+  }, [isPickupMode, selectedPickupStoreIds, selectedPickupOption, availableStores, formData, handleAddToStaging]);
   const shouldUseCompactPickupEditHeight = Boolean(delivery && isPickupMode && !useMobileLayout);
   const stagedCount = React.useMemo(() => ({
     new: sortedStagedDeliveries.filter((s) => !s.id).length,

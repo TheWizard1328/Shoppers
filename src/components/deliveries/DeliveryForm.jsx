@@ -969,11 +969,14 @@ export default function DeliveryForm({
     !!formData.delivery_date && !isFormDisabled;
   }, [formData, selectedPickupOption, isPickupMode, delivery, isFormDisabled, editingStagedId]);
 
-  const handleAddToStaging = useCallback(async () => {
-    if (!formData.delivery_date || !formData.driver_id || !isFormValid || !isPickupMode && !formData.patient_id && !formData.patient_name || !formData.store_id) {
-      setError(!formData.delivery_date || !formData.driver_id ? 'Please select both a date and driver before adding.' : 'Please fill all required fields.');
+  const handleAddToStaging = useCallback(async (overrideFormData) => {
+    const fd = overrideFormData || formData;
+    if (!fd.delivery_date || !fd.driver_id || (!fd.store_id)) {
+      setError(!fd.delivery_date || !fd.driver_id ? 'Please select both a date and driver before adding.' : 'Please fill all required fields.');
       return;
     }
+    // Temporarily use fd instead of formData for the rest of this invocation
+    const formData = fd;
 
     let patient = null;
     let isNewPatient = false;
@@ -1026,8 +1029,7 @@ export default function DeliveryForm({
       calculateDistance
     });
 
-    const selectedStore = availableStores.find((s) => s && s.id === selectedPickupOption);
-    const timeSlot = selectedStore?._timeSlot || formData.ampm_deliveries || getStoreAssignedTimeSlotForDriver(store, formData.delivery_date, formData.driver_id, allDeliveries) || 'AM';
+    const timeSlot = formData.ampm_deliveries || getStoreAssignedTimeSlotForDriver(store, formData.delivery_date, formData.driver_id, allDeliveries) || 'AM';
     let newStagedDelivery;
 
     if (isPickupMode) {
@@ -1133,7 +1135,7 @@ export default function DeliveryForm({
       focusRef: patientSearchInputRef,
       setNewPatientMode
     });
-  }, [formData, isFormValid, patients, freshStores, stores, isPickupMode, newPatientMode, selectedPatient, stagedDeliveries, isMobileDevice, isNewRouteWithZeroStops, allDeliveries, availableStores, selectedPickupOption]);
+  }, [formData, patients, freshStores, stores, isPickupMode, newPatientMode, selectedPatient, stagedDeliveries, isMobileDevice, isNewRouteWithZeroStops, allDeliveries, availableStores, selectedPickupOption]);
 
   useEffect(() => {
     if (delivery || isPickupMode || !selectedPatient || !formData.driver_id || !formData.delivery_date) return;
