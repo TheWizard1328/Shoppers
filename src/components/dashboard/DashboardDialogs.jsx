@@ -1,6 +1,5 @@
 import { AnimatePresence } from "framer-motion";
 import { base44 } from "@/api/base44Client";
-import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -10,7 +9,6 @@ import RouteOptimizationSettings from "@/components/dashboard/RouteOptimizationS
 import RouteSummaryModal from "@/components/dashboard/RouteSummaryModal";
 import RouteNotification from "@/components/dashboard/RouteNotification";
 import ProactiveAlertSystem from "@/components/dashboard/ProactiveAlertSystem";
-import SmartPrioritizationPanel from '@/components/dashboard/SmartPrioritizationPanel';
 import EndOfDayStatsDialog from '@/components/dashboard/EndOfDayStatsDialog';
 import DispatcherPickupNotification from '@/components/dashboard/DispatcherPickupNotification';
 import ReconcileToast from '@/components/dashboard/ReconcileToast';
@@ -28,7 +26,6 @@ export default function DashboardDialogs({
   patientFormCallback, setPatientFormCallback, patientFormMode, setPatientFormMode,
   showOptimizationSettings, setShowOptimizationSettings,
   showQuickAdjustments, setShowQuickAdjustments,
-  showSmartPrioritization, setShowSmartPrioritization,
   // Handlers
   handleSaveDelivery, handleSavePatient, handleCreatePatientFromDelivery,
   handleQuickReorder, handleAddDelay, handleStartDelivery,
@@ -172,18 +169,7 @@ export default function DashboardDialogs({
         </DialogContent>
       </Dialog>}
 
-      {isDriver && <Dialog open={showSmartPrioritization} onOpenChange={setShowSmartPrioritization}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto z-[10001]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
-          <DialogHeader><DialogTitle className="flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}><Sparkles className="w-5 h-5 text-purple-600" />AI Route Intelligence</DialogTitle></DialogHeader>
-          <SmartPrioritizationPanel driverId={currentUser?.id} deliveryDate={selectedDateStr} currentUser={currentUser}
-            onApplySuggestion={async suggestion => {
-              if (suggestion.action?.type === 'move_to_next') {
-                const d = deliveriesWithStopOrder.find(d => d?.id === suggestion.deliveryId);
-                if (d) { await handleStartDelivery(d.id); setShowSmartPrioritization(false); }
-              }
-            }} />
-        </DialogContent>
-      </Dialog>}
+
     </>
   );
 }

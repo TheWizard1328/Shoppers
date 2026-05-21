@@ -83,7 +83,6 @@ import DashboardOfflineSync from '@/components/dashboard/DashboardOfflineSync';
 import ExpandedStatsControls from '@/components/dashboard/ExpandedStatsControls';
 import QuickRouteAdjustments from '../components/dashboard/QuickRouteAdjustments';
 import { driverActivityMonitor } from '@/components/utils/driverActivityMonitor';
-import SmartPrioritizationPanel from '../components/dashboard/SmartPrioritizationPanel';
 import ActivePayStats from '../components/dashboard/ActivePayStats';
 import EndOfDayStatsDialog from '../components/dashboard/EndOfDayStatsDialog';
 import { toast } from 'sonner';
@@ -224,7 +223,7 @@ function Dashboard() {
   const [showQuickAdjustments, setShowQuickAdjustments] = useState(false);
   const cardExpandedAtRef = useRef(null);
   const [showAllDriverMarkers, setShowAllDriverMarkers] = useState(false);
-  const [showSmartPrioritization, setShowSmartPrioritization] = useState(false), [showBreadcrumbs, setShowBreadcrumbs] = useState(false), [mapStyle, setMapStyle] = useState('explore');
+  const [showBreadcrumbs, setShowBreadcrumbs] = useState(false), [mapStyle, setMapStyle] = useState('explore');
   const [preferredTravelMode, setPreferredTravelMode] = useState('driving');
   const [breadcrumbsData, setBreadcrumbsData] = useState({ historical: [], current: [] });
   const [performanceStats, setPerformanceStats] = useState(null);
@@ -3930,7 +3929,6 @@ function Dashboard() {
     patientFormCallback, setPatientFormCallback, patientFormMode, setPatientFormMode,
     showOptimizationSettings, setShowOptimizationSettings,
     showQuickAdjustments, setShowQuickAdjustments,
-    showSmartPrioritization, setShowSmartPrioritization,
     handleSaveDelivery, handleSavePatient, handleEditDelivery, handleEditPatient,
     handleDeleteDelivery, handleRestartDelivery, handleStatusUpdate, handleNotesUpdate,
     handleCODUpdate, handleCreateReturn, handleStartDelivery,
