@@ -34,6 +34,7 @@ import { globalFilters } from '@/components/utils/globalFilters';
 import { fabControlEvents } from '@/components/utils/fabControlEvents';
 import { acquireDeliveryActionLock, releaseDeliveryActionLock, getActiveDeliveryAction, subscribeDeliveryActionLock } from '../utils/deliveryActionLock';
 import { renderDeliveryIdentifiersSection } from './deliveryFormHelpers';
+import PickupLocationMultiSelect from './PickupLocationMultiSelect';
 import { buildDeliveryStagedPanelProps } from './deliveryStagedPanelPropsHelper';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) =>
@@ -545,79 +546,25 @@ export default function DeliveryFormView({
             <div className={`${!delivery && !useMobileLayout && !isPickupMode ? 'h-full min-h-0 grid-cols-[minmax(0,1fr)_300px]' : 'grid-cols-1'} grid gap-3`}>
               <div className={`flex flex-col gap-3 ${useMobileLayout || delivery ? 'overflow-visible' : 'min-h-0 overflow-hidden'}`}>
 
-              {/* Pickup mode: Row 1 = Pickup Location (multi-select), Row 2 = Date + Driver */}
+              {/* Pickup mode: Row 1 = Pickup Location (multi-select dropdown), Row 2 = Date + Driver */}
               {isPickupMode && !delivery &&
                 <div className="flex flex-col gap-3">
-                  {/* Row 1: Pickup Location multi-select */}
-                  <div className="space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                    <div className="flex items-center justify-between mb-1">
-                      <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Pickup Location *</Label>
-                      {availableStores.length > 1 && (
-                        <button type="button" className="text-xs text-blue-600 hover:underline" onClick={() => {
-                          if (selectedPickupStoreIds.size === availableStores.length) {
-                            setSelectedPickupStoreIds(new Set());
-                            setSelectedPickupOption('');
-                            setFormData((prev) => ({ ...prev, store_id: '', ampm_deliveries: '' }));
-                          } else {
-                            const allIds = new Set(availableStores.map((s) => s.id));
-                            setSelectedPickupStoreIds(allIds);
-                            // Set primary formData to first store
-                            const first = availableStores[0];
-                            if (first) {
-                              const baseId = first._originalStoreId || first.id;
-                              const slot = first._timeSlot || 'AM';
-                              setSelectedPickupOption(first.id);
-                              setFormData((prev) => ({ ...prev, store_id: baseId, ampm_deliveries: slot }));
-                            }
-                          }
-                        }} disabled={isSaving}>
-                          {selectedPickupStoreIds.size === availableStores.length ? 'Deselect All' : 'Select All'}
-                        </button>
-                      )}
-                    </div>
-                    <div className={`flex flex-wrap gap-2`}>
-                      {availableStores.map((store) => {
-                        const isChecked = selectedPickupStoreIds.has(store.id) || selectedPickupOption === store.id;
-                        const baseName = store._originalStoreId ? store.name.replace(/ \[AM\]| \[PM\]/, '') : store.name;
-                        const label = `${baseName}${store._timeSlot ? ` [${store._timeSlot}]` : ''}`;
-                        return (
-                          <button
-                            key={store.id}
-                            type="button"
-                            disabled={isSaving}
-                            onClick={() => {
-                              const storeId = store._originalStoreId || store.id;
-                              const requestedSlot = store._timeSlot || 'AM';
-                              const { driverId: defaultDriverId, resolvedSlot, hasAnyAssignedSlot } = getDefaultDriverForStoreSlot(storeId, requestedSlot, formData.delivery_date);
-                              const effectiveSlot = resolvedSlot || requestedSlot;
-                              const newPuid = getPickupStopIdForDelivery(storeId, formData.delivery_date, effectiveSlot, allDeliveries);
-                              const defaultDriver = defaultDriverId ? allDrivers.find((d) => d.id === defaultDriverId) : null;
-                              setSelectedPickupOption(store.id);
-                              setFormData((prev) => ({
-                                ...prev,
-                                store_id: storeId,
-                                ampm_deliveries: effectiveSlot,
-                                puid: newPuid || '',
-                                driver_id: defaultDriver ? defaultDriverId : prev.driver_id,
-                                driver_name: defaultDriver ? getDriverNameForStorage(defaultDriver) : prev.driver_name
-                              }));
-                              setSelectedPickupStoreIds((prev) => {
-                                const next = new Set(prev);
-                                if (next.has(store.id)) { next.delete(store.id); } else { next.add(store.id); }
-                                return next;
-                              });
-                              if (!hasAnyAssignedSlot && !formData.driver_id) { setTimeout(() => setForceOpenDriverSelect(true), 150); }
-                              else { setForceOpenDriverSelect(false); }
-                            }}
-                            className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${isChecked ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'}`}
-                          >
-                            {label}
-                          </button>
-                        );
-                      })}
-                      {availableStores.length === 0 && <span className="text-sm text-slate-400">No stores available</span>}
-                    </div>
-                  </div>
+                  {/* Row 1: Pickup Location multi-select dropdown */}
+                  <PickupLocationMultiSelect
+                    availableStores={availableStores}
+                    selectedPickupStoreIds={selectedPickupStoreIds}
+                    setSelectedPickupStoreIds={setSelectedPickupStoreIds}
+                    selectedPickupOption={selectedPickupOption}
+                    setSelectedPickupOption={setSelectedPickupOption}
+                    formData={formData}
+                    setFormData={setFormData}
+                    allDeliveries={allDeliveries}
+                    allDrivers={allDrivers}
+                    getDefaultDriverForStoreSlot={getDefaultDriverForStoreSlot}
+                    getDriverNameForStorage={getDriverNameForStorage}
+                    setForceOpenDriverSelect={setForceOpenDriverSelect}
+                    isSaving={isSaving}
+                  />
                   {/* Row 2: Date + Driver */}
                   <div className={`flex ${useMobileLayout ? 'flex-col gap-3' : 'gap-3'}`}>
                     <div className="flex-1 space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
