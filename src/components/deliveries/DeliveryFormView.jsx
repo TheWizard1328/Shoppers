@@ -192,6 +192,17 @@ export default function DeliveryFormView({
       const created = await handleAddToStaging(overrideFormData, createdPickupsThisBatch);
       if (created) createdPickupsThisBatch.push(created);
     }
+
+    // After all pickups are created, recalculate stop orders once so they sort by ETA/time
+    if (createdPickupsThisBatch.length > 0) {
+      const driverId = formData.driver_id;
+      const deliveryDate = formData.delivery_date;
+      if (driverId && deliveryDate) {
+        setTimeout(() => {
+          recalculateAndUpdateStopOrders(driverId, deliveryDate, true);
+        }, 500);
+      }
+    }
   }, [isPickupMode, selectedPickupStoreIds, selectedPickupOption, availableStores, formData, handleAddToStaging]);
   const shouldUseCompactPickupEditHeight = Boolean(delivery && isPickupMode && !useMobileLayout);
   const stagedCount = React.useMemo(() => ({

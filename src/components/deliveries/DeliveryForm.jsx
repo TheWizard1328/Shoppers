@@ -1068,15 +1068,18 @@ export default function DeliveryForm({
         : 0;
       const trackingNumber = trackingNumberBase === 0 ? '00' : String(trackingNumberBase);
 
+      const resolvedTimeStart = pickupTimes?.delivery_time_start || pickupToCreate.delivery_time_start || '';
+      const resolvedTimeEnd = pickupTimes?.delivery_time_end || pickupToCreate.delivery_time_end || '';
       const createdPickup = await createDeliveryLocal({
         ...pickupToCreate,
         patient_id: null,
         status: 'en_route',
         tracking_number: trackingNumber,
-        delivery_time_start: pickupTimes?.delivery_time_start || pickupToCreate.delivery_time_start || '',
-        delivery_time_end: pickupTimes?.delivery_time_end || pickupToCreate.delivery_time_end || '',
-        time_window_start: pickupTimes?.delivery_time_start || pickupToCreate.time_window_start || '',
-        time_window_end: pickupTimes?.delivery_time_end || pickupToCreate.time_window_end || ''
+        delivery_time_start: resolvedTimeStart,
+        delivery_time_end: resolvedTimeEnd,
+        delivery_time_eta: resolvedTimeStart,
+        time_window_start: resolvedTimeStart,
+        time_window_end: resolvedTimeEnd
       });
 
       const routeDriverId = createdPickup?.driver_id || formData.driver_id;
