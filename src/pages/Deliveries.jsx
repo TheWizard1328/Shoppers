@@ -3217,7 +3217,7 @@ export default function DeliveriesPage() {
             </div>
             <div className="flex-1 p-1 sm:p-2 overflow-y-auto">
               <DateListPanel
-              deliveries={driverFilteredDeliveries}
+              deliveries={userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') ? allDeliveries.filter((d) => d && currentUser.store_ids?.includes(d.store_id)) : driverFilteredDeliveries}
               selectedDate={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null}
               dateListWithStats={null}
               onDateSelect={handleDateSelect}
@@ -3322,7 +3322,7 @@ export default function DeliveriesPage() {
               </div>
               <div className="flex-1 p-2 sm:p-4 overflow-y-auto">
                 <DateListPanel
-                deliveries={driverFilteredDeliveries}
+                deliveries={userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') ? allDeliveries.filter((d) => d && currentUser.store_ids?.includes(d.store_id)) : driverFilteredDeliveries}
                 selectedDate={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null}
                 dateListWithStats={null}
                 onDateSelect={(dateStr) => {
