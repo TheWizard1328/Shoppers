@@ -26,25 +26,17 @@ const getStoreSlotWindow = (store, deliveryDate, timeSlot) => {
 
 export const resolvePickupTimeWindow = ({ store, deliveryDate, timeSlot, now = new Date() }) => {
   const slotWindow = getStoreSlotWindow(store, deliveryDate, timeSlot);
-  const today = format(now, 'yyyy-MM-dd');
 
-  if (deliveryDate !== today) {
+  // CRITICAL: Always use the configured store time window for delivery_time_start/end.
+  // If the slot has no configured times, fall back to a reasonable default.
+  if (slotWindow.start) {
     return {
-      delivery_time_start: slotWindow.start || '',
+      delivery_time_start: slotWindow.start,
       delivery_time_end: slotWindow.end || ''
     };
   }
 
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
-  const slotStartMinutes = toMinutes(slotWindow.start);
-
-  if (slotStartMinutes !== null && currentMinutes < slotStartMinutes) {
-    return {
-      delivery_time_start: slotWindow.start || '',
-      delivery_time_end: slotWindow.end || ''
-    };
-  }
-
+  // No configured window — use current time + buffer as fallback
   return {
     delivery_time_start: format(addMinutes(now, 30), 'HH:mm'),
     delivery_time_end: format(addMinutes(now, 60), 'HH:mm')

@@ -165,13 +165,26 @@ export default function DeliveryFormView({
       return;
     }
 
-    // Sort the store options by their delivery_time_start before processing
+    // Sort the store options by their scheduled start time before processing
+    const getStoreSlotStartTime = (store) => {
+      if (!store) return '';
+      const slot = store._timeSlot || 'AM';
+      const dateObj = new Date((formData.delivery_date || '') + 'T00:00:00');
+      const day = dateObj.getDay(); // 0=Sun, 6=Sat
+      if (slot === 'PM') {
+        if (day === 6) return store.saturday_pm_start || '';
+        if (day === 0) return store.sunday_pm_start || '';
+        return store.weekday_pm_start || '';
+      }
+      if (day === 6) return store.saturday_am_start || '';
+      if (day === 0) return store.sunday_am_start || '';
+      return store.weekday_am_start || '';
+    };
+
     const sortedIds = [...idsToAdd].sort((a, b) => {
       const storeA = availableStores.find((s) => s && s.id === a);
       const storeB = availableStores.find((s) => s && s.id === b);
-      const timeA = storeA?.delivery_time_start || storeA?.weekday_am_start || '';
-      const timeB = storeB?.delivery_time_start || storeB?.weekday_am_start || '';
-      return timeA.localeCompare(timeB);
+      return getStoreSlotStartTime(storeA).localeCompare(getStoreSlotStartTime(storeB));
     });
 
     setSelectedPickupStoreIds(new Set());
