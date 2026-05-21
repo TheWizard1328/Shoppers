@@ -589,7 +589,7 @@ export default function DeliveryFormView({
                     isSaving={isSaving}
                   />
                   {/* Row 2: Date + Driver */}
-                  <div className={`flex ${useMobileLayout ? 'flex-col gap-3' : 'gap-3'}`}>
+                  <div className="flex gap-3">
                     <div className="flex-1 space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                       <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Date *</Label>
                       <Input type="date" value={formData.delivery_date} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date: e.target.value }))} disabled={isSaving} className="h-9" />
