@@ -518,6 +518,23 @@ export default function PatientForm({
       // Determine if we're updating or creating
       const isUpdating = patient && patient.id && !duplicateMode;
 
+      // Detect significant location change (>100m) for existing patient updates
+      const hasMoved100m = (() => {
+        if (!isUpdating) return false;
+        const oldLat = Number(patient.latitude);
+        const oldLng = Number(patient.longitude);
+        const newLat = Number(dataToSave.latitude);
+        const newLng = Number(dataToSave.longitude);
+        if (!Number.isFinite(oldLat) || !Number.isFinite(oldLng) || !Number.isFinite(newLat) || !Number.isFinite(newLng)) return false;
+        const R = 6371000; // metres
+        const dLat = (newLat - oldLat) * Math.PI / 180;
+        const dLng = (newLng - oldLng) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) ** 2 + Math.cos(oldLat * Math.PI / 180) * Math.cos(newLat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+        const distMetres = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        console.log(`📍 [PatientForm] Location change: ${distMetres.toFixed(1)}m`);
+        return distMetres > 100;
+      })();
+
       if (isUpdating) {
         // STEP 1: Update existing patient via offline mutations
         await updatePatientLocal(patient.id, dataToSave);
@@ -534,6 +551,69 @@ export default function PatientForm({
             }).catch((syncError) => console.warn('⚠️ [PatientForm] Route sync skipped:', syncError?.message || syncError));
           }, 0);
         }
+
+        // STEP 1b: If patient moved >100m, re-optimize the active route
+        if (hasMoved100m) {
+          console.log('🔄 [PatientForm] Patient moved >100m — triggering route re-optimization');
+          const selectedDate = globalFilters.getSelectedDate();
+          const selectedDriverId = globalFilters.getSelectedDriverId();
+          if (selectedDate && selectedDriverId && selectedDriverId !== 'all') {
+            setTimeout(async () => {
+              try {
+                // Find deliveries for this patient on the active route
+                const affectedDeliveries = await base44.entities.Delivery.filter({
+                  patient_id: savedPatientId,
+                  driver_id: selectedDriverId,
+                  delivery_date: selectedDate,
+                });
+                // Clear isNextDelivery and origin lat/lng on affected deliveries
+                await Promise.all(affectedDeliveries.map(d =>
+                  base44.entities.Delivery.update(d.id, {
+                    isNextDelivery: false,
+                    first_leg_origin_lat: null,
+                    first_leg_origin_lng: null,
+                  }).catch(() => {})
+                ));
+                console.log(`  🧹 Cleared isNextDelivery + origin on ${affectedDeliveries.length} delivery/deliveries`);
+
+                // Run route optimizer from driver's current GPS location
+                const driverAppUsers = await base44.entities.AppUser.filter({ user_id: selectedDriverId });
+                const driverAppUser = driverAppUsers?.[0];
+                const currentLocation = driverAppUser?.current_latitude && driverAppUser?.current_longitude
+                  ? { lat: Number(driverAppUser.current_latitude), lon: Number(driverAppUser.current_longitude) }
+                  : null;
+
+                const optimizeResult = await base44.functions.invoke('optimizeRemainingStops', {
+                  driverId: selectedDriverId,
+                  deliveryDate: selectedDate,
+                  forceFullRemainingRouteOptimization: true,
+                  bypassDeduplication: true,
+                  bypassDriverStatus: true,
+                  triggerSource: 'patient_address_change',
+                  ...(currentLocation ? { currentLocation } : {}),
+                });
+                console.log('  ✅ Route re-optimized after patient location change:', optimizeResult?.data?.optimizedCount, 'stops');
+
+                // Dispatch UI update event
+                window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                  detail: { triggeredBy: 'patient_address_change', fullReplacement: false }
+                }));
+
+                // Trigger polyline regeneration
+                if (optimizeResult?.data?.shouldRefreshPolylines) {
+                  base44.functions.invoke('purgeAndRegeneratePolylines', {
+                    driverId: selectedDriverId,
+                    deliveryDate: selectedDate,
+                  }).catch(() => {});
+                  console.log('  🗺️ Polyline regeneration triggered');
+                }
+              } catch (reoptErr) {
+                console.warn('⚠️ [PatientForm] Re-optimization after address change failed:', reoptErr?.message || reoptErr);
+              }
+            }, 500); // Small delay to allow patient save to propagate
+          }
+        }
+
         // Instant local broadcast so UI + offline DB cascade immediately
         try { realtimeSync.broadcast('Patient', 'update', savedPatientId, { id: savedPatientId, ...(patient || {}), ...dataToSave }); } catch {}
       } else {
