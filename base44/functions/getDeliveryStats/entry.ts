@@ -1,3 +1,4 @@
+// Redeployed on 2026-05-21 - Via Superagent The Boss
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
@@ -224,11 +225,12 @@ Deno.serve(async (req) => {
     }
     
     // Fetch Square COD total if not cached (for navigation panel display)
-    // Only fetch if we don't already have it cached
+    // Read directly from entity — do NOT call squareSyncCatalogItems here.
+    // That function writes to Square and recreates historical catalog items on every stats refresh.
     if (squareCodTotal === null) {
       fetchPromises.push(
-        base44.functions.invoke('squareSyncCatalogItems', {})
-          .then(res => res?.data?.items || res?.items || [])
+        base44.asServiceRole.entities.SquareCatalogItems.list('-updated_date', 500)
+          .then(items => items || [])
           .catch(() => [])
       );
       fetchKeys.push('squareCatalogItems');
