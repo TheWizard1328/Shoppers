@@ -692,7 +692,7 @@ export default function Layout({ children, currentPageName }) {
         return;
       }
       const { deliveryId, driverId, deliveryDate, triggeredBy, freshDeliveries, preserveLocalState, deletedIds, deletedId, fullReplacement } = event.detail || {};
-      const skipReloadTriggers = ['batchSaveImmediate', 'driver_location_update', 'driverLocationUpdate', 'pullToSyncDataReady', 'pullToSyncComplete', 'initialDataReady'];
+      const skipReloadTriggers = ['batchSaveImmediate', 'driver_location_update', 'driverLocationUpdate', 'pullToSyncDataReady', 'pullToSyncComplete', 'initialDataReady', 'eta_recalculation'];
       if (preserveLocalState || skipReloadTriggers.includes(triggeredBy)) {
         // CRITICAL: Always remove deleted IDs even when preserving local state (cross-device realtime deletes)
         const idsToRemove = new Set([...(deletedIds || []), ...(deletedId ? [deletedId] : [])]);
@@ -702,17 +702,25 @@ export default function Layout({ children, currentPageName }) {
       }
       console.log(`🔄 [Layout] Delivery updated event: ${deliveryId} (${triggeredBy}) - fullReplacement: ${fullReplacement}`);
       if (freshDeliveries?.length > 0) {
-        // CRITICAL: When fullReplacement is true (route optimization), replace entire array to preserve stop_order
-        if (fullReplacement) {
-          setDeliveries((prev) => [...freshDeliveries].filter(Boolean));
-        } else {
-          // Merge mode for partial updates
-          setDeliveries((prev) => {
-            const map = new Map((prev || []).filter(Boolean).map((d) => [d?.id, d]).filter(([id]) => !!id));
-            freshDeliveries.forEach((d) => {if (d?.id) map.set(d.id, d);});
-            return Array.from(map.values());
+        // CRITICAL: Always merge — never blindly replace the entire array.
+        // fullReplacement updates stop_order/ETAs but must not drop deliveries
+        // that are present in prev but absent from freshDeliveries (e.g. stops from
+        // other dates or stops that haven't been re-fetched yet). Dropping them
+        // causes the momentary "incomplete stops vanish" flicker on the map.
+        setDeliveries((prev) => {
+          const map = new Map((prev || []).filter(Boolean).map((d) => [d?.id, d]).filter(([id]) => !!id));
+          freshDeliveries.forEach((d) => {
+            if (!d?.id) return;
+            if (fullReplacement) {
+              // Full replacement: overwrite the entire record
+              map.set(d.id, d);
+            } else {
+              // Partial update: shallow-merge into existing record
+              map.set(d.id, map.has(d.id) ? { ...map.get(d.id), ...d } : d);
+            }
           });
-        }
+          return Array.from(map.values());
+        });
       }
     };
     window.addEventListener('deliveriesUpdated', handleDeliveriesUpdated);
