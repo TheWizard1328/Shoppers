@@ -546,9 +546,39 @@ Deno.serve(async (req) => {
       console.log('✅ [optimizeRemainingStops] Preserving existing order (user-requested)');
     } else if (stopsWithCoords.length > 0) {
       const stopsForHere = optimizationStops.filter(s => !lockedNextStop || s.delivery.id !== lockedNextStop.delivery.id);
-      const sortedHint = sortByWindowThenProximity(stopsForHere);
 
-      const sequenceOrigin = lockedNextStop ? { lat: lockedNextStop.lat, lng: lockedNextStop.lng } : logicalSegmentOrigin;
+      // Stops with IMPUTED time windows (in_transit, start but no original end) are identical
+      // to HERE — it can't distinguish them and sorts by distance alone, producing wrong order.
+      // Pre-lock these in proximity order (closest-first to driver) and exclude from HERE entirely.
+      // All other active stops are sent to HERE for proper time-window-aware sequencing.
+      const imputedWindowIds = new Set(
+        stopsWithCoords
+          .filter(s => ACTIVE_STATUSES.includes(s.delivery.status) && s.delivery.delivery_time_start && !s.delivery.delivery_time_end && !s.delivery.patient_id === false)
+          .map(s => s.delivery.id)
+      );
+      // A stop was imputed if it has a windowEnd but the delivery entity itself has no delivery_time_end
+      const imputedStops = stopsForHere.filter(s =>
+        ACTIVE_STATUSES.includes(s.delivery.status) &&
+        s.windowEnd &&
+        !s.delivery.delivery_time_end
+      );
+      const hereEligibleStops = stopsForHere.filter(s => !imputedStops.includes(s));
+
+      // Sort imputed stops by proximity to driver (closest first)
+      const driverPos = etaOrigin || logicalSegmentOrigin;
+      const imputedSortedByProximity = imputedStops.slice().sort((a, b) => {
+        const aDist = calculateCrowFliesDistance(driverPos.lat, driverPos.lng, a.lat, a.lng);
+        const bDist = calculateCrowFliesDistance(driverPos.lat, driverPos.lng, b.lat, b.lng);
+        return aDist - bDist;
+      });
+      console.log(`🔒 [optimizeRemainingStops] Pre-locked ${imputedSortedByProximity.length} imputed-window stops by proximity; ${hereEligibleStops.length} stops sent to HERE`);
+
+      const sortedHint = sortByWindowThenProximity(hereEligibleStops);
+
+      // Origin for HERE sequencing is the last imputed stop (if any), otherwise the locked next stop or logical origin
+      const sequenceOrigin = imputedSortedByProximity.length > 0
+        ? { lat: imputedSortedByProximity[imputedSortedByProximity.length - 1].lat, lng: imputedSortedByProximity[imputedSortedByProximity.length - 1].lng }
+        : lockedNextStop ? { lat: lockedNextStop.lat, lng: lockedNextStop.lng } : logicalSegmentOrigin;
       const destinationForDirections = driverHomePosition || (sortedHint.length > 0 ? { lat: sortedHint[sortedHint.length - 1].lat, lng: sortedHint[sortedHint.length - 1].lng } : logicalSegmentOrigin);
 
       const sequenceWaypoints = sortedHint.map(s => ({ lat: s.lat, lng: s.lng }));
@@ -557,7 +587,7 @@ Deno.serve(async (req) => {
         stop_id: s.delivery.stop_id,
         delivery_id: s.delivery.delivery_id,
         time_window_start: s.windowStart || null,
-        time_window_end: s.windowEnd || null, // Includes imputed temporary end time for HERE sequencing
+        time_window_end: s.windowEnd || null,
       }));
 
       let hereSequenceResult = null;
@@ -602,7 +632,12 @@ Deno.serve(async (req) => {
         hereOrderedStops = sortedHint;
       }
 
-      routeStops = lockedNextStop ? [lockedNextStop, ...hereOrderedStops] : hereOrderedStops;
+      // Final order: locked next stop → proximity-sorted imputed stops → HERE-sequenced remaining stops
+      routeStops = [
+        ...(lockedNextStop ? [lockedNextStop] : []),
+        ...imputedSortedByProximity,
+        ...hereOrderedStops,
+      ];
     }
 
     if (lockedNextStop) console.log(`🔒 [optimizeRemainingStops] Locked first stop: ${lockedNextStop.delivery.id} (window: ${lockedNextStop.windowStart || 'none'})`);
