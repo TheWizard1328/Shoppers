@@ -976,18 +976,18 @@ export default function DeliveryForm({
       return null;
     }
     // Temporarily use fd instead of formData for the rest of this invocation
-    const formData = fd;
+    const resolvedFormData = fd;
 
     let patient = null;
     let isNewPatient = false;
 
     if (!isPickupMode) {
-      patient = patients.find((p) => p && p.id === formData.patient_id);
+      patient = patients.find((p) => p && p.id === resolvedFormData.patient_id);
 
-      if (!patient && formData.patient_name && (newPatientMode === 'duplicate' || newPatientMode === 'new_address')) {
+      if (!patient && resolvedFormData.patient_name && (newPatientMode === 'duplicate' || newPatientMode === 'new_address')) {
         try {
           const created = await createPatientFromDraft({
-            formData,
+            formData: resolvedFormData,
             selectedPatient,
             createPatientLocal,
             setFormData
@@ -999,24 +999,24 @@ export default function DeliveryForm({
           setError(error.message || 'Failed to create new patient. Please try again.');
           return;
         }
-      } else if (!patient && !formData.patient_name) {
+      } else if (!patient && !resolvedFormData.patient_name) {
         setError('Patient information missing.');
         return;
       }
     }
 
-    const store = (freshStores || stores).find((s) => s && s.id === formData.store_id);
+    const store = (freshStores || stores).find((s) => s && s.id === resolvedFormData.store_id);
 
     if (!store) {
       setError('Store information missing.');
       return;
     }
 
-    const codAmount = formData.cod_total_amount_required > 0 ? formData.cod_total_amount_required / 100 : 0;
+    const codAmount = resolvedFormData.cod_total_amount_required > 0 ? resolvedFormData.cod_total_amount_required / 100 : 0;
 
-    if (formData.patient_id && !isNewPatient) {
+    if (resolvedFormData.patient_id && !isNewPatient) {
       try {
-        await updatePatientLocal(formData.patient_id, buildPatientUpdatePayload(formData));
+        await updatePatientLocal(resolvedFormData.patient_id, buildPatientUpdatePayload(resolvedFormData));
       } catch (error) {
         console.error('Failed to update patient:', error);
         setError('Failed to update patient data. Delivery will still be staged.');
@@ -1029,12 +1029,12 @@ export default function DeliveryForm({
       calculateDistance
     });
 
-    const timeSlot = formData.ampm_deliveries || getStoreAssignedTimeSlotForDriver(store, formData.delivery_date, formData.driver_id, allDeliveries) || 'AM';
+    const timeSlot = resolvedFormData.ampm_deliveries || getStoreAssignedTimeSlotForDriver(store, resolvedFormData.delivery_date, resolvedFormData.driver_id, allDeliveries) || 'AM';
     let newStagedDelivery;
 
     if (isPickupMode) {
       const pickupToCreate = buildPickupStagedDelivery({
-        formData,
+        formData: resolvedFormData,
         codAmount,
         store,
         timeSlot,
@@ -1043,15 +1043,15 @@ export default function DeliveryForm({
 
       const pickupTimes = resolvePickupTimeWindow({
         store,
-        deliveryDate: formData.delivery_date,
+        deliveryDate: resolvedFormData.delivery_date,
         timeSlot
       });
       // CRITICAL: Include extraPickups (from same multi-add batch) so tracking numbers don't collide
       const routeDeliveriesForDriver = [
         ...(allDeliveries || []).filter((delivery) =>
           delivery &&
-          delivery.delivery_date === formData.delivery_date &&
-          delivery.driver_id === formData.driver_id
+          delivery.delivery_date === resolvedFormData.delivery_date &&
+          delivery.driver_id === resolvedFormData.driver_id
         ),
         ...(extraPickups || [])
       ];
@@ -1082,8 +1082,8 @@ export default function DeliveryForm({
         time_window_end: resolvedTimeEnd
       });
 
-      const routeDriverId = createdPickup?.driver_id || formData.driver_id;
-      const routeDeliveryDate = createdPickup?.delivery_date || formData.delivery_date;
+      const routeDriverId = createdPickup?.driver_id || resolvedFormData.driver_id;
+      const routeDeliveryDate = createdPickup?.delivery_date || resolvedFormData.delivery_date;
 
       setHasChanges(false);
       setPickupsAddedCount((prev) => prev + 1);
@@ -1101,12 +1101,12 @@ export default function DeliveryForm({
         stagedDeliveries,
         allDeliveries,
         storeId: store.id,
-        deliveryDate: formData.delivery_date,
-        driverId: formData.driver_id,
+        deliveryDate: resolvedFormData.delivery_date,
+        driverId: resolvedFormData.driver_id,
         timeSlot
       });
       newStagedDelivery = buildPatientStagedDelivery({
-        formData,
+        formData: resolvedFormData,
         patient,
         store,
         codAmount,
@@ -1123,8 +1123,8 @@ export default function DeliveryForm({
     setHasChanges(true);
 
     // CRITICAL: Filter projected deliveries locally (don't refetch from backend)
-    const stagedPatientIds = new Set([...stagedDeliveries.map(d => d.patient_id), formData.patient_id].filter(Boolean));
-    const filteredPredictions = fullPredictionListRef.current.filter(pred => !stagedPatientIds.has(pred.patient_id) && !(allDeliveries||[]).some(d => d && d.delivery_date === formData.delivery_date && d.patient_id === pred.patient_id));
+    const stagedPatientIds = new Set([...stagedDeliveries.map(d => d.patient_id), resolvedFormData.patient_id].filter(Boolean));
+    const filteredPredictions = fullPredictionListRef.current.filter(pred => !stagedPatientIds.has(pred.patient_id) && !(allDeliveries||[]).some(d => d && d.delivery_date === resolvedFormData.delivery_date && d.patient_id === pred.patient_id));
     setProjectedDeliveries(filteredPredictions);
 
     setSelectedRoutePickup(null);
