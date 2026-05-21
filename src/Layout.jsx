@@ -1,3 +1,4 @@
+// Redeployed on 2026-05-21 - Via Superagent The Boss
 import React, { useState, useEffect, Fragment, useMemo, useCallback, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
 // import "./components/utils/globalErrorHandler";
@@ -797,10 +798,10 @@ export default function Layout({ children, currentPageName }) {
       // CRITICAL: Force refresh ALL UI elements including COD data
       console.log('🎨 [Recovery] Refreshing all UI elements...');
 
-      // Refresh COD data
-      base44.functions.invoke('squareSyncCatalogItems', {}).then((response) => {
-        const items = response?.data?.items || response?.items || [];
-        setCatalogItems(items);
+      // Refresh COD data — read only from entity, do NOT call squareSyncCatalogItems here.
+      // Calling syncCatalogItems on every connection recovery recreates historical catalog items in Square.
+      base44.entities.SquareCatalogItems.list('-updated_date', 500).then((items) => {
+        setCatalogItems(items || []);
       }).catch(() => {});
 
       // Force dispatch driverLocationsUpdated to update map markers
