@@ -518,6 +518,7 @@ export default function Layout({ children, currentPageName }) {
         } else if (mutation.entity === 'Store') {
           setStores((prev) => {
             const exists = prev.some((s) => s?.id === mutation.id);
+            if (!exists) offlineDB.save(offlineDB.STORES.STORES, mutation.data).catch(() => {});
             return exists ? prev : [...prev, mutation.data];
           });
         } else if (mutation.entity === 'City') {
@@ -542,7 +543,14 @@ export default function Layout({ children, currentPageName }) {
         } else if (mutation.entity === 'Delivery') {
           setDeliveries((prev) => prev.map((d) => d?.id === mutation.id ? { ...d, ...mutation.data } : d));
         } else if (mutation.entity === 'Store') {
-          setStores((prev) => prev.map((s) => s?.id === mutation.id ? { ...s, ...mutation.data } : s));
+          // CRITICAL: Update in-memory state AND offline DB so all pages see fresh driver assignments
+          setStores((prev) => {
+            const updated = prev.map((s) => s?.id === mutation.id ? { ...s, ...mutation.data } : s);
+            // Persist updated store to offlineDB so useFreshStores and other consumers stay in sync
+            const updatedRecord = updated.find((s) => s?.id === mutation.id) || mutation.data;
+            offlineDB.save(offlineDB.STORES.STORES, updatedRecord).catch(() => {});
+            return updated;
+          });
         } else if (mutation.entity === 'City') {
           setCities((prev) => prev.map((c) => c?.id === mutation.id ? { ...c, ...mutation.data } : c));
         } else if (mutation.entity === 'AppUser') {
