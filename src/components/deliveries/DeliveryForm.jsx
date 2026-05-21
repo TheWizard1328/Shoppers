@@ -1090,7 +1090,7 @@ export default function DeliveryForm({
       // Track this route for optimization when Done is clicked
       addedPickupRoutesRef.current.push({ driverId: routeDriverId, deliveryDate: routeDeliveryDate });
       setError(null);
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryId: createdPickup?.id, deliveryDate: routeDeliveryDate, driverId: routeDriverId, triggeredBy: 'batchSaveImmediate', preserveLocalState: true, freshDeliveries: createdPickup ? [createdPickup] : [] } }));
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryId: createdPickup?.id, deliveryDate: routeDeliveryDate, driverId: routeDriverId, triggeredBy: 'batchSaveImmediate', preserveLocalState: true } }));
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
       // CRITICAL: Do NOT close the form after adding a pickup — just clear the fields
       // so the user can add additional pickups without reopening the form.
