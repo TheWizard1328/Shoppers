@@ -144,8 +144,8 @@ export default function RouteManagementHeader({
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
           <Input placeholder="Search patient, address, Rx details, tracking..." value={searchTerm} onChange={(e) => handleSearchChange(e.target.value)} className="pl-10 w-full bg-slate-100 border-slate-300" />
         </div>
-        <Select value={driverFilter} onValueChange={handleDriverChange} disabled={userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')}>
-          <SelectTrigger className={`w-[140px] bg-white border-slate-300 ${userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') ? 'opacity-60 cursor-not-allowed' : ''}`}><SelectValue placeholder="Select driver" /></SelectTrigger>
+        <Select value={driverFilter} onValueChange={handleDriverChange} disabled={(userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) || (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin'))}>
+          <SelectTrigger className={`w-[140px] bg-white border-slate-300 ${(userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) || (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) ? 'opacity-60 cursor-not-allowed' : ''}`}><SelectValue placeholder="Select driver" /></SelectTrigger>
           <SelectContent><SelectItem value="all">All Drivers</SelectItem>{driverFilterOptions.map((driver) => <SelectItem key={driver.id} value={driver.id}>{driver.label}</SelectItem>)}</SelectContent>
         </Select>
         {!userHasRole(currentUser, 'dispatcher') &&
