@@ -785,12 +785,8 @@ export default function DeliveriesPage() {
       }
     }
 
-    // Dispatchers with only 1 driver: auto-select that driver
-    if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && driverFilter === 'all') {
-      const firstId = uniqueDriversForDispatcher?.driverIds?.[0];
-      if (firstId) {console.log('👔 [Deliveries] Dispatcher auto-selecting first driver:', firstId);setDriverFilter(firstId);}
-    }
-  }, [currentUser, hasAccess, driverFilter, uniqueDriversForDispatcher]);
+    // Dispatchers default to 'all' drivers — show all store deliveries across all drivers
+  }, [currentUser, hasAccess, driverFilter]);
 
   useEffect(() => {
     if (!hasAccess || initialLoadDone.current) {

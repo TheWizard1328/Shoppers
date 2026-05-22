@@ -107,7 +107,9 @@ export default function DateListPanel({
     return result;
   }, [deliveries]);
 
-  const itemsToRender = (dateListWithStats || datesWithDeliveries)
+  // Dispatchers always use datesWithDeliveries (computed from raw deliveries prop = all store deliveries,
+  // all drivers) so the driver filter selection doesn't hide dates.
+  const itemsToRender = (isDispatcher ? datesWithDeliveries : (dateListWithStats || datesWithDeliveries))
     .filter((d) => d.total > 0)
     .map((item) => ({
       ...item,
