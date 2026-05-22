@@ -6,6 +6,7 @@ import { Loader2, MapPin, Trash2, RefreshCw, Filter, ChevronDown, Layers } from 
 import { format } from 'date-fns';
 import { getDriverDisplayName } from '../utils/driverUtils';
 import { getActiveHereApiKey } from '@/functions/getActiveHereApiKey';
+import { createCachedHereTileLayer } from '../utils/hereTileCache';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -41,9 +42,7 @@ const decodePolyline = (encoded) => {
 };
 
 // ── HERE tile layer helpers ─────────────────────────────────────────────────
-const IntegerZoomTileLayer = L.TileLayer.extend({
-  _getZoomForUrl() { return Math.round(L.TileLayer.prototype._getZoomForUrl.call(this)); }
-});
+const CachedHereTileLayer = createCachedHereTileLayer(L);
 const buildHereLightTileUrl = (k) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=explore.day&size=512&apiKey=${k}`;
 const buildHereDarkTileUrl  = (k) => `https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=explore.night&size=512&apiKey=${k}`;
 
@@ -547,13 +546,8 @@ export default function PolylineViewer({ users = [] }) {
                     key={`map-${viewMode}-${mapSegments.map(s => s.id).join('-')}-${tileKey}`}
                   >
                     {tileLayerUrl && (
-                      <TileLayer
+                      <CachedHereTileLayer
                         key={`here-${tileKey}-${tileLayerUrl}`}
-                        ref={layer => {
-                          if (layer && !(layer instanceof IntegerZoomTileLayer)) {
-                            Object.setPrototypeOf(layer, IntegerZoomTileLayer.prototype);
-                          }
-                        }}
                         url={tileLayerUrl}
                         attribution='&copy; <a href="https://www.here.com/">HERE</a>'
                         tileSize={512}
