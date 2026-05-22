@@ -170,10 +170,10 @@ export default function DateListPanel({
                 </div>
                 <div className="flex items-center gap-1">
                   {isDispatcher && driversCount > 0 && (
-                    <Badge variant="secondary" className="text-xs flex items-center gap-1" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>
+                    <span className="text-xs flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
                       <Truck className="w-3 h-3" />
                       {driversCount}
-                    </Badge>
+                    </span>
                   )}
                   {selectedDriverId && selectedDriverId !== 'all' && onDeleteRoute && isAppOwner(currentUser) && (
                     <Button
