@@ -26,11 +26,6 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Delivery not found' }, { status: 404 });
     }
 
-    // Skip if polyline already exists on the delivery
-    if (delivery.encoded_polyline) {
-      return Response.json({ success: true, skipped: true, reason: 'polyline_already_exists', delivery_id });
-    }
-
     // Look up the matching DeliveryBreadcrumbs record by composite key: driver_id + delivery_date + stop_order
     const breadcrumbRecords = await base44.asServiceRole.entities.DeliveryBreadcrumbs.filter({
       driver_id,
