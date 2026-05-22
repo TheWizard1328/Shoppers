@@ -341,7 +341,7 @@ export default function DashboardView({
         />
 
         <div
-          className="absolute inset-x-0 bottom-0 z-[150]"
+          className="absolute inset-x-0 bottom-0 z-[260]"
           style={{
             height: immersiveHidden ? 0 : undefined,
             overflow: immersiveHidden ? 'hidden' : 'visible',
