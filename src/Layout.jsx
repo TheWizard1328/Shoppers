@@ -1748,7 +1748,7 @@ export default function Layout({ children, currentPageName }) {
                           </Link>
                   }
 
-                          {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
+                          {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
                           <div
                           className={`px-4 rounded-xl flex items-center gap-2 transition-all duration-200 py-0.5 ${
                           currentUser?.status === 'inactive' ? 'opacity-50 cursor-not-allowed' : currentPageName === 'Stores' ? 'shadow-sm hover:opacity-80 cursor-pointer' : 'hover:opacity-80 cursor-pointer'
