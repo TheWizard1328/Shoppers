@@ -343,11 +343,6 @@ export default function StatsPanel({
                 </PopoverContent>
               </Popover>
 
-              {currentUser && <SmartRefreshIndicator inline={true} onManualRefresh={async () => {
-                const syncButton = document.querySelector('[data-offline-sync-button]');
-                if (syncButton) syncButton.click();
-              }} />}
-
               <Button
                 onClick={() => {if (currentUser?.status === 'inactive' && isDriver && !isAdmin) return; setEditingDelivery(null);setShowDeliveryForm(true);}}
                 size="sm"
