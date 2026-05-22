@@ -102,9 +102,14 @@ export default function DriverSettings() {
   const filteredDrivers = useMemo(() => {
     let result = drivers;
 
-    // Non-admins only see active drivers
-    if (!currentUser?.app_roles?.includes('admin')) {
-      result = result.filter((driver) => driver.status === 'active');
+    // Non-admins (drivers + dispatchers) only see active drivers
+    const isDispatcher = currentUser?.app_roles?.includes('dispatcher') && !currentUser?.app_roles?.includes('admin');
+    if (!currentUser?.app_roles?.includes('admin') || isDispatcher) {
+      result = result.filter((driver) => {
+        const appUser = mergedAppUsers.find((au) => au?.user_id === driver.id);
+        const status = appUser?.status ?? driver.status;
+        return status === 'active';
+      });
     }
 
     // Filter by city (admins see all)
