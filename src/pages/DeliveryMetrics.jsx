@@ -541,163 +541,90 @@ export default function DeliveryMetrics() {
     (prevCompletedDeliveries / (prevCompletedDeliveries + prevFailedDeliveries) * 100).toFixed(1) :
     0;
 
+    // Helper: accumulate per-stop metrics (on-time, time-at-stop) for ALL stops in a route,
+    // and inter-stop metrics (distance, time-between) for consecutive pairs.
+    const accumulateRouteMetrics = (routeDeliveries, acc) => {
+      const sorted = [...routeDeliveries].sort((a, b) =>
+        new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time)
+      );
+      // Per-stop metrics — iterate ALL stops
+      sorted.forEach((d) => {
+        if (d.status === 'completed' && d.delivery_time_start && d.delivery_time_end) {
+          acc.totalDeliveriesWithTimeWindow++;
+          const actualTime = new Date(d.actual_delivery_time);
+          const [sh, sm] = d.delivery_time_start.split(':').map(Number);
+          const [eh, em] = d.delivery_time_end.split(':').map(Number);
+          const base = new Date(d.delivery_date + 'T00:00:00');
+          const wStart = new Date(base); wStart.setHours(sh, sm, 0, 0);
+          const wEnd = new Date(base); wEnd.setHours(eh, em, 0, 0);
+          if (actualTime >= wStart && actualTime <= wEnd) acc.onTimeDeliveries++;
+        }
+        if (d.status === 'completed' && d.arrival_time && d.actual_delivery_time) {
+          const timeAtStop = (new Date(d.actual_delivery_time) - new Date(d.arrival_time)) / 60000;
+          if (timeAtStop >= 0 && timeAtStop < 120) {
+            acc.totalTimeAtStops += timeAtStop;
+            acc.stopsWithTimeAtStop++;
+          }
+        }
+      });
+      // Inter-stop metrics — consecutive pairs
+      for (let i = 0; i < sorted.length - 1; i++) {
+        const cur = sorted[i];
+        const nxt = sorted[i + 1];
+        const curPatient = patients.find((p) => p.id === cur.patient_id);
+        const nxtPatient = patients.find((p) => p.id === nxt.patient_id);
+        if (curPatient?.latitude && curPatient?.longitude && nxtPatient?.latitude && nxtPatient?.longitude) {
+          acc.totalDistance += calculateDistance(curPatient.latitude, curPatient.longitude, nxtPatient.latitude, nxtPatient.longitude);
+          acc.totalTimeBetweenStops += (new Date(nxt.actual_delivery_time) - new Date(cur.actual_delivery_time)) / 60000;
+          acc.stopCount++;
+        }
+      }
+    };
+
     // Calculate route metrics for current period
     const routeGroups = new Map();
     patientDeliveries.forEach((delivery) => {
-      const key = `${delivery.driver_name}-${delivery.delivery_date}`;
-      if (!routeGroups.has(key)) {
-        routeGroups.set(key, []);
-      }
+      // Use driver_id as primary key, fall back to driver_name to avoid bad grouping
+      const driverKey = delivery.driver_id || delivery.driver_name || 'unknown';
+      const key = `${driverKey}-${delivery.delivery_date}`;
+      if (!routeGroups.has(key)) routeGroups.set(key, []);
       routeGroups.get(key).push(delivery);
     });
 
     console.log('📊 Route groups:', routeGroups.size);
 
-    let totalDistance = 0;
-    let totalTimeBetweenStops = 0;
-    let stopCount = 0;
-    let onTimeDeliveries = 0;
-    let totalDeliveriesWithTimeWindow = 0;
-    let totalTimeAtStops = 0;
-    let stopsWithTimeAtStop = 0;
+    const acc = {
+      totalDistance: 0, totalTimeBetweenStops: 0, stopCount: 0,
+      onTimeDeliveries: 0, totalDeliveriesWithTimeWindow: 0,
+      totalTimeAtStops: 0, stopsWithTimeAtStop: 0
+    };
+    routeGroups.forEach((routeDeliveries) => accumulateRouteMetrics(routeDeliveries, acc));
+    const { totalDistance, totalTimeBetweenStops, stopCount, onTimeDeliveries,
+      totalDeliveriesWithTimeWindow, totalTimeAtStops, stopsWithTimeAtStop } = acc;
 
-    routeGroups.forEach((routeDeliveries) => {
-      const sortedRoute = [...routeDeliveries].sort((a, b) =>
-      new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time)
-      );
-
-      for (let i = 0; i < sortedRoute.length - 1; i++) {
-        const currentDelivery = sortedRoute[i];
-        const nextDelivery = sortedRoute[i + 1];
-
-        const currentPatient = patients.find((p) => p.id === currentDelivery.patient_id);
-        const nextPatient = patients.find((p) => p.id === nextDelivery.patient_id);
-
-        if (currentPatient?.latitude && currentPatient?.longitude &&
-        nextPatient?.latitude && nextPatient?.longitude) {
-          const distance = calculateDistance(
-            currentPatient.latitude,
-            currentPatient.longitude,
-            nextPatient.latitude,
-            nextPatient.longitude
-          );
-          totalDistance += distance;
-
-          const currentTime = new Date(currentDelivery.actual_delivery_time);
-          const nextTime = new Date(nextDelivery.actual_delivery_time);
-          const timeDiff = (nextTime - currentTime) / (1000 * 60);
-          totalTimeBetweenStops += timeDiff;
-          stopCount++;
-        }
-
-        // Only check on-time for completed deliveries
-        if (currentDelivery.status === 'completed' && currentDelivery.delivery_time_start && currentDelivery.delivery_time_end) {
-          totalDeliveriesWithTimeWindow++;
-          const actualTime = new Date(currentDelivery.actual_delivery_time);
-          const [startHour, startMin] = currentDelivery.delivery_time_start.split(':').map(Number);
-          const [endHour, endMin] = currentDelivery.delivery_time_end.split(':').map(Number);
-
-          const deliveryDate = new Date(currentDelivery.delivery_date);
-          const windowStart = new Date(deliveryDate);
-          windowStart.setHours(startHour, startMin, 0, 0);
-          const windowEnd = new Date(deliveryDate);
-          windowEnd.setHours(endHour, endMin, 0, 0);
-
-          if (actualTime >= windowStart && actualTime <= windowEnd) {
-            onTimeDeliveries++;
-          }
-        }
-
-        if (currentDelivery.status === 'completed' && currentDelivery.arrival_time && currentDelivery.actual_delivery_time) {
-          const arrivalTime = new Date(currentDelivery.arrival_time);
-          const actualTime = new Date(currentDelivery.actual_delivery_time);
-          const timeAtStop = (actualTime - arrivalTime) / (1000 * 60);
-          if (timeAtStop >= 0 && timeAtStop < 120) { // sanity check, less than 120 mins
-            totalTimeAtStops += timeAtStop;
-            stopsWithTimeAtStop++;
-          }
-        }
-      }
-    });
+    console.log('📊 Route metrics - Distance:', totalDistance.toFixed(2), 'Time (min):', totalTimeBetweenStops.toFixed(0), 'Stops:', stopCount);
 
     console.log('📊 Route metrics - Distance:', totalDistance.toFixed(2), 'Time (min):', totalTimeBetweenStops.toFixed(0), 'Stops:', stopCount);
 
     // Calculate previous period route metrics
     const prevRouteGroups = new Map();
     prevPatientDeliveries.forEach((delivery) => {
-      const key = `${delivery.driver_name}-${delivery.delivery_date}`;
-      if (!prevRouteGroups.has(key)) {
-        prevRouteGroups.set(key, []);
-      }
+      const driverKey = delivery.driver_id || delivery.driver_name || 'unknown';
+      const key = `${driverKey}-${delivery.delivery_date}`;
+      if (!prevRouteGroups.has(key)) prevRouteGroups.set(key, []);
       prevRouteGroups.get(key).push(delivery);
     });
 
-    let prevTotalDistance = 0;
-    let prevTotalTimeBetweenStops = 0;
-    let prevStopCount = 0;
-    let prevOnTimeDeliveries = 0;
-    let prevTotalDeliveriesWithTimeWindow = 0;
-    let prevTotalTimeAtStops = 0;
-    let prevStopsWithTimeAtStop = 0;
-
-    prevRouteGroups.forEach((routeDeliveries) => {
-      const sortedRoute = [...routeDeliveries].sort((a, b) =>
-      new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time)
-      );
-
-      for (let i = 0; i < sortedRoute.length - 1; i++) {
-        const currentDelivery = sortedRoute[i];
-        const nextDelivery = sortedRoute[i + 1];
-
-        const currentPatient = patients.find((p) => p.id === currentDelivery.patient_id);
-        const nextPatient = patients.find((p) => p.id === nextDelivery.patient_id);
-
-        if (currentPatient?.latitude && currentPatient?.longitude &&
-        nextPatient?.latitude && nextPatient?.longitude) {
-          const distance = calculateDistance(
-            currentPatient.latitude,
-            currentPatient.longitude,
-            nextPatient.latitude,
-            nextPatient.longitude
-          );
-          prevTotalDistance += distance;
-
-          const currentTime = new Date(currentDelivery.actual_delivery_time);
-          const nextTime = new Date(nextDelivery.actual_delivery_time);
-          const timeDiff = (nextTime - currentTime) / (1000 * 60);
-          prevTotalTimeBetweenStops += timeDiff;
-          prevStopCount++;
-        }
-
-        // Only check on-time for completed deliveries
-        if (currentDelivery.status === 'completed' && currentDelivery.delivery_time_start && currentDelivery.delivery_time_end) {
-          prevTotalDeliveriesWithTimeWindow++;
-          const actualTime = new Date(currentDelivery.actual_delivery_time);
-          const [startHour, startMin] = currentDelivery.delivery_time_start.split(':').map(Number);
-          const [endHour, endMin] = currentDelivery.delivery_time_end.split(':').map(Number);
-
-          const deliveryDate = new Date(currentDelivery.delivery_date);
-          const windowStart = new Date(deliveryDate);
-          windowStart.setHours(startHour, startMin, 0, 0);
-          const windowEnd = new Date(deliveryDate);
-          windowEnd.setHours(endHour, endMin, 0, 0);
-
-          if (actualTime >= windowStart && actualTime <= windowEnd) {
-            prevOnTimeDeliveries++;
-          }
-        }
-
-        if (currentDelivery.status === 'completed' && currentDelivery.arrival_time && currentDelivery.actual_delivery_time) {
-          const arrivalTime = new Date(currentDelivery.arrival_time);
-          const actualTime = new Date(currentDelivery.actual_delivery_time);
-          const timeAtStop = (actualTime - arrivalTime) / (1000 * 60);
-          if (timeAtStop >= 0 && timeAtStop < 120) {
-            prevTotalTimeAtStops += timeAtStop;
-            prevStopsWithTimeAtStop++;
-          }
-        }
-      }
-    });
+    const prevAcc = {
+      totalDistance: 0, totalTimeBetweenStops: 0, stopCount: 0,
+      onTimeDeliveries: 0, totalDeliveriesWithTimeWindow: 0,
+      totalTimeAtStops: 0, stopsWithTimeAtStop: 0
+    };
+    prevRouteGroups.forEach((routeDeliveries) => accumulateRouteMetrics(routeDeliveries, prevAcc));
+    const { totalDistance: prevTotalDistance, totalTimeBetweenStops: prevTotalTimeBetweenStops,
+      stopCount: prevStopCount, onTimeDeliveries: prevOnTimeDeliveries,
+      totalDeliveriesWithTimeWindow: prevTotalDeliveriesWithTimeWindow,
+      totalTimeAtStops: prevTotalTimeAtStops, stopsWithTimeAtStop: prevStopsWithTimeAtStop } = prevAcc;
 
     const avgDistance = stopCount > 0 ? (totalDistance / stopCount).toFixed(2) : 0;
     const avgTimeBetweenStops = stopCount > 0 ? Math.round(totalTimeBetweenStops / stopCount) : 0;
