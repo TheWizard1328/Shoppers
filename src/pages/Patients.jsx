@@ -1440,7 +1440,6 @@ export default function Patients() {
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
           <div>
             <div className="flex items-center gap-3">
-              <SmartRefreshIndicator inline={true} />
               <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Patient Database</h1>
                     <Badge className="bg-primary text-white px-3 py-1 text-lg font-semibold rounded-[10px] inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent shadow hover:bg-primary/80"
 
@@ -1451,6 +1450,7 @@ export default function Patients() {
                 }}>
                       {sortedAndFilteredPatients.length}
                     </Badge>
+                    <SmartRefreshIndicator inline={true} />
                   </div>
                   <p className="mt-1" style={{ color: 'var(--text-slate-600)' }}>Manage patient information and delivery preferences</p>
                 </div>
@@ -1755,8 +1755,8 @@ export default function Patients() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div className="flex-1">
                 <div className="flex items-center gap-3">
-                  <SmartRefreshIndicator inline={true} />
                   <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Store Overview</h1>
+                  <SmartRefreshIndicator inline={true} />
                 </div>
                 <p className="mt-1" style={{ color: 'var(--text-slate-600)' }}>Select a store to view and manage patients</p>
               </div>
