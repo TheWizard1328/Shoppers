@@ -9,6 +9,7 @@ import { RouteManagementStopDetailsOverlay } from '../deliveries/RouteManagement
 import BarcodeThumb from '../deliveries/BarcodeThumb';
 import { getCodSymbolColorClass } from '../utils/SpecialSymbolsBadges';
 import { isAppOwner, userHasRole } from '../utils/userRoles';
+import { generateDriverColor, getContrastColor } from '../utils/colorGenerator';
 import { useDeliveryDisplayInfo } from '../common/StopCardRedaction';
 import { formatAddressWithUnit, cleanBuzzerFromAddress } from '../utils/addressCleaner';
 
@@ -87,9 +88,7 @@ const DeliveryRow = memo(({
               {getStatusBadge(delivery.status)}
               {isDispatcher ? (
                 delivery.driver_name &&
-                <span className="text-[11px] text-slate-500 text-center leading-tight max-w-[80px] truncate" title={delivery.driver_name}>
-                  {(() => { const parts = delivery.driver_name.split(' '); const first = parts[0]; return first.length <= 1 && parts[1] ? parts[1] : first; })()}
-                </span>
+                (() => { const dColor = generateDriverColor(delivery.driver_name); const parts = delivery.driver_name.split(' '); const first = parts[0]; const label = first.length <= 1 && parts[1] ? parts[1] : first; return <Badge className="rounded-full text-[11px] px-2 py-0.5 max-w-full whitespace-normal break-words text-center" style={{ background: dColor, color: getContrastColor(dColor) }} title={delivery.driver_name}>{label}</Badge>; })()
               ) : (
                 store?.abbreviation &&
                 <Badge variant="outline" className="rounded-full text-[11px] px-2 py-0.5 max-w-full whitespace-normal break-words text-center" style={{ background: 'var(--bg-white)', color: store.color || 'var(--text-slate-600)', borderColor: store.color || 'var(--border-slate-300)' }}>
@@ -192,9 +191,7 @@ const DeliveryRow = memo(({
           {getStatusBadge(delivery.status)}
           {isDispatcher ? (
             delivery.driver_name &&
-            <span className="text-[11px] text-slate-500 text-center leading-tight max-w-[90px] truncate" title={delivery.driver_name}>
-              {(() => { const parts = delivery.driver_name.split(' '); const first = parts[0]; return first.length <= 1 && parts[1] ? parts[1] : first; })()}
-            </span>
+            (() => { const dColor = generateDriverColor(delivery.driver_name); const parts = delivery.driver_name.split(' '); const first = parts[0]; const label = first.length <= 1 && parts[1] ? parts[1] : first; return <Badge className="rounded-full text-[11px] px-2 py-0.5 max-w-full whitespace-normal break-words text-center" style={{ background: dColor, color: getContrastColor(dColor) }} title={delivery.driver_name}>{label}</Badge>; })()
           ) : (
             store?.abbreviation &&
             <Badge className="rounded-full text-[11px] px-2 py-0.5 max-w-full whitespace-normal break-words text-center text-white" style={{ background: store.color || 'var(--bg-slate-400)' }}>
