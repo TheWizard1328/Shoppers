@@ -27,6 +27,7 @@ import { saveSetting } from "@/components/utils/userSettingsManager";
 import { getDriverColor } from "@/components/utils/driverUtils";
 import { loadBreadcrumbsForDriver } from "@/components/utils/breadcrumbsManager";
 import { sortUsers } from "@/components/utils/sorting";
+import { getUserAgentInfo } from "@/components/utils/deviceUtils";
 
 export default function StatsPanel({
   currentUser, isDriver, isAdmin, isDispatcher,
@@ -242,9 +243,13 @@ export default function StatsPanel({
     }
   }, [isDateFinished, isDriver, isAllDriversMode]);
 
+  const { deviceType: statsPanelDeviceType } = getUserAgentInfo();
+  const isPhonePanel = isMobile && statsPanelDeviceType !== 'Tablet';
+  const panelWidth = isPhonePanel ? Math.round(window.innerWidth * 0.95) : 355;
+
   return (
     <div className={statsCardPositioning} style={{ zIndex: isMobile && isExpanded ? 40 : isMobile ? 100 : 600, position: 'absolute', pointerEvents: 'none', visibility: statsPanelOpacity < 0.1 ? 'hidden' : 'visible', transition: 'visibility 0s linear 0.5s' }}>
-      <div className="flex flex-col items-center gap-1 min-w-[355px] max-w-[355px] relative"
+      <div className="flex flex-col items-center gap-1 relative" style={{ minWidth: `${panelWidth}px`, maxWidth: `${panelWidth}px` }}
       style={{ opacity: statsPanelOpacity, transition: 'opacity 0.5s ease-in-out', pointerEvents: statsPanelOpacity < 0.1 ? 'none' : 'auto' }}
       onMouseEnter={() => handleStatsPanelInteraction(true)}
       onMouseLeave={() => handleStatsPanelInteraction(false)}>
