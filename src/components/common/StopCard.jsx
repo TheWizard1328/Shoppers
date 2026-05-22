@@ -9,7 +9,7 @@ import { GripVertical, Loader2, Phone, Navigation, LocateFixed } from "lucide-re
 import { getStoreColor, getContrastColor } from "../utils/colorGenerator";
 import { format } from "date-fns";
 import { userHasRole, shouldShowStoreBadges, isAppOwner } from '../utils/userRoles';
-import { isMobileDevice } from '../utils/deviceUtils';
+import { isMobileDevice, getUserAgentInfo } from '../utils/deviceUtils';
 import { getCurrentDevice } from '../utils/deviceManager';
 import { formatAddressWithUnit } from '../utils/addressCleaner';
 import { base44 } from "@/api/base44Client";
@@ -432,6 +432,10 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
 
   const shouldFade = isFinishedDelivery && routeHasIncompleteStops && !isSelected && !isHovered;
   const isMobileCard = isMobileDevice();
+  const { deviceType: stopCardDeviceType } = getUserAgentInfo();
+  // On phones (not tablets), use 95% of screen width; otherwise fixed 350px
+  const isPhoneDevice = isMobileCard && stopCardDeviceType !== 'Tablet';
+  const dynamicCardWidth = isPhoneDevice ? Math.round(window.innerWidth * 0.95) : 350;
   const isBulkSelected = !!selectedDeliveryIds?.[delivery?.id];
   const cardZIndex = isMobileCard
     ? isExpanded
@@ -608,7 +612,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
       )}
 
       <Card
-        data-route-completed-condensed={showCompletedRouteCenteredCondensed ? "true" : "false"} className="bg-card text-card-foreground rounded-xl border shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 overflow-hidden min-h-0 h-auto self-start min-w-[350px] max-w-[350px] border-blue-500"
+        data-route-completed-condensed={showCompletedRouteCenteredCondensed ? "true" : "false"} className="bg-card text-card-foreground rounded-xl border shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 overflow-hidden min-h-0 h-auto self-start border-blue-500"
 
         onClick={(e) => {
           const actionButton = e.target?.closest?.('[data-stopcard-action="start"], [data-stopcard-action="complete"], [data-stopcard-action="restart"], [data-stopcard-action="retry"], [data-stopcard-action="return"]');
@@ -620,7 +624,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
           if (startTapLockRef.current || completeTapLockRef.current || actionTapLockRef.current || isStarting || isCompleting || isRestarting || isProcessingBackground || isFailing) return;
           onClick && onClick(delivery);
         }}
-        style={{ background: 'var(--bg-white)', borderColor: isNextDelivery ? '#10B981' : '#3B82F6', opacity: shouldFade ? 0.4 : 1, transition: 'opacity 0.2s ease-in-out', maxHeight: shouldAnchorExpandedCard ? 'calc(100dvh - var(--bottom-nav-height, 64px) - 1rem)' : undefined }}>
+        style={{ background: 'var(--bg-white)', borderColor: isNextDelivery ? '#10B981' : '#3B82F6', opacity: shouldFade ? 0.4 : 1, transition: 'opacity 0.2s ease-in-out', minWidth: `${dynamicCardWidth}px`, maxWidth: `${dynamicCardWidth}px`, maxHeight: shouldAnchorExpandedCard ? 'calc(100dvh - var(--bottom-nav-height, 64px) - 1rem)' : undefined }}>
         
         <CardContent className={`p-6 px-1 flex flex-col py-0 ${shouldAnchorExpandedCard ? 'max-h-full overflow-y-auto overscroll-contain' : ''}`}>
           <div className="flex items-start">

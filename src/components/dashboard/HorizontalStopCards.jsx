@@ -78,6 +78,11 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
   const isMobile = isMobileDevice();
   const { deviceType } = getUserAgentInfo();
   const isTabletPortrait = deviceType === 'Tablet' && getOrientation() === 'portrait';
+  const isPhone = isMobile && deviceType !== 'Tablet';
+  const phoneCardWidth = isPhone ? Math.round(window.innerWidth * 0.95) : 280;
+  const scrollPadding = isPhone
+    ? `calc(50% - ${Math.round(phoneCardWidth / 2)}px)`
+    : 'calc(50% - 140px)';
   const isDesktopFanLayout = false;
   const hasBottomNav = isMobile || isTabletPortrait;
 
@@ -546,8 +551,8 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
         touchAction: 'pan-x',
         scrollSnapType: isMobile ? 'x mandatory' : 'none',
         scrollSnapStop: isMobile ? 'always' : 'normal',
-        paddingLeft: isMobile ? 'calc(50% - 140px)' : '16px',
-        paddingRight: isMobile ? 'calc(50% - 140px)' : '16px',
+        paddingLeft: isMobile ? scrollPadding : '16px',
+        paddingRight: isMobile ? scrollPadding : '16px',
         paddingBottom: 0
       }}
       onTouchStart={handleTouchStart}
