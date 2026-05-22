@@ -23,7 +23,7 @@ export default function StopCardsSection({
 
   return (
     <div
-      ref={stopCardsContainerRef} className="horizontal-cards-container absolute left-0 right-0 z-[150] pointer-events-none flex flex-col justify-end transition-transform duration-500 ease-in-out will-change-transform"
+      ref={stopCardsContainerRef} className="horizontal-cards-container absolute left-0 right-0 z-[650] pointer-events-none flex flex-col justify-end transition-transform duration-500 ease-in-out will-change-transform"
 
       style={{
         position: 'absolute',
