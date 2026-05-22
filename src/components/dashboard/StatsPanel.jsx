@@ -244,8 +244,8 @@ export default function StatsPanel({
 
   return (
     <div className={statsCardPositioning} style={{ zIndex: isMobile && isExpanded ? 40 : isMobile ? 100 : 600, position: 'absolute', pointerEvents: 'none', visibility: statsPanelOpacity < 0.1 ? 'hidden' : 'visible', transition: 'visibility 0s linear 0.5s' }}>
-      <div className="flex flex-col items-center gap-1 min-w-[355px] max-w-[355px] relative"
-      style={{ opacity: statsPanelOpacity, transition: 'opacity 0.5s ease-in-out', pointerEvents: statsPanelOpacity < 0.1 ? 'none' : 'auto' }}
+      <div className="flex flex-col items-center gap-1 relative"
+      style={{ opacity: statsPanelOpacity, transition: 'opacity 0.5s ease-in-out', pointerEvents: statsPanelOpacity < 0.1 ? 'none' : 'auto', minWidth: isMobile ? `${Math.round(window.innerWidth * 0.95)}px` : '355px', maxWidth: isMobile ? `${Math.round(window.innerWidth * 0.95)}px` : '355px' }}
       onMouseEnter={() => handleStatsPanelInteraction(true)}
       onMouseLeave={() => handleStatsPanelInteraction(false)}>
 
