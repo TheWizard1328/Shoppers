@@ -144,16 +144,16 @@ export default function DateListPanel({
                     <Badge className="bg-blue-100 text-blue-800 text-xs">Today</Badge>
                   )}
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex flex-col items-end gap-1">
+                  <Badge variant="secondary" className="text-xs" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>
+                    {total}
+                  </Badge>
                   {isDispatcher && driversCount > 0 && (
                     <Badge variant="secondary" className="text-xs flex items-center gap-1" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>
                       <Truck className="w-3 h-3" />
                       {driversCount}
                     </Badge>
                   )}
-                  <Badge variant="secondary" className="text-xs" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>
-                    {total}
-                  </Badge>
                 </div>
               </div>
 
