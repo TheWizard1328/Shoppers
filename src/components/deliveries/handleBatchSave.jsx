@@ -295,7 +295,9 @@ export async function handleBatchSave({
         const ensuredPickup = ensuredPickupByKey.get(key);
         return {
           ...delivery,
-          puid: ensuredPickup?.stop_id || delivery.puid || ''
+          // Never overwrite an existing puid
+          puid: delivery.puid || ensuredPickup?.stop_id || ''
+          // puid: ensuredPickup?.stop_id || delivery.puid || ''
         };
       });
 
