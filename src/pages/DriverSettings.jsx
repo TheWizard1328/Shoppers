@@ -189,9 +189,9 @@ export default function DriverSettings() {
     <div className="p-6 max-w-auto mx-auto h-full overflow-y-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold flex items-center gap-3" style={{ color: 'var(--text-slate-900)' }}>
-          <SmartRefreshIndicator inline={true} />
           <Truck className="w-7 h-7 text-emerald-600" />
           Driver Settings
+          <SmartRefreshIndicator inline={true} />
         </h1>
         <p className="mt-1" style={{ color: 'var(--text-slate-600)' }}>Manage drivers and configure driver app settings</p>
       </div>
