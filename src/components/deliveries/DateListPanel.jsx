@@ -135,29 +135,21 @@ export default function DateListPanel({
                 borderColor: isSelected(dateStr) ? '#10b981' : 'var(--border-slate-200)'
               }}
             >
+              {/* Row 1: Date | Today | Total */}
               <div className="mt-1 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="text-sm font-bold" style={{ color: isSelected(dateStr) ? '#047857' : 'var(--text-slate-700)' }}>
-                    {format(date, 'EEE, MMM d')}
-                  </div>
-                  {isToday(date) && (
-                    <Badge className="bg-blue-100 text-blue-800 text-xs">Today</Badge>
-                  )}
+                <div className="text-sm font-bold" style={{ color: isSelected(dateStr) ? '#047857' : 'var(--text-slate-700)' }}>
+                  {format(date, 'EEE, MMM d')}
                 </div>
-                <div className="flex flex-col items-end gap-1">
-                  <Badge variant="secondary" className="text-xs" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>
-                    {total}
-                  </Badge>
-                  {isDispatcher && driversCount > 0 && (
-                    <Badge variant="secondary" className="text-xs flex items-center gap-1" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>
-                      <Truck className="w-3 h-3" />
-                      {driversCount}
-                    </Badge>
-                  )}
-                </div>
+                {isToday(date) && (
+                  <Badge className="bg-blue-100 text-blue-800 text-xs">Today</Badge>
+                )}
+                <Badge variant="secondary" className="text-xs" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>
+                  {total}
+                </Badge>
               </div>
 
-              <div className="flex items-center justify-between">
+              {/* Row 2: Counts | Drivers badge */}
+              <div className="flex items-center justify-between mb-1">
                 <div className="flex gap-3 text-xs">
                   <div className="flex items-center gap-1 text-green-600" title={`${completed} completed`}>
                     <CheckCircle className="w-3 h-3" />
@@ -176,24 +168,31 @@ export default function DateListPanel({
                     </div>
                   )}
                 </div>
-
-                {selectedDriverId && selectedDriverId !== 'all' && onDeleteRoute && isAppOwner(currentUser) && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 w-6 p-0 hover:text-red-600 hover:bg-red-50"
-                    style={{ color: 'var(--text-slate-400)' }}
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      if (window.confirm(`Delete all ${total} stops for this date? This cannot be undone.`)) {
-                        await onDeleteRoute(dateStr, selectedDriverId);
-                      }
-                    }}
-                    title="Delete entire route for this date"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
-                )}
+                <div className="flex items-center gap-1">
+                  {isDispatcher && driversCount > 0 && (
+                    <Badge variant="secondary" className="text-xs flex items-center gap-1" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>
+                      <Truck className="w-3 h-3" />
+                      {driversCount}
+                    </Badge>
+                  )}
+                  {selectedDriverId && selectedDriverId !== 'all' && onDeleteRoute && isAppOwner(currentUser) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 hover:text-red-600 hover:bg-red-50"
+                      style={{ color: 'var(--text-slate-400)' }}
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (window.confirm(`Delete all ${total} stops for this date? This cannot be undone.`)) {
+                          await onDeleteRoute(dateStr, selectedDriverId);
+                        }
+                      }}
+                      title="Delete entire route for this date"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
+                </div>
               </div>
             </Card>
           ))
