@@ -92,7 +92,27 @@ export default function DateListPanel({
   const isSelected = (dateStr) => selectedDate === dateStr;
   const isToday = (date) => isSameDay(date, new Date());
 
-  const itemsToRender = (dateListWithStats || datesWithDeliveries).filter((d) => d.total > 0);
+  // Pre-compute driversCount from raw deliveries indexed by date (for when dateListWithStats is provided without driversCount)
+  const driversCountByDate = useMemo(() => {
+    const map = new Map();
+    deliveries.forEach((d) => {
+      if (!d?.delivery_date) return;
+      const dateStr = d.delivery_date;
+      if (!map.has(dateStr)) map.set(dateStr, new Set());
+      if (d.driver_id) map.get(dateStr).add(d.driver_id);
+      else if (d.driver_name) map.get(dateStr).add(d.driver_name);
+    });
+    const result = {};
+    map.forEach((set, dateStr) => { result[dateStr] = set.size; });
+    return result;
+  }, [deliveries]);
+
+  const itemsToRender = (dateListWithStats || datesWithDeliveries)
+    .filter((d) => d.total > 0)
+    .map((item) => ({
+      ...item,
+      driversCount: item.driversCount ?? driversCountByDate[item.dateStr || item.date] ?? 0
+    }));
 
   return (
     <div className="flex flex-col h-full">
