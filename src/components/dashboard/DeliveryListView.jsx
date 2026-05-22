@@ -88,7 +88,7 @@ const DeliveryRow = memo(({
               {isDispatcher ? (
                 delivery.driver_name &&
                 <span className="text-[11px] text-slate-500 text-center leading-tight max-w-[80px] truncate" title={delivery.driver_name}>
-                  {delivery.driver_name.split(' ')[0]}
+                  {(() => { const parts = delivery.driver_name.split(' '); const first = parts[0]; return first.length <= 1 && parts[1] ? parts[1] : first; })()}
                 </span>
               ) : (
                 store?.abbreviation &&
@@ -193,7 +193,7 @@ const DeliveryRow = memo(({
           {isDispatcher ? (
             delivery.driver_name &&
             <span className="text-[11px] text-slate-500 text-center leading-tight max-w-[90px] truncate" title={delivery.driver_name}>
-              {delivery.driver_name.split(' ')[0]}
+              {(() => { const parts = delivery.driver_name.split(' '); const first = parts[0]; return first.length <= 1 && parts[1] ? parts[1] : first; })()}
             </span>
           ) : (
             store?.abbreviation &&
