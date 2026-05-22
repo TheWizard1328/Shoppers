@@ -3,12 +3,9 @@ import { MapContainer, Marker, Pane, Polyline, Popup, TileLayer } from "react-le
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
-const IntegerZoomTileLayer = L.TileLayer.extend({
-  _getZoomForUrl() {
-    const zoom = L.TileLayer.prototype._getZoomForUrl.call(this);
-    return Math.round(zoom);
-  }
-});
+// CachedHereTileLayer: IndexedDB-backed tile cache (works in Capacitor WebViews + browsers)
+// Replaces the old Service Worker approach which didn't work in Capacitor's WebView.
+const CachedHereTileLayer = createCachedHereTileLayer(L);
 import { format } from "date-fns";
 import { base44 } from "@/api/base44Client";
 import { getActiveHereApiKey } from "@/functions/getActiveHereApiKey";
@@ -28,6 +25,7 @@ import DriverLocationMarkers from "./DriverLocationMarkers";
 import HereTileUsageTracker from "./HereTileUsageTracker";
 import HereType1Polylines from "./HereType1Polylines";
 import HereType2Polylines from "./HereType2Polylines";
+import { createCachedHereTileLayer } from "../utils/hereTileCache";
 import CompletedBreadcrumbPolylines from "./CompletedBreadcrumbPolylines";
 import FinishedStopsPolylines from "./FinishedStopsPolylines";
 import PickupMarkers from "./PickupMarkers";
@@ -1225,12 +1223,7 @@ export default function DeliveryMap({
         }}
       >
         {tileLayerConfig?.base && (
-          <TileLayer
-            ref={(layer) => {
-              if (layer && !(layer instanceof IntegerZoomTileLayer)) {
-                Object.setPrototypeOf(layer, IntegerZoomTileLayer.prototype);
-              }
-            }}
+          <CachedHereTileLayer
             key={`base-${mapStyle}-${tileLayerInstanceKey}-${tileLayerConfig.base}`}
             attribution='&copy; <a href="https://www.here.com/">HERE</a>'
             url={tileLayerConfig.base}
@@ -1242,12 +1235,7 @@ export default function DeliveryMap({
           />
         )}
         {tileLayerConfig?.overlay && (
-          <TileLayer
-            ref={(layer) => {
-              if (layer && !(layer instanceof IntegerZoomTileLayer)) {
-                Object.setPrototypeOf(layer, IntegerZoomTileLayer.prototype);
-              }
-            }}
+          <CachedHereTileLayer
             key={`overlay-${mapStyle}-${tileLayerInstanceKey}-${tileLayerConfig.overlay}`}
             url={tileLayerConfig.overlay}
             tileSize={512}
