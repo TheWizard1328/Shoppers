@@ -27,7 +27,8 @@ const DeliveryRow = memo(({
   bulkEditMode,
   isBulkSelected,
   onBulkToggle,
-  currentUser
+  currentUser,
+  isDispatcher
 }) => {
   const isPickup = !delivery.patient_id;
   const isNextDelivery = delivery.isNextDelivery === true;
@@ -84,11 +85,17 @@ const DeliveryRow = memo(({
           <div className="flex flex-col items-end">
             <div className="flex flex-col items-center gap-1">
               {getStatusBadge(delivery.status)}
-              {store?.abbreviation &&
+              {isDispatcher ? (
+                delivery.driver_name &&
+                <span className="text-[11px] text-slate-500 text-center leading-tight max-w-[80px] truncate" title={delivery.driver_name}>
+                  {delivery.driver_name.split(' ')[0]}
+                </span>
+              ) : (
+                store?.abbreviation &&
                 <Badge variant="outline" className="rounded-full text-[11px] px-2 py-0.5 max-w-full whitespace-normal break-words text-center" style={{ background: 'var(--bg-white)', color: store.color || 'var(--text-slate-600)', borderColor: store.color || 'var(--border-slate-300)' }}>
                   {store.abbreviation}{isAppOwner(currentUser) && delivery?.puid ? ` • ${delivery.puid}` : ''}
                 </Badge>
-                }
+              )}
             </div>
           </div>
 
@@ -183,11 +190,17 @@ const DeliveryRow = memo(({
 
         <div className="flex flex-col items-center justify-center gap-1">
           {getStatusBadge(delivery.status)}
-          {store?.abbreviation &&
-        <Badge className="rounded-full text-[11px] px-2 py-0.5 max-w-full whitespace-normal break-words text-center text-white" style={{ background: store.color || 'var(--bg-slate-400)' }}>
+          {isDispatcher ? (
+            delivery.driver_name &&
+            <span className="text-[11px] text-slate-500 text-center leading-tight max-w-[90px] truncate" title={delivery.driver_name}>
+              {delivery.driver_name.split(' ')[0]}
+            </span>
+          ) : (
+            store?.abbreviation &&
+            <Badge className="rounded-full text-[11px] px-2 py-0.5 max-w-full whitespace-normal break-words text-center text-white" style={{ background: store.color || 'var(--bg-slate-400)' }}>
               {store.abbreviation}{isAppOwner(currentUser) && delivery?.puid ? ` • ${delivery.puid}` : ''}
             </Badge>
-        }
+          )}
         </div>
 
         <div className="flex items-center justify-center">
@@ -356,6 +369,8 @@ const DeliveryListView = ({
     stores.forEach((s) => {if (s?.id) map.set(s.id, s);});
     return map;
   }, [stores]);
+
+  const isDispatcher = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
 
   const getStatusBadge = useCallback((status) => {
     const statusConfig = {
@@ -554,11 +569,12 @@ const DeliveryListView = ({
           bulkEditMode={bulkEditMode}
           isBulkSelected={bulkSelectedIds.includes(delivery.id)}
           onBulkToggle={onBulkToggle}
-          currentUser={currentUser} />
+          currentUser={currentUser}
+          isDispatcher={isDispatcher} />
         
       </div>);
 
-  }, [deliveries, patientMap, storeMap, selectedDeliveryId, handleSelect, getStatusBadge, getTimeDisplay, getCODDisplay, handleOpenMedia, isMobile, bulkEditMode, bulkSelectedIds, onBulkToggle]);
+  }, [deliveries, patientMap, storeMap, selectedDeliveryId, handleSelect, getStatusBadge, getTimeDisplay, getCODDisplay, handleOpenMedia, isMobile, bulkEditMode, bulkSelectedIds, onBulkToggle, isDispatcher]);
 
   const getItemKey = useCallback((index) => {
     const delivery = deliveries[index];
