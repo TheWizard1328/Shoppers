@@ -43,23 +43,26 @@ export async function buildInTransitDirectSaveData({
       const specialStoreNames = ['Lakeland Ridge', 'Sherwood Pk Mall', 'WestPark', 'SouthPoint'];
       const isSpecialStore = specialStoreNames.includes(patientStore?.name || '');
 
-      dataToSave.puid = await resolvePickupPuid({
-        stagedDeliveries,
-        allDeliveries,
-        storeId: patientStoreId,
-        deliveryDate: dataToSave.delivery_date,
-        driverId: dataToSave.driver_id,
-        timeSlot,
-        reuseLatestCompleted: !isSpecialStore,
-        ensureMissingPickup: () => base44.functions.invoke('ensurePickupForDelivery', {
+      // Only resolve puid if it's not already set — puid is immutable after creation
+      if (!dataToSave.puid) {
+        dataToSave.puid = await resolvePickupPuid({
+          stagedDeliveries,
+          allDeliveries,
           storeId: patientStoreId,
           deliveryDate: dataToSave.delivery_date,
           driverId: dataToSave.driver_id,
-          ampmDeliveries: timeSlot,
-          allowCreateIfMissing: true,
-          skipReuseCheck: isSpecialStore
-        })
-      });
+          timeSlot,
+          reuseLatestCompleted: !isSpecialStore,
+          ensureMissingPickup: () => base44.functions.invoke('ensurePickupForDelivery', {
+            storeId: patientStoreId,
+            deliveryDate: dataToSave.delivery_date,
+            driverId: dataToSave.driver_id,
+            ampmDeliveries: timeSlot,
+            allowCreateIfMissing: true,
+            skipReuseCheck: isSpecialStore
+          })
+        });
+      }
     }
   }
 
