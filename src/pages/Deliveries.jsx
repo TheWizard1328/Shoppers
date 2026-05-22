@@ -3219,7 +3219,7 @@ export default function DeliveriesPage() {
               <DateListPanel
               deliveries={userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') ? allDeliveries.filter((d) => d && (currentUser.store_ids || []).includes(d.store_id)) : driverFilteredDeliveries}
               selectedDate={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null}
-              dateListWithStats={null}
+              dateListWithStats={dateListWithStats}
               onDateSelect={handleDateSelect}
               patients={effectivePatients}
               selectedDriverId={driverFilter}
@@ -3324,7 +3324,7 @@ export default function DeliveriesPage() {
                 <DateListPanel
                 deliveries={userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') ? allDeliveries.filter((d) => d && (currentUser.store_ids || []).includes(d.store_id)) : driverFilteredDeliveries}
                 selectedDate={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null}
-                dateListWithStats={null}
+                dateListWithStats={dateListWithStats}
                 onDateSelect={(dateStr) => {
                   handleDateSelect(dateStr);
                   setIsMobileMenuOpen(false);

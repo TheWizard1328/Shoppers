@@ -246,7 +246,7 @@ export default function RouteManagementContent({
                 onEdit(nextDelivery);
               }}
               onDelete={onDelete}
-              showDriverName={false}
+              showDriverName={userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')}
               onRestart={onRestart}
               allDeliveries={allDeliveries || []}
               selectedDate={selectedDate}
