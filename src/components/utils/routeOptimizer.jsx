@@ -604,10 +604,10 @@ export const optimizeRoute = (stops, stores, patients, options = {}) => {
       });
 
       if (matchingPUID) {
-        console.warn(\`⚠️ Orphaned delivery \${orphanDel.id || orphanDel.patient_id} (ampm=\${deliveryAmpm || 'n/a'}, storeId=\${storeId}) reassigned to pickup PUID \${matchingPUID}\`);
+        console.warn(`Orphaned delivery ${orphanDel.id || orphanDel.patient_id} (ampm=${deliveryAmpm || 'n/a'}, storeId=${storeId}) reassigned to pickup PUID ${matchingPUID}`);
         stopsByPUID[matchingPUID].deliveries.push({ ...orphanDel });
       } else {
-        console.warn(\`⚠️ Orphaned delivery \${orphanDel.id} has no matching pickup for store \${storeId} — will append at end\`);
+        console.warn(`Orphaned delivery ${orphanDel.id} has no matching pickup for store ${storeId} - will append at end`);
         // Will be handled below when the orphan group is encountered in the loop
       }
     }
@@ -647,7 +647,7 @@ export const optimizeRoute = (stops, stores, patients, options = {}) => {
     return timeA - timeB;
   });
 
-  console.log(\`  📦 Grouped stops into \${sortedPUIDs.length} PUID groups (after orphan resolution)\`);
+  console.log(`Grouped stops into ${sortedPUIDs.length} PUID groups (after orphan resolution)`);
   
   const optimizedRoute = [];
   let hasUsedStartLocation = false;
