@@ -309,7 +309,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
     const showPill = isActive && !isPaused;
 
     return (
-      <div className="relative w-7 h-9 flex-shrink-0 flex items-center">
+      <div className="relative w-7 h-8 flex-shrink-0 flex items-center">
       <AnimatePresence mode="wait">
         {showPill ?
           <motion.button
@@ -321,7 +321,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
             animate={{ width: 'auto' }}
             exit={{ width: 16 }}
             transition={{ duration: 0.2, ease: 'easeInOut' }}
-            className={`h-9 min-h-9 px-2 flex shrink-0 items-center overflow-hidden pointer-events-auto rounded-full gap-1.5 ${getSpinnerColor()} shadow-lg`}
+            className={`h-8 min-h-8 px-2 flex shrink-0 items-center overflow-hidden pointer-events-auto rounded-full gap-1.5 ${getSpinnerColor()} shadow-lg`}
             style={{ position: 'absolute', left: 0, zIndex: 10030, whiteSpace: 'nowrap' }}
             title="Syncing...">
             <motion.div
