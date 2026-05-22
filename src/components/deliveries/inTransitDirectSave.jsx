@@ -20,7 +20,22 @@ export async function buildInTransitDirectSaveData({
     completionTime
   });
 
-  if (!delivery?.id && dataToSave.status === 'in_transit' && dataToSave.patient_id) {
+  // Detect interstore deliveries (ISP pickup or ISD drop-off) — never create an originating pickup for these
+  const isInterstore = (() => {
+    const checkStr = (v) => {
+      const s = String(v || '').toLowerCase();
+      return s.includes('(isp)') || s.includes(' isp') || s.includes('interstore drop') || s.includes('(isd)') || s.includes(' isd');
+    };
+    return (
+      checkStr(selectedPatient?.full_name) ||
+      checkStr(selectedPatient?.address) ||
+      checkStr(selectedPatient?.notes) ||
+      checkStr(dataToSave.delivery_notes) ||
+      checkStr(dataToSave.delivery_instructions)
+    );
+  })();
+
+  if (!delivery?.id && dataToSave.status === 'in_transit' && dataToSave.patient_id && !isInterstore) {
     const patientStoreId = selectedPatient?.store_id || dataToSave.store_id;
     if (patientStoreId) {
       const patientStore = stores?.find((store) => store && store.id === patientStoreId);
