@@ -274,10 +274,7 @@ export default function DeliveryMetrics() {
       const isAdmin = currentUser?.role === 'admin' || foundAppUser?.app_roles?.includes('admin');
       const isDispatcher = foundAppUser?.app_roles?.includes('dispatcher') && !isAdmin;
 
-      // Auto-select first assigned store for dispatchers
-      if (isDispatcher && foundAppUser?.store_ids?.length > 0) {
-        setSelectedStore(prev => prev === 'all' ? foundAppUser.store_ids[0] : prev);
-      }
+      // Dispatchers start with all stores selected (no auto-select)
       console.log('👤 [DeliveryMetrics] Current user:', currentUser?.full_name, 'isAdmin:', isAdmin, 'platform role:', currentUser?.role, 'app_roles:', currentAppUser?.app_roles);
       
       let allDrivers = [];
@@ -320,8 +317,44 @@ export default function DeliveryMetrics() {
             }));
           console.log('👥 [DeliveryMetrics] Fallback drivers from AppUser:', allDrivers.length);
         }
+      } else if (isDispatcher) {
+        // Dispatchers: show all drivers (so they can see all-driver metrics for their stores)
+        // selectedDriver defaults to 'all'
+        try {
+          const usersData = await getData('User');
+          const allAuthUsers = (usersData || []).filter((u) => u.role === 'admin' || u.role === 'user');
+          allDrivers = allAuthUsers.map((authUser) => {
+            const appUser = (appUsersData || []).find((au) => au.user_id === authUser.id);
+            if (appUser) {
+              return {
+                ...authUser,
+                ...appUser,
+                user_name: appUser.user_name || authUser.full_name,
+                app_role: appUser.app_roles?.[0] || 'driver',
+                display_name: appUser.user_name || authUser.full_name
+              };
+            }
+            return authUser;
+          }).filter((u) => {
+            const appRole = u.app_role || u.app_roles?.[0];
+            return appRole === 'driver' || appRole === 'admin';
+          });
+        } catch {
+          allDrivers = (appUsersData || [])
+            .filter(au => au.app_roles?.includes('driver') || au.app_roles?.includes('admin'))
+            .map(au => ({
+              id: au.user_id,
+              user_id: au.user_id,
+              user_name: au.user_name,
+              display_name: au.user_name,
+              app_role: au.app_roles?.[0] || 'driver',
+              app_roles: au.app_roles
+            }));
+        }
+        // Ensure driver filter stays at 'all' for dispatchers
+        setSelectedDriver('all');
       } else {
-        // Non-admin: only show themselves
+        // Regular driver: only show themselves
         if (currentAppUser) {
           allDrivers = [{
             ...currentUser,
