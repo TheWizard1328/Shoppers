@@ -903,8 +903,8 @@ export default function DeliveryMetrics() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-3">
-              <SmartRefreshIndicator inline={true} />
               <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Route Metrics</h1>
+              <SmartRefreshIndicator inline={true} />
             </div>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <p style={{ color: 'var(--text-slate-600)' }}>
