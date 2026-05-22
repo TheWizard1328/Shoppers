@@ -122,7 +122,7 @@ export default function RouteManagementHeader({
     <>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-2">
         <div>
-          <h1 className="text-3xl font-bold flex items-baseline gap-3" style={{ color: 'var(--text-slate-900)' }}>
+          <h1 className="text-3xl font-bold flex items-center gap-3" style={{ color: 'var(--text-slate-900)' }}>
             <SmartRefreshIndicator inline={true} />
             Route Management
             <Badge variant="outline" className="ml-2 text-sm font-normal" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
