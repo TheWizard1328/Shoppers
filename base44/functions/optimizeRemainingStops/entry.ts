@@ -657,12 +657,25 @@ Deno.serve(async (req) => {
         hereOrderedStops = sortedHint;
       }
 
-      // Final order: locked next stop → proximity-sorted imputed stops → pre-sequenced AM/PM pairs → HERE-sequenced remaining stops
+      // Final order: locked next stop → proximity-sorted imputed stops → all remaining stops merged by window start.
+      // Previously, pre-sequenced AM/PM pickup pairs were appended BEFORE HERE-ordered stops, which caused
+      // them to land at positions 2+3 regardless of their time windows. If post-correction then moved a
+      // later-arriving stop (e.g. Meadows) earlier, the AM/PM pair ended up AFTER Meadows even though
+      // BD AM window (11:30) is earlier than Meadows window (14:00).
+      //
+      // Fix: merge preSequencedAmPmPickups back into hereOrderedStops sorted by window start so the
+      // combined list respects actual time windows. The AM-before-PM guarantee within the same store is
+      // naturally preserved because the AM window start is always earlier than the PM window start.
+      const allRemainingStops = [...preSequencedAmPmPickups, ...hereOrderedStops];
+      allRemainingStops.sort((a, b) => {
+        const wsA = a.windowStart || a.delivery?.delivery_time_start || '23:59';
+        const wsB = b.windowStart || b.delivery?.delivery_time_start || '23:59';
+        return wsA.localeCompare(wsB);
+      });
       routeStops = [
         ...(lockedNextStop ? [lockedNextStop] : []),
         ...imputedSortedByProximity,
-        ...preSequencedAmPmPickups,
-        ...hereOrderedStops,
+        ...allRemainingStops,
       ];
     }
 

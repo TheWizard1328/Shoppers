@@ -575,22 +575,79 @@ export const optimizeRoute = (stops, stores, patients, options = {}) => {
     }
   });
   
+  // ── ORPHAN RESOLUTION (before sorting) ─────────────────────────────────────
+  // Deliveries whose puid doesn't match any pickup stop_id are "orphaned".
+  // Resolve them NOW — before building sortedPUIDs — so the deliveries end up
+  // in the correct PUID group before the processing loop runs.
+  // Without this, reassignment happens mid-loop and the deliveries may be added
+  // to a group that was already processed and pushed to optimizedRoute.
+  const orphanPUIDs = Object.keys(stopsByPUID).filter(p => !stopsByPUID[p].pickup);
+  for (const orphanPuid of orphanPUIDs) {
+    const orphanGroup = stopsByPUID[orphanPuid];
+    const storeId = orphanGroup.storeId || orphanGroup.deliveries[0]?.store_id;
+    if (!storeId || orphanGroup.deliveries.length === 0) continue;
+
+    // For each orphaned delivery, find its best matching pickup individually
+    // (handles mixed AM/PM orphans in the same ghost PUID group)
+    for (const orphanDel of orphanGroup.deliveries) {
+      const deliveryAmpm = orphanDel.ampm_deliveries;
+      // 1st preference: same store + matching ampm_deliveries
+      const matchingPUID = Object.keys(stopsByPUID).find(p => {
+        const g = stopsByPUID[p];
+        return g.pickup && g.storeId === storeId &&
+               (!deliveryAmpm || g.pickup.ampm_deliveries === deliveryAmpm);
+      }) ||
+      // 2nd preference: same store, any ampm
+      Object.keys(stopsByPUID).find(p => {
+        const g = stopsByPUID[p];
+        return g.pickup && g.storeId === storeId;
+      });
+
+      if (matchingPUID) {
+        console.warn(\`⚠️ Orphaned delivery \${orphanDel.id || orphanDel.patient_id} (ampm=\${deliveryAmpm || 'n/a'}, storeId=\${storeId}) reassigned to pickup PUID \${matchingPUID}\`);
+        stopsByPUID[matchingPUID].deliveries.push({ ...orphanDel });
+      } else {
+        console.warn(\`⚠️ Orphaned delivery \${orphanDel.id} has no matching pickup for store \${storeId} — will append at end\`);
+        // Will be handled below when the orphan group is encountered in the loop
+      }
+    }
+    // Remove the orphan group — its deliveries have been redistributed
+    // (any unresolved ones stay in the group and get appended at loop time)
+    const unresolvedDeliveries = orphanGroup.deliveries.filter(del => {
+      const deliveryAmpm = del.ampm_deliveries;
+      const hasMatch = Object.keys(stopsByPUID).some(p => {
+        const g = stopsByPUID[p];
+        return g.pickup && g.storeId === storeId &&
+               (!deliveryAmpm || g.pickup.ampm_deliveries === deliveryAmpm);
+      }) || Object.keys(stopsByPUID).some(p => stopsByPUID[p].pickup && stopsByPUID[p].storeId === storeId);
+      return !hasMatch;
+    });
+    if (unresolvedDeliveries.length === 0) {
+      delete stopsByPUID[orphanPuid];
+    } else {
+      orphanGroup.deliveries = unresolvedDeliveries;
+    }
+  }
+
   // Sort PUIDs by pickup time
   const sortedPUIDs = Object.keys(stopsByPUID).sort((a, b) => {
     const groupA = stopsByPUID[a];
     const groupB = stopsByPUID[b];
     const pickupA = groupA.pickup;
     const pickupB = groupB.pickup;
-    
-    if (!pickupA || !pickupB) return 0;
-    
+
+    // Orphan groups (no pickup) sort to the end
+    if (!pickupA && !pickupB) return 0;
+    if (!pickupA) return 1;
+    if (!pickupB) return -1;
+
     const timeA = timeToMinutes(pickupA.delivery_time_start || '00:00');
     const timeB = timeToMinutes(pickupB.delivery_time_start || '00:00');
-    
+
     return timeA - timeB;
   });
-  
-  console.log(`  📦 Grouped stops into ${sortedPUIDs.length} PUID groups`);
+
+  console.log(\`  📦 Grouped stops into \${sortedPUIDs.length} PUID groups (after orphan resolution)\`);
   
   const optimizedRoute = [];
   let hasUsedStartLocation = false;
@@ -604,28 +661,10 @@ export const optimizeRoute = (stops, stores, patients, options = {}) => {
     const deliveries = puidGroup.deliveries;
 
     if (!pickup) {
-      // Orphaned deliveries: puid doesn't match any pickup stop_id.
-      // Try to reassign to the best matching pickup for the same store.
-      const storeId = puidGroup.storeId || puidGroup.deliveries[0]?.store_id;
-      const deliveryAmpm = puidGroup.deliveries[0]?.ampm_deliveries;
-      // Prefer a pickup whose ampm_deliveries matches the orphaned delivery's ampm tag
-      const matchingPUID = sortedPUIDs.find(p => {
-        const g = stopsByPUID[p];
-        return g.pickup && g.storeId === storeId && 
-               (!deliveryAmpm || g.pickup.ampm_deliveries === deliveryAmpm);
-      }) || sortedPUIDs.find(p => {
-        // Fallback: any pickup from same store
-        const g = stopsByPUID[p];
-        return g.pickup && g.storeId === storeId;
-      });
-      if (matchingPUID) {
-        console.warn(`⚠️ PUID ${puid} has no pickup - reassigning ${puidGroup.deliveries.length} orphaned delivery(ies) to pickup PUID ${matchingPUID}`);
-        stopsByPUID[matchingPUID].deliveries.push(...puidGroup.deliveries);
-      } else {
-        console.warn(`⚠️ PUID ${puid} has no pickup and no matching store pickup found - appending ${puidGroup.deliveries.length} delivery(ies) at end`);
-        // Append to route at end so they're not lost
-        optimizedRoute.push(...puidGroup.deliveries);
-      }
+      // Orphans should have been resolved pre-loop. If any remain (no matching pickup),
+      // append them to the end of the route so they are never silently lost.
+      console.warn(`⚠️ PUID ${puid} still has no pickup after pre-loop resolution — appending ${puidGroup.deliveries.length} delivery(ies) at end`);
+      optimizedRoute.push(...puidGroup.deliveries);
       continue;
     }
     
