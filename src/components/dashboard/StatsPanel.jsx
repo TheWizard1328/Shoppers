@@ -299,16 +299,12 @@ export default function StatsPanel({
             <div className="pr-1 flex items-center gap-1">
               <h2 className="pl-2 text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>Dashboard</h2>
               {currentUser && <div className="flex items-center gap-1.5 ml-0">
-                <SmartRefreshIndicator inline={true} onManualRefresh={async () => {
-                  const syncButton = document.querySelector('[data-offline-sync-button]');
-                  if (syncButton) syncButton.click();
-                }} />
                 <ConnectionIndicator />
                 <ErrorFlagIndicator />
               </div>}
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <Popover open={isCalendarOpen} onOpenChange={(open) => {setIsCalendarOpen(open);if (open) setCalendarMonth(selectedDate);}} modal={true}>
                 <PopoverTrigger asChild>
                   <Button variant="outline" size="sm" className="bg-transparent px-3 text-xs font-medium rounded-md inline-flex items-center justify-center whitespace-nowrap transition-colors shadow-sm gap-2 h-8" style={{ pointerEvents: 'auto', touchAction: 'manipulation', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
@@ -346,6 +342,11 @@ export default function StatsPanel({
                     className="rdp p-3" style={{ color: 'var(--text-slate-900)' }} />
                 </PopoverContent>
               </Popover>
+
+              {currentUser && <SmartRefreshIndicator inline={true} onManualRefresh={async () => {
+                const syncButton = document.querySelector('[data-offline-sync-button]');
+                if (syncButton) syncButton.click();
+              }} />}
 
               <Button
                 onClick={() => {if (currentUser?.status === 'inactive' && isDriver && !isAdmin) return; setEditingDelivery(null);setShowDeliveryForm(true);}}
