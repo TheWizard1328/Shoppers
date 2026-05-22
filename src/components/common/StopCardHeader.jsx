@@ -196,15 +196,7 @@ export default function StopCardHeader({
 
         <SpecialSymbolsBadges delivery={delivery} patient={patient} isPickup={isPickup} size="card" className="mt-1" />
 
-        {/* Driver name badge for dispatcher view — replaces store abbreviation in right column */}
-        {showDriverName && userHasRole(currentUser, 'dispatcher') && safeDriver && (
-          <Badge
-            variant="secondary"
-            className="mt-1 px-2 py-0.5 text-xs font-bold rounded-full inline-flex items-center border transition-colors justify-center !text-white"
-            style={{ backgroundColor: driverBadgeColor }}>
-            {getDriverDisplayName(safeDriver)}
-          </Badge>
-        )}
+
       </div>
 
       {/* Center section */}
@@ -213,9 +205,16 @@ export default function StopCardHeader({
           {finalDisplayName}
         </h3>
         <div className="flex flex-col items-center min-h-[43px]">
-          <div className="text-lg flex items-center justify-center" style={{ color: timeColor }}>
+          <div className="text-lg flex items-center justify-center gap-2" style={{ color: timeColor }}>
             {timeDisplay}
-            {/* Driver name shown in left badges column for dispatchers */}
+            {showDriverName && userHasRole(currentUser, 'dispatcher') && safeDriver && (
+              <Badge
+                variant="secondary"
+                className="px-2 py-0.5 text-xs font-bold rounded-full inline-flex items-center border transition-colors justify-center !text-white"
+                style={{ backgroundColor: driverBadgeColor }}>
+                {getDriverDisplayName(safeDriver)}
+              </Badge>
+            )}
           </div>
 
           {/* Time window for active stops */}
@@ -251,7 +250,7 @@ export default function StopCardHeader({
           </Badge>
         </div>
 
-        {!(showDriverName && userHasRole(currentUser, 'dispatcher')) && delivery?.tracking_number && store?.abbreviation &&
+        {delivery?.tracking_number && store?.abbreviation &&
         <Badge
           variant="secondary"
           className="bg-secondary text-secondary-foreground mt-1 px-2 py-0.5 text-sm font-bold rounded-full inline-flex items-center"
