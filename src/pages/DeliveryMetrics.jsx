@@ -388,11 +388,28 @@ export default function DeliveryMetrics() {
     }
   };
 
+  // Compute effective store IDs for filtering — dispatchers are always scoped to their stores
+  const dispatcherStoreIds = useMemo(() => {
+    const isAdmin = currentUser?.role === 'admin' || currentAppUser?.app_roles?.includes('admin');
+    const isDispatcher = currentAppUser?.app_roles?.includes('dispatcher') && !isAdmin;
+    if (isDispatcher && currentAppUser?.store_ids?.length > 0) {
+      return new Set(currentAppUser.store_ids);
+    }
+    return null; // null = no dispatcher restriction
+  }, [currentUser, currentAppUser]);
+
   // Build set of patient IDs for the selected store filter
   const storeFilteredPatientIds = useMemo(() => {
-    if (selectedStore === 'all') return null; // null means no filter
-    return new Set(patients.filter(p => p.store_id === selectedStore).map(p => p.id));
-  }, [selectedStore, patients]);
+    // Specific store selected
+    if (selectedStore !== 'all') {
+      return new Set(patients.filter(p => p.store_id === selectedStore).map(p => p.id));
+    }
+    // Dispatcher seeing "all" — still restrict to their stores
+    if (dispatcherStoreIds) {
+      return new Set(patients.filter(p => dispatcherStoreIds.has(p.store_id)).map(p => p.id));
+    }
+    return null; // admin/driver with no restriction
+  }, [selectedStore, patients, dispatcherStoreIds]);
 
   const metrics = useMemo(() => {
     // CRITICAL: Filter to only include deliveries (has patient_id) OR after_hours_pickup
@@ -401,9 +418,12 @@ export default function DeliveryMetrics() {
       if (!d.delivery_date) return false;
       if (!d.patient_id && !d.after_hours_pickup) return false;
 
-      // Store filter: filter by store_id on delivery, or by patient's store
-      if (selectedStore !== 'all') {
-        const matchesStore = d.store_id === selectedStore ||
+      // Store filter: specific store selected, OR dispatcher scoped to their stores
+      if (selectedStore !== 'all' || dispatcherStoreIds) {
+        const activeStoreIds = selectedStore !== 'all'
+          ? new Set([selectedStore])
+          : dispatcherStoreIds;
+        const matchesStore = activeStoreIds.has(d.store_id) ||
           (d.patient_id && storeFilteredPatientIds?.has(d.patient_id));
         if (!matchesStore) return false;
       }
@@ -437,8 +457,11 @@ export default function DeliveryMetrics() {
         if (!d.patient_id && !d.after_hours_pickup) return false;
 
         // Store filter for previous period
-        if (selectedStore !== 'all') {
-          const matchesStore = d.store_id === selectedStore ||
+        if (selectedStore !== 'all' || dispatcherStoreIds) {
+          const activeStoreIds = selectedStore !== 'all'
+            ? new Set([selectedStore])
+            : dispatcherStoreIds;
+          const matchesStore = activeStoreIds.has(d.store_id) ||
             (d.patient_id && storeFilteredPatientIds?.has(d.patient_id));
           if (!matchesStore) return false;
         }
@@ -942,7 +965,7 @@ export default function DeliveryMetrics() {
 
     console.log('✅ [DeliveryMetrics] Final metrics:', result);
     return result;
-  }, [deliveries, patients, selectedDriver, selectedStore, storeFilteredPatientIds, drivers, prevStartDate, prevEndDate, startDate, endDate, dateRange, selectedYear]);
+  }, [deliveries, patients, selectedDriver, selectedStore, storeFilteredPatientIds, dispatcherStoreIds, drivers, prevStartDate, prevEndDate, startDate, endDate, dateRange, selectedYear]);
 
   const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444']; // Added a color for 'returned' if needed in pie chart
 
