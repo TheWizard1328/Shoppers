@@ -878,6 +878,37 @@ export default function DeliveryMetrics() {
       };
     });
 
+    // Hourly breakdown for "Today" view - uses actual_delivery_time
+    let hourlyData = [];
+    if (dateRange === 'today') {
+      const hourMap = {};
+      for (let h = 0; h < 24; h++) {
+        const label = `${h.toString().padStart(2, '0')}:00`;
+        hourMap[h] = { hour: label, completed: 0, failed: 0, returned: 0, total: 0 };
+      }
+      relevantDeliveries.forEach((d) => {
+        if (!d.actual_delivery_time) return;
+        const dt = new Date(d.actual_delivery_time);
+        if (isNaN(dt.getTime())) return;
+        const h = dt.getHours();
+        hourMap[h].total++;
+        const isReturned = getReturnCountFromPatientId(d, patients) > 0;
+        if (isReturned) {
+          hourMap[h].returned++;
+        } else if (d.status === 'completed') {
+          hourMap[h].completed++;
+        }
+        if (d.status === 'failed') hourMap[h].failed++;
+      });
+      // Only include hours that have activity OR trim leading/trailing zeros
+      const allHours = Object.values(hourMap);
+      const firstActive = allHours.findIndex(h => h.total > 0);
+      const lastActive = allHours.map(h => h.total > 0).lastIndexOf(true);
+      hourlyData = firstActive === -1
+        ? allHours
+        : allHours.slice(Math.max(0, firstActive - 1), lastActive + 2);
+    }
+
     const result = {
       totalDeliveries,
       completedDeliveries,
@@ -894,6 +925,7 @@ export default function DeliveryMetrics() {
       dailyData: currentPeriodDailyData, // This will be the merged weekly data OR date-based current data
       prevDailyData: previousPeriodDailyData, // This will be empty for weekly, or date-based previous data for others
       driverData: mergedDriverData,
+      hourlyData,
       // Previous period values for comparison
       prevTotalDeliveries,
       prevCompletedDeliveries,
@@ -1082,6 +1114,27 @@ export default function DeliveryMetrics() {
           </TabsList>
 
           <TabsContent value="daily" className="space-y-4">
+            {dateRange === 'today' && (
+              <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                <CardHeader>
+                  <CardTitle style={{ color: 'var(--text-slate-900)' }}>Deliveries by Hour of Day</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={metrics.hourlyData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="hour" />
+                      <YAxis allowDecimals={false} />
+                      <Tooltip />
+                      <Legend />
+                      <Bar dataKey="completed" fill="#10b981" name="Completed" stackId="a" />
+                      <Bar dataKey="returned" fill="#f59e0b" name="Returned" stackId="a" />
+                      <Bar dataKey="failed" fill="#ef4444" name="Failed" stackId="a" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            )}
             <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
               <CardHeader>
                 <CardTitle style={{ color: 'var(--text-slate-900)' }}>Daily Delivery Performance {isWeeklyRangeForChart && showComparison ? "(Current vs. Previous Week)" : ""}</CardTitle>
