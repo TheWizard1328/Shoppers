@@ -263,8 +263,10 @@ const optimizeStoreRoute = (stops, storeLocation, pickupTime, startLocation = nu
           } else if (arrivalTime >= windowStart) {
             timeWindowScore = 200;
           } else {
-            // Early arrival is fine
-            timeWindowScore = 100;
+            // Early arrival is fine - still apply time window awareness
+            // Penalise deliveries whose window hasn't started yet relative to how far away it is
+            const waitTime = windowStart - arrivalTime;
+            timeWindowScore = Math.max(50, 150 - waitTime * 0.5);
           }
         }
       } else if (isPickup) {
@@ -272,6 +274,26 @@ const optimizeStoreRoute = (stops, storeLocation, pickupTime, startLocation = nu
         const pickupStart = stop.delivery_time_start ? timeToMinutes(stop.delivery_time_start) : null;
         if (pickupStart !== null) {
           timeWindowScore = Math.max(0, 1000 - pickupStart * 1.5);
+        }
+      } else {
+        // Delivery with ONLY a start window (no end window)
+        // Score based on urgency relative to the start time - ensures AM deliveries
+        // from an AM pickup are NOT deferred behind a later pickup run
+        const deliveryWindowStart = stop.time_window_start
+          ? timeToMinutes(stop.time_window_start)
+          : (stop.delivery_time_start ? timeToMinutes(stop.delivery_time_start) : null);
+        if (deliveryWindowStart !== null) {
+          if (arrivalTime > deliveryWindowStart + 120) {
+            // Already 2+ hrs past window start - mild penalty
+            timeWindowScore = -100 - (arrivalTime - deliveryWindowStart - 120) * 1;
+          } else if (arrivalTime >= deliveryWindowStart) {
+            // Arrived after window opens - good
+            timeWindowScore = 180;
+          } else {
+            // Arriving before window opens - prefer stops whose window opens soonest
+            const waitTime = deliveryWindowStart - arrivalTime;
+            timeWindowScore = Math.max(20, 150 - waitTime * 0.8);
+          }
         }
       }
 
@@ -582,7 +604,28 @@ export const optimizeRoute = (stops, stores, patients, options = {}) => {
     const deliveries = puidGroup.deliveries;
 
     if (!pickup) {
-      console.warn(`⚠️ PUID ${puid} has no pickup, skipping group`);
+      // Orphaned deliveries: puid doesn't match any pickup stop_id.
+      // Try to reassign to the best matching pickup for the same store.
+      const storeId = puidGroup.storeId || puidGroup.deliveries[0]?.store_id;
+      const deliveryAmpm = puidGroup.deliveries[0]?.ampm_deliveries;
+      // Prefer a pickup whose ampm_deliveries matches the orphaned delivery's ampm tag
+      const matchingPUID = sortedPUIDs.find(p => {
+        const g = stopsByPUID[p];
+        return g.pickup && g.storeId === storeId && 
+               (!deliveryAmpm || g.pickup.ampm_deliveries === deliveryAmpm);
+      }) || sortedPUIDs.find(p => {
+        // Fallback: any pickup from same store
+        const g = stopsByPUID[p];
+        return g.pickup && g.storeId === storeId;
+      });
+      if (matchingPUID) {
+        console.warn(`⚠️ PUID ${puid} has no pickup - reassigning ${puidGroup.deliveries.length} orphaned delivery(ies) to pickup PUID ${matchingPUID}`);
+        stopsByPUID[matchingPUID].deliveries.push(...puidGroup.deliveries);
+      } else {
+        console.warn(`⚠️ PUID ${puid} has no pickup and no matching store pickup found - appending ${puidGroup.deliveries.length} delivery(ies) at end`);
+        // Append to route at end so they're not lost
+        optimizedRoute.push(...puidGroup.deliveries);
+      }
       continue;
     }
     
