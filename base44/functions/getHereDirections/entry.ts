@@ -144,15 +144,14 @@ const getTimeZoneOffset = (dateStr) => {
 const buildLocalIso = (dateStr, timeStr) => `${dateStr}T${normalizeTimeString(timeStr)}${getTimeZoneOffset(dateStr)}`;
 
 const buildAccessConstraint = (dateStr, startTime, endTime) => {
-  // CRITICAL: Always emit a time window constraint whenever we have at least a startTime.
-  // If endTime is missing, use startTime + 90 minutes as a tight deadline so HERE is
-  // forced to respect chronological ordering rather than purely minimising travel distance.
-  // Without this, two pickups at the same store (identical coords, different windows) are
-  // indistinguishable to HERE and it picks whichever order minimises distance.
+  // Always emit a time window constraint when we have at least a startTime.
+  // If endTime is missing after the optimizer's pickup backfill, use startTime + 60 min
+  // (1 hour) as the fallback. Pickups have tight scheduled windows — 3hrs was too generous
+  // and caused overlapping windows that let HERE sort by distance instead of time order.
   if (!startTime) return null;
   const startMinutes = parseTimeToMinutes(startTime);
   if (!Number.isFinite(startMinutes)) return null;
-  const endMinutes = endTime ? parseTimeToMinutes(endTime) : startMinutes + 90;
+  const endMinutes = endTime ? parseTimeToMinutes(endTime) : startMinutes + 60;
   if (endMinutes <= startMinutes) return null;
   const weekday = getWeekdayCode(dateStr);
   const offset = getTimeZoneOffset(dateStr);
@@ -627,6 +626,10 @@ Deno.serve(async (req) => {
     destination = body?.destination || null;
     const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id }, '-updated_date', 1);
     appUser = appUsers?.[0] || null;
+    // If a backend caller passed explicit user identity (e.g. optimizeRemainingStops), use that for logging
+    if (!appUser && body?.callerUserId) {
+      appUser = { id: body.callerUserId, user_id: body.callerUserId, user_name: body.callerUserName || null };
+    }
     const waypoints = Array.isArray(body?.waypoints) ? body.waypoints : [];
     const routeContext = Array.isArray(body?.routeContext) ? body.routeContext : [];
     const preserveWaypointOrder = body?.preserveWaypointOrder === true;
@@ -701,6 +704,11 @@ Deno.serve(async (req) => {
       params.set('apiKey', hereApiKey);
       params.set('departure', buildLocalIso(dateStr, departureTime));
       params.set('mode', `fastest;${hereTransportMode};traffic:disabled`);
+      // improveFor=time: reliable solver that always returns a result.
+      // The acc: time-window constraints are the hard enforcement of stop ordering —
+      // non-overlapping windows (e.g. 14:30-15:30 vs 16:00-18:00) leave only one
+      // feasible sequence. improveFor=quality is stricter but returns empty on
+      // infeasible inputs, silently falling through to the no-window retry.
       params.set('improveFor', 'time');
       params.set('start', `driverStart;${originLat},${originLng}`);
 
@@ -735,7 +743,11 @@ Deno.serve(async (req) => {
       interconnections = Array.isArray(result?.interconnections) ? result.interconnections : [];
 
       if ((!resp.ok || !result || returnedWaypoints.length === 0) && sequenceStops.length > 0) {
-        console.warn(`[getHereDirections] Initial findsequence2 failed (status=${resp.status}, result=${!!result}, waypoints=${returnedWaypoints.length}) — retrying without time windows (caller=${caller})`);
+        // ── Retry: drop time windows entirely — distance-only last resort ──
+        // Primary call (improveFor=time + acc: windows) failed or returned empty.
+        // The previous 3-attempt cascade had Retry 1 identical to the primary —
+        // a wasted call. Now: one meaningful retry with no windows.
+        console.warn(`[getHereDirections] time+windows failed (status=${resp.status}, waypoints=${returnedWaypoints.length}) — retry: no windows (caller=${caller})`);
         const retryParams = new URLSearchParams();
         retryParams.set('apiKey', hereApiKey);
         retryParams.set('departure', buildLocalIso(dateStr, departureTime));
@@ -747,9 +759,7 @@ Deno.serve(async (req) => {
         retryOptimizableStops.forEach((stop, index) => {
           retryParams.set(`destination${index + 1}`, `${stop.id};${stop.lat},${stop.lng}`);
         });
-        if (retryEndStop) {
-          retryParams.set('end', `driverEnd;${retryEndStop.lat},${retryEndStop.lng}`);
-        }
+        if (retryEndStop) retryParams.set('end', `driverEnd;${retryEndStop.lat},${retryEndStop.lng}`);
         routeCallCount += 1;
         resp = await fetch(`https://wps.hereapi.com/v8/findsequence2?${retryParams.toString()}`, {
           signal: AbortSignal.timeout(20000),
@@ -759,7 +769,7 @@ Deno.serve(async (req) => {
         result = Array.isArray(data?.results) ? data.results[0] : null;
         returnedWaypoints = Array.isArray(result?.waypoints) ? result.waypoints : [];
         interconnections = Array.isArray(result?.interconnections) ? result.interconnections : [];
-        console.info(`[getHereDirections] Retry findsequence2 result: status=${resp.status}, waypoints=${returnedWaypoints.length} (caller=${caller})`);
+        console.info(`[getHereDirections] Retry (no-windows) result: status=${resp.status}, waypoints=${returnedWaypoints.length} (caller=${caller})`);
       }
     }
 
