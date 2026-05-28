@@ -1,4 +1,4 @@
-// Redeployed on 2026-05-21 - Added distance-based temporary time window imputation for in_transit deliveries
+// Redeployed on 2026-05-26 v14 - Fix: revert allWindowsExpired (unnecessary); real fix is improveFor=quality in getHereDirections
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 const isNotFoundError = (error) => error?.status === 404 || error?.response?.status === 404 || String(error?.message || '').toLowerCase().includes('not found');
@@ -47,7 +47,7 @@ const getDeliveryCoords = (delivery, patientMap, storeMap) => {
     const patient = patientMap.get(delivery.patient_id);
     if (patient?.latitude != null && patient?.longitude != null) return { lat: Number(patient.latitude), lng: Number(patient.longitude) };
   }
-  if (delivery.is_cycling_start_marker && delivery.cycling_start_latitude != null) return { lat: Number(delivery.cycling_start_latitude), lng: Number(delivery.cycling_start_longitude) };
+  if (delivery.cycling_start_latitude != null && delivery.cycling_start_longitude != null) return { lat: Number(delivery.cycling_start_latitude), lng: Number(delivery.cycling_start_longitude) };
   const store = storeMap.get(delivery.store_id);
   if (store?.latitude != null && store?.longitude != null) return { lat: Number(store.latitude), lng: Number(store.longitude) };
   return null;
@@ -218,7 +218,9 @@ const isWindowExpired = (stop, currentMinutes) => {
 };
 
 // Recalculate all segment legs + ETAs for a given ordered route array from scratch (crow-flies fallback)
-const recalcLegsAndEtas = (orderedStops, originPos, etaBase) => {
+// snapToWindow=true (default) → ETA display mode: wait at stop until window opens (correct for driver display)
+// snapToWindow=false          → violation detection mode: use raw travel time only to avoid cascading snap delays
+const recalcLegsAndEtas = (orderedStops, originPos, etaBase, snapToWindow = true) => {
   const legs = [];
   const etas = [];
   let prevPos = originPos;
@@ -228,7 +230,7 @@ const recalcLegsAndEtas = (orderedStops, originPos, etaBase) => {
     const durMin = Math.ceil((dKm / 40) * 60 * 1.3);
     legs.push({ duration: durMin * 60, distance: dKm * 1000, estimatedDistanceKm: dKm, estimatedDurationMinutes: durMin });
     cumTime += durMin;
-    cumTime = snapToWindowStart(cumTime, stop);
+    if (snapToWindow) cumTime = snapToWindowStart(cumTime, stop);
     etas.push(formatMinutesToTime(cumTime));
     cumTime += stop.delivery.extra_time || (stop.isPickup ? 15 : 5);
     prevPos = { lat: stop.lat, lng: stop.lng };
@@ -349,8 +351,10 @@ Deno.serve(async (req) => {
     const preferredTravelMode = String(driverAppUser?.preferred_travel_mode || 'driving').toLowerCase();
     const routingTravelMode = 'driving'; // always use driving for sequencing
 
-    const allDeliveries = await base44.asServiceRole.entities.Delivery.filter({ driver_id: driverId, delivery_date: deliveryDate }, 'stop_order');
-    if (!allDeliveries || allDeliveries.length === 0) return Response.json({ message: 'No deliveries found', routeChanged: false });
+    const allDeliveriesRaw = await base44.asServiceRole.entities.Delivery.filter({ driver_id: driverId, delivery_date: deliveryDate }, 'stop_order');
+    if (!allDeliveriesRaw || allDeliveriesRaw.length === 0) return Response.json({ message: 'No deliveries found', routeChanged: false });
+    // Cycling start markers are visual-only — exclude from optimization and polyline generation entirely
+    const allDeliveries = allDeliveriesRaw.filter(d => !d.is_cycling_start_marker);
     console.log(`📦 [optimizeRemainingStops] Found ${allDeliveries.length} deliveries`);
 
     const completedDeliveries = allDeliveries.filter(d => FINISHED_STATUSES.includes(d.status));
@@ -365,36 +369,62 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, message: 'No optimizable stops found', routeChanged: false, optimizedCount: 0, apiCallsMade: 0 });
     }
 
-    // Load patients + stores
-    const patientIds = [...new Set(optimizableDeliveries.filter(d => d.patient_id).map(d => d.patient_id))];
+    // Load patients + stores — must include pending deliveries so coords + windows
+    // are available for pending stops that have imminent time windows.
+    // isRetroNewRoute: optimizableDeliveries IS pendingRouteDeliveries, avoid duplication.
+    const allIncompleteForData = isRetroNewRoute
+      ? optimizableDeliveries
+      : [...optimizableDeliveries, ...pendingRouteDeliveries];
+    const patientIds = [...new Set(allIncompleteForData.filter(d => d.patient_id).map(d => d.patient_id))];
     const patients = patientIds.length > 0 ? await base44.asServiceRole.entities.Patient.filter({ id: { $in: patientIds } }) : [];
     const patientMap = new Map(patients.map(p => [p.id, p]));
-    const storeIds = [...new Set(optimizableDeliveries.map(d => d.store_id).filter(Boolean))];
+    const storeIds = [...new Set(allIncompleteForData.map(d => d.store_id).filter(Boolean))];
     const stores = storeIds.length > 0 ? await base44.asServiceRole.entities.Store.filter({ id: { $in: storeIds } }) : [];
     const storeMap = new Map(stores.map(s => [s.id, s]));
 
     const pickupWindowByStopId = new Map(
-      optimizableDeliveries.filter(d => d && !d.patient_id && d.stop_id).map(d => [d.stop_id, { start: d.delivery_time_start || null, end: d.delivery_time_end || null }])
+      allIncompleteForData.filter(d => d && !d.patient_id && d.stop_id).map(d => [d.stop_id, { start: d.delivery_time_start || null, end: d.delivery_time_end || null }])
     );
 
-    // Build stops with coords + time windows
+    // Build stops with coords + time windows — include pending so we can resolve
+    // coords and windows for imminent-pending stops before sequencing.
+    const IMMINENT_WINDOW_MINS = 180; // pending stops with windowStart within 3hrs are treated as optimization candidates
     const skippedStops = [];
     const geocodedPatientIds = new Set();
-    const stopsRaw = optimizableDeliveries.map(delivery => {
+    const stopsRaw = allIncompleteForData.map(delivery => {
       const patient = delivery.patient_id ? patientMap.get(delivery.patient_id) : null;
       const isPickup = !delivery.patient_id;
+      // ── Time window resolution ────────────────────────────────────────────
+      // For pickups: delivery_time_start/end are stamped from the store schedule
+      // at creation time — they are the canonical scheduled window. Always use
+      // them. If either stamp is missing, apply a 1-hour fallback so HERE still
+      // gets a tight constraint and cannot sort by distance.
+      //
+      // For patient deliveries: same — use the delivery stamps first, then fall
+      // back to the patient record's time_window_start/end.
       let windowStart = delivery.delivery_time_start || null;
       let windowEnd = delivery.delivery_time_end || null;
 
-      if (!windowStart && !windowEnd) {
-        if (isPickup && delivery.store_id) {
-          const sw = getStorePickupWindow(storeMap.get(delivery.store_id), deliveryDate, delivery.ampm_deliveries);
-          windowStart = sw.start; windowEnd = sw.end;
-        } else if (patient) {
-          windowStart = patient.time_window_start || null;
-          windowEnd = patient.time_window_end || null;
+      if (isPickup) {
+        // 1-hour fallback for pickups when either stamp is absent
+        if (windowStart && !windowEnd) {
+          const startMins = parseTimeToMinutes(windowStart);
+          if (Number.isFinite(startMins)) windowEnd = formatMinutesToTime(Math.min(startMins + 60, 23 * 60 + 59));
+        } else if (!windowStart && windowEnd) {
+          const endMins = parseTimeToMinutes(windowEnd);
+          if (Number.isFinite(endMins)) windowStart = formatMinutesToTime(Math.max(endMins - 60, 0));
         }
+        // If both stamps are missing: leave windowStart/windowEnd null so HERE
+        // treats this pickup as an unconstrained stop and sequences it by best route order.
+      } else {
+        // Patient delivery: use delivery stamps only. If both missing, leave null
+        // so HERE sequences this stop by best route order with no time constraint.
       }
+
+      // Track whether this stop's windows came from the patient record (not already on the delivery).
+      // If so, we need to persist these resolved windows back to the Delivery entity so stop cards show them.
+      const windowResolvedFromPatient = !delivery.delivery_time_start && !delivery.delivery_time_end && !isPickup && (windowStart || windowEnd);
+      const windowResolvedFromStore = !delivery.delivery_time_start && !delivery.delivery_time_end && isPickup && (windowStart || windowEnd);
 
       // ── Distance-based temporary time window imputation ──────────────────
       // For active (in_transit/en_route) delivery stops that have a start time but
@@ -405,10 +435,12 @@ Deno.serve(async (req) => {
       //   < 5 km  → start + 2 hrs
       //   5–10 km → start + 4 hrs
       //   > 10 km or unknown → start + 6 hrs (capped at 21:00)
+      let windowEndIsImputed = false;
       if (!isPickup && ACTIVE_STATUSES.includes(delivery.status) && windowStart && !windowEnd && patient) {
         const imputed = imputeTemporaryWindowEnd(windowStart, patient);
         if (imputed) {
           windowEnd = imputed.time;
+          windowEndIsImputed = true; // mark so we don't persist the imputed end back to the DB
           console.log(`⏱️ [optimizeRemainingStops] Imputed temp window for delivery ${delivery.id}: ${windowStart}–${windowEnd} (${imputed.label}, dist=${patient.distance_from_store ?? 'n/a'}km)`);
         }
       }
@@ -424,7 +456,8 @@ Deno.serve(async (req) => {
       }
 
       return {
-        delivery, isPickup, windowStart, windowEnd,
+        delivery, isPickup, windowStart, windowEnd, windowEndIsImputed,
+        windowResolvedFromPatient, windowResolvedFromStore,
         windowExpired: Number.isFinite(parseTimeToMinutes(windowEnd)) && parseTimeToMinutes(windowEnd) <= currentMinutes,
         lat: null, lng: null
       };
@@ -479,10 +512,99 @@ Deno.serve(async (req) => {
 
     // Partition stops
     const optimizationStops = activeRouteDeliveries.map(d => stopsWithCoords.find(s => s.delivery.id === d.id) || null).filter(Boolean);
-    const pendingStops = isRetroNewRoute ? [] : pendingRouteDeliveries.map(d => stopsWithCoords.find(s => s.delivery.id === d.id) || null).filter(Boolean);
+
+    // Pending stops now have coords. Split them: imminent (windowStart within 3hrs of now)
+    // go into the optimizer alongside active stops; distant ones are appended at the end.
+    const allPendingWithCoords = isRetroNewRoute ? [] : pendingRouteDeliveries.map(d => stopsWithCoords.find(s => s.delivery.id === d.id) || null).filter(Boolean);
+    const imminentPendingStops = allPendingWithCoords.filter(s => {
+      const winStart = parseTimeToMinutes(s.windowStart || s.delivery?.delivery_time_start);
+      // No window → always treat as distant (append at end)
+      if (!Number.isFinite(winStart)) return false;
+      // Imminent if window opens within the next IMMINENT_WINDOW_MINS
+      return winStart <= currentMinutes + IMMINENT_WINDOW_MINS;
+    });
+    const distantPendingStops = allPendingWithCoords.filter(s => !imminentPendingStops.includes(s));
+    const imminentPendingIds = new Set(imminentPendingStops.map(s => s.delivery.id));
+
+    // Log pending split
+    if (allPendingWithCoords.length > 0) {
+      console.log(`⏳ [optimizeRemainingStops] Pending stops split: ${imminentPendingStops.length} imminent (within ${IMMINENT_WINDOW_MINS}min window) + ${distantPendingStops.length} distant`);
+      imminentPendingStops.forEach(s => console.log(`  -> IMMINENT pending: ${s.delivery.patient_name || 'Pickup'} window=${s.windowStart || 'none'}-${s.windowEnd || 'none'}`));
+    }
+
+    const pendingStops = distantPendingStops; // only distant pending goes to end
     const pendingDeliveryIds = new Set(isRetroNewRoute ? [] : pendingRouteDeliveries.map(d => d.id));
 
-    const effectiveForceFullOptimization = forceFullRemainingRouteOptimization && optimizationStops.length > 1;
+    // ── Proximity-based window nudge ─────────────────────────────────────────
+    // When an active patient delivery is within 2km of a pending patient delivery
+    // from a DIFFERENT store, bump the active delivery's ephemeral windowStart to
+    // (nearby_pickup_eta + 5min) if it would otherwise be sequenced before that
+    // pickup happens. This prevents the driver being routed to an area twice —
+    // once for the active delivery and again later for the nearby pending pickup.
+    //
+    // Uses the pending delivery's puid → pickup's delivery_time_eta as the anchor
+    // (falls back to the pickup's windowStart if no ETA is set yet).
+    // Ephemeral only — no DB write. windowEnd is left untouched (soft buffer).
+    //
+    // Build a lookup: puid → pickup delivery record (for ETA access)
+    const pickupByStopId = new Map(
+      allIncompleteForData.filter(d => d && !d.patient_id && d.stop_id).map(d => [d.stop_id, d])
+    );
+
+    const PROXIMITY_NUDGE_KM = 2.0;
+    const PROXIMITY_NUDGE_BUFFER_MINS = 5;
+
+    // All pending patient deliveries with coords (all, not just imminent)
+    const allPendingPatientStops = allPendingWithCoords.filter(s => s.delivery.patient_id);
+
+    if (allPendingPatientStops.length > 0) {
+      for (const activeStop of stopsWithCoords) {
+        // Only nudge active patient deliveries (not pickups)
+        if (activeStop.delivery.patient_id == null) continue;
+        if (!Number.isFinite(activeStop.lat) || !Number.isFinite(activeStop.lng)) continue;
+
+        for (const pendingStop of allPendingPatientStops) {
+          // Must be from a different store
+          if (pendingStop.delivery.store_id === activeStop.delivery.store_id) continue;
+          if (!Number.isFinite(pendingStop.lat) || !Number.isFinite(pendingStop.lng)) continue;
+
+          const distKm = calculateCrowFliesDistance(
+            activeStop.lat, activeStop.lng,
+            pendingStop.lat, pendingStop.lng
+          );
+          if (distKm > PROXIMITY_NUDGE_KM) continue;
+
+          // Find the pending delivery's originating pickup via puid
+          const pendingPickup = pendingStop.delivery.puid ? pickupByStopId.get(pendingStop.delivery.puid) : null;
+          if (!pendingPickup) continue;
+
+          // Anchor time: pickup's delivery_time_eta, else windowStart, else skip
+          const anchorTime = pendingPickup.delivery_time_eta || pendingPickup.delivery_time_start || null;
+          if (!anchorTime) continue;
+
+          const anchorMins = parseTimeToMinutes(anchorTime);
+          if (!Number.isFinite(anchorMins)) continue;
+
+          const nudgedStart = anchorMins + PROXIMITY_NUDGE_BUFFER_MINS;
+          const activeStartMins = parseTimeToMinutes(activeStop.windowStart);
+
+          // Only bump up — never push earlier
+          if (Number.isFinite(activeStartMins) && activeStartMins >= nudgedStart) continue;
+
+          const oldStart = activeStop.windowStart || 'none';
+          activeStop.windowStart = formatMinutesToTime(nudgedStart);
+          console.log(
+            \`📍 [optimizeRemainingStops] Proximity nudge: \${activeStop.delivery.patient_name || activeStop.delivery.id}\` +
+            \` (store \${activeStop.delivery.store_id}) windowStart \${oldStart} → \${activeStop.windowStart}\` +
+            \` (near pending \${pendingStop.delivery.patient_name || pendingStop.delivery.id}\` +
+            \` from store \${pendingStop.delivery.store_id}, dist=\${distKm.toFixed(2)}km,\` +
+            \` pickup ETA/start=\${anchorTime})\`
+          );
+        }
+      }
+    }
+
+    const effectiveForceFullOptimization = forceFullRemainingRouteOptimization && (optimizationStops.length + imminentPendingStops.length) > 1;
 
     const explicitNextDelivery = (firstStopId ? incompleteDeliveries.find(d => d?.id === firstStopId) : null)
       || incompleteDeliveries.find(d => d?.isNextDelivery === true) || null;
@@ -521,15 +643,23 @@ Deno.serve(async (req) => {
     const isFutureRoute = isFutureDate || (driverIsOffDuty && !routeHasStarted);
     const allWindowMins = stopsWithCoords.map(s => parseTimeToMinutes(s.windowStart || s.delivery?.delivery_time_start)).filter(Number.isFinite);
     const earliestWindowMinutes = allWindowMins.length > 0 ? Math.min(...allWindowMins) : Infinity;
+    // allWindowsInFuture: true when the driver is planning/optimizing well before any stop
+    // opens (e.g. midnight route creation). Sending HERE a 00:49 departure with 10:00+
+    // windows causes the solver to return empty — 9+ hours of idle time is treated as
+    // infeasible. Use the earliest window start as the notional departure instead.
+    const allWindowsInFuture = Number.isFinite(earliestWindowMinutes) && currentMinutes < earliestWindowMinutes - 30;
     let resolvedDepartureTime;
     if (effectiveForceFullOptimization) {
       resolvedDepartureTime = currentLocalTime || formatMinutesToTime(currentMinutes);
     } else if (isFutureRoute && Number.isFinite(earliestWindowMinutes)) {
       resolvedDepartureTime = formatMinutesToTime(earliestWindowMinutes);
+    } else if (allWindowsInFuture && Number.isFinite(earliestWindowMinutes)) {
+      // Same-day route but all windows are still in the future — use earliest window as departure
+      resolvedDepartureTime = formatMinutesToTime(earliestWindowMinutes);
     } else {
       resolvedDepartureTime = currentLocalTime || formatMinutesToTime(currentMinutes);
     }
-    const etaBaseMinutes = (!effectiveForceFullOptimization && isFutureRoute && Number.isFinite(earliestWindowMinutes)) ? earliestWindowMinutes : currentMinutes;
+    const etaBaseMinutes = (!effectiveForceFullOptimization && (isFutureRoute || allWindowsInFuture) && Number.isFinite(earliestWindowMinutes)) ? earliestWindowMinutes : currentMinutes;
     console.log(`⏰ [optimizeRemainingStops] departureTime=${resolvedDepartureTime}, etaBase=${formatMinutesToTime(etaBaseMinutes)}`);
 
     let routeStops = [];
@@ -545,22 +675,24 @@ Deno.serve(async (req) => {
       routeStops = [...optimizationStops].sort((a, b) => (Number(a.delivery?.stop_order) || 99999) - (Number(b.delivery?.stop_order) || 99999));
       console.log('✅ [optimizeRemainingStops] Preserving existing order (user-requested)');
     } else if (stopsWithCoords.length > 0) {
-      const stopsForHere = optimizationStops.filter(s => !lockedNextStop || s.delivery.id !== lockedNextStop.delivery.id);
+      // Merge imminent pending stops into the optimization set — they have time-sensitive
+      // windows and must be sequenced alongside active stops, not silently appended last.
+      const combinedOptimizationStops = [...optimizationStops, ...imminentPendingStops];
+      const stopsForHere = combinedOptimizationStops.filter(s => !lockedNextStop || s.delivery.id !== lockedNextStop.delivery.id);
 
       // Stops with IMPUTED time windows (in_transit, start but no original end) are identical
       // to HERE — it can't distinguish them and sorts by distance alone, producing wrong order.
       // Pre-lock these in proximity order (closest-first to driver) and exclude from HERE entirely.
       // All other active stops are sent to HERE for proper time-window-aware sequencing.
-      const imputedWindowIds = new Set(
-        stopsWithCoords
-          .filter(s => ACTIVE_STATUSES.includes(s.delivery.status) && s.delivery.delivery_time_start && !s.delivery.delivery_time_end && !s.delivery.patient_id === false)
-          .map(s => s.delivery.id)
-      );
-      // A stop was imputed if it has a windowEnd but the delivery entity itself has no delivery_time_end
+      // A stop is considered 'imputed' when it is a PATIENT delivery (not a pickup)
+      // in an active status with a start time but no real delivery_time_end on the record.
+      // The windowEnd was synthesised from distance/speed — HERE can't distinguish these from
+      // other co-located stops, so we pre-lock them by proximity and exclude from HERE.
+      // Pickups are NEVER imputed — their windowEnd comes from delivery_time_end (store schedule).
       const imputedStops = stopsForHere.filter(s =>
+        !s.isPickup &&
         ACTIVE_STATUSES.includes(s.delivery.status) &&
-        s.windowEnd &&
-        !s.delivery.delivery_time_end
+        s.windowEndIsImputed === true
       );
       const hereEligibleStops = stopsForHere.filter(s => !imputedStops.includes(s));
 
@@ -600,6 +732,26 @@ Deno.serve(async (req) => {
 
       const sortedHint = sortByWindowThenProximity(finalHereEligibleStops);
 
+      // ── Non-overlapping window detection ─────────────────────────────────────
+      // When every stop's windowEnd <= the next stop's windowStart (after sorting
+      // by windowStart), there is exactly ONE valid sequence — the sorted order.
+      // HERE's improveFor=time solver ignores acc: constraints when idle times are
+      // large (e.g. driver planning at midnight for 10:00+ windows) and reorders
+      // by travel distance instead, producing wrong results like Beverly after Londonderry.
+      // Skip HERE entirely for non-overlapping windows — sortedHint IS the answer.
+      const stopsWithBothWindows = sortedHint.filter(s =>
+        s.windowStart && s.windowEnd &&
+        Number.isFinite(parseTimeToMinutes(s.windowStart)) &&
+        Number.isFinite(parseTimeToMinutes(s.windowEnd))
+      );
+      const allWindowsDefined = stopsWithBothWindows.length === sortedHint.length && sortedHint.length > 0;
+      const windowsAreNonOverlapping = allWindowsDefined && sortedHint.every((s, idx) => {
+        if (idx === 0) return true;
+        const prevEnd = parseTimeToMinutes(sortedHint[idx - 1].windowEnd);
+        const currStart = parseTimeToMinutes(s.windowStart);
+        return Number.isFinite(prevEnd) && Number.isFinite(currStart) && prevEnd <= currStart;
+      });
+
       // Origin for HERE sequencing is the last imputed stop (if any), otherwise the locked next stop or logical origin
       const sequenceOrigin = imputedSortedByProximity.length > 0
         ? { lat: imputedSortedByProximity[imputedSortedByProximity.length - 1].lat, lng: imputedSortedByProximity[imputedSortedByProximity.length - 1].lng }
@@ -607,17 +759,41 @@ Deno.serve(async (req) => {
       const destinationForDirections = driverHomePosition || (sortedHint.length > 0 ? { lat: sortedHint[sortedHint.length - 1].lat, lng: sortedHint[sortedHint.length - 1].lng } : logicalSegmentOrigin);
 
       const sequenceWaypoints = finalHereEligibleStops.length > 0 ? sortedHint.map(s => ({ lat: s.lat, lng: s.lng })) : [];
-      const sequenceRouteContext = sortedHint.map(s => ({
-        id: s.delivery.stop_id || s.delivery.delivery_id || s.delivery.id,
-        stop_id: s.delivery.stop_id,
-        delivery_id: s.delivery.delivery_id,
-        time_window_start: s.windowStart || null,
-        time_window_end: s.windowEnd || null,
-      }));
+      // For patient delivery stops, widen the time window we pass to HERE by 30min on
+      // each side. This gives HERE geographic flexibility to interleave nearby stops even
+      // if their strict windows don't perfectly align — the driver can arrive a bit early
+      // or stay a bit late within the broader pickup window span.
+      // Pickup stops keep their exact windows (the store truly isn't ready before then).
+      const DELIVERY_WINDOW_PAD_MINS = 30;
+      const sequenceRouteContext = sortedHint.map(s => {
+        let twStart = s.windowStart || null;
+        let twEnd = s.windowEnd || null;
+        if (!s.isPickup && twStart) {
+          const startMins = parseTimeToMinutes(twStart);
+          const paddedStart = Math.max(0, startMins - DELIVERY_WINDOW_PAD_MINS);
+          twStart = formatMinutesToTime(paddedStart);
+          if (twEnd) {
+            const endMins = parseTimeToMinutes(twEnd);
+            twEnd = formatMinutesToTime(endMins + DELIVERY_WINDOW_PAD_MINS);
+          }
+        }
+        return {
+          id: s.delivery.stop_id || s.delivery.delivery_id || s.delivery.id,
+          stop_id: s.delivery.stop_id,
+          delivery_id: s.delivery.delivery_id,
+          time_window_start: twStart,
+          time_window_end: twEnd,
+        };
+      });
 
       let hereSequenceResult = null;
 
-      if (sortedHint.length > 0) {
+      if (windowsAreNonOverlapping) {
+        // All stops have non-overlapping windows — sortedHint is the only valid sequence.
+        // Skip HERE to avoid the solver reordering by distance and wasting API calls.
+        usedTimeWindows = true;
+        console.log(`✅ [optimizeRemainingStops] Non-overlapping windows detected — skipping HERE, using window-sorted order directly: ${sortedHint.map(s => `${s.windowStart}(${s.delivery.patient_name || 'Pickup'})`).join(' → ')}`);
+      } else if (sortedHint.length > 0) {
         try {
           const seqResp = await base44.asServiceRole.functions.invoke('getHereDirections', {
             origin: sequenceOrigin,
@@ -631,6 +807,8 @@ Deno.serve(async (req) => {
             preserveWaypointOrder: false,
             skipSequenceApi: false,
             skipRoutingApi: true,
+            callerUserId: driverAppUser.user_id || driverAppUser.id,
+            callerUserName: driverAppUser.user_name || null,
           });
           hereSequenceResult = seqResp?.data || seqResp || null;
           attemptedHereCalls += Number(hereSequenceResult?.api_call_count || 1);
@@ -657,25 +835,30 @@ Deno.serve(async (req) => {
         hereOrderedStops = sortedHint;
       }
 
-      // Final order: locked next stop → proximity-sorted imputed stops → all remaining stops merged by window start.
-      // Previously, pre-sequenced AM/PM pickup pairs were appended BEFORE HERE-ordered stops, which caused
-      // them to land at positions 2+3 regardless of their time windows. If post-correction then moved a
-      // later-arriving stop (e.g. Meadows) earlier, the AM/PM pair ended up AFTER Meadows even though
-      // BD AM window (11:30) is earlier than Meadows window (14:00).
+      // Final order: locked next stop → proximity-sorted imputed stops → HERE-sequenced stops.
       //
-      // Fix: merge preSequencedAmPmPickups back into hereOrderedStops sorted by window start so the
-      // combined list respects actual time windows. The AM-before-PM guarantee within the same store is
-      // naturally preserved because the AM window start is always earlier than the PM window start.
-      const allRemainingStops = [...preSequencedAmPmPickups, ...hereOrderedStops];
-      allRemainingStops.sort((a, b) => {
-        const wsA = a.windowStart || a.delivery?.delivery_time_start || '23:59';
-        const wsB = b.windowStart || b.delivery?.delivery_time_start || '23:59';
-        return wsA.localeCompare(wsB);
-      });
+      // CRITICAL: Do NOT re-sort hereOrderedStops by window start after HERE has sequenced them.
+      // HERE already accounts for time windows, travel time, and proximity together. Re-sorting
+      // purely by windowStart discards that and causes distant late-window stops (e.g. a 14:30
+      // pickup far away) to jump ahead of nearby stops with slightly later but still urgent windows.
+      //
+      // Pre-sequenced AM/PM pairs (excluded from HERE) are inserted back at the position that
+      // matches their window start within the HERE-ordered list, preserving AM-before-PM ordering.
+      let mergedStops = [...hereOrderedStops];
+      for (const pickupStop of preSequencedAmPmPickups) {
+        const ws = pickupStop.windowStart || pickupStop.delivery?.delivery_time_start || '23:59';
+        // Insert before the first HERE stop whose window starts at or after this pickup's window
+        let insertIdx = mergedStops.length;
+        for (let k = 0; k < mergedStops.length; k++) {
+          const kWs = mergedStops[k].windowStart || mergedStops[k].delivery?.delivery_time_start || '23:59';
+          if (kWs >= ws) { insertIdx = k; break; }
+        }
+        mergedStops.splice(insertIdx, 0, pickupStop);
+      }
       routeStops = [
         ...(lockedNextStop ? [lockedNextStop] : []),
         ...imputedSortedByProximity,
-        ...allRemainingStops,
+        ...mergedStops,
       ];
     }
 
@@ -719,28 +902,71 @@ Deno.serve(async (req) => {
     }
 
     // 3. Time-window violation correction (move late-arriving stops earlier)
+    // IMPORTANT GUARDS: A stop should only be moved earlier if:
+    //   (a) Its simulated ETA actually exceeds its window end (true violation)
+    //   (b) The candidate earlier position has an estimated arrival that fits within the window
+    //   (c) Moving it there would NOT cause a long idle wait due to a future windowStart —
+    //       specifically, the stop's windowStart must be at or before the estimated arrival
+    //       at the candidate position (i.e. the window is open or will open soon enough).
+    //       We allow up to 60 min of early wait; beyond that, the stop stays where it is.
+    //   (d) The stop we would displace at the candidate position does NOT have a window
+    //       start that would be violated by being pushed back one position.
     if (routeStops.length > 1 && !preserveExistingOrder) {
       const startIdx = lockedNextStop ? 1 : 0;
-      const { etas: simEtas } = recalcLegsAndEtas(routeStops, etaOrigin, etaBaseMinutes);
+      // Use snapToWindow=false so raw travel times are used — avoids cascading snap delays that make feasible routes look like violations
+      const { etas: simEtas } = recalcLegsAndEtas(routeStops, etaOrigin, etaBaseMinutes, false);
+      const MAX_EARLY_WAIT_MINS = 60; // don't move a stop earlier if it would idle for >60min
       let correctionMade = false;
       for (let i = startIdx; i < routeStops.length; i++) {
         const stop = routeStops[i];
         const windowEnd = parseTimeToMinutes(stop.windowEnd || stop.delivery?.delivery_time_end);
         if (!Number.isFinite(windowEnd) || isWindowExpired(stop, currentMinutes) || parseTimeToMinutes(simEtas[i]) <= windowEnd) continue;
-        console.log(`⚠️ [optimizeRemainingStops] POST-CORRECTION: ${stop.delivery.patient_name || 'Stop'} ETA ${simEtas[i]} > window end ${formatMinutesToTime(windowEnd)} — moving earlier`);
+        console.log(`⚠️ [optimizeRemainingStops] POST-CORRECTION: ${stop.delivery.patient_name || 'Stop'} ETA ${simEtas[i]} > window end ${formatMinutesToTime(windowEnd)} — evaluating earlier positions`);
         let bestPos = i;
         for (let j = startIdx; j < i; j++) {
-          const dKm = calculateCrowFliesDistance(j === 0 ? logicalSegmentOrigin.lat : routeStops[j - 1].lat, j === 0 ? logicalSegmentOrigin.lng : routeStops[j - 1].lng, stop.lat, stop.lng);
-          const testArrival = parseTimeToMinutes(simEtas[j === 0 ? 0 : j - 1] || formatMinutesToTime(etaBaseMinutes)) + Math.ceil((dKm / 40) * 60 * 1.3);
+          const prevEtaMins = j === 0
+            ? etaBaseMinutes
+            : parseTimeToMinutes(simEtas[j - 1] || formatMinutesToTime(etaBaseMinutes));
+          const dKm = calculateCrowFliesDistance(
+            j === 0 ? logicalSegmentOrigin.lat : routeStops[j - 1].lat,
+            j === 0 ? logicalSegmentOrigin.lng : routeStops[j - 1].lng,
+            stop.lat, stop.lng
+          );
+          const rawArrival = prevEtaMins + Math.ceil((dKm / 40) * 60 * 1.3);
           const windowStart = parseTimeToMinutes(stop.windowStart || stop.delivery?.delivery_time_start);
-          const snapped = Number.isFinite(windowStart) && testArrival < windowStart ? windowStart : testArrival;
-          if (snapped <= windowEnd) { bestPos = j; break; }
+          // Guard (c): skip if window hasn't opened yet and idle wait would be too long
+          if (Number.isFinite(windowStart) && rawArrival < windowStart - MAX_EARLY_WAIT_MINS) {
+            console.log(`  ⏭️ Skipping position ${j + 1}: stop windowStart ${formatMinutesToTime(windowStart)}, rawArrival ${formatMinutesToTime(rawArrival)}, idle=${windowStart - rawArrival}min > ${MAX_EARLY_WAIT_MINS}min`);
+            continue;
+          }
+          const snapped = Number.isFinite(windowStart) && rawArrival < windowStart ? windowStart : rawArrival;
+          if (snapped > windowEnd) continue;
+          // Guard (d): check that the stop currently at position j isn't displaced past its own window end
+          const displaced = routeStops[j];
+          if (displaced) {
+            const displacedWinEnd = parseTimeToMinutes(displaced.windowEnd || displaced.delivery?.delivery_time_end);
+            const displacedWinStart = parseTimeToMinutes(displaced.windowStart || displaced.delivery?.delivery_time_start);
+            if (Number.isFinite(displacedWinEnd)) {
+              // Rough check: if displaced stop gets pushed back by ~travel time to stop + stop duration,
+              // would it violate its own window end?
+              const stopServiceTime = stop.delivery.extra_time || (stop.isPickup ? 15 : 5);
+              const displacedNewArrival = snapped + stopServiceTime + Math.ceil((calculateCrowFliesDistance(stop.lat, stop.lng, displaced.lat, displaced.lng) / 40) * 60 * 1.3);
+              const displacedSnapped = Number.isFinite(displacedWinStart) && displacedNewArrival < displacedWinStart ? displacedWinStart : displacedNewArrival;
+              if (displacedSnapped > displacedWinEnd) {
+                console.log(`  ⏭️ Skipping position ${j + 1}: moving here would push ${displaced.delivery.patient_name || 'Stop'} past its window end ${formatMinutesToTime(displacedWinEnd)}`);
+                continue;
+              }
+            }
+          }
+          bestPos = j; break;
         }
         if (bestPos < i) {
           const [removed] = routeStops.splice(i, 1);
           routeStops.splice(bestPos, 0, removed);
           correctionMade = true;
-          console.log(`✅ [optimizeRemainingStops] Moved to position ${bestPos + 1}`);
+          console.log(`✅ [optimizeRemainingStops] Moved ${stop.delivery.patient_name || 'Stop'} to position ${bestPos + 1}`);
+        } else {
+          console.log(`  ℹ️ No safe earlier position found — leaving ${stop.delivery.patient_name || 'Stop'} at position ${i + 1}`);
         }
       }
       if (correctionMade) console.log(`🔧 Post-correction order: ${routeStops.map(s => s.delivery.patient_name || 'Stop').join(' → ')}`);
@@ -792,10 +1018,43 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Build a lookup map from delivery id → resolved stop (with windowStart/windowEnd) for the write batch
+    const stopByDeliveryId = new Map(routeStops.map(s => [s.delivery.id, s]));
+
     // ─────────────────────────────────────────────────────────────────────
     // BUILD WRITE BATCH
     // ─────────────────────────────────────────────────────────────────────
-    const startingOrder = completedDeliveries.length;
+    // Re-sort finished stops by actual_delivery_time (matching what the frontend does on complete/fail/cancel).
+    // Then renumber them 1…N and persist any changed stop_orders so active stops always
+    // continue from the correct base.
+    const parseActualMs = (d) => {
+      const raw = d.actual_delivery_time || d.updated_date || null;
+      if (!raw) return Number(d.stop_order || 0);
+      const t = new Date(raw);
+      return Number.isNaN(t.getTime()) ? Number(d.stop_order || 0) : t.getTime();
+    };
+    const sortedFinished = [...completedDeliveries].sort((a, b) => parseActualMs(a) - parseActualMs(b));
+    const finishedOrderUpdates = [];
+    sortedFinished.forEach((d, idx) => {
+      const newOrder = idx + 1;
+      if (Number(d.stop_order || 0) !== newOrder) {
+        finishedOrderUpdates.push({ id: d.id, stop_order: newOrder });
+      }
+    });
+    if (finishedOrderUpdates.length > 0) {
+      console.log(`🔢 [optimizeRemainingStops] Renumbering ${finishedOrderUpdates.length} finished stop(s) by actual_delivery_time`);
+      await Promise.all(finishedOrderUpdates.map(({ id, stop_order }) =>
+        base44.asServiceRole.entities.Delivery.update(id, { stop_order }).catch(() => null)
+      ));
+      // Update the in-memory completedDeliveries so startingOrder below is correct
+      finishedOrderUpdates.forEach(({ id, stop_order }) => {
+        const d = completedDeliveries.find(x => x.id === id);
+        if (d) d.stop_order = stop_order;
+      });
+    }
+
+    // startingOrder: use the count of finished stops (now correctly renumbered 1…N).
+    const startingOrder = sortedFinished.length;
     const activeStops = routeStops.map(s => ({ ...s.delivery, delivery_time_eta: stageEtaMap.get(s.delivery.id) || s.delivery.delivery_time_eta }));
     const originalActiveOrder = activeRouteDeliveries.slice().sort((a, b) => (Number(a?.stop_order) || 99999) - (Number(b?.stop_order) || 99999)).map(d => String(d.id));
     const optimizedActiveOrder = activeStops.map(s => String(s.id));
@@ -806,19 +1065,40 @@ Deno.serve(async (req) => {
     const finalDeliveryWriteBatch = [];
     for (let i = 0; i < activeStops.length; i++) {
       const stop = activeStops[i];
+      const resolvedStop = stopByDeliveryId.get(stop.id);
       const newOrder = preserveExistingOrder ? Number(stop.stop_order || i + 1) : startingOrder + i + 1;
       const safeTransportMode = ['driving', 'cycling', 'pedestrian'].includes(String(stop?.transport_mode || preferredTravelMode)) ? String(stop?.transport_mode || preferredTravelMode) : 'driving';
+
+      // Persist resolved time windows back to the Delivery record so stop cards always show them.
+      // Rules:
+      //   - delivery_time_start: use the resolved windowStart (from patient, store, or delivery itself)
+      //   - delivery_time_end:   persist the resolved windowEnd always, including imputed ends.
+      //     Imputed ends are distance-based estimates that provide a meaningful upper bound for the
+      //     driver's time window display. Not persisting them causes the time window to flicker
+      //     (appear during optimization, disappear when the UI re-fetches from DB).
+      const persistedWindowStart = resolvedStop?.windowStart || null;
+      const persistedWindowEnd = resolvedStop?.windowEnd || null;
+
+      const writeData = {
+        stop_order: newOrder,
+        delivery_time_eta: stop.delivery_time_eta,
+        isNextDelivery: stop.id === nextStopId,
+        transport_mode: safeTransportMode,
+        ...(resolvedTrueOrigin && stop.id === nextStopId ? { first_leg_origin_lat: resolvedTrueOrigin.lat, first_leg_origin_lng: resolvedTrueOrigin.lng } : {}),
+      };
+
+      // Only write window fields if we have a resolved value that differs from what's already on the delivery
+      if (persistedWindowStart && persistedWindowStart !== stop.delivery_time_start) {
+        writeData.delivery_time_start = persistedWindowStart;
+      }
+      if (persistedWindowEnd && persistedWindowEnd !== stop.delivery_time_end) {
+        writeData.delivery_time_end = persistedWindowEnd;
+      }
 
       finalDeliveryWriteBatch.push({
         id: stop.id,
         label: stop.patient_name || 'Pickup',
-        data: {
-          stop_order: newOrder,
-          delivery_time_eta: stop.delivery_time_eta,
-          isNextDelivery: stop.id === nextStopId,
-          transport_mode: safeTransportMode,
-          ...(resolvedTrueOrigin && stop.id === nextStopId ? { first_leg_origin_lat: resolvedTrueOrigin.lat, first_leg_origin_lng: resolvedTrueOrigin.lng } : {}),
-        }
+        data: writeData,
       });
     }
 
@@ -833,7 +1113,7 @@ Deno.serve(async (req) => {
     );
 
     finalDeliveryWriteBatch.forEach(({ data, label }) => {
-      console.log(`  📢 Stop #${data.stop_order}: ${label} | ETA: ${data.delivery_time_eta || 'none'}`);
+      console.log(`  📢 Stop #${data.stop_order}: ${label} | ETA: ${data.delivery_time_eta || 'none'} | Window: ${data.delivery_time_start || '?'}–${data.delivery_time_end || '?'}`);
     });
 
     console.log(`\n✅ [optimizeRemainingStops] Complete — ${activeStops.length} stops sequenced, ${attemptedHereCalls} HERE calls`);
