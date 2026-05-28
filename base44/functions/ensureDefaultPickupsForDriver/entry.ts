@@ -221,49 +221,42 @@ Deno.serve(async (req) => {
       }
     }
 
-    // CRITICAL: Sort newly ensured pickups by delivery_time_start before stop_order is assigned
-    // so that recalculateTrackingNumbers assigns TR#s in time-window order.
+    // Sort the newly created pickups by delivery_time_start and assign
+    // stop_order 1, 2, 3... in that order.
+    // Stores are iterated in store.sort_order sequence above, so ensuredPickups
+    // arrives unsorted by time. We sort in memory — no DB round-trip needed
+    // because this is always a fresh route with no existing stops.
     const timeToMinutes = (t) => {
       if (!t || typeof t !== 'string') return 9999;
       const parts = t.split(':');
       return parseInt(parts[0], 10) * 60 + parseInt(parts[1] || '0', 10);
     };
 
-    const sortedNewPickups = [...ensuredPickups]
-      .filter((p) => p && p.id)
-      .sort((a, b) => timeToMinutes(a.delivery_time_start) - timeToMinutes(b.delivery_time_start));
+    const validPickups = ensuredPickups.filter(p => p?.id);
 
-    if (sortedNewPickups.length > 0) {
-      // Get all existing deliveries to find max stop_order for the driver/date
-      const existingForDriver = await base44.asServiceRole.entities.Delivery.filter({
-        driver_id: driverId,
-        delivery_date: deliveryDate,
-      }, 'stop_order', 50000);
+    if (validPickups.length > 0) {
+      const sortedPickups = [...validPickups].sort((a, b) => {
+        const aMin = timeToMinutes(a.delivery_time_start);
+        const bMin = timeToMinutes(b.delivery_time_start);
+        if (aMin !== bMin) return aMin - bMin;
+        // Tiebreaker: AM before PM for same-time slots
+        const aSlot = a.ampm_deliveries || 'AM';
+        const bSlot = b.ampm_deliveries || 'AM';
+        if (aSlot !== bSlot) return aSlot === 'AM' ? -1 : 1;
+        // Final tiebreaker: store name alphabetically for stability
+        return String(a.store_id || '').localeCompare(String(b.store_id || ''));
+      });
 
-      const existingPickupIds = new Set(sortedNewPickups.map((p) => p.id));
-      const otherDeliveries = (existingForDriver || []).filter((d) => !existingPickupIds.has(d?.id));
-      let nextStopOrder = otherDeliveries.length > 0
-        ? Math.max(...otherDeliveries.map((d) => d?.stop_order || 0)) + 1
-        : 1;
-
-      // Assign stop_order to pickups in time-start order
-      await Promise.all(sortedNewPickups.map((pickup, idx) => {
-        const stopOrder = nextStopOrder + idx;
+      await Promise.all(sortedPickups.map((pickup, idx) => {
+        const stopOrder = idx + 1;
         return base44.asServiceRole.entities.Delivery.update(pickup.id, { stop_order: stopOrder }).catch((error) => {
           if (!isNotFoundError(error)) throw error;
           return null;
         });
       }));
-    }
 
-    await base44.functions.invoke('optimizeRemainingStops', {
-      driverId,
-      deliveryDate,
-      bypassDriverStatus: true
-    }).catch((error) => {
-      if (!isNotFoundError(error)) throw error;
-      return null;
-    });
+      console.log(`[ensureDefaultPickups] Sorted ${sortedPickups.length} pickups by delivery_time_start → stop_order. Order: ${sortedPickups.map(p => `${p.delivery_time_start || '??'}(${p.ampm_deliveries || '?'})`).join(' → ')}`);
+    }
 
     const allDeliveriesForPolyline = await base44.asServiceRole.entities.Delivery.filter({
       driver_id: driverId,
