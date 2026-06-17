@@ -1,0 +1,3 @@
+-keep class com.rxdeliver.blemonitor.** { *; }
+-keep class okhttp3.** { *; }
+-dontwarn okhttp3.**

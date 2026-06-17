@@ -1,0 +1,462 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { useAppData } from "../utils/AppDataContext";
+import { RefreshCw } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { isAppOwner } from '../utils/userRoles';
+import { useUser } from '../utils/UserContext';
+import { offlineManager } from '../utils/offlineManager';
+import { smartRefreshManager } from '../utils/smartRefreshManager';
+import { subscribeSyncStatus } from '../utils/offlineSyncStatus';
+
+/**
+ * Smart Refresh Indicator - Shows app owners when smart refresh is active
+ * and which entities were updated (A=AppUser, P=Patient, D=Delivery, S=Store)
+ * Now inline and clickable to trigger manual refresh
+ */
+export default function SmartRefreshIndicator({ inline = false, onManualRefresh }) {
+  // CRITICAL: Handle missing context gracefully - these hooks may be called outside providers
+  let smartRefreshActivity = { active: false, updatedEntities: [] };
+  let isEntityUpdating = false;
+  let refreshData = null;
+  let currentUser = null;
+
+  try {
+    const appData = useAppData();
+    if (appData) {
+      smartRefreshActivity = appData.smartRefreshActivity || { active: false, updatedEntities: [] };
+      isEntityUpdating = appData.isEntityUpdating || false;
+      refreshData = appData.refreshData;
+    }
+  } catch (e) {
+
+    // Context not available, use defaults
+  }
+  try {
+    const userData = useUser();
+    if (userData) {
+      currentUser = userData.currentUser;
+    }
+  } catch (e) {
+
+    // Context not available, use defaults
+  }
+  const [recentUpdates, setRecentUpdates] = useState([]);
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
+  const [currentDisplayIndex, setCurrentDisplayIndex] = useState(0);
+  const [hasError, setHasError] = useState(false);
+  const [isRefreshStuck, setIsRefreshStuck] = useState(false);
+
+  // Track which manager is active
+  const [activeManager, setActiveManager] = useState(null); // 'smart', 'offline', 'polling', 'historical'
+  const [isSmartRefreshActive, setIsSmartRefreshActive] = useState(false);
+  const [isOfflineSyncActive, setIsOfflineSyncActive] = useState(false);
+  const [isPollingActive, setIsPollingActive] = useState(false);
+  const [isHistoricalSyncActive, setIsHistoricalSyncActive] = useState(false);
+
+  // CRITICAL: Track smartRefreshManager.isRefreshing directly
+  const isRefreshingRef = React.useRef(false);
+
+  // Track which entities were updated and reset index
+  // CRITICAL: Use a ref to track the timeout so we can clear it properly
+  const clearTimeoutRef = React.useRef(null);
+  const cycleIntervalRef = React.useRef(null);
+
+  useEffect(() => {
+    // Clear any pending timeouts/intervals when dependencies change
+    if (clearTimeoutRef.current) {
+      clearTimeout(clearTimeoutRef.current);
+      clearTimeoutRef.current = null;
+    }
+    if (cycleIntervalRef.current) {
+      clearInterval(cycleIntervalRef.current);
+      cycleIntervalRef.current = null;
+    }
+
+    if (smartRefreshActivity?.updatedEntities && smartRefreshActivity.updatedEntities.length > 0) {
+      setRecentUpdates(smartRefreshActivity.updatedEntities);
+      setCurrentDisplayIndex(0);
+
+      // CRITICAL: Start cycling through entity badges ONLY while refresh is active
+      if (smartRefreshActivity.active && smartRefreshActivity.updatedEntities.length > 1) {
+        cycleIntervalRef.current = setInterval(() => {
+          setCurrentDisplayIndex((prev) => (prev + 1) % smartRefreshActivity.updatedEntities.length);
+        }, 1000);
+      }
+    } else if (!smartRefreshActivity?.active) {
+      // CRITICAL: Immediately clear entity badges when refresh completes
+      // This prevents flickering and ensures spinner icon returns
+      setRecentUpdates([]);
+      setCurrentDisplayIndex(0);
+    }
+
+    return () => {
+      if (clearTimeoutRef.current) {
+        clearTimeout(clearTimeoutRef.current);
+        clearTimeoutRef.current = null;
+      }
+      if (cycleIntervalRef.current) {
+        clearInterval(cycleIntervalRef.current);
+        cycleIntervalRef.current = null;
+      }
+    };
+  }, [smartRefreshActivity?.active, smartRefreshActivity?.updatedEntities]);
+
+  // Subscribe to online/offline status
+  useEffect(() => {
+    const unsubscribe = offlineManager.subscribe((online) => {
+      setIsOnline(online);
+    });
+    return unsubscribe;
+  }, []);
+
+  // Subscribe to rate limit errors from smartRefreshManager
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const handleRateLimitError = (event) => {
+        setHasError(event.detail.hasError);
+        // Clear error after 5 seconds
+        if (event.detail.hasError) {
+          setTimeout(() => setHasError(false), 5000);
+        }
+      };
+
+      window.addEventListener('rateLimitError', handleRateLimitError);
+      return () => window.removeEventListener('rateLimitError', handleRateLimitError);
+    }
+  }, []);
+
+  // Track smart refresh, offline sync, and polling manager states
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // CRITICAL: Track smart refresh state by polling isRefreshing flag every 50ms
+      const checkSmartRefresh = () => {
+        const isRefreshing = smartRefreshManager?.isRefreshing || false;
+
+        // Update state only when it changes to prevent re-renders
+        if (isRefreshing !== isRefreshingRef.current) {
+          isRefreshingRef.current = isRefreshing;
+          setIsSmartRefreshActive(isRefreshing);
+
+          if (isRefreshing) {
+            console.log('🟢 [Indicator] Smart refresh STARTED - showing green spinner');
+          } else {
+            console.log('⚪ [Indicator] Smart refresh ENDED - hiding green spinner');
+          }
+        }
+      };
+
+      // Track offline sync state
+      const handleOfflineSyncStart = () => setIsOfflineSyncActive(true);
+      const handleOfflineSyncComplete = () => setIsOfflineSyncActive(false);
+
+      // Track polling manager state  
+      const handlePollingStart = () => setIsPollingActive(true);
+      const handlePollingComplete = () => setIsPollingActive(false);
+
+      // Check smart refresh every 50ms for responsive updates
+      const smartRefreshInterval = setInterval(checkSmartRefresh, 50);
+
+      // Track historical background sync via notifySyncStatus
+      const unsubscribeHistorical = subscribeSyncStatus((status) => {
+        if (status?.status === 'background_syncing') {
+          setIsHistoricalSyncActive(true);
+        } else if (status?.status === 'complete' || status?.status === 'error') {
+          setIsHistoricalSyncActive(false);
+        }
+      });
+
+      window.addEventListener('offlineSyncStarted', handleOfflineSyncStart);
+      window.addEventListener('offlineSyncComplete', handleOfflineSyncComplete);
+      window.addEventListener('driverLocationPollingStarted', handlePollingStart);
+      window.addEventListener('driverLocationPollingComplete', handlePollingComplete);
+
+      return () => {
+        clearInterval(smartRefreshInterval);
+        unsubscribeHistorical();
+        window.removeEventListener('offlineSyncStarted', handleOfflineSyncStart);
+        window.removeEventListener('offlineSyncComplete', handleOfflineSyncComplete);
+        window.removeEventListener('driverLocationPollingStarted', handlePollingStart);
+        window.removeEventListener('driverLocationPollingComplete', handlePollingComplete);
+      };
+    }
+  }, []);
+
+  // Determine active manager and color
+  useEffect(() => {
+    if (isSmartRefreshActive) {
+      setActiveManager('smart');
+    } else if (isHistoricalSyncActive) {
+      setActiveManager('historical');
+    } else if (isOfflineSyncActive) {
+      setActiveManager('offline');
+    } else if (isPollingActive) {
+      setActiveManager('polling');
+    } else {
+      setActiveManager(null);
+    }
+  }, [isSmartRefreshActive, isHistoricalSyncActive, isOfflineSyncActive, isPollingActive]);
+
+  useEffect(() => {
+    const refreshLooksActive = smartRefreshActivity?.active || isManualRefreshing || isSmartRefreshActive || isOfflineSyncActive || isHistoricalSyncActive;
+
+    if (!refreshLooksActive) {
+      setIsRefreshStuck(false);
+      return;
+    }
+
+    const stuckTimer = setTimeout(() => {
+      setIsRefreshStuck(true);
+    }, 30000);
+
+    return () => clearTimeout(stuckTimer);
+  }, [smartRefreshActivity?.active, isManualRefreshing, isSmartRefreshActive, isOfflineSyncActive]);
+
+  // Real-time sync broadcasts removed
+
+  // Show for all users (removed app owner restriction)
+  if (!currentUser) {
+    return null;
+  }
+
+  const isPollingOnly = activeManager === 'polling' && !smartRefreshActivity?.active && !isManualRefreshing && !isOfflineSyncActive && !isSmartRefreshActive;
+  const isActive = !isRefreshStuck && (smartRefreshActivity?.active || isManualRefreshing || isSmartRefreshActive || isOfflineSyncActive || isHistoricalSyncActive);
+  const isPaused = isEntityUpdating;
+  const hasUpdates = recentUpdates.length > 0;
+
+  // Determine spinner color based on active manager
+  const getSpinnerColor = () => {
+    if (hasError) return 'bg-red-500';
+    if (isPaused) return 'bg-yellow-100';
+    if (!isOnline) return 'bg-red-500';
+    if (isPollingOnly) return 'bg-slate-200 hover:bg-slate-300';
+
+    switch (activeManager) {
+      case 'smart':return 'bg-emerald-500'; // Green for smart refresh
+      case 'historical':return 'bg-blue-900'; // Dark blue for historical bi-hourly sync
+      case 'offline':return 'bg-purple-500'; // Purple for offline sync
+      case 'polling':return 'bg-blue-500'; // Blue for polling
+      default:return isActive ? 'bg-emerald-500' : 'bg-slate-200 hover:bg-slate-300';
+    }
+  };
+
+  // Handle manual refresh click - triggers pull-to-sync, then full patient sync, then UI update from offline DB
+  const handleManualRefresh = async () => {
+    if (isManualRefreshing || isPaused) return;
+    if (window.__dashboardSyncing && window.__activePullToSyncRunId) return;
+
+    setIsManualRefreshing(true);
+
+    // Pull-to-sync always bypasses the 5-min cooldown and restarts it on completion
+    try {
+      const { globalFilters } = await import('../utils/globalFilters');
+      globalFilters.invalidateRefreshCooldown();
+    } catch (_) {}
+
+    // Trigger pull-to-sync (silent mode - no overlay)
+    window.dispatchEvent(new CustomEvent('triggerPullToSync', {
+      detail: { silent: true, requestedAt: Date.now() }
+    }));
+
+    const requestedAt = Date.now();
+
+    // Listen for pull-to-sync completion, then run full patient sync + UI update
+    let completed = false;
+    let fallbackTimer = null;
+    const handleSyncComplete = async (event) => {
+      const syncStillRunning = window.__dashboardSyncing || window.__activePullToSyncRunId;
+      const completedAt = event?.detail?.completedAt || 0;
+      if (completed) return;
+      if (completedAt && completedAt < requestedAt) return;
+      if (!event && syncStillRunning) return;
+      completed = true;
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      window.removeEventListener('pullToSyncComplete', handleSyncComplete);
+
+      // Full patient sync to offline DB (store-by-store)
+      try {
+        const { performSlowStorePatientSync } = await import('../utils/offlineSync');
+        await performSlowStorePatientSync();
+      } catch (_) {}
+
+      // UI update from offline DB
+      try {
+        const { offlineDB } = await import('../utils/offlineDatabase');
+        const freshPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+        if (freshPatients && freshPatients.length > 0) {
+          window.dispatchEvent(new CustomEvent('pullToSyncDataReady', {
+            detail: { patients: freshPatients }
+          }));
+        }
+      } catch (_) {}
+
+      setIsManualRefreshing(false);
+
+      try {
+        import('../utils/globalFilters').then(({ globalFilters }) => globalFilters.markRefreshComplete()).catch(() => {});
+      } catch (_) {}
+      window.dispatchEvent(new CustomEvent('refreshPayrollStatsAfterSync'));
+    };
+
+    window.addEventListener('pullToSyncComplete', handleSyncComplete);
+    fallbackTimer = setTimeout(() => handleSyncComplete(), 15000);
+  };
+
+  // Entity labels
+  const entityLabels = {
+    appUsers: 'A',
+    patients: 'P',
+    deliveries: 'D',
+    stores: 'S',
+    locations: 'L'
+  };
+
+  const entityColors = {
+    appUsers: 'bg-blue-500',
+    patients: 'bg-purple-500',
+    deliveries: 'bg-emerald-500',
+    stores: 'bg-orange-500',
+    locations: 'bg-cyan-500'
+  };
+
+  // Inline version for stats card header
+  if (inline) {
+    const currentEntity = hasUpdates ? recentUpdates[currentDisplayIndex] : null;
+    const showPill = isActive && !isPaused;
+
+    return (
+      <div className="relative w-7 h-8 flex-shrink-0 flex items-center">
+      <AnimatePresence mode="wait">
+        {showPill ?
+          <motion.button
+            key="pill"
+            data-offline-sync-button
+            onClick={handleManualRefresh}
+            disabled={isPaused}
+            initial={{ width: 16 }}
+            animate={{ width: 'auto' }}
+            exit={{ width: 16 }}
+            transition={{ duration: 0.2, ease: 'easeInOut' }}
+            className={`h-8 min-h-8 px-2 flex shrink-0 items-center overflow-hidden pointer-events-auto rounded-full gap-1.5 ${getSpinnerColor()} shadow-lg`}
+            style={{ position: 'absolute', left: 0, zIndex: 10030, whiteSpace: 'nowrap' }}
+            title="Syncing...">
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}>
+              <RefreshCw className="w-3 h-3 text-white drop-shadow-md flex-shrink-0" />
+            </motion.div>
+            <motion.span
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="text-white text-xs font-medium pr-0.5">
+              Syncing...
+            </motion.span>
+          </motion.button> :
+
+          <motion.button
+            key="circle"
+            data-offline-sync-button
+            onClick={handleManualRefresh}
+            disabled={isPaused}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className={`w-7 h-7 min-w-7 min-h-7 aspect-square rounded-full flex shrink-0 items-center justify-center transition-colors duration-200 hover:scale-110 relative pointer-events-auto ${getSpinnerColor()}`}
+            style={{ zIndex: 10030 }}
+            title={hasError ? 'Refresh error' : !isOnline ? 'Offline' : isPaused ? 'Refresh paused' : 'Click to refresh'}>
+            {isPaused ?
+            <div className="w-1.5 h-1.5 rounded-full bg-yellow-500" /> :
+            hasError ?
+            <RefreshCw className="w-3 h-3 text-white" /> :
+            isPollingOnly ?
+            <RefreshCw className="w-3 h-3 text-blue-500" /> :
+
+            <RefreshCw className={`w-3 h-3 ${!isOnline ? 'text-white' : 'text-slate-500'}`} />
+            }
+
+            {/* Show entity badge on top of spinner */}
+            <AnimatePresence mode="wait">
+              {hasUpdates && currentEntity &&
+              <motion.div
+                key={currentEntity}
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className={`absolute inset-0 rounded-full text-[9px] font-bold text-white flex items-center justify-center ${entityColors[currentEntity] || 'bg-slate-500'}`}
+                title={currentEntity}>
+                  {entityLabels[currentEntity] || '?'}
+                </motion.div>
+              }
+            </AnimatePresence>
+          </motion.button>
+          }
+      </AnimatePresence>
+      </div>);
+
+  }
+
+  // Original vertical version for fixed position
+  const currentEntity = hasUpdates ? recentUpdates[currentDisplayIndex] : null;
+
+  return (
+    <div className="flex flex-col items-center gap-1 z-[601]">
+      <button
+        data-offline-sync-button
+        onClick={handleManualRefresh}
+        disabled={isPaused}
+        className={`w-6 h-6 min-w-6 min-h-6 aspect-square rounded-full flex shrink-0 items-center justify-center transition-colors duration-200 hover:scale-110 relative pointer-events-auto ${getSpinnerColor()} ${isActive && !isPaused ? 'shadow-xl' : ''}`}
+        style={{ position: 'relative', zIndex: 10030 }}
+        title={hasError ? 'Refresh error - click to retry' : !isOnline ? 'Offline - changes will sync when online' : isPaused ? 'Smart refresh paused' :
+        activeManager === 'smart' ? 'Smart Refresh active' :
+        activeManager === 'historical' ? 'Historical sync active' :
+        activeManager === 'offline' ? 'Offline Sync active' :
+        activeManager === 'polling' ? 'Background location polling' :
+        'Click to refresh'}>
+
+        {hasError ?
+        <RefreshCw className="w-3.5 h-3.5 text-white" /> :
+        !isOnline ?
+        <motion.div
+          key="spinner-offline"
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
+            <RefreshCw className="w-3.5 h-3.5 text-white drop-shadow-lg" />
+          </motion.div> :
+        isActive && !isPaused ?
+        <motion.div
+          key="spinner-active"
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
+            <RefreshCw className="w-3.5 h-3.5 text-white drop-shadow-lg" />
+          </motion.div> :
+        isPaused ?
+        <div className="w-2 h-2 rounded-full bg-yellow-500" /> :
+        isPollingOnly ?
+        <RefreshCw className="w-3.5 h-3.5 text-blue-500" /> :
+
+        <RefreshCw className="w-3.5 h-3.5 text-slate-400" />
+        }
+        
+        {/* Show entity badge on top of spinner */}
+        <AnimatePresence mode="wait">
+          {hasUpdates && currentEntity &&
+          <motion.div
+            key={currentEntity}
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className={`absolute inset-0 rounded-full text-[10px] font-bold text-white flex items-center justify-center ${entityColors[currentEntity] || 'bg-slate-500'}`}
+            title={currentEntity}>
+              {entityLabels[currentEntity] || '?'}
+            </motion.div>
+          }
+        </AnimatePresence>
+      </button>
+    </div>);
+
+}

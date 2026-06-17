@@ -1,0 +1,323 @@
+import React, { useMemo } from "react";
+import { useDevice } from '@/components/utils/DeviceContext';
+
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Search, X, Camera, Plus, Copy, MapPin } from "lucide-react";
+import { formatPhoneNumber } from '../utils/phoneFormatter';
+import { getStoreColor } from '../utils/colorGenerator';
+import { shouldShowStoreBadges } from '../utils/userRoles';
+import { determineDeliveryAMPM } from '../utils/ampmUtils';
+
+const userHasRole = (user, role) => {
+  if (!user || !role) return false;
+  if (Array.isArray(user.app_roles)) return user.app_roles.includes(role);
+  if (user.app_role === role) return true;
+  return false;
+};
+
+export default function DeliveryPatientSearch({
+  patientSearch,
+  setPatientSearch,
+  selectedPatient,
+  filteredPatients,
+  highlightedPatientIndex,
+  setHighlightedPatientIndex,
+  selectedPatientIds,
+  setSelectedPatientIds,
+  isMultiSelectMode,
+  isSaving,
+  isScanning,
+  formData,
+  stores,
+  currentUser,
+  patientSearchInputRef,
+  addPatientButtonRef,
+  onPatientSelect,
+  onAddSelectedPatients,
+  onStartCamera,
+  onDuplicatePatient,
+  onNewAddressPatient,
+  onCreatePatient,
+  setIsPatientFormOpen,
+  handleSearchKeyDown,
+  locked = false,
+  mobileStandalone = false,
+  onTabKey = null,
+  scheduledDriverMap = {},
+}) {
+  const showCameraButton = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const { isMobile } = useDevice();
+  const visiblePatients = React.useMemo(() => {
+    let list = (filteredPatients || []).filter((patient) => !patient?._isDeletedLocally);
+    // Drivers only see patients from their assigned stores
+    // Store assignment for drivers is determined by which stores list the driver in any driver slot
+    if (userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher')) {
+      // Store driver slots store AppUser.user_id, so match against user_id primarily
+      const driverIds = new Set([currentUser?.user_id, currentUser?.id].filter(Boolean));
+      const driverSlotKeys = [
+        'weekday_am_driver_id', 'weekday_pm_driver_id',
+        'saturday_am_driver_id', 'saturday_pm_driver_id',
+        'sunday_am_driver_id', 'sunday_pm_driver_id'
+      ];
+      // Include stores where driver is a default slot, explicitly assigned (store_ids),
+      // OR scheduled via DriverScheduleOverride (scheduledDriverMap)
+      const scheduledStoreIds = Object.entries(scheduledDriverMap)
+        .filter(([, driverId]) => driverIds.has(driverId))
+        .map(([key]) => key.replace(/_AM$|_PM$/, ''));
+      const assignedStoreIds = new Set([
+        ...(stores || [])
+          .filter((s) => s && driverSlotKeys.some((key) => driverIds.has(s[key])))
+          .map((s) => s.id),
+        ...(currentUser?.store_ids || []),
+        ...scheduledStoreIds,
+      ]);
+      console.log(`[PatientSearch] driver ids: ${[...driverIds]}, assigned stores: ${[...assignedStoreIds]}, total stores checked: ${(stores||[]).length}`);
+      // Always filter for drivers — if no stores assigned, show nothing
+      list = list.filter((patient) => assignedStoreIds.has(patient?.store_id));
+    }
+    // For drivers: sort scheduled-store patients first, then default slot stores
+    if (userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher')) {
+      const scheduledStoreIds = new Set(currentUser?.store_ids || []);
+      list = [...list].sort((a, b) => {
+        const aScheduled = scheduledStoreIds.has(a?.store_id) ? 0 : 1;
+        const bScheduled = scheduledStoreIds.has(b?.store_id) ? 0 : 1;
+        return aScheduled - bScheduled;
+      });
+    }
+
+    // Inactive patients: only show if no active patients match the search
+    const activeList = list.filter((patient) => patient?.status !== 'inactive');
+    return activeList.length > 0 ? activeList : list;
+  }, [filteredPatients, currentUser]);
+
+  const handlePatientSearchKeyDown = (e) => {
+    if (e.key === 'Tab' && onTabKey) {
+      e.preventDefault();
+      onTabKey();
+      return;
+    }
+
+    if (!visiblePatients.length) {
+      handleSearchKeyDown?.(e);
+      return;
+    }
+
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const direction = e.key === 'ArrowDown' ? 1 : -1;
+      const nextIndex = highlightedPatientIndex < 0 ?
+      0 :
+      Math.max(0, Math.min(visiblePatients.length - 1, highlightedPatientIndex + direction));
+
+      setHighlightedPatientIndex(nextIndex);
+      requestAnimationFrame(() => {
+        document.getElementById(`patient-item-${nextIndex}`)?.scrollIntoView({ block: 'nearest' });
+      });
+      return;
+    }
+
+    if (e.key === 'Enter' && highlightedPatientIndex >= 0) {
+      e.preventDefault();
+      e.stopPropagation();
+      addPatientButtonRef?.current?.blur?.();
+      const highlightedPatient = visiblePatients[highlightedPatientIndex];
+      if (!highlightedPatient?._isAlreadyStaged) {
+        onPatientSelect(highlightedPatient, false);
+      }
+      setPatientSearch('');
+      setHighlightedPatientIndex(-1);
+      requestAnimationFrame(() => {
+        patientSearchInputRef?.current?.focus?.();
+        addPatientButtonRef?.current?.blur?.();
+      });
+      return;
+    }
+
+    handleSearchKeyDown?.(e);
+  };
+
+  return (
+    <div className={`${mobileStandalone ? 'relative block w-full flex-none basis-full' : 'relative flex-1'} h-[102px] flex flex-col justify-between p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+      <div className="flex items-center justify-between min-h-[28px] mb-1">
+        <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Search</Label>
+        <div className="min-h-[28px] flex items-center justify-end">
+          {selectedPatient &&
+          <div className="p-1.5 px-2.5 bg-emerald-50 border border-emerald-200 rounded text-xs flex items-center gap-1.5 max-w-[200px]">
+            <span className="text-emerald-700 font-medium truncate">✓ {selectedPatient.full_name}</span>
+            {stores && selectedPatient.store_id && (() => {
+            const patientStore = stores.find((s) => s && s.id === selectedPatient.store_id);
+            const storeAbbr = patientStore?.abbreviation;
+            const storeColor = patientStore ? getStoreColor(patientStore) : '#64748b';
+            const ampm = determineDeliveryAMPM(selectedPatient);
+            const showBadge = shouldShowStoreBadges(currentUser);
+            return (
+              <>
+                  {storeAbbr && showBadge &&
+                <Badge className="text-white text-[10px] px-1.5 py-0 h-4" style={{ backgroundColor: storeColor }}>{storeAbbr}</Badge>
+                }
+                  {ampm && <Badge className="bg-slate-200 text-slate-700 text-[10px] px-1.5 py-0 h-4">{ampm.toUpperCase()}</Badge>}
+                </>);
+
+          })()}
+          </div>
+          }
+        </div>
+      </div>
+
+      <div className="relative flex gap-2 items-end flex-nowrap">
+        <div className="relative flex-1 min-w-0">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 z-10" />
+          <Input
+            ref={patientSearchInputRef}
+            autoFocus
+            type="text"
+            placeholder="Search by name, address, phone..."
+            value={locked ? '' : patientSearch}
+            onChange={(e) => {setPatientSearch(e.target.value);setHighlightedPatientIndex(-1);}}
+            onKeyDown={handlePatientSearchKeyDown}
+            className="pl-10 h-9"
+            disabled={isSaving || locked} />
+          
+          {patientSearch &&
+          <button type="button" onClick={() => {setPatientSearch('');setHighlightedPatientIndex(-1);}} className="absolute right-2 top-1/2 -translate-y-1/2 z-10">
+              <X className="w-4 h-4" />
+            </button>
+          }
+        </div>
+        {showCameraButton &&
+        <>
+            <input type="file" accept="image/*" capture="environment" className="hidden" />
+            <Button type="button" size="sm" variant="outline" className="h-9 w-9 p-0 flex-shrink-0" onClick={onStartCamera} disabled={isSaving || isScanning} title="Scan prescription label">
+              {isScanning ? <div className="animate-spin w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full" /> : <Camera className="w-4 h-4" />}
+            </Button>
+          </>
+        }
+      </div>
+
+      {patientSearch && !formData.patient_id &&
+      <div className={`absolute top-full left-0 mt-1 max-h-64 overflow-y-auto border rounded-lg shadow-lg z-[40] ${isMobile || mobileStandalone ? 'right-0 w-full' : '-right-[150px]'}`} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+          {selectedPatientIds.size > 1 &&
+        <div className="sticky top-0 bg-emerald-50 border-b border-emerald-200 p-2 flex items-center justify-between z-10">
+              <span className="text-sm font-medium text-emerald-700">{selectedPatientIds.size} selected</span>
+              <div className="flex gap-2">
+                <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => setSelectedPatientIds(new Set())}>Clear</Button>
+                <Button type="button" size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700" onClick={onAddSelectedPatients}>Add Selected</Button>
+              </div>
+            </div>
+        }
+
+          {visiblePatients.length === 0 ?
+        <div className="p-4 text-center text-slate-500 text-sm">
+              No patients found
+              {onCreatePatient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
+          <Button
+            ref={addPatientButtonRef}
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-full mt-3 gap-2"
+            onClick={async () => {
+              setIsPatientFormOpen(true);
+              onCreatePatient((newPatient) => {
+                setIsPatientFormOpen(false);
+                onPatientSelect(newPatient, false);
+              }, null);
+            }}>
+            
+                  <Plus className="w-4 h-4" /> Add New Patient
+                </Button>
+          }
+            </div> :
+
+        <div className="divide-y">
+              {visiblePatients.map((patient, index) => {
+            const patientStore = stores?.find((s) => s && s.id === patient.store_id);
+            const storeAbbr = patientStore?.abbreviation || '';
+            const isHighlighted = index === highlightedPatientIndex;
+            const isSelected = selectedPatientIds.has(patient.id);
+            const isAlreadyStaged = patient._isAlreadyStaged;
+            return (
+              <div
+                key={patient.id}
+                id={`patient-item-${index}`}
+                className={`pt-2 pr-2 pl-2 text-sm text-left w-full transition-colors flex items-start gap-1 border-l-4 ${
+                  isAlreadyStaged
+                    ? 'bg-amber-100/80 border-amber-500'
+                    : isSelected
+                    ? 'bg-emerald-100/80 border-emerald-500'
+                    : isHighlighted
+                    ? 'bg-teal-100/80 border-teal-500'
+                    : 'bg-card border-transparent hover:bg-accent/60'
+                }`}>
+
+                
+                    {(isMultiSelectMode || selectedPatientIds.size > 0) &&
+                <Checkbox
+                  checked={isSelected}
+                  onCheckedChange={(checked) => {
+                    setSelectedPatientIds((prev) => {
+                      const newSet = new Set(prev);
+                      if (checked) newSet.add(patient.id);else newSet.delete(patient.id);
+                      return newSet;
+                    });
+                  }}
+                  className="mt-0.5" />
+
+                }
+                    <button
+                  type="button"
+                  onClick={(e) => {
+                    if (isAlreadyStaged) {setPatientSearch('');setHighlightedPatientIndex(-1);return;}
+                    if (e.shiftKey || e.ctrlKey || e.metaKey) {
+                      setSelectedPatientIds((prev) => {
+                        const newSet = new Set(prev);
+                        if (newSet.has(patient.id)) newSet.delete(patient.id);else newSet.add(patient.id);
+                        return newSet;
+                      });
+                    } else {
+                      onPatientSelect(patient, false);
+                      setPatientSearch('');
+                      setHighlightedPatientIndex(-1);
+                    }
+                  }}
+                  className={`flex-1 text-left ${isAlreadyStaged ? 'cursor-not-allowed' : ''}`}>
+                  
+                      <div className="font-medium truncate flex items-center gap-1.5">
+                        {patient.full_name}
+                        {isAlreadyStaged && <Badge className="bg-amber-200/80 text-amber-900 dark:text-amber-950 text-[10px] px-1.5 py-0 h-4">STAGED</Badge>}
+                        {storeAbbr && shouldShowStoreBadges(currentUser) && (() => {
+                      const color = patientStore ? getStoreColor(patientStore) : '#64748b';
+                      return <Badge className="text-white text-[10px] px-1.5 py-0 h-4" style={{ backgroundColor: color }}>{storeAbbr}</Badge>;
+                    })()}
+                      </div>
+                      <div className="text-muted-foreground my-2 pt-1 text-xs truncate">{patient.address}</div>
+                      {patient.phone &&
+                  <div className="text-xs text-muted-foreground truncate">
+                          {formatPhoneNumber(patient.phone)}{patient.unit_number && <> • #{patient.unit_number}</>}
+                        </div>
+                  }
+                    </button>
+                    <div className="flex flex-col gap-1 ml-1">
+                      <Button type="button" variant="ghost" size="sm" className="justify-end rounded-md text-xs h-5 px-2 hover:bg-blue-100/70 dark:hover:bg-blue-900/30" onClick={(e) => {e.stopPropagation();onDuplicatePatient(patient);}} title="Duplicate Patient">
+                        <span className="text-blue-700 dark:text-blue-300">Duplicate</span>
+                        <Copy className="w-3 h-3 text-blue-600 dark:text-blue-300" />
+                      </Button>
+                      <Button type="button" variant="ghost" size="sm" className="justify-end rounded-md text-xs h-5 px-2 hover:bg-purple-100/70 dark:hover:bg-purple-900/30" onClick={(e) => {e.stopPropagation();onNewAddressPatient(patient);}} title="New Address">
+                        <span className="text-purple-700 dark:text-purple-300">Change</span>
+                        <MapPin className="w-3 h-3 text-purple-600 dark:text-purple-300" />
+                      </Button>
+                    </div>
+                  </div>);
+
+          })}
+            </div>
+        }
+        </div>
+      }
+    </div>);
+
+}

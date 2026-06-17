@@ -1,0 +1,52 @@
+{
+  "name": "GoogleAPILog",
+  "type": "object",
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the API call was made"
+    },
+    "api_type": {
+      "type": "string",
+      "enum": [
+        "Directions",
+        "Distance Matrix",
+        "Places Autocomplete",
+        "Place Details",
+        "Geocoding",
+        "Map Tiles",
+        "Directions (HERE)",
+        "Map Tiles (HERE)"
+      ],
+      "description": "Type of Google/HERE API used"
+    },
+    "purpose": {
+      "type": "string",
+      "description": "Purpose of the API call (e.g., 'calculating route for driver X')"
+    },
+    "function_name": {
+      "type": "string",
+      "description": "Backend function or component that initiated the call"
+    },
+    "user_id": {
+      "type": "string",
+      "description": "ID of the user who triggered the call"
+    },
+    "user_name": {
+      "type": "string",
+      "description": "Name of the user who triggered the call"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional context (driver_id, delivery_date, etc.)",
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "timestamp",
+    "api_type",
+    "purpose",
+    "function_name"
+  ]
+}

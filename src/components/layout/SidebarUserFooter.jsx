@@ -1,0 +1,499 @@
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { Button } from '@/components/ui/button';
+import { Phone, MessageCircle, QrCode, Thermometer } from 'lucide-react';
+import { formatRoles } from '@/components/utils/userRoles';
+import { getDriverDisplayName } from '@/components/utils/driverUtils';
+import { formatPhoneNumber } from '@/components/utils/phoneFormatter';
+import ExportRouteButton from '@/components/deliveries/ExportRouteButton';
+import { globalFilters } from '@/components/utils/globalFilters';
+import { User } from '@/api/entities';
+import { canShowExportRoute, getUserAvatarGradient } from '@/components/layout/sidebarUserUtils';
+import { base44 } from '@/api/base44Client';
+
+// ── Local timestamp helper ─────────────────────────────────────────────────
+// All stored timestamps are local ISO strings (YYYY-MM-DDTHH:MM:SS, no Z).
+// new Date('2026-06-11T08:30:00') is parsed as LOCAL time by JS — correct.
+// We format with toLocaleTimeString to always display in the browser's local zone.
+function fmtLocalTime(ts, opts = { hour: '2-digit', minute: '2-digit' }) {
+  if (!ts) return null;
+  try {
+    // Ensure we never accidentally parse a UTC string as local by stripping Z if present
+    const clean = String(ts).replace('Z', '').replace('+00:00', '');
+    return new Date(clean).toLocaleTimeString([], opts);
+  } catch (_) { return ts; }
+}
+
+// ── Dispatcher inline temp badge — LIVE / last reading ────────────────────
+// Shows while fridge items are still in_transit.
+// Polls RxTempLogs every 60s; instant update via fridgeTempRecorded event.
+function DispatcherTempBadge({ driverId, selectedDateStr }) {
+  const [reading, setReading] = useState(null);
+  const pollRef = useRef(null);
+
+  const load = useCallback(async () => {
+    if (!driverId || !selectedDateStr) return;
+    try {
+      let latest = null;
+      try {
+        const { offlineDB } = await import('@/components/utils/offlineDatabase');
+        const all = await offlineDB.getAll(offlineDB.STORES.RX_TEMP_LOGS);
+        const log = (all || []).find(l => l?.driver_id === driverId && l?.delivery_date === selectedDateStr);
+        if (log) latest = log.latest_reading || null;
+      } catch (_) {}
+      if (!latest) {
+        const logs = await base44.entities.RxTempLogs.filter({ driver_id: driverId, delivery_date: selectedDateStr });
+        latest = logs?.[0]?.latest_reading || null;
+      }
+      setReading(latest);
+    } catch (_) {}
+  }, [driverId, selectedDateStr]);
+
+  useEffect(() => {
+    load();
+    pollRef.current = setInterval(load, 60000);
+    return () => clearInterval(pollRef.current);
+  }, [load]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      const { temperature, timestamp, driverId: eid } = e.detail || {};
+      if (eid !== driverId) return;
+      setReading({ temperature_celsius: temperature, timestamp });
+    };
+    window.addEventListener('fridgeTempRecorded', handler);
+    return () => window.removeEventListener('fridgeTempRecorded', handler);
+  }, [driverId]);
+
+  if (!reading?.temperature_celsius) return null;
+
+  const t     = reading.temperature_celsius;
+  const isOut = t < 2 || t > 8;
+  const ts    = fmtLocalTime(reading.timestamp);
+
+  return (
+    <span
+      title={ts ? `Last reading: ${ts}` : undefined}
+      className={`flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 cursor-default ${
+        isOut ? 'bg-red-100 text-red-600' : 'bg-cyan-100 text-cyan-700'
+      }`}
+    >
+      <Thermometer className="w-2.5 h-2.5" />
+      {t}°C
+    </span>
+  );
+}
+
+// ── Dispatcher avg temp badge — COMPLETED route ────────────────────────────
+// Shown once all fridge items for a driver+date are completed/failed.
+// Window: pickup actual_delivery_time → last fridge delivery actual_delivery_time.
+// Averages all temperature_readings within that window from RxTempLogs.
+function DispatcherAvgTempBadge({ driverId, selectedDateStr, fridgeDeliveries, storeId }) {
+  const [avgData, setAvgData] = useState(null); // { avg, count, windowStart, windowEnd, isOut }
+  const loadedRef = useRef(false);
+
+  useEffect(() => {
+    if (loadedRef.current) return;
+    (async () => {
+      try {
+        // Get the full RxTempLogs record for this driver+date
+        let logRecord = null;
+        try {
+          const { offlineDB } = await import('@/components/utils/offlineDatabase');
+          const all = await offlineDB.getAll(offlineDB.STORES.RX_TEMP_LOGS);
+          logRecord = (all || []).find(l => l?.driver_id === driverId && l?.delivery_date === selectedDateStr) || null;
+        } catch (_) {}
+        if (!logRecord) {
+          const logs = await base44.entities.RxTempLogs.filter({ driver_id: driverId, delivery_date: selectedDateStr });
+          logRecord = logs?.[0] || null;
+        }
+        if (!logRecord) return;
+
+        const allReadings = Array.isArray(logRecord.temperature_readings) ? logRecord.temperature_readings : [];
+        if (!allReadings.length) return;
+
+        // Determine fridge window:
+        // Window START = earliest actual_delivery_time among pickup records for this store
+        //   (pickup = patient_id is empty/null AND is linked to store via store_id)
+        // Window END   = latest actual_delivery_time among completed fridge deliveries
+        //   (patient_id non-empty, fridge_item true, status completed/failed)
+        const driverFridgeDeliveries = fridgeDeliveries.filter(
+          d => d?.driver_id === driverId && d?.delivery_date === selectedDateStr && d?.store_id === storeId
+        );
+
+        // Pickups = no patient_id (or patient_id empty), fridge_item true
+        const pickups = driverFridgeDeliveries.filter(
+          d => !d?.patient_id && d?.actual_delivery_time
+        );
+        // Deliveries = have patient_id, fridge_item true, completed/failed
+        const drops = driverFridgeDeliveries.filter(
+          d => d?.patient_id && d?.fridge_item && ['completed','failed'].includes(d?.status) && d?.actual_delivery_time
+        );
+
+        if (!drops.length) return; // no completed drops yet
+
+        // Parse timestamps (local ISO — no Z)
+        const parseLocal = ts => ts ? new Date(String(ts).replace('Z','').replace('+00:00','')) : null;
+
+        const pickupTimes = pickups.map(d => parseLocal(d.actual_delivery_time)).filter(Boolean);
+        const dropTimes   = drops.map(d => parseLocal(d.actual_delivery_time)).filter(Boolean);
+
+        const windowStart = pickupTimes.length ? new Date(Math.min(...pickupTimes)) : new Date(Math.min(...dropTimes));
+        const windowEnd   = new Date(Math.max(...dropTimes));
+
+        // Filter readings within window
+        const inWindow = allReadings.filter(r => {
+          if (!r?.timestamp || r.temperature_celsius == null) return false;
+          const t = parseLocal(r.timestamp);
+          return t && t >= windowStart && t <= windowEnd;
+        });
+
+        if (!inWindow.length) {
+          // Fallback: avg over all readings for the day
+          const allTemps = allReadings.map(r => r.temperature_celsius).filter(v => v != null);
+          if (!allTemps.length) return;
+          const avg = +(allTemps.reduce((a,b) => a+b, 0) / allTemps.length).toFixed(1);
+          setAvgData({ avg, count: allTemps.length, windowStart: null, windowEnd: null, isOut: avg < 2 || avg > 8 });
+          return;
+        }
+
+        const temps = inWindow.map(r => r.temperature_celsius);
+        const avg   = +(temps.reduce((a,b) => a+b, 0) / temps.length).toFixed(1);
+        setAvgData({
+          avg,
+          count: temps.length,
+          windowStart,
+          windowEnd,
+          isOut: avg < 2 || avg > 8,
+        });
+        loadedRef.current = true;
+      } catch (_) {}
+    })();
+  }, [driverId, selectedDateStr, fridgeDeliveries, storeId]);
+
+  if (!avgData) return null;
+
+  const { avg, count, windowStart, windowEnd, isOut } = avgData;
+  // windowStart/End are Date objects — use toLocaleTimeString directly (already local)
+  const startStr = windowStart ? windowStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null;
+  const endStr   = windowEnd   ? windowEnd.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })   : null;
+  const tooltip  = [
+    `Avg cooler temp over ${count} readings`,
+    startStr && endStr ? `${startStr} → ${endStr}` : null,
+  ].filter(Boolean).join('\n');
+
+  return (
+    <span
+      title={tooltip}
+      className={`flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 cursor-default ${
+        isOut ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-700'
+      }`}
+    >
+      <Thermometer className="w-2.5 h-2.5" />
+      ⌀{avg}°C
+    </span>
+  );
+}
+
+function getSlotKeysForDate(dateStr) {
+  const d = dateStr ? new Date(dateStr + 'T00:00:00') : new Date();
+  const dow = d.getDay();
+  if (dow === 0) return ['sunday_am', 'sunday_pm'];
+  if (dow === 6) return ['saturday_am', 'saturday_pm'];
+  return ['weekday_am', 'weekday_pm'];
+}
+
+function getDefaultDriverIdForSlot(store, slotKey) {
+  const map = {
+    weekday_am: store.weekday_am_driver_id,
+    weekday_pm: store.weekday_pm_driver_id,
+    saturday_am: store.saturday_am_driver_id,
+    saturday_pm: store.saturday_pm_driver_id,
+    sunday_am: store.sunday_am_driver_id,
+    sunday_pm: store.sunday_pm_driver_id
+  };
+  return map[slotKey] || null;
+}
+
+function buildScheduledDrivers(currentUser, stores, appUsers, todayOverrides, deliveries, selectedDateStr) {
+  if (!currentUser?.app_roles?.includes('dispatcher')) return [];
+  const dispatcherStoreIds = currentUser.store_ids || [];
+  if (!dispatcherStoreIds.length) return [];
+
+  const todayStr = selectedDateStr || (() => {
+    const d = new Date();
+    const p = n => String(n).padStart(2,'0');
+    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+  })();
+  const slotKeys = getSlotKeysForDate(todayStr);
+  const driverMap = new Map();
+
+  const assignedDriverIds = new Set(
+    (deliveries || [])
+      .filter((d) => d?.delivery_date === todayStr && dispatcherStoreIds.includes(d?.store_id) && d?.driver_id)
+      .map((d) => d.driver_id)
+  );
+
+  const scheduledDriverIds = new Set();
+  dispatcherStoreIds.forEach((storeId) => {
+    const store = stores?.find((s) => s.id === storeId);
+    if (!store) return;
+    slotKeys.forEach((slotKey) => {
+      if (!store[`${slotKey}_enabled`]) return;
+      const override = todayOverrides?.find(
+        (o) => o.date === todayStr && o.slot_key === slotKey && o.store_id === storeId
+      );
+      const driverId = override ? override.driver_id : getDefaultDriverIdForSlot(store, slotKey);
+      if (driverId) scheduledDriverIds.add(driverId);
+    });
+  });
+
+  const allRelevantDriverIds = new Set([...assignedDriverIds, ...scheduledDriverIds]);
+
+  allRelevantDriverIds.forEach((driverId) => {
+    const driver = appUsers?.find((u) => u.user_id === driverId || u.id === driverId);
+    if (!driver) return;
+
+    const key = driver.user_id || driver.id;
+    if (driverMap.has(key)) return;
+
+    const slots = [];
+    dispatcherStoreIds.forEach((storeId) => {
+      const store = stores?.find((s) => s.id === storeId);
+      if (!store) return;
+      slotKeys.forEach((slotKey) => {
+        if (!store[`${slotKey}_enabled`]) return;
+        const override = todayOverrides?.find(
+          (o) => o.date === todayStr && o.slot_key === slotKey && o.store_id === storeId
+        );
+        const sid = override ? override.driver_id : getDefaultDriverIdForSlot(store, slotKey);
+        if (sid === driverId) slots.push({ storeName: store.name, slotKey });
+      });
+    });
+
+    const deliveryCount = (deliveries || []).filter(
+      (d) => d?.delivery_date === todayStr && d?.driver_id === driverId && dispatcherStoreIds.includes(d?.store_id)
+    ).length;
+
+    driverMap.set(key, { driver, slots, deliveryCount, isAssigned: assignedDriverIds.has(driverId) });
+  });
+
+  const slotOrder = (slots) => {
+    const first = slots?.[0]?.slotKey || '';
+    return first.endsWith('_am') ? 0 : first.endsWith('_pm') ? 1 : 2;
+  };
+  return Array.from(driverMap.values()).sort((a, b) => {
+    const amPmDiff = slotOrder(a.slots) - slotOrder(b.slots);
+    if (amPmDiff !== 0) return amPmDiff;
+    return (a.driver.user_name || '').localeCompare(b.driver.user_name || '');
+  });
+}
+
+export default function SidebarUserFooter({
+  currentUser,
+  users,
+  appUsers,
+  unreadMessageCount = 0,
+  onOpenMessaging,
+  onOpenInviteQR,
+  stores,
+  filteredDeliveries
+}) {
+  const [selectedDriverId, setSelectedDriverId] = useState(() => globalFilters.getSelectedDriverId() || 'all');
+  const [selectedDateStr, setSelectedDateStr] = useState(() => globalFilters.getSelectedDate());
+
+  // Local today string (YYYY-MM-DD) — used to decide live vs avg badge
+  const localTodayStr = (() => {
+    const d = new Date();
+    const p = n => String(n).padStart(2,'0');
+    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+  })();
+  const isSelectedDateToday = !selectedDateStr || selectedDateStr === localTodayStr;
+  const [todayOverrides, setTodayOverrides] = useState([]);
+
+  useEffect(() => {
+    const unsubscribe = globalFilters.subscribe(() => {
+      setSelectedDriverId(globalFilters.getSelectedDriverId() || 'all');
+      setSelectedDateStr(globalFilters.getSelectedDate());
+    });
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    if (!currentUser?.app_roles?.includes('dispatcher')) return;
+    const _now = new Date();
+    const _p = n => String(n).padStart(2,'0');
+    const todayStr = `${_now.getFullYear()}-${_p(_now.getMonth()+1)}-${_p(_now.getDate())}`;
+    base44.entities.DriverScheduleOverride.filter({ date: todayStr }).
+    then(setTodayOverrides).
+    catch(() => setTodayOverrides([]));
+  }, [currentUser]);
+
+  if (!currentUser) {
+    return (
+      <div className="border-t p-4 flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
+        <div className="space-y-2">
+          <div className="text-sm text-slate-500 mb-2">Not logged in</div>
+          <Button
+            onClick={async () => {
+              try {
+                sessionStorage.clear();
+                const currentUrl = window.location.origin + window.location.pathname;
+                await User.loginWithRedirect(currentUrl);
+              } catch (error) {
+                console.error('Login failed:', error);
+                window.location.href = '/';
+              }
+            }}
+            className="w-full gap-2 bg-emerald-500 hover:bg-emerald-600">
+            Log In
+          </Button>
+        </div>
+      </div>);
+  }
+
+  const selectedDate = selectedDateStr ? new Date(selectedDateStr + 'T00:00:00') : new Date();
+
+  const scheduledDrivers = buildScheduledDrivers(currentUser, stores, appUsers, todayOverrides, filteredDeliveries, selectedDateStr);
+
+  return (
+    <div className="px-2 flex-shrink-0 border-t" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
+      <div>
+
+        {scheduledDrivers.length > 0 &&
+        <div className="pr-2 pl-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wide mb-2" style={{ color: 'var(--text-slate-400)' }}>
+              {selectedDateStr === new Date().toISOString().slice(0, 10) ? "Today's Drivers" : "Route Drivers"}
+            </p>
+            <div className="space-y-2">
+              {scheduledDrivers.map(({ driver, deliveryCount, isAssigned }) => {
+              const driverId = driver.user_id || driver.id;
+
+              // Fridge deliveries for this driver+date scoped to dispatcher's stores
+              const dispatcherStoreIds = new Set(currentUser.store_ids || []);
+              const driverFridgeDeliveries = (filteredDeliveries || []).filter(
+                (d) => d?.driver_id === driverId &&
+                d?.delivery_date === selectedDateStr &&
+                d?.fridge_item === true &&
+                dispatcherStoreIds.has(d?.store_id)
+              );
+
+              // In-transit check: any fridge item still active
+              const hasFridgeInTransit = driverFridgeDeliveries.some((d) => d?.status === 'in_transit');
+
+              // All-done check: had fridge items but none left in_transit/pending
+              const activeStatuses = new Set(['pending', 'in_transit']);
+              const allFridgeDone = driverFridgeDeliveries.length > 0 &&
+              !driverFridgeDeliveries.some((d) => activeStatuses.has(d?.status));
+
+              // For avg badge: group by store — show one badge per store that's done
+              const fridgeStoreIds = [...new Set(driverFridgeDeliveries.map((d) => d.store_id).filter(Boolean))];
+
+              const driverName = driver.user_name || 'Driver';
+              const initial = driverName.charAt(0).toUpperCase();
+              const phone = driver.phone;
+              const bgGradient = isAssigned ?
+              'linear-gradient(135deg, #6366f1, #8b5cf6)' :
+              'linear-gradient(135deg, #94a3b8, #cbd5e1)';
+
+              return (
+                <div key={driver.user_id || driver.id} className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold"
+                  style={{ background: bgGradient }}>
+                      {initial}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap py-1">
+                        <p className="text-xs font-semibold truncate flex-1" style={{ color: 'var(--text-slate-800)' }}>{driverName}</p>
+
+                        {/* Live temp badge — while fridge items still in transit */}
+                        {hasFridgeInTransit &&
+                      <DispatcherTempBadge driverId={driverId} selectedDateStr={selectedDateStr} />
+                      }
+
+                        {/* Avg temp badge(s) — once all fridge items are done, one per store */}
+                        {allFridgeDone && fridgeStoreIds.map((storeId) =>
+                      <DispatcherAvgTempBadge
+                        key={storeId}
+                        driverId={driverId}
+                        selectedDateStr={selectedDateStr}
+                        fridgeDeliveries={driverFridgeDeliveries}
+                        storeId={storeId} />
+
+                      )}
+
+                        {isAssigned && deliveryCount > 0 &&
+                      <span className="text-[10px] font-semibold px-1.5 rounded-full bg-indigo-100 text-indigo-600 flex-shrink-0">Stops: {deliveryCount}</span>
+                      }
+                        {!isAssigned &&
+                      <span className="text-[10px] px-1 rounded-full bg-slate-100 text-slate-400 flex-shrink-0">Scheduled</span>
+                      }
+                      </div>
+                      {phone ?
+                    <a href={`tel:${phone}`} className="flex items-center gap-1 hover:text-slate-700 transition-colors text-xs" style={{ color: 'var(--text-slate-500)' }}>
+                            <Phone className="w-2.5 h-2.5" />
+                            {formatPhoneNumber(phone)}
+                          </a> :
+                    <p className="text-[10px]" style={{ color: 'var(--text-slate-400)' }}>No phone</p>
+                    }
+                    </div>
+                  </div>);
+
+            })}
+            </div>
+            <div className="mt-2 mb-1 border-t" style={{ borderColor: 'var(--border-slate-100)' }} />
+          </div>
+        }
+
+        <div className="rounded-lg flex items-center gap-3 px-2">
+
+          <div className="w-9 h-9 rounded-full flex items-center justify-center relative flex-shrink-0" style={{ background: getUserAvatarGradient(currentUser) }}>
+            <span className="text-white font-bold text-sm">{(getDriverDisplayName(currentUser) || 'U')?.charAt(0)}</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-sm truncate" style={{ color: 'var(--text-slate-900)' }}>
+              {getDriverDisplayName(currentUser)}
+            </p>
+            <p className="text-xs truncate capitalize" style={{ color: 'var(--text-slate-500)' }}>
+              {formatRoles(currentUser)}
+            </p>
+            {currentUser.phone &&
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+                <Phone className="w-3 h-3" />
+                <a href={`tel:${currentUser.phone}`} className="hover:text-slate-700 transition-colors text-xs">
+                  {formatPhoneNumber(currentUser.phone)}
+                </a>
+              </div>
+            }
+          </div>
+          <div className="flex flex-col items-center">
+            <button
+              onClick={onOpenMessaging} className="px-2 py-0 rounded-lg hover:bg-slate-100 transition-colors relative"
+              title="Messages">
+              <MessageCircle className="w-5 h-5 text-slate-500 hover:text-slate-700" fill={unreadMessageCount > 0 ? '#10b981' : 'none'} />
+              {unreadMessageCount > 0 &&
+              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-blue-500 text-xs font-bold rounded-full flex items-center justify-center px-1 border-2 border-white" style={{ color: '#ffffff' }}>
+                  {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
+                </span>
+              }
+            </button>
+            <button
+              onClick={onOpenInviteQR} className="px-2 py-0 rounded-lg hover:bg-slate-100 transition-colors"
+              title="Generate Invite QR Code">
+              <QrCode className="w-5 h-5 text-slate-500 hover:text-slate-700" />
+            </button>
+          </div>
+        </div>
+
+        {canShowExportRoute &&
+        <div className="mt-3">
+            <ExportRouteButton
+            currentUser={currentUser}
+            driverFilter={selectedDriverId}
+            selectedDate={selectedDate}
+            driverFilteredDeliveries={filteredDeliveries} />
+          </div>
+        }
+      </div>
+    </div>);
+
+}

@@ -1,0 +1,1121 @@
+import { createContext, useContext, useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { smartRefreshManager } from './smartRefreshManager';
+import { base44 } from '@/api/base44Client';
+import { shouldRefreshUserFromAppUser } from './appUserRefreshUtils';
+import { cityFilteredRealtimeSync } from './cityFilteredRealtimeSync';
+import { subscribeToRealtime } from './realtimeSync';
+import { ensurePolylineSubscription } from './hereRouting';
+import ImmediateNextDeliveryController from './ImmediateNextDeliveryController';
+import { globalFilters } from './globalFilters';
+import { seedHereApiKey, initHereApiKey } from './hereApiKeyStore';
+import { computeRouteStarted, persistRouteStarted, readPersistedRouteStarted } from './routeStartedFlag';
+
+const AppDataContext = createContext(null);
+
+export const AppDataProvider = ({ children, value }) => {
+  // ── RouteStarted flag ──────────────────────────────────────────────────────
+  // Keyed by "driverId::deliveryDate". Computed from in-memory deliveries and
+  // persisted to IDB so it survives OS-level memory pressure / app backgrounding.
+  const [routeStartedMap, setRouteStartedMap] = useState({}); // { "driverId::date": boolean }
+  const routeStartedMapRef = useRef({});
+
+  const setRouteStarted = useCallback((driverId, deliveryDate, flag) => {
+    if (!driverId || !deliveryDate) return;
+    const key = `${driverId}::${deliveryDate}`;
+    setRouteStartedMap((prev) => {
+      if (prev[key] === flag) return prev;
+      const next = { ...prev, [key]: flag };
+      routeStartedMapRef.current = next;
+      return next;
+    });
+    persistRouteStarted(driverId, deliveryDate, flag);
+  }, []);
+
+  /** Returns the RouteStarted flag for a given driver/date (defaults to false) */
+  const getRouteStarted = useCallback((driverId, deliveryDate) => {
+    if (!driverId || !deliveryDate) return false;
+    return routeStartedMapRef.current[`${driverId}::${deliveryDate}`] ?? false;
+  }, []);
+
+  // Track last WS delivery update time to prevent stale reconcile from overwriting
+  const lastDeliveryWsUpdateRef = useRef(0);
+  // Keep refs to mutable values so the subscription closure always has the latest
+  // without needing to re-subscribe on every render
+  const updateDeliveriesLocallyRef = useRef(value.updateDeliveriesLocally);
+  const updateAppUsersLocallyRef = useRef(value.updateAppUsersLocally);
+  const applyDeliveryChangesLocallyRef = useRef(value.applyDeliveryChangesLocally);
+  const applyAppUserChangesLocallyRef = useRef(value.applyAppUserChangesLocally);
+  const applyPatientChangesLocallyRef = useRef(value.applyPatientChangesLocally);
+  const deliveriesRef = useRef(value.deliveries);
+  const appUsersRef = useRef(value.appUsers);
+  const patientsRef = useRef(value.patients);
+  
+  // Track boot sync per city/date and syncing banner state
+  const bootKeyRef = useRef('');
+  const [isProgressiveSyncing, setIsProgressiveSyncing] = useState(false);
+  const realtimeBatchRef = useRef({
+    deliveries: { upserts: new Map(), deletes: new Set() },
+    appUsers: { upserts: new Map(), deletes: new Set() },
+    patients: { upserts: new Map(), deletes: new Set() }
+  });
+  const realtimeBatchTimerRef = useRef(null);
+
+  const flushRealtimeBatch = useCallback(async () => {
+    const batch = realtimeBatchRef.current;
+    const deliveryUpserts = Array.from(batch.deliveries.upserts.values());
+    const deliveryDeletes = Array.from(batch.deliveries.deletes.values());
+    const appUserUpserts = Array.from(batch.appUsers.upserts.values());
+    const appUserDeletes = Array.from(batch.appUsers.deletes.values());
+    const patientUpserts = Array.from(batch.patients.upserts.values());
+    const patientDeletes = Array.from(batch.patients.deletes.values());
+
+    if (!deliveryUpserts.length && !deliveryDeletes.length && !appUserUpserts.length && !appUserDeletes.length && !patientUpserts.length && !patientDeletes.length) {
+      return;
+    }
+
+    realtimeBatchRef.current = {
+      deliveries: { upserts: new Map(), deletes: new Set() },
+      appUsers: { upserts: new Map(), deletes: new Set() },
+      patients: { upserts: new Map(), deletes: new Set() }
+    };
+
+    const deliveryChanged = deliveryUpserts.length > 0 || deliveryDeletes.length > 0;
+    const appUsersChanged = appUserUpserts.length > 0 || appUserDeletes.length > 0;
+    const patientsChanged = patientUpserts.length > 0 || patientDeletes.length > 0;
+
+    let nextDeliveries = deliveriesRef.current || [];
+    let nextAppUsers = appUsersRef.current || [];
+    let nextPatients = patientsRef.current || [];
+
+    try {
+      const { offlineDB } = await import('./offlineDatabase');
+      await Promise.all([
+        deliveryUpserts.length ? offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveryUpserts) : Promise.resolve(),
+        appUserUpserts.length ? offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUserUpserts) : Promise.resolve(),
+        patientUpserts.length ? offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientUpserts) : Promise.resolve(),
+        ...deliveryDeletes.map((id) => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(() => null)),
+        ...appUserDeletes.map((id) => offlineDB.deleteRecord(offlineDB.STORES.APP_USERS, id).catch(() => null)),
+        ...patientDeletes.map((id) => offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, id).catch(() => null))
+      ]);
+
+      if (deliveryChanged) {
+        // CRITICAL: Read from window.__appDeliveries (synchronously updated by updateDeliveriesLocally)
+        // rather than deliveriesRef.current (which is updated by useEffect — async, after paint).
+        // This prevents the race where flushRealtimeBatch builds nextDeliveries from a stale
+        // snapshot that doesn't yet include the optimistic isNextDelivery patches from Step 2.
+        const currentDeliveries = (typeof window !== 'undefined' && Array.isArray(window.__appDeliveries) && window.__appDeliveries.length > 0)
+          ? window.__appDeliveries
+          : deliveriesRef.current || [];
+        const deleteSet = new Set(deliveryDeletes);
+        const currentById = new Map(currentDeliveries.filter(Boolean).map((item) => [item.id, item]));
+
+        // CRITICAL: Instead of reading the full offline DB (which may be stale relative to
+        // just-written optimistic state), ONLY merge the incoming WS upserts into the
+        // existing in-memory map. This avoids the IDB snapshot overwriting optimistic UI
+        // state for the completed delivery and adjacent stops.
+        deliveryUpserts.forEach((item) => {
+          if (!item?.id) return;
+          const inMemory = currentById.get(item.id);
+          // Preserve status optimistically (don't revert a locally-completed delivery)
+          // but NEVER preserve isNextDelivery — the backend is the authoritative source
+          // for which stop is "next" across the entire route. Preserving it locally causes
+          // duplicate "next delivery" markers when the old next is cleared by the server.
+          const preservedStatus = inMemory?.status === 'completed' && item.status !== 'completed'
+            ? inMemory.status
+            : item.status;
+          // Preserve cycling marker fields — real-time updates from other fields (e.g. ETA, status)
+          // often omit is_cycling_marker/cycling_lat/lng causing them to reset to null/false.
+          const preservedIsCyclingMarker = inMemory?.is_cycling_marker === true && !item.is_cycling_marker
+            ? true
+            : item.is_cycling_marker;
+          const preservedCyclingLatitude = (inMemory?.cycling_latitude && !item.cycling_latitude)
+            ? inMemory.cycling_latitude
+            : item.cycling_latitude;
+          const preservedCyclingLongitude = (inMemory?.cycling_longitude && !item.cycling_longitude)
+            ? inMemory.cycling_longitude
+            : item.cycling_longitude;
+          currentById.set(item.id, {
+            ...(inMemory || {}),
+            ...item,
+            status: preservedStatus,
+            is_cycling_marker: preservedIsCyclingMarker,
+            cycling_latitude: preservedCyclingLatitude,
+            cycling_longitude: preservedCyclingLongitude,
+          });
+        });
+        deleteSet.forEach((id) => currentById.delete(id));
+        nextDeliveries = Array.from(currentById.values());
+      }
+
+      if (patientsChanged) {
+        const offlinePatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+        const currentPatients = patientsRef.current || [];
+        const deleteSet = new Set(patientDeletes);
+        const patientById = new Map(currentPatients.filter(Boolean).map((item) => [item.id, item]));
+        (Array.isArray(offlinePatients) ? offlinePatients : []).forEach((item) => {
+          if (item?.id) patientById.set(item.id, item);
+        });
+        patientUpserts.forEach((item) => {
+          if (item?.id) patientById.set(item.id, item);
+        });
+        deleteSet.forEach((id) => patientById.delete(id));
+        nextPatients = Array.from(patientById.values());
+      }
+
+      if (appUsersChanged) {
+        const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+        const currentAppUsers = appUsersRef.current || [];
+        const deleteSet = new Set(appUserDeletes);
+        const appUserById = new Map(currentAppUsers.filter(Boolean).map((item) => [item.id, item]));
+        (Array.isArray(offlineAppUsers) ? offlineAppUsers : []).forEach((item) => {
+          if (item?.id) appUserById.set(item.id, item);
+        });
+        appUserUpserts.forEach((item) => {
+          if (item?.id) appUserById.set(item.id, item);
+        });
+        deleteSet.forEach((id) => appUserById.delete(id));
+        nextAppUsers = Array.from(appUserById.values());
+      }
+    } catch (error) {
+      console.warn('[AppDataContext] Realtime offline sync batch failed:', error.message);
+    }
+
+    if (deliveryChanged && !nextDeliveries.length && deliveriesRef.current?.length) {
+      const byId = new Map(deliveriesRef.current.filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id));
+      deliveryDeletes.forEach((id) => byId.delete(id));
+      deliveryUpserts.forEach((item) => {
+        if (item?.id) byId.set(item.id, item);
+      });
+      nextDeliveries = Array.from(byId.values());
+    }
+
+    if (appUsersChanged && !nextAppUsers.length && appUsersRef.current?.length) {
+      const ts = (item) => {
+        const value = item?.location_updated_at || item?.updated_date || item?.created_date;
+        return value ? new Date(value).getTime() : 0;
+      };
+
+      const byId = new Map(
+        appUsersRef.current
+          .filter((item) => item?.id && !appUserDeletes.includes(item.id))
+          .map((item) => [item.id, item])
+      );
+
+      appUserUpserts.forEach((item) => {
+        if (!item?.id) return;
+        const current = byId.get(item.id);
+        const coordsChanged = !!current && (
+          Number(current?.current_latitude) !== Number(item?.current_latitude) ||
+          Number(current?.current_longitude) !== Number(item?.current_longitude)
+        );
+        if (!current || coordsChanged || ts(item) >= ts(current)) {
+          byId.set(item.id, item);
+        }
+      });
+
+      nextAppUsers = Array.from(byId.values());
+    }
+
+    if (patientsChanged && !nextPatients.length && patientsRef.current?.length) {
+      const byId = new Map(patientsRef.current.filter(Boolean).map((item) => [item?.id, item]).filter(([id]) => !!id));
+      patientDeletes.forEach((id) => byId.delete(id));
+      patientUpserts.forEach((item) => {
+        if (item?.id) byId.set(item.id, item);
+      });
+      nextPatients = Array.from(byId.values());
+    }
+
+    if (deliveryChanged) {
+      const dedupedDeliveries = Array.from(new Map((nextDeliveries || []).filter(Boolean).map((item) => [item.id, item])).values());
+      if (applyDeliveryChangesLocallyRef.current) {
+        applyDeliveryChangesLocallyRef.current({ upserts: dedupedDeliveries, deleteIds: deliveryDeletes });
+      } else if (updateDeliveriesLocallyRef.current) {
+        updateDeliveriesLocallyRef.current(dedupedDeliveries, true);
+      }
+
+      if (typeof window !== 'undefined') {
+        const realtimeDate = deliveryUpserts[0]?.delivery_date || nextDeliveries[0]?.delivery_date;
+        const selectedDateDeliveries = realtimeDate
+          ? nextDeliveries.filter((item) => item?.delivery_date === realtimeDate)
+          : nextDeliveries;
+
+        window.dispatchEvent(new CustomEvent('deliveryUpdated', {
+          detail: {
+            delivery: deliveryUpserts.length === 1 ? deliveryUpserts[0] : null,
+            deliveries: selectedDateDeliveries,
+            deletedIds: deliveryDeletes,
+            deletedId: deliveryDeletes.length === 1 ? deliveryDeletes[0] : undefined,
+            type: deliveryDeletes.length > 0 && deliveryUpserts.length === 0 ? 'delete' : 'update',
+            source: 'realtime_sync',
+            fromRealtime: true,
+            fullReplacement: false,
+            preserveLocalState: true
+          }
+        }));
+      }
+    }
+
+    if (appUsersChanged) {
+      if (updateAppUsersLocallyRef.current) {
+        updateAppUsersLocallyRef.current(nextAppUsers, true);
+      } else if (applyAppUserChangesLocallyRef.current) {
+        applyAppUserChangesLocallyRef.current({ upserts: nextAppUsers, deleteIds: [] });
+      }
+    }
+
+    if (patientsChanged) {
+      if (value.updatePatientsLocally) {
+        value.updatePatientsLocally({ upserts: nextPatients, deleteIds: [] });
+      } else if (applyPatientChangesLocallyRef.current) {
+        applyPatientChangesLocallyRef.current({ upserts: nextPatients, deleteIds: [] });
+      }
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('patientsUpdated', {
+          detail: {
+            patients: nextPatients,
+            deletedIds: patientDeletes,
+            deletedId: patientDeletes.length === 1 ? patientDeletes[0] : undefined,
+            fromRealtime: true,
+            fullReplacement: true
+          }
+        }));
+      }
+    }
+
+    if (deliveryChanged) {
+      lastDeliveryWsUpdateRef.current = Date.now();
+      smartRefreshManager.notifyRealtimeDeliveryUpdate && smartRefreshManager.notifyRealtimeDeliveryUpdate();
+    }
+
+    if (appUsersChanged) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+          detail: { appUsers: nextAppUsers, singleUpdate: appUserUpserts.length === 1, fromRealtime: true, fullReplacement: true }
+        }));
+
+        if (appUserUpserts.length === 1) {
+          window.dispatchEvent(new CustomEvent('appUserUpdated', {
+            detail: { appUser: appUserUpserts[0], appUsers: nextAppUsers, fromRealtime: true, fullReplacement: true }
+          }));
+        } else if (appUserUpserts.length > 1) {
+          window.dispatchEvent(new CustomEvent('appUsersUpdated', {
+            detail: { appUsers: nextAppUsers, fromRealtime: true, fullReplacement: true }
+          }));
+        }
+      }
+
+      const currentUserUpdate = appUserUpserts.find((item) => item?.user_id === value.currentUser?.id);
+      const previousCurrentUserAppUser = currentUserUpdate
+        ? (appUsersRef.current || []).find((item) => item?.id === currentUserUpdate.id || item?.user_id === currentUserUpdate.user_id)
+        : null;
+      const deletedCurrentUser = appUserDeletes.some((id) => (
+        appUsersRef.current || []
+      ).some((item) => item?.id === id && item?.user_id === value.currentUser?.id));
+
+      if ((currentUserUpdate && shouldRefreshUserFromAppUser(previousCurrentUserAppUser, currentUserUpdate)) || deletedCurrentUser) {
+        value.refreshUser?.();
+      }
+
+      smartRefreshManager.notifyRealtimeUpdate('AppUser');
+    }
+
+    if (patientsChanged) {
+      smartRefreshManager.notifyRealtimeUpdate('Patient');
+    }
+  }, [value.currentUser?.id, value.refreshUser, value.updatePatientsLocally]);
+
+  const scheduleRealtimeEntityUpdate = useCallback((entityType, eventType, data) => {
+    const entityBatch = entityType === 'Delivery'
+      ? realtimeBatchRef.current.deliveries
+      : entityType === 'Patient'
+        ? realtimeBatchRef.current.patients
+        : realtimeBatchRef.current.appUsers;
+
+    const recordId = typeof data === 'string' ? data : data?.id;
+    if (!recordId) return;
+
+    if (eventType === 'delete') {
+      entityBatch.upserts.delete(recordId);
+      entityBatch.deletes.add(recordId);
+    } else {
+      entityBatch.deletes.delete(recordId);
+      entityBatch.upserts.set(recordId, data);
+    }
+
+    if (realtimeBatchTimerRef.current) {
+      clearTimeout(realtimeBatchTimerRef.current);
+    }
+
+    realtimeBatchTimerRef.current = setTimeout(() => {
+      realtimeBatchTimerRef.current = null;
+      flushRealtimeBatch();
+    }, 120);
+  }, [flushRealtimeBatch]);
+
+  // Keep refs in sync with latest values
+  useEffect(() => { updateDeliveriesLocallyRef.current = value.updateDeliveriesLocally; }, [value.updateDeliveriesLocally]);
+  useEffect(() => { updateAppUsersLocallyRef.current = value.updateAppUsersLocally; }, [value.updateAppUsersLocally]);
+  useEffect(() => { applyDeliveryChangesLocallyRef.current = value.applyDeliveryChangesLocally; }, [value.applyDeliveryChangesLocally]);
+  useEffect(() => { applyAppUserChangesLocallyRef.current = value.applyAppUserChangesLocally; }, [value.applyAppUserChangesLocally]);
+  useEffect(() => { applyPatientChangesLocallyRef.current = value.applyPatientChangesLocally; }, [value.applyPatientChangesLocally]);
+  useEffect(() => { deliveriesRef.current = value.deliveries; }, [value.deliveries]);
+  useEffect(() => { appUsersRef.current = value.appUsers; }, [value.appUsers]);
+  useEffect(() => { patientsRef.current = value.patients; }, [value.patients]);
+  // CRITICAL: Expose current deliveries to window so realtimeSync full-replacement guard
+  // can preserve optimistic isNextDelivery=true flags before backend confirms them.
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.__appDeliveries = value.deliveries;
+    }
+  }, [value.deliveries]);
+
+  // ── Recompute RouteStarted whenever deliveries change ─────────────────────
+  useEffect(() => {
+    const deliveries = value.deliveries;
+    if (!Array.isArray(deliveries) || deliveries.length === 0) return;
+
+    // Gather all unique driver/date combos in the current delivery set
+    const combos = new Map();
+    deliveries.forEach((d) => {
+      if (!d?.driver_id || !d?.delivery_date) return;
+      const key = `${d.driver_id}::${d.delivery_date}`;
+      if (!combos.has(key)) combos.set(key, { driverId: d.driver_id, deliveryDate: d.delivery_date });
+    });
+
+    combos.forEach(({ driverId, deliveryDate }) => {
+      const flag = computeRouteStarted(deliveries, driverId, deliveryDate);
+      const currentKey = `${driverId}::${deliveryDate}`;
+      if (routeStartedMapRef.current[currentKey] !== flag) {
+        setRouteStarted(driverId, deliveryDate, flag);
+      }
+    });
+  }, [value.deliveries, setRouteStarted]);
+
+  useEffect(() => {
+    const handleCityChanged = (event) => {
+      const nextCityId = event?.detail?.cityId || globalFilters.getSelectedCityId();
+      if (!nextCityId || nextCityId === 'all') return;
+
+      const cityStores = (value.stores || []).filter((store) => store?.city_id === nextCityId);
+      const cityStoreIds = new Set(cityStores.map((store) => store.id));
+      const selectedDate = value.selectedDate || globalFilters.getSelectedDate();
+
+      const filteredDeliveries = (deliveriesRef.current || []).filter((delivery) => {
+        if (!delivery || !cityStoreIds.has(delivery.store_id)) return false;
+        if (!selectedDate) return true;
+        return delivery.delivery_date === selectedDate;
+      });
+
+      const filteredPatients = (patientsRef.current || []).filter((patient) => patient && cityStoreIds.has(patient.store_id));
+      const filteredAppUsers = (appUsersRef.current || []).filter((appUser) => {
+        if (!appUser) return false;
+        const cityIds = Array.isArray(appUser.city_ids) ? appUser.city_ids : [];
+        return appUser.city_id === nextCityId || cityIds.includes(nextCityId);
+      });
+
+      if (updateDeliveriesLocallyRef.current) {
+        updateDeliveriesLocallyRef.current(filteredDeliveries, true);
+      }
+
+      if (value.applyPatientChangesLocally) {
+        const existingPatientIds = new Set((patientsRef.current || []).filter(Boolean).map((patient) => patient.id));
+        const nextPatientIds = new Set(filteredPatients.map((patient) => patient.id));
+        const deleteIds = Array.from(existingPatientIds).filter((id) => !nextPatientIds.has(id));
+        value.applyPatientChangesLocally({ upserts: filteredPatients, deleteIds });
+      } else if (value.updatePatientsLocally) {
+        value.updatePatientsLocally({ upserts: filteredPatients, deleteIds: [] });
+      } else if (applyPatientChangesLocallyRef.current) {
+        const existingPatientIds = new Set((patientsRef.current || []).filter(Boolean).map((patient) => patient.id));
+        const nextPatientIds = new Set(filteredPatients.map((patient) => patient.id));
+        const deleteIds = Array.from(existingPatientIds).filter((id) => !nextPatientIds.has(id));
+        applyPatientChangesLocallyRef.current({ upserts: filteredPatients, deleteIds });
+      }
+
+      if (updateAppUsersLocallyRef.current) {
+        updateAppUsersLocallyRef.current(filteredAppUsers, true);
+      }
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: {
+            freshDeliveries: filteredDeliveries,
+            preserveLocalState: true,
+            triggeredBy: 'cityChanged'
+          }
+        }));
+        window.dispatchEvent(new CustomEvent('patientsUpdated', {
+          detail: {
+            patients: filteredPatients,
+            preserveLocalState: true,
+            fullReplacement: true,
+            triggeredBy: 'cityChanged'
+          }
+        }));
+        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+          detail: {
+            appUsers: filteredAppUsers,
+            forceAll: true,
+            fullReplacement: true,
+            fromCityChange: true
+          }
+        }));
+        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+      }
+    };
+
+    window.addEventListener('cityChanged', handleCityChanged);
+    return () => window.removeEventListener('cityChanged', handleCityChanged);
+  }, [value.stores, value.selectedDate, value.updatePatientsLocally]);
+
+  useEffect(() => {
+    if (!value.currentUser) return;
+    ensurePolylineSubscription();
+    // Seed HERE API key from manifest data (window.__hereApiKey) or fetch it
+    const manifestKey = typeof window !== 'undefined' ? window.__hereApiKey : null;
+    if (manifestKey) {
+      seedHereApiKey(manifestKey);
+    } else {
+      initHereApiKey().catch(() => {});
+    }
+  }, [value.currentUser?.id]);
+
+  // CRITICAL: Set up city-filtered real-time subscriptions
+  useEffect(() => {
+    const resolveFilters = () => ({
+      selectedCityId: value.selectedCityId || (typeof window !== 'undefined' ? window.__appSelectedCityId : null) || localStorage.getItem('global_selected_city_id'),
+      selectedDate: value.selectedDate || (typeof window !== 'undefined' ? window.__appSelectedDate : null) || localStorage.getItem('global_selected_date')
+    });
+
+    const { selectedCityId, selectedDate } = resolveFilters();
+
+    if (!value.currentUser || !selectedCityId || !selectedDate) {
+      return;
+    }
+    
+    // Start real-time subscriptions
+    cityFilteredRealtimeSync.start(selectedCityId, selectedDate);
+
+    const handleRealtimeEvent = ({ entityType, entity, eventType, type, data, id }) => {
+      const resolvedEntityType = entityType || entity;
+      const resolvedEventType = eventType || type;
+      const payload = resolvedEventType === 'delete'
+        ? (typeof data === 'string' ? data : data?.id || id)
+        : data;
+
+      if (resolvedEntityType === 'Delivery') {
+        scheduleRealtimeEntityUpdate('Delivery', resolvedEventType, payload);
+        return;
+      }
+
+      if (resolvedEntityType === 'Patient') {
+        scheduleRealtimeEntityUpdate('Patient', resolvedEventType, payload);
+        return;
+      }
+
+      if (resolvedEntityType === 'AppUser') {
+        scheduleRealtimeEntityUpdate('AppUser', resolvedEventType, payload);
+      }
+    };
+
+    // Subscribe to both city-filtered websocket events and global local broadcasts
+    const unsubscribe = cityFilteredRealtimeSync.subscribe(handleRealtimeEvent);
+    const unsubscribeGlobalRealtime = subscribeToRealtime(handleRealtimeEvent);
+
+    const handleFiltersChanged = () => {
+      const { selectedCityId: nextCityId, selectedDate: nextDate } = resolveFilters();
+      if (!nextCityId || !nextDate) return;
+      cityFilteredRealtimeSync.updateFilters(nextCityId, nextDate);
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('globalFiltersChanged', handleFiltersChanged);
+      window.addEventListener('storage', handleFiltersChanged);
+    }
+
+    return () => {
+      unsubscribe();
+      unsubscribeGlobalRealtime();
+      cityFilteredRealtimeSync.stop();
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('globalFiltersChanged', handleFiltersChanged);
+        window.removeEventListener('storage', handleFiltersChanged);
+      }
+      if (realtimeBatchTimerRef.current) {
+        clearTimeout(realtimeBatchTimerRef.current);
+        realtimeBatchTimerRef.current = null;
+      }
+      flushRealtimeBatch();
+    };
+  // CRITICAL: Only re-subscribe when user/city/date changes - NOT on every delivery/appUser update
+  // Using refs above ensures callbacks always see latest data without triggering re-subscriptions
+  }, [value.currentUser?.id, value.selectedCityId, value.selectedDate]);
+  
+  // ── Seed RouteStarted from IDB on user+date boot (survives memory flush) ──
+  useEffect(() => {
+    const driverId = value.currentUser?.id;
+    const deliveryDate = value.selectedDate;
+    if (!driverId || !deliveryDate) return;
+
+    readPersistedRouteStarted(driverId, deliveryDate).then((persisted) => {
+      if (typeof persisted === 'boolean') {
+        const key = `${driverId}::${deliveryDate}`;
+        if (routeStartedMapRef.current[key] === undefined) {
+          setRouteStarted(driverId, deliveryDate, persisted);
+        }
+      }
+    });
+  }, [value.currentUser?.id, value.selectedDate, setRouteStarted]);
+
+  // Offline-first boot for selected date/city
+  useEffect(() => {
+    const selectedDate = value.selectedDate;
+    const selectedCityId = value.selectedCityId;
+    if (!value.currentUser || !selectedDate) return;
+
+    const key = `${selectedCityId || 'all'}|${selectedDate}`;
+    // Avoid rerunning for the same key during this session
+    if (bootKeyRef.current === key) return;
+    bootKeyRef.current = key;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        setIsProgressiveSyncing(true);
+        const { offlineDB } = await import('./offlineDatabase');
+        const deliveryScopeKey = `date:${selectedDate}`;
+
+        // 1) Load OFFLINE first in parallel
+        const [offlineDeliveries, offlineAppUsers, deliveryCache, appUsersCache] = await Promise.all([
+          offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDate),
+          offlineDB.getAll(offlineDB.STORES.APP_USERS).catch(() => []),
+          offlineDB.getCacheValidation('Delivery', {
+            scopeKey: deliveryScopeKey,
+            maxAgeMs: selectedDate === new Date().toISOString().split('T')[0] ? 60 * 1000 : 10 * 60 * 1000,
+            allowEmpty: true
+          }),
+          offlineDB.getCacheValidation('AppUser', {
+            scopeKey: 'global',
+            maxAgeMs: 10 * 60 * 1000,
+            minRecordCount: 1
+          })
+        ]);
+
+        if (cancelled) return;
+
+        if (Array.isArray(offlineDeliveries) && offlineDeliveries.length > 0 && value.updateDeliveriesLocally) {
+          value.updateDeliveriesLocally(offlineDeliveries, false);
+        }
+
+        if (Array.isArray(offlineAppUsers) && offlineAppUsers.length > 0) {
+          await wrappedUpdateAppUsersLocally(offlineAppUsers, false);
+        }
+
+        const shouldFetchDeliveries = !deliveryCache.isValid;
+        const shouldFetchAppUsers = !appUsersCache.isValid;
+
+        if (shouldFetchDeliveries || shouldFetchAppUsers) {
+          const [onlineDeliveries, onlineAppUsers] = await Promise.all([
+            shouldFetchDeliveries ? base44.entities.Delivery.filter({ delivery_date: selectedDate }).catch(() => []) : Promise.resolve(null),
+            shouldFetchAppUsers ? base44.entities.AppUser.list().catch(() => []) : Promise.resolve(null)
+          ]);
+
+          if (cancelled) return;
+
+          if (onlineDeliveries !== null) {
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, onlineDeliveries || []);
+            await offlineDB.updateCacheSnapshot('Delivery', onlineDeliveries || [], {
+              scopeKey: deliveryScopeKey,
+              syncType: 'startup_full'
+            });
+
+            value.updateDeliveriesLocally(onlineDeliveries || [], false);
+          }
+
+          if (onlineAppUsers !== null) {
+            await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, onlineAppUsers || []);
+            await offlineDB.updateCacheSnapshot('AppUser', onlineAppUsers || [], {
+              scopeKey: 'global',
+              syncType: 'startup_full'
+            });
+            await wrappedUpdateAppUsersLocally(onlineAppUsers || [], false);
+          }
+        }
+      } catch (e) {
+        console.warn('Offline-first boot failed (continuing):', e);
+      } finally {
+        if (!cancelled) setIsProgressiveSyncing(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  // Only react to these keys
+  }, [value.currentUser?.id, value.selectedCityId, value.selectedDate]);
+  
+  // Wrap updateDeliveriesLocally to register pending updates with driver/date context
+  const wrappedUpdateDeliveriesLocally = (updates, isFullReplacement = false) => {
+    if (value.updateDeliveriesLocally) {
+      // CRITICAL: Only register pending updates when NOT doing full replacement
+      if (!isFullReplacement && Array.isArray(updates)) {
+        updates.forEach(update => {
+          if (update && update.id) {
+            const driverId = update.driver_id || '';
+            const deliveryDate = update.delivery_date || '';
+            smartRefreshManager.registerPendingUpdate(update.id, driverId, deliveryDate);
+          }
+        });
+      }
+      
+      // Call the original function with isFullReplacement flag
+      value.updateDeliveriesLocally(updates, isFullReplacement);
+    }
+  };
+  
+  // CRITICAL: Direct data refresh for a specific driver and date (bypasses isEntityUpdating flag)
+  const forceRefreshDriverDeliveries = async (driverId, deliveryDate) => {
+    console.log(`🔄 [Force Refresh] Loading deliveries for driver ${driverId} on ${deliveryDate}...`);
+    
+    try {
+      // CRITICAL: Try offline DB FIRST to prevent rate limits
+      const { offlineDB } = await import('./offlineDatabase');
+      let freshDeliveriesForDriver = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, deliveryDate);
+      
+      if (freshDeliveriesForDriver && freshDeliveriesForDriver.length > 0) {
+        // Filter to specific driver from offline data
+        freshDeliveriesForDriver = freshDeliveriesForDriver.filter(d => d.driver_id === driverId);
+        console.log(`✅ [Force Refresh] Got ${freshDeliveriesForDriver.length} deliveries from offline DB`);
+      } else {
+        // Fallback to API only if offline DB is empty
+        console.log('📥 [Force Refresh] Offline DB empty - fetching from API');
+        freshDeliveriesForDriver = await base44.entities.Delivery.filter({
+          driver_id: driverId,
+          delivery_date: deliveryDate
+        });
+        
+        // CRITICAL: Always save to offline DB immediately after API fetch
+        if (freshDeliveriesForDriver && freshDeliveriesForDriver.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveriesForDriver);
+          console.log(`💾 [Force Refresh] Saved ${freshDeliveriesForDriver.length} deliveries to offline DB`);
+        }
+      }
+
+      // CRITICAL: Before applying IDB data to state, merge it with the current in-memory
+      // snapshot and respect completionLockout. IDB may be mid-write during an in-flight
+      // complete/fail/cancel action — applying it raw would overwrite optimistic isNextDelivery
+      // and status values that the UI already shows correctly.
+      // Strategy: for each delivery, if a completion lock is active, prefer the in-memory value
+      // for the locked fields over whatever IDB returned.
+      try {
+        const { applyRealtimeMergeWithLockout } = await import('./completionLockout');
+        const inMemoryMap = new Map(
+          (Array.isArray(window.__appDeliveries) ? window.__appDeliveries : deliveriesRef.current || [])
+            .filter(Boolean)
+            .map((d) => [d.id, d])
+        );
+        freshDeliveriesForDriver = freshDeliveriesForDriver.map((idbRecord) => {
+          if (!idbRecord?.id) return idbRecord;
+          const inMemory = inMemoryMap.get(idbRecord.id);
+          if (!inMemory) return idbRecord;
+          // applyRealtimeMergeWithLockout returns idbRecord unchanged if no lock is active
+          return applyRealtimeMergeWithLockout(idbRecord.id, idbRecord, inMemory);
+        });
+      } catch (_lockErr) {
+        // Non-critical — proceed with raw IDB data if lockout import fails
+      }
+      
+      // CRITICAL: Apply as a merge (never full replacement) so other drivers' stops
+      // are never wiped from the UI by a single-driver refresh.
+      if (value.applyDeliveryChangesLocally) {
+        value.applyDeliveryChangesLocally({ upserts: freshDeliveriesForDriver, deleteIds: [] });
+        console.log(`✅ [Force Refresh] Updated context with merge-safe deliveries for driver ${driverId}`);
+      } else if (value.updateDeliveriesLocally) {
+        value.updateDeliveriesLocally(freshDeliveriesForDriver, false);
+        console.log(`✅ [Force Refresh] Updated context with merge-safe deliveries for driver ${driverId}`);
+      }
+      
+      return freshDeliveriesForDriver;
+    } catch (error) {
+      console.error('❌ [Force Refresh] Failed to load deliveries:', error);
+      throw error;
+    }
+  };
+  
+  // Merge-safe AppUsers updater: prefers newer location_updated_at to prevent stale offline overwrites
+  const wrappedUpdateAppUsersLocally = async (incoming, isFullReplacement = false) => {
+    const incomingList = Array.isArray(incoming) ? incoming.filter(Boolean) : [];
+    const existing = appUsersRef.current || [];
+
+    // Build map of existing by id
+    const byId = new Map(existing.map(u => [u?.id, u]).filter(([id]) => !!id));
+
+    const ts = (u) => {
+      const t = u?.location_updated_at || u?.updated_date || u?.created_date;
+      return t ? new Date(t).getTime() : 0;
+    };
+
+    const acceptedForOffline = [];
+
+    // Merge incoming into map using last-write-wins on timestamp
+    for (const u of incomingList) {
+      if (!u || !u.id) continue;
+      const cur = byId.get(u.id);
+      if (!cur) {
+        byId.set(u.id, u);
+        acceptedForOffline.push(u);
+      } else {
+        const newer = ts(u) >= ts(cur) ? u : cur;
+        byId.set(u.id, newer);
+        if (newer === u) acceptedForOffline.push(u);
+      }
+    }
+
+    // If full replacement requested, include any incoming-only ids already handled above.
+    const merged = Array.from(byId.values());
+
+    if (value.updateAppUsersLocally) {
+      // Always commit merged snapshot to prevent regressions
+      value.updateAppUsersLocally(merged, true);
+    }
+
+    // Dual-write: persist fresher incoming records to offline DB
+    if (acceptedForOffline.length > 0) {
+      try {
+        const { offlineDB } = await import('./offlineDatabase');
+        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, acceptedForOffline);
+      } catch (e) {
+        console.warn('[AppDataContext] Failed to persist AppUsers to offline DB:', e.message);
+      }
+    }
+  };
+  
+  // NEW: Ensure patients for selected date/city are synced locally (Pull to Sync + dashboard refresh)
+  const patientSyncStateRef = useRef({ key: '', inProgress: false, lastRunAt: 0 });
+
+  const ensurePatientsForSelectedDate = useCallback(async () => {
+    try {
+      const selectedDate = value.selectedDate;
+      const selectedCityId = value.selectedCityId;
+      if (!selectedDate || !selectedCityId) return;
+
+      const key = `${selectedCityId}|${selectedDate}`;
+      const now = Date.now();
+      if (patientSyncStateRef.current.inProgress) return;
+      if (patientSyncStateRef.current.key === key && now - patientSyncStateRef.current.lastRunAt < 15000) return;
+
+      patientSyncStateRef.current = { key, inProgress: true, lastRunAt: now };
+
+      const { offlineDB } = await import('./offlineDatabase');
+
+      // Load stores for selected city (offline first, then API fallback)
+      let cityStores = await offlineDB.getByIndex(offlineDB.STORES.STORES, 'city_id', selectedCityId);
+      if (!cityStores || cityStores.length === 0) {
+        cityStores = await base44.entities.Store.filter({ city_id: selectedCityId });
+        if (cityStores?.length) await offlineDB.bulkSave(offlineDB.STORES.STORES, cityStores);
+      }
+      const storeIds = new Set((cityStores || []).map(s => s.id));
+
+      // Get deliveries for selected date (prefer in-memory, else offline)
+      let deliveriesForDate = (deliveriesRef.current || []).filter(d => d?.delivery_date === selectedDate);
+      if (!deliveriesForDate || deliveriesForDate.length === 0) {
+        deliveriesForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDate);
+      }
+
+      // Patient IDs needed for stops whose store is in the selected city
+      const patientIdsNeeded = Array.from(new Set(
+        (deliveriesForDate || [])
+          .filter(d => d?.patient_id && storeIds.has(d?.store_id))
+          .map(d => d.patient_id)
+      ));
+
+      if (patientIdsNeeded.length === 0) {
+        patientSyncStateRef.current.inProgress = false;
+        return;
+      }
+
+      // Always refresh the patients needed for the selected date so coordinate edits sync too
+      const fetched = [];
+      const BATCH = 10;
+      for (let i = 0; i < patientIdsNeeded.length; i += BATCH) {
+        const chunk = patientIdsNeeded.slice(i, i + BATCH);
+        const chunkResults = await Promise.all(
+          chunk.map(async (pid) => {
+            const res = await base44.entities.Patient.filter({ id: pid });
+            return Array.isArray(res) && res.length > 0 ? res[0] : null;
+          })
+        );
+        fetched.push(...chunkResults.filter(Boolean));
+      }
+
+      if (fetched.length > 0) {
+        await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, fetched);
+        
+        // CRITICAL: Push fetched patients directly into React state via updatePatientsLocally
+        // This ensures the UI updates without requiring a full page refresh
+        if (value.updatePatientsLocally) {
+          value.updatePatientsLocally({ upserts: fetched, deleteIds: [] });
+        } else if (applyPatientChangesLocallyRef.current) {
+          applyPatientChangesLocallyRef.current({ upserts: fetched, deleteIds: [] });
+        }
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('patientsUpdated', {
+            detail: { count: fetched.length, selectedDate, selectedCityId, patients: fetched, preserveLocalState: true }
+          }));
+        }
+      }
+
+    } catch (e) {
+      console.warn('[AppDataContext] ensurePatientsForSelectedDate failed:', e?.message || e);
+    } finally {
+      patientSyncStateRef.current.inProgress = false;
+      patientSyncStateRef.current.lastRunAt = Date.now();
+    }
+  }, [value.selectedCityId, value.selectedDate, value.updatePatientsLocally]);
+
+  // Trigger on dashboard refresh/boot
+  useEffect(() => {
+    ensurePatientsForSelectedDate();
+  }, [ensurePatientsForSelectedDate]);
+
+  // Trigger after Pull to Sync and general deliveries refresh events
+  useEffect(() => {
+    const onDeliveriesUpdated = (e) => {
+      const { triggeredBy, source } = (e && e.detail) || {};
+      if (
+        triggeredBy === 'pullToSyncComplete' ||
+        triggeredBy === 'manualRefresh' ||
+        triggeredBy === 'periodicRefresh' ||
+        triggeredBy === 'route_importer' ||
+        triggeredBy === 'dateChange' ||
+        source === 'realtime_sync'
+      ) {
+        ensurePatientsForSelectedDate();
+      }
+    };
+
+    const onPullToSyncDataReady = async (e) => {
+      const { deliveries = [], appUsers = [], patients = [], deliveryDate, preserveLocalState } = (e && e.detail) || {};
+      if (!preserveLocalState) return;
+
+      try {
+        if (Array.isArray(deliveries) && deliveries.length > 0) {
+          const currentDate = value.selectedDate || deliveryDate;
+          const existing = deliveriesRef.current || [];
+          const otherDates = currentDate ? existing.filter((item) => item?.delivery_date !== currentDate) : existing;
+          const merged = [...otherDates, ...deliveries.filter(Boolean)];
+          if (applyDeliveryChangesLocallyRef.current) {
+            applyDeliveryChangesLocallyRef.current({ upserts: deliveries, deleteIds: [] });
+          } else if (updateDeliveriesLocallyRef.current) {
+            updateDeliveriesLocallyRef.current(merged, true);
+          }
+        }
+
+        if (Array.isArray(appUsers) && appUsers.length > 0) {
+          await wrappedUpdateAppUsersLocally(appUsers, true);
+        }
+
+        if (Array.isArray(patients) && patients.length > 0) {
+          if (value.updatePatientsLocally) {
+            value.updatePatientsLocally({ upserts: patients, deleteIds: [] });
+          } else if (applyPatientChangesLocallyRef.current) {
+            applyPatientChangesLocallyRef.current({ upserts: patients, deleteIds: [] });
+          }
+        }
+
+        if (typeof window !== 'undefined') {
+          if (appUsers.length > 0) {
+            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+              detail: { appUsers, forceAll: true, fromPullToSync: true }
+            }));
+          }
+          if (patients.length > 0) {
+            window.dispatchEvent(new CustomEvent('patientsUpdated', {
+              detail: { patients, fromPullToSync: true, fullReplacement: false }
+            }));
+          }
+          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+        }
+      } finally {
+        ensurePatientsForSelectedDate();
+      }
+    };
+
+    const onPullToSyncComplete = () => ensurePatientsForSelectedDate();
+
+    window.addEventListener('deliveriesUpdated', onDeliveriesUpdated);
+    window.addEventListener('pullToSyncDataReady', onPullToSyncDataReady);
+    window.addEventListener('pullToSyncComplete', onPullToSyncComplete);
+    return () => {
+      window.removeEventListener('deliveriesUpdated', onDeliveriesUpdated);
+      window.removeEventListener('pullToSyncDataReady', onPullToSyncDataReady);
+      window.removeEventListener('pullToSyncComplete', onPullToSyncComplete);
+    };
+  }, [ensurePatientsForSelectedDate, value.selectedDate, value.updatePatientsLocally]);
+
+  // ── Background-resume IDB refresh ─────────────────────────────────────────
+  const lastVisibleAtRef = useRef(Date.now());
+  const bgRefreshInProgressRef = useRef(false);
+
+  useEffect(() => {
+    const BACKGROUND_THRESHOLD_MS = 2 * 60 * 1000;
+
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'hidden') {
+        lastVisibleAtRef.current = Date.now();
+        return;
+      }
+
+      const hiddenMs = Date.now() - lastVisibleAtRef.current;
+      if (hiddenMs < BACKGROUND_THRESHOLD_MS) return;
+      if (bgRefreshInProgressRef.current) return;
+
+      const selectedDate = globalFilters.getSelectedDate();
+      if (!selectedDate) return;
+
+      bgRefreshInProgressRef.current = true;
+      console.log(`[AppDataContext] App resumed after ${Math.round(hiddenMs / 1000)}s — refreshing cache from IDB`);
+
+      try {
+        const { offlineDB } = await import('./offlineDatabase');
+
+        const [idbDeliveries, idbPatients, idbStores, idbAppUsers] = await Promise.all([
+          offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDate).catch(() => []),
+          offlineDB.getAll(offlineDB.STORES.PATIENTS).catch(() => []),
+          offlineDB.getAll(offlineDB.STORES.STORES).catch(() => []),
+          offlineDB.getAll(offlineDB.STORES.APP_USERS).catch(() => []),
+        ]);
+
+        if (Array.isArray(idbDeliveries) && idbDeliveries.length > 0) {
+          if (applyDeliveryChangesLocallyRef.current) {
+            applyDeliveryChangesLocallyRef.current({ upserts: idbDeliveries, deleteIds: [] });
+          } else if (updateDeliveriesLocallyRef.current) {
+            updateDeliveriesLocallyRef.current(idbDeliveries, false);
+          }
+        }
+
+        if (Array.isArray(idbPatients) && idbPatients.length > 0) {
+          if (value.updatePatientsLocally) {
+            value.updatePatientsLocally({ upserts: idbPatients, deleteIds: [] });
+          } else if (applyPatientChangesLocallyRef.current) {
+            applyPatientChangesLocallyRef.current({ upserts: idbPatients, deleteIds: [] });
+          }
+        }
+
+        if (Array.isArray(idbAppUsers) && idbAppUsers.length > 0) {
+          await wrappedUpdateAppUsersLocally(idbAppUsers, false);
+        }
+
+        if (typeof window !== 'undefined') {
+          if (idbDeliveries?.length) {
+            window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+              detail: { freshDeliveries: idbDeliveries, triggeredBy: 'backgroundResume', preserveLocalState: true }
+            }));
+          }
+          if (idbPatients?.length) {
+            window.dispatchEvent(new CustomEvent('patientsUpdated', {
+              detail: { patients: idbPatients, fromBackground: true, fullReplacement: false }
+            }));
+          }
+          if (idbAppUsers?.length) {
+            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+              detail: { appUsers: idbAppUsers, fromBackground: true, fullReplacement: true }
+            }));
+          }
+          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+        }
+
+        console.log(`[AppDataContext] Background resume refresh complete — D:${idbDeliveries?.length} P:${idbPatients?.length} AU:${idbAppUsers?.length}`);
+      } catch (e) {
+        console.warn('[AppDataContext] Background resume refresh failed:', e?.message || e);
+      } finally {
+        bgRefreshInProgressRef.current = false;
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [value.currentUser?.id, value.updatePatientsLocally]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const wrappedValue = useMemo(() => ({
+    ...value,
+    selectedCityId: value.selectedCityId || globalFilters.getSelectedCityId(),
+    selectedDate: value.selectedDate || globalFilters.getSelectedDate(),
+    updateDeliveriesLocally: wrappedUpdateDeliveriesLocally,
+    updateAppUsersLocally: wrappedUpdateAppUsersLocally,
+    updatePatientsLocally: value.updatePatientsLocally,
+    forceRefreshDriverDeliveries,
+    onSelectedDateDataReady: value.onSelectedDateDataReady,
+    setOnSelectedDateDataReady: value.setOnSelectedDateDataReady,
+    // RouteStarted flag API
+    routeStartedMap,
+    getRouteStarted,
+    setRouteStarted,
+    // Persisted FAB map phase
+    initialFabPhase: value.initialFabPhase ?? 1,
+  }), [
+    value,
+    wrappedUpdateDeliveriesLocally,
+    wrappedUpdateAppUsersLocally,
+    value.updatePatientsLocally,
+    forceRefreshDriverDeliveries,
+    routeStartedMap,
+    getRouteStarted,
+    setRouteStarted,
+  ]);
+
+  useEffect(() => {
+    const handleDemoModeChanged = () => {
+      value.refreshData?.(true);
+    };
+    window.addEventListener('demoModeChanged', handleDemoModeChanged);
+    return () => window.removeEventListener('demoModeChanged', handleDemoModeChanged);
+  }, [value.refreshData]);
+  
+  return (
+    <AppDataContext.Provider value={wrappedValue}>
+      {isProgressiveSyncing && (
+        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[9999] rounded-full bg-slate-900/90 text-white text-xs px-3 py-1 shadow">
+          Syncing…
+        </div>
+      )}
+      <ImmediateNextDeliveryController />
+      {children}
+    </AppDataContext.Provider>
+  );
+};
+
+export const useAppData = () => {
+  const context = useContext(AppDataContext);
+  if (!context) {
+    return {
+      deliveries: [],
+      patients: [],
+      stores: [],
+      drivers: [],
+      users: [],
+      appUsers: [],
+      cities: [],
+      isDataLoaded: false,
+      refreshData: () => {},
+      updateDeliveriesLocally: () => {},
+      updateAppUsersLocally: () => {},
+      applyDeliveryChangesLocally: () => {},
+      applyAppUserChangesLocally: () => {},
+      applyPatientChangesLocally: () => {},
+      forceRefreshDriverDeliveries: async () => {},
+      isFormOverlayOpen: false,
+      setIsFormOverlayOpen: () => {},
+      isEntityUpdating: false,
+      setIsEntityUpdating: () => {},
+      onSmartRefreshComplete: null,
+      setOnSmartRefreshComplete: () => {},
+      routeStartedMap: {},
+      getRouteStarted: () => false,
+      setRouteStarted: () => {},
+      initialFabPhase: 1,
+    };
+  }
+  return context;
+};
+
+export { AppDataContext };

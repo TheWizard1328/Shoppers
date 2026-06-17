@@ -1,0 +1,468 @@
+import React, { useMemo } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Table, DollarSign, Route } from 'lucide-react';
+
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/**
+ * Monthly Store Metrics Grid
+ * Shows either:
+ * 1. Total deliveries per store per month
+ * 2. Total payable app fees per store per month
+ */
+function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onStoreMonthClick, selectedMonth, selectedStoreMonth, onResetView, onViewModeChange, metricsViewMode, showEnvelopeAdjustedTotals, onEnvelopeToggleChange, selectedDriverId }) {
+
+  const rawMonthlyStoreData = metricsData?.monthlyStoreData || {};
+  const monthlyStoreFees = metricsData.monthlyStoreFees || {};
+  const monthlyStoreExtraKm = metricsData?.monthlyStoreExtraKm || {};
+
+  // When a driver is selected, rebuild monthlyStoreData from driverStoreByMonth (exact per-store-per-month-per-driver counts)
+  const monthlyStoreData = useMemo(() => {
+    if (!selectedDriverId || selectedDriverId === 'all') return rawMonthlyStoreData;
+
+    const driverStoreByMonth = metricsData?.driverStoreByMonth || {};
+
+    const result = {};
+    for (let m = 1; m <= 12; m++) {
+      const driverStores = driverStoreByMonth[m]?.[selectedDriverId] || {};
+      result[m] = Object.values(driverStores).filter((s) => (s.completed || 0) + (s.failed || 0) + (s.afterHours || 0) > 0);
+    }
+    return result;
+  }, [rawMonthlyStoreData, metricsData, selectedDriverId]);
+
+  // Default metricsViewMode if not provided
+  const viewMode = metricsViewMode || 'deliveries';
+  const isExtraKmMode = viewMode === 'extra_km';
+
+  const stores = useMemo(() => {
+    const storeMap = new Map();
+    for (let month = 1; month <= 12; month++) {
+      const monthData = monthlyStoreData[month] || [];
+      monthData.forEach((store) => {
+        if (store.abbreviation && !storeMap.has(store.abbreviation)) {
+          storeMap.set(store.abbreviation, store);
+        }
+      });
+    }
+    return Array.from(storeMap.values()).sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity));
+  }, [monthlyStoreData]);
+
+  // Helper to get store ID by abbreviation and month
+  const getStoreId = (storeAbbr, month) => {
+    const monthData = monthlyStoreData[month] || [];
+    const storeData = monthData.find((s) => s.abbreviation === storeAbbr);
+    return storeData?.storeId || storeData?.id || null;
+  };
+
+  const isFeePayingStoreMonth = (storeAbbr, month) => {
+    const monthData = monthlyStoreData[month] || [];
+    const storeData = monthData.find((s) => s.abbreviation === storeAbbr);
+    const fallback = (monthlyStoreFees[month] || []).find((s) => s.abbreviation === storeAbbr || s.storeAbbr === storeAbbr);
+    const fees = storeData?.fees ?? fallback?.fees ?? fallback?.total_fees ?? 0;
+    return viewMode === 'deliveries' && fees > 0;
+  };
+
+  const hasExtraKmForStoreMonth = (storeAbbr, month) => {
+    const monthData = monthlyStoreData[month] || [];
+    const storeData = monthData.find((s) => s.abbreviation === storeAbbr);
+    const fallback = (monthlyStoreExtraKm[month] || []).find((s) => s.abbreviation === storeAbbr || s.storeAbbr === storeAbbr);
+    const extraKm = storeData?.extra_km ?? fallback?.extra_km ?? fallback?.extraKm ?? fallback?.total_extra_km ?? 0;
+    return extraKm > 0;
+  };
+
+  const getCompletedMonthsCount = () => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    const targetYear = parseInt(selectedYear, 10);
+
+    if (targetYear < currentYear) return 12;
+    if (targetYear > currentYear) return 0;
+    return currentMonth; // include current month
+  };
+
+  // Calculate totals and averages per store (yearly)
+  const calculateStoreTotals = () => {
+    const totals = {};
+    const completedTotals = {};
+    const counts = {};
+    const completedMonthsCount = getCompletedMonthsCount();
+
+    stores.forEach((store) => {
+      totals[store.abbreviation] = 0;
+      completedTotals[store.abbreviation] = 0;
+      counts[store.abbreviation] = 0;
+    });
+
+    // Sum up all months
+    for (let month = 1; month <= 12; month++) {
+      const monthData = monthlyStoreData[month] || [];
+      monthData.forEach((storeData) => {
+        if (totals[storeData.abbreviation] !== undefined) {
+          let value;
+          if (metricsViewMode === 'deliveries') {
+            const totalDeliveries = (storeData.completed || 0) + (storeData.failed || 0) + (storeData.afterHours || 0);
+            const envelopeInfo = metricsData.envelopeMetrics?.byStoreAndMonth?.[storeData.storeId]?.[month];
+            const envelopeAdjustment = showEnvelopeAdjustedTotals && envelopeInfo?.totalEnvelopeValue > 0 ?
+            envelopeInfo.totalEnvelopeValue - envelopeInfo.envelopeDeliveriesCount :
+            0;
+            value = totalDeliveries + envelopeAdjustment;
+          } else if (metricsViewMode === 'fees') {
+            const fallback = (monthlyStoreFees[month] || []).find((s) => s.abbreviation === storeData.abbreviation || s.storeAbbr === storeData.abbreviation);
+            value = storeData.fees ?? fallback?.fees ?? fallback?.total_fees ?? 0;
+          } else {
+            const fallback = (monthlyStoreExtraKm[month] || []).find((s) => s.abbreviation === storeData.abbreviation || s.storeAbbr === storeData.abbreviation);
+            value = storeData.extra_km ?? fallback?.extra_km ?? fallback?.extraKm ?? fallback?.total_extra_km ?? 0;
+          }
+          totals[storeData.abbreviation] += value;
+          if (month <= completedMonthsCount) {
+            completedTotals[storeData.abbreviation] += value;
+          }
+          if (value > 0) counts[storeData.abbreviation]++;
+        }
+      });
+    }
+
+    return { totals, completedTotals, counts };
+  };
+
+  const { totals, completedTotals, counts, grandTotal, completedGrandTotal } = useMemo(() => {
+    const totalsResult = calculateStoreTotals();
+    return {
+      ...totalsResult,
+      grandTotal: Object.values(totalsResult.totals).reduce((sum, val) => sum + val, 0),
+      completedGrandTotal: Object.values(totalsResult.completedTotals).reduce((sum, val) => sum + val, 0)
+    };
+  }, [stores, monthlyStoreData, monthlyStoreFees, monthlyStoreExtraKm, metricsViewMode, metricsData.envelopeMetrics, showEnvelopeAdjustedTotals, selectedYear]);
+
+  // Calculate monthly totals (row totals)
+  const getMonthTotal = (month) => {
+    const monthData = monthlyStoreData[month] || [];
+    return monthData.reduce((sum, store) => {
+      let value;
+      if (metricsViewMode === 'deliveries') {
+        const totalDeliveries = (store.completed || 0) + (store.failed || 0) + (store.afterHours || 0);
+        const envelopeInfo = metricsData.envelopeMetrics?.byStoreAndMonth?.[store.storeId]?.[month];
+        const envelopeAdjustment = showEnvelopeAdjustedTotals && envelopeInfo?.totalEnvelopeValue > 0 ?
+        envelopeInfo.totalEnvelopeValue - envelopeInfo.envelopeDeliveriesCount :
+        0;
+        value = totalDeliveries + envelopeAdjustment;
+      } else if (metricsViewMode === 'fees') {
+        const fallback = (monthlyStoreFees[month] || []).find((s) => s.abbreviation === store.abbreviation || s.storeAbbr === store.abbreviation);
+        value = store.fees ?? fallback?.fees ?? fallback?.total_fees ?? 0;
+      } else {
+        const fallback = (monthlyStoreExtraKm[month] || []).find((s) => s.abbreviation === store.abbreviation || s.storeAbbr === store.abbreviation);
+        value = store.extra_km ?? fallback?.extra_km ?? fallback?.extraKm ?? fallback?.total_extra_km ?? 0;
+      }
+      return sum + value;
+    }, 0);
+  };
+
+  // Get value for a specific store and month
+  const getValue = (storeAbbr, month) => {
+    const monthData = monthlyStoreData[month] || [];
+    const storeData = monthData.find((s) => s.abbreviation === storeAbbr);
+    if (!storeData) return null;
+
+    let value;
+    if (metricsViewMode === 'deliveries') {
+      const totalDeliveries = (storeData.completed || 0) + (storeData.afterHours || 0) + (storeData.failed || 0);
+
+      if (showEnvelopeAdjustedTotals) {
+        const envelopeInfo = metricsData.envelopeMetrics?.byStoreAndMonth?.[storeData.storeId]?.[month];
+        const envelopeAdjustment = envelopeInfo?.totalEnvelopeValue > 0 ?
+        envelopeInfo.totalEnvelopeValue - envelopeInfo.envelopeDeliveriesCount :
+        0;
+        value = totalDeliveries + envelopeAdjustment;
+      } else {
+        value = totalDeliveries;
+      }
+    } else if (metricsViewMode === 'fees') {
+      const fallback = (monthlyStoreFees[month] || []).find((s) => s.abbreviation === storeData.abbreviation || s.storeAbbr === storeData.abbreviation);
+      value = storeData.fees ?? fallback?.fees ?? fallback?.total_fees ?? 0;
+    } else {
+      const fallback = (monthlyStoreExtraKm[month] || []).find((s) => s.abbreviation === storeData.abbreviation || s.storeAbbr === storeData.abbreviation);
+      value = storeData.extra_km ?? fallback?.extra_km ?? fallback?.extraKm ?? fallback?.total_extra_km ?? 0;
+    }
+    return value;
+  };
+
+  const getStoreCompletedMonthsAverage = (store) => {
+    const completedMonthsCount = getCompletedMonthsCount();
+    if (completedMonthsCount === 0) return 0;
+
+    return (completedTotals[store.abbreviation] || 0) / completedMonthsCount;
+  };
+
+  const getMonthHighlightData = (month) => {
+    const monthValues = stores.
+    map((store) => ({
+      abbreviation: store.abbreviation,
+      value: getValue(store.abbreviation, month) || 0
+    })).
+    filter((item) => item.value > 0);
+
+    if (!monthValues.length) {
+      return { maxValue: 0, averagesByStore: {} };
+    }
+
+    const maxValue = Math.max(...monthValues.map((item) => item.value));
+    const averagesByStore = stores.reduce((acc, store) => {
+      acc[store.abbreviation] = getStoreCompletedMonthsAverage(store);
+      return acc;
+    }, {});
+
+    return { maxValue, averagesByStore };
+  };
+
+  // Format value based on view mode
+  const formatValue = (value, storeId = null, month = null, baseValue = null) => {
+    if (value === null || value === undefined) return '';
+    if (metricsViewMode === 'fees') {
+      return `$${value.toFixed(2)}`;
+    }
+    if (metricsViewMode === 'extra_km') {
+      return value % 1 === 0 ? value.toLocaleString() : value.toFixed(2);
+    }
+
+    // When toggle is OFF: show "deliveries(envelope)" like "74(34)"
+    // When toggle is ON: show combined adjusted total like "94"
+    if (!showEnvelopeAdjustedTotals && metricsViewMode === 'deliveries' && storeId && month && month !== 'yearTotal') {
+      const envelopeInfo = metricsData.envelopeMetrics?.byStoreAndMonth?.[storeId]?.[month];
+      if (envelopeInfo && envelopeInfo.totalEnvelopeValue > 0) {
+        // Show base deliveries with envelope count in brackets
+        return `${value.toLocaleString()}(${envelopeInfo.totalEnvelopeValue})`;
+      }
+    }
+
+    return value.toLocaleString();
+  };
+
+  // Get store color for header
+  const getStoreColor = (store) => {
+    return store.color || '#64748b';
+  };
+
+  const calculateCompletedMonthsAverage = (store) => {
+    const completedMonthsCount = getCompletedMonthsCount();
+    if (completedMonthsCount === 0) return 0;
+    return (completedTotals[store.abbreviation] || 0) / completedMonthsCount;
+  };
+
+  if (!metricsData) return null;
+
+  return (
+    <Card className="bg-card text-card-foreground rounded-xl border shadow flex min-h-0 flex-col max-h-[500px] lg:max-h-[500px] overflow-hidden">
+      <CardHeader className="px-4 py-2 flex flex-col space-y-1.5 shrink-0">
+        <p className="text-slate-500 text-xs">💡 Click a month row name to filter all charts, or click a store value to see day-by-day breakdown</p>
+        <p className="text-slate-500 text-xs">Green highlights show the top store value for that month, and yellow highlights show values above that store’s average for the month.</p>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <CardTitle className="flex items-center gap-2 text-base">
+            {metricsViewMode === 'deliveries' ?
+            <Table className="w-5 h-5" /> : metricsViewMode === 'fees' ?
+            <DollarSign className="w-5 h-5" /> :
+            <Route className="w-5 h-5" />
+            }
+            Monthly Store {metricsViewMode === 'deliveries' ? 'Deliveries' : metricsViewMode === 'fees' ? 'App Fees' : 'Extra KM'} ({selectedYear})
+          </CardTitle>
+          
+          <div className="flex w-full items-center justify-between gap-2 flex-nowrap md:w-auto md:justify-end">
+            {/* Centered Envelope Totals Toggle */}
+            {!isExtraKmMode && <div className="flex items-center space-x-2 shrink-0">
+              <Switch
+                id="envelope-totals-grid"
+                checked={showEnvelopeAdjustedTotals}
+                onCheckedChange={onEnvelopeToggleChange} />
+
+              <Label htmlFor="envelope-totals-grid" className="text-xs whitespace-nowrap">Envelope Totals</Label>
+            </div>}
+            
+            <div className="flex gap-2 shrink-0">
+              {(selectedMonth || selectedStoreMonth) &&
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onResetView?.()}
+                className="text-xs h-7 px-2">
+
+                  Reset View
+                </Button>
+              }
+              <Button
+                type="button"
+                size="sm"
+                variant={metricsViewMode === 'deliveries' ? 'default' : 'outline'}
+                onClick={() => onViewModeChange?.('deliveries')}
+                className="text-xs h-7 px-2">
+
+                Deliveries
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={metricsViewMode === 'extra_km' ? 'default' : 'outline'}
+                onClick={() => onViewModeChange?.('extra_km')}
+                className="text-xs h-7 px-2">
+
+                Extra KM
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={metricsViewMode === 'fees' ? 'default' : 'outline'}
+                onClick={() => onViewModeChange?.('fees')}
+                className="text-xs h-7 px-2">
+
+                App Fees
+              </Button>
+            </div>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="p-0 flex-1 overflow-hidden">
+        <div className="min-h-0 h-full overflow-auto">
+          <table className="w-full text-xs">
+            <thead className="sticky top-0 z-10 bg-slate-50">
+              <tr className="border-b bg-slate-50">
+                <th className="text-left px-1.5 py-0.5 font-medium text-slate-600 sticky left-0 bg-slate-50 z-10">Mon</th>
+                {stores.map((store) =>
+                <th
+                  key={store.abbreviation}
+                  className="text-center px-1 py-0.5 font-bold min-w-[38px]"
+                  style={{ color: getStoreColor(store) }}
+                  title={store.name}>
+
+                    {store.abbreviation}
+                  </th>
+                )}
+                <th className="text-center px-1 py-0.5 font-bold text-slate-900 border-l-2 border-purple-300 min-w-[45px]">Tot</th>
+              </tr>
+            </thead>
+            <tbody>
+              {MONTH_NAMES.map((monthName, idx) => {
+                const month = idx + 1;
+                const monthTotal = getMonthTotal(month);
+                const isMonthSelected = selectedMonth === month;
+                const { maxValue, averagesByStore } = getMonthHighlightData(month);
+                return (
+                  <tr key={month} className={`border-b hover:bg-slate-50 ${isMonthSelected ? 'bg-emerald-50' : ''}`}>
+                    <td
+                      className="px-1.5 py-0.5 font-medium sticky left-0 bg-white z-10 cursor-pointer hover:bg-emerald-100"
+                      style={{ color: isMonthSelected ? '#059669' : '#475569', backgroundColor: isMonthSelected ? '#d1fae5' : 'white' }}
+                      onClick={() => {
+                        // Allow filtering even if month total is 0/blank
+                        onMonthClick?.(isMonthSelected ? null : month);
+                      }}>
+
+                      {monthName}
+                    </td>
+                    {stores.map((store) => {
+                      const storeId = getStoreId(store.abbreviation, month);
+                      const value = getValue(store.abbreviation, month);
+                      const isStoreMonthSelected = selectedStoreMonth?.month === month && selectedStoreMonth?.storeId === storeId;
+
+                      // Leave blank if value is 0, null, or undefined
+                      const shouldShowBlank = value === null || value === undefined || value === 0;
+                      const storeAverage = averagesByStore[store.abbreviation] || 0;
+                      const isTopStoreForMonth = !shouldShowBlank && value === maxValue;
+                      const isAboveAverageForMonth = !shouldShowBlank && storeAverage > 0 && value > storeAverage && !isTopStoreForMonth;
+
+                      return (
+                        <td
+                          key={store.abbreviation}
+                          className={`text-center px-1 py-0.5 tabular-nums cursor-pointer hover:bg-blue-100 ${isStoreMonthSelected ? 'bg-blue-200' : ''} ${isFeePayingStoreMonth(store.abbreviation, month) || isExtraKmMode && hasExtraKmForStoreMonth(store.abbreviation, month) ? 'font-extrabold' : ''}`}
+                          style={{
+                            color: value !== null && value !== undefined && value > 0 ? getStoreColor(store) : '#94a3b8',
+                            backgroundColor: isTopStoreForMonth ? '#86efac' : isAboveAverageForMonth ? '#fde047' : undefined,
+                            boxShadow: isTopStoreForMonth || isAboveAverageForMonth ? 'inset 0 0 0 1px rgba(15,23,42,0.12)' : undefined
+                          }}
+                          onClick={() => {
+                            if (value !== null && value !== undefined && value > 0) {
+                              // Get the actual storeId from the store object, not from getStoreId
+                              const actualStoreId = store.storeId || storeId;
+                              if (actualStoreId) {
+                                onStoreMonthClick?.(month, actualStoreId, store.abbreviation, store.name);
+                              }
+                            }
+                          }}>
+
+                          {shouldShowBlank ? '' : formatValue(value, storeId, month)}
+                        </td>);
+
+                    })}
+                    <td className="text-center px-1 py-0.5 font-semibold text-slate-900 border-l-2 border-purple-300 tabular-nums">
+                      {monthTotal === 0 ? '' : formatValue(monthTotal)}
+                    </td>
+                  </tr>);
+
+              })}
+              {/* Totals Row */}
+              <tr className="border-t-2 border-slate-300 bg-slate-100 font-semibold">
+                <td className="px-1.5 py-0.5 text-slate-700 sticky left-0 bg-slate-100 z-10">Tot</td>
+                {stores.map((store) =>
+                <td
+                  key={store.abbreviation}
+                  className={`text-center px-1 py-0.5 tabular-nums ${Object.keys(monthlyStoreData).some((month) => isFeePayingStoreMonth(store.abbreviation, Number(month)) || isExtraKmMode && hasExtraKmForStoreMonth(store.abbreviation, Number(month))) ? 'font-extrabold' : ''}`}
+                  style={{ color: getStoreColor(store) }}>
+
+                    {formatValue(totals[store.abbreviation])}
+                  </td>
+                )}
+                <td className="text-center px-1 py-0.5 font-bold text-slate-900 border-l-2 border-purple-300 tabular-nums">
+                  {formatValue(grandTotal)}
+                </td>
+              </tr>
+              {/* Average Row - uses completed months only, matching the totals shown above */}
+              <tr className="bg-slate-50">
+                <td className="px-1.5 py-0.5 text-slate-600 sticky left-0 bg-slate-50 z-10">AVG</td>
+                {stores.map((store) => {
+                  const avg = calculateCompletedMonthsAverage(store);
+                  return (
+                    <td
+                      key={store.abbreviation}
+                      className="text-center px-1 py-0.5 tabular-nums text-slate-600">
+
+                      {avg > 0 ? formatValue(Math.round(avg)) : ''}
+                    </td>);
+
+                })}
+                <td className="text-center px-1 py-0.5 font-semibold text-slate-700 border-l-2 border-purple-300 tabular-nums">
+                  {(() => {
+                    const completedMonthsCount = getCompletedMonthsCount();
+                    const totalAvg = completedMonthsCount > 0 ? completedGrandTotal / completedMonthsCount : 0;
+                    return totalAvg > 0 ? formatValue(Math.round(totalAvg)) : '';
+                  })()}
+                </td>
+              </tr>
+              {/* Percentage Row (only for fees view) */}
+              {viewMode === 'fees' && grandTotal > 0 &&
+              <tr className="bg-slate-50 border-t">
+                  <td className="px-1.5 py-0.5 text-slate-600 sticky left-0 bg-slate-50 z-10">%</td>
+                  {stores.map((store) => {
+                  const pct = grandTotal > 0 ?
+                  totals[store.abbreviation] / grandTotal * 100 :
+                  0;
+                  return (
+                    <td
+                      key={store.abbreviation}
+                      className="text-center px-1 py-0.5 tabular-nums text-slate-500">
+
+                        {pct > 0 ? `${pct.toFixed(0)}%` : ''}
+                      </td>);
+
+                })}
+                  <td className="text-center px-1 py-0.5 text-slate-500 border-l-2 border-purple-300">100%</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>);
+
+}
+
+export default React.memo(MonthlyStoreMetricsGrid);

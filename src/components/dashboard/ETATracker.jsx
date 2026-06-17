@@ -1,0 +1,244 @@
+import React, { useEffect, useRef } from 'react';
+import { useDevice } from '@/components/utils/DeviceContext';
+import { base44 } from '@/api/base44Client';
+import calculateRealTimeETA from '@/functions/calculateRealTimeETA';
+
+import { userHasRole } from '../utils/userRoles';
+import { getCurrentEtaForDelivery } from '../utils/etaTrendBus';
+
+/**
+ * Background ETA tracking service
+ * ONLY runs on driver's mobile device - not on dispatchers or desktop
+ * Updates ETAs when:
+ * 1. Driver is in motion (location changed by >500m)
+ * 2. Driver is On Duty (paused when Off Duty or On Break)
+ */
+export default function ETATracker({ 
+  selectedDriverId, 
+  selectedDate, 
+  currentUser,
+  isActive = true,
+  onETAUpdate 
+}) {
+  const { isMobile } = useDevice();
+  const intervalRef = useRef(null);
+  const lastLocationRef = useRef(null);
+  const lastUpdateTimeRef = useRef(0);
+  const inFlightRef = useRef(false);
+  const lastInvokeRef = useRef(0);
+  const COOLDOWN_MS = 7000;
+
+  useEffect(() => {
+    // CRITICAL: Only run on driver's mobile device
+    const isDriver = currentUser && userHasRole(currentUser, 'driver');
+    const isCurrentDriver = currentUser && currentUser.id === selectedDriverId;
+    const isPrimary = typeof window !== 'undefined' ? window.__isPrimaryDevice === true : false;
+
+    if (!isMobile || !isDriver || !isCurrentDriver || !isPrimary) {
+      // Only log once when first skipping, not on every render
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      return;
+    }
+
+    // CRITICAL: Only run when driver is On Duty (pause when Off Duty or On Break)
+    if (currentUser.driver_status !== 'on_duty') {
+      console.log('⏸️ [ETATracker] Paused - driver not on duty (status:', currentUser.driver_status, ')');
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      return;
+    }
+
+    if (!isActive || !selectedDriverId || selectedDriverId === 'all' || !selectedDate) {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      return;
+    }
+
+    console.log('🕐 [ETATracker] Starting ETA tracking for driver:', selectedDriverId);
+
+    // Helper: Check if there are any in-transit deliveries
+    const hasInTransitDeliveries = async () => {
+      try {
+        const deliveries = await base44.entities.Delivery.filter({
+          driver_id: selectedDriverId,
+          delivery_date: selectedDate,
+          status: 'in_transit'
+        });
+        return deliveries && deliveries.length > 0;
+      } catch (error) {
+        console.error('Error checking in-transit deliveries:', error);
+        return false;
+      }
+    };
+
+    // Helper: Calculate distance between two coordinates (Haversine formula)
+    const calculateDistance = (lat1, lon1, lat2, lon2) => {
+      const R = 6371; // Earth's radius in km
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c; // Distance in km
+    };
+
+    const updateETAs = async (maxStops = 5) => {
+      const now = Date.now();
+      if (inFlightRef.current || (now - lastInvokeRef.current) < COOLDOWN_MS) return;
+      inFlightRef.current = true;
+      lastInvokeRef.current = now;
+      try {
+        // CRITICAL: Skip ETA updates if no in-transit deliveries
+        // This preserves pickup order based on delivery_time_start until route actually starts
+        const hasActiveDeliveries = await hasInTransitDeliveries();
+        if (!hasActiveDeliveries) {
+          console.log('⏸️ [ETATracker] No in-transit deliveries - skipping ETA update to preserve pickup order');
+          return;
+        }
+
+        console.log('🔄 [ETATracker] Updating ETAs...');
+
+        // Get travel durations from backend - CRITICAL: Pass local time as HH:mm string
+        const currentTime = new Date();
+        const localTimeString = `${String(currentTime.getHours()).padStart(2, '0')}:${String(currentTime.getMinutes()).padStart(2, '0')}`;
+
+        const response = await calculateRealTimeETA({
+          driverId: selectedDriverId,
+          deliveryDate: selectedDate,
+          currentLocalTime: localTimeString, // Send as HH:mm to avoid UTC conversion
+          maxStops
+        });
+
+        const data = response?.data || response;
+
+        if (data?.success && data?.durationUpdates?.length > 0) {
+          // CRITICAL: Backend now returns actual clock time ETAs - use them directly
+          // Filter out finished AND pending deliveries from updates
+          const ETA_EXCLUDED_STATUSES = ['pending', 'completed', 'failed', 'cancelled', 'returned'];
+          const activeUpdates = data.durationUpdates.filter(update => 
+            !ETA_EXCLUDED_STATUSES.includes(update.status)
+          );
+          
+          const etaUpdates = [];
+          
+          for (const update of activeUpdates) {
+            // Backend returns eta as HH:mm clock time, not cumulative minutes
+            const etaString = update.eta;
+
+            etaUpdates.push({
+              deliveryId: update.deliveryId,
+              delivery_id: update.delivery_id,
+              newEta: etaString,
+              travelMinutes: update.travelMinutes,
+              serviceMinutes: update.serviceMinutes
+            });
+
+            // Update database with backend-calculated ETA
+            await base44.entities.Delivery.update(update.deliveryId, {
+              delivery_time_eta: etaString
+            });
+          }
+
+          console.log(`✅ [ETATracker] Updated ${etaUpdates.length} active ETAs (filtered ${data.durationUpdates.length - activeUpdates.length} non-active)`);
+
+          const nextActiveUpdate = [...activeUpdates]
+            .sort((a, b) => (a.stopOrder || Infinity) - (b.stopOrder || Infinity))[0];
+          if (nextActiveUpdate?.deliveryId && nextActiveUpdate?.eta) {
+            const previousEta = getCurrentEtaForDelivery(nextActiveUpdate.deliveryId);
+            if (previousEta && previousEta !== nextActiveUpdate.eta) {
+              const [prevHours, prevMinutes] = previousEta.split(':').map(Number);
+              const [nextHours, nextMinutes] = nextActiveUpdate.eta.split(':').map(Number);
+              const diffMinutes = ((nextHours * 60) + nextMinutes) - ((prevHours * 60) + prevMinutes);
+              if (diffMinutes >= 10) {
+                window.dispatchEvent(new CustomEvent('significantDelayDetected', {
+                  detail: {
+                    driverId: selectedDriverId,
+                    deliveryDate: selectedDate,
+                    deliveryId: nextActiveUpdate.deliveryId,
+                    previousEta,
+                    newEta: nextActiveUpdate.eta,
+                    diffMinutes
+                  }
+                }));
+              }
+            }
+          }
+          
+          if (onETAUpdate) {
+            onETAUpdate(etaUpdates);
+          }
+
+          window.dispatchEvent(new CustomEvent('etaUpdated', {
+            detail: {
+              driverId: selectedDriverId,
+              updates: etaUpdates
+            }
+          }));
+
+          // Also notify the app-wide data layer to refresh stop cards
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+            detail: {
+              triggeredBy: 'etaUpdated',
+              driverId: selectedDriverId,
+              deliveryDate: selectedDate,
+              suppressFabIfPhase1: true
+            }
+          }));
+        }
+      } catch (error) {
+        console.error('❌ [ETATracker] Error updating ETAs:', error);
+        try {
+          const status = error?.response?.status || error?.status;
+          const msg = error?.message || '';
+          if (status === 429 || /429|rate limit/i.test(msg)) {
+            window._setRateLimitError?.(true);
+          }
+        } catch {}
+      } finally {
+        inFlightRef.current = false;
+      }
+    };
+
+    // Listen for events that should trigger ETA updates
+    const handleETAUpdateEvent = (event) => {
+      const now = Date.now();
+      if ((now - lastInvokeRef.current) < COOLDOWN_MS) {
+        return; // debounce rapid successive events
+      }
+      const requestedMaxStops = Number(event?.detail?.maxStops);
+      console.log('🔔 [ETATracker] Event received - updating ETAs');
+      updateETAs(Number.isFinite(requestedMaxStops) && requestedMaxStops > 0 ? requestedMaxStops : 5);
+    };
+
+    // CRITICAL: Listen for status changes, route optimization, and pending->in_transit transitions
+    window.addEventListener('deliveryStatusChanged', handleETAUpdateEvent);
+    window.addEventListener('routeOptimizationComplete', handleETAUpdateEvent);
+    window.addEventListener('pendingToInTransit', handleETAUpdateEvent);
+
+    // REMOVED: Automatic ETA update on mount/refresh - causing excessive Google Maps API hits
+    // ETAs now only update on specific events (status changes, route optimization)
+
+    return () => {
+      window.removeEventListener('deliveryStatusChanged', handleETAUpdateEvent);
+      window.removeEventListener('routeOptimizationComplete', handleETAUpdateEvent);
+      window.removeEventListener('pendingToInTransit', handleETAUpdateEvent);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  // CRITICAL: Only depend on stable values to prevent re-running on every render
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDriverId, selectedDate, currentUser?.id, currentUser?.driver_status, isActive]);
+
+  // Render nothing - this is a background service
+  return null;
+}

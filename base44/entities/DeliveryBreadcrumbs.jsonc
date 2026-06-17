@@ -1,0 +1,45 @@
+{
+  "name": "DeliveryBreadcrumbs",
+  "type": "object",
+  "properties": {
+    "driver_id": {
+      "type": "string",
+      "description": "ID of the driver this breadcrumb leg belongs to"
+    },
+    "delivery_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Route date for these breadcrumbs (YYYY-MM-DD)"
+    },
+    "stop_order": {
+      "type": "number",
+      "description": "Stop order of the delivery this leg leads TO"
+    },
+    "encoded_polyline": {
+      "type": "string",
+      "description": "Polyline-encoded string of GPS coordinates for the actual path taken (Google/HERE flexible polyline format)"
+    },
+    "timestamps": {
+      "type": "string",
+      "description": "Comma-separated list of Unix timestamps in milliseconds, one per encoded coordinate point"
+    },
+    "transport_mode": {
+      "type": "string",
+      "enum": [
+        "driving",
+        "cycling",
+        "pedestrian"
+      ],
+      "description": "Transport mode used for this leg"
+    },
+    "point_count": {
+      "type": "number",
+      "description": "Number of GPS points encoded in this record (for quick reference without decoding)"
+    }
+  },
+  "required": [
+    "driver_id",
+    "delivery_date",
+    "stop_order"
+  ]
+}

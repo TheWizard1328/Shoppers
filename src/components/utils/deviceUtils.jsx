@@ -1,0 +1,159 @@
+import { getCapacitorPlatform, isCapacitorNativeApp } from './locationProviders/capacitorRuntime';
+
+/**
+ * Centralized device detection utility
+ * Provides consistent device type and OS detection across the application
+ */
+
+/**
+ * Detects if device is a tablet based on user agent
+ * @returns {boolean} - true if tablet device
+ */
+export const isTablet = () => {
+  const ua = navigator.userAgent;
+  return /iPad|Android(?!.*Mobile)/i.test(ua);
+};
+
+/**
+ * Detects device orientation
+ * @returns {string} - 'portrait' or 'landscape'
+ */
+export const getOrientation = () => {
+  return window.innerWidth < window.innerHeight ? 'portrait' : 'landscape';
+};
+
+/**
+ * Determines if mobile layout should be used
+ * Rules:
+ * - Phones: always use mobile layout
+ * - Tablets in portrait: use mobile layout
+ * - Tablets in landscape: use desktop layout
+ * - Desktop: use desktop layout
+ * @returns {boolean} - true if mobile layout should be used
+ */
+export const shouldUseMobileLayout = () => {
+  const ua = navigator.userAgent;
+  const isTabletDevice = /iPad|Android(?!.*Mobile)/i.test(ua);
+  const isPhone = /Android.*Mobile|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+  
+  // Phones always use mobile layout
+  if (isPhone) return true;
+  
+  // Tablets: portrait = mobile, landscape = desktop
+  if (isTabletDevice) {
+    return getOrientation() === 'portrait';
+  }
+  
+  // Desktop devices use desktop layout (but respect small screens)
+  return window.innerWidth < 768;
+};
+
+/**
+ * Detects device type and operating system from user agent and screen width
+ * Wide-screen devices (> 525px = 1.75 × statscard width) are treated as desktop even if mobile user agent
+ * @returns {Object} - { deviceType: 'Mobile'|'Desktop'|'Tablet', os: string }
+ */
+export const getUserAgentInfo = () => {
+  if (isCapacitorNativeApp()) {
+    const platform = getCapacitorPlatform();
+    const ua = navigator.userAgent;
+    const isIPad = /iPad/i.test(ua) || (/Mac/i.test(ua) && navigator.maxTouchPoints > 1);
+    const isiPhone = /iPhone|iPod/i.test(ua);
+
+    let deviceType;
+    if (platform === 'ios') {
+      deviceType = isIPad ? 'Tablet' : 'Mobile'; // iPhones always Mobile, iPads always Tablet
+    } else {
+      deviceType = window.innerWidth > 768 ? 'Tablet' : 'Mobile';
+    }
+
+    return {
+      deviceType,
+      os: platform === 'android' ? 'Android' : platform === 'ios' ? 'iOS' : 'Unknown OS'
+    };
+  }
+
+  const ua = navigator.userAgent;
+
+  // Detect OS first (needed for tablet classification)
+  const isAndroid = /Android/i.test(ua);
+  const isIOS = /iPhone|iPad|iPod/i.test(ua);
+
+  // iPad is always a tablet
+  const isIPad = /iPad/i.test(ua) || (/Mac/i.test(ua) && navigator.maxTouchPoints > 1); // iPadOS 13+ reports as Mac
+  
+  // Android tablet: no "Mobile" in UA AND screen width > 600px (phones can omit "Mobile" too)
+  const isAndroidTablet = isAndroid && !/Mobile/i.test(ua) && window.innerWidth > 600;
+
+  const isTabletDevice = isIPad || isAndroidTablet;
+
+  // Mobile: any handheld device that isn't classified as tablet
+  const isMobileUserAgent = /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+  
+  // CRITICAL: Touch + small screen fallback for devices with ambiguous UAs
+  const isTouchSmallScreen = navigator.maxTouchPoints > 0 && window.innerWidth <= 768 && !isTabletDevice;
+
+  // iPhones are ALWAYS Mobile, regardless of screen width or orientation
+  const isiPhone = /iPhone|iPod/i.test(ua);
+
+  let deviceType = 'Desktop';
+  if (isiPhone) {
+    deviceType = 'Mobile';
+  } else if (isTabletDevice) {
+    deviceType = 'Tablet';
+  } else if (isMobileUserAgent || isTouchSmallScreen) {
+    deviceType = 'Mobile';
+  }
+
+  // Detect OS
+  let os = 'Unknown OS';
+  if (/Windows/i.test(ua)) os = 'Windows';
+  else if (/Mac OS X/i.test(ua)) os = 'macOS';
+  else if (/Linux/i.test(ua)) os = 'Linux';
+  else if (/Android/i.test(ua)) os = 'Android';
+  else if (/iOS|iPhone|iPad|iPod/i.test(ua)) os = 'iOS';
+
+  return { deviceType, os };
+};
+
+/**
+ * Simple check if current device is mobile
+ * @returns {boolean} - true if mobile device
+ */
+export const isMobileDevice = () => {
+  const { deviceType } = getUserAgentInfo();
+  return deviceType === 'Mobile';
+};
+
+export const canAutoFocusFormFields = () => {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return true;
+  if (!isMobileDevice()) return true;
+
+  const supportsMediaQuery = typeof window.matchMedia === 'function';
+  const hasFinePointer = supportsMediaQuery && (
+    window.matchMedia('(pointer: fine)').matches ||
+    window.matchMedia('(any-pointer: fine)').matches
+  );
+  const hasHover = supportsMediaQuery && (
+    window.matchMedia('(hover: hover)').matches ||
+    window.matchMedia('(any-hover: hover)').matches
+  );
+
+  return hasFinePointer && hasHover;
+};
+
+/**
+ * Checks if device is mobile/tablet based ONLY on user agent (ignores screen width)
+ * Used for theme decisions - allows dark mode on mobile devices including tablets
+ * @returns {boolean} - true if mobile device (phones AND tablets)
+ */
+export const isMobileDeviceForTheme = () => {
+  const ua = navigator.userAgent;
+  // CRITICAL: Include both phones AND tablets for theme settings
+  // Tablets get dark mode access but use desktop layout in landscape (via CSS media queries)
+  const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+  // iPadOS 13+ reports as "Mac" in the UA — detect via maxTouchPoints
+  const isIPadOS = /Mac/i.test(ua) && navigator.maxTouchPoints > 1;
+  
+  return isMobileUA || isIPadOS;
+};

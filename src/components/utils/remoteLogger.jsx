@@ -1,0 +1,195 @@
+import { base44 } from '@/api/base44Client';
+import { getDeviceIdentifier } from '@/components/utils/userSettingsManager';
+import { getUserAgentInfo } from '@/components/utils/deviceUtils';
+import { getCurrentDevice } from '@/components/utils/deviceManager';
+
+const STORAGE_KEY = 'rxdeliver_remote_log_buffer';
+const SESSION_KEY = 'rxdeliver_remote_log_session_id';
+const MAX_BUFFER = 200;
+
+let initialized = false;
+let flushTimer = null;
+let activeSettings = null;
+let settingsPromise = null;
+let mePromise = null;
+let isFlushing = false;
+let suppressConsoleCapture = false;
+let lastLogFingerprint = null;
+let lastLogTimestamp = 0;
+
+const getSessionId = () => {
+  const existing = sessionStorage.getItem(SESSION_KEY);
+  if (existing) return existing;
+  const created = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  sessionStorage.setItem(SESSION_KEY, created);
+  return created;
+};
+
+const readBuffer = () => {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+  } catch {
+    return [];
+  }
+};
+
+const writeBuffer = (items) => {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(items.slice(-MAX_BUFFER)));
+};
+
+const stringifyArg = (arg) => {
+  if (typeof arg === 'string') return arg;
+  try {
+    return JSON.stringify(arg);
+  } catch {
+    return String(arg);
+  }
+};
+
+const shouldSkipDuplicateLog = (level, message) => {
+  const fingerprint = `${level}:${message}`;
+  const now = Date.now();
+  if (lastLogFingerprint === fingerprint && now - lastLogTimestamp < 5000) {
+    return true;
+  }
+  lastLogFingerprint = fingerprint;
+  lastLogTimestamp = now;
+  return false;
+};
+
+const loadSettings = async () => {
+  if (activeSettings) return activeSettings;
+  if (!settingsPromise) {
+    settingsPromise = base44.entities.RemoteLoggingSettings.filter({ scope: 'global' }, '-updated_date', 1)
+      .then((rows) => {
+        activeSettings = rows?.[0] || null;
+        return activeSettings;
+      })
+      .finally(() => {
+        settingsPromise = null;
+      });
+  }
+  return settingsPromise;
+};
+
+const getMe = async () => {
+  if (!mePromise) {
+    mePromise = base44.auth.me().catch(() => null);
+  }
+  return mePromise;
+};
+
+const shouldCapture = async () => {
+  const settings = activeSettings || await loadSettings();
+  if (!settings?.enabled) return false;
+  const me = await getMe();
+  const userId = me?.id || null;
+  const included = Array.isArray(settings.included_user_ids) ? settings.included_user_ids : [];
+  const excluded = Array.isArray(settings.excluded_user_ids) ? settings.excluded_user_ids : [];
+  if (excluded.includes(userId)) return false;
+  if (included.length > 0 && !included.includes(userId)) return false;
+  return true;
+};
+
+const flushNow = async () => {
+  if (isFlushing) return;
+  isFlushing = true;
+  try {
+    const canCapture = await shouldCapture();
+    if (!canCapture) return;
+    const buffer = readBuffer();
+    if (buffer.length === 0) return;
+
+    const settings = activeSettings || await loadSettings();
+    const batchSize = Math.max(1, Math.min(Number(settings?.batch_size) || 20, 100));
+    const nextBatch = buffer.slice(0, batchSize);
+    const remaining = buffer.slice(batchSize);
+
+    await base44.entities.RemoteLogEntry.bulkCreate(nextBatch);
+    writeBuffer(remaining);
+  } finally {
+    isFlushing = false;
+  }
+};
+
+const scheduleFlush = (interval) => {
+  if (flushTimer) clearInterval(flushTimer);
+  flushTimer = setInterval(() => {
+    flushNow().catch(() => {});
+  }, interval);
+};
+
+const enqueue = async (level, args) => {
+  if (suppressConsoleCapture) return;
+  const settings = activeSettings || await loadSettings();
+  if (!settings?.enabled) return;
+  const levels = Array.isArray(settings?.capture_levels) && settings.capture_levels.length > 0 ? settings.capture_levels : ['log', 'info', 'warn', 'error', 'debug'];
+  if (!levels.includes(level)) return;
+
+  const message = args.map(stringifyArg).join(' ').slice(0, 5000);
+  if (shouldSkipDuplicateLog(level, message)) return;
+
+  const me = await getMe();
+  const { deviceType, os } = getUserAgentInfo();
+  const currentDevice = me?.id ? await getCurrentDevice(me.id).catch(() => null) : null;
+  const current = readBuffer();
+  current.push({
+    level,
+    message,
+    timestamp: new Date().toISOString(),
+    user_id: me?.id || null,
+    user_name: me?.full_name || null,
+    device_identifier: getDeviceIdentifier(),
+    device_type: currentDevice?.device_info?.device_type || deviceType,
+    os: currentDevice?.device_info?.os || os,
+    page: window.location.pathname,
+    session_id: getSessionId(),
+    metadata: {
+      device_name: currentDevice?.device_name || null,
+      device_os: currentDevice?.device_info?.os || os || null,
+      device_type: currentDevice?.device_info?.device_type || deviceType || null
+    }
+  });
+  writeBuffer(current);
+
+  if (current.length >= (Number(settings?.batch_size) || 20)) {
+    flushNow().catch(() => {});
+  }
+};
+
+export const remoteLogger = {
+  log: (...args) => enqueue('log', args),
+  info: (...args) => enqueue('info', args),
+  warn: (...args) => enqueue('warn', args),
+  error: (...args) => enqueue('error', args),
+  debug: (...args) => enqueue('debug', args)
+};
+
+export const initRemoteLogger = async () => {
+  if (initialized || typeof window === 'undefined') return;
+  initialized = true;
+
+  const settings = await loadSettings();
+  scheduleFlush(Number(settings?.flush_interval_ms) || 15000);
+
+  const original = {
+    log: console.log.bind(console),
+    info: console.info.bind(console),
+    warn: console.warn.bind(console),
+    error: console.error.bind(console),
+    debug: console.debug.bind(console)
+  };
+
+  ['log', 'info', 'warn', 'error', 'debug'].forEach((level) => {
+    console[level] = (...args) => {
+      if (!suppressConsoleCapture) {
+        enqueue(level, args).catch(() => {});
+      }
+      original[level](...args);
+    };
+  });
+
+  window.addEventListener('beforeunload', () => {
+    flushNow().catch(() => {});
+  });
+};

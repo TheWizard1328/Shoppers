@@ -1,0 +1,258 @@
+import React from "react";
+import ReactDOM from "react-dom";
+import { Button } from "@/components/ui/button";
+import { X, Pen, Camera, Eye } from "lucide-react";
+import { base44 } from "@/api/base44Client";
+import { UploadFile } from "@/api/integrations";
+import { toast } from "sonner";
+import { invalidate } from '../utils/dataManager';
+import { persistDeliveryProof } from '../utils/persistDeliveryProof';
+import { persistPatientSignature } from '../utils/persistPatientSignature';
+import SignatureCapture from './SignatureCapture';
+import PhotoCapture from './PhotoCapture';
+
+export default function StopCardPOD({
+  delivery,
+  patient,
+  displayName,
+  isNextDelivery,
+  isFinishedDelivery,
+  isPickup,
+  viewingImageUrl,
+  setViewingImageUrl,
+  showSignatureCapture,
+  setShowSignatureCapture,
+  showPhotoCapture,
+  setShowPhotoCapture,
+  forceRefreshDriverDeliveries,
+  showButtons = true,
+  currentUser,
+}) {
+  const patientSavedSignatureUrl = patient?.signature_image_url || patient?.saved_signature_image_url || null;
+  const patientHasSavedSignature = !!patientSavedSignatureUrl;
+  const deliveryHasSignature = !!delivery?.signature_image_url;
+  const deliveryHasPhotos = Array.isArray(delivery?.proof_photo_urls) && delivery.proof_photo_urls.length > 0;
+  const isAssignedDriver = !!currentUser?.id && !!delivery?.driver_id && currentUser.id === delivery.driver_id;
+  const isAppOwnerUser = currentUser?.role === 'admin';
+  const canSeeSavedSignatureHighlight = isAssignedDriver || isAppOwnerUser;
+  const showSavedSignatureHint = patientHasSavedSignature && canSeeSavedSignatureHighlight;
+
+  const handleSignatureSave = async (signatureBlob) => {
+    setShowSignatureCapture(false);
+    let failureStage = 'upload_file';
+    try {
+      const signatureFile = new File([signatureBlob], 'signature.png', { type: 'image/png' });
+      const uploadResult = await UploadFile(
+        { file: signatureFile },
+        { feature: 'proof_of_delivery_signature' }
+      );
+      const fileUrl = uploadResult?.file_url || uploadResult?.data?.file_url;
+      failureStage = 'persist_delivery_proof';
+      await persistDeliveryProof(delivery.id, { signature_image_url: fileUrl });
+      if (patient?.id) {
+        failureStage = 'persist_patient_signature';
+        await persistPatientSignature(patient.id, fileUrl);
+      }
+      toast.success('Signature saved!');
+      invalidate('Delivery');
+      invalidate('Patient');
+    } catch (error) {
+      base44.analytics.track({
+        eventName: 'proof_of_delivery_upload_error',
+        properties: {
+          proof_type: 'signature',
+          stage: failureStage
+        }
+      });
+      console.error('❌ [Signature] Save failed:', error);
+      toast.error(`Failed to save signature: ${error.message}`);
+      throw error;
+    }
+  };
+
+  const handlePhotoSave = (photoBlobs) => {
+    // Close panel immediately for better UX
+    setShowPhotoCapture(false);
+    toast.info(`Saving ${photoBlobs.length} photo(s)...`);
+    
+    // Process upload in background - wrapped in setTimeout to prevent event bubbling to card
+    setTimeout(() => {
+      Promise.resolve().then(async () => {
+        let failureStage = 'upload_file';
+        try {
+          const uploadPromises = photoBlobs.map((blob, i) => {
+            const file = new File([blob], `photo_${i + 1}.jpg`, { type: 'image/jpeg' });
+            return UploadFile(
+              { file },
+              {
+                feature: 'proof_of_delivery_photo',
+                metadata: {
+                  file_index: i + 1,
+                  total_files: photoBlobs.length
+                }
+              }
+            );
+          });
+          const results = await Promise.all(uploadPromises);
+          const newPhotoUrls = results.map((r) => r?.file_url || r?.data?.file_url).filter(Boolean);
+          const { offlineDB } = await import('../utils/offlineDatabase');
+          const latestDelivery = await offlineDB.getById(offlineDB.STORES.DELIVERIES, delivery.id);
+          const existingPhotos = latestDelivery?.proof_photo_urls || delivery.proof_photo_urls || [];
+          failureStage = 'persist_delivery_proof';
+          await persistDeliveryProof(delivery.id, { proof_photo_urls: [...existingPhotos, ...newPhotoUrls] });
+          invalidate('Delivery');
+          toast.success(`${photoBlobs.length} photo(s) saved!`);
+        } catch (error) {
+          base44.analytics.track({
+            eventName: 'proof_of_delivery_upload_error',
+            properties: {
+              proof_type: 'photo',
+              stage: failureStage,
+              photo_count: photoBlobs.length
+            }
+          });
+          console.error('❌ [Photos] Save failed:', error);
+          toast.error(`Failed to save photos: ${error.message}`);
+        }
+      });
+    }, 10);
+  };
+
+  return (
+    <>
+      {/* Fullscreen Image Viewer */}
+      {viewingImageUrl && ReactDOM.createPortal(
+        <div
+          className="fixed inset-0 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.75)', zIndex: 999999, pointerEvents: 'auto' }}
+          onClick={() => setViewingImageUrl(null)}>
+          <div
+            className="relative bg-white rounded-xl shadow-2xl p-4 max-w-[95vw] max-h-[90vh] flex flex-col items-center"
+            onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setViewingImageUrl(null)}
+              className="absolute -top-3 -right-3 bg-white border-2 border-slate-300 hover:bg-red-50 hover:border-red-400 text-slate-700 hover:text-red-600 rounded-full w-9 h-9 flex items-center justify-center shadow-lg transition-colors z-10">
+              <X className="w-5 h-5" />
+            </button>
+            <img src={viewingImageUrl} alt="Proof of delivery" className="max-w-full max-h-[75vh] object-contain rounded-lg" style={{ background: 'white' }} />
+            <p className="mt-3 text-sm text-slate-500 font-medium">Tap outside to close</p>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Signature Capture */}
+      {showSignatureCapture &&
+        <SignatureCapture
+          customerName={displayName}
+          onSave={handleSignatureSave}
+          onCancel={() => setShowSignatureCapture(false)} />
+      }
+
+      {/* Photo Capture */}
+      {showPhotoCapture &&
+        <PhotoCapture
+          onSave={handlePhotoSave}
+          onCancel={() => setShowPhotoCapture(false)}
+          maxPhotos={3} />
+      }
+
+      {/* POD Buttons - Only for non-pickup, non-finished or completed with proof (shown when showButtons=true) */}
+      {showButtons && !isPickup && (
+        <div className="flex items-center gap-2">
+          {/* Signature Button */}
+          {((isNextDelivery && !isFinishedDelivery) || (delivery.status === 'completed' && deliveryHasSignature)) && (
+            <div className="flex items-center">
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (delivery.status === 'completed' && deliveryHasSignature) {
+                    setViewingImageUrl(delivery.signature_image_url);
+                  } else {
+                    setShowSignatureCapture(true);
+                  }
+                }}
+                size="sm"
+                variant="outline"
+                className={`h-10 md:h-8 w-10 md:w-8 p-0 ${deliveryHasSignature ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' : showSavedSignatureHint ? 'bg-yellow-100 border-yellow-400 hover:bg-yellow-200' : 'bg-slate-100 border-slate-400 hover:bg-slate-200'}`}
+              >
+                {delivery.status === 'completed' && delivery.signature_image_url ? (
+                  <Eye className="w-5 h-5 md:w-4 md:h-4 text-emerald-700" />
+                ) : (
+                  <Pen className={`w-5 h-5 md:w-4 md:h-4 ${deliveryHasSignature ? 'text-emerald-700' : showSavedSignatureHint ? 'text-yellow-700' : 'text-slate-600'}`} />
+                )}
+              </Button>
+              {!deliveryHasSignature && showSavedSignatureHint && patientSavedSignatureUrl && (
+                <Button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setViewingImageUrl(patientSavedSignatureUrl);
+                  }}
+                  size="sm"
+                  variant="outline"
+                  className="h-10 md:h-8 w-10 md:w-8 p-0 bg-yellow-100 border-yellow-400 hover:bg-yellow-200"
+                  title="View saved patient signature"
+                >
+                  <Eye className="w-5 h-5 md:w-4 md:h-4 text-yellow-700" />
+                </Button>
+              )}
+              {deliveryHasSignature && delivery.status !== 'completed' && (
+                <Button
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    await persistDeliveryProof(delivery.id, { signature_image_url: null });
+                    invalidate('Delivery');
+                  }}
+                  size="sm"
+                  variant="outline"
+                  className="h-10 md:h-8 w-6 p-0 bg-red-50 border-red-300 hover:bg-red-100 border-l-0 rounded-l-none"
+                >
+                  <X className="w-3 h-3 text-red-500" />
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/* Photo Button */}
+          {((isNextDelivery && !isFinishedDelivery) || (delivery.status === 'completed' && deliveryHasPhotos)) && (
+            <div className="flex items-center">
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (delivery.status === 'completed' && deliveryHasPhotos) {
+                    setViewingImageUrl(delivery.proof_photo_urls[0]);
+                  } else {
+                    setShowPhotoCapture(true);
+                  }
+                }}
+                size="sm"
+                variant="outline"
+                className={`h-10 md:h-8 w-10 md:w-8 p-0 ${deliveryHasPhotos ? 'bg-emerald-100 border-emerald-400 hover:bg-emerald-200' : 'bg-slate-100 border-slate-400 hover:bg-slate-200'}`}
+              >
+                {delivery.status === 'completed' && delivery.proof_photo_urls?.length > 0 ? (
+                  <Eye className="w-5 h-5 md:w-4 md:h-4 text-emerald-700" />
+                ) : (
+                  <Camera className={`w-5 h-5 md:w-4 md:h-4 ${deliveryHasPhotos ? 'text-emerald-700' : 'text-slate-600'}`} />
+                )}
+              </Button>
+              {deliveryHasPhotos && delivery.status !== 'completed' && (
+                <Button
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    await persistDeliveryProof(delivery.id, { proof_photo_urls: [] });
+                    invalidate('Delivery');
+                  }}
+                  size="sm"
+                  variant="outline"
+                  className="h-10 md:h-8 w-6 p-0 bg-red-50 border-red-300 hover:bg-red-100 border-l-0 rounded-l-none"
+                >
+                  <X className="w-3 h-3 text-red-500" />
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
+}

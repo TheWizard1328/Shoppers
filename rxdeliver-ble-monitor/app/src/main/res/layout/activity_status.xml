@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="32dp"
+    android:background="#F8FAFC">
+
+    <ImageView
+        android:layout_width="72dp"
+        android:layout_height="72dp"
+        android:src="@android:drawable/ic_menu_compass"
+        android:tint="#0EA5E9"
+        android:layout_marginBottom="16dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="RxDeliver"
+        android:textSize="28sp"
+        android:textStyle="bold"
+        android:textColor="#0F172A"
+        android:layout_marginBottom="4dp" />
+
+    <TextView
+        android:id="@+id/tvEmail"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Logged in"
+        android:textSize="13sp"
+        android:textColor="#64748B"
+        android:layout_marginBottom="40dp" />
+
+    <TextView
+        android:id="@+id/tvMonitorStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="⚫ Cooler monitoring is OFF"
+        android:textSize="18sp"
+        android:textColor="#0F172A"
+        android:gravity="center"
+        android:layout_marginBottom="32dp" />
+
+    <Button
+        android:id="@+id/btnToggle"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:text="Start Monitoring"
+        android:textSize="16sp"
+        android:backgroundTint="#0EA5E9"
+        android:textColor="#FFFFFF"
+        android:layout_marginBottom="12dp" />
+
+    <Button
+        android:id="@+id/btnLogout"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:text="Sign Out"
+        android:textSize="14sp"
+        android:backgroundTint="#E2E8F0"
+        android:textColor="#475569" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="This app runs silently in the background.\nDrivers don't need to interact with it."
+        android:textSize="12sp"
+        android:textColor="#94A3B8"
+        android:gravity="center"
+        android:layout_marginTop="32dp" />
+
+</LinearLayout>

@@ -1,0 +1,204 @@
+{
+  "name": "DemoRoute",
+  "type": "object",
+  "properties": {
+    "company_id": {
+      "type": "string"
+    },
+    "delivery_id": {
+      "type": "string"
+    },
+    "patient_id": {
+      "type": "string"
+    },
+    "driver_id": {
+      "type": "string"
+    },
+    "driver_name": {
+      "type": "string"
+    },
+    "created_by_app_user_id": {
+      "type": "string"
+    },
+    "delivery_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "delivery_time_start": {
+      "type": "string"
+    },
+    "delivery_time_end": {
+      "type": "string"
+    },
+    "delivery_time_eta": {
+      "type": "string"
+    },
+    "arrival_time": {
+      "type": "string"
+    },
+    "actual_delivery_time": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "in_transit",
+        "en_route",
+        "completed",
+        "failed",
+        "cancelled"
+      ],
+      "default": "pending"
+    },
+    "prescription_number": {
+      "type": "string"
+    },
+    "delivery_notes": {
+      "type": "string"
+    },
+    "delivery_instructions": {
+      "type": "string"
+    },
+    "store_id": {
+      "type": "string"
+    },
+    "tracking_number": {
+      "type": "string"
+    },
+    "stop_order": {
+      "type": "number"
+    },
+    "stop_id": {
+      "type": "string"
+    },
+    "puid": {
+      "type": "string"
+    },
+    "extra_time": {
+      "type": "number",
+      "default": 5
+    },
+    "travel_dist": {
+      "type": "number"
+    },
+    "paid_km_override": {
+      "type": "number"
+    },
+    "cod_total_amount_required": {
+      "type": "number"
+    },
+    "cod_payments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "Cash",
+              "Debit",
+              "Credit",
+              "Check"
+            ]
+          },
+          "amount": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "type",
+          "amount"
+        ]
+      }
+    },
+    "cod_payment_type": {
+      "type": "string",
+      "enum": [
+        "No Payment",
+        "Cash",
+        "Debit",
+        "Credit",
+        "Check"
+      ],
+      "default": "No Payment"
+    },
+    "cod_amount": {
+      "type": "string"
+    },
+    "signature_needed": {
+      "type": "boolean",
+      "default": false
+    },
+    "signature_image_url": {
+      "type": "string"
+    },
+    "proof_photo_urls": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "barcode_values": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "receipt_barcode_values": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "fridge_item": {
+      "type": "boolean",
+      "default": false
+    },
+    "oversized": {
+      "type": "boolean",
+      "default": false
+    },
+    "after_hours_pickup": {
+      "type": "boolean",
+      "default": false
+    },
+    "no_charge": {
+      "type": "boolean",
+      "default": false
+    },
+    "first_delivery": {
+      "type": "boolean",
+      "default": false
+    },
+    "isNextDelivery": {
+      "type": "boolean",
+      "default": false
+    },
+    "ampm_deliveries": {
+      "type": "string",
+      "enum": [
+        "AM",
+        "PM"
+      ]
+    },
+    "delivery_route_breadcrumbs": {
+      "type": "string"
+    },
+    "finished_leg_encoded_polyline": {
+      "type": "string"
+    },
+    "PolylineUpdated": {
+      "type": "boolean",
+      "default": false
+    },
+    "is_demo": {
+      "type": "boolean",
+      "default": true,
+      "description": "Flag to indicate if this is demo data"
+    }
+  },
+  "required": [
+    "delivery_date"
+  ]
+}
