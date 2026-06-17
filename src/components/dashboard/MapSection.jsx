@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { format } from 'date-fns';
 import { useDevice } from '@/components/utils/DeviceContext';
 import { fabControlEvents } from '@/components/utils/fabControlEvents';
@@ -40,6 +41,25 @@ export default function MapSection({
   immersiveOverlayRemainingDistanceKm = null,
 }) {
   const { isMobile } = useDevice();
+  const stableOnMapInteraction = useCallback(() => {
+    onImmersiveMapTap?.();
+    const timeSinceDoubleTap = Date.now() - (window._lastMapDoubleTapAt || 0);
+    if (timeSinceDoubleTap < 800) return;
+    const timeSinceProgrammaticMove = Date.now() - (window._lastProgrammaticMapMove || 0);
+    if (timeSinceProgrammaticMove < 500) return;
+    fabControlEvents.notifyUserMapInteraction();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onImmersiveMapTap]);
+  const stableOnDoubleTap = useCallback(() => {
+    window._lastMapDoubleTapAt = Date.now();
+    onImmersiveMapTap?.();
+    if ((isDispatcher || isAdmin) && !isDriver) { handleMapViewCycle?.(); return; }
+    if (!immersiveHidden) {
+      window.dispatchEvent(new CustomEvent('mapDoubleTapZoom', { detail: { delta: 0.5 } }));
+      fabControlEvents.notifyUserMapInteraction();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onImmersiveMapTap, isDispatcher, isAdmin, isDriver, handleMapViewCycle, immersiveHidden]);
   const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
   const routeCompleteForSelectedDriver = selectedDriverId && selectedDriverId !== 'all'
     ? deliveriesWithStopOrder.filter((d) => d && d.patient_id && d.driver_id === selectedDriverId).length > 0 &&
@@ -120,34 +140,8 @@ export default function MapSection({
           areCardsVisible={areCardsVisible}
           onLegendInteraction={handleCardInteraction}
           onDriverRoutesCalculated={setDriverRoutes}
-          onMapInteraction={() => {
-            onImmersiveMapTap?.();
-            // Skip FAB unlock if this interaction was triggered by a double-tap (within 800ms)
-            const timeSinceDoubleTap = Date.now() - (window._lastMapDoubleTapAt || 0);
-            if (timeSinceDoubleTap < 800) return;
-            // Skip FAB unlock if the map was just repositioned programmatically (within 500ms)
-            // Prevents GPS-driven camera pans/zooms (Phase 2 live follow) from being
-            // misidentified as user interaction and accidentally unlocking the FAB.
-            const timeSinceProgrammaticMove = Date.now() - (window._lastProgrammaticMapMove || 0);
-            if (timeSinceProgrammaticMove < 500) return;
-            // Manual pan/zoom → unlock FAB (turns it gray). Phase is preserved.
-            // A double-tap on the map re-locks the FAB to the current phase.
-            fabControlEvents.notifyUserMapInteraction();
-          }}
-          onDoubleTap={() => {
-            window._lastMapDoubleTapAt = Date.now();
-            onImmersiveMapTap?.();
-            // Dispatchers (and admins who are not drivers): double-tap reactivates FAB at current phase
-            if ((isDispatcher || isAdmin) && !isDriver) {
-              handleMapViewCycle?.();
-              return;
-            }
-            // Only zoom if immersive mode is NOT active
-            if (!immersiveHidden) {
-              window.dispatchEvent(new CustomEvent('mapDoubleTapZoom', { detail: { delta: 0.5 } }));
-              fabControlEvents.notifyUserMapInteraction();
-            }
-          }}
+          onMapInteraction={stableOnMapInteraction}
+          onDoubleTap={stableOnDoubleTap}
           retractClustersRef={retractClustersRef}
           immersiveHidden={immersiveHidden}
           areStopCardsVisible={!immersiveHidden && deliveriesWithStopOrder.length > 0}
@@ -159,11 +153,12 @@ export default function MapSection({
           mapStyle={mapStyle}
           preferredTravelMode={preferredTravelMode}
           onTravelModeChange={onTravelModeChange}
-          onMapReady={() => {
+          onMapReady={useCallback(() => {
             if (!renderSequence.mapMarkers) {
               setRenderSequence(prev => ({ ...prev, mapMarkers: true, routeLines: true, driverLiveLocation: true, sharedLocations: true }));
             }
-          }} />
+          // eslint-disable-next-line react-hooks/exhaustive-deps
+          }, [renderSequence.mapMarkers])} />
       </div>
     </>
   );

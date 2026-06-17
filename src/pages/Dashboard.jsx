@@ -1955,17 +1955,12 @@ useEffect(() => {
     setTimeout(backgroundPrioritySync, 1000);
   }, [currentUser?.id, isDataLoaded, isFiltersReady, selectedDateStr, userSettingsLoaded, deliveries]);
 
-  useEffect(() => {
-    if (!isDataLoaded || !deliveries) return;
-
-    // Check if we have deliveries for the selected date
-    const hasDataForDate = deliveries.some((d) => d && d.delivery_date === selectedDateStr);
-
-    if (hasDataForDate) {
-      // Force a re-render to update stats and cards immediately
-      setForceRender((prev) => prev + 1);
-    }
-  }, [isDataLoaded, deliveries, selectedDateStr]);
+  // Intentionally removed: the previous effect called setForceRender on every
+  // delivery array change (including GPS-driven appUser updates that indirectly
+  // touch the deliveries reference), causing full Dashboard re-renders on every
+  // GPS tick and manifesting as map flickering. filteredDeliveries and
+  // deliveriesWithStopOrder are derived via useMemo and already update correctly
+  // when deliveries changes — the extra forceRender is not needed.
 
   const dashboardViewModel = useDashboardViewModel({
     isLoadingUser,
