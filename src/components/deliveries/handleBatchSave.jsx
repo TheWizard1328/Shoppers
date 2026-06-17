@@ -151,9 +151,12 @@ export async function handleBatchSave({
       const patientDeliveriesReadyForDB = deliveriesReadyForDB.filter((delivery) => !!delivery?.patient_id);
 
       let ensuredPickupRecords = pickupRecordsFromStage;
-       let stagedDeliveriesWithResolvedIds = patientDeliveriesReadyForDB;
-       routeStructureChanged = newDeliveries.length > 0;
-       hasInTransitTransition = newDeliveries.some((d) => d?.status === 'in_transit');
+      let stagedDeliveriesWithResolvedIds = patientDeliveriesReadyForDB;
+      // Only mark route structure changed for active (non-pending) new stops.
+      // Adding pending stops must NOT trigger optimization or polyline regeneration.
+      const hasNewActiveSops = newDeliveries.some((d) => d?.status && !['pending', 'Staged'].includes(d.status));
+      routeStructureChanged = hasNewActiveSops;
+      hasInTransitTransition = newDeliveries.some((d) => d?.status === 'in_transit');
 
       const patientDeliveriesNeedingPickupEnsure = patientDeliveriesReadyForDB;
 
@@ -362,10 +365,11 @@ export async function handleBatchSave({
           .map((pickup) => [pickup.id || pickup.stop_id, pickup])
       ).values());
       
-      // Only consider it a route structure change if new in_transit stops are being added
-      // Pure "pending" transitions don't require route optimization
-      const hasNewInTransitStops = newDeliveries.some((d) => d?.status === 'in_transit');
-      routeStructureChanged = routeStructureChanged || newPickupsCreated || hasNewInTransitStops;
+      // Only consider it a route structure change if new active (non-pending) stops or
+      // new pickups were added. Pure pending-only transitions must NOT trigger
+      // route optimization or polyline regeneration — that caused 16 API calls for
+      // 4 pending stops being added to a route.
+      routeStructureChanged = routeStructureChanged || newPickupsCreated;
 
       const ensuredPickupByKey = new Map(
         ensuredPickupRecords
