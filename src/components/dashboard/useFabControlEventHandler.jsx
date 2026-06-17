@@ -130,10 +130,6 @@ export function useFabControlEventHandler({
           break;
         }
         case 'USER_MAP_INTERACTION': {
-          // CRITICAL: Suppress FAB unlock for 5s after exiting immersive mode.
-          // The UI slide-in animation generates spurious map interaction events that would
-          // otherwise immediately unlock a locked phase 2/3 FAB on immersive exit.
-          if ((window._suppressFabUnlockUntil || 0) > Date.now()) break;
           // Double-tap on map in phases 2/3 → unlock FAB so user can pan freely
           clearTimer();
           isMapViewLockedRef.current = false;
