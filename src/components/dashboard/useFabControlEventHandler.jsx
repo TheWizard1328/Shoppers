@@ -159,8 +159,9 @@ export function useFabControlEventHandler({
           break;
         }
         case 'ACCEPT_ALL_CLICKED': {
-          // Just unlock the FAB from its current phase — the map will be centered on the store
-          // via the 'centerMapOnStore' event. Do NOT switch to Phase 1.
+          // If FAB is in Phase 1, do NOT change anything — leave it in Phase 1.
+          // Only unlock if currently locked in Phase 2 or Phase 3.
+          if (mapViewPhaseRef.current === 1) break;
           clearTimer();
           isMapViewLockedRef.current = false;
           setIsMapViewLocked(false);

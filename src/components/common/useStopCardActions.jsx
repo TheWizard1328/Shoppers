@@ -237,17 +237,21 @@ export default function useStopCardActions(params) {
       const deliveryTimeStart = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
       const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-      fabControlEvents.notifyAcceptAllClicked();
+      // Only touch the FAB and center the map if we are NOT in Phase 1.
+      // Phase 1 is the overview mode — Assign All / Accept All must not disturb it.
+      const currentMapPhase = window.__currentMapViewPhase || 1;
+      if (currentMapPhase !== 1) {
+        fabControlEvents.notifyAcceptAllClicked();
 
-      // Unlock FAB and center map on the store being assigned/accepted
-      const storeLat = Number(store?.latitude);
-      const storeLon = Number(store?.longitude);
-      if (Number.isFinite(storeLat) && Number.isFinite(storeLon)) {
-        // notifyPhaseTwoTempUnlock ensures the FAB is unlocked from phase 2/3 lock before centering
-        fabControlEvents.notifyPhaseTwoTempUnlock();
-        window.dispatchEvent(new CustomEvent('centerMapOnStore', {
-          detail: { lat: storeLat, lng: storeLon, radiusKm: 3 }
-        }));
+        // Unlock FAB and center map on the store being assigned/accepted
+        const storeLat = Number(store?.latitude);
+        const storeLon = Number(store?.longitude);
+        if (Number.isFinite(storeLat) && Number.isFinite(storeLon)) {
+          fabControlEvents.notifyPhaseTwoTempUnlock();
+          window.dispatchEvent(new CustomEvent('centerMapOnStore', {
+            detail: { lat: storeLat, lng: storeLon, radiusKm: 3 }
+          }));
+        }
       }
 
       // Show "Processing Pending Stops" banner immediately while batch pipeline runs
