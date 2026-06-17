@@ -108,13 +108,16 @@ export default function useDriverLocationSync({
           return;
         }
 
-        // Proximity snap — only when unlocked, user hasn't interacted recently, AND on primary device only
-        // CRITICAL: Never proximity-snap within 5s of exiting immersive mode — the driver
-        // just arrived near a stop and is parked; snapping to Phase 2 causes a jarring map jump.
+        // Proximity snap — only when NOT already locked in phase 2/3, user hasn't interacted
+        // recently, AND on primary device only.
+        // CRITICAL: If FAB is already locked in phase 2 or 3, proximity must NEVER
+        // change or unlock it — the driver is arriving at a stop and the locked view
+        // should remain exactly where it is.
+        if (isMapViewLockedRef.current && (mapViewPhaseRef.current === 2 || mapViewPhaseRef.current === 3)) return;
+        // CRITICAL: Never proximity-snap within 5s of exiting immersive mode.
         if ((window._lastImmersiveExitAt || 0) > now - 5000) return;
         if (isMapViewLockedRef.current || now - lastUserInteractionRef.current < 300000 || now - lastProximitySnapTimeRef.current < 60000) return;
         // CRITICAL: Only trigger proximity phase 2 on the driver's primary mobile device.
-        // Secondary/tablet devices should not auto-switch map phases based on proximity.
         if (!isPrimaryDevice) return;
         // Include 'pending' stops so unstarted routes also trigger proximity phase 2
         for (const delivery of deliveriesWithStopOrderRef.current.filter((d) => d && d.isNextDelivery === true && ['in_transit', 'en_route', 'pending'].includes(d.status))) {
@@ -124,33 +127,27 @@ export default function useDriverLocationSync({
           const stopLon = patient?.longitude ?? store?.longitude;
           if (stopLat == null || stopLon == null) continue;
           if (calculateDistanceRef.current(newLocation.latitude, newLocation.longitude, stopLat, stopLon) > 0.1) continue;
-          // Driver is within 100m of the next stop:
+          // Driver is within 100m of next stop AND was not already in a locked phase:
           // Activate FAB into phase 2 (lock it) WITHOUT moving the map.
-          // This lets the driver see they're "locked to next stop" without a jarring map jump.
           lastProximitySnapTimeRef.current = Date.now();
           const currentPhase = mapViewPhaseRef.current;
           if (currentPhase !== 2) {
-            // Only activate phase 2 if there is a driver location available for phase 2 to be meaningful
             const hasDriverLocation = !!(
               (newLocation.latitude && newLocation.longitude) ||
               appUsersRef.current?.find((au) => au?.user_id === currentUser?.id)?.current_latitude
             );
             if (hasDriverLocation) {
-              // Lock FAB into phase 2 and trigger a map reposition
               mapViewPhaseRef.current = 2;
               isMapViewLockedRef.current = true;
               pendingPhaseRef.current = 2;
               lastProgrammaticMapMoveRef.current = now;
               window._lastProgrammaticMapMove = now;
-              // Dispatch event so FABControls can update its state synchronously
               window.dispatchEvent(new CustomEvent('proximityActivatedPhase2', {
                 detail: { driverId: currentUser?.id }
               }));
-              // Trigger map to actually reposition to phase 2 bounds
               setMapViewTrigger((prev) => prev + 1);
             }
           }
-          // Scroll the next stop card into view
           const cardElement = document.getElementById(`stop-card-${delivery.id}`);
           cardElement?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
           break;

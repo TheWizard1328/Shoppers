@@ -223,11 +223,14 @@ export default function useImmersiveMode({
   const previousImmersiveHiddenRef = useRef(immersiveHidden);
   useEffect(() => {
     if (previousImmersiveHiddenRef.current !== immersiveHidden) {
-      // When exiting immersive mode (hidden → visible), stamp a global timestamp so
-      // proximity-snap and GPS map repositioning are suppressed for 5 seconds.
-      // This prevents the map from jumping to Phase 2 on the first GPS tick after exit.
+      // When exiting immersive mode (hidden → visible), stamp global timestamps so:
+      // 1. Proximity-snap is suppressed for 5s (driver just arrived, don't re-snap)
+      // 2. FAB USER_MAP_INTERACTION unlock is suppressed for 5s — the UI slide-in
+      //    animation can generate spurious map interaction events that would otherwise
+      //    unlock a locked phase 2/3 FAB immediately on exit.
       if (previousImmersiveHiddenRef.current && !immersiveHidden) {
         window._lastImmersiveExitAt = Date.now();
+        window._suppressFabUnlockUntil = Date.now() + 5000;
       }
     }
     previousImmersiveHiddenRef.current = immersiveHidden;
