@@ -17,6 +17,7 @@ import {
 import { pauseOfflineSync, resumeOfflineSync } from "@/components/utils/offlineSync";
 import RouteOptimizationSettings from "@/components/dashboard/RouteOptimizationSettings";
 import { locationTracker } from "@/components/utils/locationTracker";
+import { getCurrentDevice } from '@/components/utils/deviceManager';
 import { liveDistanceTracker } from "@/components/utils/liveDistanceTracker";
 import { globalFilters } from "@/components/utils/globalFilters";
 import { userHasRole } from '@/components/utils/userRoles';
@@ -177,6 +178,23 @@ function Dashboard() {
   useEffect(() => { selectedDriverIdRef.current = selectedDriverId; }, [selectedDriverId]);
   useEffect(() => { citiesRef.current = cities; }, [cities]);
   useEffect(() => { isPrimaryDeviceRef.current = isPrimaryDevice; }, [isPrimaryDevice]);
+
+  // Resolve primary-device status from the DB once we have a logged-in driver.
+  // Without this, isPrimaryDevice stays false forever and immersive mode never activates.
+  useEffect(() => {
+    if (!isDriver || !currentUser?.id) return;
+    let cancelled = false;
+    getCurrentDevice(currentUser.id).then((device) => {
+      if (cancelled) return;
+      const primary = device != null && device.status !== 'inactive' && device.is_primary_tracker === true;
+      setIsPrimaryDevice(primary);
+      isPrimaryDeviceRef.current = primary;
+      if (typeof window !== 'undefined') window.__isPrimaryDevice = primary;
+    }).catch(() => {
+      // Leave as false on error — safe default
+    });
+    return () => { cancelled = true; };
+  }, [isDriver, currentUser?.id]);
   useEffect(() => { isMapViewLockedRef.current = isMapViewLocked; }, [isMapViewLocked]);
 
   const filteredDeliveries = useMemo(() => {
