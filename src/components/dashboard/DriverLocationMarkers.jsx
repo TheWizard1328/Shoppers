@@ -375,8 +375,10 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         const prevList = Array.isArray(prev) ? prev : [];
         const visibleIncoming = normalizedIncoming.filter(shouldShowMarker);
 
-        // CRITICAL: For location-only WebSocket updates, merge into existing state
-        // so we don't wipe drivers whose data wasn't included in a single-record update.
+        // CRITICAL: ALWAYS merge incoming into existing state — never replace.
+        // Whether this comes from a WebSocket targeted update or SmartRefresh poll,
+        // replacing the full list can momentarily show stale positions for drivers
+        // not included in the incoming batch, causing the flicker/jump effect.
         const merged = mergeVisibleDriversByFreshness(prevList, visibleIncoming);
         return dedupeVisibleDrivers(merged.filter(shouldShowMarker));
       });

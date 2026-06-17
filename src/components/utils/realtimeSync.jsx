@@ -308,48 +308,38 @@ async function flushBuffered(entityName) {
   }
 
   if (typeof window !== 'undefined' && entityName === 'AppUser') {
-    // CRITICAL: For location-only updates (lat/lng/timestamp), dispatch a targeted
-    // single-record merge instead of a full IDB snapshot replacement.
-    // A full replacement races with the IDB write and can revert the fresh timestamp
-    // back to a stale one, causing the "flicker" seen on secondary devices.
-    const locationOnlyFields = new Set(['current_latitude', 'current_longitude', 'location_updated_at', 'last_active_at']);
-    const isLocationOnlyBatch = items.every(({ changedFields }) =>
-      Array.isArray(changedFields) && changedFields.length > 0 &&
-      changedFields.every(f => locationOnlyFields.has(f))
-    );
+    // CRITICAL: ALWAYS use targeted merge for AppUser updates — never dispatch a full
+    // IDB snapshot. The snapshot is read asynchronously and can contain a stale
+    // location_updated_at that was just overwritten by the WebSocket save, causing
+    // the marker to flicker back to its old position/color mid-animation.
+    //
+    // Strategy:
+    //   • For every WS update (location-only OR full field change), dispatch only the
+    //     incoming records directly — the freshest data we have.
+    //   • Record the WS update timestamp per-driver on window.__wsAppUserLastUpdate
+    //     so the SmartRefresh poll can skip overwriting drivers updated very recently.
+    const now = Date.now();
+    if (!window.__wsAppUserLastUpdate) window.__wsAppUserLastUpdate = new Map();
+    items.forEach(({ data: itemData }) => {
+      if (!itemData) return;
+      const key = itemData.user_id || itemData.id;
+      if (key) window.__wsAppUserLastUpdate.set(key, now);
+    });
 
-    if (isLocationOnlyBatch) {
-      // Targeted merge — only push the updated records, no full snapshot
-      items.forEach(({ data: itemData }) => {
-        if (!itemData) return;
-        window.dispatchEvent(new CustomEvent('appUserUpdated', {
-          detail: { appUser: itemData, fromRealtime: true, locationOnly: true }
-        }));
-      });
-      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-        detail: {
-          appUsers: items.map(i => i.data).filter(Boolean),
-          fromRealtime: true,
-          mergeMode: 'merge',
-          locationOnly: true
-        }
+    // Dispatch the raw incoming data — IDB save already completed above this point.
+    const incomingUsers = items.map(i => i.data).filter(Boolean);
+    incomingUsers.forEach((itemData) => {
+      window.dispatchEvent(new CustomEvent('appUserUpdated', {
+        detail: { appUser: itemData, fromRealtime: true }
       }));
-    } else if (Array.isArray(fullReplacementData)) {
-      window.dispatchEvent(new CustomEvent('appUsersUpdated', {
-        detail: {
-          appUsers: fullReplacementData,
-          fromRealtime: true,
-          fullReplacement: true
-        }
-      }));
-      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-        detail: {
-          appUsers: fullReplacementData,
-          fromRealtime: true,
-          fullReplacement: true
-        }
-      }));
-    }
+    });
+    window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+      detail: {
+        appUsers: incomingUsers,
+        fromRealtime: true,
+        mergeMode: 'merge',
+      }
+    }));
   }
 
   if (typeof window !== 'undefined' && entityName === 'Patient' && Array.isArray(fullReplacementData)) {
