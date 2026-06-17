@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { loadBreadcrumbsForDriver } from '@/components/utils/breadcrumbsManager';
@@ -12,12 +12,16 @@ export default function useLiveBreadcrumbsSync({
   appUsers,
   setBreadcrumbsData
 }) {
+  // Keep appUsers in a ref so the effect doesn't re-subscribe on every GPS update
+  const appUsersRef = useRef(appUsers);
+  useEffect(() => { appUsersRef.current = appUsers; }, [appUsers]);
+
   useEffect(() => {
     if (!showBreadcrumbs) return;
     const activeDriverId = showAllDriverMarkers || selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
     const activeDate = format(selectedDate, 'yyyy-MM-dd');
     const matches = ({ driverId, deliveryDate } = {}) => (!driverId || !activeDriverId || driverId === activeDriverId) && (!deliveryDate || deliveryDate === activeDate);
-    const refresh = async (event) => matches(event.detail || {}) && setBreadcrumbsData(await loadBreadcrumbsForDriver(activeDriverId, activeDate, appUsers));
+    const refresh = async (event) => matches(event.detail || {}) && setBreadcrumbsData(await loadBreadcrumbsForDriver(activeDriverId, activeDate, appUsersRef.current));
     const append = (event) => {
       const { point, ...detail } = event.detail || {};
       if (!point || !matches(detail)) return;
@@ -32,5 +36,7 @@ export default function useLiveBreadcrumbsSync({
       unsubscribeLive?.();
       window.removeEventListener('deliveriesUpdated', refresh);window.removeEventListener('routeOptimizationComplete', refresh);window.removeEventListener('routeReordered', refresh);window.removeEventListener('breadcrumbCollected', append);
     };
-  }, [showBreadcrumbs, showAllDriverMarkers, selectedDriverId, currentUser?.id, selectedDate, appUsers, setBreadcrumbsData]);
+  // appUsers intentionally omitted — accessed via ref to prevent re-subscribing on every GPS tick
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showBreadcrumbs, showAllDriverMarkers, selectedDriverId, currentUser?.id, selectedDate, setBreadcrumbsData]);
 }

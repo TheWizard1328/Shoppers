@@ -154,40 +154,30 @@ const map = useMap();
   }, [deliveryMarkers, pickupMarkers, multiDriverMode, selectedDriverId]);
 
   useEffect(() => {
-    const refreshAll = () => setRefreshToken((t) => t + 1);
-
+    // Only refresh travel mode changes here — delivery/status updates
+    // already flow in via the deliveryMarkers/pickupMarkers props, so
+    // firing setRefreshToken on every deliveriesUpdated event causes the
+    // entire polyline layer to remount on every GPS tick or data sync.
     const onDriverTravelModeChanged = (event) => {
       const driverId = event?.detail?.driverId;
       const travelMode = event?.detail?.travelMode;
       if (!driverId || !travelMode) return;
       setLocalDriverTravelModes((prev) => ({ ...prev, [driverId]: travelMode }));
-      refreshAll();
+      setRefreshToken((t) => t + 1);
     };
 
-    window.addEventListener('routeReordered', refreshAll);
-    window.addEventListener('routeOptimizationComplete', refreshAll);
-    window.addEventListener('deliveriesUpdated', refreshAll);
-    window.addEventListener('deliveriesImported', refreshAll);
+    const onPolylineInvalidate = () => setRefreshToken((t) => t + 1);
+
     window.addEventListener('driverTravelModeChanged', onDriverTravelModeChanged);
-    window.addEventListener('polylineUpdated', refreshAll);
-    window.addEventListener('polylineCacheCleared', refreshAll);
-    window.addEventListener('deliveryStarted', refreshAll);
-    window.addEventListener('deliveryCompleted', refreshAll);
-    window.addEventListener('deliveryFailed', refreshAll);
-    window.addEventListener('deliveryAction', refreshAll);
+    window.addEventListener('polylineUpdated', onPolylineInvalidate);
+    window.addEventListener('polylineCacheCleared', onPolylineInvalidate);
+    window.addEventListener('routeOptimizationComplete', onPolylineInvalidate);
 
     return () => {
-      window.removeEventListener('routeReordered', refreshAll);
-      window.removeEventListener('routeOptimizationComplete', refreshAll);
-      window.removeEventListener('deliveriesUpdated', refreshAll);
-      window.removeEventListener('deliveriesImported', refreshAll);
       window.removeEventListener('driverTravelModeChanged', onDriverTravelModeChanged);
-      window.removeEventListener('polylineUpdated', refreshAll);
-      window.removeEventListener('polylineCacheCleared', refreshAll);
-      window.removeEventListener('deliveryStarted', refreshAll);
-      window.removeEventListener('deliveryCompleted', refreshAll);
-      window.removeEventListener('deliveryFailed', refreshAll);
-      window.removeEventListener('deliveryAction', refreshAll);
+      window.removeEventListener('polylineUpdated', onPolylineInvalidate);
+      window.removeEventListener('polylineCacheCleared', onPolylineInvalidate);
+      window.removeEventListener('routeOptimizationComplete', onPolylineInvalidate);
     };
   }, []);
 
