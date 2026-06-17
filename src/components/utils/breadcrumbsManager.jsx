@@ -119,8 +119,11 @@ export async function loadBreadcrumbsForDriver(driverId, selectedDateStr, appUse
     console.warn('⚠️ Failed to load breadcrumbs:', e.message);
   }
 
-  // Load "current" live breadcrumbs from offline DELIVERY_BREADCRUMBS for today's in-progress legs
-  // These are the live points collected since the last stop was started
+  // Load "current" live breadcrumbs from offline DELIVERY_BREADCRUMBS for today's in-progress legs.
+  // Only include live records whose stop_order is NOT already covered by a historical (synced) record
+  // to prevent duplicate polylines being drawn on the same path.
+  const historicalStopOrders = new Set(historical.map((r) => r.stop_order));
+
   let current = [];
   try {
     const allOffline = await offlineDB.getAll(offlineDB.STORES.DELIVERY_BREADCRUMBS);
@@ -129,7 +132,10 @@ export async function loadBreadcrumbsForDriver(driverId, selectedDateStr, appUse
       if (record.driver_id !== driverId) return false;
       if (record.delivery_date !== selectedDateStr) return false;
       // "Live" records use the local offline key format (not a backend ID)
-      return typeof record.id === 'string' && record.id.includes('__stop_');
+      if (!(typeof record.id === 'string' && record.id.includes('__stop_'))) return false;
+      // Skip if this stop_order is already represented in the historical (synced) data
+      if (record.stop_order != null && historicalStopOrders.has(record.stop_order)) return false;
+      return true;
     });
 
     current = liveRecords.flatMap((record) => {

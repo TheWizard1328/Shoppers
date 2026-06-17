@@ -501,7 +501,7 @@ export default function StatsPanel({
                             setBreadcrumbsData({ historical: [], current: [] });
                             setShowRoutes(true);
                           } else {
-                            // Currently showing polylines only → try to add breadcrumbs overlay
+                            // Load breadcrumbs
                             try {
                               const selDateStr = format(selectedDate, 'yyyy-MM-dd');
                               const driverIdToFetch = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
@@ -512,7 +512,13 @@ export default function StatsPanel({
                               }
                               setBreadcrumbsData(loadedBreadcrumbs);
                               setShowBreadcrumbs(true);
-                              setShowRoutes(true);
+                              // Completed route: show breadcrumbs only (no polyline overlap)
+                              // In-progress route: show both breadcrumbs + incomplete-stop polylines
+                              if (isDateFinished) {
+                                setShowRoutes(false);
+                              } else {
+                                setShowRoutes(true);
+                              }
                             } catch (err) {
                               toast.error('Failed to load breadcrumbs');
                               return;
