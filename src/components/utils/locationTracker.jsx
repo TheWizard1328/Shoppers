@@ -61,7 +61,8 @@ class LocationTracker {
         this.minPolylineRefreshDistance = 100;
         this.minTimeBetweenPolylineRefresh = 30000;
         this.lastBreadcrumbSavedAt = 0;
-        this.breadcrumbSaveInterval = 15000;
+        this.breadcrumbSaveInterval = 5000; // 5 seconds — offline DB write frequency
+        this.breadcrumbInterval = null; // Independent 5s timer for breadcrumb collection
         this.lastHeartbeatAt = 0;
         this.lastFocusLostAt = 0;
 
@@ -80,7 +81,7 @@ class LocationTracker {
 
       // 100m minimum movement threshold
       this.minDistanceChange = 100;
-      this.breadcrumbSaveInterval = 15000;
+      this.breadcrumbSaveInterval = 5000; // 5 seconds — offline DB write frequency
 
       console.log(`📍 [LocationTracker] Interval: ${this.updateInterval / 1000}s, breadcrumb interval: ${this.breadcrumbSaveInterval / 1000}s, distance threshold: ${this.minDistanceChange}m`);
     } catch (error) {
@@ -467,10 +468,7 @@ class LocationTracker {
       this.failedUpdateCount = 0;
       this.backoffTime = 0;
 
-      // CRITICAL: Breadcrumbs run on their own 30s cycle while on duty.
-      if (this.driverStatus === 'on_duty') {
-        await this.collectBreadcrumb(latitude, longitude, Date.now());
-      }
+      // Breadcrumbs are collected on their own independent 5s timer — not here.
 
       // CRITICAL: Check for arrival at delivery locations on every GPS/heartbeat update while on duty
       if (this.driverStatus === 'on_duty' && this.currentDeliveryDate) {
@@ -901,7 +899,21 @@ class LocationTracker {
           }, this.updateInterval);
         }
 
-        console.log(`✅ [${providerName} PROVIDER] Location tracking started${useNativeBackgroundWatcher ? ' - streaming native updates' : ` - uploads every ${this.updateInterval/1000}s`}`);
+        // Independent 5s breadcrumb collection timer — decoupled from GPS upload cycle
+        if (this.breadcrumbInterval) {
+          clearInterval(this.breadcrumbInterval);
+          this.breadcrumbInterval = null;
+        }
+        this.breadcrumbInterval = setInterval(() => {
+          if (!this.isTracking || this.driverStatus !== 'on_duty' || !this.lastPosition) return;
+          this.collectBreadcrumb(
+            this.lastPosition.latitude,
+            this.lastPosition.longitude,
+            Date.now()
+          ).catch((e) => console.warn('⚠️ [Breadcrumb Timer] collectBreadcrumb failed:', e?.message));
+        }, this.breadcrumbSaveInterval);
+
+        console.log(`✅ [${providerName} PROVIDER] Location tracking started${useNativeBackgroundWatcher ? ' - streaming native updates' : ` - uploads every ${this.updateInterval/1000}s`} | Breadcrumbs every ${this.breadcrumbSaveInterval/1000}s`);
       } catch (error) {
         console.error('❌ Failed to start location provider:', error);
         reject(this.handleLocationError(error));
@@ -918,7 +930,11 @@ class LocationTracker {
       });
     }
     this._clearHeartbeat();
-    console.log('💓 [LocationTracker] Stopped heartbeat interval');
+    if (this.breadcrumbInterval) {
+      clearInterval(this.breadcrumbInterval);
+      this.breadcrumbInterval = null;
+    }
+    console.log('💓 [LocationTracker] Stopped heartbeat + breadcrumb intervals');
     this.isTracking = false;
     this._webOnlyMode = false;
     this.isPrimaryDevice = false;
