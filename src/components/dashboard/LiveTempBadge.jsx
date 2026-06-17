@@ -372,20 +372,21 @@ export default function LiveTempBadge({
   return (
     <AnimatePresence mode="wait">
       <motion.div
-        key={immersiveHidden ? 'immersive-top' : 'normal-bottom'}
+        key="temp-badge"
         initial={{ opacity: 0, scale: 0.92 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.92 }}
         transition={{ duration: 0.2 }}
         className="flex justify-center z-[100] pointer-events-none"
-        style={immersiveHidden
-          ? { position: 'absolute', top: `${immersiveTopOffset}px`, left: 0, right: 0 }
-          : (() => {
-              const bottomNavHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bottom-nav-height') || '0') || 0;
-              const bottom = ((hasVisibleCards && !immersiveHidden) ? stopCardsHeight + bottomNavHeight : bottomNavHeight) + 10;
-              return { position: fabPosition, bottom: `${bottom}px`,
-                left: fabPosition === 'fixed' ? 'var(--sidebar-width)' : 0, right: 0 };
-            })()}
+        style={(() => {
+            const bottomNavHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bottom-nav-height') || '0') || 0;
+            // In immersive mode: match the FABs — sit 10px from the bottom with no stop cards offset
+            const bottom = immersiveHidden
+              ? bottomNavHeight + 10
+              : ((hasVisibleCards) ? stopCardsHeight + bottomNavHeight : bottomNavHeight) + 10;
+            return { position: fabPosition, bottom: `${bottom}px`,
+              left: fabPosition === 'fixed' ? 'var(--sidebar-width)' : 0, right: 0 };
+          })()}
       >
         <div
           role="button"
