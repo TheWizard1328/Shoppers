@@ -136,7 +136,10 @@ export default function MultiDeliveryArrivalDialog({
                   {/* Row 1: Stop # + Name + Status */}
                   <div className="flex items-center gap-2 flex-wrap">
                     {delivery.stop_order != null && (
-                      <Badge className="bg-slate-700 text-white text-xs px-2 py-0.5 rounded-full font-bold">
+                      <Badge
+                        className="text-white text-xs px-2 py-0.5 rounded-full font-bold"
+                        style={{ backgroundColor: (delivery.fridge_item && delivery.status === 'in_transit') ? '#2563eb' : '#10B981' }}
+                      >
                         #{delivery.stop_order}
                       </Badge>
                     )}
