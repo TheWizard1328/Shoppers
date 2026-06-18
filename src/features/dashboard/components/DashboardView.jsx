@@ -564,7 +564,7 @@ export default function DashboardView({
         )}
       </div>
 
-      {isAppOwner(currentUser) && (isDriver || isDispatcher) &&
+      {currentUser &&
         <FABControls
           currentUser={currentUser} isDriver={isDriver} isDispatcher={isDispatcher}
           patients={patients} stores={stores} deliveriesWithStopOrder={deliveriesWithStopOrder} filteredDeliveries={filteredDeliveries}
