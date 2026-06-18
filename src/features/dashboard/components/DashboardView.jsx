@@ -505,23 +505,47 @@ export default function DashboardView({
           <ApiUsageBadge currentUser={currentUser} stopCardsHeight={immersiveHidden ? 0 : stopCardsBaseHeight} />
         </StopCardCheckboxToggle>
 
-        {optimizationMessage && !immersiveHidden && !isMobile && (
+        {optimizationMessage && !immersiveHidden && (
           <div
-            className="pointer-events-none absolute inset-x-0 z-[640]"
-            style={{ bottom: `calc(${stopCardsBaseHeight}px + 0.25rem)` }}
+            className="pointer-events-none absolute inset-x-0 z-[640] flex justify-center px-4"
+            style={{ bottom: `calc(${stopCardsBaseHeight}px + 0.5rem)` }}
           >
-            {/* KITT-style black scanning bar above stop cards */}
-            <div className="relative overflow-hidden bg-black rounded-none h-9 flex items-center justify-center shadow-[0_-2px_12px_rgba(0,0,0,0.6)]">
-              {/* Scanning sweep */}
+            {/* KITT-style dark pill with green bouncing orb */}
+            <div
+              className="relative overflow-hidden flex items-center justify-center"
+              style={{
+                background: 'rgba(0,0,0,0.82)',
+                border: '1px solid rgba(52,211,153,0.35)',
+                borderRadius: 10,
+                height: 36,
+                minWidth: 280,
+                maxWidth: 560,
+                width: 'min(560px, 48vw)',
+                boxShadow: '0 4px 24px rgba(0,0,0,0.45)',
+              }}
+            >
+              {/* Green bouncing orb */}
               <div
-                className="absolute inset-y-0 w-2/5 rounded-full blur-sm"
                 style={{
-                  background: 'linear-gradient(90deg, transparent 0%, #ef4444 40%, #ff6600 60%, transparent 100%)',
-                  animation: 'kitt-scan 1.2s ease-in-out infinite',
-                  opacity: 0.85
+                  position: 'absolute',
+                  top: 0,
+                  bottom: 0,
+                  width: 52,
+                  background: 'radial-gradient(ellipse at center, rgba(52,211,153,1) 0%, rgba(16,185,129,0.55) 55%, transparent 100%)',
+                  animation: 'kitt-scan 1.2s ease-in-out infinite alternate',
+                  borderRadius: '50%',
+                  filter: 'blur(3px)',
+                  opacity: 0.9,
                 }}
               />
-              <span className="relative z-10 text-xs font-bold tracking-widest uppercase" style={{ color: '#f87171', textShadow: '0 0 8px rgba(239,68,68,0.95), 0 0 2px rgba(239,68,68,0.7)', letterSpacing: '0.15em' }}>
+              <span
+                className="relative z-10 text-xs font-bold uppercase"
+                style={{
+                  color: '#34d399',
+                  textShadow: '0 0 8px rgba(52,211,153,0.9), 0 0 2px rgba(52,211,153,0.6)',
+                  letterSpacing: '0.12em',
+                }}
+              >
                 {optimizationMessage}
               </span>
             </div>
