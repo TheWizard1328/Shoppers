@@ -473,6 +473,28 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     }
   };
 
+  // Stable display timestamps — debounced per driver so the popup doesn't flicker
+  // when two browser instances receive the same WS event at slightly different times.
+  const stableTimestampsRef = useRef(new Map()); // key → { ts: string, committedAt: number }
+  const TIMESTAMP_DEBOUNCE_MS = 3000; // only update displayed timestamp if >3s newer
+
+  const getStableTimestamp = (stableKey, locationUpdatedAt) => {
+    if (!locationUpdatedAt) return locationUpdatedAt;
+    const entry = stableTimestampsRef.current.get(stableKey);
+    const incoming = new Date(locationUpdatedAt).getTime();
+    if (!entry) {
+      stableTimestampsRef.current.set(stableKey, { ts: locationUpdatedAt, committedAt: Date.now() });
+      return locationUpdatedAt;
+    }
+    const existing = new Date(entry.ts).getTime();
+    // Only advance the displayed timestamp if the incoming value is meaningfully newer
+    if (incoming - existing >= TIMESTAMP_DEBOUNCE_MS) {
+      stableTimestampsRef.current.set(stableKey, { ts: locationUpdatedAt, committedAt: Date.now() });
+      return locationUpdatedAt;
+    }
+    return entry.ts;
+  };
+
   // Stable initial positions — used as the React prop for each Marker so the prop never changes
   // (position updates are applied imperatively via setLatLng in the animation effect below).
   const initialPositionsRef = useRef(new Map());
@@ -574,9 +596,17 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         
         const currentUserId = currentUser?.id;
         const currentUserUserId = currentUser?.user_id;
+        const currentAppUserId = currentUser?.appUserId;
         const userId = user.id || user.user_id;
-        const isSelf = user.isSelf === true || user._isSelf === true || userId === currentUserId || userId === currentUserUserId || user.user_id === currentUserId;
-        const updatedAtMs = user.location_updated_at ? new Date(user.location_updated_at).getTime() : 0;
+        // CRITICAL: Match all possible ID formats — AppUser.user_id vs User.id vs appUserId
+        // to ensure isSelf is stable across browser instances regardless of which field arrives first
+        const isSelf = user.isSelf === true || user._isSelf === true ||
+          userId === currentUserId ||
+          userId === currentUserUserId ||
+          userId === currentAppUserId ||
+          user.user_id === currentUserId ||
+          user.user_id === currentUserUserId;
+        const updatedAtMs = stableUpdatedAt ? new Date(stableUpdatedAt).getTime() : 0;
         const hasRecentHeartbeat = updatedAtMs > 0 && (Date.now() - updatedAtMs) <= 5 * 60 * 1000;
         const isSharedLocation = isSelf && !isPrimaryDeviceRef.current && hasRecentHeartbeat;
 
@@ -590,6 +620,9 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         const deliveryStatus = user._deliveryStatus || 'incomplete';
         const zIndexValue = isSharedLocation ? 3000 : (isActive ? 2000 : 1000);
         const driverColor = generateDriverColor(displayName);
+        // Stable timestamp — debounced so popup doesn't flicker when WS events arrive
+        // at slightly different times across browser instances
+        const stableUpdatedAt = getStableTimestamp(stableKey, user.location_updated_at);
 
         // Use cached icon — avoids Leaflet destroying/recreating the marker DOM on every location update
         const stableIcon = getStableIcon(stableKey, driverColor, user.driver_status, displayName.charAt(0).toUpperCase(), staleness, deliveryStatus);
@@ -659,7 +692,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
                   </>
                 )}
                 <p className="text-xs text-slate-600 mt-2">
-                  Updated: {getLocationAge(user.location_updated_at)}
+                  Updated: {getLocationAge(stableUpdatedAt)}
                 </p>
               </div>
             </Popup>
