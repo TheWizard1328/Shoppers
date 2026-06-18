@@ -49,7 +49,7 @@ const sanitizeState = (rawState = {}) => {
   return {
     ...defaultState,
     ...rawState,
-    activeTab: rawState?.activeTab && MOBILE_TAB_CONFIG[rawState.activeTab] ? rawState.activeTab : defaultState.activeTab,
+    activeTab: rawState?.activeTab === null ? null : (rawState?.activeTab && MOBILE_TAB_CONFIG[rawState.activeTab] ? rawState.activeTab : defaultState.activeTab),
     lastAction: rawState?.lastAction === 'pop' ? 'pop' : 'push',
     tabStacks,
     scrollPositions,
