@@ -507,29 +507,44 @@ export default function DashboardView({
 
         {optimizationMessage && !immersiveHidden && !isMobile && (
           <div
-            className="pointer-events-none absolute inset-x-0 z-[9998] flex justify-center"
-            style={{ bottom: stopCardsBaseHeight + 12 }}
+            className="pointer-events-none absolute inset-x-0 z-[9999] flex justify-center"
+            style={{ bottom: (stopCardsBaseHeight || 120) + 14 }}
           >
             <div
-              className="pointer-events-auto rounded-xl border border-emerald-200 overflow-hidden shadow-xl backdrop-blur-sm text-center relative"
-              style={{ background: 'rgba(0,0,0,0.82)', width: 'min(600px, 50vw)', minWidth: 320 }}
+              className="pointer-events-auto relative overflow-hidden text-center"
+              style={{
+                background: 'rgba(0,0,0,0.85)',
+                width: Math.min(600, window.innerWidth * 0.5),
+                minWidth: 320,
+                borderRadius: 12,
+                border: '1px solid rgba(52,211,153,0.4)',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+              }}
             >
-              {/* KITT scanner bar */}
-              <div className="absolute inset-x-0 top-0 bottom-0 overflow-hidden rounded-xl pointer-events-none">
+              {/* KITT bouncing red orb */}
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  overflow: 'hidden',
+                  borderRadius: 12,
+                  pointerEvents: 'none',
+                }}
+              >
                 <div
                   style={{
                     position: 'absolute',
                     top: 0,
                     bottom: 0,
-                    width: 48,
-                    background: 'radial-gradient(ellipse at center, rgba(220,38,38,0.9) 0%, rgba(220,38,38,0.4) 60%, transparent 100%)',
-                    animation: 'kitt-scan 1.4s ease-in-out infinite alternate',
-                    borderRadius: 24,
-                    filter: 'blur(2px)',
+                    width: 52,
+                    background: 'radial-gradient(ellipse at center, rgba(239,68,68,1) 0%, rgba(220,38,38,0.6) 50%, transparent 100%)',
+                    animation: 'kitt-scan 1.2s ease-in-out infinite alternate',
+                    borderRadius: '50%',
+                    filter: 'blur(3px)',
                   }}
                 />
               </div>
-              <div className="relative z-10 px-5 py-3 text-sm font-bold text-emerald-400 tracking-wide">
+              <div className="relative px-6 py-2.5" style={{ color: '#34d399', fontSize: 13, fontWeight: 700, letterSpacing: '0.05em' }}>
                 {optimizationMessage}
               </div>
             </div>
