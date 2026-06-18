@@ -1187,18 +1187,15 @@ function Dashboard() {
     const _sp=([1,2,3].includes(Number(initialFabPhase)))?Number(initialFabPhase):1;
     if (mapLockTimeoutRef.current) { clearTimeout(mapLockTimeoutRef.current); mapLockTimeoutRef.current = null; }
     mapLockExpiresAtRef.current = null;
-    mapViewPhaseRef.current = _sp; isMapViewLockedRef.current = false; pendingPhaseRef.current = _sp;
-    setMapViewPhase(_sp); setIsMapViewLocked(false);
+    // Phases 2 & 3: restore locked so map positions to saved phase and next FAB click cycles forward.
+    // Phase 1: start unlocked so first click re-locks it (standard phase-1 entry behavior).
+    const shouldLock = _sp > 1;
+    mapViewPhaseRef.current = _sp; isMapViewLockedRef.current = shouldLock; pendingPhaseRef.current = _sp;
+    setMapViewPhase(_sp); setIsMapViewLocked(shouldLock);
     setInitialMapViewApplied(true);
     setRenderSequence((p) => ({ ...p, fabPhaseReady: true }));
     lastProgrammaticMapMoveRef.current = Date.now();
     window._lastProgrammaticMapMove = Date.now();
-    // CRITICAL: Do NOT lock on initial load — start unlocked so first FAB click
-    // always takes the "unlocked → re-lock phase 1 for 3s" path instead of
-    // the "locked → advance to phase 2" path.
-    isMapViewLockedRef.current = false;
-    setIsMapViewLocked(false);
-    mapLockExpiresAtRef.current = null;
     setMapViewTrigger((p) => p + 1);
   };
 

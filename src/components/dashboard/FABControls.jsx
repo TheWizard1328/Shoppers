@@ -3,8 +3,8 @@ import { AnimatePresence } from 'framer-motion';
 import { useDevice } from '@/components/utils/DeviceContext';
 import MapViewCycleFAB from '@/components/dashboard/MapViewCycleFAB';
 import RouteActionButtons from '@/components/dashboard/RouteActionButtons';
-import ImmersiveActionFAB from '@/components/dashboard/ImmersiveActionFAB';
-import { Phone, ExternalLink } from 'lucide-react';
+import { Phone, Navigation } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 export default function FABControls({
   currentUser,
@@ -89,26 +89,48 @@ export default function FABControls({
 
   return (
     <AnimatePresence>
-      <ImmersiveActionFAB
-        key="immersive-call-fab"
-        icon={Phone}
-        title="Call patient"
-        onClick={handleImmersiveCall}
-        bottom={immersiveFabBottom}
-        right={108}
-        className="bg-blue-600 hover:bg-blue-700"
-        style={{ display: (immersiveHidden && immersiveOverlayDelivery && isMobile && immersivePatientPhone) ? undefined : 'none' }}
-      />
-      <ImmersiveActionFAB
-        key="immersive-nav-fab"
-        icon={ExternalLink}
-        title="Open in Google Maps"
-        onClick={handleImmersiveNavigate}
-        bottom={immersiveFabBottom}
-        right={60}
-        className="bg-violet-600 hover:bg-violet-700"
-        style={{ display: (immersiveHidden && immersiveOverlayDelivery && isMobile && (immersiveNavLat || immersiveNavAddress)) ? undefined : 'none' }}
-      />
+      {immersiveHidden && immersiveOverlayDelivery && isMobile && immersivePatientPhone && (
+        <motion.div
+          key="immersive-call-fab"
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0, opacity: 0 }}
+          transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+          className="z-[700]"
+          style={{ position: fabPosition, bottom: `${immersiveFabBottom}px`, right: '108px', pointerEvents: 'auto' }}
+        >
+          <button
+            type="button"
+            onClick={handleImmersiveCall}
+            title="Call patient"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 transition-colors hover:bg-emerald-200"
+            style={{ touchAction: 'manipulation' }}
+          >
+            <Phone className="w-5 h-5" />
+          </button>
+        </motion.div>
+      )}
+      {immersiveHidden && immersiveOverlayDelivery && isMobile && (immersiveNavLat || immersiveNavAddress) && (
+        <motion.div
+          key="immersive-nav-fab"
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0, opacity: 0 }}
+          transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+          className="z-[700]"
+          style={{ position: fabPosition, bottom: `${immersiveFabBottom}px`, right: '60px', pointerEvents: 'auto' }}
+        >
+          <button
+            type="button"
+            onClick={handleImmersiveNavigate}
+            title="Open in Google Maps"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-600 transition-colors hover:bg-blue-200"
+            style={{ touchAction: 'manipulation' }}
+          >
+            <Navigation className="w-5 h-5" />
+          </button>
+        </motion.div>
+      )}
       <MapViewCycleFAB
         key="map-view-cycle-fab"
         currentUser={currentUser}
