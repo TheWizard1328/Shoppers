@@ -11,18 +11,27 @@ const broadcastMutation = async (entity, action, id, data) => {
 };
 
 export const syncUpdatedAppUser = async ({ updatedAppUser, currentUser }) => {
-  // Stamp the device_identifier so realtimeSync can suppress the self-echo on this device
   const deviceIdentifier = localStorage.getItem('rxdeliver_device_identifier');
-  if (deviceIdentifier) {
-    updatedAppUser = { ...updatedAppUser, _source_device: deviceIdentifier };
+
+  // Register this AppUser record ID as "just written by this device" so the WS echo
+  // arriving back on this same device can be suppressed — regardless of whether the
+  // platform strips _source_device from the returned payload.
+  if (deviceIdentifier && updatedAppUser?.id) {
+    if (!window.__localAppUserWrites) window.__localAppUserWrites = new Map();
+    window.__localAppUserWrites.set(updatedAppUser.id, Date.now());
   }
+
+  // Strip _source_device before saving to offline DB — it is a local-only signal
+  // and must never be persisted or broadcast to other devices via the DB record.
+  const appUserForDB = { ...updatedAppUser };
+  delete appUserForDB._source_device;
 
   try {
     const { offlineDB } = await import('./offlineDatabase');
-    await offlineDB.save(offlineDB.STORES.APP_USERS, updatedAppUser);
+    await offlineDB.save(offlineDB.STORES.APP_USERS, appUserForDB);
 
     window.dispatchEvent(new CustomEvent('appUserUpdated', {
-      detail: { appUser: updatedAppUser, fromLocationTracker: true }
+      detail: { appUser: appUserForDB, fromLocationTracker: true }
     }));
   } catch (offlineError) {
     console.error('❌ [LocationTracker] FAILED TO SYNC to offline DB:', offlineError.message);
@@ -31,7 +40,7 @@ export const syncUpdatedAppUser = async ({ updatedAppUser, currentUser }) => {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
       detail: {
-        appUsers: [updatedAppUser],
+        appUsers: [appUserForDB],
         singleUpdate: true,
         fromLocationTracker: true,
         mergeMode: 'merge'
@@ -39,7 +48,9 @@ export const syncUpdatedAppUser = async ({ updatedAppUser, currentUser }) => {
     }));
   }
 
-  await broadcastMutation('AppUser', 'update', updatedAppUser.id, updatedAppUser);
+  // Broadcast to other devices — no _source_device in this payload so other devices
+  // receive it normally. The originating device suppresses via __localAppUserWrites.
+  await broadcastMutation('AppUser', 'update', appUserForDB.id, appUserForDB);
 
   const currentDevice = await getCurrentDevice(currentUser.id);
   if (currentDevice) {

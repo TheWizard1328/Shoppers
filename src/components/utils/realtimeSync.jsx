@@ -534,14 +534,20 @@ const subscribeToEntity = (entityName) => {
     const { type, id } = event;
     const data = entityName === 'Delivery' ? normalizeDeliveryRealtimeData(event.data) : event.data;
 
-    // SELF-ECHO SUPPRESSION: If this AppUser update was written by this exact device,
-    // drop the incoming broadcast entirely — the offline DB was already updated optimistically
-    // in syncUpdatedAppUser before the API write, so there is nothing new to process.
-    if (entityName === 'AppUser' && data?._source_device) {
-      const myDevice = typeof localStorage !== 'undefined' ? localStorage.getItem('rxdeliver_device_identifier') : null;
-      if (myDevice && data._source_device === myDevice) {
-        console.log(`🔇 [RealtimeSync] Self-echo suppressed for AppUser ${id} — originated from this device`);
-        return;
+    // SELF-ECHO SUPPRESSION: If this AppUser update was written by this exact device
+    // (tracked via window.__localAppUserWrites set in locationTrackerBroadcast),
+    // drop the incoming WS echo — the offline DB and UI state are already up to date.
+    // We suppress for 10 seconds from the write time to cover WebSocket round-trip latency.
+    if (entityName === 'AppUser') {
+      const localWrites = window.__localAppUserWrites;
+      if (localWrites && localWrites.has(id)) {
+        const writtenAt = localWrites.get(id);
+        if (Date.now() - writtenAt < 10000) {
+          console.log(`🔇 [RealtimeSync] Self-echo suppressed for AppUser ${id} — originated from this device (${Math.round((Date.now() - writtenAt) / 1000)}s ago)`);
+          return;
+        }
+        // Expired — remove so future remote updates from other devices pass through
+        localWrites.delete(id);
       }
     }
       
