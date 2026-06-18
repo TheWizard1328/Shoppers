@@ -220,8 +220,9 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
       );
       
       if (isCurrentUser && typeof appUser.driver_status !== 'undefined') {
-        // Deduplicate: skip if this exact status was already processed from a WS event
-        if (lastWsStatusRef.current === appUser.driver_status) {
+        // Deduplicate: skip if this exact status was already processed AND we're not toggling
+        // (allow same-status re-broadcasts when lastWsStatusRef was reset by a new toggle)
+        if (lastWsStatusRef.current === appUser.driver_status && !isTogglingRef.current) {
           return;
         }
 
@@ -357,6 +358,9 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
     try {
       console.log(`🔄 Changing driver status: ${status} -> ${newStatus}`);
       lastRequestedStatusRef.current = newStatus;
+      // CRITICAL: Reset the WS dedup ref so a repeated status (e.g. off_duty → on_duty → off_duty → on_duty)
+      // is never silently dropped by the handleAppUserUpdated listener's dedup check.
+      lastWsStatusRef.current = null;
       
       // Optimistically update UI
       setStatus(newStatus);
