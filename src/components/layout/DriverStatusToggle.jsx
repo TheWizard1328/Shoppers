@@ -463,7 +463,8 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
         newStatus,
         deviceId,
         selectedDate: optimizerDeliveryDate,
-        disableLocationTracking: newStatus === 'off_duty' // Only disable tracking when off duty
+        disableLocationTracking: newStatus === 'off_duty', // Only disable tracking when off duty
+        ...(targetUser ? { targetUserId: effectiveUser.id } : {}) // Admin: target specific driver
       });
       
       const confirmedStatus = result?.data?.driver_status || newStatus;
