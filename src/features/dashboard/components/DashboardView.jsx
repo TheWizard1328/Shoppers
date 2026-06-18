@@ -586,7 +586,7 @@ export default function DashboardView({
 
       <DashboardDialogs
          currentUser={currentUser} isDriver={isDriver} isDispatcher={isDispatcher}
-         deliveries={deliveries} patients={patients} stores={stores} drivers={drivers} appUsers={appUsers}
+         deliveries={deliveries} patients={patients} stores={stores} drivers={driversList?.length ? driversList : drivers} appUsers={appUsers}
          filteredDeliveries={filteredDeliveries} deliveriesWithStopOrder={deliveriesWithStopOrder}
          selectedDate={selectedDate} selectedDateStr={selectedDateStr} selectedDriverId={selectedDriverId}
          driverLocation={driverLocation}
