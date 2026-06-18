@@ -20,6 +20,7 @@ import { smartRefreshManager } from './smartRefreshManager';
 import { pauseOfflineSync, resumeOfflineSync } from './offlineSync';
 import { pauseOfflineMutations, resumeOfflineMutations } from './offlineMutations';
 import { driverLocationPoller } from './driverLocationPoller';
+import { backgroundSyncManager } from './backgroundSyncManager';
 import { 
   createPatientLocal, 
   updatePatientLocal, 
@@ -49,6 +50,7 @@ export const executeDataOperation = async (operation, options = {}) => {
   pauseOfflineSync();
   pauseOfflineMutations();
   driverLocationPoller.pause();
+  backgroundSyncManager.pause();
   
   try {
     // STEP 2: Execute the actual data operation
@@ -60,6 +62,7 @@ export const executeDataOperation = async (operation, options = {}) => {
     resumeOfflineMutations();
     resumeOfflineSync();
     driverLocationPoller.resume();
+    backgroundSyncManager.resume();
     
     // STEP 4: Restart smart refresh manager (force immediate refresh)
     if (!skipSmartRefreshRestart) {
@@ -84,6 +87,7 @@ export const executeDataOperation = async (operation, options = {}) => {
     resumeOfflineMutations();
     resumeOfflineSync();
     driverLocationPoller.resume();
+    backgroundSyncManager.resume();
     
     if (!skipSmartRefreshRestart) {
       smartRefreshManager.restart();
