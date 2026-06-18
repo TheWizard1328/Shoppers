@@ -516,7 +516,7 @@ export default function DashboardView({
           <ApiUsageBadge currentUser={currentUser} stopCardsHeight={immersiveHidden ? 0 : stopCardsBaseHeight} />
         </StopCardCheckboxToggle>
 
-        {optimizationMessage && !immersiveHidden && (
+        {optimizationMessage && (!immersiveHidden || optimizationMessage.toLowerCase().includes('regenerat')) && (
           <div
             className="pointer-events-none absolute inset-x-0 z-[640] flex justify-center px-4"
             style={{ bottom: `calc(${stopCardsBaseHeight}px + 0.5rem)` }}
