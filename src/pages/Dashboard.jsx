@@ -1178,13 +1178,15 @@ function Dashboard() {
   }, [mapViewPhase]);
 
   // ── Initial FAB application after data sequence loads ────────────────────
-  // Always phase 1, brief lock so map fits all stops, then unlock.
+  // Sets the saved phase on the FAB/refs first, then fires the map trigger in a
+  // separate setTimeout so React has committed the phase state before the
+  // mapViewTrigger effect (which reads pendingPhaseRef) runs.
   const _applyFabPhase = () => {
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
     const hasData = deliveriesWithStopOrder.length > 0 ||
       hasDeliveryDataForSelection({ deliveries, selectedDateStr: dateStr, selectedDriverId });
     if (!hasData) return;
-    const _sp=([1,2,3].includes(Number(initialFabPhase)))?Number(initialFabPhase):1;
+    const _sp = ([1,2,3].includes(Number(initialFabPhase))) ? Number(initialFabPhase) : 1;
     if (mapLockTimeoutRef.current) { clearTimeout(mapLockTimeoutRef.current); mapLockTimeoutRef.current = null; }
     mapLockExpiresAtRef.current = null;
     // Phases 2 & 3: restore locked so map positions to saved phase and next FAB click cycles forward.
@@ -1196,7 +1198,14 @@ function Dashboard() {
     setRenderSequence((p) => ({ ...p, fabPhaseReady: true }));
     lastProgrammaticMapMoveRef.current = Date.now();
     window._lastProgrammaticMapMove = Date.now();
-    setMapViewTrigger((p) => p + 1);
+    // CRITICAL: Fire the map trigger in a separate task so React has committed the
+    // phase state (setMapViewPhase above) and the map's useEffect([mapViewTrigger])
+    // is subscribed before it reads pendingPhaseRef. Without this separation the
+    // trigger and the phase-set land in the same batch, the map effect fires before
+    // pendingPhaseRef reflects the saved phase, and the map doesn't reposition.
+    setTimeout(() => {
+      setMapViewTrigger((p) => p + 1);
+    }, 150);
   };
 
 useEffect(() => {
@@ -1213,9 +1222,12 @@ useEffect(() => {
     }
 
     fabControlEvents.notifyDataReady();
-    // CRITICAL: Delay FAB phase application long enough for stop cards to fully
-    // render and become scrollable — prevents map panning before isNextDelivery
-    // card centering is possible. 1200ms covers card measurement + paint.
+    // CRITICAL: Wait for the map component to fully mount and subscribe its
+    // useEffect([mapViewTrigger]) before firing _applyFabPhase. The map renders
+    // after stop cards are measured (cardsReadyForFAB), but needs one more render
+    // cycle + layout paint before its effects are live. 1500ms is the safe minimum
+    // on slow devices; the extra 150ms inside _applyFabPhase then separates the
+    // phase-set from the trigger so they're never batched together.
     setTimeout(() => {
         _applyFabPhase();
         initialFabPhaseAppliedRef.current = currentDateDriverCombo;
@@ -1223,7 +1235,7 @@ useEffect(() => {
         setTimeout(() => {
             window.dispatchEvent(new CustomEvent('centerNextDeliveryCard'));
         }, 800);
-    }, 1200);
+    }, 1500);
   }, [renderSequence.fullDeliveriesLoaded, renderSequence.fabPhaseReady, initialMapViewApplied, cardsReadyForFAB]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { window._mapViewPhaseRef = mapViewPhaseRef; window._pendingPhaseRef = pendingPhaseRef; window._selectedDriverIdRef = selectedDriverIdRef; }, []);
