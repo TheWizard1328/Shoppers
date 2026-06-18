@@ -378,6 +378,20 @@ export function useLayoutEventHandlers({
     };
     window.addEventListener('deliveriesUpdated', handleDeliveriesUpdated);
 
+    // Listen for AppUser status/location updates and merge into Layout appUsers state immediately.
+    // This drives onlineCounts (sidebar Drivers badge) and AppDataContext (DriverLegendBar).
+    const handleAppUserUpdated = (event) => {
+      const { appUser } = event.detail || {};
+      if (!appUser?.id) return;
+      setAppUsers((prev) => {
+        const m = new Map(prev.map((u) => [u.id, u]));
+        const existing = m.get(appUser.id);
+        m.set(appUser.id, existing ? { ...existing, ...appUser } : appUser);
+        return Array.from(m.values());
+      });
+    };
+    window.addEventListener('appUserUpdated', handleAppUserUpdated);
+
     // CRITICAL: Update patients/stores/appUsers in UI immediately when pullToSync completes
     const handlePullToSyncDataReady = (event) => {
       if (isUiLocked()) {
@@ -483,6 +497,7 @@ export function useLayoutEventHandlers({
       window.removeEventListener('dataConflictsDetected', handleConflict);
       window.removeEventListener('forceDataRefresh', handleForceDataRefresh);
       window.removeEventListener('pullToSyncDataReady', handlePullToSyncDataReady);
+      window.removeEventListener('appUserUpdated', handleAppUserUpdated);
       window.removeEventListener('openMessaging', handleOpenMessaging);window.removeEventListener('openMessagingPanel', handleOpenMessagingPanel);
     };
   }, [currentUser, currentPageName]);
