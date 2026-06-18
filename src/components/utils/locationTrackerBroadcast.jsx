@@ -11,6 +11,12 @@ const broadcastMutation = async (entity, action, id, data) => {
 };
 
 export const syncUpdatedAppUser = async ({ updatedAppUser, currentUser }) => {
+  // Stamp the device_identifier so realtimeSync can suppress the self-echo on this device
+  const deviceIdentifier = localStorage.getItem('rxdeliver_device_identifier');
+  if (deviceIdentifier) {
+    updatedAppUser = { ...updatedAppUser, _source_device: deviceIdentifier };
+  }
+
   try {
     const { offlineDB } = await import('./offlineDatabase');
     await offlineDB.save(offlineDB.STORES.APP_USERS, updatedAppUser);

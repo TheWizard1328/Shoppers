@@ -384,10 +384,13 @@ class LocationTracker {
       return;
     }
 
-    // CRITICAL: Check deduplication - prevent duplicate uploads within 2 seconds
-    if (!forceUpdate && !timestampOnly && (now - this.lastUploadTime) < this.minTimeBetweenUploads) {
-      const msRemaining = this.minTimeBetweenUploads - (now - this.lastUploadTime);
-      console.log(`⏳ [LocationTracker] Dedup: Waiting ${msRemaining}ms to prevent duplicate upload`);
+    // CRITICAL: Strict 15s gate — only the heartbeat interval or an explicit forceUpdate may write.
+    // watchPosition fires on every GPS hardware lock (can be every 1s); we must throttle here.
+    // timestampOnly=true comes exclusively from the 15s heartbeat setInterval — allow it through.
+    // forceUpdate=true is reserved for the very first GPS fix on tracking start.
+    if (!forceUpdate && !timestampOnly && (now - this.lastUploadTime) < this.updateInterval) {
+      const msRemaining = this.updateInterval - (now - this.lastUploadTime);
+      console.log(`⏳ [LocationTracker] 15s gate: suppressing GPS write — ${Math.round(msRemaining / 1000)}s remaining`);
       return;
     }
 

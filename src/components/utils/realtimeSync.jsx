@@ -523,8 +523,19 @@ const subscribeToEntity = (entityName) => {
     const entityDataCache = new Map();
 
     const unsubscribe = base44.entities[entityName].subscribe(async (event) => {
-      const { type, id } = event;
-      const data = entityName === 'Delivery' ? normalizeDeliveryRealtimeData(event.data) : event.data;
+    const { type, id } = event;
+    const data = entityName === 'Delivery' ? normalizeDeliveryRealtimeData(event.data) : event.data;
+
+    // SELF-ECHO SUPPRESSION: If this AppUser update was written by this exact device,
+    // drop the incoming broadcast entirely — the offline DB was already updated optimistically
+    // in syncUpdatedAppUser before the API write, so there is nothing new to process.
+    if (entityName === 'AppUser' && data?._source_device) {
+      const myDevice = typeof localStorage !== 'undefined' ? localStorage.getItem('rxdeliver_device_identifier') : null;
+      if (myDevice && data._source_device === myDevice) {
+        console.log(`🔇 [RealtimeSync] Self-echo suppressed for AppUser ${id} — originated from this device`);
+        return;
+      }
+    }
       
       // Get current user name for "updatedBy"
       let updatedBy = 'System';
