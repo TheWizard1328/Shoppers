@@ -89,32 +89,26 @@ export default function FABControls({
 
   return (
     <AnimatePresence>
-      {immersiveHidden && immersiveOverlayDelivery && isMobile && (
-        <>
-          {immersivePatientPhone && (
-            <ImmersiveActionFAB
-              key="immersive-call-fab"
-              icon={Phone}
-              title="Call patient"
-              onClick={handleImmersiveCall}
-              bottom={immersiveFabBottom}
-              right={108}
-              className="bg-blue-600 hover:bg-blue-700"
-            />
-          )}
-          {(immersiveNavLat || immersiveNavAddress) && (
-            <ImmersiveActionFAB
-              key="immersive-nav-fab"
-              icon={ExternalLink}
-              title="Open in Google Maps"
-              onClick={handleImmersiveNavigate}
-              bottom={immersiveFabBottom}
-              right={60}
-              className="bg-violet-600 hover:bg-violet-700"
-            />
-          )}
-        </>
-      )}
+      <ImmersiveActionFAB
+        key="immersive-call-fab"
+        icon={Phone}
+        title="Call patient"
+        onClick={handleImmersiveCall}
+        bottom={immersiveFabBottom}
+        right={108}
+        className="bg-blue-600 hover:bg-blue-700"
+        style={{ display: (immersiveHidden && immersiveOverlayDelivery && isMobile && immersivePatientPhone) ? undefined : 'none' }}
+      />
+      <ImmersiveActionFAB
+        key="immersive-nav-fab"
+        icon={ExternalLink}
+        title="Open in Google Maps"
+        onClick={handleImmersiveNavigate}
+        bottom={immersiveFabBottom}
+        right={60}
+        className="bg-violet-600 hover:bg-violet-700"
+        style={{ display: (immersiveHidden && immersiveOverlayDelivery && isMobile && (immersiveNavLat || immersiveNavAddress)) ? undefined : 'none' }}
+      />
       <MapViewCycleFAB
         key="map-view-cycle-fab"
         currentUser={currentUser}
