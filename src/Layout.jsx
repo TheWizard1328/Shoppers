@@ -574,7 +574,9 @@ export default function Layout({ children, currentPageName }) {
       // CRITICAL: Merge patients to preserve full patient DB during syncs
       if (patients) setPatients((prev) => mergePatients(prev, patients));
       // Stamp AppUsers as refreshed so the SmartRefresh poll cooldown starts from now
-      if (appUsers && appUsers.length > 0) smartRefreshManager.stampAppUsersAsRefreshed(appUsers);
+      if (appUsers && appUsers.length > 0 && typeof smartRefreshManager?.stampAppUsersAsRefreshed === 'function') {
+        smartRefreshManager.stampAppUsersAsRefreshed(appUsers);
+      }
       const mergedUsersMap = new Map();
         if (currentUser) mergedUsersMap.set(currentUser.id, currentUser);
         (appUsers || []).forEach((appUser) => {
