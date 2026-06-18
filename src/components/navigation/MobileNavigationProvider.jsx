@@ -240,9 +240,9 @@ export function MobileNavigationProvider({ children }) {
     persistState((previousState) => ({ ...previousState, lastAction: action === 'pop' ? 'pop' : 'push' }));
   }, [persistState]);
 
-  const activeTab = getTabKeyForPath(location.pathname) || state.activeTab || 'dashboard';
-  const activeTabRootPath = getRootPath(activeTab);
-  const activeTabStack = state.tabStacks?.[activeTab] || [activeTabRootPath];
+  const activeTab = getTabKeyForPath(location.pathname) || null;
+  const activeTabRootPath = activeTab ? getRootPath(activeTab) : currentPath;
+  const activeTabStack = (activeTab ? state.tabStacks?.[activeTab] : null) || [activeTabRootPath];
   const canGoBack = activeTabStack.length > 1 || currentPath !== activeTabRootPath;
 
   const value = React.useMemo(() => ({
