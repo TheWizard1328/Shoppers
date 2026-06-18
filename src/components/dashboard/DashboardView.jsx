@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { format } from 'date-fns';
 import { base44 } from "@/api/base44Client";
 import { isAppOwner } from '@/components/utils/userRoles';
+import { useInterStoreLocation, isInterStoreDelivery } from '@/components/utils/interStoreDisplayName';
 import SnapshotTimeline from "@/components/snapshot/SnapshotTimeline";
 import DashboardStatsPanel from "@/features/dashboard/components/DashboardStatsPanel";
 import DashboardMapSection from "@/features/dashboard/components/DashboardMapSection";
@@ -208,11 +209,18 @@ export default function DashboardView({
     return stores.find((s) => s && s.id === immersiveOverlayDelivery.store_id) || null;
   }, [immersiveOverlayDelivery, stores]);
 
+  // Detect ISP/ISD inter-store deliveries and look up their location record
+  const immersiveIsInterStore = !!immersiveOverlayDelivery && isInterStoreDelivery(immersiveOverlayDelivery.delivery_id);
+  // Use the async hook so it resolves from cache or fetches if needed
+  const immersiveInterStoreLocation = useInterStoreLocation(immersiveIsInterStore ? immersiveOverlayDelivery?.delivery_id : null);
+
   const immersiveOverlayIsPickup = !!immersiveOverlayDelivery && !immersiveOverlayDelivery.patient_id && !!immersiveOverlayDelivery.store_id;
   const immersiveOverlayStoreColor = immersiveOverlayStore?.color || '#10B981';
-  const immersiveOverlayDisplayName = immersiveOverlayIsPickup
-    ? `${immersiveOverlayStore?.name || 'Store'} Pickup`
-    : immersiveOverlayPatient?.full_name || immersiveOverlayDelivery?.patient_name || 'Next stop';
+  const immersiveOverlayDisplayName = immersiveIsInterStore
+    ? (immersiveInterStoreLocation?.store_name || immersiveOverlayDelivery?.patient_name || 'Inter-Store Stop')
+    : immersiveOverlayIsPickup
+      ? `${immersiveOverlayStore?.name || 'Store'} Pickup`
+      : immersiveOverlayPatient?.full_name || immersiveOverlayDelivery?.patient_name || 'Next stop';
 
   const immersiveOverlayRemainingDistanceKm = useMemo(() => {
     if (!immersiveOverlayDelivery || !selectedDriverId || selectedDriverId === 'all') return null;
@@ -237,8 +245,8 @@ export default function DashboardView({
     );
     if (!Number.isFinite(driverLat) || !Number.isFinite(driverLon)) return null;
 
-    const stopLat = Number(immersiveOverlayIsPickup ? immersiveOverlayStore?.latitude : immersiveOverlayPatient?.latitude);
-    const stopLon = Number(immersiveOverlayIsPickup ? immersiveOverlayStore?.longitude : immersiveOverlayPatient?.longitude);
+    const stopLat = Number(immersiveIsInterStore ? (immersiveInterStoreLocation?.store_latitude ?? immersiveOverlayStore?.latitude) : immersiveOverlayIsPickup ? immersiveOverlayStore?.latitude : immersiveOverlayPatient?.latitude);
+    const stopLon = Number(immersiveIsInterStore ? (immersiveInterStoreLocation?.store_longitude ?? immersiveOverlayStore?.longitude) : immersiveOverlayIsPickup ? immersiveOverlayStore?.longitude : immersiveOverlayPatient?.longitude);
     if (!Number.isFinite(stopLat) || !Number.isFinite(stopLon)) return null;
 
     const toRad = (value) => (value * Math.PI) / 180;
@@ -250,7 +258,7 @@ export default function DashboardView({
       Math.cos(toRad(driverLat)) * Math.cos(toRad(stopLat)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return earthRadiusKm * c;
-  }, [immersiveOverlayDelivery, immersiveOverlayIsPickup, immersiveOverlayPatient, immersiveOverlayStore, immersiveLiveDriverLocation, allDriverLocations, driverLocation, selectedDriverId, currentUser?.id]);
+  }, [immersiveOverlayDelivery, immersiveOverlayIsPickup, immersiveOverlayPatient, immersiveOverlayStore, immersiveIsInterStore, immersiveInterStoreLocation, immersiveLiveDriverLocation, allDriverLocations, driverLocation, selectedDriverId, currentUser?.id]);
 
   return (
     <div className="h-full w-full flex flex-col overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
@@ -336,6 +344,7 @@ export default function DashboardView({
           immersiveOverlayStoreColor={immersiveOverlayStoreColor}
           immersiveOverlayDisplayName={immersiveOverlayDisplayName}
           immersiveOverlayRemainingDistanceKm={immersiveOverlayRemainingDistanceKm}
+          immersiveOverlayAddress={immersiveIsInterStore ? (immersiveInterStoreLocation?.store_address || immersiveOverlayStore?.address || null) : null}
           mapViewPhase={mapViewPhase}
           isMapViewLocked={isMapViewLocked}
           mapStyle={mapStyle}
@@ -435,6 +444,12 @@ export default function DashboardView({
           refreshData={refreshData}
           immersiveHidden={immersiveHidden}
           topOverlayHeight={immersiveHidden ? 0 : statsCardBaseHeight}
+          immersiveOverlayPatient={immersiveOverlayPatient}
+          immersiveOverlayDelivery={immersiveOverlayDelivery}
+          immersiveOverlayIsPickup={immersiveOverlayIsPickup}
+          immersiveOverlayStore={immersiveOverlayStore}
+          immersiveIsInterStore={immersiveIsInterStore}
+          immersiveInterStoreLocation={immersiveInterStoreLocation}
         />
       }
 

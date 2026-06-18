@@ -42,16 +42,18 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { newStatus, deviceId, selectedDate } = await req.json();
+    const { newStatus, deviceId, selectedDate, targetUserId } = await req.json();
 
     if (!newStatus) {
       return Response.json({ error: 'Missing required field: newStatus' }, { status: 400 });
     }
 
-    console.log(`🔄 [setDriverStatus] User ${user.email} changing status to: ${newStatus}`);
+    // Admins can pass targetUserId to update another driver's status
+    const subjectUserId = targetUserId || user.id;
+    console.log(`🔄 [setDriverStatus] User ${user.email} changing status to: ${newStatus} for userId: ${subjectUserId}`);
 
     // Find the AppUser record for this user (one per user, not per device)
-    const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id });
+    const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: subjectUserId });
     
     if (!appUsers || appUsers.length === 0) {
       return Response.json({ error: 'AppUser record not found' }, { status: 404 });
@@ -99,7 +101,7 @@ Deno.serve(async (req) => {
     if (newStatus === 'on_break') {
       const targetDate = selectedDate || getEdmDate();
       console.log(`🔄 [setDriverStatus] Driver going on break - clearing all isNextDelivery flags for ${targetDate}`);
-      const clearedCount = await clearNextDeliveryFlags(base44, user.id, targetDate);
+      const clearedCount = await clearNextDeliveryFlags(base44, subjectUserId, targetDate);
       console.log(`✅ [setDriverStatus] Cleared isNextDelivery on ${clearedCount} deliveries for ${targetDate}`);
     }
     
@@ -108,7 +110,7 @@ Deno.serve(async (req) => {
     if (newStatus === 'on_duty' && previousStatus !== 'on_duty') {
       const targetDate = selectedDate || getEdmDate();
       const allTodayDeliveries = await base44.asServiceRole.entities.Delivery.filter({
-        driver_id: user.id,
+        driver_id: subjectUserId,
         delivery_date: targetDate
       }, 'stop_order');
 
@@ -118,7 +120,7 @@ Deno.serve(async (req) => {
 
       if (flaggedDeliveries.length > 0 && updatedAppUser?.home_latitude != null && updatedAppUser?.home_longitude != null) {
         await base44.asServiceRole.functions.invoke('regenerateType1Polyline', {
-          driverId: user.id,
+          driverId: subjectUserId,
           deliveryDate: targetDate,
           currentLocation: {
             lat: updatedAppUser.home_latitude,
@@ -137,7 +139,7 @@ Deno.serve(async (req) => {
     if (newStatus === 'off_duty') {
       const targetDate = selectedDate || getEdmDate();
       console.log(`🔄 [setDriverStatus] Driver going off duty - clearing all isNextDelivery flags for ${targetDate}`);
-      const clearedCount = await clearNextDeliveryFlags(base44, user.id, targetDate);
+      const clearedCount = await clearNextDeliveryFlags(base44, subjectUserId, targetDate);
       console.log(`✅ [setDriverStatus] Cleared isNextDelivery on ${clearedCount} deliveries for ${targetDate}`);
     }
 

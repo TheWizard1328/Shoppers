@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 
-export default function ImmersiveActionFAB({ icon: Icon, title, onClick, disabled = false, bottom, right, opacity = 1, className = '' }) {
+export default function ImmersiveActionFAB({ icon: Icon, title, onClick, disabled = false, bottom, right, opacity = 1, className = '', style = {} }) {
   return (
     <motion.div
       initial={{ scale: 0, opacity: 0 }}
@@ -10,7 +10,7 @@ export default function ImmersiveActionFAB({ icon: Icon, title, onClick, disable
       exit={{ scale: 0, opacity: 0 }}
       transition={{ type: 'spring', stiffness: 260, damping: 20 }}
       className="z-[700]"
-      style={{ position: 'absolute', bottom, right, pointerEvents: 'auto' }}
+      style={{ position: 'absolute', bottom, right, pointerEvents: 'auto', ...style }}
     >
       <Button
         onClick={onClick}

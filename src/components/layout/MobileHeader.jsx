@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { ArrowLeft, MoreVertical, QrCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -10,6 +10,7 @@ import { userHasRole, isAppOwner } from '../utils/userRoles';
 import { getDriverDisplayName } from '../utils/driverUtils';
 import { useMobileNavigation } from '../navigation/MobileNavigationProvider';
 import { getUserAvatarGradient } from './mobileHeaderUtils';
+import { globalFilters } from '../utils/globalFilters';
 
 export default function MobileHeader({ 
   logo, 
@@ -25,9 +26,29 @@ export default function MobileHeader({
   cities,
   onInviteQRClick,
   onCurrentUserUpdate,
-  isOverlayOpen
+  isOverlayOpen,
+  appUsers,
+  users,
 }) {
   const { canGoBack: canGoBackInTab, goBack } = useMobileNavigation();
+
+  // Resolve the currently selected driver so the toggle targets them (admin only)
+  const selectedDriverTarget = useMemo(() => {
+    if (!userHasRole(currentUser, 'admin')) return null;
+    const selectedDriverId = globalFilters.getSelectedDriverId();
+    if (!selectedDriverId || selectedDriverId === 'all') return null;
+    const driverAppUser = (appUsers || []).find((au) => au && au.user_id === selectedDriverId);
+    if (!driverAppUser) return null;
+    const baseUser = (users || []).find((u) => u && u.id === selectedDriverId);
+    return {
+      ...(baseUser || {}),
+      ...driverAppUser,
+      id: driverAppUser.user_id,
+      driver_status: driverAppUser.driver_status || 'off_duty',
+      current_latitude: driverAppUser.current_latitude,
+      current_longitude: driverAppUser.current_longitude,
+    };
+  }, [currentUser, appUsers, users]);
   const canGoBack = isOverlayOpen || canGoBackInTab || (window.history.state?.idx ?? 0) > 0;
 
   const handleBackButtonClick = (e) => {

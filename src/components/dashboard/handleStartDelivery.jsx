@@ -14,6 +14,7 @@ import { invalidate } from '@/components/utils/dataManager';
 import { smartRefreshManager } from '@/components/utils/smartRefreshManager';
 import { pauseOfflineMutations, resumeOfflineMutations } from '@/components/utils/offlineMutations';
 import { pauseOfflineSync, resumeOfflineSync } from '@/components/utils/offlineSync';
+import { backgroundSyncManager } from '@/components/utils/backgroundSyncManager';
 import { notifyDriverStarted } from '@/components/utils/deliveryMessaging';
 import { determinePolylineSegment, fetchPolylineForSegment } from '@/components/utils/dynamicPolylineManager';
 
@@ -37,6 +38,7 @@ export async function handleStartDelivery({
   pauseOfflineMutations();
   pauseOfflineSync();
   smartRefreshManager.pause();
+  backgroundSyncManager.pause();
 
   await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -278,6 +280,7 @@ export async function handleStartDelivery({
     resumeOfflineMutations();
     resumeOfflineSync();
     smartRefreshManager.resume();
+    backgroundSyncManager.resume();
     // setIsEntityUpdating is managed by the caller — do not call it here
   }
 }

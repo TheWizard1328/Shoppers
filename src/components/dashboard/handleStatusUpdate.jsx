@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import { offlineDB } from '@/components/utils/offlineDatabase';
 import { pauseOfflineSync, resumeOfflineSync } from '@/components/utils/offlineSync';
 import { smartRefreshManager } from '@/components/utils/smartRefreshManager';
+import { backgroundSyncManager } from '@/components/utils/backgroundSyncManager';
 import { createDeliveryLocal } from '@/components/utils/offlineMutations';
 import { recalculateAndUpdateStopOrders } from '@/components/utils/stopOrderManager';
 import { notifyDriverCompleted, notifyDriverFailed, notifyDriverRetry } from '@/components/utils/deliveryMessaging';
@@ -42,6 +43,7 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
   setIsEntityUpdating(true);
   pauseOfflineSync();
   smartRefreshManager.pause();
+  backgroundSyncManager.pause();
 
   await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -356,6 +358,7 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
     statusUpdateLockRef.current.delete(statusLockKey);
     resumeOfflineSync();
     smartRefreshManager.resume();
+    backgroundSyncManager.resume();
     ctx.setIsEntityUpdating(false);
     document.documentElement.style.setProperty('--theme-transition-duration', '0.3s');
   }

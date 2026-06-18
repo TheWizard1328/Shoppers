@@ -278,8 +278,8 @@ div[id^="stop-card-"] > .rounded-xl:has([data-stop-status="completed"][data-stop
 .ios-safe-area-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0px) !important;
 }
-/* KITT scanner animation for route optimizer */
+/* KITT scanner animation for route optimizer — bounces left ↔ right via alternate */
 @keyframes kitt-scan {
-  from { left: -40%; }
-  to   { left: 100%; }
+  from { left: 0%; }
+  to   { left: calc(100% - 52px); }
 }
