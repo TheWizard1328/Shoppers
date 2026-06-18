@@ -46,6 +46,7 @@ export default function MultiDeliveryArrivalDialog({
 }) {
   const [loadingId, setLoadingId] = useState(null); // deliveryId currently being actioned
   const [failTarget, setFailTarget] = useState(null); // delivery to fail after reason dialog
+  const [locallyFinishedIds, setLocallyFinishedIds] = useState(new Set()); // immediately hide buttons after action
 
   // Resolve GPS for any delivery (patient address)
   const getCoords = (delivery) => {
