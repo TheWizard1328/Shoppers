@@ -375,55 +375,73 @@ class LightweightRefreshManager {
         }
       }
 
-      // CRITICAL: Refresh AppUsers every 15 seconds as backup for WebSocket
-      // This catches status changes that WebSocket might miss
+      // AppUser backup poll — only fires if there are active (on_duty/on_break) drivers
+      // that have NOT received any update (WebSocket, app load, manual refresh) in the last 60s.
+      // This prevents full-table polls when WebSocket is healthy and covering all active drivers.
       if (this.shouldRefresh('appUsers') && currentData.appUsers) {
         try {
-          console.log('👥 [LightweightRefresh] Syncing AppUsers (backup for WebSocket)');
-          await this.waitForRateLimit();
-          const allAppUsers = await queueEntityRequest(
-            () => base44.entities.AppUser.list(),
-            'AppUser list'
-          );
+          const wsLastUpdate = window.__wsAppUserLastUpdate || new Map();
+          const SUPPRESS_MS = 60000; // skip poll for any driver updated within 60s
+          const now = Date.now();
 
-          this.recordSuccess();
+          // Find active drivers that haven't been updated recently by any source
+          const activeDriversNeedingPoll = currentData.appUsers.filter((u) => {
+            if (!u) return false;
+            const status = u.driver_status;
+            if (status !== 'on_duty' && status !== 'on_break') return false; // only poll active drivers
+            const key = u.user_id || u.id;
+            if (!key) return false;
+            const lastUpdate = wsLastUpdate.get(key) || 0;
+            return (now - lastUpdate) >= SUPPRESS_MS; // only if stale
+          });
 
-          if (allAppUsers && allAppUsers.length > 0) {
-            // CRITICAL: Filter out any driver whose location was updated by WebSocket
-            // more recently than the polled data. The poll fetches from the server which
-            // may lag behind a freshly-received WebSocket update, causing the marker to
-            // flicker back to a stale position/color.
-            const wsLastUpdate = window.__wsAppUserLastUpdate || new Map();
-            const WS_GRACE_MS = 30000; // ignore poll data for 30s after a WS update
-            const now = Date.now();
+          if (activeDriversNeedingPoll.length === 0) {
+            console.log('👥 [LightweightRefresh] AppUsers poll skipped — all active drivers have recent updates');
+            this.markRefreshed('appUsers');
+          } else {
+            console.log(`👥 [LightweightRefresh] AppUsers poll — ${activeDriversNeedingPoll.length} active driver(s) need refresh`);
+            await this.waitForRateLimit();
+            const allAppUsers = await queueEntityRequest(
+              () => base44.entities.AppUser.list(),
+              'AppUser list'
+            );
 
-            const diff = diffEntityArrays(currentData.appUsers, allAppUsers);
-            if (diff.toUpdate.length > 0 || diff.toAdd.length > 0) {
-              updates.appUsers = mergeEntityChanges(currentData.appUsers, diff);
+            this.recordSuccess();
 
-              // Filter the broadcast to exclude drivers with a recent WS update
-              const safeToDispatch = updates.appUsers.filter((u) => {
-                const key = u?.user_id || u?.id;
-                if (!key) return true;
-                const lastWs = wsLastUpdate.get(key) || 0;
-                return (now - lastWs) >= WS_GRACE_MS;
-              });
+            if (allAppUsers && allAppUsers.length > 0) {
+              const diff = diffEntityArrays(currentData.appUsers, allAppUsers);
+              if (diff.toUpdate.length > 0 || diff.toAdd.length > 0) {
+                updates.appUsers = mergeEntityChanges(currentData.appUsers, diff);
 
-              console.log(`✅ [LightweightRefresh] AppUsers updated: +${diff.toAdd.length} ~${diff.toUpdate.length} (dispatching ${safeToDispatch.length}/${updates.appUsers.length} — ${updates.appUsers.length - safeToDispatch.length} suppressed by WS grace)`);
+                // Mark all polled users as "refreshed" so WS grace window resets
+                updates.appUsers.forEach((u) => {
+                  const key = u?.user_id || u?.id;
+                  if (key) wsLastUpdate.set(key, now);
+                });
 
-              // CRITICAL: Save ALL to offline DB (including WS-graced ones) to keep IDB consistent
-              const { offlineDB } = await import('./offlineDatabase');
-              await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, updates.appUsers);
+                // Only dispatch drivers that don't have a very recent WS update (30s grace)
+                const safeToDispatch = updates.appUsers.filter((u) => {
+                  const key = u?.user_id || u?.id;
+                  if (!key) return true;
+                  const lastWs = wsLastUpdate.get(key) || 0;
+                  return (now - lastWs) >= 30000;
+                });
 
-              // Only broadcast drivers not recently updated by WebSocket
-              if (safeToDispatch.length > 0) {
-                window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-                  detail: { appUsers: safeToDispatch, fromSmartRefresh: true, mergeMode: 'merge' }
-                }));
+                console.log(`✅ [LightweightRefresh] AppUsers updated: +${diff.toAdd.length} ~${diff.toUpdate.length} (dispatching ${safeToDispatch.length}/${updates.appUsers.length} — ${updates.appUsers.length - safeToDispatch.length} suppressed by WS grace)`);
+
+                // Save ALL to offline DB to keep IDB consistent
+                const { offlineDB } = await import('./offlineDatabase');
+                await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, updates.appUsers);
+
+                if (safeToDispatch.length > 0) {
+                  window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+                    detail: { appUsers: safeToDispatch, fromSmartRefresh: true, mergeMode: 'merge' }
+                  }));
+                }
               }
             }
+            this.markRefreshed('appUsers');
           }
-          this.markRefreshed('appUsers');
         } catch (e) {
           this.recordError();
           console.warn('⚠️ [LightweightRefresh] AppUsers refresh failed:', e.message);
@@ -479,6 +497,21 @@ class LightweightRefreshManager {
   resetTimers() {
     this.lastRefreshTimes.appUsers = Date.now();
     console.log('⏱️ [SmartRefresh] Reset appUsers timer to prevent immediate duplicate poll');
+  }
+
+  /**
+   * Stamp all currently-loaded AppUsers as "just refreshed" in the WS update map.
+   * Call this after an app load or manual full sync so the poll cooldown starts from now.
+   */
+  stampAppUsersAsRefreshed(appUsers) {
+    if (!Array.isArray(appUsers) || typeof window === 'undefined') return;
+    if (!window.__wsAppUserLastUpdate) window.__wsAppUserLastUpdate = new Map();
+    const now = Date.now();
+    appUsers.forEach((u) => {
+      const key = u?.user_id || u?.id;
+      if (key) window.__wsAppUserLastUpdate.set(key, now);
+    });
+    console.log(`⏱️ [SmartRefresh] Stamped ${appUsers.length} AppUsers as refreshed (suppresses poll for 60s)`);
   }
 
   /**

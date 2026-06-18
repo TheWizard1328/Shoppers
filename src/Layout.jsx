@@ -569,11 +569,13 @@ export default function Layout({ children, currentPageName }) {
 
       // Helper — applies a complete dataset to all state in one pass (single UI update)
       const applyFullDataToState = ({ deliveries, patients, appUsers, stores, cities }) => {
-        if (cities && cities.length > 0) setCities(cities.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)));
-        if (stores && stores.length > 0) setStores(stores.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)));
-        // CRITICAL: Merge patients to preserve full patient DB during syncs
-        if (patients) setPatients((prev) => mergePatients(prev, patients));
-        const mergedUsersMap = new Map();
+      if (cities && cities.length > 0) setCities(cities.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)));
+      if (stores && stores.length > 0) setStores(stores.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)));
+      // CRITICAL: Merge patients to preserve full patient DB during syncs
+      if (patients) setPatients((prev) => mergePatients(prev, patients));
+      // Stamp AppUsers as refreshed so the SmartRefresh poll cooldown starts from now
+      if (appUsers && appUsers.length > 0) smartRefreshManager.stampAppUsersAsRefreshed(appUsers);
+      const mergedUsersMap = new Map();
         if (currentUser) mergedUsersMap.set(currentUser.id, currentUser);
         (appUsers || []).forEach((appUser) => {
           if (!appUser || mergedUsersMap.has(appUser.user_id)) return;
