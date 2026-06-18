@@ -111,17 +111,17 @@ export default function SpecialSymbolsBadges({
   // Use different base styles for card size vs others
   const isCardSize = size === 'card';
   const badgeBaseClass = isCardSize
-    ? `bg-amber-400 text-slate-900 mt-1 ${config.badge} font-bold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 hover:bg-amber-500/80 inline-flex items-center ${config.gap} shadow-sm border border-amber-500/30`
-    : `bg-amber-400 text-slate-900 mt-1 px-1.5 py-0 text-[10px] font-bold rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 hover:bg-primary/80 h-4 inline-flex items-center gap-0.5 shadow-sm border border-amber-500/30`;
+    ? `bg-amber-400 !text-slate-900 mt-1 ${config.badge} font-bold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 hover:bg-amber-500/80 inline-flex items-center ${config.gap} shadow-sm border border-amber-500/30`
+    : `bg-amber-400 !text-slate-900 mt-1 px-1.5 py-0 text-[10px] font-bold rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 hover:bg-primary/80 h-4 inline-flex items-center gap-0.5 shadow-sm border border-amber-500/30`;
 
   return (
     <div className="inline-flex items-center gap-1">
       <Badge className={badgeBaseClass}>
 
         {/* Special flags: $ N O F S AH */}
-        {hasCOD && <span className={isCardSize ? config.text : ''} style={{ color: getCodSymbolColor(delivery) }}>$</span>}
-        {isFirstDelivery && <span className={`text-blue-800 ${isCardSize ? config.text : ''}`}>N</span>}
-        {hasOversized && <span className={`text-orange-800 ${isCardSize ? config.text : ''}`}>O</span>}
+        {hasCOD && <span className={isCardSize ? config.text : ''} style={{ color: getCodSymbolColor(delivery) === 'inherit' ? '#0f172a' : getCodSymbolColor(delivery) }}>$</span>}
+        {isFirstDelivery && <span className={`${isCardSize ? config.text : ''}`} style={{ color: '#1e40af' }}>N</span>}
+        {hasOversized && <span className={`${isCardSize ? config.text : ''}`} style={{ color: '#9a3412' }}>O</span>}
         {hasFridgeItem && (() => {
           if (fridgeTemp != null) {
             const isOut = fridgeTemp < TEMP_MIN || fridgeTemp > TEMP_MAX;
@@ -129,21 +129,21 @@ export default function SpecialSymbolsBadges({
             const tempColor = isOut ? '#dc2626' : isWarn ? '#b45309' : '#0e7490';
             return (
               <span className="inline-flex items-center gap-px" style={{ color: tempColor }}>
-                <Thermometer className={config.icon} />
+                <Thermometer className={config.icon} style={{ color: tempColor }} />
                 <span className={isCardSize ? config.text : ''}>{fridgeTemp.toFixed(1)}°</span>
               </span>
             );
           }
-          return <span className={`text-cyan-700 ${isCardSize ? config.text : ''}`}><Thermometer className={`${config.icon} inline`} /></span>;
+          return <span style={{ color: '#0e7490' }}><Thermometer className={`${config.icon} inline`} style={{ color: '#0e7490' }} /></span>;
         })()}
-        {hasSignature && <PenLine className={`${config.icon} text-green-700`} />}
+        {hasSignature && <PenLine className={config.icon} style={{ color: '#15803d' }} />}
         
-        {/* Preference icons - intuitive colors */}
-        {hasCallOnArrival && <Phone className={`${config.icon} text-orange-600`} />}
-        {hasRingBell && <Bell className={`${config.icon} text-green-600`} />}
-        {hasDontRingBell && <BellOff className={`${config.icon} text-red-600`} />}
-        {hasMailboxOk && <Mailbox className={`${config.icon} text-blue-600`} />}
-        {hasDriverNotes && <StickyNote className={`${config.icon} text-violet-600`} />}
+        {/* Preference icons - intuitive colors, always forced (no dark mode) */}
+        {hasCallOnArrival && <Phone className={config.icon} style={{ color: '#ea580c' }} />}
+        {hasRingBell && <Bell className={config.icon} style={{ color: '#16a34a' }} />}
+        {hasDontRingBell && <BellOff className={config.icon} style={{ color: '#dc2626' }} />}
+        {hasMailboxOk && <Mailbox className={config.icon} style={{ color: '#2563eb' }} />}
+        {hasDriverNotes && <StickyNote className={config.icon} style={{ color: '#7c3aed' }} />}
       </Badge>
       {showHelp &&
       <HelpTooltip
