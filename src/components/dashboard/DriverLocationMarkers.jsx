@@ -395,87 +395,48 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
   }, [currentUser, selectedDate, isAdmin, isDispatcher, isDriver, deliveries]);
 
   useEffect(() => {
-    // CRITICAL: The `users` prop comes pre-filtered from driverLocationPoller
-    // which already handles all permission checks, status checks, and dispatcher logic
-    // We just need to do basic validation and track changes for re-rendering
-    
+    // Normalize and filter the incoming users prop
     const validDrivers = (users || []).filter(user => {
-      if (!user) return false;
-
-      // Skip if no valid coordinates
-      if (!user.current_latitude || !user.current_longitude) {
-        return false;
-      }
-
-      // Don't show markers for past dates
+      if (!user || !user.current_latitude || !user.current_longitude) return false;
       if (selectedDate) {
         const todayStr = format(new Date(), 'yyyy-MM-dd');
-        const selectedDateStr = selectedDate instanceof Date 
-          ? selectedDate.toISOString().split('T')[0]
-          : selectedDate;
-        if (selectedDateStr < todayStr) {
-          return false;
-        }
+        const selectedDateStr = selectedDate instanceof Date ? selectedDate.toISOString().split('T')[0] : selectedDate;
+        if (selectedDateStr < todayStr) return false;
       }
-
       return shouldShowMarker(user);
     });
-    
-    // CRITICAL: Deduplicate self markers on primary device - only keep ONE (the live one)
-    const deduplicatedDrivers = dedupeVisibleDrivers(validDrivers);
-    // CRITICAL: No cache merge here — source of truth is WebSocket → offline DB → users prop only.
-    const mergedDrivers = deduplicatedDrivers.filter(shouldShowMarker);
-    
-    const newVisibleIds = new Set(mergedDrivers.map(d => getDriverIdentityKey(d) || d.id));
-    const prevIds = prevVisibleIdsRef.current;
-    
-    const idsChanged = newVisibleIds.size !== prevIds.size || 
-      [...newVisibleIds].some(id => !prevIds.has(id)) ||
-      [...prevIds].some(id => !newVisibleIds.has(id));
-    
-    const locationsChanged = mergedDrivers.some(driver => {
-      const driverKey = getDriverIdentityKey(driver) || driver.id;
-      const existing = visibleDrivers.find(d => (getDriverIdentityKey(d) || d.id) === driverKey);
-      if (!existing) return true;
-      const latDiff = Math.abs((driver.current_latitude || 0) - (existing.current_latitude || 0));
-      const lngDiff = Math.abs((driver.current_longitude || 0) - (existing.current_longitude || 0));
-      
-      return latDiff > 0 || lngDiff > 0;
-    });
-    
-    if (idsChanged || locationsChanged) {
-      // FRESHNESS GUARD: the `users` prop may carry a stale, un-invalidated cache value.
-      // Keep only drivers present in the incoming prop (preserves removals), but never
-      // regress an individual marker to an OLDER position than what is currently shown.
-      setVisibleDrivers((prev) => {
-        const prevByKey = new Map((prev || []).filter(Boolean).map((d) => [getDriverIdentityKey(d) || d.id, d]));
-        return mergedDrivers.map((driver) => {
-          const key = getDriverIdentityKey(driver) || driver.id;
-          const existing = prevByKey.get(key);
-          if (!existing) return driver;
-          const existingTs = new Date(existing.location_updated_at || existing.updated_date || 0).getTime();
-          const incomingTs = new Date(driver.location_updated_at || driver.updated_date || 0).getTime();
-          if (existingTs > incomingTs) {
-            // Incoming prop is older → keep the fresher coordinates/timestamp we already have
-            return {
-              ...driver,
-              current_latitude: existing.current_latitude,
-              current_longitude: existing.current_longitude,
-              location_updated_at: existing.location_updated_at || existing.updated_date
-            };
-          }
-          return driver;
-        });
+
+    const incomingDrivers = dedupeVisibleDrivers(validDrivers);
+    const incomingKeys = new Set(incomingDrivers.map(d => getDriverIdentityKey(d) || d.id).filter(Boolean));
+
+    // UNIFIED UPDATE: same merge-by-freshness logic as the driverLocationsUpdated event handler.
+    // Uses a functional updater (never reads stale closure) so there's no race between the
+    // WS event path and the prop path — whichever wrote fresher coords wins and is kept.
+    setVisibleDrivers((prev) => {
+      // Merge: incoming advances existing if newer, existing wins if fresher (no regression)
+      const merged = mergeVisibleDriversByFreshness(prev || [], incomingDrivers);
+
+      // Sync semantics: drop drivers no longer in the prop, UNLESS they have a very recent
+      // timestamp that suggests a WS event updated them after this prop snapshot was taken.
+      const WS_GRACE_MS = 90 * 1000;
+      const result = merged.filter(d => {
+        const key = getDriverIdentityKey(d) || d.id;
+        if (incomingKeys.has(key)) return shouldShowMarker(d);
+        // Not in prop — keep briefly if WS delivered a fresh update we shouldn't discard yet
+        const ts = new Date(d.location_updated_at || d.updated_date || 0).getTime();
+        return (Date.now() - ts < WS_GRACE_MS) && shouldShowMarker(d);
       });
-      prevVisibleIdsRef.current = newVisibleIds;
-    }
-    
-    Object.keys(markerRefs.current).forEach(userId => {
-      if (!mergedDrivers.find(d => (getDriverIdentityKey(d) || d.id) === userId)) {
-        delete markerRefs.current[userId];
-      }
+
+      return dedupeVisibleDrivers(result);
     });
-    
+
+    prevVisibleIdsRef.current = incomingKeys;
+
+    // Clean up marker refs for drivers that are no longer in the incoming set
+    Object.keys(markerRefs.current).forEach(userId => {
+      if (!incomingKeys.has(userId)) delete markerRefs.current[userId];
+    });
+
   }, [users, currentUser, isMobile, deliveries, selectedDate, isAdmin, isDispatcher, isDriver]);
 
   // Listen for location cleared events
