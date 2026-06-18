@@ -110,7 +110,16 @@ export function MobileNavigationProvider({ children }) {
     const nextAction = pendingActionRef.current || 'push';
 
     persistState((previousState) => {
-      const tabKey = getTabKeyForPath(location.pathname) || previousState.activeTab || 'dashboard';
+      const tabKey = getTabKeyForPath(location.pathname) || null;
+
+      // If we're on an unrecognized page, just clear activeTab and don't touch tabStacks
+      if (!tabKey) {
+        if (previousState.activeTab === null && previousState.lastAction === nextAction) {
+          return previousState;
+        }
+        return { ...previousState, activeTab: null, lastAction: nextAction };
+      }
+
       const rootPath = getRootPath(tabKey);
       const previousStack = previousState.tabStacks?.[tabKey] || [rootPath];
       let nextStack = previousStack;
@@ -183,6 +192,8 @@ export function MobileNavigationProvider({ children }) {
   const navigateToTab = React.useCallback((tabKey, fallbackPath) => {
     const savedStack = state.tabStacks?.[tabKey] || [getRootPath(tabKey)];
     const targetPath = savedStack[savedStack.length - 1] || normalizeRoutePath(fallbackPath) || getRootPath(tabKey);
+    // Always navigate — even if targetPath === currentPath, we may be coming from an off-tab page
+    // so we force navigation by always calling navigate
 
     pendingActionRef.current = 'push';
     persistState((previousState) => ({
