@@ -98,7 +98,7 @@ export default function StopCardActionButtons(props) {
       ? squareLocationConfigs.find((c) => c?.id === storeConfigId)
       : null;
     const squareLocationId = matchedConfig?.square_location_id ?? null;
-    const isBase44Editor = encodeURIComponent('https://wizardworxx.com'); //window.location.hostname.includes('base44.com');
+    const isBase44Editor = encodeURIComponent('https://play.google.com/store/apps/details?id=com.squareup'); //window.location.hostname.includes('base44.com');
     const appCallbackUrl = isBase44Editor
       ? (window.location.origin + window.location.pathname)
       : (window.location.origin);
