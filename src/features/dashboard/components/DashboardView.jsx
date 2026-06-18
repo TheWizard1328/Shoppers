@@ -507,11 +507,23 @@ export default function DashboardView({
 
         {optimizationMessage && !immersiveHidden && (
           <div
-            className="pointer-events-none absolute inset-x-0 z-[9998] flex justify-center px-4"
-            style={{ bottom: stopCardsBaseHeight + 8 }}
+            className="pointer-events-none absolute inset-x-0 z-[640]"
+            style={{ bottom: `calc(${stopCardsBaseHeight}px + 0.25rem)` }}
           >
-            <div className="pointer-events-auto rounded-xl border border-slate-200 bg-white/95 px-4 py-3 text-sm font-medium text-slate-800 shadow-xl backdrop-blur-sm text-center max-w-md w-full">
-              {optimizationMessage}
+            {/* KITT-style black scanning bar above stop cards */}
+            <div className="relative overflow-hidden bg-black rounded-none h-9 flex items-center justify-center shadow-[0_-2px_12px_rgba(0,0,0,0.6)]">
+              {/* Scanning sweep */}
+              <div
+                className="absolute inset-y-0 w-2/5 rounded-full blur-sm"
+                style={{
+                  background: 'linear-gradient(90deg, transparent 0%, #ef4444 40%, #ff6600 60%, transparent 100%)',
+                  animation: 'kitt-scan 1.2s ease-in-out infinite',
+                  opacity: 0.85
+                }}
+              />
+              <span className="relative z-10 text-xs font-bold tracking-widest text-red-400 uppercase drop-shadow-[0_0_6px_rgba(239,68,68,0.9)]">
+                {optimizationMessage}
+              </span>
             </div>
           </div>
         )}
