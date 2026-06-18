@@ -505,13 +505,33 @@ export default function DashboardView({
           <ApiUsageBadge currentUser={currentUser} stopCardsHeight={immersiveHidden ? 0 : stopCardsBaseHeight} />
         </StopCardCheckboxToggle>
 
-        {optimizationMessage && !immersiveHidden && (
+        {optimizationMessage && !immersiveHidden && !isMobile && (
           <div
-            className="pointer-events-none absolute inset-x-0 z-[9998] flex justify-center px-4"
-            style={{ bottom: stopCardsBaseHeight + 8 }}
+            className="pointer-events-none absolute inset-x-0 z-[9998] flex justify-center"
+            style={{ bottom: stopCardsBaseHeight + 12 }}
           >
-            <div className="pointer-events-auto rounded-xl border border-slate-200 bg-white/95 px-4 py-3 text-sm font-medium text-slate-800 shadow-xl backdrop-blur-sm text-center max-w-md w-full">
-              {optimizationMessage}
+            <div
+              className="pointer-events-auto rounded-xl border border-emerald-200 overflow-hidden shadow-xl backdrop-blur-sm text-center relative"
+              style={{ background: 'rgba(0,0,0,0.82)', width: 'min(600px, 50vw)', minWidth: 320 }}
+            >
+              {/* KITT scanner bar */}
+              <div className="absolute inset-x-0 top-0 bottom-0 overflow-hidden rounded-xl pointer-events-none">
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    bottom: 0,
+                    width: 48,
+                    background: 'radial-gradient(ellipse at center, rgba(220,38,38,0.9) 0%, rgba(220,38,38,0.4) 60%, transparent 100%)',
+                    animation: 'kitt-scan 1.4s ease-in-out infinite alternate',
+                    borderRadius: 24,
+                    filter: 'blur(2px)',
+                  }}
+                />
+              </div>
+              <div className="relative z-10 px-5 py-3 text-sm font-bold text-emerald-400 tracking-wide">
+                {optimizationMessage}
+              </div>
             </div>
           </div>
         )}

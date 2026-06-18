@@ -280,6 +280,6 @@ div[id^="stop-card-"] > .rounded-xl:has([data-stop-status="completed"][data-stop
 }
 /* KITT scanner animation for route optimizer */
 @keyframes kitt-scan {
-  from { left: -40%; }
-  to   { left: 100%; }
+  from { left: -5%; }
+  to   { left: calc(100% - 48px); }
 }
