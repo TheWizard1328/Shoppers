@@ -354,6 +354,7 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
     console.log('✅ [DRIVER STATUS] Smart refresh paused');
     
     const previousStatus = status;
+    let updatePayload = null;
     
     try {
       console.log(`🔄 Changing driver status: ${status} -> ${newStatus}`);
@@ -383,7 +384,7 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
       
       // Prepare update payload based on new status
       const nowTimestamp = new Date().toISOString();
-      let updatePayload = {
+      updatePayload = {
         driver_status: newStatus,
         location_tracking_enabled: newStatus === 'on_duty'
       };
@@ -453,21 +454,6 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
         ...updatePayload
       };
 
-      // CRITICAL: Dispatch UI update events directly — do NOT call broadcastMutation here.
-      // base44.entities.AppUser.update() already fires a WS event that propagates to other devices.
-      // Calling broadcastMutation AFTER the API update poisons the dedupe cache with the same key,
-      // causing the real WS event (which other devices rely on) to be silently dropped.
-      // Instead, we update local state directly and let the WS subscription handle other devices.
-      window.dispatchEvent(new CustomEvent('appUserUpdated', {
-        detail: { appUser: broadcastData, fromRealtime: false }
-      }));
-      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-        detail: { appUsers: [broadcastData], fromRealtime: false, mergeMode: 'merge' }
-      }));
-      window.dispatchEvent(new CustomEvent('driverStatusChanged', {
-        detail: { userId: effectiveUser.id, newStatus }
-      }));
-      
       // CRITICAL: Call backend function to enforce single active device
       console.log('📱 Calling setDriverStatus backend function...');
       const result = await base44.functions.invoke('setDriverStatus', {
@@ -500,18 +486,10 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
       const shouldEnableTracking = newStatus === 'on_duty' || newStatus === 'on_break';
       
       if (targetUser) {
-        // Admin toggling another driver — update local app state so UI reflects change immediately
+        // Admin toggling another driver — nothing extra needed here.
+        // updateAppUsersLocally + final appUserUpdated broadcast happen in finally
+        // so isTogglingRef is already cleared and listeners aren't blocked.
         console.log(`✅ [DriverStatusToggle] Admin updated driver ${effectiveUser.id} status to ${newStatus}`);
-
-        // Update appUsers locally so driver markers + sidebar reflect new status
-        if (appDataContext?.updateAppUsersLocally) {
-          appDataContext.updateAppUsersLocally([{ id: appUserId, user_id: effectiveUser.id, ...updatePayload }], false);
-        }
-
-        // Dispatch appUserUpdated so all listeners (map markers, legend, etc.) update
-        window.dispatchEvent(new CustomEvent('appUserUpdated', {
-          detail: { appUser: { id: appUserId, user_id: effectiveUser.id, ...updatedAppUser, ...updatePayload } }
-        }));
       } else if (!shouldEnableTracking) {
         // Going OFF DUTY or ON BREAK — downgrade full tracking to web-only heartbeat
         // (keeps shared marker visible on other devices without native background battery drain)
@@ -696,6 +674,29 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
       
       setPendingStatus(null);
       isTogglingRef.current = false;
+
+      // CRITICAL: Dispatch local UI events NOW — isTogglingRef is cleared so listeners won't drop them.
+      // For own-user: lets local state catch up immediately without waiting for the WS echo.
+      // For admin path: the only place these fire, since WS alone is unreliable for cross-device admin updates.
+      if (appUserId && updatePayload) {
+        const finalData = { id: appUserId, user_id: effectiveUser.id, ...updatePayload };
+        if (targetUser && appDataContext?.updateAppUsersLocally) {
+          appDataContext.updateAppUsersLocally([finalData], false);
+        }
+        window.dispatchEvent(new CustomEvent('appUserUpdated', {
+          detail: { appUser: finalData }
+        }));
+        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+          detail: { appUsers: [finalData], mergeMode: 'merge' }
+        }));
+        window.dispatchEvent(new CustomEvent('driverStatusChanged', {
+          detail: { userId: effectiveUser.id, newStatus: updatePayload.driver_status }
+        }));
+        if (targetUser) {
+          // Admin path: also broadcast via WS so other devices update
+          broadcastMutation('AppUser', 'update', appUserId, finalData);
+        }
+      }
 
       // Resume smart refresh after short delay to let status propagate
       setTimeout(async () => {
