@@ -1213,14 +1213,17 @@ useEffect(() => {
     }
 
     fabControlEvents.notifyDataReady();
-    requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-            setTimeout(() => {
-                _applyFabPhase();
-                initialFabPhaseAppliedRef.current = currentDateDriverCombo; // Mark as applied
-            }, 500);
-        });
-    });
+    // CRITICAL: Delay FAB phase application long enough for stop cards to fully
+    // render and become scrollable — prevents map panning before isNextDelivery
+    // card centering is possible. 1200ms covers card measurement + paint.
+    setTimeout(() => {
+        _applyFabPhase();
+        initialFabPhaseAppliedRef.current = currentDateDriverCombo;
+        // Center the isNextDelivery card after the map animation settles
+        setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('centerNextDeliveryCard'));
+        }, 800);
+    }, 1200);
   }, [renderSequence.fullDeliveriesLoaded, renderSequence.fabPhaseReady, initialMapViewApplied, cardsReadyForFAB]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { window._mapViewPhaseRef = mapViewPhaseRef; window._pendingPhaseRef = pendingPhaseRef; window._selectedDriverIdRef = selectedDriverIdRef; }, []);
