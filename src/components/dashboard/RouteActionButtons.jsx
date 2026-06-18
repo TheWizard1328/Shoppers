@@ -181,7 +181,7 @@ export default function RouteActionButtons({
 
             // Capture BEFORE state from current deliveries
             const ACTIVE_PENDING = ['in_transit', 'en_route', 'pending'];
-            const beforeDeliveries = (filteredDeliveries || []).filter(d => d && ACTIVE_PENDING.includes(d.status));
+            const beforeDeliveries = (filteredDeliveries || []).filter(d => d && (ACTIVE_PENDING.includes(d.status) || d.is_cycling_start_marker));
             const beforeMap = new Map(
               beforeDeliveries.map(d => [d.id, { stopOrder: d.stop_order, eta: d.delivery_time_eta }])
             );
@@ -231,6 +231,7 @@ export default function RouteActionButtons({
                   (filteredDeliveries || []).filter(d => d?.id).map(d => [d.id, d])
                 );
                 // Update dialog rows with the after state
+                const optimizedIds = new Set(data.optimizedRoute.map(r => r.deliveryId));
                 const rows = data.optimizedRoute.map(after => {
                   const before = beforeMap.get(after.deliveryId) || {};
                   const delivery = deliveryMap.get(after.deliveryId);
@@ -244,7 +245,20 @@ export default function RouteActionButtons({
                     orderChanged: (before.stopOrder ?? null) !== after.stop_order,
                   };
                 });
-                setCompareRows(rows);
+                // Cycling markers are not returned by the optimizer — re-inject them from beforeRows
+                // using their existing stop_order so they appear in the correct position in the after view
+                const cyclingRows = beforeDeliveries
+                  .filter(d => d?.is_cycling_start_marker && !optimizedIds.has(d.id))
+                  .map(d => ({
+                    deliveryId: d.id,
+                    name: getStopName(d),
+                    oldStopOrder: d.stop_order ?? null,
+                    oldEta: d.delivery_time_eta ?? null,
+                    newStopOrder: d.stop_order ?? null,
+                    newEta: d.delivery_time_eta ?? null,
+                    orderChanged: false,
+                  }));
+                setCompareRows([...rows, ...cyclingRows]);
               }
 
               if (Array.isArray(data.optimizedRoute) && data.optimizedRoute.length > 0) {
