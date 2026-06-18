@@ -76,19 +76,23 @@ export default function MultiDeliveryArrivalDialog({
 
   const allAtLocation = [currentDelivery, ...sameLocationDeliveries];
 
-  const handleComplete = async (delivery) => {
-    if (loadingId) return;
-    setLoadingId(delivery.id);
+  const handleComplete = async (targetDelivery) => {
+    if (loadingId || locallyFinishedIds.has(targetDelivery.id)) return;
+    setLoadingId(targetDelivery.id);
+    // Mark as finished immediately so other buttons can't be pressed for this stop
+    setLocallyFinishedIds((prev) => new Set([...prev, targetDelivery.id]));
     try {
-      await onCompleteDelivery?.(delivery);
+      await onCompleteDelivery?.(targetDelivery);
     } finally {
       setLoadingId(null);
     }
   };
 
-  const handleFailClick = (delivery) => {
-    if (loadingId) return;
-    setFailTarget(delivery);
+
+
+  const handleFailClick = (targetDelivery) => {
+    if (loadingId || locallyFinishedIds.has(targetDelivery.id)) return;
+    setFailTarget(targetDelivery);
   };
 
   const handleFailureConfirmed = async (reason) => {
@@ -96,6 +100,7 @@ export default function MultiDeliveryArrivalDialog({
     setFailTarget(null);
     if (!target) return;
     setLoadingId(target.id);
+    setLocallyFinishedIds((prev) => new Set([...prev, target.id]));
     try {
       await onFailDelivery?.(target, reason);
     } finally {
@@ -121,7 +126,7 @@ export default function MultiDeliveryArrivalDialog({
             {allAtLocation.map((delivery) => {
               const patient = patients.find((p) => p?.id === delivery.patient_id);
               const isCurrent = delivery.id === currentDelivery.id;
-              const isFinished = FINISHED_STATUSES.includes(delivery.status);
+              const isFinished = FINISHED_STATUSES.includes(delivery.status) || locallyFinishedIds.has(delivery.id);
               const isLoading = loadingId === delivery.id;
 
               return (
