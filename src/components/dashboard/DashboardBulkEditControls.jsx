@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react"; // useMemo already imported
 import { useDevice } from '@/components/utils/DeviceContext';
 import { PencilLine, Trash2, X, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import {
 "@/components/ui/alert-dialog";
 import BulkEditStopsPanel from "@/components/deliveries/BulkEditStopsPanel";
 import { updateDeliveryLocal, deleteDeliveryLocal, updatePatientLocal } from "@/components/utils/offlineMutations";
+import { useAppData } from "@/components/utils/AppDataContext";
 import { getDriverNameForStorage } from "@/components/utils/driverUtils";
 import { invalidate } from "@/components/utils/dataManager";
 import { base44 } from "@/api/base44Client";
@@ -35,6 +36,12 @@ export default function DashboardBulkEditControls({
   onBulkApplyComplete
 }) {
   const { isMobile } = useDevice();
+  const { appUsers } = useAppData();
+  const effectiveDrivers = useMemo(() => {
+    if (drivers && drivers.length > 0) return drivers;
+    if (!appUsers) return [];
+    return appUsers.filter((au) => au && au.app_roles?.includes('driver') && au.status !== 'inactive' && au.user_name);
+  }, [drivers, appUsers]);
   const [showBulkEditPanel, setShowBulkEditPanel] = useState(false);
 
   const openBulkEditPanel = useCallback(() => {
@@ -114,7 +121,7 @@ export default function DashboardBulkEditControls({
           sharedUpdates.driver_id = null;
           sharedUpdates.driver_name = "";
         } else if (values.driverChoice !== "unchanged") {
-          const selectedDriver = drivers.find((d) => d.id === values.driverChoice);
+          const selectedDriver = effectiveDrivers.find((d) => d.id === values.driverChoice);
           if (selectedDriver) {
             sharedUpdates.driver_id = selectedDriver.id;
             sharedUpdates.driver_name = getDriverNameForStorage(selectedDriver);
@@ -327,7 +334,7 @@ export default function DashboardBulkEditControls({
         isMobile={isMobile}
         selectedCount={selectedCount}
         selectedDeliveries={selectedDeliveries}
-        drivers={drivers}
+        drivers={effectiveDrivers}
         stores={stores}
         allDeliveries={allDeliveries}
         patients={patients}

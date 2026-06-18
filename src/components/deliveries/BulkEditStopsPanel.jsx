@@ -7,6 +7,7 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle, Dr
 
 import { getPickupStopIdForDelivery } from "@/components/utils/ampmUtils";
 import { userHasRole } from "@/components/utils/userRoles";
+import { useAppData } from "@/components/utils/AppDataContext";
 import { X, Car, Bike } from "lucide-react";
 
 const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled'];
@@ -398,6 +399,12 @@ const getSharedValue = (items, getter, fallback = "") => {
 };
 
 export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selectedCount, selectedDeliveries = [], drivers, stores = [], allDeliveries = [], patients = [], currentUser, onApply, isSaving }) {
+  const { appUsers } = useAppData();
+  const effectiveDrivers = useMemo(() => {
+    if (drivers && drivers.length > 0) return drivers;
+    if (!appUsers) return [];
+    return appUsers.filter((au) => au && au.app_roles?.includes('driver') && au.status !== 'inactive' && au.user_name);
+  }, [drivers, appUsers]);
   // Read the sidebar width directly from the DOM so the modal centers over the map area only
   const [sidebarWidth, setSidebarWidth] = useState(0);
   useEffect(() => {
@@ -457,7 +464,7 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
   const content =
   <BulkEditStopsForm
     selectedCount={selectedCount}
-    drivers={drivers}
+    drivers={effectiveDrivers}
     stores={stores}
     allDeliveries={allDeliveries}
     patients={patients}
