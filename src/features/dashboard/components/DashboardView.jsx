@@ -521,7 +521,7 @@ export default function DashboardView({
                   opacity: 0.85
                 }}
               />
-              <span className="relative z-10 text-xs font-bold tracking-widest text-red-400 uppercase drop-shadow-[0_0_6px_rgba(239,68,68,0.9)]">
+              <span className="relative z-10 text-xs font-bold tracking-widest uppercase" style={{ color: '#f87171', textShadow: '0 0 8px rgba(239,68,68,0.95), 0 0 2px rgba(239,68,68,0.7)', letterSpacing: '0.15em' }}>
                 {optimizationMessage}
               </span>
             </div>
