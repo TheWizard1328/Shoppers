@@ -50,6 +50,8 @@ export default function FABControls({
   immersiveOverlayDelivery,
   immersiveOverlayIsPickup,
   immersiveOverlayStore,
+  immersiveIsInterStore,
+  immersiveInterStoreLocation,
 }) {
   const { isMobile } = useDevice();
   const hasVisibleCards = deliveriesWithStopOrder.length > 0 && cardsReadyForFAB;
@@ -65,14 +67,23 @@ export default function FABControls({
 
   // Immersive FAB data — call button and navigation button for the next stop
   const immersiveFabBottom = bottomNavHeight + 10;
-  const immersivePatientPhone = !immersiveOverlayIsPickup
-    ? (immersiveOverlayPatient?.phone || immersiveOverlayPatient?.phone_secondary || null)
-    : null;
-  const immersiveNavAddress = immersiveOverlayIsPickup
-    ? immersiveOverlayStore?.address
-    : immersiveOverlayPatient?.address;
-  const immersiveNavLat = immersiveOverlayIsPickup ? immersiveOverlayStore?.latitude : immersiveOverlayPatient?.latitude;
-  const immersiveNavLon = immersiveOverlayIsPickup ? immersiveOverlayStore?.longitude : immersiveOverlayPatient?.longitude;
+
+  // For ISP/ISD inter-store deliveries, use the inter-store location record for phone/nav
+  const immersivePatientPhone = immersiveIsInterStore
+    ? (immersiveInterStoreLocation?.store_phone || null)
+    : !immersiveOverlayIsPickup
+      ? (immersiveOverlayPatient?.phone || immersiveOverlayPatient?.phone_secondary || null)
+      : null;
+
+  const immersiveNavLat = immersiveIsInterStore
+    ? (immersiveInterStoreLocation?.store_latitude ?? immersiveOverlayStore?.latitude)
+    : immersiveOverlayIsPickup ? immersiveOverlayStore?.latitude : immersiveOverlayPatient?.latitude;
+  const immersiveNavLon = immersiveIsInterStore
+    ? (immersiveInterStoreLocation?.store_longitude ?? immersiveOverlayStore?.longitude)
+    : immersiveOverlayIsPickup ? immersiveOverlayStore?.longitude : immersiveOverlayPatient?.longitude;
+  const immersiveNavAddress = immersiveIsInterStore
+    ? (immersiveInterStoreLocation?.store_address || immersiveOverlayStore?.address)
+    : immersiveOverlayIsPickup ? immersiveOverlayStore?.address : immersiveOverlayPatient?.address;
 
   const handleImmersiveCall = () => {
     if (!immersivePatientPhone) return;
