@@ -101,9 +101,9 @@ export default function StopCardActionButtons(props) {
     const isBase44Editor = encodeURIComponent('https://play.google.com/store/apps/details?id=com.squareup'); //window.location.hostname.includes('base44.com');
     const appCallbackUrl = isBase44Editor
       ? (window.location.origin + window.location.pathname)
-      : (window.location.origin + '/');
+      : (window.location.origin);
     const callbackUri = encodeURIComponent(appCallbackUrl);
-    const fallbackUri = encodeURIComponent('https://preview--rx-deliver-2408a9d6.base44.app'); //https://play.google.com/store/apps/details?id=com.squareup
+    const fallbackUri = encodeURIComponent('https://play.google.com/store/apps/details?id=com.squareup'); //https://play.google.com/store/apps/details?id=com.squareup
     return [
       'intent:#Intent',
       'action=com.squareup.pos.action.CHARGE',
