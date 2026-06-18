@@ -190,7 +190,8 @@ export function runMapPositioningEffect({
       // location overrides (e.g. ISP/ISD pickups with different coords than the store record).
       (deliveriesToMap || []).forEach((d) => {
         if (!d) return;
-        if (d.patient_id) { const p = patientsRef.current?.find((p) => p?.id === d.patient_id); if (p?.latitude && p?.longitude) { allCoordinates.push([p.latitude, p.longitude]); hasStopMarkers = true; } }
+        if (d.is_cycling_marker && d.cycling_latitude && d.cycling_longitude) { allCoordinates.push([d.cycling_latitude, d.cycling_longitude]); hasStopMarkers = true; }
+        else if (d.patient_id) { const p = patientsRef.current?.find((p) => p?.id === d.patient_id); if (p?.latitude && p?.longitude) { allCoordinates.push([p.latitude, p.longitude]); hasStopMarkers = true; } }
         else if (d.store_id) { const s = storesRef.current?.find((s) => s?.id === d.store_id); if (s?.latitude && s?.longitude) { allCoordinates.push([s.latitude, s.longitude]); hasStopMarkers = true; } }
       });
       // Augment with window markers for inter-store pickup coordinate overrides (different lat/lon than store record)
@@ -288,6 +289,7 @@ export function runMapPositioningEffect({
           const driverNextStop = allDateDeliveries2.find((d) => d && d.driver_id === driverId && d.isNextDelivery);
           if (driverNextStop) {
             if (driverNextStop.is_cycling_start_marker && driverNextStop.cycling_start_latitude && driverNextStop.cycling_start_longitude) { phase2DispatcherCoords.push([driverNextStop.cycling_start_latitude, driverNextStop.cycling_start_longitude]); }
+            else if (driverNextStop.is_cycling_marker && driverNextStop.cycling_latitude && driverNextStop.cycling_longitude) { phase2DispatcherCoords.push([driverNextStop.cycling_latitude, driverNextStop.cycling_longitude]); }
             else if (driverNextStop.patient_id) { const patient = patientsRef.current.find((p) => p?.id === driverNextStop.patient_id); if (patient?.latitude && patient?.longitude) phase2DispatcherCoords.push([patient.latitude, patient.longitude]); }
             else if (isInterStoreDelivery(driverNextStop.delivery_id)) { const isl = getInterStoreLocationSync(driverNextStop.delivery_id); if (isl?.store_latitude && isl?.store_longitude) phase2DispatcherCoords.push([isl.store_latitude, isl.store_longitude]); else { const store = storesRef.current.find((s) => s?.id === driverNextStop.store_id); if (store?.latitude && store?.longitude) phase2DispatcherCoords.push([store.latitude, store.longitude]); } }
             else if (driverNextStop.store_id) { const store = storesRef.current.find((s) => s?.id === driverNextStop.store_id); if (store?.latitude && store?.longitude) phase2DispatcherCoords.push([store.latitude, store.longitude]); }
@@ -311,7 +313,9 @@ export function runMapPositioningEffect({
           const _ns = _p2TgtId2 ? deliveriesRef.current.find((d) => d && d.driver_id === _p2TgtId2 && d.isNextDelivery === true && d.status !== 'pending') : null;
           const _nc = _ns?.is_cycling_start_marker && _ns?.cycling_start_latitude && _ns?.cycling_start_longitude
             ? { lat: _ns.cycling_start_latitude, lon: _ns.cycling_start_longitude }
-            : _ns?.patient_id
+            : _ns?.is_cycling_marker && _ns?.cycling_latitude && _ns?.cycling_longitude
+              ? { lat: _ns.cycling_latitude, lon: _ns.cycling_longitude }
+              : _ns?.patient_id
               ? (() => { const p = patientsRef.current.find((x) => x && x.id === _ns.patient_id); return p?.latitude && p?.longitude ? { lat: p.latitude, lon: p.longitude } : null; })()
               : _ns && isInterStoreDelivery(_ns.delivery_id)
                 ? (() => { const isl = getInterStoreLocationSync(_ns.delivery_id); if (isl?.store_latitude && isl?.store_longitude) return { lat: isl.store_latitude, lon: isl.store_longitude }; const s = storesRef.current.find((x) => x && x.id === _ns.store_id); return s?.latitude && s?.longitude ? { lat: s.latitude, lon: s.longitude } : null; })()
@@ -348,7 +352,8 @@ export function runMapPositioningEffect({
         const incompleteAndPendingAllDrivers = allDateDeliveries.filter((d) => d && !finishedStatuses.includes(d.status));
         const driversWithIncompleteOrPendingStops = new Set(incompleteAndPendingAllDrivers.map((d) => d.driver_id).filter(Boolean));
         incompleteAndPendingAllDrivers.forEach((delivery) => {
-          if (delivery.patient_id) { const patient = patientsRef.current.find((p) => p?.id === delivery.patient_id); if (patient?.latitude && patient?.longitude) allCoordinatesPhase3.push([patient.latitude, patient.longitude]); }
+          if (delivery.is_cycling_marker && delivery.cycling_latitude && delivery.cycling_longitude) { allCoordinatesPhase3.push([delivery.cycling_latitude, delivery.cycling_longitude]); }
+          else if (delivery.patient_id) { const patient = patientsRef.current.find((p) => p?.id === delivery.patient_id); if (patient?.latitude && patient?.longitude) allCoordinatesPhase3.push([patient.latitude, patient.longitude]); }
           else if (delivery.store_id) { const store = storesRef.current.find((s) => s?.id === delivery.store_id); if (store?.latitude && store?.longitude) allCoordinatesPhase3.push([store.latitude, store.longitude]); }
         });
         if (isViewingTodayPhase3) {

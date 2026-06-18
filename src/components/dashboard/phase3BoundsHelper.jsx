@@ -30,6 +30,13 @@ export function collectPhase3SingleDriverCoordinates({
       }
       return;
     }
+    // Cycling marker delivery records (is_cycling_marker=true) carry their own GPS coords
+    if (delivery.is_cycling_marker) {
+      if (delivery.cycling_latitude && delivery.cycling_longitude) {
+        allCoordinatesPhase3.push([delivery.cycling_latitude, delivery.cycling_longitude]);
+      }
+      return;
+    }
     if (delivery.patient_id) {
       const patient = patients.find((p) => p?.id === delivery.patient_id);
       if (patient?.latitude && patient?.longitude) {
