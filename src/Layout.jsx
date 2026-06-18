@@ -792,6 +792,29 @@ export default function Layout({ children, currentPageName }) {
   const [entityCounts, setEntityCounts] = useState({ patients: '...', companies: '...', cities: '...', stores: '...', users: '...' });
 
   useEffect(() => {if (!currentUser || !dataLoaded) return;setEntityCounts({ patients: patients.length, cities: cities.length, stores: stores.length, users: users.length });}, [currentUser, dataLoaded, patients.length, cities.length, stores.length, users.length]);
+
+  // CRITICAL: Keep drivers + users in sync with appUsers at ALL times.
+  // applyFullDataToState sets them during triggerFullDataLoad, but appUsers is seeded
+  // much earlier (from offlineDB in useLayoutInit). This effect bridges that gap so the
+  // sidebar, delivery form, and bulk edit form always have a populated drivers list.
+  useEffect(() => {
+    if (!appUsers || appUsers.length === 0) return;
+    const mergedUsersMap = new Map();
+    if (currentUser) mergedUsersMap.set(currentUser.id, currentUser);
+    appUsers.forEach((appUser) => {
+      if (!appUser || mergedUsersMap.has(appUser.user_id)) return;
+      const pseudoUser = createMergedUser(null, appUser);
+      if (pseudoUser) mergedUsersMap.set(pseudoUser.id, pseudoUser);
+    });
+    const allUsers = Array.from(mergedUsersMap.values()).filter(Boolean);
+    const activeDrivers = sortUsers(allUsers.filter((u) =>
+      u && Array.isArray(u.app_roles) &&
+      (u.app_roles.includes('driver') || u.app_roles.includes('admin')) &&
+      u.user_name && u.status === 'active'
+    ));
+    setUsers(allUsers);
+    setDrivers(activeDrivers);
+  }, [appUsers, currentUser]);
   const currentPayrollNetPay = usePayrollBadge(currentUser, appUsers, dataLoaded);
 
   // Calculate online user counts based on heartbeat (location_updated_at < 5 min = online)
