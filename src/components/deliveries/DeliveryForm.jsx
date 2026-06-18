@@ -114,9 +114,16 @@ export default function DeliveryForm({
   const freshStores = useFreshStores(stores);
 
   const allDrivers = useMemo(() => {
-    const sorted = sortUsers(drivers || []);
+    // Prefer the passed drivers prop; fall back to appUsers from context if drivers is empty
+    let source = drivers && drivers.length > 0 ? drivers : [];
+    if (source.length === 0 && appUsers && appUsers.length > 0) {
+      source = appUsers
+        .filter((au) => au && au.app_roles?.includes('driver') && au.status !== 'inactive' && au.user_name)
+        .map((au) => ({ ...au, id: au.id || au.user_id }));
+    }
+    const sorted = sortUsers(source);
     return sorted.filter((driver) => driver && driver.user_name && driver.status !== 'inactive');
-  }, [drivers]);
+  }, [drivers, appUsers]);
 
   const [formData, setFormData] = useState(() => buildDeliveryFormInitialState({
     initialPatientId,
