@@ -271,7 +271,8 @@ export default function useStopCardActions(params) {
 
       // Dispatch optimizationStarted AFTER the batch pipeline has updated all delivery statuses
       // so the optimizer fires only once all transitions are complete.
-      window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
+      const isDriverAction = userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id;
+      window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: isDriverAction ? 'accept_all' : 'assign_all', stopCount: scopedPendingDeliveries.length, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
 
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAll', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true, freshDeliveries: [...stagedChangedDeliveries, ...finalOfflineUpdates], alreadyOptimized: false } }));
       window.dispatchEvent(new CustomEvent('pendingToInTransit', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
@@ -341,7 +342,6 @@ export default function useStopCardActions(params) {
         base44.functions.invoke('syncSquareCods', { items: codBatch }).catch((e) => console.warn('⚠️ [Square] Batch COD sync failed to start:', e));
       }
 
-      const isDriverAction = userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id;
       if (isDriverAction) {
         notifyDriverAcceptedAll({ driver: currentUser, store, appUsers }).catch(() => {});
       } else {
@@ -739,6 +739,7 @@ export default function useStopCardActions(params) {
               window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: delivery.driver_id, updates: optimizeData.optimizedRoute.map((stop) => ({ deliveryId: stop.deliveryId || stop.delivery_id, newEta: stop.newETA || stop.eta })).filter((stop) => stop.deliveryId && stop.newEta) } }));
             }
 
+            window.dispatchEvent(new CustomEvent('polylineGenerationStarted', { detail: { isRegenerate: false, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
             const polylineResponse = await base44.functions.invoke('purgeAndRegeneratePolylines', {
               driverId: delivery.driver_id,
               deliveryDate: delivery.delivery_date,

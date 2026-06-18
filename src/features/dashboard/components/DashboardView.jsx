@@ -73,32 +73,43 @@ export default function DashboardView({
   // Misc
   refreshUser, refreshData, dataSource,
 }) {
-  // Show/hide the optimization bar when accept-all/assign-all triggers route optimization
+  // Show/hide the KITT optimization bar based on lifecycle events from all optimization flows
   useEffect(() => {
     const handleOptimizationStarted = (event) => {
-      const { source } = event?.detail || {};
+      const { source, stopCount } = event?.detail || {};
       if (!source) return;
-      // For accept_all: show "Processing stops..." immediately, then transition to "Optimizing..."
-      const isAcceptAll = source === 'accept_all';
-      setOptimizationMessage(isAcceptAll ? 'Processing stops...' : 'Optimizing route...');
-    };
-    const handleOptimizationComplete = () => {
-      setTimeout(() => setOptimizationMessage(null), 2000);
-    };
-    // When offline DB phase 1 completes, advance the message to optimization phase
-    const handleAcceptAllPhase2 = (event) => {
-      const { triggeredBy } = event?.detail || {};
-      if (triggeredBy === 'acceptAll' && window._acceptAllInProgress) {
-        setOptimizationMessage('Optimizing route...');
+      if (source === 'accept_all' || source === 'assign_all') {
+        const n = stopCount ? ` ${stopCount}` : '';
+        setOptimizationMessage(`Assigning${n} New Stop${stopCount === 1 ? '' : 's'}...`);
+      } else if (source === 'start_button') {
+        setOptimizationMessage('Route Optimization in Progress...');
+      } else {
+        setOptimizationMessage('Route Optimization in Progress...');
       }
     };
+    const handleOptimizationPhase2 = (event) => {
+      // After stops are assigned, transition to the optimization message
+      const { triggeredBy } = event?.detail || {};
+      if (triggeredBy === 'acceptAll' || triggeredBy === 'assignAll') {
+        setOptimizationMessage('Route Optimization in Progress...');
+      }
+    };
+    const handlePolylineStarted = (event) => {
+      const { isRegenerate } = event?.detail || {};
+      setOptimizationMessage(isRegenerate ? 'Re-Generating Route Path...' : 'Generating New Route Path...');
+    };
+    const handleOptimizationComplete = () => {
+      setTimeout(() => setOptimizationMessage(null), 2500);
+    };
     window.addEventListener('routeOptimizationStarted', handleOptimizationStarted);
+    window.addEventListener('deliveriesUpdated', handleOptimizationPhase2);
+    window.addEventListener('polylineGenerationStarted', handlePolylineStarted);
     window.addEventListener('routeOptimizationComplete', handleOptimizationComplete);
-    window.addEventListener('deliveriesUpdated', handleAcceptAllPhase2);
     return () => {
       window.removeEventListener('routeOptimizationStarted', handleOptimizationStarted);
+      window.removeEventListener('deliveriesUpdated', handleOptimizationPhase2);
+      window.removeEventListener('polylineGenerationStarted', handlePolylineStarted);
       window.removeEventListener('routeOptimizationComplete', handleOptimizationComplete);
-      window.removeEventListener('deliveriesUpdated', handleAcceptAllPhase2);
     };
   }, [setOptimizationMessage]);
 

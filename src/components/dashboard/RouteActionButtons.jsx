@@ -162,7 +162,7 @@ export default function RouteActionButtons({
         onClick={async () => {
           if (isReoptimizing) return;
           setIsReoptimizing(true);
-          setOptimizationMessage("Re-optimizing route...");
+          setOptimizationMessage("Re-Optimization in Progress...");
           setIsEntityUpdating(true);
           pauseOfflineMutations();
           pauseOfflineSync();
@@ -259,7 +259,7 @@ export default function RouteActionButtons({
                   optimized_stop_count: Number(data.optimizedCount || data.totalStops || data.optimizedRoute?.length || 0)
                 }
               });
-              setOptimizationMessage(`Route optimized! ${(data.optimizedCount || data.totalStops || data.optimizedRoute?.length || 0)} stops updated.`);
+              window.dispatchEvent(new CustomEvent("polylineGenerationStarted", { detail: { isRegenerate: true, driverId: selectedDriverId, deliveryDate } }));
               window.dispatchEvent(new CustomEvent("deliveriesUpdated", { detail: { driverId: selectedDriverId, deliveryDate, triggeredBy: "reoptimizeRoute", alreadyOptimized: true, preserveLocalState: true } }));
               window.dispatchEvent(new CustomEvent("routeReordered", { detail: { driverId: selectedDriverId, deliveryDate, source: "reoptimizeRoute" } }));
               setIsMapViewLocked(true);
