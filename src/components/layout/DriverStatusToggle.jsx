@@ -489,8 +489,18 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
       const shouldEnableTracking = newStatus === 'on_duty' || newStatus === 'on_break';
       
       if (targetUser) {
-        // Admin toggling another driver — no local location tracking changes needed
+        // Admin toggling another driver — update local app state so UI reflects change immediately
         console.log(`✅ [DriverStatusToggle] Admin updated driver ${effectiveUser.id} status to ${newStatus}`);
+
+        // Update appUsers locally so driver markers + sidebar reflect new status
+        if (appDataContext?.updateAppUsersLocally) {
+          appDataContext.updateAppUsersLocally([{ id: appUserId, user_id: effectiveUser.id, ...updatePayload }], false);
+        }
+
+        // Dispatch appUserUpdated so all listeners (map markers, legend, etc.) update
+        window.dispatchEvent(new CustomEvent('appUserUpdated', {
+          detail: { appUser: { id: appUserId, user_id: effectiveUser.id, ...updatedAppUser, ...updatePayload } }
+        }));
       } else if (!shouldEnableTracking) {
         // Going OFF DUTY or ON BREAK — downgrade full tracking to web-only heartbeat
         // (keeps shared marker visible on other devices without native background battery drain)
