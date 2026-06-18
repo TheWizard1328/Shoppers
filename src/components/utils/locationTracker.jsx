@@ -603,18 +603,9 @@ class LocationTracker {
       }
 
       console.log(`✅✅✅ [LocationTracker] UPLOAD COMPLETE - Next in ${this.updateInterval/1000}s`);
-
-      window.dispatchEvent(new CustomEvent('driverLocationUpdated', {
-        detail: {
-          userId: this.currentUser?.id,
-          latitude,
-          longitude,
-          accuracy,
-          timestamp: now,
-          isRealtime: true,
-          isCoordinateUpdate: true
-        }
-      }));
+      // NOTE: driverPositionUpdated is dispatched in handleLocationSuccess (live GPS callback)
+      // for the blue dot on the primary device. We do NOT re-dispatch a location event here
+      // after the DB write — that path leads to shared marker updates on all devices.
 
     } catch (error) {
       this.failedUpdateCount++;

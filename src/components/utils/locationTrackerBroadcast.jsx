@@ -30,6 +30,12 @@ export const syncUpdatedAppUser = async ({ updatedAppUser, currentUser }) => {
     const { offlineDB } = await import('./offlineDatabase');
     await offlineDB.save(offlineDB.STORES.APP_USERS, appUserForDB);
 
+    // CRITICAL: Do NOT dispatch driverLocationsUpdated here. On the primary device, the blue
+    // dot is driven by live GPS events (driverPositionUpdated). The shared location marker on
+    // secondary devices is driven exclusively by the WebSocket broadcast received in realtimeSync.
+    // Dispatching driverLocationsUpdated here causes the primary device to update its own shared
+    // marker, and the echo-suppression window means secondary devices receive the event twice
+    // (once here via broadcastMutation→window event, once via the WebSocket subscription).
     window.dispatchEvent(new CustomEvent('appUserUpdated', {
       detail: { appUser: appUserForDB, fromLocationTracker: true }
     }));
@@ -37,19 +43,8 @@ export const syncUpdatedAppUser = async ({ updatedAppUser, currentUser }) => {
     console.error('❌ [LocationTracker] FAILED TO SYNC to offline DB:', offlineError.message);
   }
 
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-      detail: {
-        appUsers: [appUserForDB],
-        singleUpdate: true,
-        fromLocationTracker: true,
-        mergeMode: 'merge'
-      }
-    }));
-  }
-
-  // Broadcast to other devices — no _source_device in this payload so other devices
-  // receive it normally. The originating device suppresses via __localAppUserWrites.
+  // Push to server — this triggers the WebSocket broadcast that secondary devices
+  // (tablets, dispatchers) will receive via realtimeSync to update shared markers.
   await broadcastMutation('AppUser', 'update', appUserForDB.id, appUserForDB);
 
   const currentDevice = await getCurrentDevice(currentUser.id);

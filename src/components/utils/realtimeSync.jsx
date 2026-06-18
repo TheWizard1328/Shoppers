@@ -1003,14 +1003,14 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
           fromRealtime: true
         }
       }));
-      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-        detail: {
-          appUsers: data ? [data] : undefined,
-          deletedId: action === 'delete' ? id : undefined,
-          singleUpdate: data,
-          fromRealtime: true
-        }
-      }));
+      // CRITICAL: Do NOT dispatch driverLocationsUpdated from broadcastMutation for AppUser.
+      // This function is called by locationTrackerBroadcast on the PRIMARY device after
+      // writing to the server. The WebSocket subscription in subscribeToEntity('AppUser')
+      // already dispatches driverLocationsUpdated for SECONDARY devices when the WS event
+      // arrives. Dispatching it here as well causes the primary device to also move its own
+      // shared marker, and secondary devices receive the event twice (once from this call
+      // via the module event, and again from the incoming WS subscription).
+      // The shared marker on ALL devices must only be driven by the WebSocket path.
     }
 
     if (entity === 'Patient') {
