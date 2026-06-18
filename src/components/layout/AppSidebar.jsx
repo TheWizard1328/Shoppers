@@ -61,6 +61,28 @@ export default function AppSidebar({
   // Subscribe to all key entities for real-time sidebar updates
   useSidebarEntitySubscriptions(currentUser);
 
+  // Resolve the currently selected driver so the toggle targets them (admin only)
+  const selectedDriverId = globalFilters.getSelectedDriverId();
+  const selectedDriverAppUser = useMemo(() => {
+    if (!userHasRole(currentUser, 'admin')) return null;
+    if (!selectedDriverId || selectedDriverId === 'all') return null;
+    return (appUsers || []).find((au) => au && au.user_id === selectedDriverId) || null;
+  }, [currentUser, selectedDriverId, appUsers]);
+
+  // Build a merged user object the toggle can use as targetUser
+  const selectedDriverTarget = useMemo(() => {
+    if (!selectedDriverAppUser) return null;
+    const baseUser = (users || []).find((u) => u && u.id === selectedDriverAppUser.user_id);
+    return {
+      ...(baseUser || {}),
+      ...selectedDriverAppUser,
+      id: selectedDriverAppUser.user_id,
+      driver_status: selectedDriverAppUser.driver_status || 'off_duty',
+      current_latitude: selectedDriverAppUser.current_latitude,
+      current_longitude: selectedDriverAppUser.current_longitude,
+    };
+  }, [selectedDriverAppUser, users]);
+
   // Fetch booked-off overrides for the scheduling badge + keep in sync via WebSocket
   const [bookedOffOverrides, setBookedOffOverrides] = useState([]);
   useEffect(() => {
@@ -187,9 +209,10 @@ export default function AppSidebar({
                 )}
               </div>
               {/* Right column: status toggle — landscape mobile/tablet AND desktop drivers */}
-              {currentUser && userHasRole(currentUser, 'driver') && (
+              {currentUser && (userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) && (
                 <DriverStatusToggle
                   currentUser={currentUser}
+                  targetUser={selectedDriverTarget}
                   vertical={true}
                   onStatusChange={async () => {
                     clearUserCache();

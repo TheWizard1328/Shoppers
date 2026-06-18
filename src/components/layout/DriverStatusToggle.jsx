@@ -66,8 +66,15 @@ const clearStalePendingBreadcrumbs = async (appUserId) => {
  * Left: Off Duty (Red) - Disables location sharing
  * Center: On Duty (Green) - Enables location sharing
  * Right: On Break (Blue) - Disables location sharing
+ *
+ * targetUser: optional override — when an admin has a specific driver selected,
+ * pass that driver's merged user object here so the toggle operates on them
+ * instead of the logged-in user.
  */
-export default function DriverStatusToggle({ currentUser, onStatusChange, onBreakStart, onBreakEnd, vertical = false }) {
+export default function DriverStatusToggle({ currentUser, targetUser, onStatusChange, onBreakStart, onBreakEnd, vertical = false }) {
+  // If a target driver is selected (admin toggling a specific driver), use them;
+  // otherwise fall back to the logged-in user.
+  const effectiveUser = targetUser || currentUser;
   // CRITICAL: Move all hooks to top before any conditions - prevents hook mismatch errors
   const [status, setStatus] = useState(null); // Will sync from currentUser prop
   const [isUpdating, setIsUpdating] = useState(false);
@@ -88,12 +95,12 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
   // location tracking and push a fresh GPS fix so the marker is visible right away.
   useEffect(() => {
     const initAppUser = async () => {
-      if (!currentUser?.id) return;
+      if (!effectiveUser?.id) return;
       
       try {
         // CRITICAL: Try offline DB first
         const { offlineDB } = await import('../utils/offlineDatabase');
-        const offlineAppUsers = await offlineDB.getByIndex(offlineDB.STORES.APP_USERS, 'user_id', currentUser.id);
+        const offlineAppUsers = await offlineDB.getByIndex(offlineDB.STORES.APP_USERS, 'user_id', effectiveUser.id);
         
         let resolvedAppUser = null;
 
@@ -102,7 +109,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
           console.log(`💾 [DriverStatusToggle] Loaded from offline DB - status: ${resolvedAppUser.driver_status || 'off_duty'}`);
         } else {
           // Fallback to API if offline DB empty
-          const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
+          const appUsers = await base44.entities.AppUser.filter({ user_id: effectiveUser.id });
           if (appUsers && appUsers.length > 0) {
             resolvedAppUser = appUsers[0];
             await offlineDB.save(offlineDB.STORES.APP_USERS, resolvedAppUser);
@@ -115,11 +122,14 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
         const loadedStatus = resolvedAppUser.driver_status || 'off_duty';
         setAppUserId(resolvedAppUser.id);
         setStatus(loadedStatus);
-        locationTracker.setDriverStatus(loadedStatus);
+        // Only update locationTracker for the logged-in user's own status
+        if (!targetUser) locationTracker.setDriverStatus(loadedStatus);
 
         // CRITICAL: Always start location tracking on app load for all driver statuses.
         // - on_duty / on_break → full tracking (watchPosition + native background)
         // - off_duty            → web-only heartbeat (keeps shared marker fresh on other devices)
+        // Skip location tracking init when operating on a different driver (admin mode).
+        if (targetUser) return;
         const userWithAppUserId = { ...currentUser, appUserId: resolvedAppUser.id };
         if (!locationTracker.isTracking) {
           if (loadedStatus === 'on_duty' || loadedStatus === 'on_break') {
@@ -165,17 +175,17 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
     };
     
     initAppUser();
-  }, [currentUser?.id]);
+  }, [effectiveUser?.id]);
 
-  // Sync from currentUser prop changes when not toggling
+  // Sync from effectiveUser prop changes when not toggling
   // CRITICAL: Skip if a WebSocket update arrived recently (within 5s) - prop may be stale
   useEffect(() => {
-    if (!currentUser?.driver_status || status === currentUser.driver_status) {
+    if (!effectiveUser?.driver_status || status === effectiveUser.driver_status) {
       return;
     }
 
-    if (lastRequestedStatusRef.current && currentUser.driver_status !== lastRequestedStatusRef.current) {
-      console.log(`⏸️ [DriverStatusToggle] Skipping stale prop sync (${currentUser.driver_status}) while waiting for ${lastRequestedStatusRef.current}`);
+    if (lastRequestedStatusRef.current && effectiveUser.driver_status !== lastRequestedStatusRef.current) {
+      console.log(`⏸️ [DriverStatusToggle] Skipping stale prop sync (${effectiveUser.driver_status}) while waiting for ${lastRequestedStatusRef.current}`);
       return;
     }
 
@@ -187,13 +197,13 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       }
     }
 
-    setStatus(currentUser.driver_status);
-    locationTracker.setDriverStatus(currentUser.driver_status);
-    if (currentUser.driver_status === lastRequestedStatusRef.current) {
+    setStatus(effectiveUser.driver_status);
+    if (!targetUser) locationTracker.setDriverStatus(effectiveUser.driver_status);
+    if (effectiveUser.driver_status === lastRequestedStatusRef.current) {
       lastRequestedStatusRef.current = null;
     }
-    console.log(`✅ [DriverStatusToggle] Syncing from currentUser prop: ${currentUser.driver_status}`);
-  }, [currentUser?.driver_status, status]);
+    console.log(`✅ [DriverStatusToggle] Syncing from effectiveUser prop: ${effectiveUser.driver_status}`);
+  }, [effectiveUser?.driver_status, status]);
 
   // Listen for AppUser entity updates to sync status across devices
   useEffect(() => {
@@ -206,7 +216,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       // Check if this update is for the current user
       const isCurrentUser = (
         (appUserId && appUser.id === appUserId) ||
-        (appUser.user_id === currentUser.id)
+        (appUser.user_id === effectiveUser.id)
       );
       
       if (isCurrentUser && typeof appUser.driver_status !== 'undefined') {
@@ -233,7 +243,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
           if (prev === appUser.driver_status) {
             return prev;
           }
-          locationTracker.setDriverStatus(appUser.driver_status);
+          if (!targetUser) locationTracker.setDriverStatus(appUser.driver_status);
           return appUser.driver_status;
         });
       }
@@ -248,7 +258,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       const isCurrentUser = (
         (appUserId && id === appUserId) ||
         (appUserId && data?.id === appUserId) ||
-        (data?.user_id === currentUser.id)
+        (data?.user_id === effectiveUser.id)
       );
       
       if (isCurrentUser && typeof data.driver_status !== 'undefined') {
@@ -266,7 +276,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
           if (prev === data.driver_status) {
             return prev;
           }
-          locationTracker.setDriverStatus(data.driver_status);
+          if (!targetUser) locationTracker.setDriverStatus(data.driver_status);
           return data.driver_status;
         });
       }
@@ -302,18 +312,18 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
     isTogglingRef.current = true;
     
     const today = getTodayDeliveryDateForOnDuty();
-    const selectedRouteDate = appDataContext?.deliveries?.find((d) => d?.driver_id === currentUser?.id && d?.isNextDelivery)?.delivery_date || today;
+    const selectedRouteDate = appDataContext?.deliveries?.find((d) => d?.driver_id === effectiveUser?.id && d?.isNextDelivery)?.delivery_date || today;
     const optimizerDeliveryDate = newStatus === 'on_duty' ? today : selectedRouteDate;
     const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
 
     // Check if driver can go off_duty
     // RULE: Can go off duty if NO completed stops (route hasn't started) OR all stops are finished
     if (newStatus === 'off_duty') {
-      try {
-        const todayDeliveries = await base44.entities.Delivery.filter({
-          driver_id: currentUser?.id,
-          delivery_date: selectedRouteDate
-        });
+    try {
+      const todayDeliveries = await base44.entities.Delivery.filter({
+        driver_id: effectiveUser?.id,
+        delivery_date: selectedRouteDate
+      });
         
         const completedStops = todayDeliveries.filter(d => finishedStatuses.includes(d.status));
         const activeStops = todayDeliveries.filter(d => !finishedStatuses.includes(d.status));
@@ -375,8 +385,8 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       };
       
       // Get current GPS if available (for on_duty and on_break)
-      let currentLat = currentUser?.current_latitude;
-      let currentLng = currentUser?.current_longitude;
+      let currentLat = effectiveUser?.current_latitude;
+      let currentLng = effectiveUser?.current_longitude;
       
       if (newStatus === 'on_duty' || newStatus === 'on_break') {
         if (navigator.geolocation) {
@@ -435,7 +445,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       // Ensure we broadcast ALL the fields we just updated
       const broadcastData = {
         id: appUserId,
-        user_id: currentUser.id,
+        user_id: effectiveUser.id,
         ...updatedAppUser,
         ...updatePayload // Include our update payload to guarantee all fields are present
       };
@@ -444,7 +454,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       
       // CRITICAL: Dispatch event to update self marker color immediately
       window.dispatchEvent(new CustomEvent('driverStatusChanged', {
-        detail: { userId: currentUser.id, newStatus }
+        detail: { userId: effectiveUser.id, newStatus }
       }));
       
       // CRITICAL: Call backend function to enforce single active device
@@ -458,7 +468,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       
       const confirmedStatus = result?.data?.driver_status || newStatus;
       setStatus(confirmedStatus);
-      locationTracker.setDriverStatus(confirmedStatus);
+      if (!targetUser) locationTracker.setDriverStatus(confirmedStatus);
       if (confirmedStatus === lastRequestedStatusRef.current) {
         lastRequestedStatusRef.current = null;
       }
@@ -474,10 +484,13 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       invalidate('AppUser');
       invalidate('Delivery');
       
-      // Update location tracker based on new status
+      // Update location tracker based on new status (only for the logged-in user's own toggle)
       const shouldEnableTracking = newStatus === 'on_duty' || newStatus === 'on_break';
       
-      if (!shouldEnableTracking) {
+      if (targetUser) {
+        // Admin toggling another driver — no local location tracking changes needed
+        console.log(`✅ [DriverStatusToggle] Admin updated driver ${effectiveUser.id} status to ${newStatus}`);
+      } else if (!shouldEnableTracking) {
         // Going OFF DUTY or ON BREAK — downgrade full tracking to web-only heartbeat
         // (keeps shared marker visible on other devices without native background battery drain)
         locationTracker.setDriverStatus(newStatus);
@@ -626,7 +639,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
         } catch (trackingError) {
           console.warn('⚠️ Could not start location tracking or optimize:', trackingError.message);
         }
-      }
+      } // end else (own user on duty)
       
       // Notify parent component
       if (onStatusChange) {
@@ -637,7 +650,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       console.error('❌ Failed to update driver status:', error);
       lastRequestedStatusRef.current = null;
       setStatus(previousStatus);
-      locationTracker.setDriverStatus(previousStatus);
+      if (!targetUser) locationTracker.setDriverStatus(previousStatus);
       toast.error('Failed to update status. Please try again.');
       
       // Resume smart refresh on error
@@ -675,7 +688,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
         console.log('✅ [DRIVER STATUS] Driver status change cycle complete');
       }, 500); // Reduced to 500ms since UI is already unblocked
     }
-  }, [status, isUpdating, appUserId, currentUser, onStatusChange, setIsEntityUpdating, savedPhaseBeforeBreak, appDataContext]);
+  }, [status, isUpdating, appUserId, effectiveUser, targetUser, currentUser, onStatusChange, setIsEntityUpdating, savedPhaseBeforeBreak, appDataContext]);
 
   const statusConfig = {
     off_duty: {
