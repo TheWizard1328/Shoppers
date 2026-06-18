@@ -98,12 +98,12 @@ export default function StopCardActionButtons(props) {
       ? squareLocationConfigs.find((c) => c?.id === storeConfigId)
       : null;
     const squareLocationId = matchedConfig?.square_location_id ?? null;
-    const isBase44Editor = encodeURIComponent('https://play.google.com/store/apps/details?id=com.squareup'); //window.location.hostname.includes('base44.com');
+    const isBase44Editor = encodeURIComponent('https://wizardworxx.com'); //window.location.hostname.includes('base44.com');
     const appCallbackUrl = isBase44Editor
       ? (window.location.origin + window.location.pathname)
       : (window.location.origin);
     const callbackUri = encodeURIComponent(appCallbackUrl);
-    const fallbackUri = encodeURIComponent('https://play.google.com/store/apps/details?id=com.squareup'); //https://play.google.com/store/apps/details?id=com.squareup
+    const fallbackUri = encodeURIComponent('https://wizardworxx.com'); //https://play.google.com/store/apps/details?id=com.squareup
     return [
       'intent:#Intent',
       'action=com.squareup.pos.action.CHARGE',
