@@ -3,6 +3,8 @@ import { AnimatePresence } from 'framer-motion';
 import { useDevice } from '@/components/utils/DeviceContext';
 import MapViewCycleFAB from '@/components/dashboard/MapViewCycleFAB';
 import RouteActionButtons from '@/components/dashboard/RouteActionButtons';
+import ImmersiveActionFAB from '@/components/dashboard/ImmersiveActionFAB';
+import { Phone, ExternalLink } from 'lucide-react';
 
 export default function FABControls({
   currentUser,
@@ -43,6 +45,11 @@ export default function FABControls({
   topOverlayHeight,
   appUsers,
   hasFridgeItems,
+  // Immersive mode overlay data — for the call + navigation FABs
+  immersiveOverlayPatient,
+  immersiveOverlayDelivery,
+  immersiveOverlayIsPickup,
+  immersiveOverlayStore,
 }) {
   const { isMobile } = useDevice();
   const hasVisibleCards = deliveriesWithStopOrder.length > 0 && cardsReadyForFAB;
@@ -56,8 +63,58 @@ export default function FABControls({
     ? `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`
     : selectedDate;
 
+  // Immersive FAB data — call button and navigation button for the next stop
+  const immersiveFabBottom = bottomNavHeight + 10;
+  const immersivePatientPhone = !immersiveOverlayIsPickup
+    ? (immersiveOverlayPatient?.phone || immersiveOverlayPatient?.phone_secondary || null)
+    : null;
+  const immersiveNavAddress = immersiveOverlayIsPickup
+    ? immersiveOverlayStore?.address
+    : immersiveOverlayPatient?.address;
+  const immersiveNavLat = immersiveOverlayIsPickup ? immersiveOverlayStore?.latitude : immersiveOverlayPatient?.latitude;
+  const immersiveNavLon = immersiveOverlayIsPickup ? immersiveOverlayStore?.longitude : immersiveOverlayPatient?.longitude;
+
+  const handleImmersiveCall = () => {
+    if (!immersivePatientPhone) return;
+    window.location.href = `tel:${immersivePatientPhone.replace(/\D/g, '')}`;
+  };
+
+  const handleImmersiveNavigate = () => {
+    if (immersiveNavLat && immersiveNavLon) {
+      window.open(`https://www.google.com/maps/dir/?api=1&destination=${immersiveNavLat},${immersiveNavLon}`, '_blank');
+    } else if (immersiveNavAddress) {
+      window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(immersiveNavAddress)}`, '_blank');
+    }
+  };
+
   return (
     <AnimatePresence>
+      {immersiveHidden && immersiveOverlayDelivery && isMobile && (
+        <>
+          {immersivePatientPhone && (
+            <ImmersiveActionFAB
+              key="immersive-call-fab"
+              icon={Phone}
+              title="Call patient"
+              onClick={handleImmersiveCall}
+              bottom={immersiveFabBottom}
+              right={108}
+              className="bg-blue-600 hover:bg-blue-700"
+            />
+          )}
+          {(immersiveNavLat || immersiveNavAddress) && (
+            <ImmersiveActionFAB
+              key="immersive-nav-fab"
+              icon={ExternalLink}
+              title="Open in Google Maps"
+              onClick={handleImmersiveNavigate}
+              bottom={immersiveFabBottom}
+              right={60}
+              className="bg-violet-600 hover:bg-violet-700"
+            />
+          )}
+        </>
+      )}
       <MapViewCycleFAB
         key="map-view-cycle-fab"
         currentUser={currentUser}

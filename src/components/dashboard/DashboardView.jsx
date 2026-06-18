@@ -435,6 +435,10 @@ export default function DashboardView({
           refreshData={refreshData}
           immersiveHidden={immersiveHidden}
           topOverlayHeight={immersiveHidden ? 0 : statsCardBaseHeight}
+          immersiveOverlayPatient={immersiveOverlayPatient}
+          immersiveOverlayDelivery={immersiveOverlayDelivery}
+          immersiveOverlayIsPickup={immersiveOverlayIsPickup}
+          immersiveOverlayStore={immersiveOverlayStore}
         />
       }
 

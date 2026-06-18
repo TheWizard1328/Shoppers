@@ -153,7 +153,8 @@ export default function RouteActionButtons({
       style={{
         position: fabPosition,
         bottom: `${(deliveriesWithStopOrder.length > 0 && cardsReadyForFAB && !immersiveHidden ? stopCardsBaseHeight : 0) + 10}px`,
-        right: "64px"
+        right: "64px",
+        display: immersiveHidden ? 'none' : undefined,
       }}
     >
       <Button
