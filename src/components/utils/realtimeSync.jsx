@@ -188,11 +188,19 @@ async function flushBuffered(entityName) {
           // CRITICAL: Re-engage FAB lock in phases 2/3 when the next stop flag is set.
           // This handles the case where handleStartDelivery or optimizeRemainingStops
           // updates isNextDelivery on the backend and it arrives via WebSocket.
+          // Resolve next stop location — include cycling marker coords if applicable
+          const _nextStopData = item.data;
+          let _nextStopLocation = null;
+          if (_nextStopData?.is_cycling_start_marker && _nextStopData?.cycling_start_latitude && _nextStopData?.cycling_start_longitude) {
+            _nextStopLocation = { latitude: _nextStopData.cycling_start_latitude, longitude: _nextStopData.cycling_start_longitude };
+          }
           window.dispatchEvent(new CustomEvent('isNextDeliveryFlagUpdated', {
             detail: {
               deliveryId: item.id,
               driverId: item.data?.driver_id,
-              deliveryDate: item.data?.delivery_date
+              deliveryDate: item.data?.delivery_date,
+              nextStopId: item.id,
+              nextStopLocation: _nextStopLocation,
             }
           }));
         });

@@ -287,7 +287,8 @@ export function runMapPositioningEffect({
           }
           const driverNextStop = allDateDeliveries2.find((d) => d && d.driver_id === driverId && d.isNextDelivery);
           if (driverNextStop) {
-            if (driverNextStop.patient_id) { const patient = patientsRef.current.find((p) => p?.id === driverNextStop.patient_id); if (patient?.latitude && patient?.longitude) phase2DispatcherCoords.push([patient.latitude, patient.longitude]); }
+            if (driverNextStop.is_cycling_start_marker && driverNextStop.cycling_start_latitude && driverNextStop.cycling_start_longitude) { phase2DispatcherCoords.push([driverNextStop.cycling_start_latitude, driverNextStop.cycling_start_longitude]); }
+            else if (driverNextStop.patient_id) { const patient = patientsRef.current.find((p) => p?.id === driverNextStop.patient_id); if (patient?.latitude && patient?.longitude) phase2DispatcherCoords.push([patient.latitude, patient.longitude]); }
             else if (isInterStoreDelivery(driverNextStop.delivery_id)) { const isl = getInterStoreLocationSync(driverNextStop.delivery_id); if (isl?.store_latitude && isl?.store_longitude) phase2DispatcherCoords.push([isl.store_latitude, isl.store_longitude]); else { const store = storesRef.current.find((s) => s?.id === driverNextStop.store_id); if (store?.latitude && store?.longitude) phase2DispatcherCoords.push([store.latitude, store.longitude]); } }
             else if (driverNextStop.store_id) { const store = storesRef.current.find((s) => s?.id === driverNextStop.store_id); if (store?.latitude && store?.longitude) phase2DispatcherCoords.push([store.latitude, store.longitude]); }
           }
@@ -308,13 +309,15 @@ export function runMapPositioningEffect({
         if (fabTargetDriverLocation?.latitude && fabTargetDriverLocation?.longitude) {
           const _p2TgtId2 = selectedDriverIdRef.current !== 'all' ? selectedDriverIdRef.current : (isDriver ? currentUser?.id : null);
           const _ns = _p2TgtId2 ? deliveriesRef.current.find((d) => d && d.driver_id === _p2TgtId2 && d.isNextDelivery === true && d.status !== 'pending') : null;
-          const _nc = _ns?.patient_id
-            ? (() => { const p = patientsRef.current.find((x) => x && x.id === _ns.patient_id); return p?.latitude && p?.longitude ? { lat: p.latitude, lon: p.longitude } : null; })()
-            : _ns && isInterStoreDelivery(_ns.delivery_id)
-              ? (() => { const isl = getInterStoreLocationSync(_ns.delivery_id); if (isl?.store_latitude && isl?.store_longitude) return { lat: isl.store_latitude, lon: isl.store_longitude }; const s = storesRef.current.find((x) => x && x.id === _ns.store_id); return s?.latitude && s?.longitude ? { lat: s.latitude, lon: s.longitude } : null; })()
-              : _ns?.store_id
-                ? (() => { const s = storesRef.current.find((x) => x && x.id === _ns.store_id); return s?.latitude && s?.longitude ? { lat: s.latitude, lon: s.longitude } : null; })()
-                : (selectedDriverId === currentUser?.id || !_p2TgtId2 ? nextStopCoordinatesRef.current : null);
+          const _nc = _ns?.is_cycling_start_marker && _ns?.cycling_start_latitude && _ns?.cycling_start_longitude
+            ? { lat: _ns.cycling_start_latitude, lon: _ns.cycling_start_longitude }
+            : _ns?.patient_id
+              ? (() => { const p = patientsRef.current.find((x) => x && x.id === _ns.patient_id); return p?.latitude && p?.longitude ? { lat: p.latitude, lon: p.longitude } : null; })()
+              : _ns && isInterStoreDelivery(_ns.delivery_id)
+                ? (() => { const isl = getInterStoreLocationSync(_ns.delivery_id); if (isl?.store_latitude && isl?.store_longitude) return { lat: isl.store_latitude, lon: isl.store_longitude }; const s = storesRef.current.find((x) => x && x.id === _ns.store_id); return s?.latitude && s?.longitude ? { lat: s.latitude, lon: s.longitude } : null; })()
+                : _ns?.store_id
+                  ? (() => { const s = storesRef.current.find((x) => x && x.id === _ns.store_id); return s?.latitude && s?.longitude ? { lat: s.latitude, lon: s.longitude } : null; })()
+                  : (selectedDriverId === currentUser?.id || !_p2TgtId2 ? nextStopCoordinatesRef.current : null);
           const bounds = [
             [fabTargetDriverLocation.latitude, fabTargetDriverLocation.longitude],
             ...(_nc?.lat && _nc?.lon ? [[_nc.lat, _nc.lon]] : []),
