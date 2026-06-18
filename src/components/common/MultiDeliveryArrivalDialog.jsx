@@ -106,7 +106,7 @@ export default function MultiDeliveryArrivalDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto" style={{ zIndex: 99999 }}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto" style={{ zIndex: 99999, width: '95vw', maxWidth: '95vw' }}>
           <DialogHeader>
             <DialogTitle className="text-base font-bold flex items-center gap-2">
               <MapPin className="w-4 h-4 text-blue-600" />
