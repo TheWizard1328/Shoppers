@@ -591,13 +591,14 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
 
   useEffect(() => {
     const isActiveUser = delivery?.driver_id === currentUser?.id;
-    if (!isActivePatientStop || !hasArrived || coLocatedCount === 0 || !isActiveUser) return;
+    // Only show on the driver's primary device — non-primary devices must not pop this dialog
+    if (!isActivePatientStop || !hasArrived || coLocatedCount === 0 || !isActiveUser || !isPrimaryDevice) return;
     if (!clusterKey) return;
     // Only the first card in a cluster opens the dialog
     if (_openClusterKeys.has(clusterKey)) return;
     _openClusterKeys.add(clusterKey);
     setShowMultiArrivalDialog(true);
-  }, [hasArrived, coLocatedCount, isActivePatientStop, delivery?.driver_id, currentUser?.id, clusterKey]);
+  }, [hasArrived, coLocatedCount, isActivePatientStop, delivery?.driver_id, currentUser?.id, clusterKey, isPrimaryDevice]);
 
   // Derived: driver has physically arrived at this pickup stop AND there are pending deliveries to accept.
   // Triggers on arrival_time (30s stationary) OR immediately when within 100m (same
