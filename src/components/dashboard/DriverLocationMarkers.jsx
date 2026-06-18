@@ -594,6 +594,11 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         const displayName = user.user_name || user.full_name || 'Unknown Driver';
         const firstName = displayName.split(' ')[0];
         
+        const stableKey = getDriverIdentityKey(user) || user.id;
+        // Stable timestamp — debounced so popup doesn't flicker when WS events arrive
+        // at slightly different times across browser instances
+        const stableUpdatedAt = getStableTimestamp(stableKey, user.location_updated_at);
+
         const currentUserId = currentUser?.id;
         const currentUserUserId = currentUser?.user_id;
         const currentAppUserId = currentUser?.appUserId;
@@ -610,7 +615,6 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         const hasRecentHeartbeat = updatedAtMs > 0 && (Date.now() - updatedAtMs) <= 5 * 60 * 1000;
         const isSharedLocation = isSelf && !isPrimaryDeviceRef.current && hasRecentHeartbeat;
 
-        const stableKey = getDriverIdentityKey(user) || user.id;
         // Use the stable initial position as the React prop — actual movement is applied
         // imperatively via setLatLng in the animation effect, preventing Leaflet from
         // destroying and recreating the marker DOM (and triggering tile reloads) on every update.
@@ -620,9 +624,6 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         const deliveryStatus = user._deliveryStatus || 'incomplete';
         const zIndexValue = isSharedLocation ? 3000 : (isActive ? 2000 : 1000);
         const driverColor = generateDriverColor(displayName);
-        // Stable timestamp — debounced so popup doesn't flicker when WS events arrive
-        // at slightly different times across browser instances
-        const stableUpdatedAt = getStableTimestamp(stableKey, user.location_updated_at);
 
         // Use cached icon — avoids Leaflet destroying/recreating the marker DOM on every location update
         const stableIcon = getStableIcon(stableKey, driverColor, user.driver_status, displayName.charAt(0).toUpperCase(), staleness, deliveryStatus);
