@@ -22,6 +22,7 @@ import { runAcceptAllBatchPipeline } from '../utils/acceptAllBatchPipeline';
 import { runWithDeliveryActionLock } from '../utils/deliveryActionLock';
 import { pauseOfflineSync, resumeOfflineSync } from '../utils/offlineSync';
 import { pauseRealtimeSync, resumeRealtimeSync } from '../utils/realtimeSync';
+import { backgroundSyncManager } from '../utils/backgroundSyncManager';
 import { getOrFetchHereApiKey } from '../utils/hereApiKeyStore';
 import { invokeOptimizeAwareCycling } from '../utils/cyclingAwareOptimizer';
 import { notifyDriverAcceptedAll, notifyDispatcherAssignedAll, notifyDriverStarted, notifyDriverCompleted, notifyDriverFailed, notifyDriverRetry, notifyDriverReturn } from "../utils/deliveryMessaging";
@@ -558,6 +559,8 @@ export default function useStopCardActions(params) {
     const { driverLocationPoller } = await import('../utils/driverLocationPoller');
     driverLocationPoller.pause();
     smartRefreshManager.pause();
+    backgroundSyncManager.pause();
+    pauseRealtimeSync();
 
     const lockResult = await runWithDeliveryActionLock(START_ACTION_NAME, async () => {
       if (!delivery?.id || !delivery?.driver_id || !delivery?.delivery_date) {
@@ -654,6 +657,8 @@ export default function useStopCardActions(params) {
         resumeOfflineSync('delivery_actions');
         driverLocationPoller.resume();
         smartRefreshManager.resume();
+        backgroundSyncManager.resume();
+        resumeRealtimeSync();
         resetActionLocks(true);
 
         await ensureDriverOnline().catch(() => {});
@@ -804,6 +809,8 @@ export default function useStopCardActions(params) {
         resumeOfflineSync('delivery_actions');
         driverLocationPoller.resume();
         smartRefreshManager.resume();
+        backgroundSyncManager.resume();
+        resumeRealtimeSync();
         resetActionLocks(true);
       } finally {
         // No-op: locks already released above on the happy path; error path releases above too
@@ -971,6 +978,8 @@ export default function useStopCardActions(params) {
       const { driverLocationPoller } = await import('../utils/driverLocationPoller');
       driverLocationPoller.pause();
       smartRefreshManager.pause();
+      backgroundSyncManager.pause();
+      pauseRealtimeSync();
       smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
       try {
         const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
@@ -1104,6 +1113,8 @@ export default function useStopCardActions(params) {
         resumeOfflineSync('delivery_actions');
         driverLocationPoller?.resume?.();
         smartRefreshManager.resume();
+        backgroundSyncManager.resume();
+        resumeRealtimeSync();
         resetActionLocks(true);
       }
     });
@@ -1123,6 +1134,9 @@ export default function useStopCardActions(params) {
       pauseOfflineSync('delivery_actions');
       const { driverLocationPoller } = await import('../utils/driverLocationPoller');
       driverLocationPoller.pause();
+      smartRefreshManager.pause();
+      backgroundSyncManager.pause();
+      pauseRealtimeSync();
       try {
         setShowFailureReasonDialog(false);
         setPendingFailureStatus(null);
@@ -1206,6 +1220,8 @@ export default function useStopCardActions(params) {
         resumeOfflineSync('delivery_actions');
         driverLocationPoller?.resume?.();
         smartRefreshManager.resume();
+        backgroundSyncManager.resume();
+        resumeRealtimeSync();
         resetActionLocks(true);
       }
     });

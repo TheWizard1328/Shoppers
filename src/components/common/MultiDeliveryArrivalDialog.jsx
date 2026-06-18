@@ -1,4 +1,8 @@
 import React, { useMemo, useState } from 'react';
+import { smartRefreshManager } from '../utils/smartRefreshManager';
+import { backgroundSyncManager } from '../utils/backgroundSyncManager';
+import { pauseOfflineSync, resumeOfflineSync } from '../utils/offlineSync';
+import { pauseRealtimeSync, resumeRealtimeSync } from '../utils/realtimeSync';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Phone, MapPin, Hash, CheckCircle, XCircle, Loader2 } from 'lucide-react';
@@ -80,11 +84,18 @@ export default function MultiDeliveryArrivalDialog({
   const handleComplete = async (targetDelivery) => {
     if (loadingId || locallyFinishedIds.has(targetDelivery.id)) return;
     setLoadingId(targetDelivery.id);
-    // Mark as finished immediately so other buttons can't be pressed for this stop
     setLocallyFinishedIds((prev) => new Set([...prev, targetDelivery.id]));
+    smartRefreshManager.pause();
+    backgroundSyncManager.pause();
+    pauseOfflineSync('delivery_actions');
+    pauseRealtimeSync();
     try {
       await onCompleteDelivery?.(targetDelivery);
     } finally {
+      smartRefreshManager.resume();
+      backgroundSyncManager.resume();
+      resumeOfflineSync('delivery_actions');
+      resumeRealtimeSync();
       setLoadingId(null);
     }
   };
@@ -102,9 +113,17 @@ export default function MultiDeliveryArrivalDialog({
     if (!target) return;
     setLoadingId(target.id);
     setLocallyFinishedIds((prev) => new Set([...prev, target.id]));
+    smartRefreshManager.pause();
+    backgroundSyncManager.pause();
+    pauseOfflineSync('delivery_actions');
+    pauseRealtimeSync();
     try {
       await onFailDelivery?.(target, reason);
     } finally {
+      smartRefreshManager.resume();
+      backgroundSyncManager.resume();
+      resumeOfflineSync('delivery_actions');
+      resumeRealtimeSync();
       setLoadingId(null);
     }
   };
