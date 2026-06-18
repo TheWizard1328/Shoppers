@@ -106,7 +106,7 @@ export default function MultiDeliveryArrivalDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto" style={{ zIndex: 99999, width: '95vw', maxWidth: '95vw' }}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto overflow-x-hidden" style={{ zIndex: 99999, width: '95vw', maxWidth: '95vw' }}>
           <DialogHeader>
             <DialogTitle className="text-base font-bold flex items-center gap-2">
               <MapPin className="w-4 h-4 text-blue-600" />
@@ -117,7 +117,7 @@ export default function MultiDeliveryArrivalDialog({
             </p>
           </DialogHeader>
 
-          <div className="space-y-3 mt-2">
+          <div className="space-y-3 mt-2 w-full min-w-0">
             {allAtLocation.map((delivery) => {
               const patient = patients.find((p) => p?.id === delivery.patient_id);
               const isCurrent = delivery.id === currentDelivery.id;
@@ -127,7 +127,7 @@ export default function MultiDeliveryArrivalDialog({
               return (
                 <div
                   key={delivery.id}
-                  className={`rounded-xl border p-3 space-y-1.5 ${
+                  className={`rounded-xl border p-3 space-y-1.5 w-full min-w-0 ${
                     isCurrent
                       ? 'border-blue-400 bg-blue-50 dark:bg-blue-950/20'
                       : 'border-slate-200 bg-white dark:bg-slate-900'
