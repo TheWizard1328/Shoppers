@@ -451,7 +451,18 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
       };
       broadcastMutation('AppUser', 'update', appUserId, broadcastData);
       console.log('📡 [DriverStatusToggle] Broadcasted update:', broadcastData);
-      
+
+      // CRITICAL: Directly dispatch UI update events — do NOT rely on WS dedupe path.
+      // The WS event from base44.entities.AppUser.update() fires within 3s and gets dropped
+      // by the dedupe cache if broadcastMutation already ran with the same key.
+      // Dispatching these directly ensures local UI and map markers always update.
+      window.dispatchEvent(new CustomEvent('appUserUpdated', {
+        detail: { appUser: broadcastData, fromRealtime: false }
+      }));
+      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+        detail: { appUsers: [broadcastData], fromRealtime: false, mergeMode: 'merge' }
+      }));
+
       // CRITICAL: Dispatch event to update self marker color immediately
       window.dispatchEvent(new CustomEvent('driverStatusChanged', {
         detail: { userId: effectiveUser.id, newStatus }
