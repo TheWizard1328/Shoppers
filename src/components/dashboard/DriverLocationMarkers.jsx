@@ -147,16 +147,22 @@ const mergeVisibleDriversByFreshness = (current = [], incoming = []) => {
       return;
     }
 
-    // CRITICAL: Always accept incoming data — never silently discard a server update
-    // because of a local/server clock skew. Only fall back to existing coords when
-    // the incoming record genuinely has no coordinates.
+    // FRESHNESS GUARD: never regress to an OLDER location. If the incoming record's
+    // timestamp is older than what we already show, keep the existing coordinates AND
+    // timestamp. This stops the marker from bouncing between a fresh DB update and a
+    // stale cached value (e.g. an un-invalidated offline-DB record arriving after the
+    // WebSocket update). Equal-or-newer incoming data is always accepted.
     const incomingHasCoords = user?.current_latitude && user?.current_longitude;
+    const incomingIsNewerOrEqual = nextTs >= existingTs;
+    const useIncomingCoords = incomingHasCoords && incomingIsNewerOrEqual;
     merged.set(key, {
       ...existing,
       ...user,
-      current_latitude: incomingHasCoords ? user.current_latitude : existing?.current_latitude,
-      current_longitude: incomingHasCoords ? user.current_longitude : existing?.current_longitude,
-      location_updated_at: user?.location_updated_at || existing?.location_updated_at || user?.updated_date || existing?.updated_date
+      current_latitude: useIncomingCoords ? user.current_latitude : existing?.current_latitude,
+      current_longitude: useIncomingCoords ? user.current_longitude : existing?.current_longitude,
+      location_updated_at: incomingIsNewerOrEqual
+        ? (user?.location_updated_at || existing?.location_updated_at || user?.updated_date || existing?.updated_date)
+        : (existing?.location_updated_at || existing?.updated_date || user?.location_updated_at)
     });
   });
 
@@ -438,7 +444,29 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     });
     
     if (idsChanged || locationsChanged) {
-      setVisibleDrivers(mergedDrivers);
+      // FRESHNESS GUARD: the `users` prop may carry a stale, un-invalidated cache value.
+      // Keep only drivers present in the incoming prop (preserves removals), but never
+      // regress an individual marker to an OLDER position than what is currently shown.
+      setVisibleDrivers((prev) => {
+        const prevByKey = new Map((prev || []).filter(Boolean).map((d) => [getDriverIdentityKey(d) || d.id, d]));
+        return mergedDrivers.map((driver) => {
+          const key = getDriverIdentityKey(driver) || driver.id;
+          const existing = prevByKey.get(key);
+          if (!existing) return driver;
+          const existingTs = new Date(existing.location_updated_at || existing.updated_date || 0).getTime();
+          const incomingTs = new Date(driver.location_updated_at || driver.updated_date || 0).getTime();
+          if (existingTs > incomingTs) {
+            // Incoming prop is older → keep the fresher coordinates/timestamp we already have
+            return {
+              ...driver,
+              current_latitude: existing.current_latitude,
+              current_longitude: existing.current_longitude,
+              location_updated_at: existing.location_updated_at || existing.updated_date
+            };
+          }
+          return driver;
+        });
+      });
       prevVisibleIdsRef.current = newVisibleIds;
     }
     
