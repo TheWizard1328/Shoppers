@@ -1422,6 +1422,24 @@ useEffect(() => {
     }
   };
 
+  // Show KITT banner when start-button background optimization is running
+  useEffect(() => {
+    const handleOptStart = (e) => {
+      const { source } = e.detail || {};
+      if (source === 'start_button') setOptimizationMessage('Optimizing Route…');
+    };
+    const handleOptComplete = (e) => {
+      const { source } = e.detail || {};
+      if (source === 'start_button') setOptimizationMessage(null);
+    };
+    window.addEventListener('routeOptimizationStarted', handleOptStart);
+    window.addEventListener('routeOptimizationComplete', handleOptComplete);
+    return () => {
+      window.removeEventListener('routeOptimizationStarted', handleOptStart);
+      window.removeEventListener('routeOptimizationComplete', handleOptComplete);
+    };
+  }, []);
+
   const handleAIToggle = () => {
     const newValue = !isAIEnabled;
     setIsAIEnabled(newValue);
