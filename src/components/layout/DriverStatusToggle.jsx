@@ -441,29 +441,25 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
       await offlineDB.save(offlineDB.STORES.APP_USERS, updatedAppUser);
       console.log('💾 [DriverStatusToggle] Saved to offline DB:', updatedAppUser);
 
-      // CRITICAL: Broadcast status change to other devices via WebSocket
-      // Ensure we broadcast ALL the fields we just updated
+      // Build the full broadcast data from the API response + our payload
       const broadcastData = {
         id: appUserId,
         user_id: effectiveUser.id,
         ...updatedAppUser,
-        ...updatePayload // Include our update payload to guarantee all fields are present
+        ...updatePayload
       };
-      broadcastMutation('AppUser', 'update', appUserId, broadcastData);
-      console.log('📡 [DriverStatusToggle] Broadcasted update:', broadcastData);
 
-      // CRITICAL: Directly dispatch UI update events — do NOT rely on WS dedupe path.
-      // The WS event from base44.entities.AppUser.update() fires within 3s and gets dropped
-      // by the dedupe cache if broadcastMutation already ran with the same key.
-      // Dispatching these directly ensures local UI and map markers always update.
+      // CRITICAL: Dispatch UI update events directly — do NOT call broadcastMutation here.
+      // base44.entities.AppUser.update() already fires a WS event that propagates to other devices.
+      // Calling broadcastMutation AFTER the API update poisons the dedupe cache with the same key,
+      // causing the real WS event (which other devices rely on) to be silently dropped.
+      // Instead, we update local state directly and let the WS subscription handle other devices.
       window.dispatchEvent(new CustomEvent('appUserUpdated', {
         detail: { appUser: broadcastData, fromRealtime: false }
       }));
       window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
         detail: { appUsers: [broadcastData], fromRealtime: false, mergeMode: 'merge' }
       }));
-
-      // CRITICAL: Dispatch event to update self marker color immediately
       window.dispatchEvent(new CustomEvent('driverStatusChanged', {
         detail: { userId: effectiveUser.id, newStatus }
       }));

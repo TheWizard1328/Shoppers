@@ -567,7 +567,7 @@ const subscribeToEntity = (entityName) => {
       const dedupeKey = `${entityName}:${id}:${type}`;
       const now = Date.now();
       const lastSeen = window.__realtimeSyncDedupeCache.get(dedupeKey) || 0;
-      if (now - lastSeen < 3000) {
+      if (now - lastSeen < 500) {
         return; // Duplicate WebSocket event from another module instance — skip
       }
       window.__realtimeSyncDedupeCache.set(dedupeKey, now);
