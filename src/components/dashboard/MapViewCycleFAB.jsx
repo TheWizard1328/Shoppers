@@ -94,8 +94,12 @@ export default function MapViewCycleFAB({
         return;
       }
       if (event?.type !== 'REACTIVATE_FAB' && event?.type !== 'IMMERSIVE_MODE_TOGGLED' && event?.type !== 'DATA_READY') return;
-      // CRITICAL: Immersive mode toggling must never affect FAB lock state or visuals in phases 2/3
-      if (event?.type === 'IMMERSIVE_MODE_TOGGLED' && (currentPhase === 2 || currentPhase === 3)) return;
+      // When immersive mode exits in phases 2/3, re-activate the FAB visual (clear gray state)
+      if (event?.type === 'IMMERSIVE_MODE_TOGGLED' && (currentPhase === 2 || currentPhase === 3)) {
+        setIsTemporarilyDeactivated(false);
+        if (deactivateTimeoutRef.current) { clearTimeout(deactivateTimeoutRef.current); deactivateTimeoutRef.current = null; }
+        return;
+      }
       if ((event?.type === 'REACTIVATE_FAB' || event?.type === 'DATA_READY') && (window.__suppressCardAutoCenterUntil || 0) > Date.now()) return;
       setIsTemporarilyDeactivated(false);
       if (deactivateTimeoutRef.current) clearTimeout(deactivateTimeoutRef.current);

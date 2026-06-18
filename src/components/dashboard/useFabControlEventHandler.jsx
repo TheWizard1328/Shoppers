@@ -208,7 +208,19 @@ export function useFabControlEventHandler({
           break;
         }
         case 'IMMERSIVE_MODE_TOGGLED': {
-          // Do nothing — immersive mode activation/deactivation must not move the map
+          // When immersive mode turns OFF, re-lock the FAB at the current phase
+          // so the button snaps back to its colored/active state.
+          // Only act if we're in phase 2 or 3 — phase 1 is always unlocked anyway.
+          const phaseOnExit = mapViewPhaseRef.current;
+          if (phaseOnExit === 2 || phaseOnExit === 3) {
+            clearTimer();
+            isMapViewLockedRef.current = true;
+            setIsMapViewLocked(true);
+            pendingPhaseRef.current = phaseOnExit;
+            lastProgrammaticMapMoveRef.current = Date.now();
+            window._lastProgrammaticMapMove = Date.now();
+            setMapViewTrigger((p) => p + 1);
+          }
           break;
         }
         case 'DELIVERY_REALTIME_CREATE_DELETE_PULSE': {
