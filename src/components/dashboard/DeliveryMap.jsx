@@ -232,6 +232,10 @@ export default function DeliveryMap({
   const [hereApiKey, setHereApiKey] = useState(() => getHereApiKey() || null);
   const [tileLayerInstanceKey, setTileLayerInstanceKey] = useState(0);
   const prevTileConfigRef = useRef({ style: null, base: null, overlay: null });
+  // Track last non-zero stopCardsHeight so the crosshair position doesn't shift when
+  // immersive mode zeros it out (areStopCardsVisible → false → stopCardsHeight prop → 0)
+  const stableCrosshairHeightRef = useRef(stopCardsHeight > 0 ? stopCardsHeight : 75);
+  if (stopCardsHeight > 0) stableCrosshairHeightRef.current = stopCardsHeight;
   const hasNotifiedMapReady = useRef(false);
   const prevDriverHomeMarkersRef = useRef([]);
   const prevDriverLocationMarkersRef = useRef([]);
@@ -1418,7 +1422,7 @@ export default function DeliveryMap({
         {mapReady && showBreadcrumbs && <MapBreadcrumbs breadcrumbsData={breadcrumbsData} currentZoom={currentZoom} />}
       </MapContainer>
 
-      <MapCrosshair stopCardsHeight={areStopCardsVisible ? stopCardsHeight : 0} statsCardHeight={isMobile ? (effectiveTopOverlayHeight || (isStatsCardExpanded ? 216 : 116)) : 0} isMobile={isMobile} immersiveHidden={immersiveHidden} />
+      <MapCrosshair stopCardsHeight={stableCrosshairHeightRef.current} statsCardHeight={isMobile ? (effectiveTopOverlayHeight || (isStatsCardExpanded ? 216 : 116)) : 0} isMobile={isMobile} immersiveHidden={immersiveHidden} />
     </div>
   );
 }
