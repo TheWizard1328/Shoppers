@@ -271,8 +271,10 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
       if (isOwnUser) locationTracker.setDriverStatus(confirmedStatus);
       if (confirmedStatus === lastRequestedStatusRef.current) lastRequestedStatusRef.current = null;
 
+      // NOTE: Do NOT invalidate('AppUser') here — it triggers hasCurrentUserRefreshImpact
+      // in Layout which causes a full data reload + sidebar wipe. The optimistic update
+      // and broadcastMutation at the end of this handler are sufficient to sync all UI.
       const { invalidate } = await import('../utils/dataManager');
-      invalidate('AppUser');
       invalidate('Delivery');
 
       // ── Location tracker side-effects (own device only) ──
