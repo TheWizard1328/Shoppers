@@ -5,6 +5,7 @@ import { entities } from './dataManagerEntities';
 import { getSyncPaused } from './offlineSyncState';
 import { notifySyncStatus } from './offlineSyncStatus';
 import { userActivityMonitor } from './userActivityMonitor';
+import { offlineSyncConfig } from '@/components/services/offlineSyncConfig';
 
 // Historical sync only runs once per session cycle (triggered by shouldRunMobileHistoricalSync gate)
 export const HISTORICAL_SYNC_INTERVAL_MS = 4 * 60 * 60 * 1000; // 4 hours between full cycles
@@ -20,11 +21,15 @@ export const isOffPeakHours = () => {
 };
 
 /**
- * Get the earliest historical date to sync back to: Jan 1 of the current year
+ * Get the earliest historical date to sync back to.
+ * Mobile/Tablet: 90 days ago. Desktop: Jan 1 of current year.
  */
 const getHistoricalStartDate = () => {
+  if (offlineSyncConfig.IS_MOBILE_OR_TABLET()) {
+    return subDays(new Date(), 90);
+  }
   const now = new Date();
-  return new Date(now.getFullYear(), 0, 1); // Jan 1 of current year
+  return new Date(now.getFullYear(), 0, 1); // Jan 1 of current year for desktops
 };
 
 export const createOfflineSyncHistoricalHelpers = ({
@@ -35,11 +40,11 @@ export const createOfflineSyncHistoricalHelpers = ({
   getHistoricalSyncMeta
 }) => {
   const shouldRunMobileHistoricalSync = async (isDriverWithNoActiveStops = false) => {
-    // GATE 1: Off-peak window (8 PM–9 AM) OR driver with no active stops (can run any time)
-    if (!isOffPeakHours() && !isDriverWithNoActiveStops) return false;
-    // GATE 2: Device must be idle — UNLESS driver is actively on the app with 0 active stops
+    // Historical delivery sync (date-by-date) is allowed any time — it's incremental and low-cost.
+    // Patient sync (store-by-store) is still restricted to off-peak or idle drivers.
+    // GATE 1: Device must be idle OR driver has no active stops to avoid impacting performance
     if (!isDriverWithNoActiveStops && !userActivityMonitor.isBackgroundSyncIdle()) return false;
-    // GATE 3: Minimum interval between full cycles
+    // GATE 2: Minimum interval between full cycles (prevents hammering API)
     const metadata = await getHistoricalSyncMeta();
     const lastCompletedAt = metadata?.last_completed_at ? new Date(metadata.last_completed_at).getTime() : 0;
     return !lastCompletedAt || (Date.now() - lastCompletedAt) >= HISTORICAL_SYNC_INTERVAL_MS;
@@ -83,12 +88,14 @@ export const createOfflineSyncHistoricalHelpers = ({
         return { success: true, paused: true, count: totalPatients };
       }
 
+      const storeOnlineIds = new Set();
       let offset = 0;
       while (true) {
         const batchPatients = await entities.Patient.filter({ store_id: targetStore.id }, '-updated_date', HISTORICAL_PATIENT_STORE_BATCH_SIZE, offset);
         if (!batchPatients || batchPatients.length === 0) break;
 
         await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, batchPatients);
+        batchPatients.forEach(p => { if (p?.id) storeOnlineIds.add(p.id); });
         invalidateEntityCache('Patient');
         totalPatients += batchPatients.length;
 
@@ -97,6 +104,16 @@ export const createOfflineSyncHistoricalHelpers = ({
         if (batchPatients.length < HISTORICAL_PATIENT_STORE_BATCH_SIZE) break;
         offset += HISTORICAL_PATIENT_STORE_BATCH_SIZE;
         await new Promise((resolve) => setTimeout(resolve, HISTORICAL_SYNC_COOLDOWN_MS));
+      }
+
+      // Prune offline patients for this store that no longer exist online
+      if (storeOnlineIds.size > 0) {
+        const allOfflineForStore = (await offlineDB.getAll(offlineDB.STORES.PATIENTS) || [])
+          .filter(p => p?.store_id === targetStore.id && p?.id && !storeOnlineIds.has(p.id));
+        if (allOfflineForStore.length > 0) {
+          await Promise.all(allOfflineForStore.map(p => offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, p.id).catch(() => {})));
+          console.log(`🗑️ [HistoricalSync] Pruned ${allOfflineForStore.length} deleted patients for store ${targetStore.name}`);
+        }
       }
 
       lastStoreSynced = targetStore.id;
@@ -198,6 +215,16 @@ export const createOfflineSyncHistoricalHelpers = ({
             console.log(`✅ [HistoricalSync] ${dateStr} already synced (${offlineCount} records match) — skipping`);
             await updateHistoricalSyncMeta({ delivery_last_synced_date: dateStr });
             continue;
+          }
+
+          // Prune offline records that no longer exist online for this date
+          if (offlineCount > 0 && onlineSample) {
+            const onlineIds = new Set((onlineSample || []).map(d => d.id).filter(Boolean));
+            const orphans = (offlineRecords || []).filter(d => d?.id && !onlineIds.has(d.id));
+            if (orphans.length > 0) {
+              await Promise.all(orphans.map(d => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id).catch(() => {})));
+              console.log(`🗑️ [HistoricalSync] Pruned ${orphans.length} deleted deliveries for ${dateStr}`);
+            }
           }
 
           // This date needs syncing — return it along with the online data we already fetched

@@ -102,12 +102,8 @@ export const createOfflineSyncBackgroundService = ({
         }
       } catch (_) {}
 
-      // GATE: Historical sync runs during off-peak hours (8 PM–9 AM) for all users.
-      // Exception: drivers with 0 active stops can run historical sync any time the app is active.
-      if (!isOffPeakHours() && !isDriverWithNoActiveStops) {
-        notifySyncStatus({ status: 'complete', skippedHistorical: true, reason: 'outside_offpeak_window' });
-        return { success: true, skippedHistorical: true, reason: 'outside_offpeak_window' };
-      }
+      // Delivery history sync is allowed any time (incremental, low-cost per cycle).
+      // Patient store-by-store sync is restricted to off-peak hours to avoid rate limits.
 
       // Get the next historical date that needs syncing (count-based, backwards from yesterday)
       // Returns { dateStr, onlineDeliveries } or null if everything is synced
@@ -138,7 +134,11 @@ export const createOfflineSyncBackgroundService = ({
         return { success: true, phase: 'deliveries', date: deliveryDateToSync };
       }
 
-      // All historical delivery dates are synced — proceed to patient phase
+      // All historical delivery dates are synced — proceed to patient phase (off-peak only)
+      if (!isOffPeakHours() && !isDriverWithNoActiveStops) {
+        notifySyncStatus({ status: 'complete', skippedPatients: true, reason: 'outside_offpeak_window' });
+        return { success: true, skippedPatients: true };
+      }
 
       const patientSyncResult = await syncHistoricalPatientsByStore(storeIds);
       if (patientSyncResult?.completed) {

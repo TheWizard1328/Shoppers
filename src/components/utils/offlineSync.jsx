@@ -475,6 +475,7 @@ export const forceSyncAll = async () => {
       }
     });
     const appUsers = Array.from(appUsersByUserId.values());
+    // replaceAllRecords already handles orphan pruning for AppUsers (full replace)
     await offlineDB.replaceAllRecords(offlineDB.STORES.APP_USERS, appUsers);
     invalidateEntityCache('AppUser');
     notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 10, count: appUsers.length });
@@ -508,22 +509,31 @@ export const forceSyncAll = async () => {
     }
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
-    // Sync ALL patients store-by-store for a complete offline DB
+    // Sync ALL patients store-by-store (both active AND inactive) for a complete offline DB
     notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 25 });
-    console.log('🔄 [ForceSyncAll] Syncing ALL patients from all stores...');
+    console.log('🔄 [ForceSyncAll] Syncing ALL patients from all stores (active + inactive)...');
 
     const allStores = await Store.list();
-    let totalSyncedPatients = 0;
     const STORE_COOLDOWN = 1500; // 1.5s between stores
+    const PATIENT_BATCH_SIZE_FORCE = 200;
+    let allOnlinePatientIds = new Set(); // track all IDs for orphan pruning
+    let totalSyncedPatients = 0;
 
     for (let i = 0; i < allStores.length; i++) {
       const store = allStores[i];
       if (!store?.id) continue;
       try {
-        const storePatients = await Patient.filter({ store_id: store.id, status: 'active' });
-        if (storePatients && storePatients.length > 0) {
+        // Fetch ALL patients for this store (no status filter) in batches
+        let offset = 0;
+        while (true) {
+          const storePatients = await Patient.filter({ store_id: store.id }, '-updated_date', PATIENT_BATCH_SIZE_FORCE, offset);
+          if (!storePatients || storePatients.length === 0) break;
           await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, storePatients);
+          storePatients.forEach(p => { if (p?.id) allOnlinePatientIds.add(p.id); });
           totalSyncedPatients += storePatients.length;
+          if (storePatients.length < PATIENT_BATCH_SIZE_FORCE) break;
+          offset += PATIENT_BATCH_SIZE_FORCE;
+          await new Promise(r => setTimeout(r, 300));
         }
         const progress = 25 + Math.floor((i / allStores.length) * 20);
         notifySyncStatus({ status: 'syncing', entity: `Patients (${store.name || 'Store'} ${i+1}/${allStores.length})`, progress, count: totalSyncedPatients });
@@ -534,6 +544,16 @@ export const forceSyncAll = async () => {
           break;
         }
         console.warn(`⚠️ [ForceSyncAll] Failed to sync patients for store ${store.name}:`, storeError.message);
+      }
+    }
+
+    // Prune patients that exist offline but no longer exist online
+    if (allOnlinePatientIds.size > 0) {
+      const allOfflinePatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+      const orphanPatients = (allOfflinePatients || []).filter(p => p?.id && !p.id.startsWith('temp_') && !allOnlinePatientIds.has(p.id));
+      if (orphanPatients.length > 0) {
+        await Promise.all(orphanPatients.map(p => offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, p.id).catch(() => {})));
+        console.log(`🗑️ [ForceSyncAll] Pruned ${orphanPatients.length} deleted patients from offline DB`);
       }
     }
     invalidateEntityCache('Patient');
