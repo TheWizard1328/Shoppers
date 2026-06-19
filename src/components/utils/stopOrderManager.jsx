@@ -5,6 +5,7 @@
 
 import { base44 } from '@/api/base44Client';
 import { updateDeliveryLocal } from './entityMutations';
+// Note: base44 is still needed for updateNextDeliveryFlags below
 
 /**
  * Recalculates and updates stop orders for all deliveries for a given driver/date
@@ -89,25 +90,9 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate, ski
     try { window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'stopOrderRecalc', driverId, deliveryDate, preserveLocalState: true } })); } catch (_) {}
   }
 
-  if (updates.length > 0 && !skipPolylineRegeneration && !skipPolylineIfNoOrderChange) {
-    try {
-      const finishedForPolyline = ['completed', 'failed', 'cancelled', 'returned'];
-      const activeOrderedIds = sortedDeliveries
-        .filter(d => !finishedForPolyline.includes(d.status) && d.status !== 'pending')
-        .sort((a, b) => (Number(a.stop_order) || 99999) - (Number(b.stop_order) || 99999))
-        .map(d => d.id);
-      if (activeOrderedIds.length > 0) {
-        await base44.functions.invoke('purgeAndRegeneratePolylines', {
-          driverId,
-          deliveryDate,
-          orderedDeliveryIds: activeOrderedIds,
-        });
-        window.dispatchEvent(new CustomEvent('polylineUpdated', { detail: { driverId, deliveryDate } }));
-      }
-    } catch (err) {
-      console.warn('[StopOrderManager] Polyline regeneration failed (non-fatal):', err?.message || err);
-    }
-  }
+  // Polyline regeneration is intentionally NOT done here.
+  // The optimizationDebouncer is the single authority for triggering purgeAndRegeneratePolylines
+  // after form saves. Direct calls from stopOrderManager caused duplicate API calls.
 
   try { window.dispatchEvent(new CustomEvent('routeReordered', { detail: { driverId, deliveryDate, suppressFabIfPhase1: true } })); } catch (_) {}
   return { sortedDeliveries, orderChanged: updates.length > 0 };
