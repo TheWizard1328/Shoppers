@@ -12,7 +12,7 @@ const statsCache = {
 
 // Daily refresh at 4 AM Mountain Time (Edmonton) = 6 AM Eastern (Ontario)
 // Both are off-peak hours for users in Alberta and Ontario
-const REFRESH_HOUR_UTC = 11; // 4 AM Mountain (UTC-7) = 11:00 UTC, 6 AM Eastern (UTC-5) = 11:00 UTC
+const REFRESH_HOUR_UTC = 5; // 10 PM Mountain (UTC-7) = 5:00 UTC, 12 AM Eastern (UTC-5) = 5:00 UTC
 
 // Helper: Get today's cache date key (changes at REFRESH_HOUR_UTC)
 const getCacheDateKey = () => {
