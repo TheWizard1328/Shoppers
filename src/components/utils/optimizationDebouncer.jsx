@@ -63,6 +63,8 @@ export function requestDeferredOptimization(driverId, deliveryDate, needsOptimiz
   const timerId = setTimeout(async () => {
     pending.delete(key);
     emitSpinner(driverId, deliveryDate, false);
+    // Signal that optimization is now actively running (KITT bar)
+    window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId, deliveryDate, active: true } }));
 
     try {
       // Step 1: Recalculate stop orders (finished first by actual_delivery_time, then incomplete by ETA/start)
@@ -100,6 +102,9 @@ export function requestDeferredOptimization(driverId, deliveryDate, needsOptimiz
         }).catch(() => null);
       }
 
+      // Done — hide KITT bar
+      window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId, deliveryDate, active: false } }));
+
       // Step 5: Broadcast UI refresh
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: {
@@ -113,6 +118,7 @@ export function requestDeferredOptimization(driverId, deliveryDate, needsOptimiz
 
     } catch (err) {
       console.warn('[OptimizationDebouncer] Deferred optimization failed (non-fatal):', err?.message || err);
+      window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId, deliveryDate, active: false } }));
     }
   }, DEBOUNCE_MS);
 
