@@ -366,11 +366,13 @@ export async function handleBatchSave({
           .map((pickup) => [pickup.id || pickup.stop_id, pickup])
       ).values());
       
-      // Only consider it a route structure change if new active (non-pending) stops or
-      // new pickups were added. Pure pending-only transitions must NOT trigger
-      // route optimization or polyline regeneration — that caused 16 API calls for
-      // 4 pending stops being added to a route.
-      routeStructureChanged = routeStructureChanged || newPickupsCreated;
+      // Only trigger route optimization if there are new ACTIVE (en_route/in_transit) pickup
+      // containers created. Pure pending/staged-only transitions must NOT trigger optimization
+      // or polyline regeneration — adding pending stops should never hit the HERE API.
+      const activePickupsCreated = ensuredPickupRecords.some(
+        (pickup) => pickup && ['en_route', 'in_transit'].includes(pickup.status)
+      );
+      routeStructureChanged = hasNewActiveSops || activePickupsCreated;
 
       const ensuredPickupByKey = new Map(
         ensuredPickupRecords
