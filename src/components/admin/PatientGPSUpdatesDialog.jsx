@@ -7,19 +7,47 @@ import { findMatchingPatients } from './patientGPSMatchUtils';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, RefreshCw, CheckCircle2, XCircle, MapPin, Users, ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 import PatientGPSMap from './PatientGPSMap';
 
 function LogEntryCard({ log, matchingPatients = [], onAction, stores = [], disabled = false, isSelected = false, onSelect, patients = [] }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [matchesExpanded, setMatchesExpanded] = useState(false);
+  // null = all selected (collapsed state); Set = explicit selection (expanded state)
+  const [selectedPatientIds, setSelectedPatientIds] = useState(null);
+
+  // When collapsed, reset to "all selected" mode
+  const handleToggleExpanded = (e) => {
+    e.stopPropagation();
+    const next = !matchesExpanded;
+    setMatchesExpanded(next);
+    if (!next) setSelectedPatientIds(null); // collapse → all selected
+    if (next && selectedPatientIds === null) {
+      // expanding for first time → pre-select all
+      setSelectedPatientIds(new Set(matchingPatients.map(p => p.id)));
+    }
+  };
+
+  const togglePatient = (id) => {
+    setSelectedPatientIds(prev => {
+      const next = new Set(prev || matchingPatients.map(p => p.id));
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  // Patients that will actually be updated
+  const effectivePatients = selectedPatientIds === null
+    ? matchingPatients
+    : matchingPatients.filter(p => selectedPatientIds.has(p.id));
 
   const rawTs = log.created_date || new Date().toISOString();
   const timestamp = rawTs.endsWith('Z') || rawTs.includes('+') ? rawTs : rawTs + 'Z';
 
   const handleAction = async (action) => {
     setIsProcessing(true);
-    await onAction(log.id, action, matchingPatients);
+    await onAction(log.id, action, effectivePatients);
     setIsProcessing(false);
   };
 
@@ -68,27 +96,51 @@ function LogEntryCard({ log, matchingPatients = [], onAction, stores = [], disab
 
       <div className="border-t bg-slate-50">
         <button
-          onClick={(e) => {e.stopPropagation();setMatchesExpanded((v) => !v);}}
+          onClick={handleToggleExpanded}
           className="w-full flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 uppercase tracking-wide hover:bg-slate-100 transition-colors">
           {matchesExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
           <Users className="h-3 w-3" />
           Same address
           <Badge variant="secondary" className="text-xs ml-1 py-0">{matchingPatients.length}</Badge>
+          {matchesExpanded && selectedPatientIds !== null && selectedPatientIds.size < matchingPatients.length &&
+            <Badge variant="outline" className="text-xs ml-1 py-0 border-amber-400 text-amber-700">{selectedPatientIds.size} selected</Badge>
+          }
         </button>
 
         {matchesExpanded &&
         <div className="px-3 pb-2" onClick={(e) => e.stopPropagation()}>
             {matchingPatients.length === 0 ?
           <p className="text-xs text-slate-400 py-1">No other patients found at this address.</p> :
-
-          <ul className="space-y-0.5">
+          <>
+            <div className="flex items-center justify-between pb-1">
+              <span className="text-[10px] text-slate-400">Check/uncheck to include in update</span>
+              <button
+                className="text-[10px] text-blue-500 hover:underline"
+                onClick={() => {
+                  const allIds = new Set(matchingPatients.map(p => p.id));
+                  const allSelected = selectedPatientIds !== null && selectedPatientIds.size === matchingPatients.length;
+                  setSelectedPatientIds(allSelected ? new Set() : allIds);
+                }}>
+                {selectedPatientIds !== null && selectedPatientIds.size === matchingPatients.length ? 'Deselect all' : 'Select all'}
+              </button>
+            </div>
+            <ul className="space-y-0.5">
                 {matchingPatients.map((p) => {
               const isActive = p.status !== 'inactive';
               const storeAbbr = stores.find((s) => s.id === p.store_id)?.abbreviation;
+              const isChecked = selectedPatientIds === null || selectedPatientIds.has(p.id);
               return (
-                <li key={p.id} className={`grid items-center gap-x-2 text-xs rounded px-2 py-1 ${isActive ? 'bg-green-50 text-green-900' : 'bg-red-50 text-red-800'}`}
-                style={{ gridTemplateColumns: '0.75rem 1fr 2.5rem 2.5rem 3.5rem' }}>
-                      <MapPin className={`h-3 w-3 shrink-0 ${isActive ? 'text-green-500' : 'text-red-400'}`} />
+                <li
+                  key={p.id}
+                  className={`grid items-center gap-x-2 text-xs rounded px-2 py-1 cursor-pointer transition-opacity ${isChecked ? (isActive ? 'bg-green-50 text-green-900' : 'bg-red-50 text-red-800') : 'bg-slate-100 text-slate-400 opacity-60'}`}
+                  style={{ gridTemplateColumns: '1rem 0.75rem 1fr 2.5rem 2.5rem 3.5rem' }}
+                  onClick={() => togglePatient(p.id)}>
+                      <Checkbox
+                        checked={isChecked}
+                        onCheckedChange={() => togglePatient(p.id)}
+                        className="h-3 w-3"
+                        onClick={(e) => e.stopPropagation()} />
+                      <MapPin className={`h-3 w-3 shrink-0 ${isChecked ? (isActive ? 'text-green-500' : 'text-red-400') : 'text-slate-300'}`} />
                       <span className="font-medium truncate">{p.full_name}</span>
                       <span className="text-xs font-mono text-center">{p.unit_number || ''}</span>
                       {storeAbbr ? <Badge variant="secondary" className="text-xs justify-center px-1 py-0">{storeAbbr}</Badge> : <span />}
@@ -99,6 +151,7 @@ function LogEntryCard({ log, matchingPatients = [], onAction, stores = [], disab
 
             })}
               </ul>
+          </>
           }
           </div>
         }
@@ -106,7 +159,7 @@ function LogEntryCard({ log, matchingPatients = [], onAction, stores = [], disab
 
       <div className="flex items-center gap-2 border-t px-3 py-2 bg-white" onClick={(e) => e.stopPropagation()}>
         <p className="flex-1 text-xs text-slate-400">
-          {matchingPatients.length > 0 ? `Affects ${matchingPatients.length} patient(s).` : 'No others to update.'}
+          {effectivePatients.length > 0 ? `Affects ${effectivePatients.length} patient(s).` : 'No others to update.'}
         </p>
         <Button variant="outline" size="sm" disabled={isProcessing || disabled} onClick={() => handleAction('cancel')} className="text-slate-600 border-slate-300 h-7 text-xs px-2">
           {isProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <XCircle className="w-3 h-3" />}
@@ -114,7 +167,7 @@ function LogEntryCard({ log, matchingPatients = [], onAction, stores = [], disab
         </Button>
         <Button size="sm" disabled={isProcessing || disabled} onClick={() => handleAction('accept')} className="bg-green-600 hover:bg-green-700 text-white h-7 text-xs px-2">
           {isProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
-          Accept{matchingPatients.length > 0 ? ` (${matchingPatients.length})` : ''}
+          Accept{effectivePatients.length > 0 ? ` (${effectivePatients.length})` : ''}
         </Button>
       </div>
     </div>);
