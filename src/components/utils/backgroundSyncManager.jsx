@@ -42,8 +42,8 @@ class BackgroundSyncManager {
       deferHistoricalOnLoad: true,
       historicalDeferMinutes: 15,
       offPeakWindows: [
-        // After 8 PM until 6 AM local time
-        { start: '20:00', end: '06:00' }
+        // After 8 PM until 9 AM local time
+        { start: '20:00', end: '09:00' }
       ],
       historicalMaxDatesPerCycleDaytime: 0,   // Never run during daytime
       historicalMaxDatesPerCycleOffpeak: 3,   // 3 dates per cycle off-peak (conservative)
