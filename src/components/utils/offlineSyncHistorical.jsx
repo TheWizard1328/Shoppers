@@ -17,7 +17,7 @@ export const HISTORICAL_SYNC_INTERVAL_MS = 4 * 60 * 60 * 1000; // 4 hours betwee
  */
 export const isOffPeakHours = () => {
   const h = new Date().getHours();
-  return h >= 20 || h < 9;
+  return h >= 19 || h < 10;
 };
 
 /**
