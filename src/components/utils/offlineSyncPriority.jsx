@@ -91,8 +91,17 @@ export const createOfflineSyncPriorityHelpers = ({
           deliveries = Array.from(merged.values());
         }
       }
-      if (deliveries && deliveries.length > 0) {
-        await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr, deliveries);
+      // Always upsert + prune (even if server returns 0 — that means all were deleted)
+      {
+        const incomingIds = new Set((deliveries || []).map(d => d?.id).filter(Boolean));
+        const existingForDate = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === selectedDateStr);
+        const toDelete = existingForDate.filter(d => d?.id && !d.id.startsWith('temp_') && !incomingIds.has(d.id));
+        if (deliveries && deliveries.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+        }
+        if (toDelete.length > 0) {
+          await Promise.all(toDelete.map(d => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id).catch(() => {})));
+        }
         invalidateEntityCache('Delivery');
         await offlineDB.updateSyncMetadata('Delivery', new Date().toISOString(), new Date().toISOString());
         if (smartRefreshMgr) smartRefreshMgr.recordSuccess();
@@ -238,10 +247,20 @@ export const createOfflineSyncPriorityHelpers = ({
           deliveries = Array.from(merged.values());
         }
       }
+      // Upsert + prune deleted — never wipe the date's data before writing
+      {
+        const incomingIds2 = new Set((deliveries || []).map(d => d?.id).filter(Boolean));
+        const existingForDate2 = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === selectedDateStr);
+        const toDelete2 = existingForDate2.filter(d => d?.id && !d.id.startsWith('temp_') && !incomingIds2.has(d.id));
+        if (deliveries && deliveries.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+        }
+        if (toDelete2.length > 0) {
+          await Promise.all(toDelete2.map(d => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id).catch(() => {})));
+        }
+      }
+      invalidateEntityCache('Delivery');
       if (deliveries && deliveries.length > 0) {
-        await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr, deliveries);
-        invalidateEntityCache('Delivery');
-
         const patientIds = new Set(deliveries.filter((d) => d && d.patient_id).map((d) => d.patient_id));
         if (patientIds.size > 0) {
           const patientIdList = Array.from(patientIds);

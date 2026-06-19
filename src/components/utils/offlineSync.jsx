@@ -394,12 +394,22 @@ export const loadAndCacheDeliveriesForDate = async (dateStr) => {
   
   try {
     const deliveries = await Delivery.filter({ delivery_date: dateStr });
-    // CRITICAL: Always replace local records for this date — empty = 0 stops on server
-    await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', dateStr, deliveries || []);
+    // Upsert fresh records, then prune any offline records that no longer exist on the server
+    const incomingIds = new Set((deliveries || []).map(d => d?.id).filter(Boolean));
+    const existingForDate = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === dateStr);
+    const toDelete = existingForDate.filter(d => d?.id && !d.id.startsWith('temp_') && !incomingIds.has(d.id));
+    if (deliveries && deliveries.length > 0) {
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+    }
+    if (toDelete.length > 0) {
+      await Promise.all(toDelete.map(d => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id).catch(() => {})));
+    }
     invalidateEntityCache('Delivery');
-    return deliveries;
+    return deliveries || [];
   } catch (error) {
-    return [];
+    // On error (e.g. rate limit), return whatever is in the offline DB for this date
+    const cached = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === dateStr);
+    return cached;
   }
 };
 
@@ -570,8 +580,14 @@ export const forceSyncAll = async () => {
 
     notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 40 });
     const deliveries = await Delivery.filter({ delivery_date: selectedDateStr });
-    // CRITICAL: Replace (not merge) local records for today — empty result means 0 stops
-    await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr, deliveries || []);
+    // Upsert + prune deleted — never clear the date's data before writing
+    {
+      const fsIncomingIds = new Set((deliveries || []).map(d => d?.id).filter(Boolean));
+      const fsExisting = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === selectedDateStr);
+      const fsToDelete = fsExisting.filter(d => d?.id && !d.id.startsWith('temp_') && !fsIncomingIds.has(d.id));
+      if (deliveries && deliveries.length > 0) await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+      if (fsToDelete.length > 0) await Promise.all(fsToDelete.map(d => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id).catch(() => {})));
+    }
     invalidateEntityCache('Delivery');
     notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 50, count: deliveries.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
