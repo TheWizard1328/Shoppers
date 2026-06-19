@@ -1,7 +1,7 @@
 // Returns true if current local time is within the off-peak window (8 PM–9 AM)
 const isOffPeakHours = () => {
   const h = new Date().getHours();
-  return h >= 20 || h < 9;
+  return h >= 19 || h < 10;
 };
 
 
