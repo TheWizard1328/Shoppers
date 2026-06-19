@@ -4,6 +4,7 @@ import { filterValidStagedDeliveries, splitStagedDeliveriesForBatch, attachTrack
 import { resetBatchSaveDraftState, closeBatchFormThenResumeManagers, restartBatchSmartRefresh, runCreateBatchRefresh } from './deliveryBatchSaveUiHelpers';
 import { handlePendingDeleteOnlySave } from './handlePendingDeleteOnlySave';
 import { recalculateAndUpdateStopOrders } from '../utils/stopOrderManager';
+import { requestDeferredOptimization } from '../utils/optimizationDebouncer';
 
 export async function handleBatchSave({
   batchSaveLockRef,
@@ -478,55 +479,17 @@ export async function handleBatchSave({
         }
 
         if (refreshDriverId && refreshDeliveryDate) {
-          if (routeStructureChanged) {
-            // Always recalculate stop orders first
-            await recalculateAndUpdateStopOrders(refreshDriverId, refreshDeliveryDate, true);
-
-            // Optimize the route
-            await base44.functions.invoke('optimizeRemainingStops', {
-              driverId: refreshDriverId,
-              deliveryDate: refreshDeliveryDate,
-              bypassDriverStatus: true
-            }).catch(() => null);
-
-            // Fetch fresh deliveries after optimization to get correct stop_order
-            const freshDeliveries = await base44.entities.Delivery.filter({
-              driver_id: refreshDriverId,
-              delivery_date: refreshDeliveryDate
-            }).catch(() => []);
-
-            const activeStops = (freshDeliveries || [])
-              .filter(d => d?.id && !['completed', 'failed', 'cancelled', 'returned', 'pending', 'Staged'].includes(d?.status))
-              .sort((a, b) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0));
-
-            const orderedDeliveryIds = activeStops.map(d => d.id);
-
-            // If only one active stop, set isNextDelivery on it
-            if (activeStops.length === 1) {
-              await base44.functions.invoke('setNextDeliveryFlag', {
-                driverId: refreshDriverId,
-                deliveryDate: refreshDeliveryDate,
-                targetDeliveryId: activeStops[0].id
-              }).catch(() => null);
-            }
-
-            // Regenerate polylines with ordered IDs
-            if (orderedDeliveryIds.length > 0) {
-              await base44.functions.invoke('purgeAndRegeneratePolylines', {
-                driverId: refreshDriverId,
-                deliveryDate: refreshDeliveryDate,
-                routeStopOrder: orderedDeliveryIds,
-                reason: 'stops_added',
-                scope: 'active_only',
-                bypassDriverStatus: true
-              }).catch(() => null);
-            }
-          }
-
           await base44.functions.invoke('recalculateTrackingNumbers', {
             driverId: refreshDriverId,
             deliveryDate: refreshDeliveryDate
           }).catch(() => null);
+
+          // CRITICAL: Only queue optimization for structural route changes.
+          // Pure staged→pending transitions must NOT trigger optimization or polyline regeneration.
+          // New pickups, ISP/ISD stops, cycling markers, or new active stops DO trigger it.
+          if (routeStructureChanged) {
+            requestDeferredOptimization(refreshDriverId, refreshDeliveryDate, true);
+          }
         }
 
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));

@@ -12,6 +12,7 @@ import { updateDeliveryLocal } from '@/components/utils/offlineMutations';
 import { pauseOfflineSync, resumeOfflineSync } from '@/components/utils/offlineSync';
 import { addMinutesToTime, generateUniqueSID, populateTemporaryStartTimes } from '@/components/dashboard/DashboardHelpers';
 import { optimizeRoute } from '@/components/utils/routeOptimizer';
+import { requestDeferredOptimization, pauseDeferredOptimization } from '@/components/utils/optimizationDebouncer';
 
 function addMinutes(time, mins) {
   return addMinutesToTime(time, mins);
@@ -75,6 +76,10 @@ export async function handleSaveDelivery(deliveryData, ctx) {
     if (isEditing && !driverWasChanged) {
       const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
 
+      // Snapshot stop orders BEFORE the edit so we can diff afterwards
+      const allForDriver = (deliveries || []).filter((d) => d && d.delivery_date === deliveryDate && d.driver_id === driverId);
+      const stopOrderBefore = new Map(allForDriver.map((d) => [d.id, d.stop_order]));
+
       // Step 1: Apply the edit to the delivery being changed
       await updateDeliveryLocal(editingDelivery.id, deliveryData);
 
@@ -86,20 +91,71 @@ export async function handleSaveDelivery(deliveryData, ctx) {
         updateDeliveriesLocally([{ ...editingDelivery, ...deliveryData }], false);
       }
 
-      // Step 3: Reorder stop_orders in the background (non-blocking for UI)
-      const allForDriver = (deliveries || []).filter((d) => d && d.delivery_date === deliveryDate && d.driver_id === driverId);
-      const completedDeliveries = allForDriver.filter((d) => finishedStatuses.includes(d.status));
-      const incompleteDeliveries = allForDriver.filter((d) => !finishedStatuses.includes(d.status));
-      let startingStopOrder = completedDeliveries.length > 0 ? Math.max(...completedDeliveries.map((d) => d.stop_order || 0)) : 0;
+      // Step 3: Programmatic resort (finished stops by actual_delivery_time, then incomplete by ETA/start)
+      //         Pending and Staged stops always go last.
+      const updatedDelivery = { ...editingDelivery, ...deliveryData };
+      const allForDriverUpdated = allForDriver.map((d) => d.id === editingDelivery.id ? updatedDelivery : d);
+
+      const finishedDeliveries = allForDriverUpdated.filter((d) => finishedStatuses.includes(d?.status));
+      const incompleteDeliveries = allForDriverUpdated.filter((d) => !finishedStatuses.includes(d?.status));
+
+      // Sort finished by actual_delivery_time ascending
+      finishedDeliveries.sort((a, b) => {
+        const ta = a?.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER;
+        const tb = b?.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER;
+        return ta - tb;
+      });
+
+      // Sort incomplete: pending/Staged last, then by ETA/start
       const sortedIncomplete = [...incompleteDeliveries].sort((a, b) => {
         if (!a || !b) return 0;
-        if (a.status === 'pending' && b.status !== 'pending') return 1;
-        if (a.status !== 'pending' && b.status === 'pending') return -1;
+        const aLast = a.status === 'pending' || a.status === 'Staged';
+        const bLast = b.status === 'pending' || b.status === 'Staged';
+        if (aLast && !bLast) return 1;
+        if (!aLast && bLast) return -1;
         return (a.delivery_time_eta || a.delivery_time_start || '99:99').localeCompare(b.delivery_time_eta || b.delivery_time_start || '99:99');
       });
-      for (let i = 0; i < sortedIncomplete.length; i++) {
-        if (sortedIncomplete[i]) await updateDeliveryLocal(sortedIncomplete[i].id, { stop_order: startingStopOrder + i + 1 });
+
+      const reordered = [...finishedDeliveries, ...sortedIncomplete];
+
+      // Assign new sequential stop orders
+      const stopOrderAfter = new Map();
+      for (let i = 0; i < reordered.length; i++) {
+        const d = reordered[i];
+        if (!d?.id) continue;
+        const newOrder = i + 1;
+        stopOrderAfter.set(d.id, newOrder);
+        if (stopOrderBefore.get(d.id) !== newOrder) {
+          await updateDeliveryLocal(d.id, { stop_order: newOrder });
+        }
       }
+
+      // Detect whether any stop order actually changed
+      let stopOrderChanged = false;
+      for (const [id, newOrder] of stopOrderAfter) {
+        if (stopOrderBefore.get(id) !== newOrder) {
+          stopOrderChanged = true;
+          break;
+        }
+      }
+
+      // Detect if this was a form-driven status change to a completion status
+      const originalStatus = editingDelivery?.status || '';
+      const newStatus = deliveryData?.status || '';
+      const isFormStatusChangeToCompletion = (
+        ['completed', 'cancelled', 'failed', 'returned'].includes(newStatus) &&
+        newStatus !== originalStatus
+      );
+
+      // Detect time window change
+      const timeWindowChanged = (
+        (deliveryData?.delivery_time_start || '') !== (editingDelivery?.delivery_time_start || '') ||
+        (deliveryData?.delivery_time_end || '') !== (editingDelivery?.delivery_time_end || '')
+      );
+
+      // Queue optimization only if stop order actually changed as a result of the resort
+      const needsOptimization = stopOrderChanged && (timeWindowChanged || isFormStatusChangeToCompletion);
+      requestDeferredOptimization(driverId, deliveryDate, needsOptimization);
 
       invalidate('Delivery');
       setShowDeliveryForm(false); setEditingDelivery(null); fabControlEvents.resetToPhaseOneAfterDone(500);

@@ -1604,6 +1604,13 @@ useEffect(() => {
   };
 
   const handleEditDelivery = (delivery) => {
+    // Pause any pending debounced optimization for this driver+date
+    // so we don't fire mid-edit if the user is chaining edits quickly.
+    if (delivery?.driver_id && delivery?.delivery_date) {
+      import('@/components/utils/optimizationDebouncer').then(({ pauseDeferredOptimization }) => {
+        pauseDeferredOptimization(delivery.driver_id, delivery.delivery_date);
+      }).catch(() => {});
+    }
     setEditingDelivery(delivery || null);
     setShowDeliveryForm(true);
   };
