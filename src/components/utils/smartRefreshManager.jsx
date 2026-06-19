@@ -375,73 +375,66 @@ class LightweightRefreshManager {
         }
       }
 
-      // AppUser backup poll — only fires if there are active (on_duty/on_break) drivers
-      // that have NOT received any update (WebSocket, app load, manual refresh) in the last 60s.
-      // This prevents full-table polls when WebSocket is healthy and covering all active drivers.
+      // CRITICAL: Refresh AppUsers every 60 seconds as backup for WebSocket
+      // This catches status changes that WebSocket might miss
       if (this.shouldRefresh('appUsers') && currentData.appUsers) {
         try {
-          const wsLastUpdate = window.__wsAppUserLastUpdate || new Map();
-          const SUPPRESS_MS = 60000; // skip poll for any driver updated within 60s
-          const now = Date.now();
+          console.log('👥 [LightweightRefresh] Syncing AppUsers (backup for WebSocket)');
+          await this.waitForRateLimit();
+          const allAppUsers = await queueEntityRequest(
+            () => base44.entities.AppUser.list(),
+            'AppUser list'
+          );
 
-          // Find active drivers that haven't been updated recently by any source
-          const activeDriversNeedingPoll = currentData.appUsers.filter((u) => {
-            if (!u) return false;
-            const status = u.driver_status;
-            if (status !== 'on_duty' && status !== 'on_break') return false; // only poll active drivers
-            const key = u.user_id || u.id;
-            if (!key) return false;
-            const lastUpdate = wsLastUpdate.get(key) || 0;
-            return (now - lastUpdate) >= SUPPRESS_MS; // only if stale
-          });
+          this.recordSuccess();
 
-          if (activeDriversNeedingPoll.length === 0) {
-            console.log('👥 [LightweightRefresh] AppUsers poll skipped — all active drivers have recent updates');
-            this.markRefreshed('appUsers');
-          } else {
-            console.log(`👥 [LightweightRefresh] AppUsers poll — ${activeDriversNeedingPoll.length} active driver(s) need refresh`);
-            await this.waitForRateLimit();
-            const allAppUsers = await queueEntityRequest(
-              () => base44.entities.AppUser.list(),
-              'AppUser list'
-            );
+          if (allAppUsers && allAppUsers.length > 0) {
+            // FRESHNESS GUARD: Before saving or dispatching, merge server records with what
+            // is already in the offline DB. The offline DB was written by the WebSocket path
+            // and may have a FRESHER location_updated_at than the server snapshot (which can
+            // lag by several seconds during high-frequency GPS writes). Never let a poll
+            // regress coords that were delivered more recently via WebSocket.
+            const { offlineDB } = await import('./offlineDatabase');
+            const cachedUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+            const cacheMap = new Map((cachedUsers || []).map(u => [u.id, u]));
 
-            this.recordSuccess();
-
-            if (allAppUsers && allAppUsers.length > 0) {
-              const diff = diffEntityArrays(currentData.appUsers, allAppUsers);
-              if (diff.toUpdate.length > 0 || diff.toAdd.length > 0) {
-                updates.appUsers = mergeEntityChanges(currentData.appUsers, diff);
-
-                // Mark all polled users as "refreshed" so WS grace window resets
-                updates.appUsers.forEach((u) => {
-                  const key = u?.user_id || u?.id;
-                  if (key) wsLastUpdate.set(key, now);
-                });
-
-                // Only dispatch drivers that don't have a very recent WS update (30s grace)
-                const safeToDispatch = updates.appUsers.filter((u) => {
-                  const key = u?.user_id || u?.id;
-                  if (!key) return true;
-                  const lastWs = wsLastUpdate.get(key) || 0;
-                  return (now - lastWs) >= 30000;
-                });
-
-                console.log(`✅ [LightweightRefresh] AppUsers updated: +${diff.toAdd.length} ~${diff.toUpdate.length} (dispatching ${safeToDispatch.length}/${updates.appUsers.length} — ${updates.appUsers.length - safeToDispatch.length} suppressed by WS grace)`);
-
-                // Save ALL to offline DB to keep IDB consistent
-                const { offlineDB } = await import('./offlineDatabase');
-                await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, updates.appUsers);
-
-                if (safeToDispatch.length > 0) {
-                  window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-                    detail: { appUsers: safeToDispatch, fromSmartRefresh: true, mergeMode: 'merge' }
-                  }));
-                }
+            const freshnessGuarded = allAppUsers.map(serverUser => {
+              const cached = cacheMap.get(serverUser.id);
+              if (!cached) return serverUser;
+              const serverLocTs = new Date(serverUser.location_updated_at || serverUser.updated_date || 0).getTime();
+              const cachedLocTs = new Date(cached.location_updated_at || cached.updated_date || 0).getTime();
+              // If cached location is newer than what the server returned, preserve
+              // the cached coords and timestamp to avoid position regression / bounce.
+              if (cachedLocTs > serverLocTs && cached.current_latitude && cached.current_longitude) {
+                return {
+                  ...serverUser,
+                  current_latitude: cached.current_latitude,
+                  current_longitude: cached.current_longitude,
+                  location_updated_at: cached.location_updated_at,
+                };
               }
+              return serverUser;
+            });
+
+            const diff = diffEntityArrays(currentData.appUsers, freshnessGuarded);
+            if (diff.toUpdate.length > 0 || diff.toAdd.length > 0) {
+              updates.appUsers = mergeEntityChanges(currentData.appUsers, diff);
+              console.log(`✅ [LightweightRefresh] AppUsers updated: +${diff.toAdd.length} ~${diff.toUpdate.length}`);
+              
+              // Save freshness-guarded records to offline DB
+              await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshnessGuarded);
+              
+              // Broadcast the freshness-guarded updates
+              window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+                detail: { appUsers: updates.appUsers, fromSmartRefresh: true }
+              }));
+            } else {
+              // Even if no structural diff, ensure offline DB has latest server data
+              // (non-location fields like driver_status, preferred_travel_mode, etc.)
+              await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshnessGuarded);
             }
-            this.markRefreshed('appUsers');
           }
+          this.markRefreshed('appUsers');
         } catch (e) {
           this.recordError();
           console.warn('⚠️ [LightweightRefresh] AppUsers refresh failed:', e.message);
@@ -500,18 +493,11 @@ class LightweightRefreshManager {
   }
 
   /**
-   * Stamp all currently-loaded AppUsers as "just refreshed" in the WS update map.
-   * Call this after an app load or manual full sync so the poll cooldown starts from now.
+   * Stamp AppUsers as refreshed — called after a full data load so the poll cooldown
+   * starts from now, preventing an immediate redundant poll right after a full sync.
    */
   stampAppUsersAsRefreshed(appUsers) {
-    if (!Array.isArray(appUsers) || typeof window === 'undefined') return;
-    if (!window.__wsAppUserLastUpdate) window.__wsAppUserLastUpdate = new Map();
-    const now = Date.now();
-    appUsers.forEach((u) => {
-      const key = u?.user_id || u?.id;
-      if (key) window.__wsAppUserLastUpdate.set(key, now);
-    });
-    console.log(`⏱️ [SmartRefresh] Stamped ${appUsers.length} AppUsers as refreshed (suppresses poll for 60s)`);
+    this.lastRefreshTimes.appUsers = Date.now();
   }
 
   /**
@@ -533,13 +519,25 @@ class LightweightRefreshManager {
       this.recordSuccess();
       
       if (freshAppUsers && freshAppUsers.length > 0) {
-        // Save to offline DB
+        // FRESHNESS GUARD: preserve cached coords if they are newer than the server snapshot
         const { offlineDB } = await import('./offlineDatabase');
-        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
+        const cachedUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+        const cacheMap = new Map((cachedUsers || []).map(u => [u.id, u]));
+        const guardedUsers = freshAppUsers.map(serverUser => {
+          const cached = cacheMap.get(serverUser.id);
+          if (!cached) return serverUser;
+          const serverLocTs = new Date(serverUser.location_updated_at || serverUser.updated_date || 0).getTime();
+          const cachedLocTs = new Date(cached.location_updated_at || cached.updated_date || 0).getTime();
+          if (cachedLocTs > serverLocTs && cached.current_latitude && cached.current_longitude) {
+            return { ...serverUser, current_latitude: cached.current_latitude, current_longitude: cached.current_longitude, location_updated_at: cached.location_updated_at };
+          }
+          return serverUser;
+        });
+        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, guardedUsers);
         
-        console.log(`✅ [SmartRefresh] Refreshed ${freshAppUsers.length} driver locations`);
+        console.log(`✅ [SmartRefresh] Refreshed ${guardedUsers.length} driver locations`);
         
-        return { hasChanges: true, appUsers: freshAppUsers };
+        return { hasChanges: true, appUsers: guardedUsers };
       }
       
       return { hasChanges: false, appUsers: currentAppUsers };
