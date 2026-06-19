@@ -11,7 +11,7 @@ import { updateDeliveryLocal } from './entityMutations';
  * Ensures completed stops are first (sorted by completion time), then incomplete (sorted by stop_order), pending always last
  * Updates all stop orders sequentially from 1 to N
  */
-export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate, skipPolylineRegeneration = false) => {
+export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate, skipPolylineRegeneration = false, skipPolylineIfNoOrderChange = false) => {
   const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
   
   // Read from offline DB first to avoid unnecessary network calls
@@ -89,7 +89,7 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate, ski
     try { window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'stopOrderRecalc', driverId, deliveryDate, preserveLocalState: true } })); } catch (_) {}
   }
 
-  if (updates.length > 0 && !skipPolylineRegeneration) {
+  if (updates.length > 0 && !skipPolylineRegeneration && !skipPolylineIfNoOrderChange) {
     try {
       const finishedForPolyline = ['completed', 'failed', 'cancelled', 'returned'];
       const activeOrderedIds = sortedDeliveries
@@ -110,7 +110,7 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate, ski
   }
 
   try { window.dispatchEvent(new CustomEvent('routeReordered', { detail: { driverId, deliveryDate, suppressFabIfPhase1: true } })); } catch (_) {}
-  return sortedDeliveries;
+  return { sortedDeliveries, orderChanged: updates.length > 0 };
 };
 
 /**

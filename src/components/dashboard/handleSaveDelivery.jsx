@@ -13,6 +13,7 @@ import { pauseOfflineSync, resumeOfflineSync } from '@/components/utils/offlineS
 import { addMinutesToTime, generateUniqueSID, populateTemporaryStartTimes } from '@/components/dashboard/DashboardHelpers';
 import { optimizeRoute } from '@/components/utils/routeOptimizer';
 import { requestDeferredOptimization, pauseDeferredOptimization } from '@/components/utils/optimizationDebouncer';
+import { recalculateAndUpdateStopOrders } from '@/components/utils/stopOrderManager';
 
 function addMinutes(time, mins) {
   return addMinutesToTime(time, mins);
@@ -74,91 +75,77 @@ export async function handleSaveDelivery(deliveryData, ctx) {
     }
 
     if (isEditing && !driverWasChanged) {
-      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+      // ── CHANGE DETECTION ─────────────────────────────────────────────────
+      // Fields that, when changed, can alter stop ordering or route topology
+      const STRUCTURAL_FIELDS = [
+        'status', 'delivery_time_start', 'delivery_time_end',
+        'actual_delivery_time', 'delivery_time_eta',
+      ];
 
-      // Snapshot stop orders BEFORE the edit so we can diff afterwards
-      const allForDriver = (deliveries || []).filter((d) => d && d.delivery_date === deliveryDate && d.driver_id === driverId);
-      const stopOrderBefore = new Map(allForDriver.map((d) => [d.id, d.stop_order]));
+      const hasStructuralChange = STRUCTURAL_FIELDS.some(
+        (field) => (deliveryData?.[field] ?? '') !== (editingDelivery?.[field] ?? '')
+      );
 
-      // Step 1: Apply the edit to the delivery being changed
+      // Check if ANY field at all changed — if nothing changed, skip everything
+      const ALL_TRACKED_FIELDS = [
+        ...STRUCTURAL_FIELDS,
+        'delivery_notes', 'delivery_instructions', 'unit_number',
+        'patient_name', 'patient_phone', 'store_phone',
+        'cod_total_amount_required', 'signature_needed', 'fridge_item',
+        'oversized', 'mailbox_ok', 'call_upon_arrival', 'ring_bell',
+        'dont_ring_bell', 'back_door', 'first_delivery',
+        'prescription_number', 'barcode_values', 'receipt_barcode_values',
+        'extra_time', 'ampm_deliveries',
+      ];
+
+      const anyFieldChanged = ALL_TRACKED_FIELDS.some((field) => {
+        const oldVal = editingDelivery?.[field];
+        const newVal = deliveryData?.[field];
+        // Array comparison (barcode_values etc)
+        if (Array.isArray(oldVal) || Array.isArray(newVal)) {
+          return JSON.stringify(oldVal ?? []) !== JSON.stringify(newVal ?? []);
+        }
+        return (oldVal ?? '') !== (newVal ?? '');
+      });
+
+      if (!anyFieldChanged) {
+        // Nothing changed — close the form silently, no DB writes, no optimization
+        setShowDeliveryForm(false);
+        setEditingDelivery(null);
+        fabControlEvents.resetToPhaseOneAfterDone(500);
+        return;
+      }
+
+      // Step 1: Save the changed fields to the DB
       await updateDeliveryLocal(editingDelivery.id, deliveryData);
 
-      // Step 2: Optimistically update the UI immediately using current in-memory state
-      // so stops don't disappear while we do background work
+      // Step 2: Optimistically update the UI
       if (applyDeliveryChangesLocally) {
         applyDeliveryChangesLocally({ upserts: [{ ...editingDelivery, ...deliveryData }] });
       } else if (updateDeliveriesLocally) {
         updateDeliveriesLocally([{ ...editingDelivery, ...deliveryData }], false);
       }
 
-      // Step 3: Programmatic resort (finished stops by actual_delivery_time, then incomplete by ETA/start)
-      //         Pending and Staged stops always go last.
-      const updatedDelivery = { ...editingDelivery, ...deliveryData };
-      const allForDriverUpdated = allForDriver.map((d) => d.id === editingDelivery.id ? updatedDelivery : d);
+      if (hasStructuralChange) {
+        // Step 3: Re-sort stop orders and check if any actually changed
+        const { orderChanged } = await recalculateAndUpdateStopOrders(
+          driverId, deliveryDate,
+          /*skipPolylineRegeneration=*/ true,   // we control polylines below
+          /*skipPolylineIfNoOrderChange=*/ false
+        );
 
-      const finishedDeliveries = allForDriverUpdated.filter((d) => finishedStatuses.includes(d?.status));
-      const incompleteDeliveries = allForDriverUpdated.filter((d) => !finishedStatuses.includes(d?.status));
-
-      // Sort finished by actual_delivery_time ascending
-      finishedDeliveries.sort((a, b) => {
-        const ta = a?.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER;
-        const tb = b?.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER;
-        return ta - tb;
-      });
-
-      // Sort incomplete: pending/Staged last, then by ETA/start
-      const sortedIncomplete = [...incompleteDeliveries].sort((a, b) => {
-        if (!a || !b) return 0;
-        const aLast = a.status === 'pending' || a.status === 'Staged';
-        const bLast = b.status === 'pending' || b.status === 'Staged';
-        if (aLast && !bLast) return 1;
-        if (!aLast && bLast) return -1;
-        return (a.delivery_time_eta || a.delivery_time_start || '99:99').localeCompare(b.delivery_time_eta || b.delivery_time_start || '99:99');
-      });
-
-      const reordered = [...finishedDeliveries, ...sortedIncomplete];
-
-      // Assign new sequential stop orders
-      const stopOrderAfter = new Map();
-      for (let i = 0; i < reordered.length; i++) {
-        const d = reordered[i];
-        if (!d?.id) continue;
-        const newOrder = i + 1;
-        stopOrderAfter.set(d.id, newOrder);
-        if (stopOrderBefore.get(d.id) !== newOrder) {
-          await updateDeliveryLocal(d.id, { stop_order: newOrder });
-        }
+        // Step 4: Only run expensive optimization/polylines if order actually shifted
+        requestDeferredOptimization(driverId, deliveryDate, orderChanged);
       }
-
-      // Detect whether any stop order actually changed
-      let stopOrderChanged = false;
-      for (const [id, newOrder] of stopOrderAfter) {
-        if (stopOrderBefore.get(id) !== newOrder) {
-          stopOrderChanged = true;
-          break;
-        }
-      }
-
-      // Detect if this was a form-driven status change to a completion status
-      const originalStatus = editingDelivery?.status || '';
-      const newStatus = deliveryData?.status || '';
-      const isFormStatusChangeToCompletion = (
-        ['completed', 'cancelled', 'failed', 'returned'].includes(newStatus) &&
-        newStatus !== originalStatus
-      );
-
-      // Detect time window change
-      const timeWindowChanged = (
-        (deliveryData?.delivery_time_start || '') !== (editingDelivery?.delivery_time_start || '') ||
-        (deliveryData?.delivery_time_end || '') !== (editingDelivery?.delivery_time_end || '')
-      );
-
-      // Queue optimization only if stop order actually changed as a result of the resort
-      const needsOptimization = stopOrderChanged && (timeWindowChanged || isFormStatusChangeToCompletion);
-      requestDeferredOptimization(driverId, deliveryDate, needsOptimization);
+      // Non-structural change → just broadcast so UI refreshes, no optimization
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: { driverId, deliveryDate, triggeredBy: 'formSave', preserveLocalState: true }
+      }));
 
       invalidate('Delivery');
-      setShowDeliveryForm(false); setEditingDelivery(null); fabControlEvents.resetToPhaseOneAfterDone(500);
+      setShowDeliveryForm(false);
+      setEditingDelivery(null);
+      fabControlEvents.resetToPhaseOneAfterDone(500);
       return;
     }
 
