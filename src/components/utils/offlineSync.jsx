@@ -337,13 +337,17 @@ export const performSlowStorePatientSync = async () => {
       if (window.__dashboardSyncing || window.__activePullToSyncRunId || getSyncPaused()) break;
       
       try {
-        // Fetch patients for this store only
-        const storePatients = await Patient.filter({ store_id: store.id, status: 'active' });
-        
-        if (storePatients && storePatients.length > 0) {
-          // Merge into offline DB (don't replace entire DB)
+        // Fetch ALL patients for this store (active + inactive) in batches
+        let slowOffset = 0;
+        const SLOW_BATCH = 200;
+        while (true) {
+          const storePatients = await Patient.filter({ store_id: store.id }, '-updated_date', SLOW_BATCH, slowOffset);
+          if (!storePatients || storePatients.length === 0) break;
           await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, storePatients);
           totalSyncedPatients += storePatients.length;
+          if (storePatients.length < SLOW_BATCH) break;
+          slowOffset += SLOW_BATCH;
+          await new Promise(r => setTimeout(r, 300));
         }
         
         const progress = 5 + Math.floor((i / stores.length) * 90);
@@ -860,22 +864,30 @@ export const restartDeliveryPatientSync = async () => {
     const uniquePatientIdsList = Array.from(uniquePatientIdsFromLastWeek);
     console.log(`📍 [OfflineSync] Found ${uniquePatientIdsList.length} unique patients in ${allDeliveriesLastWeek.length} deliveries from last 7 days`);
 
-    // Step 2: Sync ALL active patients store-by-store (complete offline DB)
+    // Step 2: Sync ALL patients store-by-store (active + inactive, batched)
     notifySyncStatus({ status: 'syncing', entity: 'Patients (all stores)', progress: 55 });
-    console.log('🔄 [OfflineSync] Step 2: Syncing ALL active patients store-by-store...');
+    console.log('🔄 [OfflineSync] Step 2: Syncing ALL patients store-by-store (active + inactive)...');
 
     const allStoresForPatients = await Store.list();
     let totalRestartPatients = 0;
+    const allRestartOnlinePatientIds = new Set();
     const RESTART_STORE_COOLDOWN = 1500;
+    const RESTART_PATIENT_BATCH = 200;
 
     for (let si = 0; si < allStoresForPatients.length; si++) {
       const store = allStoresForPatients[si];
       if (!store?.id) continue;
       try {
-        const storePatients = await Patient.filter({ store_id: store.id, status: 'active' });
-        if (storePatients && storePatients.length > 0) {
+        let offset = 0;
+        while (true) {
+          const storePatients = await Patient.filter({ store_id: store.id }, '-updated_date', RESTART_PATIENT_BATCH, offset);
+          if (!storePatients || storePatients.length === 0) break;
           await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, storePatients);
+          storePatients.forEach(p => { if (p?.id) allRestartOnlinePatientIds.add(p.id); });
           totalRestartPatients += storePatients.length;
+          if (storePatients.length < RESTART_PATIENT_BATCH) break;
+          offset += RESTART_PATIENT_BATCH;
+          await new Promise(r => setTimeout(r, 300));
         }
         const batchProgress = 55 + Math.floor((si / allStoresForPatients.length) * 20);
         notifySyncStatus({ status: 'syncing', entity: `Patients (${store.name || 'Store'} ${si+1}/${allStoresForPatients.length})`, progress: batchProgress, count: totalRestartPatients });
@@ -886,6 +898,16 @@ export const restartDeliveryPatientSync = async () => {
           break;
         }
         console.warn(`⚠️ [OfflineSync] Failed store ${store.name}:`, err.message);
+      }
+    }
+
+    // Prune patients no longer in the online DB
+    if (allRestartOnlinePatientIds.size > 0) {
+      const allOfflineForRestart = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+      const orphans = (allOfflineForRestart || []).filter(p => p?.id && !p.id.startsWith('temp_') && !allRestartOnlinePatientIds.has(p.id));
+      if (orphans.length > 0) {
+        await Promise.all(orphans.map(p => offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, p.id).catch(() => {})));
+        console.log(`🗑️ [RestartSync] Pruned ${orphans.length} deleted patients`);
       }
     }
     invalidateEntityCache('Patient');
