@@ -16,6 +16,7 @@ import { backgroundSyncManager } from '../utils/backgroundSyncManager';
 import { runBootstrapBackgroundSync } from '../utils/bootstrapBackgroundSync';
 import { indexInterStoreLocation, resetInterStoreLocationsCache } from '../utils/interStoreDisplayName';
 import { heartbeatService } from '../utils/heartbeatService';
+import { runPatientDbPrioritySync } from '../utils/patientDbPrioritySync';
 
 /**
  * useLayoutInit
@@ -221,7 +222,13 @@ export function useLayoutInit({
         setInitialGlobalFiltersSet(true);setDataLoaded(true);
         setIsLoadingLayout(false); // Release loading gate ONLY after all prerequisites confirmed
 
-        // ── STEP 3: Background sync — update IndexedDB + UI from server (non-blocking) ──
+        // ── STEP 3a: Patient DB priority sync — runs if offline DB < 3000 patients ──
+        // Non-blocking. Prioritises stores relevant to the current user's role.
+        setTimeout(() => {
+          runPatientDbPrioritySync(fetchedUser).catch(() => {});
+        }, 5000); // 5s delay — let deliveries + initial render settle first
+
+        // ── STEP 3b: Background sync — update IndexedDB + UI from server (non-blocking) ──
         // Fires after UI is visible. Skipped if data was synced within the last 4 hours.
         setTimeout(() => {
           runBootstrapBackgroundSync({

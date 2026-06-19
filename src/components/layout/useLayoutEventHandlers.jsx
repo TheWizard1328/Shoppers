@@ -409,6 +409,18 @@ export function useLayoutEventHandlers({
     };
     window.addEventListener('pullToSyncDataReady', handlePullToSyncDataReady);
 
+    // Update patients state when patientDbPrioritySync finishes syncing fresh data
+    const handleOfflinePatientsRefreshed = async () => {
+      try {
+        const freshPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS).catch(() => []);
+        if (freshPatients && freshPatients.length > 0) {
+          setPatients((prev) => mergePatients(prev, freshPatients));
+          console.log(`✅ [Layout] Patient DB priority sync applied — ${freshPatients.length} patients in state`);
+        }
+      } catch (_) {}
+    };
+    window.addEventListener('offlinePatientsRefreshed', handleOfflinePatientsRefreshed);
+
     // AUTO-RECOVERY: Listen for force refresh after connection recovery
     const handleForceDataRefresh = async () => {
       console.log('🔄 [Layout] Force data refresh after connection recovery - COMPREHENSIVE MODE');
@@ -499,6 +511,7 @@ export function useLayoutEventHandlers({
       window.removeEventListener('pullToSyncDataReady', handlePullToSyncDataReady);
       window.removeEventListener('appUserUpdated', handleAppUserUpdated);
       window.removeEventListener('openMessaging', handleOpenMessaging);window.removeEventListener('openMessagingPanel', handleOpenMessagingPanel);
+      window.removeEventListener('offlinePatientsRefreshed', handleOfflinePatientsRefreshed);
     };
   }, [currentUser, currentPageName]);
 }
