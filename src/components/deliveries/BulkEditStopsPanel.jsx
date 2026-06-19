@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -457,9 +457,17 @@ export default function BulkEditStopsPanel({ open, onOpenChange, isMobile, selec
 
   const [values, setValues] = useState(initialValues);
 
+  // Only reset form values when the panel opens — NOT when initialValues changes due to
+  // incoming WebSocket delivery updates. Resetting on every initialValues change would
+  // wipe the user's unsaved edits mid-session.
+  const prevOpenRef = React.useRef(open);
   useEffect(() => {
-    setValues(initialValues);
-  }, [initialValues, open]);
+    const wasOpen = prevOpenRef.current;
+    prevOpenRef.current = open;
+    if (open && !wasOpen) {
+      setValues(initialValues);
+    }
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const content =
   <BulkEditStopsForm
