@@ -322,7 +322,7 @@ export async function handleSaveDelivery(deliveryData, ctx) {
   } finally {
     await new Promise((resolve) => setTimeout(resolve, 1000));
     resumeOfflineSync();
-    smartRefreshManager.resume();
+    smartRefreshManager.restart(); // restart (not just resume) so the next cycle fetches fresh data
     setIsEntityUpdating(false);
   }
 }
