@@ -1343,6 +1343,7 @@ export default function DeliveryMap({
           mapViewPhase={mapViewPhase}
           currentUser={currentUser}
           immersiveHidden={immersiveHidden}
+
         />
 
         <Pane name="routeBasePane" style={{ zIndex: 430 }} />
