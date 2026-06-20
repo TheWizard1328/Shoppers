@@ -211,27 +211,6 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
       base44.entities.Patient.update(targetDelivery.patient_id, { last_delivery_date: deliveryDate }).catch((error) => console.warn('⚠️ Patient last_delivery_date update failed:', error));
     }
 
-    if (['completed', 'failed'].includes(newStatus)) {
-      const updateDriverLocation = async () => {
-        try {
-          let stopLat, stopLon;
-          if (targetDelivery.is_cycling_marker) { stopLat = targetDelivery.cycling_latitude; stopLon = targetDelivery.cycling_longitude; }
-          else if (targetDelivery.patient_id) { const p = patients.find((p) => p?.id === targetDelivery.patient_id); stopLat = p?.latitude; stopLon = p?.longitude; } else if (targetDelivery.store_id) { const s = stores.find((s) => s?.id === targetDelivery.store_id); stopLat = s?.latitude; stopLon = s?.longitude; }
-          if (!stopLat || !stopLon || !driverId) return;
-          const appUsersList = await base44.entities.AppUser.filter({ user_id: driverId });
-          const appUser = appUsersList?.[0];
-          if (!appUser) return;
-          const nowISO = new Date().toISOString();
-          await base44.entities.AppUser.update(appUser.id, { current_latitude: stopLat, current_longitude: stopLon, location_updated_at: nowISO });
-          const updatedAppUser = await base44.entities.AppUser.filter({ id: appUser.id });
-          if (updatedAppUser && updatedAppUser.length > 0) { await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [updatedAppUser[0]]); window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: [updatedAppUser[0]], singleUpdate: true } })); }
-          const { driverLocationPoller } = await import('@/components/utils/driverLocationPoller');
-          smartRefreshManager.resetTimers();
-          driverLocationPoller.resetTimers();
-        } catch (error) { console.warn('⚠️ Driver location update failed:', error.message); }
-      };
-      updateDriverLocation().catch(console.error);
-    }
 
     const finishedStatuses = ['completed', 'failed', 'cancelled'];
     const isReturnByMarkers = (d) => { if (!d || !d.patient_id) return false; const patient = patients.find((p) => p && p.id === d.patient_id); const notes = d.delivery_notes || ''; const patientName = d.patient_name || ''; const patientFullName = patient?.full_name || ''; return notes.toLowerCase().includes('(rtn)') || patientName.toLowerCase().includes('(rtn)') || patientFullName.toLowerCase().includes('(rtn)') || /\breturn\b/i.test(notes) || /\breturn\b/i.test(patientName) || /\breturn\b/i.test(patientFullName); };
