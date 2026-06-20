@@ -434,23 +434,23 @@ export default function DeliveryMap({
     return map;
   }, [safeUsers, deliveriesToShow]);
 
-  const { pickupMarkers, groupedPickupMarkers, deliveryMarkers, groupedDeliveryMarkers, hasIncompleteStops } = useMemo(() => {
+  // Step 1: Build stable marker objects — does NOT depend on currentZoom.
+  // This prevents zoom changes from rebuilding all markers and flickering the map.
+  const { rawPickupMarkers, rawDeliveryMarkers, hasIncompleteStops } = useMemo(() => {
     const pickups = [];
     const deliveriesOut = [];
-    const allMarkers = [];
     const hasIncomplete = deliveriesToShow.some((delivery) => delivery && !FINISHED_STATUSES.includes(delivery.status));
 
     deliveriesToShow.forEach((delivery) => {
       if (!delivery) return;
 
-      // ── Cycling Start/End markers — resolve coords from cycling_latitude/cycling_longitude ──
       if (delivery.is_cycling_marker) {
         const cycLat = Number(delivery.cycling_latitude);
         const cycLng = Number(delivery.cycling_longitude);
         if (!Number.isFinite(cycLat) || !Number.isFinite(cycLng)) return;
         const driver = driverLookupMap.get(delivery.driver_id) || (delivery.driver_name ? { id: delivery.driver_id, user_name: delivery.driver_name, full_name: delivery.driver_name } : null);
         const isStart = delivery.delivery_notes === 'Cycling Route Start';
-        const marker = {
+        deliveriesOut.push({
           ...delivery,
           latitude: cycLat,
           longitude: cycLng,
@@ -459,9 +459,7 @@ export default function DeliveryMap({
           number: delivery.display_stop_order || delivery.stop_order || 0,
           markerType: 'cycling',
           isOtherDriver: !!(selectedDriverId && selectedDriverId !== "all" && delivery.driver_id !== selectedDriverId),
-        };
-        deliveriesOut.push(marker);
-        allMarkers.push(marker);
+        });
         return;
       }
 
@@ -475,7 +473,7 @@ export default function DeliveryMap({
       if (delivery.patient_id) {
         const patient = safePatients.find((item) => item?.id === delivery.patient_id) || null;
         if (!patient?.latitude || !patient?.longitude) return;
-        const marker = {
+        deliveriesOut.push({
           ...delivery,
           latitude: patient.latitude,
           longitude: patient.longitude,
@@ -492,13 +490,10 @@ export default function DeliveryMap({
           useSimpleCircle: (showOtherDriverDeliveries && isOtherDriver) || useDispatcherPlaceholder,
           isOtherDriver: isOtherDriver || useDispatcherPlaceholder,
           isReturn: `${patient?.full_name || delivery.patient_name || ""}`.toLowerCase().includes("return")
-        };
-        deliveriesOut.push(marker);
-        allMarkers.push(marker);
+        });
         return;
       }
 
-      // For ISP/ISD inter-store pickups, use the from-store's coordinates (not the pharmacy store)
       let pickupLat = store?.latitude;
       let pickupLng = store?.longitude;
       const isInterStore = isInterStoreDelivery(delivery.delivery_id);
@@ -510,7 +505,7 @@ export default function DeliveryMap({
         }
       }
       if (!pickupLat || !pickupLng) return;
-      const marker = {
+      pickups.push({
         ...delivery,
         latitude: pickupLat,
         longitude: pickupLng,
@@ -522,11 +517,16 @@ export default function DeliveryMap({
         isInterStorePickup: isInterStore,
         useSimpleCircle: false,
         isOtherDriver
-      };
-      pickups.push(marker);
-      allMarkers.push(marker);
+      });
     });
 
+    return { rawPickupMarkers: pickups, rawDeliveryMarkers: deliveriesOut, hasIncompleteStops: hasIncomplete };
+  }, [deliveriesToShow, safeStores, safePatients, driverLookupMap, selectedDriverId, currentUser, showOtherDriverDeliveries, isAllDriversMode]);
+
+  // Step 2: Apply zoom-dependent duplicate counts and grouping maps separately.
+  // Zoom changes only recompute counts/groups — the stable marker objects from Step 1 are reused.
+  const { pickupMarkers, groupedPickupMarkers, deliveryMarkers, groupedDeliveryMarkers } = useMemo(() => {
+    const allMarkers = [...rawPickupMarkers, ...rawDeliveryMarkers];
     const counts = new Map();
     allMarkers.forEach((marker) => {
       const key = getLocationKey(marker.latitude, marker.longitude, currentZoom);
@@ -535,20 +535,21 @@ export default function DeliveryMap({
 
     const groupedPickupsMap = new Map();
     const groupedDeliveriesMap = new Map();
-    const withCounts = (marker) => ({ ...marker, duplicateCount: counts.get(getLocationKey(marker.latitude, marker.longitude, currentZoom)) || 1 });
-    const pickupMarkersWithCounts = pickups.map(withCounts);
-    const deliveryMarkersWithCounts = deliveriesOut.map(withCounts);
 
-    pickupMarkersWithCounts.forEach((marker) => {
+    const pickupMarkersWithCounts = rawPickupMarkers.map((marker) => {
       const key = getLocationKey(marker.latitude, marker.longitude, currentZoom);
       if (!groupedPickupsMap.has(key)) groupedPickupsMap.set(key, []);
-      groupedPickupsMap.get(key).push(marker);
+      const withCount = { ...marker, duplicateCount: counts.get(key) || 1 };
+      groupedPickupsMap.get(key).push(withCount);
+      return withCount;
     });
 
-    deliveryMarkersWithCounts.forEach((marker) => {
+    const deliveryMarkersWithCounts = rawDeliveryMarkers.map((marker) => {
       const key = getLocationKey(marker.latitude, marker.longitude, currentZoom);
       if (!groupedDeliveriesMap.has(key)) groupedDeliveriesMap.set(key, []);
-      groupedDeliveriesMap.get(key).push(marker);
+      const withCount = { ...marker, duplicateCount: counts.get(key) || 1 };
+      groupedDeliveriesMap.get(key).push(withCount);
+      return withCount;
     });
 
     return {
@@ -556,9 +557,8 @@ export default function DeliveryMap({
       groupedPickupMarkers: groupedPickupsMap,
       deliveryMarkers: deliveryMarkersWithCounts,
       groupedDeliveryMarkers: groupedDeliveriesMap,
-      hasIncompleteStops: hasIncomplete
     };
-  }, [deliveriesToShow, safeStores, safePatients, driverLookupMap, selectedDriverId, currentUser, showOtherDriverDeliveries, isAllDriversMode, currentZoom]);
+  }, [rawPickupMarkers, rawDeliveryMarkers, currentZoom]);
 
   const driverLocationMarkers = useMemo(() => {
     const today = getEdmDate();
