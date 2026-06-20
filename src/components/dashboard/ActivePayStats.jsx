@@ -66,7 +66,8 @@ export default function ActivePayStats({
     completedPickups: 0,
     totalDrivers: 0,
     inTransitDrivers: 0,
-    completedDrivers: 0
+    completedDrivers: 0,
+    isdIspCount: 0
   };
 
   // Use actual performanceStats (no estimates)
@@ -100,8 +101,25 @@ export default function ActivePayStats({
     time: isLoadingPayrollStats ? 'Loading...' : `Time on Duty: ${displayTime} (first stop to now, minus breaks)`
   };
 
+  const isdIspCount = stats.isdIspCount || 0;
+
   return (
-    <div className="py-0.5">
+    <div className="py-0.5 relative">
+      {/* ISD/ISP superscript - top left */}
+      {isdIspCount > 0 && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="absolute -top-1 left-1 text-[9px] font-bold px-1 py-0.5 rounded-full leading-none cursor-help" style={{ background: '#e0f2fe', color: '#0369a1', zIndex: 1 }}>
+                {isdIspCount} ISD/ISP
+              </span>
+            </TooltipTrigger>
+            <TooltipContent className="z-[9999] border" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-900)', borderColor: 'var(--border-slate-300)' }}>
+              <p>Inter-Store Deliveries/Pickups: {isdIspCount}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
       {/* Row 1: Delivery Stats - 4 columns */}
       <div className="mb-1 grid grid-cols-4 gap-1">
         <StatBadge
