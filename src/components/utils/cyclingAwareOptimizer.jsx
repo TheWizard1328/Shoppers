@@ -46,6 +46,7 @@
  */
 
 import { base44 } from '@/api/base44Client';
+import { Delivery } from '@/api/entities';
 import { format } from 'date-fns';
 
 const FINISHED_STATUSES = new Set(['completed', 'failed', 'cancelled', 'returned']);
@@ -301,6 +302,34 @@ export async function invokeOptimizeAwareCycling({
       finalOptimizeData = resp2?.data || resp2;
     } catch (e) {
       console.warn(`[cyclingAwareOptimizer] Stage 2 driving pass failed: ${e?.message}`);
+    }
+  }
+
+  // ── Sync cycling marker stop_orders ────────────────────────────────────
+  // After stages 1/2, explicitly re-anchor unfinished cycling markers so their
+  // stop_order numbers reflect the current route state. The backend never writes
+  // cycling markers during optimize passes (they are routing anchors, not waypoints).
+  if (cycling) {
+    const { startMarker, endMarker: em } = cycling;
+    const completedCount = deliveriesWithStopOrder.filter(
+      (d) => d && d.driver_id === driverId && FINISHED_STATUSES.has(d.status)
+    ).length;
+
+    const markerUpdates = [];
+
+    // Start marker: if still unfinished, it must sit at completedCount + 1
+    if (startMarker && !FINISHED_STATUSES.has(startMarker.status)) {
+      const correctOrder = completedCount + 1;
+      if (Number(startMarker.stop_order) !== correctOrder) {
+        console.log(`[cyclingAwareOptimizer] Updating startMarker stop_order: ${startMarker.stop_order} → ${correctOrder}`);
+        markerUpdates.push(
+          Delivery.update(startMarker.id, { stop_order: correctOrder, display_stop_order: correctOrder }).catch(() => {})
+        );
+      }
+    }
+
+    if (markerUpdates.length > 0) {
+      await Promise.all(markerUpdates).catch(() => {});
     }
   }
 

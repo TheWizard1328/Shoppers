@@ -238,29 +238,38 @@ export async function handleSaveDelivery(deliveryData, ctx) {
       if (!a || !b) return 0;
       const af = finishedStatuses.includes(a.status), bf = finishedStatuses.includes(b.status);
       if (af && !bf) return -1; if (!af && bf) return 1;
-      if (af && bf && a.stop_order && b.stop_order) return a.stop_order - b.stop_order;
+      if (af && bf) {
+        // Finished: sort ascending by actual_delivery_time so stop 1 = earliest completed
+        const ta = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : (Number(a.stop_order) || Number.MAX_SAFE_INTEGER);
+        const tb = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : (Number(b.stop_order) || Number.MAX_SAFE_INTEGER);
+        return ta - tb;
+      }
+      // Incomplete: cycling markers sort by their existing stop_order (they are anchors)
+      if (a.is_cycling_marker && b.is_cycling_marker) return (Number(a.stop_order) || 99999) - (Number(b.stop_order) || 99999);
+      if (a.is_cycling_marker) return (Number(a.stop_order) || 99999) <= (Number(b.stop_order) || 99999) ? -1 : 1;
+      if (b.is_cycling_marker) return (Number(a.stop_order) || 99999) < (Number(b.stop_order) || 99999) ? -1 : 1;
       return (a.delivery_time_start || '99:99').localeCompare(b.delivery_time_start || '99:99');
     });
     applyTimes(optimizedRoute);
 
     const storeAMPMMap = {};
     for (const stop of optimizedRoute) {
-      if (stop && !stop.patient_id && stop.delivery_time_start) storeAMPMMap[stop.store_id] = determineAMPMFromTime(stop.delivery_time_start);
+      if (stop && !stop.patient_id && !stop.is_cycling_marker && stop.delivery_time_start) storeAMPMMap[stop.store_id] = determineAMPMFromTime(stop.delivery_time_start);
     }
     for (const stop of optimizedRoute) {
-      if (stop) stop.ampm_deliveries = storeAMPMMap[stop.store_id] || determineAMPMFromTime(stop.delivery_time_start);
+      if (stop && !stop.is_cycling_marker) stop.ampm_deliveries = storeAMPMMap[stop.store_id] || determineAMPMFromTime(stop.delivery_time_start);
     }
 
     let pickupTRCounter = 0;
     const storePickupTRMap = {};
     for (const stop of optimizedRoute) {
-      if (!stop || stop.patient_id !== null) continue;
+      if (!stop || stop.patient_id !== null || stop.is_cycling_marker) continue;
       stop.tracking_number = String(pickupTRCounter).padStart(2, '0');
       storePickupTRMap[stop.store_id] = pickupTRCounter;
       pickupTRCounter += 20;
     }
     for (const stop of optimizedRoute) {
-      if (!stop || stop.patient_id === null) continue;
+      if (!stop || stop.patient_id === null || stop.is_cycling_marker) continue;
       const base = storePickupTRMap[stop.store_id];
       if (base !== undefined) {
         const before = optimizedRoute.filter((s) => s && s.patient_id !== null && s.store_id === stop.store_id && optimizedRoute.indexOf(s) < optimizedRoute.indexOf(stop)).length;
