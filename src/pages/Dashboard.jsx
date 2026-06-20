@@ -202,15 +202,15 @@ function Dashboard() {
     if (!deliveries || !Array.isArray(deliveries)) return [];
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
     let result = deliveries.filter((d) => { if (!d || d.delivery_date !== dateStr) return false; if (selectedDriverId && selectedDriverId !== 'all' && d.driver_id !== selectedDriverId) return false; return true; });
-    if (isDispatcher && !isAdmin && (selectedDriverId === 'all' || selectedDriverId === '')) { const _ds = new Set(currentUser?.store_ids || []); result = result.filter((d) => d && new Set(result.filter((x) => x && _ds.has(x.store_id)).map((x) => x.driver_id).filter(Boolean)).has(d.driver_id)); }
+    if (isDispatcher && !isAdmin && (selectedDriverId === 'all' || selectedDriverId === '')) { const _ds = new Set(currentUser?.store_ids || []); const _allowedDriverIds = new Set(result.filter((x) => x && _ds.has(x.store_id)).map((x) => x.driver_id).filter(Boolean)); result = result.filter((d) => d && (d.is_cycling_marker || _allowedDriverIds.has(d.driver_id))); }
     return result;
   }, [deliveries, selectedDate, selectedDriverId, isDispatcher, currentUser, isSnapshotModeActive, snapshotData]);
 
   const deliveriesWithStopOrder = useMemo(() => {
     if (!filteredDeliveries || filteredDeliveries.length === 0) return [];
     const groupedByDriver = {}; filteredDeliveries.forEach((delivery) => { if (!delivery) return; const dId = delivery.driver_id || 'unassigned'; if (!groupedByDriver[dId]) groupedByDriver[dId] = []; groupedByDriver[dId].push(delivery); });
-    const result = []; const fin = ['completed', 'failed', 'cancelled'];
-    Object.keys(groupedByDriver).forEach((dId) => { const sorted = [...groupedByDriver[dId]].sort((a, b) => { if (!a || !b) return 0; const ap = a.status === 'pending', bp = b.status === 'pending'; if (ap && !bp) return 1; if (!ap && bp) return -1; const ao = Number(a.stop_order), bo = Number(b.stop_order); const hao = Number.isFinite(ao) && ao > 0, hbo = Number.isFinite(bo) && bo > 0; if (hao && hbo && ao !== bo) return ao - bo; if (fin.includes(a.status) && fin.includes(b.status)) { const ta = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER; const tb = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER; if (ta !== tb) return ta - tb; } const ea = a.delivery_time_eta || a.delivery_time_start || '99:99'; const eb = b.delivery_time_eta || b.delivery_time_start || '99:99'; if (ea !== eb) return ea.localeCompare(eb); if (hao) return -1; if (hbo) return 1; return 0; }); let dc = 1; sorted.forEach((d) => { if (!d) return; const _isCycling = !!d.is_cycling_marker; result.push({ ...d, display_stop_order: (d.status !== 'pending' || _isCycling) ? dc++ : null }); }); });
+    const result = []; const fin = ['completed', 'failed', 'cancelled', 'returned'];
+    Object.keys(groupedByDriver).forEach((dId) => { const sorted = [...groupedByDriver[dId]].sort((a, b) => { if (!a || !b) return 0; const ac = !!a.is_cycling_marker, bc = !!b.is_cycling_marker; const ap = a.status === 'pending' && !ac, bp = b.status === 'pending' && !bc; if (ap && !bp) return 1; if (!ap && bp) return -1; const ao = Number(a.stop_order), bo = Number(b.stop_order); const hao = Number.isFinite(ao) && ao > 0, hbo = Number.isFinite(bo) && bo > 0; if (hao && hbo && ao !== bo) return ao - bo; if (fin.includes(a.status) && fin.includes(b.status)) { const ta = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER; const tb = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER; if (ta !== tb) return ta - tb; } const ea = a.delivery_time_eta || a.delivery_time_start || '99:99'; const eb = b.delivery_time_eta || b.delivery_time_start || '99:99'; if (ea !== eb) return ea.localeCompare(eb); if (hao) return -1; if (hbo) return 1; return 0; }); let dc = 1; sorted.forEach((d) => { if (!d) return; const _isCycling = !!d.is_cycling_marker; result.push({ ...d, display_stop_order: (d.status !== 'pending' || _isCycling) ? dc++ : null }); }); });
     return result;
   }, [filteredDeliveries]);
 
@@ -1586,14 +1586,24 @@ useEffect(() => {
       const driverDeliveries = await base44.entities.Delivery.filter({ delivery_date: deliveryDate, driver_id: driverId });
       const completed = (driverDeliveries || []).filter((d) => d && fin.includes(d.status));
       const incomplete = (driverDeliveries || []).filter((d) => d && !fin.includes(d.status));
+      // Sort completed ascending by actual_delivery_time (earliest = stop 1)
+      const sortedCompleted = [...completed].sort((a, b) => {
+        const ta = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER;
+        const tb = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER;
+        return ta - tb;
+      });
       if (incomplete.length === 0) {
-        const sc = [...completed].sort((a, b) => new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time));
-        for (let i = 0; i < sc.length; i++) if (sc[i]) await updateDeliveryLocal(sc[i].id, { stop_order: i + 1 });
+        for (let i = 0; i < sortedCompleted.length; i++) if (sortedCompleted[i]) await updateDeliveryLocal(sortedCompleted[i].id, { stop_order: i + 1 });
         continue;
       }
-      const enriched = incomplete.map((d) => { if (!d) return null; const e = { ...d }; if (d.patient_id) { const p = patients.find((x) => x && x.id === d.patient_id); if (p?.latitude) { e.latitude = p.latitude; e.longitude = p.longitude; } } else { const s = stores.find((x) => x && x.id === d.store_id); if (s?.latitude) { e.latitude = s.latitude; e.longitude = s.longitude; } } return e; }).filter((d) => d && d.latitude && d.longitude);
+      // Enrich incomplete stops — cycling markers use cycling_latitude/longitude
+      const cyclingMarkersIncomplete = incomplete.filter((d) => d && d.is_cycling_marker);
+      const regularIncomplete = incomplete.filter((d) => d && !d.is_cycling_marker);
+      const enriched = regularIncomplete.map((d) => { if (!d) return null; const e = { ...d }; if (d.patient_id) { const p = patients.find((x) => x && x.id === d.patient_id); if (p?.latitude) { e.latitude = p.latitude; e.longitude = p.longitude; } } else { const s = stores.find((x) => x && x.id === d.store_id); if (s?.latitude) { e.latitude = s.latitude; e.longitude = s.longitude; } } return e; }).filter((d) => d && d.latitude && d.longitude);
       const optimized = optimizeRoute(populateTemporaryStartTimes(enriched, stores), stores, patients, { useAdvancedOptimization: true, respectManualOrder: false, driverHome: driver.home_latitude ? { lat: driver.home_latitude, lon: driver.home_longitude } : null });
-      const final = [...[...completed].sort((a, b) => new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time)), ...optimized];
+      // Merge: completed (asc) → optimized regular stops → cycling markers slotted by their existing stop_order
+      const incompleteWithCycling = [...optimized, ...cyclingMarkersIncomplete].sort((a, b) => (Number(a.stop_order) || 99999) - (Number(b.stop_order) || 99999));
+      const final = [...sortedCompleted, ...incompleteWithCycling];
       for (let i = 0; i < final.length; i++) {
         const s = final[i]; if (!s) continue;
         const upd = { stop_order: i + 1 };
