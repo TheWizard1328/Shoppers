@@ -188,11 +188,19 @@ async function flushBuffered(entityName) {
           // CRITICAL: Re-engage FAB lock in phases 2/3 when the next stop flag is set.
           // This handles the case where handleStartDelivery or optimizeRemainingStops
           // updates isNextDelivery on the backend and it arrives via WebSocket.
+          // Resolve next stop location — include cycling marker coords if applicable
+          const _nextStopData = item.data;
+          let _nextStopLocation = null;
+          if (_nextStopData?.is_cycling_start_marker && _nextStopData?.cycling_start_latitude && _nextStopData?.cycling_start_longitude) {
+            _nextStopLocation = { latitude: _nextStopData.cycling_start_latitude, longitude: _nextStopData.cycling_start_longitude };
+          }
           window.dispatchEvent(new CustomEvent('isNextDeliveryFlagUpdated', {
             detail: {
               deliveryId: item.id,
               driverId: item.data?.driver_id,
-              deliveryDate: item.data?.delivery_date
+              deliveryDate: item.data?.delivery_date,
+              nextStopId: item.id,
+              nextStopLocation: _nextStopLocation,
             }
           }));
         });
@@ -523,8 +531,25 @@ const subscribeToEntity = (entityName) => {
     const entityDataCache = new Map();
 
     const unsubscribe = base44.entities[entityName].subscribe(async (event) => {
-      const { type, id } = event;
-      const data = entityName === 'Delivery' ? normalizeDeliveryRealtimeData(event.data) : event.data;
+    const { type, id } = event;
+    const data = entityName === 'Delivery' ? normalizeDeliveryRealtimeData(event.data) : event.data;
+
+    // SELF-ECHO SUPPRESSION: If this AppUser update was written by this exact device
+    // (tracked via window.__localAppUserWrites set in locationTrackerBroadcast),
+    // drop the incoming WS echo — the offline DB and UI state are already up to date.
+    // We suppress for 10 seconds from the write time to cover WebSocket round-trip latency.
+    if (entityName === 'AppUser') {
+      const localWrites = window.__localAppUserWrites;
+      if (localWrites && localWrites.has(id)) {
+        const writtenAt = localWrites.get(id);
+        if (Date.now() - writtenAt < 10000) {
+          console.log(`🔇 [RealtimeSync] Self-echo suppressed for AppUser ${id} — originated from this device (${Math.round((Date.now() - writtenAt) / 1000)}s ago)`);
+          return;
+        }
+        // Expired — remove so future remote updates from other devices pass through
+        localWrites.delete(id);
+      }
+    }
       
       // Get current user name for "updatedBy"
       let updatedBy = 'System';
@@ -978,14 +1003,14 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
           fromRealtime: true
         }
       }));
-      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-        detail: {
-          appUsers: data ? [data] : undefined,
-          deletedId: action === 'delete' ? id : undefined,
-          singleUpdate: data,
-          fromRealtime: true
-        }
-      }));
+      // CRITICAL: Do NOT dispatch driverLocationsUpdated from broadcastMutation for AppUser.
+      // This function is called by locationTrackerBroadcast on the PRIMARY device after
+      // writing to the server. The WebSocket subscription in subscribeToEntity('AppUser')
+      // already dispatches driverLocationsUpdated for SECONDARY devices when the WS event
+      // arrives. Dispatching it here as well causes the primary device to also move its own
+      // shared marker, and secondary devices receive the event twice (once from this call
+      // via the module event, and again from the incoming WS subscription).
+      // The shared marker on ALL devices must only be driven by the WebSocket path.
     }
 
     if (entity === 'Patient') {

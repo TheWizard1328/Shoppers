@@ -23,7 +23,7 @@ export default function MapController({
 }) {
   const isDraggingRef = useRef(false);
   const hasMovedRef = useRef(false);
-  
+
   const mapInstance = useMapEvents({
     zoomstart: () => {
       const isProgrammaticFromFlag = mapInstance._isProgrammaticZoom?.current === true;
@@ -32,6 +32,12 @@ export default function MapController({
       
       if (isProgrammaticFromFlag || isProgrammaticFromTimer) {
         console.log('🗺️ [MapController] ZOOM START - PROGRAMMATIC (ignoring)');
+        return;
+      }
+
+      // Block user-initiated zoom when a stats card or stop card is expanded
+      if (window._panZoomBlocked) {
+        console.log('🗺️ [MapController] ZOOM BLOCKED — panel expanded');
         return;
       }
       
@@ -47,11 +53,17 @@ export default function MapController({
       }
     },
     dragstart: () => {
+      // Block drag when a stats card or stop card is expanded
+      if (window._panZoomBlocked) {
+        console.log('🗺️ [MapController] DRAG BLOCKED — panel expanded');
+        return;
+      }
       isDraggingRef.current = true;
       hasMovedRef.current = false;
       markUserMapControlActive();
     },
     drag: () => {
+      if (window._panZoomBlocked) return;
       hasMovedRef.current = true;
     },
     dragend: () => {
@@ -162,6 +174,30 @@ export default function MapController({
       if (onDoubleTap) onDoubleTap(true);
     },
   });
+
+  // Disable/enable Leaflet drag + scroll-zoom when panels are expanded.
+  // Listens to a window event so DashboardView can signal without prop-drilling.
+  useEffect(() => {
+    const handleBlock = () => {
+      mapInstance.dragging?.disable();
+      mapInstance.scrollWheelZoom?.disable();
+      mapInstance.touchZoom?.disable();
+    };
+    const handleUnblock = () => {
+      mapInstance.dragging?.enable();
+      mapInstance.scrollWheelZoom?.enable();
+      mapInstance.touchZoom?.enable();
+    };
+    // Apply initial state in case panels are already expanded when map mounts
+    if (window._panZoomBlocked) handleBlock();
+    window.addEventListener('mapPanZoomBlock', handleBlock);
+    window.addEventListener('mapPanZoomUnblock', handleUnblock);
+    return () => {
+      window.removeEventListener('mapPanZoomBlock', handleBlock);
+      window.removeEventListener('mapPanZoomUnblock', handleUnblock);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Handle zoom-in on double tap via window event (fired from MapSection onDoubleTap)
   useEffect(() => {

@@ -532,8 +532,11 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
         const { base44 } = await import('@/api/base44Client');
         const backendDelivery = await base44.entities.Delivery.update(deliveryId, meaningfulUpdates);
         console.log('✅ [Sync] Delivery updated on backend:', deliveryId);
-        
-        // Broadcast removed
+
+        // Broadcast to other tabs/clients
+        window.dispatchEvent(new CustomEvent('deliveryUpdated', {
+          detail: { deliveryId, updates: meaningfulUpdates, source: 'updateDeliveryLocal' }
+        }));
 
         // Add to IndexedDB
         await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [backendDelivery]);
@@ -681,8 +684,11 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
         const { base44 } = await import('@/api/base44Client');
         await base44.entities.Delivery.update(deliveryId, meaningfulUpdates);
         console.log('✅ [Sync] Delivery synced to backend immediately:', deliveryId);
-        
-        // Broadcast removed
+
+        // Broadcast to other tabs/clients via WebSocket
+        window.dispatchEvent(new CustomEvent('deliveryUpdated', {
+          detail: { deliveryId, updates: meaningfulUpdates, source: 'updateDeliveryLocal' }
+        }));
       } catch (error) {
         console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
         // Queue for backend sync if immediate sync fails

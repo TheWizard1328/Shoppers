@@ -12,6 +12,8 @@ import { updateDeliveryLocal } from '@/components/utils/offlineMutations';
 import { pauseOfflineSync, resumeOfflineSync } from '@/components/utils/offlineSync';
 import { addMinutesToTime, generateUniqueSID, populateTemporaryStartTimes } from '@/components/dashboard/DashboardHelpers';
 import { optimizeRoute } from '@/components/utils/routeOptimizer';
+import { requestDeferredOptimization, pauseDeferredOptimization } from '@/components/utils/optimizationDebouncer';
+import { recalculateAndUpdateStopOrders } from '@/components/utils/stopOrderManager';
 
 function addMinutes(time, mins) {
   return addMinutesToTime(time, mins);
@@ -73,36 +75,77 @@ export async function handleSaveDelivery(deliveryData, ctx) {
     }
 
     if (isEditing && !driverWasChanged) {
-      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+      // ── CHANGE DETECTION ─────────────────────────────────────────────────
+      // Fields that, when changed, can alter stop ordering or route topology
+      const STRUCTURAL_FIELDS = [
+        'status', 'delivery_time_start', 'delivery_time_end',
+        'actual_delivery_time', 'delivery_time_eta',
+      ];
 
-      // Step 1: Apply the edit to the delivery being changed
+      const hasStructuralChange = STRUCTURAL_FIELDS.some(
+        (field) => (deliveryData?.[field] ?? '') !== (editingDelivery?.[field] ?? '')
+      );
+
+      // Check if ANY field at all changed — if nothing changed, skip everything
+      const ALL_TRACKED_FIELDS = [
+        ...STRUCTURAL_FIELDS,
+        'delivery_notes', 'delivery_instructions', 'unit_number',
+        'patient_name', 'patient_phone', 'store_phone',
+        'cod_total_amount_required', 'signature_needed', 'fridge_item',
+        'oversized', 'mailbox_ok', 'call_upon_arrival', 'ring_bell',
+        'dont_ring_bell', 'back_door', 'first_delivery',
+        'prescription_number', 'barcode_values', 'receipt_barcode_values',
+        'extra_time', 'ampm_deliveries',
+      ];
+
+      const anyFieldChanged = ALL_TRACKED_FIELDS.some((field) => {
+        const oldVal = editingDelivery?.[field];
+        const newVal = deliveryData?.[field];
+        // Array comparison (barcode_values etc)
+        if (Array.isArray(oldVal) || Array.isArray(newVal)) {
+          return JSON.stringify(oldVal ?? []) !== JSON.stringify(newVal ?? []);
+        }
+        return (oldVal ?? '') !== (newVal ?? '');
+      });
+
+      if (!anyFieldChanged) {
+        // Nothing changed — close the form silently, no DB writes, no optimization
+        setShowDeliveryForm(false);
+        setEditingDelivery(null);
+        fabControlEvents.resetToPhaseOneAfterDone(500);
+        return;
+      }
+
+      // Step 1: Save the changed fields to the DB
       await updateDeliveryLocal(editingDelivery.id, deliveryData);
 
-      // Step 2: Optimistically update the UI immediately using current in-memory state
-      // so stops don't disappear while we do background work
+      // Step 2: Optimistically update the UI
       if (applyDeliveryChangesLocally) {
         applyDeliveryChangesLocally({ upserts: [{ ...editingDelivery, ...deliveryData }] });
       } else if (updateDeliveriesLocally) {
         updateDeliveriesLocally([{ ...editingDelivery, ...deliveryData }], false);
       }
 
-      // Step 3: Reorder stop_orders in the background (non-blocking for UI)
-      const allForDriver = (deliveries || []).filter((d) => d && d.delivery_date === deliveryDate && d.driver_id === driverId);
-      const completedDeliveries = allForDriver.filter((d) => finishedStatuses.includes(d.status));
-      const incompleteDeliveries = allForDriver.filter((d) => !finishedStatuses.includes(d.status));
-      let startingStopOrder = completedDeliveries.length > 0 ? Math.max(...completedDeliveries.map((d) => d.stop_order || 0)) : 0;
-      const sortedIncomplete = [...incompleteDeliveries].sort((a, b) => {
-        if (!a || !b) return 0;
-        if (a.status === 'pending' && b.status !== 'pending') return 1;
-        if (a.status !== 'pending' && b.status === 'pending') return -1;
-        return (a.delivery_time_eta || a.delivery_time_start || '99:99').localeCompare(b.delivery_time_eta || b.delivery_time_start || '99:99');
-      });
-      for (let i = 0; i < sortedIncomplete.length; i++) {
-        if (sortedIncomplete[i]) await updateDeliveryLocal(sortedIncomplete[i].id, { stop_order: startingStopOrder + i + 1 });
+      if (hasStructuralChange) {
+        // Step 3: Re-sort stop orders and check if any actually changed
+        const { orderChanged } = await recalculateAndUpdateStopOrders(
+          driverId, deliveryDate,
+          /*skipPolylineRegeneration=*/ true,   // we control polylines below
+          /*skipPolylineIfNoOrderChange=*/ false
+        );
+
+        // Step 4: Only run expensive optimization/polylines if order actually shifted
+        requestDeferredOptimization(driverId, deliveryDate, orderChanged);
       }
+      // Non-structural change → just broadcast so UI refreshes, no optimization
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: { driverId, deliveryDate, triggeredBy: 'formSave', preserveLocalState: true }
+      }));
 
       invalidate('Delivery');
-      setShowDeliveryForm(false); setEditingDelivery(null); fabControlEvents.resetToPhaseOneAfterDone(500);
+      setShowDeliveryForm(false);
+      setEditingDelivery(null);
+      fabControlEvents.resetToPhaseOneAfterDone(500);
       return;
     }
 
@@ -279,7 +322,7 @@ export async function handleSaveDelivery(deliveryData, ctx) {
   } finally {
     await new Promise((resolve) => setTimeout(resolve, 1000));
     resumeOfflineSync();
-    smartRefreshManager.resume();
+    smartRefreshManager.restart(); // restart (not just resume) so the next cycle fetches fresh data
     setIsEntityUpdating(false);
   }
 }

@@ -339,7 +339,7 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
     }
 
     if (driverId && deliveryDate) {
-      recalculateAndUpdateStopOrders(driverId, deliveryDate).catch((error) => console.warn('⚠️ Stop order recalc failed:', error));
+      recalculateAndUpdateStopOrders(driverId, deliveryDate, /*skipPolylineRegeneration=*/true).catch((error) => console.warn('⚠️ Stop order recalc failed:', error));
       if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
         import('@/components/dashboard/handleStatusUpdateOptimization').then(({ handleStatusUpdateOptimization }) => handleStatusUpdateOptimization(driverId, deliveryDate)).catch((e) => console.warn('⚠️ Status update optimization failed:', e));
       }

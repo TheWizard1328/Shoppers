@@ -61,6 +61,7 @@ export default function ResetPolylinesButton({
 
     setIsResetting(true);
     smartRefreshManager.pause();
+    window.dispatchEvent(new CustomEvent('polylineGenerationStarted', { detail: { isRegenerate: true } }));
     const breadcrumbIntegrationResults = [];
 
     try {
@@ -296,6 +297,7 @@ export default function ResetPolylinesButton({
     } finally {
       smartRefreshManager.restart();
       setIsResetting(false);
+      window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'reset_polylines' } }));
     }
   };
 

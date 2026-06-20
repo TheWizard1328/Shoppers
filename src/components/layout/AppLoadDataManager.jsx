@@ -4,6 +4,7 @@
  */
 
 import { executeAppLoadDataSync } from '../utils/appLoadDataSync';
+import { smartRefreshManager } from '../utils/smartRefreshManager';
 
 /**
  * Initialize app load data listeners and syncing
@@ -33,7 +34,11 @@ export const initializeAppLoadDataFlow = (uiStateSetters) => {
     const { deliveries, patients, appUsers, stores, cities } = event.detail || {};
     if (deliveries) setDeliveries(deliveries);
     if (patients) setPatients(patients);
-    if (appUsers) setAppUsers(appUsers);
+    if (appUsers) {
+      setAppUsers(appUsers);
+      // Stamp all AppUsers as "just refreshed" so the SmartRefresh poll skips them for 60s
+      smartRefreshManager.stampAppUsersAsRefreshed(appUsers);
+    }
     if (stores) setStores(stores);
     if (cities) setCities(cities);
     setDataLoaded(true);

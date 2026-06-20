@@ -591,13 +591,14 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
 
   useEffect(() => {
     const isActiveUser = delivery?.driver_id === currentUser?.id;
-    if (!isActivePatientStop || !hasArrived || coLocatedCount === 0 || !isActiveUser) return;
+    // Only show on the driver's primary device — non-primary devices must not pop this dialog
+    if (!isActivePatientStop || !hasArrived || coLocatedCount === 0 || !isActiveUser || !isPrimaryDevice) return;
     if (!clusterKey) return;
     // Only the first card in a cluster opens the dialog
     if (_openClusterKeys.has(clusterKey)) return;
     _openClusterKeys.add(clusterKey);
     setShowMultiArrivalDialog(true);
-  }, [hasArrived, coLocatedCount, isActivePatientStop, delivery?.driver_id, currentUser?.id, clusterKey]);
+  }, [hasArrived, coLocatedCount, isActivePatientStop, delivery?.driver_id, currentUser?.id, clusterKey, isPrimaryDevice]);
 
   // Derived: driver has physically arrived at this pickup stop AND there are pending deliveries to accept.
   // Triggers on arrival_time (30s stationary) OR immediately when within 100m (same
@@ -975,11 +976,9 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
             patients={patients}
             onCompleteDelivery={async (targetDelivery) => {
               if (targetDelivery.id === delivery.id) {
-                // Use the existing hook handler for the current card
                 await handleCompleteActionWithBle(null);
               } else {
-                // For other cluster stops: run the same terminal action via the shared engine
-                // We call the backend directly — same as handleCompleteAction but for a different delivery
+                // Run the same terminal path as the stop card: write status, then recalculate isNextDelivery
                 const { updateDeliveryLocal } = await import('../utils/offlineMutations');
                 const { generateCompletionTimestamp } = await import('../utils/timeRoundingHelper');
                 const now = new Date();
@@ -989,17 +988,37 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                   actual_delivery_time: localTimeString || `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`,
                   isNextDelivery: false,
                   PolylineUpdated: true,
-                  finished_leg_transport_mode: 'driving',
+                  finished_leg_transport_mode: currentDriverAppUser?.preferred_travel_mode || 'driving',
                 };
+                // 1. Write status update locally + backend
                 await updateDeliveryLocal(targetDelivery.id, completionUpdate, { skipSmartRefresh: true });
                 await base44.entities.Delivery.update(targetDelivery.id, completionUpdate).catch(() => null);
+
+                // 2. Recalculate isNextDelivery across all stops for this driver+date — same as executeTerminalAction
+                const allDriverDeliveries = allDeliveries
+                  .filter((d) => d && d.driver_id === targetDelivery.driver_id && d.delivery_date === targetDelivery.delivery_date)
+                  .map((d) => d.id === targetDelivery.id ? { ...d, ...completionUpdate } : d);
+                await setAndCenterNextDelivery({
+                  driverDeliveries: allDriverDeliveries,
+                  targetDeliveryId: allDriverDeliveries
+                    .filter((d) => d.id !== targetDelivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending')
+                    .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0]?.id || null,
+                  updateDeliveryLocal,
+                  updateDeliveriesLocally,
+                  driverId: targetDelivery.driver_id,
+                  deliveryDate: targetDelivery.delivery_date,
+                  skipBackgroundSync: true,
+                  persistToBackend: true,
+                });
+
+                // 3. Optimistic UI update + broadcast
                 updateDeliveriesLocally([{ ...targetDelivery, ...completionUpdate }], false);
                 window.dispatchEvent(new CustomEvent('deliveryStatusChanged', { detail: { triggeredBy: 'completed', driverId: targetDelivery.driver_id, deliveryDate: targetDelivery.delivery_date, maxStops: 5 } }));
+                window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'statusUpdate', driverId: targetDelivery.driver_id, deliveryDate: targetDelivery.delivery_date } }));
               }
             }}
             onFailDelivery={async (targetDelivery, reason) => {
               if (targetDelivery.id === delivery.id) {
-                // Use the existing hook handler for the current card
                 setPendingFailureStatus('failed');
                 await handleFailureConfirmWithBle(reason);
               } else {
@@ -1015,12 +1034,33 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
                   actual_delivery_time: localTimeString || `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`,
                   isNextDelivery: false,
                   PolylineUpdated: true,
-                  finished_leg_transport_mode: 'driving',
+                  finished_leg_transport_mode: currentDriverAppUser?.preferred_travel_mode || 'driving',
                 };
+                // 1. Write status update locally + backend
                 await updateDeliveryLocal(targetDelivery.id, failUpdate, { skipSmartRefresh: true });
                 await base44.entities.Delivery.update(targetDelivery.id, failUpdate).catch(() => null);
+
+                // 2. Recalculate isNextDelivery across all stops — same as executeTerminalAction
+                const allDriverDeliveries = allDeliveries
+                  .filter((d) => d && d.driver_id === targetDelivery.driver_id && d.delivery_date === targetDelivery.delivery_date)
+                  .map((d) => d.id === targetDelivery.id ? { ...d, ...failUpdate } : d);
+                await setAndCenterNextDelivery({
+                  driverDeliveries: allDriverDeliveries,
+                  targetDeliveryId: allDriverDeliveries
+                    .filter((d) => d.id !== targetDelivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending')
+                    .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0]?.id || null,
+                  updateDeliveryLocal,
+                  updateDeliveriesLocally,
+                  driverId: targetDelivery.driver_id,
+                  deliveryDate: targetDelivery.delivery_date,
+                  skipBackgroundSync: true,
+                  persistToBackend: true,
+                });
+
+                // 3. Optimistic UI update + broadcast
                 updateDeliveriesLocally([{ ...targetDelivery, ...failUpdate }], false);
                 window.dispatchEvent(new CustomEvent('deliveryStatusChanged', { detail: { triggeredBy: 'failed', driverId: targetDelivery.driver_id, deliveryDate: targetDelivery.delivery_date, maxStops: 5 } }));
+                window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'statusUpdate', driverId: targetDelivery.driver_id, deliveryDate: targetDelivery.delivery_date } }));
               }
             }}
           />

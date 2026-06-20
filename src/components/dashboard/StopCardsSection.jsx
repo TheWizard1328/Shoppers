@@ -81,7 +81,7 @@ export default function StopCardsSection({
           filter((delivery) => delivery && (delivery.is_cycling_marker || delivery.status !== 'pending') && !delivery.is_cycling_start_marker).
           map((delivery) => {
             if (!delivery) return delivery;
-            if (!delivery.patient_id && delivery.status === 'en_route' && delivery.stop_id) {
+            if (!delivery.patient_id && (delivery.status === 'en_route' || delivery.status === 'pending') && delivery.stop_id) {
               let pending = deliveriesWithStopOrder.filter((d) => d && d.puid === delivery.stop_id && d.status === 'pending' && d.patient_id);
               if (isDispatcher && currentUser?.store_ids?.length > 0) {
                 const dispStoreIds = new Set(currentUser.store_ids);

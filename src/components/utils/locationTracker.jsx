@@ -15,7 +15,7 @@ import { collectBreadcrumbForTracker } from './locationBreadcrumbService';
 class LocationTracker {
     constructor() {
         this.watchId = null;
-        this.heartbeatInterval = null; // Poll GPS every 15 seconds
+        this.heartbeatInterval = null; // Poll GPS every 15 seconds (drivers) or timestamp-only every 60s (dispatchers/admins)
         this.isTracking = false;
         this.lastPosition = null;
         this.lastUpdate = 0;
@@ -23,7 +23,8 @@ class LocationTracker {
         this.currentUser = null;
         this.appUserId = null;
         this.driverStatus = 'off_duty';
-        this.updateInterval = 15000; // 15 seconds GPS polling
+        this.userRoles = []; // Populated on startTracking — drives mode selection
+        this.updateInterval = 15000; // 15 seconds GPS polling (drivers only)
         this.coordinateUpdateInterval = 15000; // 15 seconds between coordinate updates
 
         // Distance threshold - only upload if moved at least 100m
@@ -75,21 +76,57 @@ class LocationTracker {
    */
   loadSettings() {
     try {
-      const settings = getRouteOptimizationSettings();
-      // Interval locked to 15 seconds for primary device polling
-      this.updateInterval = 15000; // 15 seconds GPS polling
-
-      // 100m minimum movement threshold
+      getRouteOptimizationSettings();
+      this.updateInterval = 15000; // 15s GPS polling — drivers only
       this.minDistanceChange = 100;
-      this.breadcrumbSaveInterval = 5000; // 5 seconds — offline DB write frequency
-
-      console.log(`📍 [LocationTracker] Interval: ${this.updateInterval / 1000}s, breadcrumb interval: ${this.breadcrumbSaveInterval / 1000}s, distance threshold: ${this.minDistanceChange}m`);
+      this.breadcrumbSaveInterval = 5000; // 5s — offline DB write frequency, on_duty drivers only
+      console.log(`📍 [LocationTracker] Interval: ${this.updateInterval / 1000}s, breadcrumb: ${this.breadcrumbSaveInterval / 1000}s, distance: ${this.minDistanceChange}m`);
     } catch (error) {
       console.warn('⚠️ Could not load route optimization settings, using defaults');
-      this.updateInterval = 15000; // Default 15 seconds
-      this.minDistanceChange = 100; // Default 100m
-      this.breadcrumbSaveInterval = 15000;
+      this.updateInterval = 15000;
+      this.minDistanceChange = 100;
+      this.breadcrumbSaveInterval = 5000;
     }
+  }
+
+  /**
+   * Returns true if the current user is a dispatcher or admin (but NOT a driver).
+   * These roles get timestamp-only heartbeat — no GPS polling.
+   */
+  _isDispatcherOrAdminOnly() {
+    const roles = this.userRoles || [];
+    const isDriver = roles.includes('driver');
+    const isDispatcherOrAdmin = roles.includes('dispatcher') || roles.includes('admin');
+    return isDispatcherOrAdmin && !isDriver;
+  }
+
+  /**
+   * Start a timestamp-only heartbeat for dispatchers/admins.
+   * Fires once per 60 seconds — only updates location_updated_at, never coordinates.
+   */
+  async _startDispatcherHeartbeat() {
+    if (!this.appUserId || !this.currentUser) return;
+    this._clearHeartbeat();
+    this.isTracking = true;
+    this._dispatcherHeartbeatMode = true;
+
+    const doHeartbeat = async () => {
+      if (!this.isTracking || !this._dispatcherHeartbeatMode) return;
+      if (!navigator.onLine || !this.appUserId) return;
+      try {
+        const nowISO = getLocalTimestamp();
+        await base44.entities.AppUser.update(this.appUserId, { location_updated_at: nowISO });
+        this.lastHeartbeatAt = Date.now();
+        console.log(`💓 [LocationTracker] Dispatcher/Admin heartbeat sent`);
+      } catch (err) {
+        console.warn('⚠️ [LocationTracker] Dispatcher heartbeat failed:', err?.message);
+      }
+    };
+
+    // Send immediately on start, then repeat every 60s
+    await doHeartbeat();
+    this.heartbeatInterval = setInterval(doHeartbeat, 60000);
+    console.log(`📍 [LocationTracker] Dispatcher/Admin heartbeat-only mode started (60s interval, no GPS)`);
   }
 
   /**
@@ -165,6 +202,7 @@ class LocationTracker {
 
     this.currentUser = user;
     this.driverStatus = user.driver_status || 'off_duty';
+    this.userRoles = Array.isArray(user.app_roles) ? user.app_roles : [];
 
     // CRITICAL: Check primary device status from the database — do NOT assume primary
     try {
@@ -178,6 +216,18 @@ class LocationTracker {
     // CRITICAL: Non-primary devices must not run the web-only heartbeat
     if (!this.isPrimaryDevice) {
       console.log(`🚫 [LocationTracker] Non-primary device — skipping web-only tracking`);
+      return;
+    }
+
+    // Dispatcher/Admin: timestamp-only heartbeat, no GPS
+    if (this._isDispatcherOrAdminOnly()) {
+      console.log(`📡 [LocationTracker] Dispatcher/Admin web-only — starting timestamp-only heartbeat`);
+      try {
+        const appUsers = await base44.entities.AppUser.filter({ user_id: user.id });
+        if (appUsers && appUsers.length > 0) this.appUserId = user.appUserId || appUsers[0].id;
+      } catch (_) {}
+      if (!this.appUserId) return;
+      await this._startDispatcherHeartbeat();
       return;
     }
 
@@ -334,10 +384,13 @@ class LocationTracker {
       return;
     }
 
-    // CRITICAL: Check deduplication - prevent duplicate uploads within 2 seconds
-    if (!forceUpdate && !timestampOnly && (now - this.lastUploadTime) < this.minTimeBetweenUploads) {
-      const msRemaining = this.minTimeBetweenUploads - (now - this.lastUploadTime);
-      console.log(`⏳ [LocationTracker] Dedup: Waiting ${msRemaining}ms to prevent duplicate upload`);
+    // CRITICAL: Strict 15s gate — only the heartbeat interval or an explicit forceUpdate may write.
+    // watchPosition fires on every GPS hardware lock (can be every 1s); we must throttle here.
+    // timestampOnly=true comes exclusively from the 15s heartbeat setInterval — allow it through.
+    // forceUpdate=true is reserved for the very first GPS fix on tracking start.
+    if (!forceUpdate && !timestampOnly && (now - this.lastUploadTime) < this.updateInterval) {
+      const msRemaining = this.updateInterval - (now - this.lastUploadTime);
+      console.log(`⏳ [LocationTracker] 15s gate: suppressing GPS write — ${Math.round(msRemaining / 1000)}s remaining`);
       return;
     }
 
@@ -550,18 +603,9 @@ class LocationTracker {
       }
 
       console.log(`✅✅✅ [LocationTracker] UPLOAD COMPLETE - Next in ${this.updateInterval/1000}s`);
-
-      window.dispatchEvent(new CustomEvent('driverLocationUpdated', {
-        detail: {
-          userId: this.currentUser?.id,
-          latitude,
-          longitude,
-          accuracy,
-          timestamp: now,
-          isRealtime: true,
-          isCoordinateUpdate: true
-        }
-      }));
+      // NOTE: driverPositionUpdated is dispatched in handleLocationSuccess (live GPS callback)
+      // for the blue dot on the primary device. We do NOT re-dispatch a location event here
+      // after the DB write — that path leads to shared marker updates on all devices.
 
     } catch (error) {
       this.failedUpdateCount++;
@@ -731,6 +775,8 @@ class LocationTracker {
     }
 
     this.currentUser = user;
+    // Capture roles so _isDispatcherOrAdminOnly() works throughout tracking
+    this.userRoles = Array.isArray(user.app_roles) ? user.app_roles : [];
 
     // CRITICAL: Check if this is the primary device BEFORE starting GPS
     try {
@@ -790,6 +836,13 @@ class LocationTracker {
     // Abort here so no watchPosition, no heartbeat interval, and no DB writes ever happen.
     if (!this.isPrimaryDevice) {
       console.log(`🚫 [LocationTracker] Non-primary device — GPS tracking aborted. No data will be uploaded.`);
+      return;
+    }
+
+    // DISPATCHER / ADMIN ONLY: Skip GPS entirely — just send a timestamp heartbeat once per minute.
+    if (this._isDispatcherOrAdminOnly()) {
+      console.log(`📡 [LocationTracker] Dispatcher/Admin role — starting timestamp-only heartbeat (no GPS, no coordinates)`);
+      await this._startDispatcherHeartbeat();
       return;
     }
 
@@ -937,7 +990,9 @@ class LocationTracker {
     console.log('💓 [LocationTracker] Stopped heartbeat + breadcrumb intervals');
     this.isTracking = false;
     this._webOnlyMode = false;
+    this._dispatcherHeartbeatMode = false;
     this.isPrimaryDevice = false;
+    this.userRoles = [];
     this.lastPosition = null;
     this.lastUpdate = 0;
     this.lastCoordinateUpdate = 0;
@@ -1072,7 +1127,7 @@ class LocationTracker {
     }
 
     if (this.lastBreadcrumbSavedAt && timestamp - this.lastBreadcrumbSavedAt < this.breadcrumbSaveInterval) {
-      console.log(`🍞 [LocationTracker] Skipping breadcrumb - waiting ${Math.ceil((this.breadcrumbSaveInterval - (timestamp - this.lastBreadcrumbSavedAt)) / 1000)}s for 15s interval`);
+      console.log(`🍞 [LocationTracker] Skipping breadcrumb - waiting ${Math.ceil((this.breadcrumbSaveInterval - (timestamp - this.lastBreadcrumbSavedAt)) / 1000)}s for ${this.breadcrumbSaveInterval / 1000}s interval`);
       return;
     }
 
@@ -1153,6 +1208,44 @@ class LocationTracker {
     }
   }
 
+  /**
+   * Called when the app returns to focus after being away long enough to potentially stale out.
+   * 1. Immediately acquires a fresh GPS fix and uploads it.
+   * 2. Resets the breadcrumb timer so the next 5s tick fires with a valid position.
+   * 3. If away > 30s, fires a global event so the offline DB can resync deliveries.
+   */
+  async _resumeAfterAbsence(awayDurationMs = 0) {
+    // Step 1: Immediately grab a fresh GPS fix + upload
+    await this.refreshNow({ source: 'visibility-return' });
+
+    // Step 2: Reset breadcrumb timer so it fires immediately on the next tick
+    this.lastBreadcrumbSavedAt = 0;
+
+    // Step 3: Restart breadcrumb interval (clears any stale/dead timer)
+    if (this.breadcrumbInterval) {
+      clearInterval(this.breadcrumbInterval);
+      this.breadcrumbInterval = null;
+    }
+    this.breadcrumbInterval = setInterval(() => {
+      if (!this.isTracking || this.driverStatus !== 'on_duty' || !this.lastPosition) return;
+      this.collectBreadcrumb(
+        this.lastPosition.latitude,
+        this.lastPosition.longitude,
+        Date.now()
+      ).catch((e) => console.warn('⚠️ [Breadcrumb Timer] collectBreadcrumb failed:', e?.message));
+    }, this.breadcrumbSaveInterval);
+
+    console.log(`🍞 [LocationTracker] Breadcrumb timer restarted after resume`);
+
+    // Step 4: If away for more than 30 seconds, signal the offline DB to resync deliveries
+    if (awayDurationMs > 30000) {
+      console.log(`📦 [LocationTracker] Away > 30s — signalling offline DB resync`);
+      window.dispatchEvent(new CustomEvent('driverResumedAfterAbsence', {
+        detail: { awayDurationMs, userId: this.currentUser?.id }
+      }));
+    }
+  }
+
   getStatus() {
      return {
        isTracking: this.isTracking,
@@ -1194,13 +1287,16 @@ if (typeof document !== 'undefined') {
       locationTracker.lastCoordinateUpdate || 0
     );
 
+    const awayDuration = referenceTime > 0 ? now - referenceTime : 0;
+
     if (
       locationTracker.isTracking &&
       locationTracker.driverStatus === 'on_duty' &&
       referenceTime > 0 &&
-      now - referenceTime > 15000
+      awayDuration > 15000
     ) {
-      locationTracker.refreshNow({ source: 'visibility-return' });
+      console.log(`🔄 [LocationTracker] App resumed after ${Math.round(awayDuration / 1000)}s away — resyncing GPS, breadcrumbs, and offline DB`);
+      locationTracker._resumeAfterAbsence(awayDuration);
     }
   });
 }

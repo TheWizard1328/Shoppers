@@ -22,6 +22,7 @@ import { runAcceptAllBatchPipeline } from '../utils/acceptAllBatchPipeline';
 import { runWithDeliveryActionLock } from '../utils/deliveryActionLock';
 import { pauseOfflineSync, resumeOfflineSync } from '../utils/offlineSync';
 import { pauseRealtimeSync, resumeRealtimeSync } from '../utils/realtimeSync';
+import { backgroundSyncManager } from '../utils/backgroundSyncManager';
 import { getOrFetchHereApiKey } from '../utils/hereApiKeyStore';
 import { invokeOptimizeAwareCycling } from '../utils/cyclingAwareOptimizer';
 import { notifyDriverAcceptedAll, notifyDispatcherAssignedAll, notifyDriverStarted, notifyDriverCompleted, notifyDriverFailed, notifyDriverRetry, notifyDriverReturn } from "../utils/deliveryMessaging";
@@ -271,7 +272,8 @@ export default function useStopCardActions(params) {
 
       // Dispatch optimizationStarted AFTER the batch pipeline has updated all delivery statuses
       // so the optimizer fires only once all transitions are complete.
-      window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'accept_all', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
+      const isDriverAction = userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id;
+      window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: isDriverAction ? 'accept_all' : 'assign_all', stopCount: scopedPendingDeliveries.length, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
 
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'acceptAll', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, preserveLocalState: true, freshDeliveries: [...stagedChangedDeliveries, ...finalOfflineUpdates], alreadyOptimized: false } }));
       window.dispatchEvent(new CustomEvent('pendingToInTransit', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
@@ -341,7 +343,6 @@ export default function useStopCardActions(params) {
         base44.functions.invoke('syncSquareCods', { items: codBatch }).catch((e) => console.warn('⚠️ [Square] Batch COD sync failed to start:', e));
       }
 
-      const isDriverAction = userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id;
       if (isDriverAction) {
         notifyDriverAcceptedAll({ driver: currentUser, store, appUsers }).catch(() => {});
       } else {
@@ -558,6 +559,8 @@ export default function useStopCardActions(params) {
     const { driverLocationPoller } = await import('../utils/driverLocationPoller');
     driverLocationPoller.pause();
     smartRefreshManager.pause();
+    backgroundSyncManager.pause();
+    pauseRealtimeSync();
 
     const lockResult = await runWithDeliveryActionLock(START_ACTION_NAME, async () => {
       if (!delivery?.id || !delivery?.driver_id || !delivery?.delivery_date) {
@@ -585,8 +588,11 @@ export default function useStopCardActions(params) {
           .filter((d) => d && d.status === 'pending')
           .sort((a, b) => Number(a?.stop_order || 0) - Number(b?.stop_order || 0));
 
+        // Put the started stop first among active stops, clear isNextDelivery on all others
+        const startMinutes = now.getHours() * 60 + now.getMinutes() + 5;
+        const startTimeStr = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
         const reorderedActiveStops = activeStops.filter((d) => d?.id !== delivery.id);
-        reorderedActiveStops.unshift(delivery);
+        reorderedActiveStops.unshift({ ...delivery, status: 'in_transit', delivery_time_start: startTimeStr });
         const startedRouteDeliveries = [...completedStops, ...reorderedActiveStops, ...pendingStops]
           .filter(Boolean)
           .map((d, index) => ({
@@ -615,6 +621,11 @@ export default function useStopCardActions(params) {
             if ((existing.isNextDelivery || false) !== (item.isNextDelivery || false)) updates.isNextDelivery = item.isNextDelivery || false;
             if (Number(existing.stop_order || 0) !== Number(item.stop_order || 0)) updates.stop_order = item.stop_order;
             if (Number(existing.display_stop_order || 0) !== Number(item.display_stop_order || 0)) updates.display_stop_order = item.display_stop_order;
+            // For the started stop: persist status + delivery_time_start immediately
+            if (item.id === delivery.id) {
+              if (existing.status !== 'in_transit') updates.status = 'in_transit';
+              if (item.delivery_time_start && existing.delivery_time_start !== item.delivery_time_start) updates.delivery_time_start = item.delivery_time_start;
+            }
             if (Object.keys(updates).length === 0) return Promise.resolve(null);
             return Promise.all([
               updateDeliveryLocal(item.id, updates, { skipSmartRefresh: true, isBatchOperation: true }),
@@ -651,9 +662,12 @@ export default function useStopCardActions(params) {
         }
 
         // ── Unlock UI immediately — optimization/polyline work runs in background ──
+        // NOTE: managers stay paused; background tail re-pauses them before its API calls
         resumeOfflineSync('delivery_actions');
         driverLocationPoller.resume();
         smartRefreshManager.resume();
+        backgroundSyncManager.resume();
+        resumeRealtimeSync();
         resetActionLocks(true);
 
         await ensureDriverOnline().catch(() => {});
@@ -661,8 +675,6 @@ export default function useStopCardActions(params) {
           notifyDriverStarted({ driver: currentUser, patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name, delivery, store, appUsers }).catch(() => {});
         }
         // ── Cold-chain: prompt cooler temp on arrival ────────────────────────
-        // Delivery stop: only if this specific stop is a fridge item.
-        // Pickup stop: only if at least one pending delivery for this store is a fridge item.
         const hasPendingFridgeDeliveryForStore = isPickup && delivery?.store_id
           ? allDeliveries.some((d) =>
               d &&
@@ -678,33 +690,17 @@ export default function useStopCardActions(params) {
         }
         fabControlEvents.reactivatePhaseTwoIfAvailable();
 
-        // ── Background: optimization + polyline regen (does NOT block the UI) ──
-        // Show KITT banner while background optimization runs
+        // ── Background: optimization + polyline regen ──────────────────────
+        // Managers are re-paused for the duration of the async work so no
+        // competing refresh can overwrite the new stop_order assignments while
+        // optimization is in-flight.
         window.dispatchEvent(new CustomEvent('routeOptimizationStarted', { detail: { source: 'start_button', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
         Promise.resolve().then(async () => {
+          // Re-pause for the async optimization work
+          smartRefreshManager.pause();
+          backgroundSyncManager.pause();
+          pauseRealtimeSync();
           try {
-            if (isAlreadyNaturalNext) {
-              // Fast path: just recalculate ETAs locally and tracking numbers
-              const remainingStops = routeDeliveries
-                .filter((d) => d && !finishedSet.has(d.status) && d.id !== delivery.id)
-                .sort((a, b) => Number(a?.stop_order || 0) - Number(b?.stop_order || 0));
-              if (remainingStops.length > 0) {
-                const [hrs, mins] = currentLocalTime.split(':').map(Number);
-                let etaMinutes = hrs * 60 + mins + 5 + (delivery.estimated_duration_minutes || 5);
-                const etaUpdates = remainingStops.map((stop) => {
-                  const newEtaHours = Math.floor((etaMinutes % 1440) / 60);
-                  const newEtaMins = etaMinutes % 60;
-                  const newEta = `${String(newEtaHours).padStart(2, '0')}:${String(newEtaMins).padStart(2, '0')}`;
-                  etaMinutes += (stop.estimated_duration_minutes || 5);
-                  return { deliveryId: stop.id, newEta };
-                });
-                window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: delivery.driver_id, updates: etaUpdates } }));
-              }
-              await base44.functions.invoke('recalculateTrackingNumbers', { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }).catch(() => null);
-              window.dispatchEvent(new CustomEvent('routeOptimizationComplete', { detail: { source: 'start_button', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
-              return;
-            }
-
             const hereApiKey = await getOrFetchHereApiKey();
             const optimizeResponse = await base44.functions.invoke('optimizeRemainingStops', {
               driverId: delivery.driver_id,
@@ -717,7 +713,7 @@ export default function useStopCardActions(params) {
             }).catch(() => null);
             const optimizeData = optimizeResponse?.data || optimizeResponse || null;
 
-            // Fetch fresh deliveries after optimization to capture stop_order changes
+            // Fetch fresh deliveries after optimization to capture authoritative stop_order
             const refreshedImmediately = await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
             const refreshedListImmediate = Array.isArray(refreshedImmediately)
               ? refreshedImmediately
@@ -726,8 +722,13 @@ export default function useStopCardActions(params) {
                 : null;
 
             if (Array.isArray(refreshedListImmediate) && refreshedListImmediate.length > 0) {
-              await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', delivery.delivery_date, refreshedListImmediate);
-              updateDeliveriesLocally?.(refreshedListImmediate, true);
+              // Ensure started stop is marked isNextDelivery in the refreshed list before writing
+              const withNextFlag = refreshedListImmediate.map((d) => ({
+                ...d,
+                isNextDelivery: d.id === delivery.id ? true : (d.isNextDelivery && d.id !== delivery.id ? false : d.isNextDelivery),
+              }));
+              await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', delivery.delivery_date, withNextFlag);
+              updateDeliveriesLocally?.(withNextFlag, true);
             }
 
             await base44.functions.invoke('recalculateTrackingNumbers', {
@@ -739,6 +740,7 @@ export default function useStopCardActions(params) {
               window.dispatchEvent(new CustomEvent('etaUpdated', { detail: { driverId: delivery.driver_id, updates: optimizeData.optimizedRoute.map((stop) => ({ deliveryId: stop.deliveryId || stop.delivery_id, newEta: stop.newETA || stop.eta })).filter((stop) => stop.deliveryId && stop.newEta) } }));
             }
 
+            window.dispatchEvent(new CustomEvent('polylineGenerationStarted', { detail: { isRegenerate: false, driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
             const polylineResponse = await base44.functions.invoke('purgeAndRegeneratePolylines', {
               driverId: delivery.driver_id,
               deliveryDate: delivery.delivery_date,
@@ -767,6 +769,7 @@ export default function useStopCardActions(params) {
               reuseProvidedPolylines: true
             }).catch(() => null);
 
+            // Final authoritative fetch — write the fully-optimized state to UI
             const refreshedDeliveries = await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
             const refreshedList = Array.isArray(refreshedDeliveries)
               ? refreshedDeliveries
@@ -774,12 +777,17 @@ export default function useStopCardActions(params) {
                 ? refreshedDeliveries.deliveries
                 : null;
             if (Array.isArray(refreshedList) && refreshedList.length > 0) {
-              await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', delivery.delivery_date, refreshedList);
-              updateDeliveriesLocally?.(refreshedList, true);
-              window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, fullReplacement: true, freshDeliveries: refreshedList } }));
+              // Preserve isNextDelivery on the started stop if backend hasn't set it yet
+              const withNextFlagFinal = refreshedList.map((d) => ({
+                ...d,
+                isNextDelivery: d.id === delivery.id ? true : (d.isNextDelivery && d.id !== delivery.id ? false : d.isNextDelivery),
+              }));
+              await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', delivery.delivery_date, withNextFlagFinal);
+              updateDeliveriesLocally?.(withNextFlagFinal, true);
+              window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { triggeredBy: 'startOptimized', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, alreadyOptimized: true, preserveLocalState: true, fullReplacement: true, freshDeliveries: withNextFlagFinal } }));
               try {
                 const { broadcastMutation } = await import('../utils/realtimeSync');
-                await Promise.all(refreshedList.map((item) => broadcastMutation('Delivery', 'update', item.id, item)));
+                await Promise.all(withNextFlagFinal.map((item) => broadcastMutation('Delivery', 'update', item.id, item)));
               } catch (broadcastError) {
                 console.warn('⚠️ [Start bg] delivery broadcast failed:', broadcastError?.message || broadcastError);
               }
@@ -795,6 +803,11 @@ export default function useStopCardActions(params) {
             }
           } catch (bgErr) {
             console.warn('⚠️ [Start bg] background optimization failed:', bgErr?.message || bgErr);
+          } finally {
+            // Always resume after background work completes or fails
+            smartRefreshManager.resume();
+            backgroundSyncManager.resume();
+            resumeRealtimeSync();
           }
         });
 
@@ -803,6 +816,8 @@ export default function useStopCardActions(params) {
         resumeOfflineSync('delivery_actions');
         driverLocationPoller.resume();
         smartRefreshManager.resume();
+        backgroundSyncManager.resume();
+        resumeRealtimeSync();
         resetActionLocks(true);
       } finally {
         // No-op: locks already released above on the happy path; error path releases above too
@@ -970,6 +985,8 @@ export default function useStopCardActions(params) {
       const { driverLocationPoller } = await import('../utils/driverLocationPoller');
       driverLocationPoller.pause();
       smartRefreshManager.pause();
+      backgroundSyncManager.pause();
+      pauseRealtimeSync();
       smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
       try {
         const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
@@ -1103,6 +1120,8 @@ export default function useStopCardActions(params) {
         resumeOfflineSync('delivery_actions');
         driverLocationPoller?.resume?.();
         smartRefreshManager.resume();
+        backgroundSyncManager.resume();
+        resumeRealtimeSync();
         resetActionLocks(true);
       }
     });
@@ -1122,6 +1141,9 @@ export default function useStopCardActions(params) {
       pauseOfflineSync('delivery_actions');
       const { driverLocationPoller } = await import('../utils/driverLocationPoller');
       driverLocationPoller.pause();
+      smartRefreshManager.pause();
+      backgroundSyncManager.pause();
+      pauseRealtimeSync();
       try {
         setShowFailureReasonDialog(false);
         setPendingFailureStatus(null);
@@ -1205,6 +1227,8 @@ export default function useStopCardActions(params) {
         resumeOfflineSync('delivery_actions');
         driverLocationPoller?.resume?.();
         smartRefreshManager.resume();
+        backgroundSyncManager.resume();
+        resumeRealtimeSync();
         resetActionLocks(true);
       }
     });

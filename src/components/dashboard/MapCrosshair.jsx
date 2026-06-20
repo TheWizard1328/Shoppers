@@ -9,8 +9,10 @@ import React from 'react';
  * This is a pure overlay - not part of the map, so it doesn't move when panning.
  */
 export default function MapCrosshair({ stopCardsHeight = 75, statsCardHeight = 0, isMobile = false, immersiveHidden = false }) {
-  const topObscured = immersiveHidden ? 0 : (isMobile ? statsCardHeight : 0);
-  const bottomObscured = immersiveHidden ? 0 : stopCardsHeight;
+  // NOTE: immersive mode intentionally no longer affects the crosshair position —
+  // it should stay where it sits in normal mode and not jump when immersive enables.
+  const topObscured = isMobile ? statsCardHeight : 0;
+  const bottomObscured = stopCardsHeight;
   const visibleCenterOffset = Math.round((topObscured - bottomObscured) / 2);
   const verticalShift = topObscured === 0 && bottomObscured === 0 ? 0 : visibleCenterOffset;
 

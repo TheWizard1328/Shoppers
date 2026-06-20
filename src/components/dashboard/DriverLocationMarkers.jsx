@@ -147,16 +147,22 @@ const mergeVisibleDriversByFreshness = (current = [], incoming = []) => {
       return;
     }
 
-    // CRITICAL: Always accept incoming data — never silently discard a server update
-    // because of a local/server clock skew. Only fall back to existing coords when
-    // the incoming record genuinely has no coordinates.
+    // FRESHNESS GUARD: never regress to an OLDER location. If the incoming record's
+    // timestamp is older than what we already show, keep the existing coordinates AND
+    // timestamp. This stops the marker from bouncing between a fresh DB update and a
+    // stale cached value (e.g. an un-invalidated offline-DB record arriving after the
+    // WebSocket update). Equal-or-newer incoming data is always accepted.
     const incomingHasCoords = user?.current_latitude && user?.current_longitude;
+    const incomingIsNewerOrEqual = nextTs >= existingTs;
+    const useIncomingCoords = incomingHasCoords && incomingIsNewerOrEqual;
     merged.set(key, {
       ...existing,
       ...user,
-      current_latitude: incomingHasCoords ? user.current_latitude : existing?.current_latitude,
-      current_longitude: incomingHasCoords ? user.current_longitude : existing?.current_longitude,
-      location_updated_at: user?.location_updated_at || existing?.location_updated_at || user?.updated_date || existing?.updated_date
+      current_latitude: useIncomingCoords ? user.current_latitude : existing?.current_latitude,
+      current_longitude: useIncomingCoords ? user.current_longitude : existing?.current_longitude,
+      location_updated_at: incomingIsNewerOrEqual
+        ? (user?.location_updated_at || existing?.location_updated_at || user?.updated_date || existing?.updated_date)
+        : (existing?.location_updated_at || existing?.updated_date || user?.location_updated_at)
     });
   });
 
@@ -389,65 +395,48 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
   }, [currentUser, selectedDate, isAdmin, isDispatcher, isDriver, deliveries]);
 
   useEffect(() => {
-    // CRITICAL: The `users` prop comes pre-filtered from driverLocationPoller
-    // which already handles all permission checks, status checks, and dispatcher logic
-    // We just need to do basic validation and track changes for re-rendering
-    
+    // Normalize and filter the incoming users prop
     const validDrivers = (users || []).filter(user => {
-      if (!user) return false;
-
-      // Skip if no valid coordinates
-      if (!user.current_latitude || !user.current_longitude) {
-        return false;
-      }
-
-      // Don't show markers for past dates
+      if (!user || !user.current_latitude || !user.current_longitude) return false;
       if (selectedDate) {
         const todayStr = format(new Date(), 'yyyy-MM-dd');
-        const selectedDateStr = selectedDate instanceof Date 
-          ? selectedDate.toISOString().split('T')[0]
-          : selectedDate;
-        if (selectedDateStr < todayStr) {
-          return false;
-        }
+        const selectedDateStr = selectedDate instanceof Date ? selectedDate.toISOString().split('T')[0] : selectedDate;
+        if (selectedDateStr < todayStr) return false;
       }
-
       return shouldShowMarker(user);
     });
-    
-    // CRITICAL: Deduplicate self markers on primary device - only keep ONE (the live one)
-    const deduplicatedDrivers = dedupeVisibleDrivers(validDrivers);
-    // CRITICAL: No cache merge here — source of truth is WebSocket → offline DB → users prop only.
-    const mergedDrivers = deduplicatedDrivers.filter(shouldShowMarker);
-    
-    const newVisibleIds = new Set(mergedDrivers.map(d => getDriverIdentityKey(d) || d.id));
-    const prevIds = prevVisibleIdsRef.current;
-    
-    const idsChanged = newVisibleIds.size !== prevIds.size || 
-      [...newVisibleIds].some(id => !prevIds.has(id)) ||
-      [...prevIds].some(id => !newVisibleIds.has(id));
-    
-    const locationsChanged = mergedDrivers.some(driver => {
-      const driverKey = getDriverIdentityKey(driver) || driver.id;
-      const existing = visibleDrivers.find(d => (getDriverIdentityKey(d) || d.id) === driverKey);
-      if (!existing) return true;
-      const latDiff = Math.abs((driver.current_latitude || 0) - (existing.current_latitude || 0));
-      const lngDiff = Math.abs((driver.current_longitude || 0) - (existing.current_longitude || 0));
-      
-      return latDiff > 0 || lngDiff > 0;
+
+    const incomingDrivers = dedupeVisibleDrivers(validDrivers);
+    const incomingKeys = new Set(incomingDrivers.map(d => getDriverIdentityKey(d) || d.id).filter(Boolean));
+
+    // UNIFIED UPDATE: same merge-by-freshness logic as the driverLocationsUpdated event handler.
+    // Uses a functional updater (never reads stale closure) so there's no race between the
+    // WS event path and the prop path — whichever wrote fresher coords wins and is kept.
+    setVisibleDrivers((prev) => {
+      // Merge: incoming advances existing if newer, existing wins if fresher (no regression)
+      const merged = mergeVisibleDriversByFreshness(prev || [], incomingDrivers);
+
+      // Sync semantics: drop drivers no longer in the prop, UNLESS they have a very recent
+      // timestamp that suggests a WS event updated them after this prop snapshot was taken.
+      const WS_GRACE_MS = 90 * 1000;
+      const result = merged.filter(d => {
+        const key = getDriverIdentityKey(d) || d.id;
+        if (incomingKeys.has(key)) return shouldShowMarker(d);
+        // Not in prop — keep briefly if WS delivered a fresh update we shouldn't discard yet
+        const ts = new Date(d.location_updated_at || d.updated_date || 0).getTime();
+        return (Date.now() - ts < WS_GRACE_MS) && shouldShowMarker(d);
+      });
+
+      return dedupeVisibleDrivers(result);
     });
-    
-    if (idsChanged || locationsChanged) {
-      setVisibleDrivers(mergedDrivers);
-      prevVisibleIdsRef.current = newVisibleIds;
-    }
-    
+
+    prevVisibleIdsRef.current = incomingKeys;
+
+    // Clean up marker refs for drivers that are no longer in the incoming set
     Object.keys(markerRefs.current).forEach(userId => {
-      if (!mergedDrivers.find(d => (getDriverIdentityKey(d) || d.id) === userId)) {
-        delete markerRefs.current[userId];
-      }
+      if (!incomingKeys.has(userId)) delete markerRefs.current[userId];
     });
-    
+
   }, [users, currentUser, isMobile, deliveries, selectedDate, isAdmin, isDispatcher, isDriver]);
 
   // Listen for location cleared events
@@ -471,6 +460,28 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     } catch (error) {
       return 'Invalid date';
     }
+  };
+
+  // Stable display timestamps — debounced per driver so the popup doesn't flicker
+  // when two browser instances receive the same WS event at slightly different times.
+  const stableTimestampsRef = useRef(new Map()); // key → { ts: string, committedAt: number }
+  const TIMESTAMP_DEBOUNCE_MS = 3000; // only update displayed timestamp if >3s newer
+
+  const getStableTimestamp = (stableKey, locationUpdatedAt) => {
+    if (!locationUpdatedAt) return locationUpdatedAt;
+    const entry = stableTimestampsRef.current.get(stableKey);
+    const incoming = new Date(locationUpdatedAt).getTime();
+    if (!entry) {
+      stableTimestampsRef.current.set(stableKey, { ts: locationUpdatedAt, committedAt: Date.now() });
+      return locationUpdatedAt;
+    }
+    const existing = new Date(entry.ts).getTime();
+    // Only advance the displayed timestamp if the incoming value is meaningfully newer
+    if (incoming - existing >= TIMESTAMP_DEBOUNCE_MS) {
+      stableTimestampsRef.current.set(stableKey, { ts: locationUpdatedAt, committedAt: Date.now() });
+      return locationUpdatedAt;
+    }
+    return entry.ts;
   };
 
   // Stable initial positions — used as the React prop for each Marker so the prop never changes
@@ -572,15 +583,27 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         const displayName = user.user_name || user.full_name || 'Unknown Driver';
         const firstName = displayName.split(' ')[0];
         
+        const stableKey = getDriverIdentityKey(user) || user.id;
+        // Stable timestamp — debounced so popup doesn't flicker when WS events arrive
+        // at slightly different times across browser instances
+        const stableUpdatedAt = getStableTimestamp(stableKey, user.location_updated_at);
+
         const currentUserId = currentUser?.id;
         const currentUserUserId = currentUser?.user_id;
+        const currentAppUserId = currentUser?.appUserId;
         const userId = user.id || user.user_id;
-        const isSelf = user.isSelf === true || user._isSelf === true || userId === currentUserId || userId === currentUserUserId || user.user_id === currentUserId;
-        const updatedAtMs = user.location_updated_at ? new Date(user.location_updated_at).getTime() : 0;
+        // CRITICAL: Match all possible ID formats — AppUser.user_id vs User.id vs appUserId
+        // to ensure isSelf is stable across browser instances regardless of which field arrives first
+        const isSelf = user.isSelf === true || user._isSelf === true ||
+          userId === currentUserId ||
+          userId === currentUserUserId ||
+          userId === currentAppUserId ||
+          user.user_id === currentUserId ||
+          user.user_id === currentUserUserId;
+        const updatedAtMs = stableUpdatedAt ? new Date(stableUpdatedAt).getTime() : 0;
         const hasRecentHeartbeat = updatedAtMs > 0 && (Date.now() - updatedAtMs) <= 5 * 60 * 1000;
         const isSharedLocation = isSelf && !isPrimaryDeviceRef.current && hasRecentHeartbeat;
 
-        const stableKey = getDriverIdentityKey(user) || user.id;
         // Use the stable initial position as the React prop — actual movement is applied
         // imperatively via setLatLng in the animation effect, preventing Leaflet from
         // destroying and recreating the marker DOM (and triggering tile reloads) on every update.
@@ -659,7 +682,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
                   </>
                 )}
                 <p className="text-xs text-slate-600 mt-2">
-                  Updated: {getLocationAge(user.location_updated_at)}
+                  Updated: {getLocationAge(stableUpdatedAt)}
                 </p>
               </div>
             </Popup>

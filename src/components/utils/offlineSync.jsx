@@ -337,13 +337,17 @@ export const performSlowStorePatientSync = async () => {
       if (window.__dashboardSyncing || window.__activePullToSyncRunId || getSyncPaused()) break;
       
       try {
-        // Fetch patients for this store only
-        const storePatients = await Patient.filter({ store_id: store.id, status: 'active' });
-        
-        if (storePatients && storePatients.length > 0) {
-          // Merge into offline DB (don't replace entire DB)
+        // Fetch ALL patients for this store (active + inactive) in batches
+        let slowOffset = 0;
+        const SLOW_BATCH = 200;
+        while (true) {
+          const storePatients = await Patient.filter({ store_id: store.id }, '-updated_date', SLOW_BATCH, slowOffset);
+          if (!storePatients || storePatients.length === 0) break;
           await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, storePatients);
           totalSyncedPatients += storePatients.length;
+          if (storePatients.length < SLOW_BATCH) break;
+          slowOffset += SLOW_BATCH;
+          await new Promise(r => setTimeout(r, 300));
         }
         
         const progress = 5 + Math.floor((i / stores.length) * 90);
@@ -390,12 +394,22 @@ export const loadAndCacheDeliveriesForDate = async (dateStr) => {
   
   try {
     const deliveries = await Delivery.filter({ delivery_date: dateStr });
-    // CRITICAL: Always replace local records for this date — empty = 0 stops on server
-    await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', dateStr, deliveries || []);
+    // Upsert fresh records, then prune any offline records that no longer exist on the server
+    const incomingIds = new Set((deliveries || []).map(d => d?.id).filter(Boolean));
+    const existingForDate = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === dateStr);
+    const toDelete = existingForDate.filter(d => d?.id && !d.id.startsWith('temp_') && !incomingIds.has(d.id));
+    if (deliveries && deliveries.length > 0) {
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+    }
+    if (toDelete.length > 0) {
+      await Promise.all(toDelete.map(d => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id).catch(() => {})));
+    }
     invalidateEntityCache('Delivery');
-    return deliveries;
+    return deliveries || [];
   } catch (error) {
-    return [];
+    // On error (e.g. rate limit), return whatever is in the offline DB for this date
+    const cached = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === dateStr);
+    return cached;
   }
 };
 
@@ -475,6 +489,7 @@ export const forceSyncAll = async () => {
       }
     });
     const appUsers = Array.from(appUsersByUserId.values());
+    // replaceAllRecords already handles orphan pruning for AppUsers (full replace)
     await offlineDB.replaceAllRecords(offlineDB.STORES.APP_USERS, appUsers);
     invalidateEntityCache('AppUser');
     notifySyncStatus({ status: 'syncing', entity: 'AppUsers', progress: 10, count: appUsers.length });
@@ -508,22 +523,31 @@ export const forceSyncAll = async () => {
     }
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
 
-    // Sync ALL patients store-by-store for a complete offline DB
+    // Sync ALL patients store-by-store (both active AND inactive) for a complete offline DB
     notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 25 });
-    console.log('🔄 [ForceSyncAll] Syncing ALL patients from all stores...');
+    console.log('🔄 [ForceSyncAll] Syncing ALL patients from all stores (active + inactive)...');
 
     const allStores = await Store.list();
-    let totalSyncedPatients = 0;
     const STORE_COOLDOWN = 1500; // 1.5s between stores
+    const PATIENT_BATCH_SIZE_FORCE = 200;
+    let allOnlinePatientIds = new Set(); // track all IDs for orphan pruning
+    let totalSyncedPatients = 0;
 
     for (let i = 0; i < allStores.length; i++) {
       const store = allStores[i];
       if (!store?.id) continue;
       try {
-        const storePatients = await Patient.filter({ store_id: store.id, status: 'active' });
-        if (storePatients && storePatients.length > 0) {
+        // Fetch ALL patients for this store (no status filter) in batches
+        let offset = 0;
+        while (true) {
+          const storePatients = await Patient.filter({ store_id: store.id }, '-updated_date', PATIENT_BATCH_SIZE_FORCE, offset);
+          if (!storePatients || storePatients.length === 0) break;
           await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, storePatients);
+          storePatients.forEach(p => { if (p?.id) allOnlinePatientIds.add(p.id); });
           totalSyncedPatients += storePatients.length;
+          if (storePatients.length < PATIENT_BATCH_SIZE_FORCE) break;
+          offset += PATIENT_BATCH_SIZE_FORCE;
+          await new Promise(r => setTimeout(r, 300));
         }
         const progress = 25 + Math.floor((i / allStores.length) * 20);
         notifySyncStatus({ status: 'syncing', entity: `Patients (${store.name || 'Store'} ${i+1}/${allStores.length})`, progress, count: totalSyncedPatients });
@@ -536,6 +560,16 @@ export const forceSyncAll = async () => {
         console.warn(`⚠️ [ForceSyncAll] Failed to sync patients for store ${store.name}:`, storeError.message);
       }
     }
+
+    // Prune patients that exist offline but no longer exist online
+    if (allOnlinePatientIds.size > 0) {
+      const allOfflinePatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+      const orphanPatients = (allOfflinePatients || []).filter(p => p?.id && !p.id.startsWith('temp_') && !allOnlinePatientIds.has(p.id));
+      if (orphanPatients.length > 0) {
+        await Promise.all(orphanPatients.map(p => offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, p.id).catch(() => {})));
+        console.log(`🗑️ [ForceSyncAll] Pruned ${orphanPatients.length} deleted patients from offline DB`);
+      }
+    }
     invalidateEntityCache('Patient');
 
     const cleanPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
@@ -546,8 +580,14 @@ export const forceSyncAll = async () => {
 
     notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 40 });
     const deliveries = await Delivery.filter({ delivery_date: selectedDateStr });
-    // CRITICAL: Replace (not merge) local records for today — empty result means 0 stops
-    await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr, deliveries || []);
+    // Upsert + prune deleted — never clear the date's data before writing
+    {
+      const fsIncomingIds = new Set((deliveries || []).map(d => d?.id).filter(Boolean));
+      const fsExisting = (await offlineDB.getAll(offlineDB.STORES.DELIVERIES)).filter(d => d?.delivery_date === selectedDateStr);
+      const fsToDelete = fsExisting.filter(d => d?.id && !d.id.startsWith('temp_') && !fsIncomingIds.has(d.id));
+      if (deliveries && deliveries.length > 0) await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+      if (fsToDelete.length > 0) await Promise.all(fsToDelete.map(d => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id).catch(() => {})));
+    }
     invalidateEntityCache('Delivery');
     notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 50, count: deliveries.length });
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
@@ -840,22 +880,30 @@ export const restartDeliveryPatientSync = async () => {
     const uniquePatientIdsList = Array.from(uniquePatientIdsFromLastWeek);
     console.log(`📍 [OfflineSync] Found ${uniquePatientIdsList.length} unique patients in ${allDeliveriesLastWeek.length} deliveries from last 7 days`);
 
-    // Step 2: Sync ALL active patients store-by-store (complete offline DB)
+    // Step 2: Sync ALL patients store-by-store (active + inactive, batched)
     notifySyncStatus({ status: 'syncing', entity: 'Patients (all stores)', progress: 55 });
-    console.log('🔄 [OfflineSync] Step 2: Syncing ALL active patients store-by-store...');
+    console.log('🔄 [OfflineSync] Step 2: Syncing ALL patients store-by-store (active + inactive)...');
 
     const allStoresForPatients = await Store.list();
     let totalRestartPatients = 0;
+    const allRestartOnlinePatientIds = new Set();
     const RESTART_STORE_COOLDOWN = 1500;
+    const RESTART_PATIENT_BATCH = 200;
 
     for (let si = 0; si < allStoresForPatients.length; si++) {
       const store = allStoresForPatients[si];
       if (!store?.id) continue;
       try {
-        const storePatients = await Patient.filter({ store_id: store.id, status: 'active' });
-        if (storePatients && storePatients.length > 0) {
+        let offset = 0;
+        while (true) {
+          const storePatients = await Patient.filter({ store_id: store.id }, '-updated_date', RESTART_PATIENT_BATCH, offset);
+          if (!storePatients || storePatients.length === 0) break;
           await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, storePatients);
+          storePatients.forEach(p => { if (p?.id) allRestartOnlinePatientIds.add(p.id); });
           totalRestartPatients += storePatients.length;
+          if (storePatients.length < RESTART_PATIENT_BATCH) break;
+          offset += RESTART_PATIENT_BATCH;
+          await new Promise(r => setTimeout(r, 300));
         }
         const batchProgress = 55 + Math.floor((si / allStoresForPatients.length) * 20);
         notifySyncStatus({ status: 'syncing', entity: `Patients (${store.name || 'Store'} ${si+1}/${allStoresForPatients.length})`, progress: batchProgress, count: totalRestartPatients });
@@ -866,6 +914,16 @@ export const restartDeliveryPatientSync = async () => {
           break;
         }
         console.warn(`⚠️ [OfflineSync] Failed store ${store.name}:`, err.message);
+      }
+    }
+
+    // Prune patients no longer in the online DB
+    if (allRestartOnlinePatientIds.size > 0) {
+      const allOfflineForRestart = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+      const orphans = (allOfflineForRestart || []).filter(p => p?.id && !p.id.startsWith('temp_') && !allRestartOnlinePatientIds.has(p.id));
+      if (orphans.length > 0) {
+        await Promise.all(orphans.map(p => offlineDB.deleteRecord(offlineDB.STORES.PATIENTS, p.id).catch(() => {})));
+        console.log(`🗑️ [RestartSync] Pruned ${orphans.length} deleted patients`);
       }
     }
     invalidateEntityCache('Patient');

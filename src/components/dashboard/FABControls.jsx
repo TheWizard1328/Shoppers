@@ -71,9 +71,9 @@ export default function FABControls({
   // For ISP/ISD inter-store deliveries, use the inter-store location record for phone/nav
   const immersivePatientPhone = immersiveIsInterStore
     ? (immersiveInterStoreLocation?.store_phone || null)
-    : !immersiveOverlayIsPickup
-      ? (immersiveOverlayPatient?.phone || immersiveOverlayPatient?.phone_secondary || null)
-      : null;
+    : immersiveOverlayIsPickup
+      ? (immersiveOverlayStore?.phone || null)
+      : (immersiveOverlayPatient?.phone || immersiveOverlayPatient?.phone_secondary || null);
 
   const immersiveNavLat = immersiveIsInterStore
     ? (immersiveInterStoreLocation?.store_latitude ?? immersiveOverlayStore?.latitude)

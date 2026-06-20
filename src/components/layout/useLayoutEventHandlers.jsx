@@ -409,6 +409,41 @@ export function useLayoutEventHandlers({
     };
     window.addEventListener('pullToSyncDataReady', handlePullToSyncDataReady);
 
+    // Update patients state when patientDbPrioritySync finishes syncing fresh data
+    const handleOfflinePatientsRefreshed = async () => {
+      try {
+        const freshPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS).catch(() => []);
+        if (freshPatients && freshPatients.length > 0) {
+          setPatients((prev) => mergePatients(prev, freshPatients));
+          console.log(`✅ [Layout] Patient DB priority sync applied — ${freshPatients.length} patients in state`);
+        }
+      } catch (_) {}
+    };
+    window.addEventListener('offlinePatientsRefreshed', handleOfflinePatientsRefreshed);
+
+    // DRIVER RESUME: When the driver returns after being away, resync the offline DB
+    // so deliveries are fresh before the breadcrumb timer fires its next point.
+    const handleDriverResumedAfterAbsence = async (event) => {
+      const { awayDurationMs = 0 } = event.detail || {};
+      console.log(`🔄 [Layout] Driver resumed after ${Math.round(awayDurationMs / 1000)}s away — resyncing deliveries from offline DB`);
+      try {
+        const selectedDateStr = globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd');
+        const { loadAndCacheDeliveriesForDate } = await import('../utils/offlineSync');
+        const freshDeliveries = await loadAndCacheDeliveriesForDate(selectedDateStr);
+        if (freshDeliveries && freshDeliveries.length > 0) {
+          setDeliveries((prev) => {
+            const map = new Map((prev || []).filter(Boolean).map((d) => [d.id, d]));
+            freshDeliveries.forEach((d) => { if (d?.id) map.set(d.id, map.has(d.id) ? { ...map.get(d.id), ...d } : d); });
+            return Array.from(map.values());
+          });
+          console.log(`✅ [Layout] Resume resync applied — ${freshDeliveries.length} deliveries refreshed`);
+        }
+      } catch (e) {
+        console.warn('⚠️ [Layout] Resume resync failed:', e?.message);
+      }
+    };
+    window.addEventListener('driverResumedAfterAbsence', handleDriverResumedAfterAbsence);
+
     // AUTO-RECOVERY: Listen for force refresh after connection recovery
     const handleForceDataRefresh = async () => {
       console.log('🔄 [Layout] Force data refresh after connection recovery - COMPREHENSIVE MODE');
@@ -499,6 +534,8 @@ export function useLayoutEventHandlers({
       window.removeEventListener('pullToSyncDataReady', handlePullToSyncDataReady);
       window.removeEventListener('appUserUpdated', handleAppUserUpdated);
       window.removeEventListener('openMessaging', handleOpenMessaging);window.removeEventListener('openMessagingPanel', handleOpenMessagingPanel);
+      window.removeEventListener('offlinePatientsRefreshed', handleOfflinePatientsRefreshed);
+      window.removeEventListener('driverResumedAfterAbsence', handleDriverResumedAfterAbsence);
     };
   }, [currentUser, currentPageName]);
 }

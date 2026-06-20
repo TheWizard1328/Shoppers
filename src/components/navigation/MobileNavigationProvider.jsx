@@ -49,7 +49,7 @@ const sanitizeState = (rawState = {}) => {
   return {
     ...defaultState,
     ...rawState,
-    activeTab: rawState?.activeTab && MOBILE_TAB_CONFIG[rawState.activeTab] ? rawState.activeTab : defaultState.activeTab,
+    activeTab: rawState?.activeTab === null ? null : (rawState?.activeTab && MOBILE_TAB_CONFIG[rawState.activeTab] ? rawState.activeTab : defaultState.activeTab),
     lastAction: rawState?.lastAction === 'pop' ? 'pop' : 'push',
     tabStacks,
     scrollPositions,
@@ -110,7 +110,16 @@ export function MobileNavigationProvider({ children }) {
     const nextAction = pendingActionRef.current || 'push';
 
     persistState((previousState) => {
-      const tabKey = getTabKeyForPath(location.pathname) || previousState.activeTab || 'dashboard';
+      const tabKey = getTabKeyForPath(location.pathname) || null;
+
+      // If we're on an unrecognized page, just clear activeTab and don't touch tabStacks
+      if (!tabKey) {
+        if (previousState.activeTab === null && previousState.lastAction === nextAction) {
+          return previousState;
+        }
+        return { ...previousState, activeTab: null, lastAction: nextAction };
+      }
+
       const rootPath = getRootPath(tabKey);
       const previousStack = previousState.tabStacks?.[tabKey] || [rootPath];
       let nextStack = previousStack;
@@ -183,6 +192,8 @@ export function MobileNavigationProvider({ children }) {
   const navigateToTab = React.useCallback((tabKey, fallbackPath) => {
     const savedStack = state.tabStacks?.[tabKey] || [getRootPath(tabKey)];
     const targetPath = savedStack[savedStack.length - 1] || normalizeRoutePath(fallbackPath) || getRootPath(tabKey);
+    // Always navigate — even if targetPath === currentPath, we may be coming from an off-tab page
+    // so we force navigation by always calling navigate
 
     pendingActionRef.current = 'push';
     persistState((previousState) => ({
@@ -240,9 +251,9 @@ export function MobileNavigationProvider({ children }) {
     persistState((previousState) => ({ ...previousState, lastAction: action === 'pop' ? 'pop' : 'push' }));
   }, [persistState]);
 
-  const activeTab = getTabKeyForPath(location.pathname) || state.activeTab || 'dashboard';
-  const activeTabRootPath = getRootPath(activeTab);
-  const activeTabStack = state.tabStacks?.[activeTab] || [activeTabRootPath];
+  const activeTab = getTabKeyForPath(location.pathname) || null;
+  const activeTabRootPath = activeTab ? getRootPath(activeTab) : currentPath;
+  const activeTabStack = (activeTab ? state.tabStacks?.[activeTab] : null) || [activeTabRootPath];
   const canGoBack = activeTabStack.length > 1 || currentPath !== activeTabRootPath;
 
   const value = React.useMemo(() => ({

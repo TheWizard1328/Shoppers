@@ -1,4 +1,8 @@
 import React, { useMemo, useState } from 'react';
+import { smartRefreshManager } from '../utils/smartRefreshManager';
+import { backgroundSyncManager } from '../utils/backgroundSyncManager';
+import { pauseOfflineSync, resumeOfflineSync } from '../utils/offlineSync';
+import { pauseRealtimeSync, resumeRealtimeSync } from '../utils/realtimeSync';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Phone, MapPin, Hash, CheckCircle, XCircle, Loader2 } from 'lucide-react';
@@ -46,6 +50,7 @@ export default function MultiDeliveryArrivalDialog({
 }) {
   const [loadingId, setLoadingId] = useState(null); // deliveryId currently being actioned
   const [failTarget, setFailTarget] = useState(null); // delivery to fail after reason dialog
+  const [locallyFinishedIds, setLocallyFinishedIds] = useState(new Set()); // immediately hide buttons after action
 
   // Resolve GPS for any delivery (patient address)
   const getCoords = (delivery) => {
@@ -76,19 +81,30 @@ export default function MultiDeliveryArrivalDialog({
 
   const allAtLocation = [currentDelivery, ...sameLocationDeliveries];
 
-  const handleComplete = async (delivery) => {
-    if (loadingId) return;
-    setLoadingId(delivery.id);
+  const handleComplete = async (targetDelivery) => {
+    if (loadingId || locallyFinishedIds.has(targetDelivery.id)) return;
+    setLoadingId(targetDelivery.id);
+    setLocallyFinishedIds((prev) => new Set([...prev, targetDelivery.id]));
+    smartRefreshManager.pause();
+    backgroundSyncManager.pause();
+    pauseOfflineSync('delivery_actions');
+    pauseRealtimeSync();
     try {
-      await onCompleteDelivery?.(delivery);
+      await onCompleteDelivery?.(targetDelivery);
     } finally {
+      smartRefreshManager.resume();
+      backgroundSyncManager.resume();
+      resumeOfflineSync('delivery_actions');
+      resumeRealtimeSync();
       setLoadingId(null);
     }
   };
 
-  const handleFailClick = (delivery) => {
-    if (loadingId) return;
-    setFailTarget(delivery);
+
+
+  const handleFailClick = (targetDelivery) => {
+    if (loadingId || locallyFinishedIds.has(targetDelivery.id)) return;
+    setFailTarget(targetDelivery);
   };
 
   const handleFailureConfirmed = async (reason) => {
@@ -96,9 +112,18 @@ export default function MultiDeliveryArrivalDialog({
     setFailTarget(null);
     if (!target) return;
     setLoadingId(target.id);
+    setLocallyFinishedIds((prev) => new Set([...prev, target.id]));
+    smartRefreshManager.pause();
+    backgroundSyncManager.pause();
+    pauseOfflineSync('delivery_actions');
+    pauseRealtimeSync();
     try {
       await onFailDelivery?.(target, reason);
     } finally {
+      smartRefreshManager.resume();
+      backgroundSyncManager.resume();
+      resumeOfflineSync('delivery_actions');
+      resumeRealtimeSync();
       setLoadingId(null);
     }
   };
@@ -106,7 +131,7 @@ export default function MultiDeliveryArrivalDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto" style={{ zIndex: 99999 }}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto overflow-x-hidden" style={{ zIndex: 99999, width: '95vw', maxWidth: '95vw' }}>
           <DialogHeader>
             <DialogTitle className="text-base font-bold flex items-center gap-2">
               <MapPin className="w-4 h-4 text-blue-600" />
@@ -117,17 +142,17 @@ export default function MultiDeliveryArrivalDialog({
             </p>
           </DialogHeader>
 
-          <div className="space-y-3 mt-2">
+          <div className="space-y-3 mt-2 w-full min-w-0">
             {allAtLocation.map((delivery) => {
               const patient = patients.find((p) => p?.id === delivery.patient_id);
               const isCurrent = delivery.id === currentDelivery.id;
-              const isFinished = FINISHED_STATUSES.includes(delivery.status);
+              const isFinished = FINISHED_STATUSES.includes(delivery.status) || locallyFinishedIds.has(delivery.id);
               const isLoading = loadingId === delivery.id;
 
               return (
                 <div
                   key={delivery.id}
-                  className={`rounded-xl border p-3 space-y-1.5 ${
+                  className={`rounded-xl border p-3 space-y-1.5 w-full min-w-0 ${
                     isCurrent
                       ? 'border-blue-400 bg-blue-50 dark:bg-blue-950/20'
                       : 'border-slate-200 bg-white dark:bg-slate-900'
@@ -136,7 +161,10 @@ export default function MultiDeliveryArrivalDialog({
                   {/* Row 1: Stop # + Name + Status */}
                   <div className="flex items-center gap-2 flex-wrap">
                     {delivery.stop_order != null && (
-                      <Badge className="bg-slate-700 text-white text-xs px-2 py-0.5 rounded-full font-bold">
+                      <Badge
+                        className="text-white text-xs px-2 py-0.5 rounded-full font-bold"
+                        style={{ backgroundColor: (delivery.fridge_item && delivery.status === 'in_transit') ? '#2563eb' : '#10B981' }}
+                      >
                         #{delivery.stop_order}
                       </Badge>
                     )}

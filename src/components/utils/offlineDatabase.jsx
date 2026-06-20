@@ -475,10 +475,13 @@ const clearStore = async (storeName) => {
 
 const replaceAllRecords = async (storeName, records = []) => {
   try {
-    await clearStore(storeName);
+    // CRITICAL: Never clear the store if records is empty — that would wipe offline data
+    // on a failed/empty API response. Only clear when we have confirmed fresh data.
     if (!records || records.length === 0) {
+      console.warn(`[OfflineDB] replaceAllRecords: received 0 records for ${storeName} — skipping clear to prevent data loss`);
       return { success: true, count: 0 };
     }
+    await clearStore(storeName);
     return await bulkSave(storeName, records);
   } catch (error) {
     return { success: false, error: error.message };
@@ -1123,21 +1126,25 @@ const deduplicateDeliveries = async () => {
  */
 const pruneDeliveriesOlderThan60Days = async () => {
   try {
-    // CRITICAL: Mobile devices only
-    const { isMobileDevice } = await import('./deviceUtils');
-    if (!isMobileDevice()) {
-      return { success: true, removed: 0, skipped: true };
-    }
-
     const allDeliveries = await getAll(STORES.DELIVERIES);
 
     if (!allDeliveries || allDeliveries.length === 0) {
       return { success: true, removed: 0 };
     }
 
+    // Match prune window to sync window: mobile=90 days, desktop=Jan 1 of current year
+    const { getUserAgentInfo } = await import('./deviceUtils');
+    const { deviceType } = getUserAgentInfo();
+    const isMobile = deviceType === 'Mobile' || deviceType === 'Tablet';
+
     const now = new Date();
-    const cutoffDate = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000); // 60 days ago
-    const cutoffDateStr = cutoffDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+    let cutoffDateStr;
+    if (isMobile) {
+      const cutoffDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000); // 90 days
+      cutoffDateStr = cutoffDate.toISOString().split('T')[0];
+    } else {
+      cutoffDateStr = `${now.getFullYear()}-01-01`; // Jan 1 of current year for desktop
+    }
 
     // Group deliveries by driver_id
     const deliveriesByDriver = new Map();

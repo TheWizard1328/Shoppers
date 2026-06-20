@@ -375,7 +375,7 @@ class LightweightRefreshManager {
         }
       }
 
-      // CRITICAL: Refresh AppUsers every 15 seconds as backup for WebSocket
+      // CRITICAL: Refresh AppUsers every 60 seconds as backup for WebSocket
       // This catches status changes that WebSocket might miss
       if (this.shouldRefresh('appUsers') && currentData.appUsers) {
         try {
@@ -389,38 +389,49 @@ class LightweightRefreshManager {
           this.recordSuccess();
 
           if (allAppUsers && allAppUsers.length > 0) {
-            // CRITICAL: Filter out any driver whose location was updated by WebSocket
-            // more recently than the polled data. The poll fetches from the server which
-            // may lag behind a freshly-received WebSocket update, causing the marker to
-            // flicker back to a stale position/color.
-            const wsLastUpdate = window.__wsAppUserLastUpdate || new Map();
-            const WS_GRACE_MS = 30000; // ignore poll data for 30s after a WS update
-            const now = Date.now();
+            // FRESHNESS GUARD: Before saving or dispatching, merge server records with what
+            // is already in the offline DB. The offline DB was written by the WebSocket path
+            // and may have a FRESHER location_updated_at than the server snapshot (which can
+            // lag by several seconds during high-frequency GPS writes). Never let a poll
+            // regress coords that were delivered more recently via WebSocket.
+            const { offlineDB } = await import('./offlineDatabase');
+            const cachedUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+            const cacheMap = new Map((cachedUsers || []).map(u => [u.id, u]));
 
-            const diff = diffEntityArrays(currentData.appUsers, allAppUsers);
+            const freshnessGuarded = allAppUsers.map(serverUser => {
+              const cached = cacheMap.get(serverUser.id);
+              if (!cached) return serverUser;
+              const serverLocTs = new Date(serverUser.location_updated_at || serverUser.updated_date || 0).getTime();
+              const cachedLocTs = new Date(cached.location_updated_at || cached.updated_date || 0).getTime();
+              // If cached location is newer than what the server returned, preserve
+              // the cached coords and timestamp to avoid position regression / bounce.
+              if (cachedLocTs > serverLocTs && cached.current_latitude && cached.current_longitude) {
+                return {
+                  ...serverUser,
+                  current_latitude: cached.current_latitude,
+                  current_longitude: cached.current_longitude,
+                  location_updated_at: cached.location_updated_at,
+                };
+              }
+              return serverUser;
+            });
+
+            const diff = diffEntityArrays(currentData.appUsers, freshnessGuarded);
             if (diff.toUpdate.length > 0 || diff.toAdd.length > 0) {
               updates.appUsers = mergeEntityChanges(currentData.appUsers, diff);
-
-              // Filter the broadcast to exclude drivers with a recent WS update
-              const safeToDispatch = updates.appUsers.filter((u) => {
-                const key = u?.user_id || u?.id;
-                if (!key) return true;
-                const lastWs = wsLastUpdate.get(key) || 0;
-                return (now - lastWs) >= WS_GRACE_MS;
-              });
-
-              console.log(`✅ [LightweightRefresh] AppUsers updated: +${diff.toAdd.length} ~${diff.toUpdate.length} (dispatching ${safeToDispatch.length}/${updates.appUsers.length} — ${updates.appUsers.length - safeToDispatch.length} suppressed by WS grace)`);
-
-              // CRITICAL: Save ALL to offline DB (including WS-graced ones) to keep IDB consistent
-              const { offlineDB } = await import('./offlineDatabase');
-              await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, updates.appUsers);
-
-              // Only broadcast drivers not recently updated by WebSocket
-              if (safeToDispatch.length > 0) {
-                window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-                  detail: { appUsers: safeToDispatch, fromSmartRefresh: true, mergeMode: 'merge' }
-                }));
-              }
+              console.log(`✅ [LightweightRefresh] AppUsers updated: +${diff.toAdd.length} ~${diff.toUpdate.length}`);
+              
+              // Save freshness-guarded records to offline DB
+              await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshnessGuarded);
+              
+              // Broadcast the freshness-guarded updates
+              window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+                detail: { appUsers: updates.appUsers, fromSmartRefresh: true }
+              }));
+            } else {
+              // Even if no structural diff, ensure offline DB has latest server data
+              // (non-location fields like driver_status, preferred_travel_mode, etc.)
+              await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshnessGuarded);
             }
           }
           this.markRefreshed('appUsers');
@@ -482,6 +493,14 @@ class LightweightRefreshManager {
   }
 
   /**
+   * Stamp AppUsers as refreshed — called after a full data load so the poll cooldown
+   * starts from now, preventing an immediate redundant poll right after a full sync.
+   */
+  stampAppUsersAsRefreshed(appUsers) {
+    this.lastRefreshTimes.appUsers = Date.now();
+  }
+
+  /**
    * Refresh driver locations - simplified for Dashboard usage
    */
   async refreshDriverLocations(currentAppUsers, forceNotify = false, currentPageName = null, selectedDate = null, immediate = false) {
@@ -500,13 +519,25 @@ class LightweightRefreshManager {
       this.recordSuccess();
       
       if (freshAppUsers && freshAppUsers.length > 0) {
-        // Save to offline DB
+        // FRESHNESS GUARD: preserve cached coords if they are newer than the server snapshot
         const { offlineDB } = await import('./offlineDatabase');
-        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, freshAppUsers);
+        const cachedUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+        const cacheMap = new Map((cachedUsers || []).map(u => [u.id, u]));
+        const guardedUsers = freshAppUsers.map(serverUser => {
+          const cached = cacheMap.get(serverUser.id);
+          if (!cached) return serverUser;
+          const serverLocTs = new Date(serverUser.location_updated_at || serverUser.updated_date || 0).getTime();
+          const cachedLocTs = new Date(cached.location_updated_at || cached.updated_date || 0).getTime();
+          if (cachedLocTs > serverLocTs && cached.current_latitude && cached.current_longitude) {
+            return { ...serverUser, current_latitude: cached.current_latitude, current_longitude: cached.current_longitude, location_updated_at: cached.location_updated_at };
+          }
+          return serverUser;
+        });
+        await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, guardedUsers);
         
-        console.log(`✅ [SmartRefresh] Refreshed ${freshAppUsers.length} driver locations`);
+        console.log(`✅ [SmartRefresh] Refreshed ${guardedUsers.length} driver locations`);
         
-        return { hasChanges: true, appUsers: freshAppUsers };
+        return { hasChanges: true, appUsers: guardedUsers };
       }
       
       return { hasChanges: false, appUsers: currentAppUsers };

@@ -101,8 +101,8 @@ export default function StopCardActionButtons(props) {
     const isBase44Editor = window.location.hostname.includes('base44.com');
     const appCallbackUrl = isBase44Editor
       ? (window.location.origin + window.location.pathname)
-      : (window.location.origin + '/');
-    const callbackUri = encodeURIComponent(appCallbackUrl);
+      : (window.location.origin);
+    const callbackUri = encodeURIComponent('https://play.google.com/store/apps/details?id=com.squareup'); // encodeURIComponent(appCallbackUrl);
     const fallbackUri = encodeURIComponent('https://play.google.com/store/apps/details?id=com.squareup');
     return [
       'intent:#Intent',

@@ -226,13 +226,24 @@ export default function useDriverLocationSync({
       if ((window._suppressMapRepositionUntil || 0) > now) return;
 
       const targetId = selectedDriverIdRef.current;
-      // Only act when a specific OTHER driver is selected (not self, not 'all')
-      if (!targetId || targetId === 'all' || targetId === currentUser?.id) return;
+
+      // On a non-primary device the driver's own location arrives via shared location broadcast,
+      // not local GPS — so we must also re-trigger the map for self (targetId === currentUser?.id)
+      // and for the "all" case when not on the primary device.
+      const isSelfOrAll = !targetId || targetId === 'all' || targetId === currentUser?.id;
+      if (isSelfOrAll && isPrimaryDevice) return; // primary device handles this via live GPS path
+      if (!isSelfOrAll) {
+        // Specific OTHER driver selected — resolve that driver's updated record
+      }
 
       const updatedAppUsers = event?.detail?.appUsers;
       if (!Array.isArray(updatedAppUsers) || updatedAppUsers.length === 0) return;
 
-      const targetAppUser = updatedAppUsers.find((au) => au?.user_id === targetId);
+      // Resolve the effective target: for self/all on non-primary, use current user's record
+      const resolvedTargetId = (isSelfOrAll && !isPrimaryDevice)
+        ? currentUser?.id
+        : targetId;
+      const targetAppUser = updatedAppUsers.find((au) => au?.user_id === resolvedTargetId);
       if (!targetAppUser?.current_latitude || !targetAppUser?.current_longitude) return;
 
       const minIntervalMs = mapViewPhaseRef.current === 2 ? 1200 : 1800;
@@ -247,6 +258,6 @@ export default function useDriverLocationSync({
     window.addEventListener('driverLocationsUpdated', handleSharedLocationUpdate);
     return () => window.removeEventListener('driverLocationsUpdated', handleSharedLocationUpdate);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser?.id, setMapViewTrigger, mapViewPhaseRef, isMapViewLockedRef,
+  }, [currentUser?.id, isPrimaryDevice, setMapViewTrigger, mapViewPhaseRef, isMapViewLockedRef,
       pendingPhaseRef, lastProgrammaticMapMoveRef]);
 }

@@ -481,7 +481,7 @@ export default function DeliveryFormView({
           runLockedAction('update_staged_delivery', handleUpdateStaged);
         }
       } else if (effectiveButtonState === 'add') {
-        const isDisabled = isSaving || effectiveDeliveryActionBusy || !hasSelectedLocationAndDriver || !isFormValid && !hasSelectedLocationAndDriver || requiresDriverSelection && !hasSelectedLocationAndDriver;
+        const isDisabled = isSaving || effectiveDeliveryActionBusy || !formData?.driver_id || !hasSelectedLocationAndDriver || !isFormValid && !hasSelectedLocationAndDriver || requiresDriverSelection && !hasSelectedLocationAndDriver;
         if (!isDisabled) {
           runLockedAction('add_staged_delivery', async () => {
             await handleAddToStaging();
@@ -1547,7 +1547,7 @@ export default function DeliveryFormView({
                       }
                     });
                   }
-                }} className="inline-flex min-h-11 min-w-20 items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 text-primary-foreground shadow h-8 rounded-md px-3 text-xs bg-blue-600 hover:bg-blue-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || (isInterStoreMode ? !interStoreReady || !formData.driver_id : !isFormValid && selectedPickupStoreIds.size === 0 || requiresDriverSelection)} title={isInterStoreMode && (!interStoreReady || !formData.driver_id) ? !formData.driver_id ? 'Select a driver to continue' : 'Select both From and To stores to continue' : !isFormValid && selectedPickupStoreIds.size === 0 ? 'Complete the required pickup fields before adding' : requiresDriverSelection ? 'Select a driver to create a pickup for this store/date' : undefined}>
+                }} className="inline-flex min-h-11 min-w-20 items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 text-primary-foreground shadow h-8 rounded-md px-3 text-xs bg-blue-600 hover:bg-blue-700 gap-2"                  disabled={isSaving || effectiveDeliveryActionBusy || (isInterStoreMode ? !interStoreReady || !formData.driver_id : !formData.driver_id || !isFormValid && selectedPickupStoreIds.size === 0 || requiresDriverSelection)} title={isInterStoreMode && (!interStoreReady || !formData.driver_id) ? !formData.driver_id ? 'Select a driver to continue' : 'Select both From and To stores to continue' : !formData.driver_id ? 'Select a driver before adding' : !isFormValid && selectedPickupStoreIds.size === 0 ? 'Complete the required pickup fields before adding' : requiresDriverSelection ? 'Select a driver to create a pickup for this store/date' : undefined}>
                     <Plus className="w-4 h-4" />{isInterStoreMode ? 'InterStore' : isPickupMode && selectedPickupStoreIds.size > 1 ? `Add (${selectedPickupStoreIds.size})` : 'Add'}
                   </Button> :
 

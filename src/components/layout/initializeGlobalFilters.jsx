@@ -65,6 +65,8 @@ export const createMergedUser = (authUser, appUser) => {
   return merged;
 };
 
+// CRITICAL: driver_status, location fields intentionally excluded — changes to these
+// must NOT trigger a full data reload (would wipe sidebar + appUsers from state).
 const CURRENT_USER_REFRESH_KEYS = ['app_roles', 'store_ids', 'city_id', 'status', 'user_name', 'company_id', 'square_location_ids'];
 export const hasCurrentUserRefreshImpact = (currentUser, updateData = {}) =>
   !!currentUser && !!updateData &&

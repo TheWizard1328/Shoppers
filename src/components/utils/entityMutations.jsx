@@ -615,22 +615,6 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
       updateCache('Delivery', deliveryId, backendDelivery);
       console.log('⚡ [EntityMutations] Updated Delivery cache');
       
-      const routeShapeChanged = (
-        sanitizedUpdates.stop_order !== undefined ||
-        sanitizedUpdates.driver_id !== undefined ||
-        sanitizedUpdates.delivery_date !== undefined ||
-        sanitizedUpdates.patient_id !== undefined ||
-        sanitizedUpdates.store_id !== undefined
-      );
-      if (routeShapeChanged && backendDelivery?.driver_id && backendDelivery?.delivery_date && !options?.deferPolylineRefresh) {
-        await base44.functions.invoke('purgeAndRegeneratePolylines', {
-          driverId: backendDelivery.driver_id,
-          deliveryDate: backendDelivery.delivery_date,
-          scope: 'active_only',
-          reason: 'route_reordered'
-        }).catch(() => null);
-      }
-
       // STEP 5: Notify UI with backend version (most up-to-date)
       notifyMutation({ type: 'update', entity: 'Delivery', id: deliveryId, data: backendDelivery });
       
