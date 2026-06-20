@@ -1208,6 +1208,44 @@ class LocationTracker {
     }
   }
 
+  /**
+   * Called when the app returns to focus after being away long enough to potentially stale out.
+   * 1. Immediately acquires a fresh GPS fix and uploads it.
+   * 2. Resets the breadcrumb timer so the next 5s tick fires with a valid position.
+   * 3. If away > 30s, fires a global event so the offline DB can resync deliveries.
+   */
+  async _resumeAfterAbsence(awayDurationMs = 0) {
+    // Step 1: Immediately grab a fresh GPS fix + upload
+    await this.refreshNow({ source: 'visibility-return' });
+
+    // Step 2: Reset breadcrumb timer so it fires immediately on the next tick
+    this.lastBreadcrumbSavedAt = 0;
+
+    // Step 3: Restart breadcrumb interval (clears any stale/dead timer)
+    if (this.breadcrumbInterval) {
+      clearInterval(this.breadcrumbInterval);
+      this.breadcrumbInterval = null;
+    }
+    this.breadcrumbInterval = setInterval(() => {
+      if (!this.isTracking || this.driverStatus !== 'on_duty' || !this.lastPosition) return;
+      this.collectBreadcrumb(
+        this.lastPosition.latitude,
+        this.lastPosition.longitude,
+        Date.now()
+      ).catch((e) => console.warn('⚠️ [Breadcrumb Timer] collectBreadcrumb failed:', e?.message));
+    }, this.breadcrumbSaveInterval);
+
+    console.log(`🍞 [LocationTracker] Breadcrumb timer restarted after resume`);
+
+    // Step 4: If away for more than 30 seconds, signal the offline DB to resync deliveries
+    if (awayDurationMs > 30000) {
+      console.log(`📦 [LocationTracker] Away > 30s — signalling offline DB resync`);
+      window.dispatchEvent(new CustomEvent('driverResumedAfterAbsence', {
+        detail: { awayDurationMs, userId: this.currentUser?.id }
+      }));
+    }
+  }
+
   getStatus() {
      return {
        isTracking: this.isTracking,
@@ -1249,13 +1287,16 @@ if (typeof document !== 'undefined') {
       locationTracker.lastCoordinateUpdate || 0
     );
 
+    const awayDuration = referenceTime > 0 ? now - referenceTime : 0;
+
     if (
       locationTracker.isTracking &&
       locationTracker.driverStatus === 'on_duty' &&
       referenceTime > 0 &&
-      now - referenceTime > 15000
+      awayDuration > 15000
     ) {
-      locationTracker.refreshNow({ source: 'visibility-return' });
+      console.log(`🔄 [LocationTracker] App resumed after ${Math.round(awayDuration / 1000)}s away — resyncing GPS, breadcrumbs, and offline DB`);
+      locationTracker._resumeAfterAbsence(awayDuration);
     }
   });
 }
