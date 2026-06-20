@@ -78,9 +78,30 @@ export const createOfflineSyncBackgroundService = ({
       // PRIORITY: Always sync the current/selected date regardless of time of day
       const selectedDateFilter = { delivery_date: selectedDateStr, ...(storeIds && storeIds.length > 0 ? { store_id: { $in: storeIds } } : {}) };
       const selectedDateDeliveries = await Delivery.filter(selectedDateFilter, '-updated_date', 5000);
-      // CRITICAL: Always replace the offline DB for this date scope, even when server returns 0 records.
-      // An empty result IS authoritative — it means all local records for this date should be removed.
-      await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr, selectedDateDeliveries || []);
+      // CRITICAL: Upsert + scoped prune — never wipe the full date before writing.
+      // replaceRecordsByIndex deletes ALL records for the date first, wiping other drivers' data
+      // when we only fetched a city-scoped subset. Instead, only delete records that:
+      //   1) belong to the same city scope (store_id in storeIds, or no storeIds filter = all)
+      //   2) are absent from the server response (i.e. truly deleted on the server)
+      {
+        const incomingIds = new Set((selectedDateDeliveries || []).map(d => d?.id).filter(Boolean));
+        const existingForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
+        const staleIds = (existingForDate || [])
+          .filter(d => {
+            if (!d?.id || d.id.startsWith('temp_')) return false;
+            if (incomingIds.has(d.id)) return false; // still on server — keep
+            // Only prune if this record is within our fetch scope; leave other-city/other-driver records alone
+            if (storeIds && storeIds.length > 0 && !storeIds.includes(d.store_id) && !d.is_cycling_marker) return false;
+            return true;
+          })
+          .map(d => d.id);
+        if (selectedDateDeliveries && selectedDateDeliveries.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, selectedDateDeliveries);
+        }
+        if (staleIds.length > 0) {
+          await Promise.all(staleIds.map(id => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(() => {})));
+        }
+      }
       invalidateEntityCache('Delivery');
 
       // CRITICAL: Sync patients for selected date BEFORE marking deliveries as complete
@@ -112,9 +133,28 @@ export const createOfflineSyncBackgroundService = ({
       if (nextToSync) {
         const { dateStr: deliveryDateToSync, onlineDeliveries } = nextToSync;
 
-        // We already have the online deliveries from the count-check — reuse them
-        // CRITICAL: Always replace local records for this historical date — empty = 0 stops on server
-        await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', deliveryDateToSync, onlineDeliveries || []);
+        // We already have the online deliveries from the count-check — reuse them.
+        // CRITICAL: Upsert + scoped prune — never wipe the full date first.
+        // replaceRecordsByIndex deletes all records for the date before writing, which wipes
+        // other drivers' data when we only fetched a city-scoped subset.
+        {
+          const histIncomingIds = new Set((onlineDeliveries || []).map(d => d?.id).filter(Boolean));
+          const histExisting = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, deliveryDateToSync);
+          const histStaleIds = (histExisting || [])
+            .filter(d => {
+              if (!d?.id || d.id.startsWith('temp_')) return false;
+              if (histIncomingIds.has(d.id)) return false;
+              if (storeIds && storeIds.length > 0 && !storeIds.includes(d.store_id) && !d.is_cycling_marker) return false;
+              return true;
+            })
+            .map(d => d.id);
+          if (onlineDeliveries && onlineDeliveries.length > 0) {
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, onlineDeliveries);
+          }
+          if (histStaleIds.length > 0) {
+            await Promise.all(histStaleIds.map(id => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, id).catch(() => {})));
+          }
+        }
         invalidateEntityCache('Delivery');
 
         notifySyncStatus({ status: 'complete', phase: 'deliveries', date: deliveryDateToSync, count: (onlineDeliveries || []).length });
