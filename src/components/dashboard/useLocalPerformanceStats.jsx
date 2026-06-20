@@ -91,10 +91,13 @@ export function useLocalPerformanceStats({
         singleDriverExtraKmLimit = extraKmLimit;
       }
 
+      const isInterStore = (d) => { const id = String(d?.delivery_id || '').toUpperCase(); return id.startsWith('ISD-') || id.startsWith('ISP-'); };
+
       const paidDeliveries = driverDeliveries.filter((delivery) => {
         if (!delivery) return false;
         if (delivery.patient_id) return isCompletedStop(delivery) || isFailedStop(delivery) || isReturnStop(delivery);
         if (delivery.after_hours_pickup) return delivery.status === "completed" || delivery.status === "cancelled";
+        if (isInterStore(delivery)) return delivery.status === "completed" || delivery.status === "failed";
         return false;
       });
 
