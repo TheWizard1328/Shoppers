@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { CheckCircle, Clock, CreditCard, Loader2, CloudDownload, RefreshCw } from "lucide-react";
+import { CheckCircle, Clock, CreditCard, Loader2, CloudDownload, RefreshCw, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { isAppOwner } from "@/components/utils/userRoles";
 import LocationSummaryCard from "@/components/square/LocationSummaryCard";
@@ -1340,6 +1340,27 @@ export default function SquareManagement() {
         const store = stores.find((s) => s?.id === delivery?.store_id);
         const config = getConfigForStore(store);
         const resolvedLocationId = config?.square_location_id || '--';
+        const deliveryAmountCents = Math.round(Number(delivery.cod_total_amount_required || 0) * 100);
+        const patientName = patient?.full_name || '';
+
+        // Detect cross-store collection: a transaction that matches by amount + patient name
+        // but was collected at a DIFFERENT Square location than the delivery's expected store.
+        const crossStoreTx = (allTransactions || []).find((tx) => {
+          if (!tx || tx.type !== 'collection') return false;
+          if (!['completed', 'pending'].includes(tx.status)) return false;
+          if (tx.location_id === resolvedLocationId) return false; // same location = not cross-store
+          const txAmountCents = Math.round(Number(tx.amount || 0) * 100);
+          if (txAmountCents !== deliveryAmountCents) return false;
+          if (!patientName) return false;
+          return patientNamesMatch(patientName, String(tx.item_name || ''));
+        }) || null;
+
+        // Resolve which store the cross-store tx was collected at
+        const crossStoreConfig = crossStoreTx
+          ? locationConfigs.find((c) => c?.square_location_id === crossStoreTx.location_id)
+          : null;
+        const crossStoreStore = crossStoreConfig ? getStoreForConfig(crossStoreConfig) : null;
+        const crossStoreName = crossStoreStore?.name || crossStoreConfig?.name || crossStoreTx?.location_id || null;
 
         return {
           id: delivery.id,
@@ -1357,7 +1378,17 @@ export default function SquareManagement() {
             ? Array.from(new Set(delivery.cod_payments.map((payment) => payment?.type).filter(Boolean))).join(', ')
             : null,
           subtext: delivery.driver_name || null,
-          actions: <Button variant="secondary" size="sm" className="border border-red-300 bg-red-100 text-red-800 hover:bg-red-100 dark:border-red-700 dark:bg-red-900/40 dark:text-red-300">Unmatched</Button>
+          crossStoreAlert: crossStoreTx ? { collectedAt: crossStoreName } : null,
+          actions: crossStoreTx ? (
+            <div className="flex items-center gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 text-orange-500 flex-shrink-0" />
+              <Button variant="secondary" size="sm" className="border border-orange-300 bg-orange-100 text-orange-800 hover:bg-orange-100 dark:border-orange-700 dark:bg-orange-900/40 dark:text-orange-300 leading-tight h-auto py-1 text-center whitespace-normal">
+                <span>Cross-Store{crossStoreName ? `: ${crossStoreName}` : ''}</span>
+              </Button>
+            </div>
+          ) : (
+            <Button variant="secondary" size="sm" className="border border-red-300 bg-red-100 text-red-800 hover:bg-red-100 dark:border-red-700 dark:bg-red-900/40 dark:text-red-300">Unmatched</Button>
+          )
         };
       });
 
