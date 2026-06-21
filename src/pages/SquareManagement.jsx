@@ -1580,15 +1580,33 @@ export default function SquareManagement() {
             </div>
 
             {/* Sub-row 2: Tab buttons */}
-            <div className="flex flex-row flex-wrap items-center gap-2">
-              <SquareCodViewSwitcher activeView={activeView} onChange={setActiveView} counts={viewCounts} hidden={isDriverView} />
-              {activeView === 'reconciliation' && currentUser && isAppOwner(currentUser) &&
-              <Button onClick={updateCatalog} disabled={isLoading || isUpdatingCatalog || isSyncing} className="gap-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-3">
+            {activeView === 'reconciliation' && !isDriverView && currentUser && isAppOwner(currentUser) ? (
+              <div className="grid grid-cols-5 gap-2">
+                {[{ key: 'deliveries', label: 'Deliveries' }, { key: 'transactions', label: 'Transactions' }, { key: 'catalog', label: 'Catalog' }, { key: 'reconciliation', label: 'Reconciliation' }].map((view) => (
+                  <Button
+                    key={view.key}
+                    type="button"
+                    variant={activeView === view.key ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setActiveView(view.key)}
+                    className="w-full h-9 justify-center rounded-md px-2"
+                  >
+                    <span className="flex flex-row gap-1 items-center text-xs font-medium">
+                      {view.label}
+                      {typeof viewCounts[view.key] === 'number' && <span className="opacity-60">({viewCounts[view.key]})</span>}
+                    </span>
+                  </Button>
+                ))}
+                <Button onClick={updateCatalog} disabled={isLoading || isUpdatingCatalog || isSyncing} className="w-full h-9 gap-1.5 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-2">
                   <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isUpdatingCatalog ? 'animate-pulse' : ''}`} />
                   <span>{isUpdatingCatalog ? 'Updating...' : 'Update Catalog'}</span>
                 </Button>
-              }
-            </div>
+              </div>
+            ) : (
+              <div className="flex flex-row flex-wrap items-center gap-2">
+                <SquareCodViewSwitcher activeView={activeView} onChange={setActiveView} counts={viewCounts} hidden={isDriverView} />
+              </div>
+            )}
 
             {/* Sub-row 3a: 2×5 stat cards (reconciliation view only) */}
             {activeView === 'reconciliation' && currentUser && isAppOwner(currentUser) &&
