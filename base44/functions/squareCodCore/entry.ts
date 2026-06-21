@@ -366,20 +366,24 @@ async function handleRecordPayment(base44, payload) {
   return{success:true,transactionId:tx.id,itemName:tx.item_name,amount:tx.amount,paymentMethod};
 }
 
-async function handleSyncCatalogItems(base44) {
+async function handleSyncCatalogItems(base44, payload={}) {
   const accessToken=ensureSquareToken();
-  const[deliveries,stores,squareConfigs,squareTransactions]=await Promise.all([base44.asServiceRole.entities.Delivery.list('-updated_date',5000),base44.asServiceRole.entities.Store.list('-updated_date',200),base44.asServiceRole.entities.SquareLocationConfig.list('-updated_date',200),base44.asServiceRole.entities.SquareTransaction.list('-updated_date',5000)]);
+  const daysBack=Math.max(1,Number(payload?.daysBack||TRANSACTION_RETENTION_DAYS)||TRANSACTION_RETENTION_DAYS);
+  const lookbackStartStr=formatLocalDate(new Date(Date.now()-daysBack*86400000));
+  const todayStr=formatLocalDate(new Date());
+  const[deliveries,stores,squareConfigs,squareTransactions]=await Promise.all([base44.asServiceRole.entities.Delivery.filter({delivery_date:{$gte:lookbackStartStr,$lte:todayStr}},'-updated_date',5000),base44.asServiceRole.entities.Store.list('-updated_date',200),base44.asServiceRole.entities.SquareLocationConfig.list('-updated_date',200),base44.asServiceRole.entities.SquareTransaction.list('-updated_date',5000)]);
   const activeConfigById=new Map((squareConfigs||[]).filter((c)=>c?.status==='active'&&c?.square_location_id).map((c)=>[c.id,c]));
   const storeById=new Map((stores||[]).map((s)=>[s.id,s]));const deliveryById=new Map((deliveries||[]).map((d)=>[d.id,d]));
   const allSquareLocationIds=Array.from(new Set((stores||[]).map((s)=>activeConfigById.get(s?.square_location_config_id)?.square_location_id).filter(Boolean)));
   const txRetentionMs=getTransactionRetentionStartMs();
-  // GUARD: Only sync catalog items for today's active deliveries.
-  // Historical/completed deliveries must NEVER recreate catalog items.
-  const todayStr=formatLocalDate(new Date());
+  // Bulk reconciliation: include all COD deliveries in the date window that are active or completed.
+  // Pending/failed/cancelled are excluded — pending items are not yet out for delivery,
+  // failed/cancelled should have their Square items removed (handled by event-driven sync).
   const allCodDeliveries=(deliveries||[]).filter((d)=>
     Number(d?.cod_total_amount_required||0)>0 &&
-    (d?.status==='in_transit'||d?.status==='en_route') &&
-    d?.delivery_date===todayStr
+    (d?.status==='in_transit'||d?.status==='en_route'||d?.status==='completed') &&
+    d?.delivery_date>=lookbackStartStr &&
+    d?.delivery_date<=todayStr
   );
   const{patientById,patientByPid}=await buildPatientMaps(base44,allCodDeliveries);
   const[allCatalogItems,completedOrders]=await Promise.all([listActiveCatalogItems(accessToken),listOrders(allSquareLocationIds,getLookbackStartAt(TRANSACTION_RETENTION_DAYS),accessToken,MAX_TRANSACTION_ORDERS,['COMPLETED','OPEN'])]);
@@ -579,7 +583,7 @@ Deno.serve(async (req) => {
     if(action==='fetchPayments'){await requireUser(base44);return Response.json(await handleFetchPayments(base44,payload));}
     if(action==='getCodData')return Response.json(await handleGetCodData(base44,payload));
     if(action==='recordPayment')return Response.json(await handleRecordPayment(base44,payload));
-    if(action==='syncCatalogItems'){await requireAdminIfAuthenticated(base44);return Response.json(await handleSyncCatalogItems(base44));}
+    if(action==='syncCatalogItems'){await requireAdminIfAuthenticated(base44);return Response.json(await handleSyncCatalogItems(base44,payload));}
     if(action==='syncOnlineSquareEntities'){await requireAdminIfAuthenticated(base44);return Response.json(await handleSyncOnlineSquareEntities(base44,payload));}
     if(action==='syncSquareCods'){await requireUser(base44);return Response.json(await handleSyncSquareCods(base44,payload));}
     if(action==='reconcile'){await requireUser(base44);return Response.json(await handleReconcile(base44,payload));}

@@ -64,6 +64,7 @@ export default function SquareManagement() {
   const [navHeight, setNavHeight] = useState(0);
   const [bgSyncProgress, setBgSyncProgress] = useState({ stage: 'idle' });
   const [isReconciling, setIsReconciling] = useState(false);
+  const [isUpdatingCatalog, setIsUpdatingCatalog] = useState(false);
   const realtimeRefreshTimeoutRef = useRef(null);
   const lastRealtimeRefreshAtRef = useRef(0);
   const locationConfigsRef = useRef([]);
@@ -228,6 +229,26 @@ export default function SquareManagement() {
   const reconciliationRowsRef = useRef([]);
   const visibleStoreIdsRef = useRef(new Set());
   const selectedDriverUserIdsRef = useRef(new Set());
+
+  const updateCatalog = useCallback(async () => {
+    if (isUpdatingCatalog || isSyncing) return;
+    setIsUpdatingCatalog(true);
+    setError(null);
+    try {
+      const result = await base44.functions.invoke('squareCodCore', {
+        action: 'syncCatalogItems',
+        daysBack: Number(selectedDaysRange || 90),
+      });
+      const data = result?.data || result || {};
+      toast.success(`Catalog updated: ${data.created_catalog_items || 0} created, ${data.deleted_catalog_items || 0} deleted`);
+      await refreshUiFromOfflineOnly();
+    } catch (err) {
+      toast.error('Catalog update failed: ' + err.message);
+      setError(err.message);
+    } finally {
+      setIsUpdatingCatalog(false);
+    }
+  }, [isUpdatingCatalog, isSyncing, selectedDaysRange, refreshUiFromOfflineOnly]);
 
   const runReconcile = useCallback(async () => {
     setIsReconciling(true);
@@ -1454,9 +1475,9 @@ export default function SquareManagement() {
           <div className="grid grid-cols-2 gap-2 md:flex md:flex-row md:flex-wrap md:items-center md:gap-3 w-full">
             <SquareCodViewSwitcher activeView={activeView} onChange={setActiveView} counts={viewCounts} />
             {activeView === 'reconciliation' && currentUser && isAppOwner(currentUser) &&
-            <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="w-full md:w-[160px] gap-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800">
-                <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
-                <span>{isSyncing ? 'Updating...' : 'Update Catalog'}</span>
+            <Button onClick={updateCatalog} disabled={isLoading || isUpdatingCatalog || isSyncing} className="w-full md:w-[160px] gap-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800">
+                <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isUpdatingCatalog ? 'animate-pulse' : ''}`} />
+                <span>{isUpdatingCatalog ? 'Updating...' : 'Update Catalog'}</span>
               </Button>
             }
           </div>
