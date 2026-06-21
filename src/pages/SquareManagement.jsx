@@ -525,9 +525,9 @@ export default function SquareManagement() {
 
 
 
+
           // Keep whatever was already loaded from offline DB on mount
-        }return { offlineDB, nextLocationConfigs };} catch (err) {
-        console.error('Failed to sync lookup data:', err);
+        }return { offlineDB, nextLocationConfigs };} catch (err) {console.error('Failed to sync lookup data:', err);
         return null;
       }
     };
@@ -1489,17 +1489,17 @@ export default function SquareManagement() {
   return (
     <div className="px-4 md:px-6 pt-4 md:pt-6 bg-background text-foreground w-full h-full overflow-y-auto md:overflow-hidden flex flex-col">
       {/* ═══════════════════════════════════════════════════════════════════
-              MASTER LAYOUT  –  2 main rows × 2 columns
-              Left column  : auto/shrink  (content-width)
-              Right column : flex-1       (fills remaining width)
-          ═══════════════════════════════════════════════════════════════════ */}
+               MASTER LAYOUT  –  2 main rows × 2 columns
+               Left column  : auto/shrink  (content-width)
+               Right column : flex-1       (fills remaining width)
+           ═══════════════════════════════════════════════════════════════════ */}
       <div className="flex-shrink-0 mb-4">
 
         {/* ── MAIN 2-COL LAYOUT ── static left col | auto right col ── */}
         <div className="grid grid-cols-1 gap-2 md:gap-3 mb-2 md:mb-3 md:grid-cols-[340px_1fr]">
 
           {/* LEFT col – filters/tabs + stat cards stacked */}
-          <div className="flex flex-col gap-2 min-w-[555px]">
+          <div className="flex flex-col gap-2">
 
             {/* Sub-row 1: Drivers | Stores | Date range | Sync */}
             <div className="flex flex-row items-center gap-2">
