@@ -334,13 +334,15 @@ async function handleFetchPayments(base44, payload) {
   await requireUser(base44);const accessToken=ensureSquareToken();
   const daysBack=Math.max(1,Number(payload?.daysBack||TRANSACTION_RETENTION_DAYS)||TRANSACTION_RETENTION_DAYS);
   const lookbackStartAt=new Date(Date.now()-daysBack*86400000).toISOString();
-  const[stores,locationConfigs,deliveries,appUsers,patients,existingTransactions]=await Promise.all([base44.asServiceRole.entities.Store.list('-updated_date',500).catch(()=>[]),base44.asServiceRole.entities.SquareLocationConfig.filter({status:'active'}).catch(()=>[]),base44.asServiceRole.entities.Delivery.filter({delivery_date:{$gte:formatLocalDate(new Date(Date.now()-daysBack*86400000)),$lte:formatLocalDate(new Date())}},'-updated_date',5000).catch(()=>[]),base44.asServiceRole.entities.AppUser.list('-updated_date',2000).catch(()=>[]),base44.asServiceRole.entities.Patient.list('-updated_date',5000).catch(()=>[]),base44.asServiceRole.entities.SquareTransaction.list('-updated_date',5000).catch(()=>[])]);
-  const activeConfigById=new Map((locationConfigs||[]).map((c)=>[c.id,c]));
+  const[stores,locationConfigs,deliveries,appUsers,patients,existingTransactions]=await Promise.all([base44.asServiceRole.entities.Store.list('-updated_date',500).catch(()=>[]),base44.asServiceRole.entities.SquareLocationConfig.list('-updated_date',500).catch(()=>[]),base44.asServiceRole.entities.Delivery.filter({delivery_date:{$gte:formatLocalDate(new Date(Date.now()-daysBack*86400000)),$lte:formatLocalDate(new Date())}},'-updated_date',5000).catch(()=>[]),base44.asServiceRole.entities.AppUser.list('-updated_date',2000).catch(()=>[]),base44.asServiceRole.entities.Patient.list('-updated_date',5000).catch(()=>[]),base44.asServiceRole.entities.SquareTransaction.list('-updated_date',5000).catch(()=>[])]);
+  // For store-matching, only use active configs; for Square API queries, use all location IDs
+  const activeConfigById=new Map((locationConfigs||[]).filter((c)=>c?.status==='active').map((c)=>[c.id,c]));
   const storesByLocationId=buildStoresByLocationId(stores,activeConfigById);
   const drivers=(appUsers||[]).filter((u)=>Array.isArray(u?.app_roles)&&u.app_roles.includes('driver'));
   const patientsById=new Map((patients||[]).map((p)=>[p.id,p]));
   const deliveriesWithAmounts=(deliveries||[]).filter((d)=>Number(d?.cod_total_amount_required||0)>0);
-  const locationIds=Array.from(new Set(Array.from(storesByLocationId.keys())));
+  // Query ALL location IDs from all configs (active + inactive) to catch transactions on any terminal
+  const locationIds=Array.from(new Set((locationConfigs||[]).map((c)=>c?.square_location_id).filter(Boolean)));
   const completedOrders=await listOrders(locationIds,lookbackStartAt,accessToken,MAX_TRANSACTION_ORDERS,['COMPLETED','OPEN']);
   const refundedOrderIds=buildRefundedOrderIdSet(completedOrders);
   const paidOrderItems=flattenOrderItems((completedOrders||[]).filter((o)=>!refundedOrderIds.has(o?.id))).filter((item)=>{const t=new Date(item?.payment_date||item?.order_created_at||0).getTime();return Number.isFinite(t)&&t>=getTransactionRetentionStartMs();});
@@ -360,12 +362,15 @@ async function handleGetCodData(base44, payload={}) {
   const daysBack=Math.max(1,Number(payload?.daysBack||TRANSACTION_RETENTION_DAYS)||TRANSACTION_RETENTION_DAYS);
   const transactionRetentionStartMs=Date.now()-daysBack*86400000;const refreshDeliveries=shouldRefreshDeliveries(payload?.lastDeliverySyncAt,payload?.forceDeliveryRefresh===true);
   // quickSync: only query Square API for the daysBack window — caller merges with existing offline data
-  const[locationConfigs,stores,existingTransactions]=await Promise.all([base44.asServiceRole.entities.SquareLocationConfig.filter({status:'active'}).catch(()=>[]),base44.asServiceRole.entities.Store.list('-updated_date',500).catch(()=>[]),base44.asServiceRole.entities.SquareTransaction.list('-updated_date',2000).catch(()=>[])]);
-  const safeConfigs=(Array.isArray(locationConfigs)?locationConfigs:[]).map(unwrapEntityRecord).filter(Boolean);
+  const[allLocationConfigs,stores,existingTransactions]=await Promise.all([base44.asServiceRole.entities.SquareLocationConfig.list('-updated_date',500).catch(()=>[]),base44.asServiceRole.entities.Store.list('-updated_date',500).catch(()=>[]),base44.asServiceRole.entities.SquareTransaction.list('-updated_date',2000).catch(()=>[])]);
+  const safeAllConfigs=(Array.isArray(allLocationConfigs)?allLocationConfigs:[]).map(unwrapEntityRecord).filter(Boolean);
+  // Active configs are used for store-matching; ALL configs (including inactive) are used for the Square API location query
+  const safeConfigs=safeAllConfigs.filter((c)=>c?.status==='active');
   const safeStores=(Array.isArray(stores)?stores:[]).map(unwrapEntityRecord).filter(Boolean);
   const activeConfigById=new Map(safeConfigs.map((c)=>[c.id,c]));
   const storesByLocationIdGCD=buildStoresByLocationId(safeStores,activeConfigById);
-  const locationIds=Array.from(new Set(Array.from(storesByLocationIdGCD.keys())));
+  // Pull ALL unique square_location_ids (active + inactive) so we don't miss transactions for any card/terminal
+  const locationIds=Array.from(new Set(safeAllConfigs.map((c)=>c?.square_location_id).filter(Boolean)));
   const endDate=new Date();const startDate=new Date();startDate.setDate(startDate.getDate()-daysBack);
   const startDateStr=formatLocalDate(startDate);const endDateStr=formatLocalDate(endDate);
   const storeSquareEligibility=new Map();
@@ -409,7 +414,8 @@ async function handleSyncCatalogItems(base44, payload={}) {
   const[deliveries,stores,squareConfigs,squareTransactions]=await Promise.all([base44.asServiceRole.entities.Delivery.filter({delivery_date:{$gte:lookbackStartStr,$lte:todayStr}},'-updated_date',5000),base44.asServiceRole.entities.Store.list('-updated_date',200),base44.asServiceRole.entities.SquareLocationConfig.list('-updated_date',200),base44.asServiceRole.entities.SquareTransaction.list('-updated_date',5000)]);
   const activeConfigById=new Map((squareConfigs||[]).filter((c)=>c?.status==='active'&&c?.square_location_id).map((c)=>[c.id,c]));
   const storeById=new Map((stores||[]).map((s)=>[s.id,s]));const deliveryById=new Map((deliveries||[]).map((d)=>[d.id,d]));
-  const allSquareLocationIds=Array.from(new Set((stores||[]).map((s)=>activeConfigById.get(s?.square_location_config_id)?.square_location_id).filter(Boolean)));
+  // Query ALL location IDs (active + inactive) so we catch paid transactions from any terminal
+  const allSquareLocationIds=Array.from(new Set((squareConfigs||[]).map((c)=>c?.square_location_id).filter(Boolean)));
   const txRetentionMs=getTransactionRetentionStartMs();
   // Bulk reconciliation: include all COD deliveries in the date window that are active or completed.
   // Pending/failed/cancelled are excluded — pending items are not yet out for delivery,
