@@ -1502,66 +1502,78 @@ export default function SquareManagement() {
           <div className="flex flex-col gap-2 flex-shrink-0">
 
             {/* Sub-row 1: Drivers | Stores | Date range | Sync */}
-            <div className="flex flex-row items-center justify-between gap-2">
-              {currentUser && isAppOwner(currentUser) && drivers.length > 0 &&
-              <Select value={selectedDriverFilter} onValueChange={setSelectedDriverFilter}>
-                  <SelectTrigger className="w-[120px] text-sm">
+            <div className="flex flex-row items-center gap-2">
+              {(currentUser && isAppOwner(currentUser) && drivers.length > 0) &&
+              <div className="flex-1 min-w-0">
+                <Select value={selectedDriverFilter} onValueChange={setSelectedDriverFilter}>
+                  <SelectTrigger className="w-full text-sm">
                     <SelectValue placeholder="All Drivers" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Drivers</SelectItem>
                     {drivers.map((driver) =>
-                  <SelectItem key={driver.id} value={driver.id}>{driver.user_name}</SelectItem>
-                  )}
+                    <SelectItem key={driver.id} value={driver.id}>{driver.user_name}</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
+              </div>
               }
               {isDriverView && currentAppUser &&
-              <Select value={selectedDriverFilter} disabled>
-                  <SelectTrigger className="w-[120px] text-sm opacity-70 cursor-not-allowed">
+              <div className="flex-1 min-w-0">
+                <Select value={selectedDriverFilter} disabled>
+                  <SelectTrigger className="w-full text-sm opacity-70 cursor-not-allowed">
                     <SelectValue>{currentAppUser.user_name || 'My Items'}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={currentAppUser.id}>{currentAppUser.user_name}</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
               }
-              <Select value={selectedStoreFilter} onValueChange={setSelectedStoreFilter}>
-                <SelectTrigger className="w-[120px] text-sm">
-                  <SelectValue placeholder="All Stores" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Stores</SelectItem>
-                  {availableStoresForFilter.map((store) =>
-                  <SelectItem key={store.id} value={store.id}>{store.name}</SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-              <Select value={selectedDaysRange} onValueChange={setSelectedDaysRange}>
-                <SelectTrigger className="w-[100px] text-sm">
-                  <SelectValue placeholder="Days" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="7">7 Days</SelectItem>
-                  <SelectItem value="14">14 Days</SelectItem>
-                  <SelectItem value="21">21 Days</SelectItem>
-                  <SelectItem value="28">28 Days</SelectItem>
-                  <SelectItem value="45">45 Days</SelectItem>
-                  <SelectItem value="60">60 Days</SelectItem>
-                  <SelectItem value="90">90 Days</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex-1 min-w-0">
+                <Select value={selectedStoreFilter} onValueChange={setSelectedStoreFilter}>
+                  <SelectTrigger className="w-full text-sm">
+                    <SelectValue placeholder="All Stores" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Stores</SelectItem>
+                    {availableStoresForFilter.map((store) =>
+                    <SelectItem key={store.id} value={store.id}>{store.name}</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex-1 min-w-0">
+                <Select value={selectedDaysRange} onValueChange={setSelectedDaysRange}>
+                  <SelectTrigger className="w-full text-sm">
+                    <SelectValue placeholder="Days" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="7">7 Days</SelectItem>
+                    <SelectItem value="14">14 Days</SelectItem>
+                    <SelectItem value="21">21 Days</SelectItem>
+                    <SelectItem value="28">28 Days</SelectItem>
+                    <SelectItem value="45">45 Days</SelectItem>
+                    <SelectItem value="60">60 Days</SelectItem>
+                    <SelectItem value="90">90 Days</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               {currentUser && isAppOwner(currentUser) &&
               <>
-                <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-3">
-                  <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
-                  {isSyncing ? 'Syncing...' : 'Sync'}
-                </Button>
+                <div className="flex-1 min-w-0">
+                  <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="w-full gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-3">
+                    <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
+                    {isSyncing ? 'Syncing...' : 'Sync'}
+                  </Button>
+                </div>
                 {activeView === 'reconciliation' &&
-                <Button onClick={runReconcile} disabled={isReconciling || isSyncing} className="gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-3">
-                  {isReconciling ? <Loader2 className="w-4 h-4 flex-shrink-0 animate-spin" /> : <RefreshCw className="w-4 h-4 flex-shrink-0" />}
-                  {isReconciling ? 'Reconciling...' : 'Reconcile'}
-                </Button>
+                <div className="flex-1 min-w-0">
+                  <Button onClick={runReconcile} disabled={isReconciling || isSyncing} className="w-full gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-3">
+                    {isReconciling ? <Loader2 className="w-4 h-4 flex-shrink-0 animate-spin" /> : <RefreshCw className="w-4 h-4 flex-shrink-0" />}
+                    {isReconciling ? 'Reconciling...' : 'Reconcile'}
+                  </Button>
+                </div>
                 }
               </>
               }
