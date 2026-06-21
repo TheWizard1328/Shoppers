@@ -1610,7 +1610,7 @@ export default function SquareManagement() {
 
             {/* Sub-row 3a: 2×5 stat cards (reconciliation view only) */}
             {activeView === 'reconciliation' && currentUser && isAppOwner(currentUser) &&
-            <div className="grid grid-cols-5 gap-2 mt-1">
+            <div className="grid grid-cols-10 gap-2 mt-1">
               <Card className="bg-white dark:bg-slate-900 border-red-200 dark:border-red-800">
                 <CardContent className="p-2.5">
                   <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Unmatched</div>
