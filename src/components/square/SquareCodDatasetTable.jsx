@@ -48,7 +48,7 @@ const DesktopRow = ({ row, index, onRowClick, showLocationColumn, showCatalogCol
     </td>
     <td className="p-3">
       <div className="text-sm text-slate-900 dark:text-slate-50">{row.storeName || 'Unknown'}</div>
-      {row.subtext && <div className="text-xs mt-1 text-slate-500 dark:text-slate-400 hidden">{row.subtext}</div>}
+      
     </td>
     {showLocationColumn &&
   <td className="p-3">
