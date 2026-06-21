@@ -1610,30 +1610,47 @@ export default function SquareManagement() {
 
         {activeView === 'catalog' && currentUser && isAppOwner(currentUser) && locationConfigs.length > 0 &&
         <div>
-            <h2 className="text-base md:text-lg font-semibold mb-4 text-slate-900 dark:text-slate-50">By Location</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-none md:auto-cols-fr md:grid-flow-col gap-2 md:gap-4 mb-6 md:mb-8">
-              {locationConfigs.
-            filter((config) => visibleLocationIds.has(config.square_location_id)).
-            sort((a, b) => {
-              const storeA = getStoreForConfig(a);
-              const storeB = getStoreForConfig(b);
-              return (storeA?.sort_order ?? Infinity) - (storeB?.sort_order ?? Infinity);
-            }).
-            map((config) => {
-              const locationItems = filteredCatalogRows.filter((item) => item.locationId === config.square_location_id);
-              const codTotal = locationItems.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-              const store = getStoreForConfig(config);
-              getStoreColor(store?.id);
-              return (
-                <LocationSummaryCard
-                  key={config.id}
-                  location={{ name: config?.name || store?.name || 'Unknown', square_location_id: config.square_location_id }}
-                  codTotal={codTotal}
-                  itemCount={locationItems.length}
-                  onClick={() => setSelectedLocation(config)} />);
+            <h2 className="text-base md:text-lg font-semibold mb-4 text-slate-900 dark:text-slate-50">By Store</h2>
+            <div className="flex flex-wrap gap-2 md:gap-4 mb-6 md:mb-8">
+              {(() => {
+                // Build per-store cards by extracting abbreviation from item names
+                // Groups: locationId + storeAbbr → items
+                const storeCardMap = new Map(); // key: `${locationId}::${abbr}` → { label, locationId, config, storeAbbr, items }
 
+                for (const item of filteredCatalogRows) {
+                  const parsed = parseSquareItemName(item.itemName || item.name || '');
+                  const abbr = parsed?.storeAbbr ? parsed.storeAbbr.toUpperCase() : null;
+                  const locationId = item.locationId;
+                  const config = locationConfigs.find((c) => c?.square_location_id === locationId);
 
-            })}
+                  // Resolve store by abbreviation first, then fall back to config store_name
+                  const storeByAbbr = abbr ? stores.find((s) => s?.abbreviation?.toUpperCase() === abbr) : null;
+                  const storeByConfig = getStoreForConfig(config);
+                  const resolvedStore = storeByAbbr || storeByConfig;
+                  const label = resolvedStore?.name || abbr || config?.name || 'Unknown';
+                  const sortOrder = resolvedStore?.sort_order ?? Infinity;
+
+                  const cardKey = `${locationId}::${abbr || 'unknown'}`;
+                  if (!storeCardMap.has(cardKey)) {
+                    storeCardMap.set(cardKey, { label, locationId, config, storeAbbr: abbr, sortOrder, items: [] });
+                  }
+                  storeCardMap.get(cardKey).items.push(item);
+                }
+
+                return Array.from(storeCardMap.values())
+                  .sort((a, b) => a.sortOrder - b.sortOrder)
+                  .map(({ label, locationId, config, storeAbbr, items }) => {
+                    const codTotal = items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+                    return (
+                      <LocationSummaryCard
+                        key={`${locationId}::${storeAbbr || 'unknown'}`}
+                        location={{ name: label, square_location_id: locationId }}
+                        codTotal={codTotal}
+                        itemCount={items.length}
+                        onClick={() => config && setSelectedLocation(config)} />
+                    );
+                  });
+              })()}
             </div>
           </div>
         }
