@@ -1502,7 +1502,8 @@ export default function SquareManagement() {
         </div>
 
         <div className="flex flex-col gap-2">
-          <div className="grid grid-cols-2 gap-2 md:flex md:flex-row md:flex-wrap md:items-center md:gap-3 w-full">
+          <div className="flex flex-col md:flex-row md:items-start md:gap-3 w-full gap-2">
+          <div className="grid grid-cols-2 gap-2 md:flex md:flex-row md:flex-wrap md:items-center md:gap-3 flex-shrink-0">
             {currentUser && isAppOwner(currentUser) && drivers.length > 0 &&
             <Select value={selectedDriverFilter} onValueChange={setSelectedDriverFilter}>
                 <SelectTrigger className="w-full md:w-[130px] text-sm">
@@ -1571,6 +1572,22 @@ export default function SquareManagement() {
             }
           </div>
 
+          {/* Sync status inline on desktop — to the right of the filter dropdowns */}
+          {syncStatus &&
+            <div className="hidden md:flex md:flex-1 md:min-w-0">
+              <SyncStatusIndicator
+                syncStatus={syncStatus}
+                isSyncing={isSyncing}
+                error={error}
+                codDeliveryCount={codDeliveriesCount}
+                catalogItemCount={filteredCatalogItems.length}
+                cardSpendCount={filteredCardSalesCount}
+                salesCount={filteredSalesCount}
+                collectedCodTypeBreakdown={collectedCodTypeBreakdown} />
+            </div>
+          }
+          </div>
+
           <div className="flex flex-row gap-2 md:flex-wrap md:items-center md:gap-3 w-full">
             <SquareCodViewSwitcher activeView={activeView} onChange={setActiveView} counts={viewCounts} hidden={isDriverView} />
             {activeView === 'reconciliation' && currentUser && isAppOwner(currentUser) &&
@@ -1585,7 +1602,7 @@ export default function SquareManagement() {
 
       <div className="md:flex-1 md:min-h-0 flex flex-col">
         {syncStatus &&
-        <div className="mb-2">
+        <div className="mb-2 md:hidden">
             <SyncStatusIndicator
             syncStatus={syncStatus}
             isSyncing={isSyncing}
@@ -1595,7 +1612,6 @@ export default function SquareManagement() {
             cardSpendCount={filteredCardSalesCount}
             salesCount={filteredSalesCount}
             collectedCodTypeBreakdown={collectedCodTypeBreakdown} />
-          
           </div>
         }
 
