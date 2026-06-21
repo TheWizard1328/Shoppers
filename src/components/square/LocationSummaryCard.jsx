@@ -5,8 +5,10 @@ import { MapPin } from 'lucide-react';
 export default function LocationSummaryCard({ location, codTotal, itemCount, storeColor, onClick }) {
   return (
     <Card
-      className="cursor-pointer hover:shadow-md transition-shadow w-full h-full"
+      className="cursor-pointer hover:shadow-md transition-shadow flex-shrink-0 h-full"
       style={{
+        minWidth: '150px',
+        maxWidth: '200px',
         borderColor: storeColor?.border || undefined,
         backgroundColor: storeColor?.bg || undefined,
       }}
