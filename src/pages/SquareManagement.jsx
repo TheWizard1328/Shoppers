@@ -235,12 +235,31 @@ export default function SquareManagement() {
     setIsUpdatingCatalog(true);
     setError(null);
     try {
+      // Build the list of unmatched deliveries from the current reconciliation view
+      const currentRows = reconciliationRowsRef.current || [];
+      const items = currentRows.map((row) => ({
+        deliveryId: row.rawDelivery?.id,
+        patientName: row.rawDelivery ? (() => {
+          const p = patients.find((p) => p?.id === row.rawDelivery.patient_id || p?.patient_id === row.rawDelivery.patient_id);
+          return p?.full_name || null;
+        })() : null,
+        codAmount: row.rawDelivery?.cod_total_amount_required,
+        deliveryDate: row.rawDelivery?.delivery_date,
+        storeId: row.rawDelivery?.store_id,
+      })).filter((item) => item.deliveryId && item.codAmount > 0);
+
+      // Purge all Square catalog items first, then recreate from reconciliation data
       const result = await base44.functions.invoke('squareCodCore', {
-        action: 'syncCatalogItems',
-        daysBack: Number(selectedDaysRange || 90),
+        action: 'syncSquareCods',
+        purgeCatalogFirst: true,
+        items,
+        deletions: [],
       });
       const data = result?.data || result || {};
-      toast.success(`Catalog updated: ${data.created_catalog_items || 0} created, ${data.deleted_catalog_items || 0} deleted`);
+      const created = (data.results || []).filter((r) => r.action === 'upsert' && r.status === 'ok').length;
+      const skipped = (data.results || []).filter((r) => r.status === 'skipped').length;
+      const errors = (data.results || []).filter((r) => r.status === 'error').length;
+      toast.success(`Catalog purged & rebuilt: ${created} created${skipped ? `, ${skipped} skipped` : ''}${errors ? `, ${errors} errors` : ''}`);
       await refreshUiFromOfflineOnly();
     } catch (err) {
       toast.error('Catalog update failed: ' + err.message);
@@ -248,7 +267,7 @@ export default function SquareManagement() {
     } finally {
       setIsUpdatingCatalog(false);
     }
-  }, [isUpdatingCatalog, isSyncing, selectedDaysRange, refreshUiFromOfflineOnly]);
+  }, [isUpdatingCatalog, isSyncing, patients, refreshUiFromOfflineOnly]);
 
   const runReconcile = useCallback(async () => {
     setIsReconciling(true);
