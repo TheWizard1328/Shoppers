@@ -78,9 +78,15 @@ export function DeviceProvider({ children }) {
   const isLandscape = !isPortrait;
   const isWideScreenMobile = isPhysicalMobile && (isLandscape || screenWidth >= 768);
 
+  // Stop-card width is ~300px. If the screen is narrower than 3 stop-cards wide (< 900px)
+  // we force mobile layout regardless of device type — sidebar hides, mobile header/nav show.
+  const STOP_CARD_WIDTH = 300;
+  const isTooNarrowForSidebar = screenWidth < STOP_CARD_WIDTH * 3;
+
   // The two flags everything should use
   // isMobile = phone (narrow/portrait) OR tablet-portrait — NOT wide-screen mobile/landscape
-  const isMobile  = (isPhysicalMobile && !isWideScreenMobile) || isTabletPortrait;
+  //          + any screen narrower than 3× stop-card width
+  const isMobile  = (isPhysicalMobile && !isWideScreenMobile) || isTabletPortrait || isTooNarrowForSidebar;
   const isDesktop = !isMobile; // everything else is desktop
 
   const value = {
