@@ -1571,7 +1571,7 @@ export default function SquareManagement() {
             }
           </div>
 
-          <div className="grid grid-cols-2 gap-2 md:flex md:flex-row md:flex-wrap md:items-center md:gap-3 w-full">
+          <div className="flex flex-row gap-2 md:flex-wrap md:items-center md:gap-3 w-full">
             <SquareCodViewSwitcher activeView={activeView} onChange={setActiveView} counts={viewCounts} hidden={isDriverView} />
             {activeView === 'reconciliation' && currentUser && isAppOwner(currentUser) &&
             <Button onClick={updateCatalog} disabled={isLoading || isUpdatingCatalog || isSyncing} className="w-full md:w-[160px] gap-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800">

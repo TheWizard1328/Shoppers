@@ -83,17 +83,17 @@ export default function SyncStatusIndicator({ syncStatus, isSyncing, error, codD
                     <span className="text-muted-foreground">Transactions: Card Spend: {cardSpendCount}</span>
                   </>
                 </div>
-                <div className="md:hidden flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className={`font-semibold ${status.color}`}>{status.text}</div>
+                <div className="md:hidden flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                    <span className={`font-semibold text-xs ${status.color}`}>{status.text}</span>
                     {lastSyncTime && (
-                      <div className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(lastSyncTime), { addSuffix: true })}
-                      </div>
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        ({format(new Date(lastSyncTime), 'HH:mm:ss')})
+                      </span>
                     )}
                   </div>
-                  <CollapsibleTrigger className="inline-flex items-center gap-1 rounded-md bg-white/70 dark:bg-slate-900/40 px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300">
-                    {isOpen ? 'Hide stats' : 'Show stats'}
+                  <CollapsibleTrigger className="inline-flex items-center gap-1 rounded-md bg-white/70 dark:bg-slate-900/40 px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 flex-shrink-0">
+                    {isOpen ? 'Hide' : 'Stats'}
                     <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                   </CollapsibleTrigger>
                 </div>
