@@ -1150,7 +1150,7 @@ export default function SquareManagement() {
         collectionType,
         subtext: collectedByName ? `Collected by ${collectedByName}` : transaction.payment_method || null,
         notes: transaction.raw_square_data?.note || transaction.raw_square_data?.notes || null,
-        actions: matchedDelivery ?
+        actions: (matchedDelivery || transaction.square_payment_id || transaction.square_transaction_id) ?
         <Button variant="secondary" size="sm" className="border border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">Collected</Button> :
         <Button variant="secondary" size="sm" className="border border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-300">No Match</Button>
       };
