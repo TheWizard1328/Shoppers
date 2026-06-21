@@ -1528,8 +1528,8 @@ export default function SquareManagement() {
               </Select>
             }
 
-            <Select value={selectedStoreFilter} onValueChange={isDriverView ? undefined : setSelectedStoreFilter} disabled={isDriverView}>
-              <SelectTrigger className={`w-full md:w-[130px] text-sm ${isDriverView ? 'opacity-70 cursor-not-allowed' : ''}`}>
+            <Select value={selectedStoreFilter} onValueChange={setSelectedStoreFilter}>
+              <SelectTrigger className="w-full md:w-[130px] text-sm">
                 <SelectValue placeholder="All Stores" />
               </SelectTrigger>
               <SelectContent>
