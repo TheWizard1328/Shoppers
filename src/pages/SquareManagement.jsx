@@ -1496,7 +1496,7 @@ export default function SquareManagement() {
       <div className="flex-shrink-0 mb-4">
 
         {/* ── MAIN 2-COL LAYOUT ── static left col | auto right col ── */}
-        <div className="grid grid-cols-1 gap-2 md:gap-3 md:mb-3 md:grid-cols-[555px_1fr]">
+        <div className={`grid grid-cols-1 gap-2 md:gap-3 md:mb-3 ${activeView === 'reconciliation' ? 'md:grid-cols-[900px_1fr]' : 'md:grid-cols-[555px_1fr]'}`}>
 
           {/* LEFT col – filters/tabs + stat cards stacked */}
           <div className="flex flex-col gap-2">
@@ -1590,7 +1590,73 @@ export default function SquareManagement() {
               }
             </div>
 
-            {/* Sub-row 3: 2×2 stat cards (catalog view only) */}
+            {/* Sub-row 3a: 2×5 stat cards (reconciliation view only) */}
+            {activeView === 'reconciliation' && currentUser && isAppOwner(currentUser) &&
+            <div className="grid grid-cols-5 gap-2 mt-1">
+              <Card className="bg-white dark:bg-slate-900 border-red-200 dark:border-red-800">
+                <CardContent className="p-2.5">
+                  <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Unmatched</div>
+                  <div className="text-lg font-bold text-red-600 dark:text-red-400 leading-tight">{reconciliationRows.length}</div>
+                </CardContent>
+              </Card>
+              <Card className="bg-white dark:bg-slate-900 border-red-200 dark:border-red-800">
+                <CardContent className="p-2.5">
+                  <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Unmatched $</div>
+                  <div className="text-lg font-bold text-red-600 dark:text-red-400 leading-tight">${reconciliationRows.reduce((s, r) => s + Number(r.amount || 0), 0).toFixed(2)}</div>
+                </CardContent>
+              </Card>
+              <Card className="bg-white dark:bg-slate-900 border-orange-200 dark:border-orange-800">
+                <CardContent className="p-2.5">
+                  <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Cross-Store</div>
+                  <div className="text-lg font-bold text-orange-600 dark:text-orange-400 leading-tight">{reconciliationRows.filter((r) => r.crossStoreAlert).length}</div>
+                </CardContent>
+              </Card>
+              <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+                <CardContent className="p-2.5">
+                  <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">COD Deliveries</div>
+                  <div className="text-lg font-bold text-slate-900 dark:text-slate-50 leading-tight">{codDeliveriesCount}</div>
+                </CardContent>
+              </Card>
+              <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+                <CardContent className="p-2.5">
+                  <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Locations</div>
+                  <div className="text-lg font-bold text-blue-600 dark:text-blue-400 leading-tight">{new Set(reconciliationRows.map((r) => r.locationId).filter(Boolean)).size}</div>
+                </CardContent>
+              </Card>
+              <Card className="bg-white dark:bg-slate-900 border-emerald-200 dark:border-emerald-800">
+                <CardContent className="p-2.5">
+                  <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Transactions</div>
+                  <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 leading-tight">{filteredTransactionRows.length}</div>
+                </CardContent>
+              </Card>
+              <Card className="bg-white dark:bg-slate-900 border-emerald-200 dark:border-emerald-800">
+                <CardContent className="p-2.5">
+                  <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Collected $</div>
+                  <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 leading-tight">${filteredTransactionRows.reduce((s, r) => s + Number(r.amount || 0), 0).toFixed(2)}</div>
+                </CardContent>
+              </Card>
+              <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+                <CardContent className="p-2.5">
+                  <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Cash</div>
+                  <div className="text-lg font-bold text-slate-900 dark:text-slate-50 leading-tight">{collectedCodTypeBreakdown.Cash}</div>
+                </CardContent>
+              </Card>
+              <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+                <CardContent className="p-2.5">
+                  <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Debit</div>
+                  <div className="text-lg font-bold text-slate-900 dark:text-slate-50 leading-tight">{collectedCodTypeBreakdown.Debit}</div>
+                </CardContent>
+              </Card>
+              <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+                <CardContent className="p-2.5">
+                  <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Credit</div>
+                  <div className="text-lg font-bold text-slate-900 dark:text-slate-50 leading-tight">{collectedCodTypeBreakdown.Credit}</div>
+                </CardContent>
+              </Card>
+            </div>
+            }
+
+            {/* Sub-row 3b: 2×2 stat cards (catalog view only) */}
             {activeView === 'catalog' && currentUser && isAppOwner(currentUser) &&
             <div className="grid grid-cols-2 gap-2 mt-6">
             <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
