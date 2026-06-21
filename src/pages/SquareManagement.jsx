@@ -1495,11 +1495,11 @@ export default function SquareManagement() {
       ═══════════════════════════════════════════════════════════════════ */}
       <div className="flex-shrink-0 mb-4">
 
-        {/* ── MAIN 2-COL LAYOUT ── shared left col (filters+stats) | shared right col (sync+stores) ── */}
-        <div className="flex flex-col md:flex-row md:items-start gap-2 md:gap-3 mb-2 md:mb-3">
+        {/* ── MAIN 2-COL LAYOUT ── static left col | auto right col ── */}
+        <div className="grid grid-cols-1 md:grid-cols-[340px_1fr] gap-2 md:gap-3 mb-2 md:mb-3">
 
           {/* LEFT col – filters/tabs + stat cards stacked */}
-          <div className="flex flex-col gap-2 flex-shrink-0 w-[340px]">
+          <div className="flex flex-col gap-2">
 
             {/* Sub-row 1: Drivers | Stores | Date range | Sync */}
             <div className="flex flex-row items-center gap-2">
