@@ -1579,25 +1579,25 @@ export default function SquareManagement() {
                 <span>{isUpdatingCatalog ? 'Updating...' : 'Update Catalog'}</span>
               </Button>
             }
+            {syncStatus &&
+              <div className="flex-1 min-w-0">
+                <SyncStatusIndicator
+                  syncStatus={syncStatus}
+                  isSyncing={isSyncing}
+                  error={error}
+                  codDeliveryCount={codDeliveriesCount}
+                  catalogItemCount={filteredCatalogItems.length}
+                  cardSpendCount={filteredCardSalesCount}
+                  salesCount={filteredSalesCount}
+                  collectedCodTypeBreakdown={collectedCodTypeBreakdown} />
+              </div>
+            }
           </div>
         </div>
       </div>
 
       <div className="md:flex-1 md:min-h-0 flex flex-col">
-        {syncStatus &&
-        <div className="mb-2">
-            <SyncStatusIndicator
-            syncStatus={syncStatus}
-            isSyncing={isSyncing}
-            error={error}
-            codDeliveryCount={codDeliveriesCount}
-            catalogItemCount={filteredCatalogItems.length}
-            cardSpendCount={filteredCardSalesCount}
-            salesCount={filteredSalesCount}
-            collectedCodTypeBreakdown={collectedCodTypeBreakdown} />
-          
-          </div>
-        }
+
 
         {bgSyncProgress.stage !== 'idle' &&
         <div className="mb-6 md:mb-8">
