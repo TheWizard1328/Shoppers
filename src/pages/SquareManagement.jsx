@@ -1245,8 +1245,7 @@ export default function SquareManagement() {
           
               {deletingId === item.catalog_object_id ?
           <Loader2 className="w-4 h-4 animate-spin" /> :
-
-          'Collected'
+          'Collect'
           }
             </Button>
 
