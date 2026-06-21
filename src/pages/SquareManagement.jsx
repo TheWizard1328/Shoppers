@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { CheckCircle, Clock, CreditCard, Loader2, CloudDownload, RefreshCw, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
-import { isAppOwner } from "@/components/utils/userRoles";
+import { isAppOwner, userHasRole } from "@/components/utils/userRoles";
 import LocationSummaryCard from "@/components/square/LocationSummaryCard";
 import TransactionHistoryPanel from "@/components/square/TransactionHistoryPanel";
 import CODItemDetailModal from "@/components/square/CODItemDetailModal";
@@ -56,7 +56,7 @@ export default function SquareManagement() {
   const [selectedCODItem, setSelectedCODItem] = useState(null);
   const [allTransactions, setAllTransactions] = useState([]);
   const [deliveries, setDeliveries] = useState([]);
-  const [activeView, setActiveView] = useState('deliveries');
+  const [activeView, setActiveView] = useState('catalog');
   const [itemToDelete, setItemToDelete] = useState(null);
   const [soldCatalogItems, setSoldCatalogItems] = useState([]);
   const [syncStatus, setSyncStatus] = useState(null);
@@ -505,6 +505,14 @@ export default function SquareManagement() {
 
         setCurrentUser(appCurrentUser || null);
         setCurrentAppUser(currentAppUserRecord);
+
+        // For drivers: lock view to catalog, pre-select their own driver filter
+        const isDriver = !!(appCurrentUser && !isAppOwner(appCurrentUser) && userHasRole(appCurrentUser, 'driver'));
+        if (isDriver) {
+          setActiveView('catalog');
+          if (currentAppUserRecord?.id) setSelectedDriverFilter(currentAppUserRecord.id);
+          setSelectedStoreFilter('all');
+        }
         // SINK: never clear existing data with an empty array — only update if new data is non-empty
         if (nextStores.length > 0) setStores(nextStores);
         if (nextPatients.length > 0) setPatients(nextPatients);
@@ -1476,6 +1484,8 @@ export default function SquareManagement() {
     };
   }, [activeView, filteredCatalogRows, filteredDeliveryRows, filteredTransactionRows, reconciliationRows, visibleStoreIds]);
 
+  const isDriverView = !!(currentUser && !isAppOwner(currentUser) && userHasRole(currentUser, 'driver'));
+
   return (
     <div className="px-4 md:px-6 pt-4 md:pt-6 bg-background text-foreground w-full h-full overflow-y-auto md:overflow-hidden flex flex-col">
       <div className="flex flex-col gap-4 mb-6 flex-shrink-0">
@@ -1483,7 +1493,9 @@ export default function SquareManagement() {
           <div className="flex items-center gap-3 min-w-0">
             <CreditCard className="w-6 md:w-8 h-6 md:h-8 flex-shrink-0 text-emerald-600 dark:text-emerald-400" />
             <div className="min-w-0">
-              <h1 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-slate-50">Square COD</h1>
+              <h1 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-slate-50">
+                {isDriverView ? 'Square Catalog Items' : 'Square COD'}
+              </h1>
               <p className="text-xs md:text-sm text-slate-600 dark:text-slate-400">Track and manage COD payments</p>
             </div>
           </div>
@@ -1505,8 +1517,19 @@ export default function SquareManagement() {
               </Select>
             }
 
-            <Select value={selectedStoreFilter} onValueChange={setSelectedStoreFilter}>
-              <SelectTrigger className="w-full md:w-[130px] text-sm">
+            {isDriverView && currentAppUser &&
+            <Select value={selectedDriverFilter} disabled>
+                <SelectTrigger className="w-full md:w-[130px] text-sm opacity-70 cursor-not-allowed">
+                  <SelectValue>{currentAppUser.user_name || 'My Items'}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={currentAppUser.id}>{currentAppUser.user_name}</SelectItem>
+                </SelectContent>
+              </Select>
+            }
+
+            <Select value={selectedStoreFilter} onValueChange={isDriverView ? undefined : setSelectedStoreFilter} disabled={isDriverView}>
+              <SelectTrigger className={`w-full md:w-[130px] text-sm ${isDriverView ? 'opacity-70 cursor-not-allowed' : ''}`}>
                 <SelectValue placeholder="All Stores" />
               </SelectTrigger>
               <SelectContent>
@@ -1549,7 +1572,7 @@ export default function SquareManagement() {
           </div>
 
           <div className="grid grid-cols-2 gap-2 md:flex md:flex-row md:flex-wrap md:items-center md:gap-3 w-full">
-            <SquareCodViewSwitcher activeView={activeView} onChange={setActiveView} counts={viewCounts} />
+            <SquareCodViewSwitcher activeView={activeView} onChange={setActiveView} counts={viewCounts} hidden={isDriverView} />
             {activeView === 'reconciliation' && currentUser && isAppOwner(currentUser) &&
             <Button onClick={updateCatalog} disabled={isLoading || isUpdatingCatalog || isSyncing} className="w-full md:w-[160px] gap-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800">
                 <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isUpdatingCatalog ? 'animate-pulse' : ''}`} />

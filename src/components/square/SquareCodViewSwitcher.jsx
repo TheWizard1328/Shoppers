@@ -8,7 +8,8 @@ const VIEWS = [
 { key: "reconciliation", label: "Reconciliation" }];
 
 
-export default function SquareCodViewSwitcher({ activeView, onChange, counts = {} }) {
+export default function SquareCodViewSwitcher({ activeView, onChange, counts = {}, hidden = false }) {
+  if (hidden) return null;
   return (
     <div className="grid grid-cols-2 gap-3 md:flex md:flex-wrap md:items-center md:justify-start">
       {VIEWS.map((view) => {
