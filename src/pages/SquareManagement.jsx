@@ -1502,7 +1502,7 @@ export default function SquareManagement() {
         </div>
 
         <div className="flex flex-col gap-2">
-          <div className="flex flex-col md:flex-row md:items-start md:gap-3 w-full gap-2">
+          <div className="flex flex-col md:flex-row md:items-center md:gap-3 w-full gap-2">
           <div className="grid grid-cols-2 gap-2 md:flex md:flex-row md:flex-wrap md:items-center md:gap-3 flex-shrink-0">
             {currentUser && isAppOwner(currentUser) && drivers.length > 0 &&
             <Select value={selectedDriverFilter} onValueChange={setSelectedDriverFilter}>
@@ -1572,20 +1572,6 @@ export default function SquareManagement() {
             }
           </div>
 
-          {/* Sync status inline on desktop — to the right of the filter dropdowns */}
-          {syncStatus &&
-            <div className="hidden md:flex md:flex-1 md:min-w-0">
-              <SyncStatusIndicator
-                syncStatus={syncStatus}
-                isSyncing={isSyncing}
-                error={error}
-                codDeliveryCount={codDeliveriesCount}
-                catalogItemCount={filteredCatalogItems.length}
-                cardSpendCount={filteredCardSalesCount}
-                salesCount={filteredSalesCount}
-                collectedCodTypeBreakdown={collectedCodTypeBreakdown} />
-            </div>
-          }
           </div>
 
           <div className="flex flex-row gap-2 md:flex-wrap md:items-center md:gap-3 w-full">
@@ -1601,30 +1587,14 @@ export default function SquareManagement() {
       </div>
 
       <div className="md:flex-1 md:min-h-0 flex flex-col">
-        {syncStatus &&
-        <div className="mb-2 md:hidden">
-            <SyncStatusIndicator
-            syncStatus={syncStatus}
-            isSyncing={isSyncing}
-            error={error}
-            codDeliveryCount={codDeliveriesCount}
-            catalogItemCount={filteredCatalogItems.length}
-            cardSpendCount={filteredCardSalesCount}
-            salesCount={filteredSalesCount}
-            collectedCodTypeBreakdown={collectedCodTypeBreakdown} />
-          </div>
-        }
-
         {bgSyncProgress.stage !== 'idle' &&
-        <div className="mb-6 md:mb-8">
+        <div className="mb-4">
             <BackgroundSyncProgressBar progress={bgSyncProgress} />
           </div>
         }
 
-        {!syncStatus && bgSyncProgress.stage === 'idle' && <div className="mb-4" />}
-
         {lastCleanup &&
-        <div className="mb-6 md:mb-8">
+        <div className="mb-4">
             <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
               <CardContent className="p-3 md:p-4">
                 <div className="flex flex-wrap items-center gap-3 text-sm">
@@ -1643,87 +1613,99 @@ export default function SquareManagement() {
           </div>
         }
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 mb-4 md:mb-8">
-          <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-            <CardContent className="p-3 md:p-4">
-              <div className="text-xs md:text-sm text-slate-600 dark:text-slate-400">{activeViewStats.primaryLabel}</div>
-              <div className="text-xl md:text-2xl font-bold text-slate-900 dark:text-slate-50">{activeViewStats.primaryValue}</div>
-            </CardContent>
-          </Card>
-          <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-            <CardContent className="p-3 md:p-4">
-              <div className="text-xs md:text-sm text-slate-600 dark:text-slate-400">{activeViewStats.amountLabel}</div>
-              <div className="text-xl md:text-2xl font-bold text-emerald-600 dark:text-emerald-400">${activeViewStats.amountValue.toFixed(2)}</div>
-            </CardContent>
-          </Card>
-          <Card className="bg-white dark:bg-slate-900 border-amber-200 dark:border-amber-800">
-            <CardContent className="p-3 md:p-4">
-              <div className="text-xs md:text-sm text-slate-600 dark:text-slate-400">Uncollected COD's</div>
-              <div className="text-xl md:text-2xl font-bold text-amber-600 dark:text-amber-400">
-                ${(activeView === 'deliveries' ? filteredDeliveryRows : activeView === 'transactions' ? filteredTransactionRows : activeView === 'reconciliation' ? reconciliationRows : filteredCatalogRows)
-                  .filter((row) => {
-                    const cls = row.actions?.props?.className || '';
-                    return cls.includes('amber');
-                  })
-                  .reduce((sum, row) => sum + Number(row.amount || 0), 0)
-                  .toFixed(2)}
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-            <CardContent className="p-3 md:p-4">
-              <div className="text-xs md:text-sm text-slate-600 dark:text-slate-400">{activeViewStats.locationLabel}</div>
-              <div className="text-xl md:text-2xl font-bold text-blue-600 dark:text-blue-400">{activeViewStats.locationValue}</div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {activeView === 'catalog' && currentUser && isAppOwner(currentUser) && locationConfigs.length > 0 &&
-        <div>
-            <h2 className="text-base md:text-lg font-semibold mb-4 text-slate-900 dark:text-slate-50">By Store</h2>
-            <div className="flex flex-wrap gap-2 md:gap-4 mb-6 md:mb-8">
-              {(() => {
-                // Build per-store cards by extracting abbreviation from item names
-                // Groups: locationId + storeAbbr → items
-                const storeCardMap = new Map(); // key: `${locationId}::${abbr}` → { label, locationId, config, storeAbbr, items }
-
-                for (const item of filteredCatalogRows) {
-                  const parsed = parseSquareItemName(item.itemName || item.name || '');
-                  const abbr = parsed?.storeAbbr ? parsed.storeAbbr.toUpperCase() : null;
-                  const locationId = item.locationId;
-                  const config = locationConfigs.find((c) => c?.square_location_id === locationId);
-
-                  // Resolve store by abbreviation first, then fall back to config store_name
-                  const storeByAbbr = abbr ? stores.find((s) => s?.abbreviation?.toUpperCase() === abbr) : null;
-                  const storeByConfig = getStoreForConfig(config);
-                  const resolvedStore = storeByAbbr || storeByConfig;
-                  const label = resolvedStore?.name || abbr || config?.name || 'Unknown';
-                  const sortOrder = resolvedStore?.sort_order ?? Infinity;
-
-                  const cardKey = `${locationId}::${abbr || 'unknown'}`;
-                  if (!storeCardMap.has(cardKey)) {
-                    storeCardMap.set(cardKey, { label, locationId, config, storeAbbr: abbr, sortOrder, items: [] });
-                  }
-                  storeCardMap.get(cardKey).items.push(item);
-                }
-
-                return Array.from(storeCardMap.values())
-                  .sort((a, b) => a.sortOrder - b.sortOrder)
-                  .map(({ label, locationId, config, storeAbbr, items }) => {
-                    const codTotal = items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-                    return (
-                      <LocationSummaryCard
-                        key={`${locationId}::${storeAbbr || 'unknown'}`}
-                        location={{ name: label, square_location_id: locationId }}
-                        codTotal={codTotal}
-                        itemCount={items.length}
-                        onClick={() => config && setSelectedLocation(config)} />
-                    );
-                  });
-              })()}
-            </div>
+        {/* Desktop: 2-column layout — stat cards left, sync status + store cards right */}
+        <div className="flex flex-col md:flex-row md:gap-4 mb-4 md:mb-6">
+          {/* Left: 2x2 stat cards */}
+          <div className="grid grid-cols-2 gap-2 md:gap-3 md:w-56 md:flex-shrink-0 mb-3 md:mb-0 md:content-start">
+            <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+              <CardContent className="p-3">
+                <div className="text-xs text-slate-600 dark:text-slate-400">{activeViewStats.primaryLabel}</div>
+                <div className="text-xl font-bold text-slate-900 dark:text-slate-50">{activeViewStats.primaryValue}</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+              <CardContent className="p-3">
+                <div className="text-xs text-slate-600 dark:text-slate-400">{activeViewStats.amountLabel}</div>
+                <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400">${activeViewStats.amountValue.toFixed(2)}</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-white dark:bg-slate-900 border-amber-200 dark:border-amber-800">
+              <CardContent className="p-3">
+                <div className="text-xs text-slate-600 dark:text-slate-400">Uncollected COD's</div>
+                <div className="text-xl font-bold text-amber-600 dark:text-amber-400">
+                  ${(activeView === 'deliveries' ? filteredDeliveryRows : activeView === 'transactions' ? filteredTransactionRows : activeView === 'reconciliation' ? reconciliationRows : filteredCatalogRows)
+                    .filter((row) => {
+                      const cls = row.actions?.props?.className || '';
+                      return cls.includes('amber');
+                    })
+                    .reduce((sum, row) => sum + Number(row.amount || 0), 0)
+                    .toFixed(2)}
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+              <CardContent className="p-3">
+                <div className="text-xs text-slate-600 dark:text-slate-400">{activeViewStats.locationLabel}</div>
+                <div className="text-xl font-bold text-blue-600 dark:text-blue-400">{activeViewStats.locationValue}</div>
+              </CardContent>
+            </Card>
           </div>
-        }
+
+          {/* Right: sync status + by-store cards */}
+          <div className="flex flex-col gap-3 flex-1 min-w-0">
+            {syncStatus &&
+              <SyncStatusIndicator
+                syncStatus={syncStatus}
+                isSyncing={isSyncing}
+                error={error}
+                codDeliveryCount={codDeliveriesCount}
+                catalogItemCount={filteredCatalogItems.length}
+                cardSpendCount={filteredCardSalesCount}
+                salesCount={filteredSalesCount}
+                collectedCodTypeBreakdown={collectedCodTypeBreakdown} />
+            }
+
+            {activeView === 'catalog' && currentUser && isAppOwner(currentUser) && locationConfigs.length > 0 &&
+              <div>
+                <h2 className="text-sm font-semibold mb-2 text-slate-900 dark:text-slate-50">By Store</h2>
+                <div className="flex flex-wrap gap-2">
+                  {(() => {
+                    const storeCardMap = new Map();
+                    for (const item of filteredCatalogRows) {
+                      const parsed = parseSquareItemName(item.itemName || item.name || '');
+                      const abbr = parsed?.storeAbbr ? parsed.storeAbbr.toUpperCase() : null;
+                      const locationId = item.locationId;
+                      const config = locationConfigs.find((c) => c?.square_location_id === locationId);
+                      const storeByAbbr = abbr ? stores.find((s) => s?.abbreviation?.toUpperCase() === abbr) : null;
+                      const storeByConfig = getStoreForConfig(config);
+                      const resolvedStore = storeByAbbr || storeByConfig;
+                      const label = resolvedStore?.name || abbr || config?.name || 'Unknown';
+                      const sortOrder = resolvedStore?.sort_order ?? Infinity;
+                      const cardKey = `${locationId}::${abbr || 'unknown'}`;
+                      if (!storeCardMap.has(cardKey)) {
+                        storeCardMap.set(cardKey, { label, locationId, config, storeAbbr: abbr, sortOrder, items: [] });
+                      }
+                      storeCardMap.get(cardKey).items.push(item);
+                    }
+                    return Array.from(storeCardMap.values())
+                      .sort((a, b) => a.sortOrder - b.sortOrder)
+                      .map(({ label, locationId, config, storeAbbr, items }) => {
+                        const codTotal = items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+                        return (
+                          <LocationSummaryCard
+                            key={`${locationId}::${storeAbbr || 'unknown'}`}
+                            location={{ name: label, square_location_id: locationId }}
+                            codTotal={codTotal}
+                            itemCount={items.length}
+                            onClick={() => config && setSelectedLocation(config)} />
+                        );
+                      });
+                  })()}
+                </div>
+              </div>
+            }
+          </div>
+        </div>
 
         {error &&
         <div className="p-3 md:p-4 rounded-lg mb-6 text-sm md:text-base bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800">
