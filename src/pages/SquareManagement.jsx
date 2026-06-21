@@ -916,6 +916,12 @@ export default function SquareManagement() {
     return date;
   }, [selectedDaysRange]);
 
+  // Ceiling: deliveries dated after today should never appear in COD views
+  const todayDateString = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }, []);
+
   const activeCityIds = useMemo(() => {
     const source = currentAppUser || currentUser;
     if (Array.isArray(source?.city_ids) && source.city_ids.length > 0) return source.city_ids.filter(Boolean);
@@ -982,7 +988,9 @@ export default function SquareManagement() {
     const rows = (deliveries || []).filter((d) => d && Number(d.cod_total_amount_required || 0) > 0).
     filter((delivery) => {
       if (!delivery) return false;
-      if (['failed', 'cancelled'].includes(delivery.status)) return false;
+      if (['failed', 'cancelled', 'pending'].includes(delivery.status)) return false;
+      // Exclude future-dated deliveries — not yet assigned/accepted
+      if (delivery.delivery_date && delivery.delivery_date > todayDateString) return false;
       // Only show deliveries for stores that have a Square location config
       const deliveryStore = stores.find((s) => s?.id === delivery.store_id);
       const deliveryConfig = getConfigForStore(deliveryStore);
@@ -1058,7 +1066,7 @@ export default function SquareManagement() {
       seenRowKeys.add(rowKey);
       return true;
     });
-  }, [deliveries, lookbackStart, selectedDriverFilter, selectedDriverUserIds, patients, stores, locationConfigs, catalogItems, allTransactions, visibleSquareLocationConfigIds]);
+  }, [deliveries, lookbackStart, todayDateString, selectedDriverFilter, selectedDriverUserIds, patients, stores, locationConfigs, catalogItems, allTransactions, visibleSquareLocationConfigIds]);
 
   const isCardSaleTransaction = useCallback((transaction) => {
     if (!transaction || isTransferTransaction(transaction)) return false;
@@ -1183,6 +1191,11 @@ export default function SquareManagement() {
         || null;
       const storeConfig = getConfigForStore(store);
       if (!storeConfig?.id || !visibleSquareLocationConfigIds.has(storeConfig.id)) return false;
+      // Exclude catalog items linked to pending or future-dated deliveries
+      const linkedDelivery = item.delivery_id ? deliveries.find((d) => d?.id === item.delivery_id) : null;
+      if (linkedDelivery?.status === 'pending') return false;
+      const itemDate = item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate;
+      if (itemDate && itemDate > todayDateString) return false;
       return true;
     }).
     map((item) => {
@@ -1227,13 +1240,15 @@ export default function SquareManagement() {
       seenRowKeys.add(rowKey);
       return true;
     });
-  }, [catalogItems, locationConfigs, stores, visibleLocationIds, driverScopedLocationIds, deletingId, lookbackStart, visibleSquareLocationConfigIds]);
+  }, [catalogItems, locationConfigs, stores, visibleLocationIds, driverScopedLocationIds, deletingId, lookbackStart, todayDateString, deliveries, visibleSquareLocationConfigIds]);
 
   const reconciliationRows = useMemo(() => {
     const rows = (deliveries || [])
       .filter((delivery) => {
         if (!delivery) return false;
-        if (delivery.status === 'failed') return false;
+        if (['failed', 'pending'].includes(delivery.status)) return false;
+        // Exclude future-dated deliveries — not yet assigned/accepted by a driver
+        if (delivery.delivery_date && delivery.delivery_date > todayDateString) return false;
         if (Number(delivery.cod_total_amount_required || 0) <= 0) return false;
 
         const store = stores.find((candidateStore) => candidateStore?.id === delivery.store_id);
@@ -1287,7 +1302,7 @@ export default function SquareManagement() {
       seenRowKeys.add(rowKey);
       return true;
     });
-  }, [deliveries, stores, visibleSquareLocationConfigIds, lookbackStart, selectedDriverFilter, selectedDriverUserIds, locationConfigs, allTransactions, hasMatchingSquareTransaction, patients, formatItemNameForDisplay]);
+  }, [deliveries, stores, visibleSquareLocationConfigIds, lookbackStart, todayDateString, selectedDriverFilter, selectedDriverUserIds, locationConfigs, allTransactions, hasMatchingSquareTransaction, patients, formatItemNameForDisplay]);
 
   reconciliationRowsRef.current = reconciliationRows;
 
