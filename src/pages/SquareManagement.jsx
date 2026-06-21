@@ -1488,155 +1488,135 @@ export default function SquareManagement() {
 
   return (
     <div className="px-4 md:px-6 pt-4 md:pt-6 bg-background text-foreground w-full h-full overflow-y-auto md:overflow-hidden flex flex-col">
-      <div className="flex flex-col gap-4 mb-6 flex-shrink-0">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <CreditCard className="w-6 md:w-8 h-6 md:h-8 flex-shrink-0 text-emerald-600 dark:text-emerald-400" />
-            <div className="min-w-0">
-              <h1 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-slate-50">
-                {isDriverView ? 'Square Catalog Items' : 'Square COD'}
-              </h1>
-              <p className="text-xs md:text-sm text-slate-600 dark:text-slate-400">Track and manage COD payments</p>
+      {/* ═══════════════════════════════════════════════════════════════════
+           MASTER LAYOUT  –  2 main rows × 2 columns
+           Left column  : auto/shrink  (content-width)
+           Right column : flex-1       (fills remaining width)
+      ═══════════════════════════════════════════════════════════════════ */}
+      <div className="flex-shrink-0 mb-4">
+
+        {/* ── MAIN ROW 1 ── Filters+Tabs (left)  |  SyncStatus (right) ── */}
+        <div className="flex flex-col md:flex-row md:items-stretch gap-2 md:gap-3 mb-2 md:mb-3">
+
+          {/* LEFT col – filters row + tabs row */}
+          <div className="flex flex-col gap-2 flex-shrink-0">
+
+            {/* Sub-row 1: Drivers | Stores | Date range | Sync */}
+            <div className="flex flex-row flex-wrap items-center gap-2">
+              {currentUser && isAppOwner(currentUser) && drivers.length > 0 &&
+              <Select value={selectedDriverFilter} onValueChange={setSelectedDriverFilter}>
+                  <SelectTrigger className="w-[120px] text-sm">
+                    <SelectValue placeholder="All Drivers" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Drivers</SelectItem>
+                    {drivers.map((driver) =>
+                  <SelectItem key={driver.id} value={driver.id}>{driver.user_name}</SelectItem>
+                  )}
+                  </SelectContent>
+                </Select>
+              }
+              {isDriverView && currentAppUser &&
+              <Select value={selectedDriverFilter} disabled>
+                  <SelectTrigger className="w-[120px] text-sm opacity-70 cursor-not-allowed">
+                    <SelectValue>{currentAppUser.user_name || 'My Items'}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={currentAppUser.id}>{currentAppUser.user_name}</SelectItem>
+                  </SelectContent>
+                </Select>
+              }
+              <Select value={selectedStoreFilter} onValueChange={setSelectedStoreFilter}>
+                <SelectTrigger className="w-[120px] text-sm">
+                  <SelectValue placeholder="All Stores" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Stores</SelectItem>
+                  {availableStoresForFilter.map((store) =>
+                  <SelectItem key={store.id} value={store.id}>{store.name}</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+              <Select value={selectedDaysRange} onValueChange={setSelectedDaysRange}>
+                <SelectTrigger className="w-[100px] text-sm">
+                  <SelectValue placeholder="Days" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="7">7 Days</SelectItem>
+                  <SelectItem value="14">14 Days</SelectItem>
+                  <SelectItem value="21">21 Days</SelectItem>
+                  <SelectItem value="28">28 Days</SelectItem>
+                  <SelectItem value="45">45 Days</SelectItem>
+                  <SelectItem value="60">60 Days</SelectItem>
+                  <SelectItem value="90">90 Days</SelectItem>
+                </SelectContent>
+              </Select>
+              {currentUser && isAppOwner(currentUser) &&
+              <>
+                <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-3">
+                  <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
+                  {isSyncing ? 'Syncing...' : 'Sync'}
+                </Button>
+                {activeView === 'reconciliation' &&
+                <Button onClick={runReconcile} disabled={isReconciling || isSyncing} className="gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-3">
+                  {isReconciling ? <Loader2 className="w-4 h-4 flex-shrink-0 animate-spin" /> : <RefreshCw className="w-4 h-4 flex-shrink-0" />}
+                  {isReconciling ? 'Reconciling...' : 'Reconcile'}
+                </Button>
+                }
+              </>
+              }
+            </div>
+
+            {/* Sub-row 2: Tab buttons */}
+            <div className="flex flex-row flex-wrap items-center gap-2">
+              <SquareCodViewSwitcher activeView={activeView} onChange={setActiveView} counts={viewCounts} hidden={isDriverView} />
+              {activeView === 'reconciliation' && currentUser && isAppOwner(currentUser) &&
+              <Button onClick={updateCatalog} disabled={isLoading || isUpdatingCatalog || isSyncing} className="gap-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-3">
+                  <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isUpdatingCatalog ? 'animate-pulse' : ''}`} />
+                  <span>{isUpdatingCatalog ? 'Updating...' : 'Update Catalog'}</span>
+                </Button>
+              }
             </div>
           </div>
+
+          {/* RIGHT col – SyncStatus card, stretches to match left col height */}
+          {syncStatus &&
+          <div className="flex-1 min-w-0">
+            <SyncStatusIndicator
+              syncStatus={syncStatus}
+              isSyncing={isSyncing}
+              error={error}
+              codDeliveryCount={codDeliveriesCount}
+              catalogItemCount={filteredCatalogItems.length}
+              cardSpendCount={filteredCardSalesCount}
+              salesCount={filteredSalesCount}
+              collectedCodTypeBreakdown={collectedCodTypeBreakdown} />
+          </div>
+          }
         </div>
 
-        <div className="flex flex-col gap-2">
-          <div className="flex flex-col md:flex-row md:items-center md:gap-3 w-full gap-2">
-          <div className="grid grid-cols-2 gap-2 md:flex md:flex-row md:flex-wrap md:items-center md:gap-3 flex-shrink-0">
-            {currentUser && isAppOwner(currentUser) && drivers.length > 0 &&
-            <Select value={selectedDriverFilter} onValueChange={setSelectedDriverFilter}>
-                <SelectTrigger className="w-full md:w-[130px] text-sm">
-                  <SelectValue placeholder="All Drivers" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Drivers</SelectItem>
-                  {drivers.map((driver) =>
-                <SelectItem key={driver.id} value={driver.id}>{driver.user_name}</SelectItem>
-                )}
-                </SelectContent>
-              </Select>
-            }
+        {/* ── MAIN ROW 2 ── Stats 2×2 (left)  |  Store location cards (right) ── */}
+        {activeView === 'catalog' && currentUser && isAppOwner(currentUser) &&
+        <div className="flex flex-col md:flex-row md:items-start gap-2 md:gap-3">
 
-            {isDriverView && currentAppUser &&
-            <Select value={selectedDriverFilter} disabled>
-                <SelectTrigger className="w-full md:w-[130px] text-sm opacity-70 cursor-not-allowed">
-                  <SelectValue>{currentAppUser.user_name || 'My Items'}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={currentAppUser.id}>{currentAppUser.user_name}</SelectItem>
-                </SelectContent>
-              </Select>
-            }
-
-            <Select value={selectedStoreFilter} onValueChange={setSelectedStoreFilter}>
-              <SelectTrigger className="w-full md:w-[130px] text-sm">
-                <SelectValue placeholder="All Stores" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Stores</SelectItem>
-                {availableStoresForFilter.map((store) =>
-                <SelectItem key={store.id} value={store.id}>{store.name}</SelectItem>
-                )}
-              </SelectContent>
-            </Select>
-
-            <Select value={selectedDaysRange} onValueChange={setSelectedDaysRange}>
-              <SelectTrigger className="w-full md:w-[130px] text-sm">
-                <SelectValue placeholder="Days" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="7">7 Days</SelectItem>
-                <SelectItem value="14">14 Days</SelectItem>
-                <SelectItem value="21">21 Days</SelectItem>
-                <SelectItem value="28">28 Days</SelectItem>
-                <SelectItem value="45">45 Days</SelectItem>
-                <SelectItem value="60">60 Days</SelectItem>
-                <SelectItem value="90">90 Days</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {currentUser && isAppOwner(currentUser) &&
-            <>
-              <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="w-full md:w-[130px] gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 justify-center">
-                <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
-                {isSyncing ? 'Syncing...' : 'Sync'}
-              </Button>
-              {activeView === 'reconciliation' &&
-              <Button onClick={runReconcile} disabled={isReconciling || isSyncing} className="w-full md:w-[160px] gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 justify-center">
-                {isReconciling ? <Loader2 className="w-4 h-4 flex-shrink-0 animate-spin" /> : <RefreshCw className="w-4 h-4 flex-shrink-0" />}
-                {isReconciling ? 'Reconciling...' : 'Reconcile'}
-              </Button>
-              }
-            </>
-            }
-          </div>
-
-          </div>
-
-          <div className="flex flex-row gap-2 md:flex-wrap md:items-center md:gap-3 w-full">
-            <SquareCodViewSwitcher activeView={activeView} onChange={setActiveView} counts={viewCounts} hidden={isDriverView} />
-            {activeView === 'reconciliation' && currentUser && isAppOwner(currentUser) &&
-            <Button onClick={updateCatalog} disabled={isLoading || isUpdatingCatalog || isSyncing} className="w-full md:w-[160px] gap-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800">
-                <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isUpdatingCatalog ? 'animate-pulse' : ''}`} />
-                <span>{isUpdatingCatalog ? 'Updating...' : 'Update Catalog'}</span>
-              </Button>
-            }
-          </div>
-        </div>
-      </div>
-
-      <div className="md:flex-1 md:min-h-0 flex flex-col">
-        {bgSyncProgress.stage !== 'idle' &&
-        <div className="mb-4">
-            <BackgroundSyncProgressBar progress={bgSyncProgress} />
-          </div>
-        }
-
-        {lastCleanup &&
-        <div className="mb-4">
+          {/* LEFT col – 2×2 stat cards */}
+          <div className="grid grid-cols-2 gap-2 flex-shrink-0" style={{width:'176px'}}>
             <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-              <CardContent className="p-3 md:p-4">
-                <div className="flex flex-wrap items-center gap-3 text-sm">
-                  <CheckCircle className="w-4 h-4 text-emerald-600" />
-                  <span className="font-semibold">Last Cleanup</span>
-                  <span className="text-slate-600 dark:text-slate-400">Processed: {lastCleanup.processed}</span>
-                  <span className="text-slate-600 dark:text-slate-400">Deleted OK: {lastCleanup.counts['delete']?.ok || 0}</span>
-                  <span className="text-slate-600 dark:text-slate-400">Upserted OK: {lastCleanup.counts['upsert']?.ok || 0}</span>
-                  <span className="ml-auto text-xs flex items-center gap-1 text-slate-500 dark:text-slate-400">
-                    <Clock className="w-3 h-3" />
-                    {new Date(lastCleanup.finishedAt || lastCleanup.startedAt).toLocaleString()}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        }
-
-        {/* Stats + Sync + Store cards */}
-
-        {/* Mobile portrait: 4-across stats row, then sync, then store cards stacked */}
-        {/* Desktop / landscape: 2×2 stats left column, sync+store cards fill right */}
-        <div className="flex flex-col md:flex-row md:items-start gap-2 md:gap-3 mb-4 md:mb-5">
-
-          {/* Stat cards: 4-across on mobile, 2×2 fixed-width on desktop */}
-          <div className="grid grid-cols-4 md:grid-cols-2 gap-2 md:flex-shrink-0 md:w-44">
-            <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-              <CardContent className="p-2 md:p-2.5">
-                <div className="text-[10px] md:text-[11px] leading-tight text-slate-500 dark:text-slate-400">{activeViewStats.primaryLabel}</div>
-                <div className="text-base md:text-lg font-bold text-slate-900 dark:text-slate-50 leading-tight">{activeViewStats.primaryValue}</div>
+              <CardContent className="p-2.5">
+                <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">{activeViewStats.primaryLabel}</div>
+                <div className="text-lg font-bold text-slate-900 dark:text-slate-50 leading-tight">{activeViewStats.primaryValue}</div>
               </CardContent>
             </Card>
             <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-              <CardContent className="p-2 md:p-2.5">
-                <div className="text-[10px] md:text-[11px] leading-tight text-slate-500 dark:text-slate-400">{activeViewStats.amountLabel}</div>
-                <div className="text-base md:text-lg font-bold text-emerald-600 dark:text-emerald-400 leading-tight">${activeViewStats.amountValue.toFixed(2)}</div>
+              <CardContent className="p-2.5">
+                <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">{activeViewStats.amountLabel}</div>
+                <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 leading-tight">${activeViewStats.amountValue.toFixed(2)}</div>
               </CardContent>
             </Card>
             <Card className="bg-white dark:bg-slate-900 border-amber-200 dark:border-amber-800">
-              <CardContent className="p-2 md:p-2.5">
-                <div className="text-[10px] md:text-[11px] leading-tight text-slate-500 dark:text-slate-400">Uncollected COD's</div>
-                <div className="text-base md:text-lg font-bold text-amber-600 dark:text-amber-400 leading-tight">
+              <CardContent className="p-2.5">
+                <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Uncollected COD's</div>
+                <div className="text-lg font-bold text-amber-600 dark:text-amber-400 leading-tight">
                   ${(activeView === 'deliveries' ? filteredDeliveryRows : activeView === 'transactions' ? filteredTransactionRows : activeView === 'reconciliation' ? reconciliationRows : filteredCatalogRows)
                     .filter((row) => {
                       const cls = row.actions?.props?.className || '';
@@ -1648,69 +1628,121 @@ export default function SquareManagement() {
               </CardContent>
             </Card>
             <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-              <CardContent className="p-2 md:p-2.5">
-                <div className="text-[10px] md:text-[11px] leading-tight text-slate-500 dark:text-slate-400">{activeViewStats.locationLabel}</div>
-                <div className="text-base md:text-lg font-bold text-blue-600 dark:text-blue-400 leading-tight">{activeViewStats.locationValue}</div>
+              <CardContent className="p-2.5">
+                <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">{activeViewStats.locationLabel}</div>
+                <div className="text-lg font-bold text-blue-600 dark:text-blue-400 leading-tight">{activeViewStats.locationValue}</div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Sync status + By Store: full width on mobile, fills right on desktop */}
-          <div className="flex flex-col gap-2 flex-1 min-w-0">
-            {syncStatus &&
-              <SyncStatusIndicator
-                syncStatus={syncStatus}
-                isSyncing={isSyncing}
-                error={error}
-                codDeliveryCount={codDeliveriesCount}
-                catalogItemCount={filteredCatalogItems.length}
-                cardSpendCount={filteredCardSalesCount}
-                salesCount={filteredSalesCount}
-                collectedCodTypeBreakdown={collectedCodTypeBreakdown} />
-            }
-
-            {activeView === 'catalog' && currentUser && isAppOwner(currentUser) && locationConfigs.length > 0 &&
-              <div>
-                <h2 className="text-sm font-semibold mb-1.5 text-slate-900 dark:text-slate-50">By Store</h2>
-                <div className="flex flex-wrap gap-2">
-                  {(() => {
-                    const storeCardMap = new Map();
-                    for (const item of filteredCatalogRows) {
-                      const parsed = parseSquareItemName(item.itemName || item.name || '');
-                      const abbr = parsed?.storeAbbr ? parsed.storeAbbr.toUpperCase() : null;
-                      const locationId = item.locationId;
-                      const config = locationConfigs.find((c) => c?.square_location_id === locationId);
-                      const storeByAbbr = abbr ? stores.find((s) => s?.abbreviation?.toUpperCase() === abbr) : null;
-                      const storeByConfig = getStoreForConfig(config);
-                      const resolvedStore = storeByAbbr || storeByConfig;
-                      const label = resolvedStore?.name || abbr || config?.name || 'Unknown';
-                      const sortOrder = resolvedStore?.sort_order ?? Infinity;
-                      const cardKey = `${locationId}::${abbr || 'unknown'}`;
-                      if (!storeCardMap.has(cardKey)) {
-                        storeCardMap.set(cardKey, { label, locationId, config, storeAbbr: abbr, sortOrder, items: [] });
-                      }
-                      storeCardMap.get(cardKey).items.push(item);
-                    }
-                    return Array.from(storeCardMap.values())
-                      .sort((a, b) => a.sortOrder - b.sortOrder)
-                      .map(({ label, locationId, config, storeAbbr, items }) => {
-                        const codTotal = items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-                        return (
-                          <LocationSummaryCard
-                            key={`${locationId}::${storeAbbr || 'unknown'}`}
-                            location={{ name: label, square_location_id: locationId }}
-                            codTotal={codTotal}
-                            itemCount={items.length}
-                            onClick={() => config && setSelectedLocation(config)} />
-                        );
-                      });
-                  })()}
-                </div>
-              </div>
-            }
+          {/* RIGHT col – one card per Square store location */}
+          {locationConfigs.length > 0 &&
+          <div className="flex-1 min-w-0">
+            <h2 className="text-sm font-semibold mb-1.5 text-slate-900 dark:text-slate-50">By Store</h2>
+            <div className="flex flex-wrap gap-2">
+              {(() => {
+                const storeCardMap = new Map();
+                for (const item of filteredCatalogRows) {
+                  const parsed = parseSquareItemName(item.itemName || item.name || '');
+                  const abbr = parsed?.storeAbbr ? parsed.storeAbbr.toUpperCase() : null;
+                  const locationId = item.locationId;
+                  const config = locationConfigs.find((c) => c?.square_location_id === locationId);
+                  const storeByAbbr = abbr ? stores.find((s) => s?.abbreviation?.toUpperCase() === abbr) : null;
+                  const storeByConfig = getStoreForConfig(config);
+                  const resolvedStore = storeByAbbr || storeByConfig;
+                  const label = resolvedStore?.name || abbr || config?.name || 'Unknown';
+                  const sortOrder = resolvedStore?.sort_order ?? Infinity;
+                  const cardKey = `${locationId}::${abbr || 'unknown'}`;
+                  if (!storeCardMap.has(cardKey)) {
+                    storeCardMap.set(cardKey, { label, locationId, config, storeAbbr: abbr, sortOrder, items: [] });
+                  }
+                  storeCardMap.get(cardKey).items.push(item);
+                }
+                return Array.from(storeCardMap.values())
+                  .sort((a, b) => a.sortOrder - b.sortOrder)
+                  .map(({ label, locationId, config, storeAbbr, items }) => {
+                    const codTotal = items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+                    return (
+                      <LocationSummaryCard
+                        key={`${locationId}::${storeAbbr || 'unknown'}`}
+                        location={{ name: label, square_location_id: locationId }}
+                        codTotal={codTotal}
+                        itemCount={items.length}
+                        onClick={() => config && setSelectedLocation(config)} />
+                    );
+                  });
+              })()}
+            </div>
           </div>
+          }
         </div>
+        }
 
+        {/* Row 2 stats for NON-catalog views (no store cards, just 4-across stat strip) */}
+        {activeView !== 'catalog' &&
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+            <CardContent className="p-2.5">
+              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">{activeViewStats.primaryLabel}</div>
+              <div className="text-lg font-bold text-slate-900 dark:text-slate-50 leading-tight">{activeViewStats.primaryValue}</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+            <CardContent className="p-2.5">
+              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">{activeViewStats.amountLabel}</div>
+              <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 leading-tight">${activeViewStats.amountValue.toFixed(2)}</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-white dark:bg-slate-900 border-amber-200 dark:border-amber-800">
+            <CardContent className="p-2.5">
+              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Uncollected COD's</div>
+              <div className="text-lg font-bold text-amber-600 dark:text-amber-400 leading-tight">
+                ${(activeView === 'deliveries' ? filteredDeliveryRows : activeView === 'transactions' ? filteredTransactionRows : activeView === 'reconciliation' ? reconciliationRows : filteredCatalogRows)
+                    .filter((row) => {
+                      const cls = row.actions?.props?.className || '';
+                      return cls.includes('amber');
+                    })
+                    .reduce((sum, row) => sum + Number(row.amount || 0), 0)
+                    .toFixed(2)}
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+            <CardContent className="p-2.5">
+              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">{activeViewStats.locationLabel}</div>
+              <div className="text-lg font-bold text-blue-600 dark:text-blue-400 leading-tight">{activeViewStats.locationValue}</div>
+            </CardContent>
+          </Card>
+        </div>
+        }
+
+        {bgSyncProgress.stage !== 'idle' &&
+        <div className="mt-3">
+          <BackgroundSyncProgressBar progress={bgSyncProgress} />
+        </div>
+        }
+        {lastCleanup &&
+        <div className="mt-3">
+          <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+            <CardContent className="p-3">
+              <div className="flex flex-wrap items-center gap-3 text-sm">
+                <CheckCircle className="w-4 h-4 text-emerald-600" />
+                <span className="font-semibold">Last Cleanup</span>
+                <span className="text-slate-600 dark:text-slate-400">Processed: {lastCleanup.processed}</span>
+                <span className="text-slate-600 dark:text-slate-400">Deleted OK: {lastCleanup.counts['delete']?.ok || 0}</span>
+                <span className="text-slate-600 dark:text-slate-400">Upserted OK: {lastCleanup.counts['upsert']?.ok || 0}</span>
+                <span className="ml-auto text-xs flex items-center gap-1 text-slate-500 dark:text-slate-400">
+                  <Clock className="w-3 h-3" />
+                  {new Date(lastCleanup.finishedAt || lastCleanup.startedAt).toLocaleString()}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        }
+      </div>
+
+      <div className="md:flex-1 md:min-h-0 flex flex-col">
         {error &&
         <div className="p-3 md:p-4 rounded-lg mb-6 text-sm md:text-base bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800">
             Error: {error}
