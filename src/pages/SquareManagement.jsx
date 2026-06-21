@@ -523,9 +523,9 @@ export default function SquareManagement() {
           setLocationIds(nextLocationConfigs.map((config) => config?.square_location_id).filter(Boolean));
         } else {
 
+
           // Keep whatever was already loaded from offline DB on mount
-        }
-        return { offlineDB, nextLocationConfigs };
+        }return { offlineDB, nextLocationConfigs };
       } catch (err) {
         console.error('Failed to sync lookup data:', err);
         return null;
@@ -1489,17 +1489,17 @@ export default function SquareManagement() {
   return (
     <div className="px-4 md:px-6 pt-4 md:pt-6 bg-background text-foreground w-full h-full overflow-y-auto md:overflow-hidden flex flex-col">
       {/* ═══════════════════════════════════════════════════════════════════
-            MASTER LAYOUT  –  2 main rows × 2 columns
-            Left column  : auto/shrink  (content-width)
-            Right column : flex-1       (fills remaining width)
-        ═══════════════════════════════════════════════════════════════════ */}
+             MASTER LAYOUT  –  2 main rows × 2 columns
+             Left column  : auto/shrink  (content-width)
+             Right column : flex-1       (fills remaining width)
+         ═══════════════════════════════════════════════════════════════════ */}
       <div className="flex-shrink-0 mb-4">
 
         {/* ── MAIN ROW 1 ── Filters+Tabs (left)  |  SyncStatus (right) ── */}
         <div className="flex flex-col md:flex-row md:items-stretch gap-2 md:gap-3 mb-2 md:mb-3">
 
           {/* LEFT col – filters row + tabs row */}
-          <div className="flex flex-col gap-2 flex-shrink-0 w-[50px]">
+          <div className="flex flex-col gap-2 flex-shrink-0 w-[555px]">
 
             {/* Sub-row 1: Drivers | Stores | Date range | Sync */}
             <div className="flex flex-row items-center gap-2">
