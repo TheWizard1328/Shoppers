@@ -1613,27 +1613,30 @@ export default function SquareManagement() {
           </div>
         }
 
-        {/* Stats + Sync + Store cards — single horizontal band */}
-        <div className="flex flex-col md:flex-row md:items-start gap-3 mb-4 md:mb-5">
+        {/* Stats + Sync + Store cards */}
 
-          {/* Left: 2×2 stat cards — compact fixed width */}
-          <div className="grid grid-cols-2 gap-2 flex-shrink-0" style={{width: '172px'}}>
+        {/* Mobile portrait: 4-across stats row, then sync, then store cards stacked */}
+        {/* Desktop / landscape: 2×2 stats left column, sync+store cards fill right */}
+        <div className="flex flex-col md:flex-row md:items-start gap-2 md:gap-3 mb-4 md:mb-5">
+
+          {/* Stat cards: 4-across on mobile, 2×2 fixed-width on desktop */}
+          <div className="grid grid-cols-4 md:grid-cols-2 gap-2 md:flex-shrink-0 md:w-44">
             <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-              <CardContent className="p-2.5">
-                <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">{activeViewStats.primaryLabel}</div>
-                <div className="text-lg font-bold text-slate-900 dark:text-slate-50 leading-tight">{activeViewStats.primaryValue}</div>
+              <CardContent className="p-2 md:p-2.5">
+                <div className="text-[10px] md:text-[11px] leading-tight text-slate-500 dark:text-slate-400">{activeViewStats.primaryLabel}</div>
+                <div className="text-base md:text-lg font-bold text-slate-900 dark:text-slate-50 leading-tight">{activeViewStats.primaryValue}</div>
               </CardContent>
             </Card>
             <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-              <CardContent className="p-2.5">
-                <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">{activeViewStats.amountLabel}</div>
-                <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 leading-tight">${activeViewStats.amountValue.toFixed(2)}</div>
+              <CardContent className="p-2 md:p-2.5">
+                <div className="text-[10px] md:text-[11px] leading-tight text-slate-500 dark:text-slate-400">{activeViewStats.amountLabel}</div>
+                <div className="text-base md:text-lg font-bold text-emerald-600 dark:text-emerald-400 leading-tight">${activeViewStats.amountValue.toFixed(2)}</div>
               </CardContent>
             </Card>
             <Card className="bg-white dark:bg-slate-900 border-amber-200 dark:border-amber-800">
-              <CardContent className="p-2.5">
-                <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Uncollected COD's</div>
-                <div className="text-lg font-bold text-amber-600 dark:text-amber-400 leading-tight">
+              <CardContent className="p-2 md:p-2.5">
+                <div className="text-[10px] md:text-[11px] leading-tight text-slate-500 dark:text-slate-400">Uncollected COD's</div>
+                <div className="text-base md:text-lg font-bold text-amber-600 dark:text-amber-400 leading-tight">
                   ${(activeView === 'deliveries' ? filteredDeliveryRows : activeView === 'transactions' ? filteredTransactionRows : activeView === 'reconciliation' ? reconciliationRows : filteredCatalogRows)
                     .filter((row) => {
                       const cls = row.actions?.props?.className || '';
@@ -1645,14 +1648,14 @@ export default function SquareManagement() {
               </CardContent>
             </Card>
             <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-              <CardContent className="p-2.5">
-                <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">{activeViewStats.locationLabel}</div>
-                <div className="text-lg font-bold text-blue-600 dark:text-blue-400 leading-tight">{activeViewStats.locationValue}</div>
+              <CardContent className="p-2 md:p-2.5">
+                <div className="text-[10px] md:text-[11px] leading-tight text-slate-500 dark:text-slate-400">{activeViewStats.locationLabel}</div>
+                <div className="text-base md:text-lg font-bold text-blue-600 dark:text-blue-400 leading-tight">{activeViewStats.locationValue}</div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Right: sync status bar on top, then store cards flowing horizontally below */}
+          {/* Sync status + By Store: full width on mobile, fills right on desktop */}
           <div className="flex flex-col gap-2 flex-1 min-w-0">
             {syncStatus &&
               <SyncStatusIndicator
