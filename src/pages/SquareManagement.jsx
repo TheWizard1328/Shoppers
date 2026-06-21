@@ -1502,7 +1502,7 @@ export default function SquareManagement() {
           <div className="flex flex-col gap-2 flex-shrink-0">
 
             {/* Sub-row 1: Drivers | Stores | Date range | Sync */}
-            <div className="flex flex-row flex-wrap items-center gap-2">
+            <div className="flex flex-row items-center justify-between gap-2">
               {currentUser && isAppOwner(currentUser) && drivers.length > 0 &&
               <Select value={selectedDriverFilter} onValueChange={setSelectedDriverFilter}>
                   <SelectTrigger className="w-[120px] text-sm">
