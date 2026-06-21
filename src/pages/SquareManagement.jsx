@@ -757,17 +757,38 @@ export default function SquareManagement() {
     return parsed ? format(parsed, 'yyyy-MM-dd') : null;
   }, [getTransactionFilterDate]);
 
+  // Build a map of locationId → [storeId, storeId, ...] for shared-location disambiguation
+  const storeIdsByLocationId = useMemo(() => {
+    const map = new Map();
+    for (const store of stores) {
+      if (!store?.id) continue;
+      const config = getConfigForStore(store);
+      if (!config?.square_location_id) continue;
+      if (!map.has(config.square_location_id)) map.set(config.square_location_id, []);
+      map.get(config.square_location_id).push(store.id);
+    }
+    return map;
+  }, [stores, locationConfigs]);
+
   const findMatchingDeliveryForTransaction = useCallback((transaction, resolvedStoreId = null) => {
     const transactionAmountSet = getTransactionAmountSet(transaction);
     const transactionDate = getTransactionEffectiveDateString(transaction);
     const parsedItem = parseSquareItemName(transaction?.item_name);
     const patientName = parsedItem?.patientName || '';
-    const targetStoreId = resolvedStoreId || transaction?.store_id || null;
+    const txLocationId = transaction?.location_id || null;
+
+    // All store IDs valid for this transaction's location (handles shared location IDs)
+    const validStoreIds = txLocationId
+      ? new Set(storeIdsByLocationId.get(txLocationId) || [])
+      : null;
+    // If we have a resolved store, prefer it but don't block matches from sibling stores at the same location
+    const preferredStoreId = resolvedStoreId || transaction?.store_id || null;
 
     return (deliveries || []).find((delivery) => {
       if (!delivery) return false;
       if (transaction.delivery_id && delivery.id === transaction.delivery_id) return true;
-      if (targetStoreId && delivery.store_id !== targetStoreId) return false;
+      // Only filter by store if the delivery's store is NOT in the valid location pool
+      if (validStoreIds && validStoreIds.size > 0 && !validStoreIds.has(delivery.store_id)) return false;
       if (!amountSetsIntersect(getDeliveryPaymentAmountSet(delivery), transactionAmountSet)) return false;
       if (transactionDate && delivery.delivery_date === transactionDate) {
         if (!patientName) return true;
@@ -781,7 +802,7 @@ export default function SquareManagement() {
       }
       return false;
     }) || null;
-  }, [deliveries, getTransactionEffectiveDateString, patients]);
+  }, [deliveries, getTransactionEffectiveDateString, patients, storeIdsByLocationId]);
 
   const formatItemNameForDisplay = useCallback((deliveryDate, storeAbbreviation, patientName) => {
     const [, month, day] = String(deliveryDate || '').split('-');
@@ -824,9 +845,15 @@ export default function SquareManagement() {
       const transactionDateString = parsedTransactionDateString || transactionCreatedDateString;
       const transactionStoreAbbreviation = String(parsed?.storeAbbr || '').trim().toLowerCase();
       const transactionLocationId = String(transaction.location_id || '').trim();
+      const txLocationId = transaction.location_id || null;
 
       const dateMatches = !!deliveryDateString && !!transactionDateString && deliveryDateString === transactionDateString;
-      const locationMatches = !!normalizedLocationId && !!transactionLocationId && normalizedLocationId === transactionLocationId;
+      // Location matches if same ID, OR if both are valid store IDs at the same shared Square location
+      const sharedLocationIds = txLocationId ? (storeIdsByLocationId.get(normalizedLocationId) || []) : [];
+      const locationMatches = !!normalizedLocationId && !!transactionLocationId && (
+        normalizedLocationId === transactionLocationId ||
+        (sharedLocationIds.length > 1 && sharedLocationIds.includes(transactionLocationId))
+      );
       const abbreviationMatches = !!storeAbbreviation && (
         (!!transactionStoreAbbreviation && storeAbbreviation === transactionStoreAbbreviation) ||
         String(transaction.item_name || '').toLowerCase().includes(storeAbbreviation)
@@ -841,7 +868,7 @@ export default function SquareManagement() {
 
       return false;
     });
-  }, [allTransactions, patients, stores, getTransactionCreatedDate]);
+  }, [allTransactions, patients, stores, getTransactionCreatedDate, storeIdsByLocationId]);
 
   const confirmDelete = async () => {
     if (!itemToDelete) return;
