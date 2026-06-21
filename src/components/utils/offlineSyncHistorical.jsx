@@ -156,6 +156,7 @@ export const createOfflineSyncHistoricalHelpers = ({
           const onlineFilter = { delivery_date: futureDate };
           if (storeIds && storeIds.length > 0) onlineFilter.store_id = { $in: storeIds };
           const futureSample = await entities.Delivery.filter(onlineFilter, '-updated_date', 1);
+          // Note: cycling markers excluded here is OK — we just need to know if ANY delivery exists
           if (futureSample && futureSample.length > 0) {
             futureDates.push(futureDate);
           }
@@ -207,7 +208,17 @@ export const createOfflineSyncHistoricalHelpers = ({
           if (storeIds && storeIds.length > 0) {
             onlineFilter.store_id = { $in: storeIds };
           }
-          const onlineSample = await entities.Delivery.filter(onlineFilter, '-updated_date', 5000);
+          let onlineSample = await entities.Delivery.filter(onlineFilter, '-updated_date', 5000);
+          // Fetch cycling markers separately — they have no store_id and would be missed
+          if (storeIds && storeIds.length > 0) {
+            try {
+              const cyclingMarkers = await entities.Delivery.filter({ delivery_date: dateStr, is_cycling_marker: true }, '-updated_date', 200);
+              if (cyclingMarkers && cyclingMarkers.length > 0) {
+                const existingIds = new Set((onlineSample || []).map(d => d?.id));
+                onlineSample = [...(onlineSample || []), ...cyclingMarkers.filter(d => d?.id && !existingIds.has(d.id))];
+              }
+            } catch (_) {}
+          }
           const onlineCount = (onlineSample || []).length;
 
           // If counts match, this date is fully synced — skip it
@@ -220,7 +231,13 @@ export const createOfflineSyncHistoricalHelpers = ({
           // Prune offline records that no longer exist online for this date
           if (offlineCount > 0 && onlineSample) {
             const onlineIds = new Set((onlineSample || []).map(d => d.id).filter(Boolean));
-            const orphans = (offlineRecords || []).filter(d => d?.id && !onlineIds.has(d.id));
+            // Never prune cycling markers that are outside the store scope — they are
+            // already included in onlineSample via the separate fetch above, but guard here too.
+            const orphans = (offlineRecords || []).filter(d => {
+              if (!d?.id || onlineIds.has(d.id)) return false;
+              if (d.is_cycling_marker) return false; // cycling markers survive regardless
+              return true;
+            });
             if (orphans.length > 0) {
               await Promise.all(orphans.map(d => offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, d.id).catch(() => {})));
               console.log(`🗑️ [HistoricalSync] Pruned ${orphans.length} deleted deliveries for ${dateStr}`);

@@ -16,6 +16,7 @@ import { invokeOptimizeAwareCycling } from "@/components/utils/cyclingAwareOptim
 import { isInterStoreDelivery, getInterStoreLocationSync, resolveInterStoreFromName, extractFromPhoneFromDeliveryId } from "@/components/utils/interStoreDisplayName";
 import { offlineDB } from "@/components/utils/offlineDatabase";
 import { invalidate } from "@/components/utils/dataManager";
+import { cancelAllDeferredOptimizations } from '@/components/utils/optimizationDebouncer';
 
 export default function RouteActionButtons({
   currentUser,
@@ -161,6 +162,9 @@ export default function RouteActionButtons({
         ref={reoptimizeBtnRef}
         onClick={async () => {
           if (isReoptimizing) return;
+          // Cancel any pending debounced optimizations so the orange KITT bar
+          // doesn't fire concurrently during the manual optimize flow.
+          cancelAllDeferredOptimizations();
           setIsReoptimizing(true);
           setOptimizationMessage("Re-Optimization in Progress...");
           setIsEntityUpdating(true);

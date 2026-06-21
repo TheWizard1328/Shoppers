@@ -41,6 +41,9 @@ export default function OptimizationSpinner() {
     return () => {
       window.removeEventListener('optimizationDebouncerState', handleDebouncer);
       window.removeEventListener('optimizationRunning', handleRunning);
+      // Clear all spinner state on unmount to prevent stale KITT bar on re-mount
+      setActiveRoutes(new Set());
+      setOptimizingRoutes(new Set());
     };
   }, []);
 

@@ -234,20 +234,34 @@ export async function handleSaveDelivery(deliveryData, ctx) {
     };
     applyTimes(stopsToProcess);
 
+    // Sort all stops: finished first (by actual_delivery_time), then incomplete (by stop_order).
+    // Cycling markers follow the same rules as regular stops — no special anchor logic.
     const optimizedRoute = [...stopsToProcess].sort((a, b) => {
       if (!a || !b) return 0;
-      const af = finishedStatuses.includes(a.status), bf = finishedStatuses.includes(b.status);
-      if (af && !bf) return -1; if (!af && bf) return 1;
+      const af = finishedStatuses.includes(a.status);
+      const bf = finishedStatuses.includes(b.status);
+      // Finished before incomplete
+      if (af && !bf) return -1;
+      if (!af && bf) return 1;
       if (af && bf) {
-        // Finished: sort ascending by actual_delivery_time so stop 1 = earliest completed
-        const ta = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : (Number(a.stop_order) || Number.MAX_SAFE_INTEGER);
-        const tb = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : (Number(b.stop_order) || Number.MAX_SAFE_INTEGER);
-        return ta - tb;
+        // Both finished: sort by actual_delivery_time ASC — cycling markers treated equally
+        const ta = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER;
+        const tb = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER;
+        if (ta !== tb) return ta - tb;
+        return (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0);
       }
-      // Incomplete: cycling markers sort by their existing stop_order (they are anchors)
-      if (a.is_cycling_marker && b.is_cycling_marker) return (Number(a.stop_order) || 99999) - (Number(b.stop_order) || 99999);
-      if (a.is_cycling_marker) return (Number(a.stop_order) || 99999) <= (Number(b.stop_order) || 99999) ? -1 : 1;
-      if (b.is_cycling_marker) return (Number(a.stop_order) || 99999) < (Number(b.stop_order) || 99999) ? -1 : 1;
+      // Both incomplete: pending last; within non-pending sort by existing stop_order.
+      // Cycling markers are never treated as pending — they sort like active stops.
+      const aPending = a.status === 'pending' && !a.is_cycling_marker;
+      const bPending = b.status === 'pending' && !b.is_cycling_marker;
+      if (aPending && !bPending) return 1;
+      if (!aPending && bPending) return -1;
+      const ao = Number(a.stop_order), bo = Number(b.stop_order);
+      const hao = Number.isFinite(ao) && ao > 0;
+      const hbo = Number.isFinite(bo) && bo > 0;
+      if (hao && hbo) return ao - bo;
+      if (hao) return -1;
+      if (hbo) return 1;
       return (a.delivery_time_start || '99:99').localeCompare(b.delivery_time_start || '99:99');
     });
     applyTimes(optimizedRoute);

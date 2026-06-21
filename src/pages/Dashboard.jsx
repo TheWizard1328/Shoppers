@@ -208,9 +208,66 @@ function Dashboard() {
 
   const deliveriesWithStopOrder = useMemo(() => {
     if (!filteredDeliveries || filteredDeliveries.length === 0) return [];
-    const groupedByDriver = {}; filteredDeliveries.forEach((delivery) => { if (!delivery) return; const dId = delivery.driver_id || 'unassigned'; if (!groupedByDriver[dId]) groupedByDriver[dId] = []; groupedByDriver[dId].push(delivery); });
-    const result = []; const fin = ['completed', 'failed', 'cancelled', 'returned'];
-    Object.keys(groupedByDriver).forEach((dId) => { const sorted = [...groupedByDriver[dId]].sort((a, b) => { if (!a || !b) return 0; const ac = !!a.is_cycling_marker, bc = !!b.is_cycling_marker; const ap = a.status === 'pending' && !ac, bp = b.status === 'pending' && !bc; if (ap && !bp) return 1; if (!ap && bp) return -1; const ao = Number(a.stop_order), bo = Number(b.stop_order); const hao = Number.isFinite(ao) && ao > 0, hbo = Number.isFinite(bo) && bo > 0; if (hao && hbo && ao !== bo) return ao - bo; if (fin.includes(a.status) && fin.includes(b.status)) { const ta = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER; const tb = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER; if (ta !== tb) return ta - tb; } const ea = a.delivery_time_eta || a.delivery_time_start || '99:99'; const eb = b.delivery_time_eta || b.delivery_time_start || '99:99'; if (ea !== eb) return ea.localeCompare(eb); if (hao) return -1; if (hbo) return 1; return 0; }); let dc = 1; sorted.forEach((d) => { if (!d) return; const _isCycling = !!d.is_cycling_marker; result.push({ ...d, display_stop_order: (d.status !== 'pending' || _isCycling) ? dc++ : null }); }); });
+
+    const FINISHED = ['completed', 'failed', 'cancelled', 'returned'];
+
+    // Group by driver
+    const groupedByDriver = {};
+    filteredDeliveries.forEach((delivery) => {
+      if (!delivery) return;
+      const dId = delivery.driver_id || 'unassigned';
+      if (!groupedByDriver[dId]) groupedByDriver[dId] = [];
+      groupedByDriver[dId].push(delivery);
+    });
+
+    const result = [];
+
+    Object.keys(groupedByDriver).forEach((dId) => {
+      const stops = groupedByDriver[dId];
+
+      // Partition finished vs incomplete
+      const finished   = stops.filter(d => d && FINISHED.includes(d.status));
+      const incomplete = stops.filter(d => d && !FINISHED.includes(d.status));
+
+      // Finished: sort by actual_delivery_time ASC — cycling markers follow the same rule
+      const sortedFinished = [...finished].sort((a, b) => {
+        const ta = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER;
+        const tb = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : Number.MAX_SAFE_INTEGER;
+        if (ta !== tb) return ta - tb;
+        return (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0);
+      });
+
+      // Incomplete: pending last; within non-pending sort by stop_order (preserves optimizer result)
+      // Cycling markers (is_cycling_marker=true) are never treated as pending — sort like active stops
+      const sortedIncomplete = [...incomplete].sort((a, b) => {
+        const aPending = a.status === 'pending' && !a.is_cycling_marker;
+        const bPending = b.status === 'pending' && !b.is_cycling_marker;
+        if (aPending && !bPending) return 1;
+        if (!aPending && bPending) return -1;
+
+        const ao = Number(a.stop_order), bo = Number(b.stop_order);
+        const hao = Number.isFinite(ao) && ao > 0;
+        const hbo = Number.isFinite(bo) && bo > 0;
+        if (hao && hbo) return ao - bo;
+        if (hao) return -1;
+        if (hbo) return 1;
+        // No stop_order: fall back to ETA string
+        const ea = a.delivery_time_eta || a.delivery_time_start || '99:99';
+        const eb = b.delivery_time_eta || b.delivery_time_start || '99:99';
+        return ea.localeCompare(eb);
+      });
+
+      // Merge finished-first then incomplete; assign display_stop_order 1..N sequentially
+      const ordered = [...sortedFinished, ...sortedIncomplete];
+      let dc = 1;
+      ordered.forEach((d) => {
+        if (!d) return;
+        // Pending regular stops get no badge; everything else (including cycling markers) gets one
+        const showNumber = d.status !== 'pending' || d.is_cycling_marker;
+        result.push({ ...d, display_stop_order: showNumber ? dc++ : null });
+      });
+    });
+
     return result;
   }, [filteredDeliveries]);
 

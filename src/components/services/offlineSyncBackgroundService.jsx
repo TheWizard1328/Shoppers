@@ -77,7 +77,19 @@ export const createOfflineSyncBackgroundService = ({
 
       // PRIORITY: Always sync the current/selected date regardless of time of day
       const selectedDateFilter = { delivery_date: selectedDateStr, ...(storeIds && storeIds.length > 0 ? { store_id: { $in: storeIds } } : {}) };
-      const selectedDateDeliveries = await Delivery.filter(selectedDateFilter, '-updated_date', 5000);
+      let selectedDateDeliveries = await Delivery.filter(selectedDateFilter, '-updated_date', 5000);
+      // Cycling markers have no store_id — fetch them separately when a store scope is active
+      if (storeIds && storeIds.length > 0) {
+        try {
+          const cyclingMarkers = await Delivery.filter({ delivery_date: selectedDateStr, is_cycling_marker: true }, '-updated_date', 500);
+          if (cyclingMarkers && cyclingMarkers.length > 0) {
+            const existingIds = new Set((selectedDateDeliveries || []).map(d => d?.id));
+            const newMarkers = cyclingMarkers.filter(d => d?.id && !existingIds.has(d.id));
+            selectedDateDeliveries = [...(selectedDateDeliveries || []), ...newMarkers];
+            console.log(`[BackgroundSync] Fetched ${newMarkers.length} cycling marker(s) separately`);
+          }
+        } catch (_) {}
+      }
       // CRITICAL: Upsert + scoped prune — never wipe the full date before writing.
       // replaceRecordsByIndex deletes ALL records for the date first, wiping other drivers' data
       // when we only fetched a city-scoped subset. Instead, only delete records that:

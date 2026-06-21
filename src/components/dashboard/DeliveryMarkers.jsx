@@ -68,8 +68,10 @@ function DeliveryMarkers({
   return deliveryMarkers.map((delivery) => {
     // Cycling markers: fan out at high zoom, collapse to split icon at low zoom
     if (delivery?.is_cycling_marker) {
-      const cycLat = Number(delivery.latitude); // resolved from cycling_lat in DeliveryMap
-      const cycLng = Number(delivery.longitude);
+      // latitude/longitude already resolved from cycling_lat/lng by DeliveryMap.
+      // Belt-and-suspenders: also accept cycling_latitude/longitude directly.
+      const cycLat = Number(delivery.latitude ?? delivery.cycling_latitude);
+      const cycLng = Number(delivery.longitude ?? delivery.cycling_longitude);
       if (!Number.isFinite(cycLat) || !Number.isFinite(cycLng)) return null;
       const isStart = delivery.delivery_notes === 'Cycling Route Start';
 

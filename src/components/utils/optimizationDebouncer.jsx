@@ -162,3 +162,19 @@ export function cancelDeferredOptimization(driverId, deliveryDate) {
 export function hasPendingOptimization(driverId, deliveryDate) {
   return pending.has(`${driverId}|${deliveryDate}`);
 }
+
+/**
+ * Cancel ALL pending deferred optimizations and hide the spinner immediately.
+ * Call this at the start of a manual route-optimize to prevent the debouncer
+ * from firing concurrently and showing the orange KITT bar over the manual flow.
+ */
+export function cancelAllDeferredOptimizations() {
+  for (const [key, entry] of pending.entries()) {
+    if (entry?.timerId) clearTimeout(entry.timerId);
+    const [driverId, deliveryDate] = key.split('|');
+    // Hide both spinner types for this route
+    window.dispatchEvent(new CustomEvent('optimizationDebouncerState', { detail: { driverId, deliveryDate, active: false } }));
+    window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId, deliveryDate, active: false } }));
+  }
+  pending.clear();
+}

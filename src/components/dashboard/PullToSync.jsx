@@ -153,7 +153,12 @@ export default function PullToSync({
 
       const offlineDeliveriesRaw = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selectedDateStr);
       const offlineDeliveries = Array.isArray(offlineDeliveriesRaw)
-        ? offlineDeliveriesRaw.filter((delivery) => !currentCityId || freshStores.some((store) => store?.id === delivery?.store_id && store?.city_id === currentCityId))
+        ? offlineDeliveriesRaw.filter((delivery) => {
+            if (!delivery) return false;
+            // Cycling markers have no store_id — always include them regardless of city filter
+            if (delivery.is_cycling_marker) return true;
+            return !currentCityId || freshStores.some((store) => store?.id === delivery?.store_id && store?.city_id === currentCityId);
+          })
         : [];
 
       const safeAppUsers = Array.isArray(freshAppUsers)

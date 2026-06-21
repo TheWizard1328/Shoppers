@@ -314,8 +314,11 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
   const sortedPickupCards = [...validCards].sort((a, b) => {
     if (!a || !b) return 0;
 
-    const isAPending = a.status === 'pending';
-    const isBPending = b.status === 'pending';
+    // Cycling markers are positional anchors — never treat as "pending push to end"
+    const isACycling = !!a.is_cycling_marker;
+    const isBCycling = !!b.is_cycling_marker;
+    const isAPending = a.status === 'pending' && !isACycling;
+    const isBPending = b.status === 'pending' && !isBCycling;
     if (isAPending && !isBPending) return 1;
     if (!isAPending && isBPending) return -1;
 

@@ -89,7 +89,7 @@ export default function StopCardsSection({
               }
               if (pending.length > 0) return { ...delivery, projected_deliveries: pending };
             }
-            if (isDispatcher && currentUser.store_ids?.length > 0 && !currentUser.store_ids.includes(delivery.store_id)) return { ...delivery, _isStripped: true };
+            if (isDispatcher && currentUser.store_ids?.length > 0 && !delivery.is_cycling_marker && !currentUser.store_ids.includes(delivery.store_id)) return { ...delivery, _isStripped: true };
             if (isDriver && !isDispatcher && !isAdmin) {
               const finishedStatuses = ['completed', 'failed', 'cancelled'];
               const allDriverDeliveries = deliveriesWithStopOrder.filter((d) => d && d.driver_id === currentUser.id);

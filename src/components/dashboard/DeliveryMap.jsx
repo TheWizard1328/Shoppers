@@ -445,9 +445,19 @@ export default function DeliveryMap({
       if (!delivery) return;
 
       if (delivery.is_cycling_marker) {
-        const cycLat = Number(delivery.cycling_latitude);
-        const cycLng = Number(delivery.cycling_longitude);
-        if (!Number.isFinite(cycLat) || !Number.isFinite(cycLng)) return;
+        // Prefer dedicated cycling_latitude/longitude; fall back to plain latitude/longitude
+        // so markers still render even if the backend omits the cycling_ prefix fields.
+        const cycLat = Number(delivery.cycling_latitude ?? delivery.latitude);
+        const cycLng = Number(delivery.cycling_longitude ?? delivery.longitude);
+        if (!Number.isFinite(cycLat) || !Number.isFinite(cycLng)) {
+          console.warn('[DeliveryMap] cycling marker missing coords, skipped:', delivery.id, {
+            cycling_latitude: delivery.cycling_latitude,
+            cycling_longitude: delivery.cycling_longitude,
+            latitude: delivery.latitude,
+            longitude: delivery.longitude,
+          });
+          return;
+        }
         const driver = driverLookupMap.get(delivery.driver_id) || (delivery.driver_name ? { id: delivery.driver_id, user_name: delivery.driver_name, full_name: delivery.driver_name } : null);
         const isStart = delivery.delivery_notes === 'Cycling Route Start';
         deliveriesOut.push({
