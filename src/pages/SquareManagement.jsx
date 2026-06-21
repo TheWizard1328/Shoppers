@@ -1487,8 +1487,17 @@ export default function SquareManagement() {
   const isDriverView = !!(currentUser && !isAppOwner(currentUser) && userHasRole(currentUser, 'driver'));
 
   return (
-    <div className="px-4 md:px-6 pt-4 md:pt-6 bg-background text-foreground w-full h-full overflow-y-auto md:overflow-hidden flex flex-col">
-      <div className="flex flex-col gap-4 mb-6 flex-shrink-0">
+    <div className="w-full h-full overflow-y-auto md:overflow-hidden flex flex-col md:px-6 md:pt-6 md:bg-background md:text-foreground" style={{ background: '#F5EFE7' }}>
+      {/* Mobile Header */}
+      <div className="md:hidden px-5 pt-5 pb-4 flex-shrink-0" style={{ borderBottom: '1px solid #E6DFD5', background: '#FAF6F0' }}>
+        <h1 className="text-3xl font-bold mb-0.5" style={{ color: '#1C1A17', fontFamily: 'Georgia, serif', letterSpacing: '-0.02em' }}>
+          {isDriverView ? 'Catalog Items' : 'Square COD'}
+        </h1>
+        <p className="text-sm" style={{ color: '#8C7B6B' }}>Track and manage COD payments</p>
+      </div>
+
+      {/* Desktop Header */}
+      <div className="hidden md:flex flex-col gap-4 mb-6 flex-shrink-0">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <CreditCard className="w-6 md:w-8 h-6 md:h-8 flex-shrink-0 text-emerald-600 dark:text-emerald-400" />
@@ -1500,8 +1509,84 @@ export default function SquareManagement() {
             </div>
           </div>
         </div>
+      </div>
 
+      <div className="flex flex-col gap-4 mb-4 md:mb-6 flex-shrink-0 md:mt-0">
         <div className="flex flex-col gap-2">
+          {/* Mobile filters */}
+          <div className="md:hidden px-4 py-3 flex flex-col gap-2" style={{ background: '#FAF6F0', borderBottom: '1px solid #E6DFD5' }}>
+            <div className="grid grid-cols-2 gap-2">
+              {currentUser && isAppOwner(currentUser) && drivers.length > 0 &&
+                <Select value={selectedDriverFilter} onValueChange={setSelectedDriverFilter}>
+                  <SelectTrigger className="w-full text-sm h-10" style={{ background: '#FFFFFF', border: '1px solid #D6C9BC', borderRadius: '8px', color: '#1C1A17' }}>
+                    <SelectValue placeholder="All Drivers" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Drivers</SelectItem>
+                    {drivers.map((driver) => <SelectItem key={driver.id} value={driver.id}>{driver.user_name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              }
+              {isDriverView && currentAppUser &&
+                <Select value={selectedDriverFilter} disabled>
+                  <SelectTrigger className="w-full text-sm h-10 opacity-70" style={{ background: '#FFFFFF', border: '1px solid #D6C9BC', borderRadius: '8px' }}>
+                    <SelectValue>{currentAppUser.user_name || 'My Items'}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent><SelectItem value={currentAppUser.id}>{currentAppUser.user_name}</SelectItem></SelectContent>
+                </Select>
+              }
+              <Select value={selectedStoreFilter} onValueChange={setSelectedStoreFilter}>
+                <SelectTrigger className="w-full text-sm h-10" style={{ background: '#FFFFFF', border: '1px solid #D6C9BC', borderRadius: '8px', color: '#1C1A17' }}>
+                  <SelectValue placeholder="All Stores" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Stores</SelectItem>
+                  {availableStoresForFilter.map((store) => <SelectItem key={store.id} value={store.id}>{store.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={selectedDaysRange} onValueChange={setSelectedDaysRange}>
+                <SelectTrigger className="w-full text-sm h-10" style={{ background: '#FFFFFF', border: '1px solid #D6C9BC', borderRadius: '8px', color: '#1C1A17' }}>
+                  <SelectValue placeholder="Days" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="7">7 Days</SelectItem>
+                  <SelectItem value="14">14 Days</SelectItem>
+                  <SelectItem value="21">21 Days</SelectItem>
+                  <SelectItem value="28">28 Days</SelectItem>
+                  <SelectItem value="45">45 Days</SelectItem>
+                  <SelectItem value="60">60 Days</SelectItem>
+                  <SelectItem value="90">90 Days</SelectItem>
+                </SelectContent>
+              </Select>
+              {currentUser && isAppOwner(currentUser) &&
+                <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="w-full col-span-2 h-10 gap-1.5 text-sm font-medium" style={{ background: '#1C1A17', color: '#FAF6F0', borderRadius: '8px', border: 'none' }}>
+                  <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
+                  {isSyncing ? 'Syncing...' : 'Sync Square'}
+                </Button>
+              }
+            </div>
+            {/* Mobile tab switcher */}
+            {!isDriverView && (
+              <div className="mt-1">
+                <SquareCodViewSwitcher activeView={activeView} onChange={setActiveView} counts={viewCounts} hidden={false} />
+              </div>
+            )}
+            {activeView === 'reconciliation' && currentUser && isAppOwner(currentUser) && (
+              <div className="flex gap-2">
+                <Button onClick={runReconcile} disabled={isReconciling || isSyncing} className="flex-1 h-10 gap-1 text-sm" style={{ background: '#FFFFFF', border: '1px solid #D6C9BC', color: '#1C1A17', borderRadius: '8px' }}>
+                  {isReconciling ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                  {isReconciling ? 'Reconciling...' : 'Reconcile'}
+                </Button>
+                <Button onClick={updateCatalog} disabled={isLoading || isUpdatingCatalog || isSyncing} className="flex-1 h-10 gap-1 text-sm" style={{ background: '#FFFFFF', border: '1px solid #D6C9BC', color: '#1C1A17', borderRadius: '8px' }}>
+                  <CloudDownload className={`w-4 h-4 ${isUpdatingCatalog ? 'animate-pulse' : ''}`} />
+                  {isUpdatingCatalog ? 'Updating...' : 'Update Catalog'}
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* Desktop filters (unchanged) */}
+          <div className="hidden md:flex flex-col gap-2">
           <div className="grid grid-cols-2 gap-2 md:flex md:flex-row md:flex-wrap md:items-center md:gap-3 w-full">
             {currentUser && isAppOwner(currentUser) && drivers.length > 0 &&
             <Select value={selectedDriverFilter} onValueChange={setSelectedDriverFilter}>
@@ -1580,6 +1665,7 @@ export default function SquareManagement() {
               </Button>
             }
           </div>
+          </div>{/* end desktop filters */}
         </div>
       </div>
 
@@ -1627,7 +1713,33 @@ export default function SquareManagement() {
           </div>
         }
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 mb-4 md:mb-8">
+        {/* Mobile stats — editorial strip */}
+        <div className="md:hidden px-4 py-3 grid grid-cols-2 gap-2 flex-shrink-0" style={{ background: '#FAF6F0', borderBottom: '1px solid #E6DFD5' }}>
+          <div className="px-3 py-2.5 rounded-xl" style={{ background: '#FFFFFF', border: '1px solid #E6DFD5' }}>
+            <div className="text-[10px] uppercase tracking-widest font-semibold mb-1" style={{ color: '#8C7B6B' }}>{activeViewStats.primaryLabel}</div>
+            <div className="text-2xl font-bold" style={{ color: '#1C1A17', fontFamily: 'Georgia, serif' }}>{activeViewStats.primaryValue}</div>
+          </div>
+          <div className="px-3 py-2.5 rounded-xl" style={{ background: '#EDF7EF', border: '1px solid #B7DEC0' }}>
+            <div className="text-[10px] uppercase tracking-widest font-semibold mb-1" style={{ color: '#2D7A3A' }}>{activeViewStats.amountLabel}</div>
+            <div className="text-2xl font-bold" style={{ color: '#2D7A3A', fontFamily: 'Georgia, serif' }}>${activeViewStats.amountValue.toFixed(2)}</div>
+          </div>
+          <div className="px-3 py-2.5 rounded-xl" style={{ background: '#FDF3E3', border: '1px solid #EDD9A3' }}>
+            <div className="text-[10px] uppercase tracking-widest font-semibold mb-1" style={{ color: '#7A5C1E' }}>Uncollected</div>
+            <div className="text-2xl font-bold" style={{ color: '#7A5C1E', fontFamily: 'Georgia, serif' }}>
+              ${(activeView === 'deliveries' ? filteredDeliveryRows : activeView === 'transactions' ? filteredTransactionRows : activeView === 'reconciliation' ? reconciliationRows : filteredCatalogRows)
+                .filter((row) => { const cls = row.actions?.props?.className || ''; return cls.includes('amber'); })
+                .reduce((sum, row) => sum + Number(row.amount || 0), 0)
+                .toFixed(2)}
+            </div>
+          </div>
+          <div className="px-3 py-2.5 rounded-xl" style={{ background: '#FFFFFF', border: '1px solid #E6DFD5' }}>
+            <div className="text-[10px] uppercase tracking-widest font-semibold mb-1" style={{ color: '#8C7B6B' }}>{activeViewStats.locationLabel}</div>
+            <div className="text-2xl font-bold" style={{ color: '#1C1A17', fontFamily: 'Georgia, serif' }}>{activeViewStats.locationValue}</div>
+          </div>
+        </div>
+
+        {/* Desktop stats (unchanged) */}
+        <div className="hidden md:grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 mb-4 md:mb-8">
           <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
             <CardContent className="p-3 md:p-4">
               <div className="text-xs md:text-sm text-slate-600 dark:text-slate-400">{activeViewStats.primaryLabel}</div>
@@ -1645,10 +1757,7 @@ export default function SquareManagement() {
               <div className="text-xs md:text-sm text-slate-600 dark:text-slate-400">Uncollected COD's</div>
               <div className="text-xl md:text-2xl font-bold text-amber-600 dark:text-amber-400">
                 ${(activeView === 'deliveries' ? filteredDeliveryRows : activeView === 'transactions' ? filteredTransactionRows : activeView === 'reconciliation' ? reconciliationRows : filteredCatalogRows)
-                  .filter((row) => {
-                    const cls = row.actions?.props?.className || '';
-                    return cls.includes('amber');
-                  })
+                  .filter((row) => { const cls = row.actions?.props?.className || ''; return cls.includes('amber'); })
                   .reduce((sum, row) => sum + Number(row.amount || 0), 0)
                   .toFixed(2)}
               </div>

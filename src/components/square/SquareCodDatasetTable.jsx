@@ -92,46 +92,74 @@ const MobileCard = ({ row, index, onRowClick, showLocationColumn, showCatalogCol
     key={row.id || `${row.itemName}-${index}`}
     onClick={onRowClick ? () => onRowClick(row) : undefined}
     role={onRowClick ? "button" : undefined}
-    className={`rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden${dimmed ? ' opacity-60' : ''}`}>
-    <div className="p-4 border-b border-slate-100 dark:border-slate-700/70">
+    className={`overflow-hidden${dimmed ? ' opacity-50' : ''}`}
+    style={{
+      background: '#FAF6F0',
+      border: '1px solid #E6DFD5',
+      borderRadius: '12px',
+      boxShadow: '0 1px 4px rgba(28,26,23,0.07)'
+    }}>
+    {/* Card Header */}
+    <div className="px-4 pt-4 pb-3" style={{ borderBottom: '1px solid #E6DFD5' }}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="font-semibold text-[15px] leading-5 text-slate-900 dark:text-slate-50">{row.itemName || 'N/A'}</p>
-          <p className="text-xs mt-1 text-slate-500 dark:text-slate-400">{formatDate(row.collectionDate || row.deliveryDate)}</p>
+          <p className="font-semibold text-[15px] leading-snug" style={{ color: '#1C1A17', fontFamily: 'Georgia, serif' }}>
+            {row.itemName || 'N/A'}
+          </p>
+          <p className="text-xs mt-1" style={{ color: '#8C7B6B', letterSpacing: '0.01em' }}>
+            {formatDate(row.collectionDate || row.deliveryDate)}
+          </p>
         </div>
-        <div className="shrink-0 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 px-3 py-2 text-base font-bold leading-none text-emerald-600 dark:text-emerald-400">{formatAmount(row.amount)}</div>
+        <div className="shrink-0 px-3 py-1.5 rounded-lg" style={{ background: '#EDF7EF', border: '1px solid #B7DEC0' }}>
+          <span className="text-base font-bold" style={{ color: '#2D7A3A', fontFamily: 'Georgia, serif' }}>
+            {formatAmount(row.amount)}
+          </span>
+        </div>
       </div>
     </div>
-    <div className="p-4 space-y-3">
-      <div className="grid grid-cols-2 gap-2">
-        <div className="rounded-xl px-3 py-2 col-span-2" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
-          <div className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--text-slate-500)' }}>Store</div>
-          <div className="mt-1 text-sm font-medium truncate" style={{ color: 'var(--text-slate-900)' }}>{row.storeName || 'Unknown'}</div>
-          {row.subtext && <div className="mt-0.5 text-xs truncate" style={{ color: 'var(--text-slate-500)' }}>{row.subtext}</div>}
+
+    {/* Card Body */}
+    <div className="px-4 py-3 space-y-2.5">
+      {/* Store + Driver row */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="text-[10px] uppercase tracking-widest font-semibold mb-0.5" style={{ color: '#8C7B6B' }}>Store</div>
+          <div className="text-sm font-medium truncate" style={{ color: '#1C1A17' }}>{row.storeName || 'Unknown'}</div>
+          {row.subtext && (
+            <div className="text-xs mt-0.5 truncate" style={{ color: '#8C7B6B' }}>{row.subtext}</div>
+          )}
         </div>
-      </div>
-      {showLocationColumn && (
-        <div className="rounded-xl px-3 py-2" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
-          <div className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--text-slate-500)' }}>
-            {showCatalogColumn ? 'Catalog Item ID' : 'Square Location ID'}
+        {row.collectionType && (
+          <div className="shrink-0 px-2 py-0.5 rounded-full text-[11px] font-medium" style={{ background: '#F0EAE1', border: '1px solid #D6C9BC', color: '#5C4F3D' }}>
+            {row.collectionType}
           </div>
-          <div className="mt-1 text-xs font-mono break-all" style={{ color: 'var(--text-slate-700)' }}>
-            {showCatalogColumn ? (row.catalogId || '--') : (row.locationId || '--')}
+        )}
+      </div>
+
+      {/* ID fields — only show if meaningful */}
+      {showLocationColumn && (
+        <div>
+          <div className="text-[10px] uppercase tracking-widest font-semibold mb-0.5" style={{ color: '#8C7B6B' }}>
+            {showCatalogColumn ? 'Catalog ID' : 'Location ID'}
+          </div>
+          <div className="text-xs font-mono truncate" style={{ color: '#5C4F3D' }}>
+            {showCatalogColumn ? (row.catalogId || '—') : (row.locationId || '—')}
           </div>
         </div>
       )}
-      <div className="rounded-xl px-3 py-2" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
-        <div className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--text-slate-500)' }}>Transaction ID</div>
-        <div className="mt-1 text-xs font-mono break-all" style={{ color: 'var(--text-slate-700)' }}>
-          {showCatalogColumn ? (row.transactionId || '--') : (row.catalogId || '--')}
-        </div>
-      </div>
+
       {row.notes && (
-        <div className="rounded-xl bg-amber-50 dark:bg-amber-900/10 px-3 py-2 text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+        <div className="px-3 py-2 rounded-lg text-xs whitespace-pre-wrap" style={{ background: '#FDF3E3', border: '1px solid #EDD9A3', color: '#7A5C1E' }}>
           {row.notes}
         </div>
       )}
-      {row.actions && <div className="pt-1 flex justify-end">{row.actions}</div>}
+
+      {/* Action button — full width, prominent */}
+      {row.actions && (
+        <div className="pt-1" onClick={(e) => e.stopPropagation()}>
+          {row.actions}
+        </div>
+      )}
     </div>
   </div>
 );
@@ -153,10 +181,14 @@ export default function SquareCodDatasetTable({
   const colSpan = showLocationColumn ? 6 : 5;
 
   return (
-    <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 flex flex-col md:flex-1 md:min-h-0">
-      <CardHeader className="sticky top-0 z-10 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+    <Card className="flex flex-col md:flex-1 md:min-h-0 md:bg-white md:dark:bg-slate-900 md:border-slate-200 md:dark:border-slate-700" style={{ background: '#F5EFE7', border: 'none', borderRadius: 0, boxShadow: 'none' }}>
+      <CardHeader className="sticky top-0 z-10 flex-shrink-0 hidden md:flex" style={{ background: '#FFFFFF', borderBottom: '1px solid #E6DFD5' }}>
         <CardTitle className="text-base md:text-lg text-slate-900 dark:text-slate-50">{title}</CardTitle>
       </CardHeader>
+      {/* Mobile section label */}
+      <div className="md:hidden px-5 pt-3 pb-1 flex-shrink-0">
+        <span className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: '#8C7B6B' }}>{title}</span>
+      </div>
       <CardContent className="p-0 overflow-hidden flex flex-col md:flex-1 md:min-h-0">
         {isLoading ? (
           <div className="flex items-center justify-center py-12 px-6">
@@ -207,22 +239,26 @@ export default function SquareCodDatasetTable({
             </div>
 
             {/* Mobile */}
-            <div className="md:hidden overflow-y-auto flex-1 min-h-0 space-y-3 p-4" style={{ paddingBottom: navHeight ? navHeight + 8 : 8 }}>
+            <div className="md:hidden overflow-y-auto flex-1 min-h-0 space-y-3 px-4 pt-3" style={{ paddingBottom: navHeight ? navHeight + 16 : 16, background: '#F5EFE7' }}>
               {groupByCollected && notCollected.length > 0 && (
-                <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider py-1">
-                  <div className="flex-1 h-px bg-slate-300 dark:bg-slate-600" />
-                  <span>Not Collected ({notCollected.length})</span>
-                  <div className="flex-1 h-px bg-slate-300 dark:bg-slate-600" />
+                <div className="flex items-center gap-2 py-1">
+                  <div className="flex-1 h-px" style={{ background: '#D6C9BC' }} />
+                  <span className="text-[10px] uppercase tracking-widest font-semibold px-1" style={{ color: '#8C7B6B' }}>
+                    Pending · {notCollected.length}
+                  </span>
+                  <div className="flex-1 h-px" style={{ background: '#D6C9BC' }} />
                 </div>
               )}
               {notCollected.map((row, index) => (
                 <MobileCard key={row.id || `${row.itemName}-${index}`} row={row} index={index} onRowClick={onRowClick} showLocationColumn={showLocationColumn} showCatalogColumn={showCatalogColumn} />
               ))}
               {groupByCollected && collected.length > 0 && (
-                <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider py-1 mt-2">
-                  <div className="flex-1 h-px bg-slate-300 dark:bg-slate-600" />
-                  <span>Collected ({collected.length})</span>
-                  <div className="flex-1 h-px bg-slate-300 dark:bg-slate-600" />
+                <div className="flex items-center gap-2 py-1 mt-2">
+                  <div className="flex-1 h-px" style={{ background: '#D6C9BC' }} />
+                  <span className="text-[10px] uppercase tracking-widest font-semibold px-1" style={{ color: '#8C7B6B' }}>
+                    Collected · {collected.length}
+                  </span>
+                  <div className="flex-1 h-px" style={{ background: '#D6C9BC' }} />
                 </div>
               )}
               {collected.map((row, index) => (
