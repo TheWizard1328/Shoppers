@@ -526,9 +526,9 @@ export default function SquareManagement() {
 
 
 
+
           // Keep whatever was already loaded from offline DB on mount
-        }return { offlineDB, nextLocationConfigs };} catch (err) {console.error('Failed to sync lookup data:', err);
-        return null;
+        }return { offlineDB, nextLocationConfigs };} catch (err) {console.error('Failed to sync lookup data:', err);return null;
       }
     };
 
@@ -1489,10 +1489,10 @@ export default function SquareManagement() {
   return (
     <div className="px-4 md:px-6 pt-4 md:pt-6 bg-background text-foreground w-full h-full overflow-y-auto md:overflow-hidden flex flex-col">
       {/* ═══════════════════════════════════════════════════════════════════
-               MASTER LAYOUT  –  2 main rows × 2 columns
-               Left column  : auto/shrink  (content-width)
-               Right column : flex-1       (fills remaining width)
-           ═══════════════════════════════════════════════════════════════════ */}
+                MASTER LAYOUT  –  2 main rows × 2 columns
+                Left column  : auto/shrink  (content-width)
+                Right column : flex-1       (fills remaining width)
+            ═══════════════════════════════════════════════════════════════════ */}
       <div className="flex-shrink-0 mb-4">
 
         {/* ── MAIN 2-COL LAYOUT ── static left col | auto right col ── */}
@@ -1594,7 +1594,7 @@ export default function SquareManagement() {
             {activeView === 'catalog' && currentUser && isAppOwner(currentUser) &&
             <div className="grid grid-cols-2 gap-2">
             <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-              <CardContent className="p-2.5">
+              <CardContent className="p-3">
                 <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">{activeViewStats.primaryLabel}</div>
                 <div className="text-lg font-bold text-slate-900 dark:text-slate-50 leading-tight">{activeViewStats.primaryValue}</div>
               </CardContent>
@@ -1606,7 +1606,7 @@ export default function SquareManagement() {
               </CardContent>
             </Card>
             <Card className="bg-white dark:bg-slate-900 border-amber-200 dark:border-amber-800">
-              <CardContent className="p-2.5">
+              <CardContent className="p-3">
                 <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Uncollected COD's</div>
                 <div className="text-lg font-bold text-amber-600 dark:text-amber-400 leading-tight">
                   ${(activeView === 'deliveries' ? filteredDeliveryRows : activeView === 'transactions' ? filteredTransactionRows : activeView === 'reconciliation' ? reconciliationRows : filteredCatalogRows).
