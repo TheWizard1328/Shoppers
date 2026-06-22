@@ -180,11 +180,8 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
                       <div className="w-1/4 text-right">
                         <p className="text-sm text-slate-500">Amount</p>
                         <p className="font-bold text-amber-600">${(item.price_dollars || 0).toFixed(2)}</p>
+                        <Badge className="bg-amber-100 text-amber-800 mt-1">Pending</Badge>
                       </div>
-                    </div>
-
-                    <div className="flex gap-2 mb-3">
-                      <Badge className="bg-amber-100 text-amber-800">Pending</Badge>
                     </div>
 
                     <div className="text-xs text-slate-500">
