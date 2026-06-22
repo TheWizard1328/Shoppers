@@ -184,8 +184,8 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
                     </div>
 
                     <div className="flex items-center justify-between text-xs text-slate-500">
-                      <Badge className="bg-amber-100 text-amber-800">Pending</Badge>
                       <span><span className="font-medium text-slate-600">Last Updated: </span>{item.updated_at ? new Date(item.updated_at).toLocaleString() : 'N/A'}</span>
+                      <Badge className="bg-amber-100 text-amber-800">Pending</Badge>
                     </div>
                   </CardContent>
                 </Card>
