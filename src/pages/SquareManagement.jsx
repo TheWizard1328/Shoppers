@@ -1626,13 +1626,18 @@ export default function SquareManagement() {
               <CardContent className="px-3 py-4">
                 <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Uncollected COD's</div>
                 <div className="text-lg font-bold text-amber-600 dark:text-amber-400 leading-tight">
-                  ${(activeView === 'deliveries' ? filteredDeliveryRows : activeView === 'transactions' ? filteredTransactionRows : activeView === 'reconciliation' ? reconciliationRows : filteredCatalogRows).
-                    filter((row) => {
-                      const cls = row.actions?.props?.className || '';
-                      return !cls.includes('bg-emerald');
-                    }).
-                    reduce((sum, row) => sum + Number(row.amount || 0), 0).
-                    toFixed(2)}
+                  ${activeView === 'catalog'
+                    ? filteredCatalogRows.filter((row) => {
+                        const cls = row.actions?.props?.className || '';
+                        return !cls.includes('bg-emerald-100') && !cls.includes('bg-emerald-900');
+                      }).reduce((sum, row) => sum + Number(row.amount || 0), 0).toFixed(2)
+                    : (activeView === 'deliveries' ? filteredDeliveryRows : activeView === 'transactions' ? filteredTransactionRows : reconciliationRows)
+                        .filter((row) => {
+                          const cls = row.actions?.props?.className || '';
+                          return !cls.includes('bg-emerald');
+                        })
+                        .reduce((sum, row) => sum + Number(row.amount || 0), 0).toFixed(2)
+                  }
                 </div>
               </CardContent>
             </Card>
