@@ -1660,71 +1660,7 @@ export default function SquareManagement() {
               collectedCodTypeBreakdown={collectedCodTypeBreakdown} />
             }
 
-            {/* Reconciliation stat cards */}
-            {activeView === 'reconciliation' && currentUser && isAppOwner(currentUser) &&
-            <div className="grid grid-cols-5 gap-2">
-              <Card className="bg-white dark:bg-slate-900 border-red-200 dark:border-red-800">
-                <CardContent className="p-2.5">
-                  <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Unmatched</div>
-                  <div className="text-lg font-bold text-red-600 dark:text-red-400 leading-tight">{reconciliationRows.length}</div>
-                </CardContent>
-              </Card>
-              <Card className="bg-white dark:bg-slate-900 border-red-200 dark:border-red-800">
-                <CardContent className="p-2.5">
-                  <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Unmatched $</div>
-                  <div className="text-lg font-bold text-red-600 dark:text-red-400 leading-tight">${reconciliationRows.reduce((s, r) => s + Number(r.amount || 0), 0).toFixed(2)}</div>
-                </CardContent>
-              </Card>
-              <Card className="bg-white dark:bg-slate-900 border-orange-200 dark:border-orange-800">
-                <CardContent className="p-2.5">
-                  <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Cross-Store</div>
-                  <div className="text-lg font-bold text-orange-600 dark:text-orange-400 leading-tight">{reconciliationRows.filter((r) => r.crossStoreAlert).length}</div>
-                </CardContent>
-              </Card>
-              <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-                <CardContent className="p-2.5">
-                  <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">COD Deliveries</div>
-                  <div className="text-lg font-bold text-slate-900 dark:text-slate-50 leading-tight">{codDeliveriesCount}</div>
-                </CardContent>
-              </Card>
-              <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-                <CardContent className="p-2.5">
-                  <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Locations</div>
-                  <div className="text-lg font-bold text-blue-600 dark:text-blue-400 leading-tight">{new Set(reconciliationRows.map((r) => r.locationId).filter(Boolean)).size}</div>
-                </CardContent>
-              </Card>
-              <Card className="bg-white dark:bg-slate-900 border-emerald-200 dark:border-emerald-800">
-                <CardContent className="p-2.5">
-                  <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Transactions</div>
-                  <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 leading-tight">{filteredTransactionRows.length}</div>
-                </CardContent>
-              </Card>
-              <Card className="bg-white dark:bg-slate-900 border-emerald-200 dark:border-emerald-800">
-                <CardContent className="p-2.5">
-                  <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Collected $</div>
-                  <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 leading-tight">${filteredTransactionRows.reduce((s, r) => s + Number(r.amount || 0), 0).toFixed(2)}</div>
-                </CardContent>
-              </Card>
-              <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-                <CardContent className="p-2.5">
-                  <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Cash</div>
-                  <div className="text-lg font-bold text-slate-900 dark:text-slate-50 leading-tight">{collectedCodTypeBreakdown.Cash}</div>
-                </CardContent>
-              </Card>
-              <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-                <CardContent className="p-2.5">
-                  <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Debit</div>
-                  <div className="text-lg font-bold text-slate-900 dark:text-slate-50 leading-tight">{collectedCodTypeBreakdown.Debit}</div>
-                </CardContent>
-              </Card>
-              <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-                <CardContent className="p-2.5">
-                  <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Credit</div>
-                  <div className="text-lg font-bold text-slate-900 dark:text-slate-50 leading-tight">{collectedCodTypeBreakdown.Credit}</div>
-                </CardContent>
-              </Card>
-            </div>
-            }
+
 
             {activeView === 'catalog' && currentUser && isAppOwner(currentUser) && locationConfigs.length > 0 &&
             <div>
@@ -1767,6 +1703,72 @@ export default function SquareManagement() {
             }
           </div>
         </div>
+
+        {/* Reconciliation stat cards — full-width single row */}
+        {activeView === 'reconciliation' && currentUser && isAppOwner(currentUser) &&
+        <div className="grid grid-cols-10 gap-2">
+          <Card className="bg-white dark:bg-slate-900 border-red-200 dark:border-red-800">
+            <CardContent className="p-2.5">
+              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Unmatched</div>
+              <div className="text-lg font-bold text-red-600 dark:text-red-400 leading-tight">{reconciliationRows.length}</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-white dark:bg-slate-900 border-red-200 dark:border-red-800">
+            <CardContent className="p-2.5">
+              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Unmatched $</div>
+              <div className="text-lg font-bold text-red-600 dark:text-red-400 leading-tight">${reconciliationRows.reduce((s, r) => s + Number(r.amount || 0), 0).toFixed(2)}</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-white dark:bg-slate-900 border-orange-200 dark:border-orange-800">
+            <CardContent className="p-2.5">
+              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Cross-Store</div>
+              <div className="text-lg font-bold text-orange-600 dark:text-orange-400 leading-tight">{reconciliationRows.filter((r) => r.crossStoreAlert).length}</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+            <CardContent className="p-2.5">
+              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">COD Deliveries</div>
+              <div className="text-lg font-bold text-slate-900 dark:text-slate-50 leading-tight">{codDeliveriesCount}</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+            <CardContent className="p-2.5">
+              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Locations</div>
+              <div className="text-lg font-bold text-blue-600 dark:text-blue-400 leading-tight">{new Set(reconciliationRows.map((r) => r.locationId).filter(Boolean)).size}</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-white dark:bg-slate-900 border-emerald-200 dark:border-emerald-800">
+            <CardContent className="p-2.5">
+              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Transactions</div>
+              <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 leading-tight">{filteredTransactionRows.length}</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-white dark:bg-slate-900 border-emerald-200 dark:border-emerald-800">
+            <CardContent className="p-2.5">
+              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Collected $</div>
+              <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 leading-tight">${filteredTransactionRows.reduce((s, r) => s + Number(r.amount || 0), 0).toFixed(2)}</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+            <CardContent className="p-2.5">
+              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Cash</div>
+              <div className="text-lg font-bold text-slate-900 dark:text-slate-50 leading-tight">{collectedCodTypeBreakdown.Cash}</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+            <CardContent className="p-2.5">
+              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Debit</div>
+              <div className="text-lg font-bold text-slate-900 dark:text-slate-50 leading-tight">{collectedCodTypeBreakdown.Debit}</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+            <CardContent className="p-2.5">
+              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Credit</div>
+              <div className="text-lg font-bold text-slate-900 dark:text-slate-50 leading-tight">{collectedCodTypeBreakdown.Credit}</div>
+            </CardContent>
+          </Card>
+        </div>
+        }
 
         {bgSyncProgress.stage !== 'idle' &&
         <div className="mt-3">
