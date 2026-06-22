@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Thermometer, ChevronUp, ChevronDown, X, CheckCircle, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -234,7 +235,7 @@ export default function FridgeTempDialog({ currentUser, deliveries, isMobileDevi
 
   if (!isDriver || activeFridgeDeliveries.length === 0) return null;
 
-  return (
+  return createPortal(
     <AnimatePresence>
       {showDialog && (
         <motion.div
@@ -340,6 +341,7 @@ export default function FridgeTempDialog({ currentUser, deliveries, isMobileDevi
         </div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }
