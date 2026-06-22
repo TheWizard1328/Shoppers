@@ -188,7 +188,7 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
 
         {/* Activity Section (Card Spends/Refunds, Driver Collections/Refunds) */}
         <div>
-          <div className="bg-slate-50 border-b p-6">
+          <div className="bg-slate-50 border-b px-6 py-3">
             <h3 className="text-lg font-semibold text-slate-900 mb-4">Card Activity</h3>
             <p className="text-sm text-slate-600 mb-4">Card spends, refunds, and driver collections</p>
           </div>
@@ -202,7 +202,7 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
 
             activityTransactions.map((t) =>
             <Card key={t.id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="py-2 px-2">
+                  <CardContent className="py-2 px-4">
                     <div className="grid grid-cols-2 gap-4 mb-3">
                       <div>
                         <p className="text-sm text-slate-500">Item</p>
