@@ -26,7 +26,9 @@ filter(Boolean).join("|");
 
 const isRowCollected = (row) => {
   const cls = row.actions?.props?.className || '';
-  // Must have emerald background (bg-emerald-100 or bg-emerald-900) to count as collected
+  // "Collected" buttons have bg-emerald-100 (light) or bg-emerald-900/40 (dark) — never bg-white.
+  // "Collect" (pending) buttons use bg-white, so we check for bg-white to exclude them.
+  if (cls.includes('bg-white') || cls.includes('dark:bg-slate-900')) return false;
   return cls.includes('bg-emerald-100') || cls.includes('bg-emerald-900');
 };
 
