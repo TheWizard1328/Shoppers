@@ -1,6 +1,6 @@
-import React from "react";
+import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DollarSign } from "lucide-react";
+import { DollarSign, ChevronDown } from "lucide-react";
 
 const formatAmount = (value) => {
   const amount = Number(value || 0);
@@ -87,53 +87,72 @@ const SectionDivider = ({ label, colSpan }) =>
   </tr>;
 
 
-const MobileCard = ({ row, index, onRowClick, showLocationColumn, showCatalogColumn, dimmed }) =>
-<div
-  key={row.id || `${row.itemName}-${index}`}
-  onClick={onRowClick ? () => onRowClick(row) : undefined}
-  role={onRowClick ? "button" : undefined}
-  className={`rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden${dimmed ? ' opacity-60' : ''}`}>
-    <div className="p-4 border-b border-slate-100 dark:border-slate-700/70">
-      <div className="flex items-start justify-between gap-3">
+const MobileCard = ({ row, index, onRowClick, showLocationColumn, showCatalogColumn, dimmed }) => {
+  const [expanded, setExpanded] = useState(false);
+  const actionClassName = row.actions?.props?.className || '';
+  const isCollected = actionClassName.includes('emerald');
+
+  const handleClick = () => {
+    if (onRowClick) onRowClick(row);
+    else setExpanded((prev) => !prev);
+  };
+
+  return (
+    <div
+      key={row.id || `${row.itemName}-${index}`}
+      className={`rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden${dimmed ? ' opacity-60' : ''}`}>
+      {/* Collapsed summary row — always visible */}
+      <div
+        onClick={handleClick}
+        role="button"
+        className="flex items-center gap-3 px-4 py-3 cursor-pointer select-none">
         <div className="min-w-0 flex-1">
-          <p className="font-semibold text-[15px] leading-5 text-slate-900 dark:text-slate-50">{row.itemName || 'N/A'}</p>
-          <p className="text-xs mt-1 text-slate-500 dark:text-slate-400">{formatDate(row.collectionDate || row.deliveryDate)}</p>
+          <p className="font-semibold text-[14px] leading-5 text-slate-900 dark:text-slate-50 truncate">{row.itemName || 'N/A'}</p>
+          <p className="text-xs mt-0.5 text-slate-500 dark:text-slate-400">{formatDate(row.collectionDate || row.deliveryDate)}</p>
         </div>
-        <div className="shrink-0 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 px-3 py-2 text-base font-bold leading-none text-emerald-600 dark:text-emerald-400">{formatAmount(row.amount)}</div>
+        <div className="shrink-0 text-base font-bold text-emerald-600 dark:text-emerald-400">{formatAmount(row.amount)}</div>
+        {isCollected
+          ? <span className="shrink-0 rounded-full bg-emerald-100 dark:bg-emerald-900/30 border border-emerald-300 dark:border-emerald-700 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">Collected</span>
+          : <span className="shrink-0 rounded-full bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">Pending</span>
+        }
+        <ChevronDown className={`shrink-0 w-4 h-4 text-slate-400 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
       </div>
-    </div>
-    <div className="p-4 space-y-3">
-      <div className="grid grid-cols-2 gap-2">
-        <div className="rounded-xl px-3 py-2 col-span-2" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
-          <div className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--text-slate-500)' }}>Store</div>
-          <div className="mt-1 text-sm font-medium truncate" style={{ color: 'var(--text-slate-900)' }}>{row.storeName || 'Unknown'}</div>
-          {row.subtext && <div className="mt-0.5 text-xs truncate" style={{ color: 'var(--text-slate-500)' }}>{row.subtext}</div>}
-        </div>
-      </div>
-      {showLocationColumn &&
-    <div className="rounded-xl px-3 py-2" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
-          <div className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--text-slate-500)' }}>
-            {showCatalogColumn ? 'Catalog Item ID' : 'Square Location ID'}
+
+      {/* Expanded detail section */}
+      {expanded && (
+        <div className="border-t border-slate-100 dark:border-slate-700/70 p-4 space-y-3">
+          <div className="rounded-xl px-3 py-2" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
+            <div className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--text-slate-500)' }}>Store</div>
+            <div className="mt-1 text-sm font-medium truncate" style={{ color: 'var(--text-slate-900)' }}>{row.storeName || 'Unknown'}</div>
+            {row.subtext && <div className="mt-0.5 text-xs truncate" style={{ color: 'var(--text-slate-500)' }}>{row.subtext}</div>}
           </div>
-          <div className="mt-1 text-xs font-mono break-all" style={{ color: 'var(--text-slate-700)' }}>
-            {showCatalogColumn ? row.catalogId || '--' : row.locationId || '--'}
+          {showLocationColumn &&
+            <div className="rounded-xl px-3 py-2" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
+              <div className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--text-slate-500)' }}>
+                {showCatalogColumn ? 'Catalog Item ID' : 'Square Location ID'}
+              </div>
+              <div className="mt-1 text-xs font-mono break-all" style={{ color: 'var(--text-slate-700)' }}>
+                {showCatalogColumn ? row.catalogId || '--' : row.locationId || '--'}
+              </div>
+            </div>
+          }
+          <div className="rounded-xl px-3 py-2" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
+            <div className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--text-slate-500)' }}>Transaction ID</div>
+            <div className="mt-1 text-xs font-mono break-all" style={{ color: 'var(--text-slate-700)' }}>
+              {showCatalogColumn ? row.transactionId || '--' : row.catalogId || '--'}
+            </div>
           </div>
+          {row.notes &&
+            <div className="rounded-xl bg-amber-50 dark:bg-amber-900/10 px-3 py-2 text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+              {row.notes}
+            </div>
+          }
+          {row.actions && <div className="pt-1 flex justify-end" onClick={(e) => e.stopPropagation()}>{row.actions}</div>}
         </div>
-    }
-      <div className="rounded-xl px-3 py-2" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
-        <div className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--text-slate-500)' }}>Transaction ID</div>
-        <div className="mt-1 text-xs font-mono break-all" style={{ color: 'var(--text-slate-700)' }}>
-          {showCatalogColumn ? row.transactionId || '--' : row.catalogId || '--'}
-        </div>
-      </div>
-      {row.notes &&
-    <div className="rounded-xl bg-amber-50 dark:bg-amber-900/10 px-3 py-2 text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
-          {row.notes}
-        </div>
-    }
-      {row.actions && <div className="pt-1 flex justify-end">{row.actions}</div>}
+      )}
     </div>
-  </div>;
+  );
+};
 
 
 export default function SquareCodDatasetTable({
