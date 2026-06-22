@@ -58,11 +58,11 @@ export default function SyncStatusIndicator({ syncStatus, isSyncing, error, codD
       <CardContent className={`md:p-4 px-3 h-full ${status.bgColor}`}>
         <Collapsible open={isOpen} onOpenChange={setIsOpen}>
           <div className="flex items-start justify-between gap-4">
-            <div className="flex items-start gap-3 flex-1">
-              <div className={`mt-0.5 ${status.color}`}>
+            <div className="flex items-center gap-3 flex-1">
+              <div className={`${status.color} flex-shrink-0`}>
                 {status.icon}
               </div>
-              <div className="flex-1 min-w-0 py-2">
+              <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap text-xs hidden md:flex">
                   <span className={`font-semibold ${status.color}`}>
                     {status.text}
