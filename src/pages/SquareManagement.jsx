@@ -1281,10 +1281,7 @@ export default function SquareManagement() {
       // Match by: square_catalog_object_id on the transaction, OR delivery_id on the transaction.
       const catalogObjectId = item.catalog_object_id || item.id;
       const matchingTx = (allTransactions || []).find((tx) =>
-        tx && (
-          (catalogObjectId && tx.square_catalog_object_id === catalogObjectId) ||
-          (linkedDelivery?.id && tx.delivery_id === linkedDelivery.id)
-        )
+        tx && linkedDelivery?.id && tx.delivery_id === linkedDelivery.id
       );
       const isCollected = !!matchingTx;
       return {
