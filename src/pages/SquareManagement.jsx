@@ -1424,19 +1424,13 @@ export default function SquareManagement() {
 
   reconciliationRowsRef.current = reconciliationRows;
 
-  const codDeliveriesCount = useMemo(() => deliveries.filter((delivery) => {
-    if (!delivery || Number(delivery.cod_total_amount_required || 0) <= 0) return false;
-    if (selectedDriverFilter === 'all') return true;
-    if (selectedDriverUserIds.size === 0) return false;
-    return selectedDriverUserIds.has(delivery.driver_id);
-  }).length, [deliveries, selectedDriverFilter, selectedDriverUserIds]);
+  const codDeliveriesCount = useMemo(() => filteredDeliveryRows.length, [filteredDeliveryRows]);
 
   const collectedCodTypeBreakdown = useMemo(() => {
     const counts = { Cash: 0, Debit: 0, Credit: 0, Check: 0, Other: 0 };
-    deliveries.forEach((delivery) => {
-      if (!delivery || Number(delivery.cod_total_amount_required || 0) <= 0) return;
-      if (delivery.delivery_date && new Date(`${delivery.delivery_date}T00:00:00`) < lookbackStart) return;
-      if (selectedDriverFilter !== 'all' && (selectedDriverUserIds.size === 0 || !selectedDriverUserIds.has(delivery.driver_id))) return;
+    filteredDeliveryRows.forEach((row) => {
+      const delivery = row.rawDelivery;
+      if (!delivery) return;
       const codPayments = Array.isArray(delivery.cod_payments) ? delivery.cod_payments : [];
       if (codPayments.length > 0) {
         const deliveryTypes = new Set(codPayments.filter((payment) => Number(payment?.amount || 0) > 0).map((payment) => payment?.type).filter((type) => ['Cash', 'Debit', 'Credit', 'Check', 'Other'].includes(type)));
@@ -1444,7 +1438,7 @@ export default function SquareManagement() {
       }
     });
     return counts;
-  }, [deliveries, lookbackStart, selectedDriverFilter, selectedDriverUserIds]);
+  }, [filteredDeliveryRows]);
 
   const filteredCardSalesCount = useMemo(() => filteredTransactionRows.length, [filteredTransactionRows]);
   const filteredSalesCount = useMemo(() => soldCatalogItems.filter((transaction) => isCardSaleTransaction(transaction)).length, [soldCatalogItems, isCardSaleTransaction]);
