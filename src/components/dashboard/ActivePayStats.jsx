@@ -19,14 +19,12 @@ const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCount, smal
         <Icon className="w-3 h-3" />
       </div>
       <div className="relative">
-        {driverCount !== undefined && driverCount > 0 &&
-          <span className="absolute -top-1 -right-0.5 text-[8px] font-bold" style={{ color: 'var(--text-slate-500)' }}>
-            {driverCount}
-          </span>
-        }
         <span className="relative" style={{ display: 'inline-block', minWidth: small ? '2.5rem' : '1.5rem', textAlign: 'center' }}>
           {superscript !== undefined && superscript > 0 &&
             <span className="absolute -top-1 -left-0.5 text-[8px] font-bold leading-none" style={{ color: '#0369a1' }}>{superscript}</span>
+          }
+          {driverCount !== undefined && driverCount > 0 &&
+            <span className="absolute -top-1 -right-0.5 text-[8px] font-bold leading-none" style={{ color: 'var(--text-slate-500)' }}>{driverCount}</span>
           }
           <span className={small ? "text-sm font-medium text-center" : "text-lg font-bold"} style={{ color: 'var(--text-slate-900)' }}>{value}</span>
         </span>
