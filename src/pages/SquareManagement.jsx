@@ -1572,28 +1572,18 @@ export default function SquareManagement() {
                 </Select>
               </div>
               {currentUser && isAppOwner(currentUser) &&
-              <>
-                <div className="flex-1 min-w-0">
-                  <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="w-full gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-3">
-                    <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
-                    {isSyncing ? 'Syncing...' : 'Sync'}
-                  </Button>
-                </div>
-                {activeView === 'reconciliation' &&
-                <div className="flex-1 min-w-0">
-                  <Button onClick={runReconcile} disabled={isReconciling || isSyncing} className="w-full gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-3">
-                    {isReconciling ? <Loader2 className="w-4 h-4 flex-shrink-0 animate-spin" /> : <RefreshCw className="w-4 h-4 flex-shrink-0" />}
-                    {isReconciling ? 'Reconciling...' : 'Reconcile'}
-                  </Button>
-                </div>
-                }
-              </>
+              <div className="flex-1 min-w-0">
+                <Button onClick={syncFromSquare} disabled={isLoading || isSyncing} className="w-full gap-1 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-3">
+                  <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isSyncing ? 'animate-pulse' : ''}`} />
+                  {isSyncing ? 'Syncing...' : 'Sync'}
+                </Button>
+              </div>
               }
             </div>
 
             {/* Sub-row 2: Tab buttons */}
-            {activeView === 'reconciliation' && !isDriverView && currentUser && isAppOwner(currentUser) ?
-            <div className="grid grid-cols-5 gap-2">
+            {!isDriverView && currentUser && isAppOwner(currentUser) ?
+            <div className="grid grid-cols-4 gap-2">
                 {[{ key: 'deliveries', label: 'Deliveries' }, { key: 'transactions', label: 'Transactions' }, { key: 'catalog', label: 'Catalog' }, { key: 'reconciliation', label: 'Reconciliation' }].map((view) =>
               <Button
                 key={view.key}
@@ -1606,15 +1596,25 @@ export default function SquareManagement() {
                     {typeof viewCounts[view.key] === 'number' && <span className="text-[11px] opacity-60 leading-tight">{viewCounts[view.key]}</span>}
                   </Button>
               )}
-                <Button onClick={updateCatalog} disabled={isLoading || isUpdatingCatalog || isSyncing} className="w-full h-9 gap-1.5 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-2">
-                  <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isUpdatingCatalog ? 'animate-pulse' : ''}`} />
-                  <span>{isUpdatingCatalog ? 'Updating...' : 'Update Catalog'}</span>
-                </Button>
               </div> :
 
             <div className="flex flex-row flex-wrap items-center gap-2">
                 <SquareCodViewSwitcher activeView={activeView} onChange={setActiveView} counts={viewCounts} hidden={isDriverView} />
               </div>
+            }
+
+            {/* Sub-row 3: Action buttons (Reconcile + Update Catalog) */}
+            {!isDriverView && currentUser && isAppOwner(currentUser) &&
+            <div className="flex flex-row gap-2">
+              <Button onClick={updateCatalog} disabled={isLoading || isUpdatingCatalog || isSyncing} className="flex-1 h-9 gap-1.5 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-2">
+                <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isUpdatingCatalog ? 'animate-pulse' : ''}`} />
+                <span>{isUpdatingCatalog ? 'Updating...' : 'Update Catalog'}</span>
+              </Button>
+              <Button onClick={runReconcile} disabled={isReconciling || isSyncing} className="flex-1 h-9 gap-1 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-3">
+                {isReconciling ? <Loader2 className="w-4 h-4 flex-shrink-0 animate-spin" /> : <RefreshCw className="w-4 h-4 flex-shrink-0" />}
+                {isReconciling ? 'Reconciling...' : 'Reconcile'}
+              </Button>
+            </div>
             }
 
             {/* Sub-row 3a: 2×5 stat cards (reconciliation view only) */}
