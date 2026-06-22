@@ -1629,7 +1629,7 @@ export default function SquareManagement() {
                   ${(activeView === 'deliveries' ? filteredDeliveryRows : activeView === 'transactions' ? filteredTransactionRows : activeView === 'reconciliation' ? reconciliationRows : filteredCatalogRows).
                     filter((row) => {
                       const cls = row.actions?.props?.className || '';
-                      return cls.includes('amber');
+                      return !cls.includes('bg-emerald');
                     }).
                     reduce((sum, row) => sum + Number(row.amount || 0), 0).
                     toFixed(2)}
