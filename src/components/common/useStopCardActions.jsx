@@ -1116,8 +1116,15 @@ export default function useStopCardActions(params) {
 
         fabControlEvents.notifyPhaseTwoCompleteRecenter();
         fabControlEvents.reactivateFAB(true, { suppressIfPhase1: true, reason: 'stop_status_change' });
-        // Only prompt if no arrival_time reading was already taken for this fridge stop
-        if (delivery?.fridge_item && !delivery?.arrival_time) triggerCoolerLogIfNeeded('Completed');
+        // Prompt cooler temp if:
+        // 1. Direct fridge delivery (fridge_item flag), OR
+        // 2. Pickup whose notes contain a "Fridge: N" summary (from Accept All)
+        const pickupHasFridgeItems = isPickup && (() => {
+          const notes = String(delivery?.delivery_notes || '');
+          const match = notes.match(/Fridge:\s*(\d+)/i);
+          return match && Number(match[1]) > 0;
+        })();
+        if ((delivery?.fridge_item || pickupHasFridgeItems) && !delivery?.arrival_time) triggerCoolerLogIfNeeded('Completed');
 
         if (!isPickup && patient?.id && Number(delivery?.cod_total_amount_required || 0) > 0) {
           await base44.functions.invoke('syncPatientLastDeliveryDate', {
