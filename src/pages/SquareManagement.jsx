@@ -1601,12 +1601,9 @@ export default function SquareManagement() {
                 variant={activeView === view.key ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => setActiveView(view.key)}
-                className="w-full h-9 justify-center rounded-md px-2">
-                
-                    <span className="flex flex-row gap-1 items-center text-xs font-medium">
-                      {view.label}
-                      {typeof viewCounts[view.key] === 'number' && <span className="opacity-60">({viewCounts[view.key]})</span>}
-                    </span>
+                className="w-full h-auto py-1.5 justify-center rounded-md px-2 flex-col gap-0">
+                    <span className="text-xs font-medium leading-tight">{view.label}</span>
+                    {typeof viewCounts[view.key] === 'number' && <span className="text-[11px] opacity-60 leading-tight">{viewCounts[view.key]}</span>}
                   </Button>
               )}
                 <Button onClick={updateCatalog} disabled={isLoading || isUpdatingCatalog || isSyncing} className="w-full h-9 gap-1.5 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-2">
