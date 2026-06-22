@@ -55,7 +55,7 @@ export default function SyncStatusIndicator({ syncStatus, isSyncing, error, codD
 
   return (
     <Card className={`border py-2 ${status.borderColor}`}>
-      <CardContent className={`p-3 md:p-4 ${status.bgColor}`}>
+      <CardContent className={`md:p-4 px-3 ${status.bgColor}`}>
         <Collapsible open={isOpen} onOpenChange={setIsOpen}>
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-3 flex-1">
