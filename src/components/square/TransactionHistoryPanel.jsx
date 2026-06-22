@@ -184,7 +184,7 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
                     </div>
 
                     <div className="flex gap-2 mb-3">
-                      <Badge className="bg-amber-100 text-amber-800">Pending Collection</Badge>
+                      <Badge className="bg-amber-100 text-amber-800">Pending</Badge>
                     </div>
 
                     <div className="text-xs text-slate-500">
