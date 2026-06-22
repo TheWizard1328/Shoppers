@@ -1147,7 +1147,7 @@ export default function DeliveryForm({
   const sortedStagedDeliveries = useMemo(() => sortStagedDeliveries({ stagedDeliveries, stores, selectedDriverId: formData.driver_id }), [stagedDeliveries, stores, formData.driver_id]);
   const isDispatcherOnly = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
   const sortedProjectedDeliveries = useMemo(() => sortProjectedDeliveries({ projectedDeliveries, allDeliveries, stores, selectedDriverId: formData.driver_id, deliveryDate: formData.delivery_date, isDispatcher: isDispatcherOnly, scheduledDriverMap }), [projectedDeliveries, allDeliveries, stores, formData.driver_id, formData.delivery_date, isDispatcherOnly, scheduledDriverMap]);
-  const handleConfirmDelete = useConfirmDelete({ deleteConfirmation, setDeleteConfirmation, sortedStagedDeliveries, stagedDeliveries, editingStagedId, handleClearForm, setStagedDeliveries, setProjectedDeliveries, fullPredictionListRef, allDeliveries, formData, setHasChanges, setHasPendingDeletes, setEditingStagedId, setError, setIsDeletingPending, setAllDeletedWerePending });
+  const handleConfirmDelete = useConfirmDelete({ deleteConfirmation, setDeleteConfirmation, sortedStagedDeliveries, stagedDeliveries, editingStagedId, handleClearForm, setStagedDeliveries, setProjectedDeliveries, fullPredictionListRef, allDeliveries, formData, setHasChanges, setHasPendingDeletes, setEditingStagedId, setError, setIsDeletingPending, setAllDeletedWerePending, patientSearchInputRef, shouldAutoFocusFields });
 
   // Reset manual-change flag whenever the delivery date changes (so auto-select re-runs)
   const prevDeliveryDateRef = useRef(formData.delivery_date);
