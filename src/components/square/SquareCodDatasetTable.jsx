@@ -26,7 +26,8 @@ filter(Boolean).join("|");
 
 const isRowCollected = (row) => {
   const cls = row.actions?.props?.className || '';
-  return cls.includes('emerald');
+  // Must have emerald background (bg-emerald-100 or bg-emerald-900) to count as collected
+  return cls.includes('bg-emerald-100') || cls.includes('bg-emerald-900');
 };
 
 const DesktopRow = ({ row, index, onRowClick, showLocationColumn, showCatalogColumn, dimmed }) =>
