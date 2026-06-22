@@ -1665,8 +1665,8 @@ export default function SquareManagement() {
             {activeView === 'catalog' && currentUser && isAppOwner(currentUser) && locationConfigs.length > 0 &&
             <div>
               <h2 className="text-sm font-semibold mb-1.5 text-slate-900 dark:text-slate-50">By Store</h2>
-              <div className="flex gap-2">
-                {(() => {
+              <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+                 {(() => {
                   const storeCardMap = new Map();
                   for (const item of filteredCatalogRows) {
                     const parsed = parseSquareItemName(item.itemName || item.name || '');

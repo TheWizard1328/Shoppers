@@ -7,7 +7,7 @@ export default function LocationSummaryCard({ location, codTotal, itemCount, sto
     <Card
       className="cursor-pointer hover:shadow-md transition-shadow flex-1 h-full min-w-[175px] max-w-[200px]"
       style={{
-        minWidth: '120px',
+        minWidth: '175px',
         borderColor: storeColor?.border || undefined,
         backgroundColor: storeColor?.bg || undefined
       }}
