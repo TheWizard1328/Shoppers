@@ -188,7 +188,7 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
 
         {/* Activity Section (Card Spends/Refunds, Driver Collections/Refunds) */}
         <div>
-          <div className="bg-slate-50 border-b px-6 py-3">
+          <div className="bg-slate-50 border-b px-6 py-1">
             <h3 className="text-lg font-semibold text-slate-900 mb-2">Card Activity</h3>
             <p className="text-sm text-slate-600 mb-2">Card spends, refunds, and driver collections</p>
           </div>
