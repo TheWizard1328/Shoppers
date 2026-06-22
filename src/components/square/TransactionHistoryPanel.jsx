@@ -23,8 +23,20 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
   const uncollectedCatalogItems = useMemo(() => {
     const locationItems = catalogItems.filter((item) => item.location_id === location.square_location_id);
 
+    // Apply date range filter using updated_at or created_date
+    const dateFiltered = locationItems.filter((item) => {
+      const itemDate = new Date(item.updated_at || item.created_date);
+      if (dateRangeStart && itemDate < new Date(dateRangeStart)) return false;
+      if (dateRangeEnd) {
+        const end = new Date(dateRangeEnd);
+        end.setHours(23, 59, 59, 999);
+        if (itemDate > end) return false;
+      }
+      return true;
+    });
+
     // Filter out items that have a completed collection transaction
-    return locationItems.filter((item) => {
+    return dateFiltered.filter((item) => {
       const hasCollection = transactions.some((t) =>
       t.square_catalog_object_id === item.catalog_object_id &&
       t.type === 'collection' &&
@@ -32,7 +44,7 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
       );
       return !hasCollection;
     });
-  }, [catalogItems, location.square_location_id, transactions]);
+  }, [catalogItems, location.square_location_id, transactions, dateRangeStart, dateRangeEnd]);
 
   // Find stores that use this location config
   const locationStoreIds = useMemo(() => {
