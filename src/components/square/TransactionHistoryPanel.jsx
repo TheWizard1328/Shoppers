@@ -188,12 +188,12 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
 
         {/* Activity Section (Card Spends/Refunds, Driver Collections/Refunds) */}
         <div>
-          <div className="bg-slate-50 border-b p-6">
+          <div className="bg-slate-50 border-b px-6 py-3">
             <h3 className="text-lg font-semibold text-slate-900 mb-4">Card Activity</h3>
             <p className="text-sm text-slate-600 mb-4">Card spends, refunds, and driver collections</p>
           </div>
 
-          <div className="space-y-4 py-3 px-4">
+          <div className="space-y-4 py-3 px-3">
             {activityTransactions.length === 0 ?
             <div className="text-center py-12 text-slate-500">
                 <Calendar className="w-12 h-12 mx-auto mb-4 opacity-50" />
