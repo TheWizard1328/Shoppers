@@ -1585,7 +1585,7 @@ export default function SquareManagement() {
             {/* Sub-row 2: Tab buttons */}
             {!isDriverView && currentUser && isAppOwner(currentUser) ?
             <div className="grid grid-cols-4 gap-2">
-                {[{ key: 'deliveries', label: 'Deliveries' }, { key: 'transactions', label: 'Transactions' }, { key: 'catalog', label: 'Catalog' }, { key: 'reconciliation', label: 'Reconciliation' }].map((view) =>
+                {[{ key: 'deliveries', label: 'Deliveries' }, { key: 'transactions', label: 'Transactions' }, { key: 'catalog', label: 'Catalog' }, { key: 'reconciliation', label: 'Reconcile' }].map((view) =>
               <Button
                 key={view.key}
                 type="button"
