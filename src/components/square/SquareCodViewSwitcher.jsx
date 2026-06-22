@@ -23,7 +23,7 @@ export default function SquareCodViewSwitcher({ activeView, onChange, counts = {
             variant={isActive ? "default" : "outline"}
             size="sm"
             onClick={() => onChange(view.key)}
-            className="flex-1 h-auto min-h-[3rem] justify-center rounded-2xl px-2 md:flex-none md:w-[130px] md:rounded-md md:py-2 md:px-3 md:min-h-11">
+            className="flex-1 h-auto justify-center rounded-2xl px-2 md:flex-none md:w-[130px] md:rounded-md md:py-2 md:px-3 min-h-[3rem] md:min-h-[3rem]">
             
             <span className="flex flex-col items-center justify-center text-center leading-tight">
               <span className="text-xs font-medium">{view.label}</span>
