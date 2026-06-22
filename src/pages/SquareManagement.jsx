@@ -1496,7 +1496,7 @@ export default function SquareManagement() {
       <div className="flex-shrink-0 mb-4">
 
         {/* ── MAIN 2-COL LAYOUT ── static left col | auto right col ── */}
-        <div className="grid grid-cols-1 gap-2 md:gap-3 md:mb-3 md:grid-cols-[45%_55%]">
+        <div className="grid grid-cols-1 gap-2 md:gap-3 md:mb-3 md:grid-cols-[40%_60%]">
 
           {/* LEFT col – filters/tabs + stat cards stacked */}
           <div className="flex flex-col gap-2">
