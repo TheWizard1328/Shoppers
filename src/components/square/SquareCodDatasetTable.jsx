@@ -114,9 +114,11 @@ const MobileCard = ({ row, index, onRowClick, showLocationColumn, showCatalogCol
           <p className="text-xs mt-0.5 text-slate-500 dark:text-slate-400">{formatDate(row.collectionDate || row.deliveryDate)}</p>
         </div>
         <div className="shrink-0 text-base font-bold text-emerald-600 dark:text-emerald-400">{formatAmount(row.amount)}</div>
-        {isCollected
-          ? <span className="shrink-0 rounded-full bg-emerald-100 dark:bg-emerald-900/30 border border-emerald-300 dark:border-emerald-700 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">Collected</span>
-          : <span className="shrink-0 rounded-full bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">Pending</span>
+        {showCatalogColumn
+          ? <div className="shrink-0" onClick={(e) => e.stopPropagation()}>{row.actions || null}</div>
+          : isCollected
+            ? <span className="shrink-0 rounded-full bg-emerald-100 dark:bg-emerald-900/30 border border-emerald-300 dark:border-emerald-700 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">Collected</span>
+            : <span className="shrink-0 rounded-full bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">Pending</span>
         }
         <ChevronDown className={`shrink-0 w-4 h-4 text-slate-400 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
       </div>
@@ -150,7 +152,7 @@ const MobileCard = ({ row, index, onRowClick, showLocationColumn, showCatalogCol
               {row.notes}
             </div>
           }
-          {row.actions && <div className="pt-1 flex justify-end" onClick={(e) => e.stopPropagation()}>{row.actions}</div>}
+          {row.actions && !showCatalogColumn && <div className="pt-1 flex justify-end" onClick={(e) => e.stopPropagation()}>{row.actions}</div>}
         </div>
       )}
     </div>
