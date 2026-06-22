@@ -72,7 +72,8 @@ export default function ActivePayStats({
     totalDrivers: 0,
     inTransitDrivers: 0,
     completedDrivers: 0,
-    isdIspCount: 0
+    isdIspCount: 0,
+    inTransitIsdIsp: 0
   };
 
   // Use actual performanceStats (no estimates)
@@ -107,6 +108,7 @@ export default function ActivePayStats({
   };
 
   const isdIspCount = stats.isdIspCount || 0;
+  const inTransitIsdIsp = stats.inTransitIsdIsp || 0;
 
   return (
     <div className="py-0.5 relative">
@@ -125,9 +127,10 @@ export default function ActivePayStats({
           icon={Truck}
           value={stats.inTransit}
           driverCount={isDispatcher ? stats.inTransitDrivers : (isDriver || isAdmin) && stats.activePickupsEnRoute > 0 ? stats.activePickupsEnRoute : undefined}
+          superscript={inTransitIsdIsp > 0 ? inTransitIsdIsp : undefined}
           color="purple"
           label="Active"
-          tooltip={tooltipValues.activeStops} />
+          tooltip={`${tooltipValues.activeStops}${inTransitIsdIsp > 0 ? `, ISD/ISP: ${inTransitIsdIsp}` : ''}`} />
 
         <StatBadge
           icon={CheckCircle}
