@@ -1277,14 +1277,14 @@ export default function SquareManagement() {
       const config = locationConfigs.find((c) => c?.square_location_id === item.location_id);
       const store = stores.find((s) => s?.id === item.store_id) || getStoreForConfig(config);
       const linkedDelivery = item.delivery_id ? deliveries.find((d) => d?.id === item.delivery_id) : null;
-      // Check if a matching transaction already exists for this catalog item
+      // A catalog item is "Collected" ONLY if there is a matching transaction in the transactions list.
+      // Match by: square_catalog_object_id on the transaction, OR delivery_id on the transaction.
       const catalogObjectId = item.catalog_object_id || item.id;
       const matchingTx = (allTransactions || []).find((tx) =>
-      tx && (
-      tx.square_catalog_object_id === catalogObjectId ||
-      linkedDelivery && tx.delivery_id === linkedDelivery.id ||
-      linkedDelivery && hasMatchingSquareTransaction(linkedDelivery, item.location_id, allTransactions))
-
+        tx && (
+          (catalogObjectId && tx.square_catalog_object_id === catalogObjectId) ||
+          (linkedDelivery?.id && tx.delivery_id === linkedDelivery.id)
+        )
       );
       const isCollected = !!matchingTx;
       return {
@@ -1295,6 +1295,7 @@ export default function SquareManagement() {
         storeName: store?.name || config?.name || 'Unknown',
         locationId: item.location_id || '--',
         catalogId: catalogObjectId || '--',
+        transactionId: matchingTx ? (matchingTx.square_payment_id || matchingTx.square_transaction_id || matchingTx.id || '--') : '--',
         deliveryDate: item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate,
         subtext: item.description || item.status || null,
         isCollected,
