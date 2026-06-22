@@ -64,7 +64,7 @@ const DesktopRow = ({ row, index, onRowClick, showLocationColumn, showCatalogCol
     </td>
     <td className="p-3">
       <div className="space-y-1">
-        <div className="flex justify-start" onClick={(e) => e.stopPropagation()}>
+        <div className="flex justify-start [&>button]:w-24 [&>div>button]:w-24" onClick={(e) => e.stopPropagation()}>
           {row.actions || <span className="text-slate-400">—</span>}
         </div>
         {row.notes &&
