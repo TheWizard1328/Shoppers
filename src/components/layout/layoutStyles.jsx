@@ -102,14 +102,14 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
           .pb-safe { padding-bottom:max(1rem, env(safe-area-inset-bottom, 0px)); }
           .mb-safe { margin-bottom:env(safe-area-inset-bottom, 0px); }
           @supports (-webkit-touch-callout: none) { body, #root { height:-webkit-fill-available; overflow:hidden; } }
-          @media (max-width: 800px) {
+          @media (max-width: 849px) {
             .app-container.mobile-device .mobile-header { display:flex !important; position:sticky; top:0; z-index:50 !important; background:var(--bg-white); border-bottom:1px solid var(--border-slate-200); }
             .app-container.mobile-device main { overflow-y:auto !important; overflow-x:hidden !important; flex:1; }
             .app-container.mobile-device .app-sidebar { position:fixed !important; left:0 !important; top:0 !important; bottom:0 !important; width:280px !important; max-width:80vw !important; z-index:50000 !important; transform:translateX(-100%) !important; transition:transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important; background:var(--bg-white) !important; box-shadow:4px 0 12px var(--shadow-color) !important; flex-shrink:0 !important; }
             .app-container.mobile-device .app-sidebar.sidebar-open { transform:translateX(0) !important; box-shadow:4px 0 12px var(--shadow-color) !important; }
             .app-container.mobile-device .main-content-area { width:100vw !important; flex:1 !important; display:flex !important; flex-direction:column !important; overflow:hidden !important; max-height:100vh !important; max-height:100dvh !important; }
           }
-          @media (min-width: 801px) {
+          @media (min-width: 850px) {
             .app-container.mobile-device .mobile-header { display:none !important; }
             .app-container.mobile-device .app-sidebar { position:relative !important; transform:none !important; box-shadow:none !important; width:var(--sidebar-width) !important; min-width:200px !important; max-width:400px !important; flex:0 0 var(--sidebar-width) !important; transition:none !important; }
             .app-container.mobile-device .main-content-area { flex:1 1 auto !important; width:calc(100vw - var(--sidebar-width) - 1px) !important; min-width:400px !important; display:flex !important; flex-direction:column !important; overflow:hidden !important; max-height:100vh !important; max-height:100dvh !important; }
@@ -154,8 +154,8 @@ export const getLayoutStyles = ({ branding, sidebarWidth }) => `
           .safe-bottom { padding-bottom:max(0.5rem, env(safe-area-inset-bottom, 0px)); }
           .fixed[role="dialog"][data-state="open"], .fixed[role="alertdialog"][data-state="open"] { padding-bottom:var(--bottom-nav-height) !important; }
           [data-sonner-toaster][data-y-position="bottom"] { bottom:calc(var(--bottom-nav-height) + 0.5rem) !important; }
-          /* Hide bottom nav on touch devices (phones/tablets) in landscape orientation */
-          @media (orientation: landscape) and (hover: none) and (pointer: coarse) {
+          /* Hide bottom nav when screen is wide enough for the desktop layout */
+          @media (min-width: 850px) {
             nav[data-mobile-bottom-nav] { display: none !important; }
             :root { --bottom-nav-height: 0px !important; }
           }

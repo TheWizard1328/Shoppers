@@ -33,19 +33,13 @@ export const getOrientation = () => {
  */
 export const shouldUseMobileLayout = () => {
   const ua = navigator.userAgent;
-  const isTabletDevice = /iPad|Android(?!.*Mobile)/i.test(ua);
   const isPhone = /Android.*Mobile|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
-  
-  // Phones always use mobile layout
+
+  // Phones always use mobile layout regardless of width/orientation
   if (isPhone) return true;
-  
-  // Tablets: portrait = mobile, landscape = desktop
-  if (isTabletDevice) {
-    return getOrientation() === 'portrait';
-  }
-  
-  // Desktop devices use desktop layout (but respect small screens)
-  return window.innerWidth < 768;
+
+  // Everything else (tablets, foldables, desktop, editor): use mobile layout below 850px
+  return window.innerWidth < 850;
 };
 
 /**

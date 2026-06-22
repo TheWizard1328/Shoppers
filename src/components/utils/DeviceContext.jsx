@@ -73,21 +73,22 @@ export function DeviceProvider({ children }) {
     };
   }, [deviceType]);
 
-  // Wide-screen / landscape override for phones:
-  // Use matchMedia orientation as primary signal — works correctly in editor iframes too.
+  // Single reliable threshold: below 850px = mobile layout, 850px+ = desktop/widescreen layout.
+  // This avoids orientation-based guessing which breaks in editors, foldables, and split-screen.
+  // - Phones (Android/iPhone): always mobile regardless of width
+  // - Tablets portrait: always mobile
+  // - Foldables unfolded / tablets landscape / desktop: only widescreen if >= 850px
+  const WIDESCREEN_THRESHOLD = 850;
   const isLandscape = !isPortrait;
-  const isWideScreenMobile = isPhysicalMobile && (isLandscape || screenWidth >= 768);
-
-  // Stop-card width is ~300px. If the screen is narrower than 3 stop-cards wide (< 900px)
-  // we force mobile layout regardless of device type — sidebar hides, mobile header/nav show.
-  const STOP_CARD_WIDTH = 300;
-  const isTooNarrowForSidebar = screenWidth < STOP_CARD_WIDTH * 3;
+  const isWideScreenMobile = isPhysicalMobile && screenWidth >= WIDESCREEN_THRESHOLD;
 
   // The two flags everything should use
-  // isMobile = phone (narrow/portrait) OR tablet-portrait — NOT wide-screen mobile/landscape
-  //          + any screen narrower than 3× stop-card width
-  const isMobile  = (isPhysicalMobile && !isWideScreenMobile) || isTabletPortrait || isTooNarrowForSidebar;
-  const isDesktop = !isMobile; // everything else is desktop
+  const isMobile  = isPhysicalMobile && !isWideScreenMobile
+                    ? true                                         // phone below threshold → always mobile
+                    : isTabletPortrait                             // tablet portrait → mobile
+                    ? true
+                    : screenWidth < WIDESCREEN_THRESHOLD;         // anything (editor, foldable, desktop) below 850px → mobile
+  const isDesktop = !isMobile;
 
   const value = {
     isMobile,
