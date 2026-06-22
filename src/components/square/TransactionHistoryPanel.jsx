@@ -172,12 +172,12 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
             uncollectedCatalogItems.map((item) =>
             <Card key={item.catalog_object_id} className="hover:shadow-md transition-shadow">
                   <CardContent className="px-4 py-2">
-                    <div className="grid grid-cols-2 gap-4 mb-3">
-                      <div>
+                    <div className="flex gap-4 mb-3">
+                      <div className="w-3/4">
                         <p className="text-sm text-slate-500">Item</p>
                         <p className="font-semibold text-slate-900">{item.name || 'N/A'}</p>
                       </div>
-                      <div className="text-right">
+                      <div className="w-1/4 text-right">
                         <p className="text-sm text-slate-500">Amount</p>
                         <p className="font-bold text-amber-600">${(item.price_dollars || 0).toFixed(2)}</p>
                       </div>
