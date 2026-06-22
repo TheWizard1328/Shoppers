@@ -1617,9 +1617,64 @@ export default function SquareManagement() {
             </div>
             }
 
-            {/* Sub-row 3a: 2×5 stat cards (reconciliation view only) */}
+
+
+            {/* Sub-row 3b: 2×2 stat cards (catalog view only) */}
+            {activeView === 'catalog' && currentUser && isAppOwner(currentUser) &&
+            <div className="grid grid-cols-2 gap-2 mt-6">
+            <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+              <CardContent className="px-3 py-4">
+                <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">{activeViewStats.primaryLabel}</div>
+                <div className="text-lg font-bold text-slate-900 dark:text-slate-50 leading-tight">{activeViewStats.primaryValue}</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+              <CardContent className="px-3 py-4">
+                <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">{activeViewStats.amountLabel}</div>
+                <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 leading-tight">${activeViewStats.amountValue.toFixed(2)}</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-white dark:bg-slate-900 border-amber-200 dark:border-amber-800">
+              <CardContent className="px-3 py-4">
+                <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Uncollected COD's</div>
+                <div className="text-lg font-bold text-amber-600 dark:text-amber-400 leading-tight">
+                  ${(activeView === 'deliveries' ? filteredDeliveryRows : activeView === 'transactions' ? filteredTransactionRows : activeView === 'reconciliation' ? reconciliationRows : filteredCatalogRows).
+                    filter((row) => {
+                      const cls = row.actions?.props?.className || '';
+                      return cls.includes('amber');
+                    }).
+                    reduce((sum, row) => sum + Number(row.amount || 0), 0).
+                    toFixed(2)}
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+              <CardContent className="px-3 py-4">
+                <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">{activeViewStats.locationLabel}</div>
+                <div className="text-lg font-bold text-blue-600 dark:text-blue-400 leading-tight">{activeViewStats.locationValue}</div>
+              </CardContent>
+            </Card>
+            </div>
+            }
+          </div>
+
+          {/* RIGHT col – sync status + stat cards + store location cards */}
+          <div className="flex-1 min-w-0 flex flex-col gap-2 self-start">
+            {syncStatus &&
+            <SyncStatusIndicator
+              syncStatus={syncStatus}
+              isSyncing={isSyncing}
+              error={error}
+              codDeliveryCount={codDeliveriesCount}
+              catalogItemCount={filteredCatalogItems.length}
+              cardSpendCount={filteredCardSalesCount}
+              salesCount={filteredSalesCount}
+              collectedCodTypeBreakdown={collectedCodTypeBreakdown} />
+            }
+
+            {/* Reconciliation stat cards */}
             {activeView === 'reconciliation' && currentUser && isAppOwner(currentUser) &&
-            <div className="grid grid-cols-10 gap-2 mt-1">
+            <div className="grid grid-cols-5 gap-2">
               <Card className="bg-white dark:bg-slate-900 border-red-200 dark:border-red-800">
                 <CardContent className="p-2.5">
                   <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Unmatched</div>
@@ -1681,59 +1736,6 @@ export default function SquareManagement() {
                 </CardContent>
               </Card>
             </div>
-            }
-
-            {/* Sub-row 3b: 2×2 stat cards (catalog view only) */}
-            {activeView === 'catalog' && currentUser && isAppOwner(currentUser) &&
-            <div className="grid grid-cols-2 gap-2 mt-6">
-            <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-              <CardContent className="px-3 py-4">
-                <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">{activeViewStats.primaryLabel}</div>
-                <div className="text-lg font-bold text-slate-900 dark:text-slate-50 leading-tight">{activeViewStats.primaryValue}</div>
-              </CardContent>
-            </Card>
-            <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-              <CardContent className="px-3 py-4">
-                <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">{activeViewStats.amountLabel}</div>
-                <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 leading-tight">${activeViewStats.amountValue.toFixed(2)}</div>
-              </CardContent>
-            </Card>
-            <Card className="bg-white dark:bg-slate-900 border-amber-200 dark:border-amber-800">
-              <CardContent className="px-3 py-4">
-                <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Uncollected COD's</div>
-                <div className="text-lg font-bold text-amber-600 dark:text-amber-400 leading-tight">
-                  ${(activeView === 'deliveries' ? filteredDeliveryRows : activeView === 'transactions' ? filteredTransactionRows : activeView === 'reconciliation' ? reconciliationRows : filteredCatalogRows).
-                    filter((row) => {
-                      const cls = row.actions?.props?.className || '';
-                      return cls.includes('amber');
-                    }).
-                    reduce((sum, row) => sum + Number(row.amount || 0), 0).
-                    toFixed(2)}
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-              <CardContent className="px-3 py-4">
-                <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">{activeViewStats.locationLabel}</div>
-                <div className="text-lg font-bold text-blue-600 dark:text-blue-400 leading-tight">{activeViewStats.locationValue}</div>
-              </CardContent>
-            </Card>
-            </div>
-            }
-          </div>
-
-          {/* RIGHT col – sync status + store location cards */}
-          <div className="flex-1 min-w-0 flex flex-col gap-2 self-start">
-            {syncStatus &&
-            <SyncStatusIndicator
-              syncStatus={syncStatus}
-              isSyncing={isSyncing}
-              error={error}
-              codDeliveryCount={codDeliveriesCount}
-              catalogItemCount={filteredCatalogItems.length}
-              cardSpendCount={filteredCardSalesCount}
-              salesCount={filteredSalesCount}
-              collectedCodTypeBreakdown={collectedCodTypeBreakdown} />
             }
 
             {activeView === 'catalog' && currentUser && isAppOwner(currentUser) && locationConfigs.length > 0 &&
