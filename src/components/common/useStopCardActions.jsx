@@ -267,6 +267,45 @@ export default function useStopCardActions(params) {
         updateDeliveriesLocally
       });
 
+      // Build and append route summary note to the pickup delivery's notes
+      try {
+        const pickupDeliveries = pendingPickups || scopedPendingDeliveries;
+        const totalCount = pickupDeliveries.length;
+
+        const ispCount = pickupDeliveries.filter((d) => {
+          const id = String(d?.delivery_id || '').toUpperCase();
+          const notes = String(d?.delivery_notes || '').toLowerCase();
+          return id.startsWith('ISP') || notes.includes('(ips)') || notes.includes(' ips ');
+        }).length;
+        const isdCount = pickupDeliveries.filter((d) => {
+          const id = String(d?.delivery_id || '').toUpperCase();
+          const notes = String(d?.delivery_notes || '').toLowerCase();
+          return id.startsWith('ISD') || notes.includes('(isd)') || notes.includes(' isd ');
+        }).length;
+
+        const codItems = pickupDeliveries.filter((d) => Number(d?.cod_total_amount_required || 0) > 0);
+        const codCount = codItems.length;
+        const codTotal = codItems.reduce((sum, d) => sum + Number(d.cod_total_amount_required || 0), 0);
+
+        const oversizedCount = pickupDeliveries.filter((d) => d?.oversized === true).length;
+        const fridgeCount = pickupDeliveries.filter((d) => d?.fridge_item === true).length;
+
+        const noteLines = [`Deliveries: ${totalCount}`];
+        if (ispCount > 0 || isdCount > 0) noteLines.push(`ISP: ${ispCount} ISD: ${isdCount}`);
+        if (codCount > 0) noteLines.push(`COD's: ${codCount} - $${codTotal.toFixed(2)}`);
+        if (oversizedCount > 0) noteLines.push(`Oversized: ${oversizedCount}`);
+        if (fridgeCount > 0) noteLines.push(`Fridge: ${fridgeCount}`);
+
+        const summaryNote = noteLines.join('\n');
+        const existingNotes = delivery.delivery_notes && delivery.delivery_notes !== 'No driver notes' ? delivery.delivery_notes : '';
+        const updatedNotes = existingNotes ? `${existingNotes}\n${summaryNote}` : summaryNote;
+
+        await updateDeliveryLocal(delivery.id, { delivery_notes: updatedNotes }, { skipSmartRefresh: true });
+        updateDeliveriesLocally?.([{ ...delivery, delivery_notes: updatedNotes }], false);
+      } catch (noteErr) {
+        console.warn('[AcceptAll] Failed to write route summary note:', noteErr?.message || noteErr);
+      }
+
       // Small delay so React can render "Processing Pending Stops" before switching to "Optimizing Route"
       await new Promise((resolve) => setTimeout(resolve, 400));
 
