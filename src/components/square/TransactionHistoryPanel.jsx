@@ -137,7 +137,7 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
         {/* Uncollected Items Section */}
         <div className="border-b">
           <div className="bg-amber-50 border-b px-6 py-3">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Uncollected Items</h3>
+            <h3 className="text-lg font-semibold text-slate-900 mb-2">Uncollected Items</h3>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-600">Pending Collection</p>
