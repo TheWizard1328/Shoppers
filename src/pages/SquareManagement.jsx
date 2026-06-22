@@ -1841,6 +1841,7 @@ export default function SquareManagement() {
           emptyDescription={`Offline catalog loaded: ${catalogItems.length} items, visible after filters: ${filteredCatalogItems.length}. If this stays at 0, the current store/driver filters do not match the filtered catalog records.`}
           showLocationColumn={currentUser && isAppOwner(currentUser)}
           navHeight={navHeight}
+          showCatalogColumn
           groupByCollected />
 
         }
