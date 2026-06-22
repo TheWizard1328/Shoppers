@@ -136,7 +136,7 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
 
         {/* Uncollected Items Section */}
         <div className="border-b">
-          <div className="bg-amber-50 border-b p-6">
+          <div className="bg-amber-50 border-b px-6 py-3">
             <h3 className="text-lg font-semibold text-slate-900 mb-4">Uncollected Items</h3>
             <div className="flex items-center justify-between">
               <div>
@@ -150,7 +150,7 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
             </div>
           </div>
 
-          <div className="p-6 space-y-4">
+          <div className="space-y-4 py-3 px-3">
             {uncollectedCatalogItems.length === 0 ?
             <div className="text-center py-12 text-slate-500">
                 <DollarSign className="w-12 h-12 mx-auto mb-4 opacity-50" />
@@ -159,7 +159,7 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
 
             uncollectedCatalogItems.map((item) =>
             <Card key={item.catalog_object_id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
+                  <CardContent className="px-4 py-2">
                     <div className="grid grid-cols-2 gap-4 mb-3">
                       <div>
                         <p className="text-sm text-slate-500">Item</p>
