@@ -1312,7 +1312,12 @@ export default function SquareManagement() {
         </Button>
       };
     }).
-    sort((a, b) => String(b.deliveryDate || '').localeCompare(String(a.deliveryDate || '')));
+    sort((a, b) => {
+      const aCollected = a.actions?.props?.className?.includes('bg-emerald-100') || a.actions?.props?.className?.includes('bg-emerald-900') ? 1 : 0;
+      const bCollected = b.actions?.props?.className?.includes('bg-emerald-100') || b.actions?.props?.className?.includes('bg-emerald-900') ? 1 : 0;
+      if (aCollected !== bCollected) return aCollected - bCollected;
+      return String(b.deliveryDate || '').localeCompare(String(a.deliveryDate || ''));
+    });
 
     const seenRowKeys = new Set();
     return rows.filter((row) => {
