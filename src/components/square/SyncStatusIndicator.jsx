@@ -54,7 +54,7 @@ export default function SyncStatusIndicator({ syncStatus, isSyncing, error, codD
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <Card className={`border ${status.borderColor}`}>
+    <Card className={`border py-2 ${status.borderColor}`}>
       <CardContent className={`p-3 md:p-4 ${status.bgColor}`}>
         <Collapsible open={isOpen} onOpenChange={setIsOpen}>
           <div className="flex items-start justify-between gap-4">
@@ -67,15 +67,15 @@ export default function SyncStatusIndicator({ syncStatus, isSyncing, error, codD
                   <span className={`font-semibold ${status.color}`}>
                     {status.text}
                   </span>
-                  {lastSyncTime && (
-                    <>
+                  {lastSyncTime &&
+                  <>
                       <span className="text-muted-foreground">•</span>
                       <span className="text-muted-foreground">
                         {formatDistanceToNow(new Date(lastSyncTime), { addSuffix: true })}
                       </span>
                       <span className="text-muted-foreground">(@ {format(new Date(lastSyncTime), 'HH:mm:ss')})</span>
                     </>
-                  )}
+                  }
                   <>
                     <span className="text-muted-foreground">•</span>
                     <span className="text-muted-foreground">Catalog Items: {catalogItemCount}</span>
@@ -86,11 +86,11 @@ export default function SyncStatusIndicator({ syncStatus, isSyncing, error, codD
                 <div className="md:hidden flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                     <span className={`font-semibold text-xs ${status.color}`}>{status.text}</span>
-                    {lastSyncTime && (
-                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    {lastSyncTime &&
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">
                         ({format(new Date(lastSyncTime), 'HH:mm:ss')})
                       </span>
-                    )}
+                    }
                   </div>
                   <CollapsibleTrigger className="inline-flex items-center gap-1 rounded-md bg-white/70 dark:bg-slate-900/40 px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 flex-shrink-0">
                     {isOpen ? 'Hide' : 'Stats'}
@@ -106,16 +106,16 @@ export default function SyncStatusIndicator({ syncStatus, isSyncing, error, codD
                     <span className="rounded-full bg-white/70 dark:bg-slate-900/40 px-2.5 py-1 text-slate-700 dark:text-slate-300">Cheque {collectedCodTypeBreakdown.Cheque | 0}</span>
                   </div>
                 </CollapsibleContent>
-                {error && (
-                  <div className="text-xs text-red-600 font-medium mt-1">
+                {error &&
+                <div className="text-xs text-red-600 font-medium mt-1">
                     Error: {error}
                   </div>
-                )}
+                }
               </div>
             </div>
           </div>
         </Collapsible>
       </CardContent>
-    </Card>
-  );
+    </Card>);
+
 }
