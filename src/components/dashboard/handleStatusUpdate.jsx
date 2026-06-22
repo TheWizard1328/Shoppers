@@ -211,6 +211,17 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
       base44.entities.Patient.update(targetDelivery.patient_id, { last_delivery_date: deliveryDate }).catch((error) => console.warn('⚠️ Patient last_delivery_date update failed:', error));
     }
 
+    // If a pickup (no patient_id) is completed and any linked delivery has fridge_item=true,
+    // fire an event to show the fridge temperature dialog.
+    if (newStatus === 'completed' && !targetDelivery.patient_id) {
+      const hasFridgeLinkedDelivery = deliveriesWithStopOrder.some(
+        (d) => d && d.puid === targetDelivery.puid && d.fridge_item === true && d.id !== deliveryId
+      );
+      if (hasFridgeLinkedDelivery) {
+        window.dispatchEvent(new CustomEvent('showFridgeTempDialog'));
+      }
+    }
+
 
     const finishedStatuses = ['completed', 'failed', 'cancelled'];
     const isReturnByMarkers = (d) => { if (!d || !d.patient_id) return false; const patient = patients.find((p) => p && p.id === d.patient_id); const notes = d.delivery_notes || ''; const patientName = d.patient_name || ''; const patientFullName = patient?.full_name || ''; return notes.toLowerCase().includes('(rtn)') || patientName.toLowerCase().includes('(rtn)') || patientFullName.toLowerCase().includes('(rtn)') || /\breturn\b/i.test(notes) || /\breturn\b/i.test(patientName) || /\breturn\b/i.test(patientFullName); };
