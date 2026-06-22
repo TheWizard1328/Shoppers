@@ -260,7 +260,6 @@ export default function SquareManagement() {
       const skipped = (data.results || []).filter((r) => r.status === 'skipped').length;
       const errors = (data.results || []).filter((r) => r.status === 'error').length;
       toast.success(`Catalog purged & rebuilt: ${created} created${skipped ? `, ${skipped} skipped` : ''}${errors ? `, ${errors} errors` : ''}`);
-      await refreshUiFromOfflineOnly();
       await syncFromSquare();
     } catch (err) {
       toast.error('Catalog update failed: ' + err.message);
