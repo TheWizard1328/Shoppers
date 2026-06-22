@@ -87,7 +87,7 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start justify-end">
-      <div className="bg-white w-full max-w-[500px] h-full overflow-y-auto shadow-lg">
+      <div className="bg-white w-full max-w-[450px] h-full overflow-y-auto shadow-lg">
         <div className="sticky top-0 bg-white border-b p-6 flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold text-slate-900">{location.name}</h2>
