@@ -76,12 +76,6 @@ export default function SyncStatusIndicator({ syncStatus, isSyncing, error, codD
                       <span className="text-muted-foreground">(@ {format(new Date(lastSyncTime), 'HH:mm:ss')})</span>
                     </>
                   }
-                  <>
-                    <span className="text-muted-foreground">•</span>
-                    <span className="text-muted-foreground">Catalog Items: {catalogItemCount}</span>
-                    <span className="text-muted-foreground">•</span>
-                    <span className="text-muted-foreground">Transactions: Card Spend: {cardSpendCount}</span>
-                  </>
                 </div>
                 <div className="md:hidden flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5 flex-wrap min-w-0">
