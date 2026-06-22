@@ -1276,17 +1276,29 @@ export default function SquareManagement() {
     map((item) => {
       const config = locationConfigs.find((c) => c?.square_location_id === item.location_id);
       const store = stores.find((s) => s?.id === item.store_id) || getStoreForConfig(config);
+      const linkedDelivery = item.delivery_id ? deliveries.find((d) => d?.id === item.delivery_id) : null;
+      // Check if a matching transaction already exists for this catalog item
+      const catalogObjectId = item.catalog_object_id || item.id;
+      const matchingTx = (allTransactions || []).find((tx) =>
+        tx && (
+          tx.square_catalog_object_id === catalogObjectId ||
+          (linkedDelivery && tx.delivery_id === linkedDelivery.id) ||
+          (linkedDelivery && hasMatchingSquareTransaction(linkedDelivery, item.location_id, allTransactions))
+        )
+      );
+      const isCollected = !!matchingTx;
       return {
-        id: item.catalog_object_id || item.id,
-        key: `${item.catalog_object_id || item.id || 'catalog'}|${item.location_id || '--'}|${item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate || 'no-date'}`,
+        id: catalogObjectId,
+        key: `${catalogObjectId || 'catalog'}|${item.location_id || '--'}|${item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate || 'no-date'}`,
         itemName: item.name || item.item_name || 'Catalog Item',
         amount: Number(item.price_dollars || item.amount || 0),
         storeName: store?.name || config?.name || 'Unknown',
         locationId: item.location_id || '--',
-        catalogId: item.catalog_object_id || item.id || '--',
+        catalogId: catalogObjectId || '--',
         deliveryDate: item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate,
         subtext: item.description || item.status || null,
-        actions:
+        actions: isCollected ?
+        <Button variant="secondary" size="sm" className="border border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">Collected</Button> :
         <Button
           variant="secondary"
           size="sm"
@@ -1294,15 +1306,10 @@ export default function SquareManagement() {
             e.stopPropagation();
             setItemToDelete(item);
           }}
-          disabled={deletingId === item.catalog_object_id || !item.delivery_id}
+          disabled={deletingId === catalogObjectId || !item.delivery_id}
           className="rounded-lg border border-emerald-300 bg-white text-emerald-700 shadow-sm hover:bg-emerald-50 hover:border-emerald-400 dark:border-emerald-700 dark:bg-slate-900 dark:text-emerald-300 dark:hover:bg-emerald-900/20">
-          
-              {deletingId === item.catalog_object_id ?
-          <Loader2 className="w-4 h-4 animate-spin" /> :
-          'Collect'
-          }
-            </Button>
-
+          {deletingId === catalogObjectId ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Collect'}
+        </Button>
       };
     }).
     sort((a, b) => String(b.deliveryDate || '').localeCompare(String(a.deliveryDate || '')));
@@ -1314,7 +1321,7 @@ export default function SquareManagement() {
       seenRowKeys.add(rowKey);
       return true;
     });
-  }, [catalogItems, locationConfigs, stores, visibleLocationIds, driverScopedLocationIds, deletingId, lookbackStart, todayDateString, deliveries, visibleSquareLocationConfigIds]);
+  }, [catalogItems, locationConfigs, stores, visibleLocationIds, driverScopedLocationIds, deletingId, lookbackStart, todayDateString, deliveries, visibleSquareLocationConfigIds, allTransactions, hasMatchingSquareTransaction]);
 
   const reconciliationRows = useMemo(() => {
     const rows = (deliveries || []).
@@ -1817,7 +1824,8 @@ export default function SquareManagement() {
           emptyTitle="No Square catalog items found"
           emptyDescription={`Offline catalog loaded: ${catalogItems.length} items, visible after filters: ${filteredCatalogItems.length}. If this stays at 0, the current store/driver filters do not match the filtered catalog records.`}
           showLocationColumn={currentUser && isAppOwner(currentUser)}
-          navHeight={navHeight} />
+          navHeight={navHeight}
+          groupByCollected />
 
         }
 
