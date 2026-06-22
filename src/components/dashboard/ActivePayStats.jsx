@@ -111,7 +111,7 @@ export default function ActivePayStats({
           <Tooltip>
             <TooltipTrigger asChild>
               <span className="absolute -top-1 left-1 text-[9px] font-bold px-1 py-0.5 rounded-full leading-none cursor-help" style={{ background: '#e0f2fe', color: '#0369a1', zIndex: 1 }}>
-                {isdIspCount} ISD/ISP
+                {isdIspCount}
               </span>
             </TooltipTrigger>
             <TooltipContent className="z-[9999] border" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-900)', borderColor: 'var(--border-slate-300)' }}>
