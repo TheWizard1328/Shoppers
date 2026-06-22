@@ -1609,7 +1609,7 @@ export default function SquareManagement() {
 
             {/* Sub-row 3b: 2×2 stat cards (catalog view only) */}
             {activeView === 'catalog' && currentUser && isAppOwner(currentUser) &&
-            <div className="grid grid-cols-2 gap-2 mt-6">
+            <div className="grid grid-cols-2 gap-2 mt-6 w-fit">
             <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 max-w-[175px]">
               <CardContent className="px-3 py-4">
                 <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">{activeViewStats.primaryLabel}</div>
