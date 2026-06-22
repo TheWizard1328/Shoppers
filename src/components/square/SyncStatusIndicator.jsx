@@ -62,7 +62,7 @@ export default function SyncStatusIndicator({ syncStatus, isSyncing, error, codD
               <div className={`${status.color} flex-shrink-0`}>
                 {status.icon}
               </div>
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-0 my-2">
                 <div className="flex items-center gap-1.5 flex-wrap text-xs hidden md:flex">
                   <span className={`font-semibold ${status.color}`}>
                     {status.text}
