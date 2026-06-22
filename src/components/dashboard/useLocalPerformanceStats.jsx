@@ -105,8 +105,7 @@ export function useLocalPerformanceStats({
       totalPay += paidDeliveries.filter((delivery) => delivery?.oversized === true).length * oversizedRate;
 
       paidDeliveries.forEach((delivery) => {
-        if (!delivery?.patient_id) return;
-        const patient = patientMap.get(delivery.patient_id);
+        const patient = delivery?.patient_id ? patientMap.get(delivery.patient_id) : null;
         const distance = delivery.paid_km_override !== null && delivery.paid_km_override !== undefined
           ? parseFloat(delivery.paid_km_override)
           : patient?.distance_from_store;
