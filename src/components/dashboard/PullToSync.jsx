@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { RefreshCw } from 'lucide-react';
 import { offlineDB } from '@/components/utils/offlineDatabase';
 import { base44 } from '@/api/base44Client';
-import { manualSyncSelected } from '@/components/utils/offlineSync';
+import { manualSyncSelected, invalidatePrioritySyncCache } from '@/components/utils/offlineSync';
 import calculateRealTimeETA from '@/functions/calculateRealTimeETA';
 
 import { format } from 'date-fns';
@@ -110,6 +110,8 @@ export default function PullToSync({
         return;
       }
 
+      // Invalidate the 5-min freshness cache so loadPriorityData runs again next boot after this manual sync
+      invalidatePrioritySyncCache();
       window.dispatchEvent(new CustomEvent('pullToSyncStarted', { detail: { suppressIncrementalUi: true } }));
 
       // Listen for the priority data ready event from manualSyncSelected (deliveries + patients first)
