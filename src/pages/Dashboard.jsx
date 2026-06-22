@@ -293,7 +293,7 @@ function Dashboard() {
     const isdIspCount=rd.filter((d)=>d&&!d.is_cycling_marker&&(isISD(d)||isISP(d))).length;
     let totalDrivers=0,inTransitDrivers=0,completedDrivers=0;
     if(isDispatcher||isAdmin){const aids=new Set(rd.map((d)=>d?.driver_id).filter(Boolean));totalDrivers=aids.size;inTransitDrivers=new Set(rd.filter((d)=>d&&(d.status==='in_transit'||d.status==='en_route')).map((d)=>d?.driver_id).filter(Boolean)).size;aids.forEach((did)=>{const ds=rd.filter((d)=>d?.driver_id===did);if(ds.some((d)=>d&&d.status==='completed')&&ds.every((d)=>d&&['completed','failed','cancelled'].includes(d.status)))completedDrivers++;});}
-    return {total,inTransit,enRoute,completed,failed,returned,totalDrivers,inTransitDrivers,completedDrivers,totalPickups,completedPickups,isdIspCount,inTransitIsdIsp};
+    return {total,inTransit,enRoute,activePickupsEnRoute:enRoute,completed,failed,returned,totalDrivers,inTransitDrivers,completedDrivers,totalPickups,completedPickups,isdIspCount,inTransitIsdIsp};
   }, [filteredDeliveries, patients, isDispatcher, currentUser?.store_ids, isAdmin]);
 
   const isDateFinished = useMemo(() => { const tod = startOfDay(new Date()); const sel = startOfDay(selectedDate); if (sel >= tod) return false; return filteredDeliveries.length > 0 && filteredDeliveries.every((d) => d && ['completed','failed','cancelled'].includes(d.status)); }, [selectedDate, filteredDeliveries]);
