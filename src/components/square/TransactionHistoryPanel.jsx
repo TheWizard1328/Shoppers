@@ -180,13 +180,12 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
                       <div className="w-1/4 text-right">
                         <p className="text-sm text-slate-500">Amount</p>
                         <p className="font-bold text-amber-600">${(item.price_dollars || 0).toFixed(2)}</p>
-                        <Badge className="bg-amber-100 text-amber-800 mt-1">Pending</Badge>
                       </div>
                     </div>
 
-                    <div className="text-xs text-slate-500">
-                      <p className="font-medium text-slate-600 mb-1">Last Updated</p>
-                      {item.updated_at ? new Date(item.updated_at).toLocaleString() : 'N/A'}
+                    <div className="flex items-center justify-between text-xs text-slate-500">
+                      <Badge className="bg-amber-100 text-amber-800">Pending</Badge>
+                      <span><span className="font-medium text-slate-600">Last Updated: </span>{item.updated_at ? new Date(item.updated_at).toLocaleString() : 'N/A'}</span>
                     </div>
                   </CardContent>
                 </Card>
