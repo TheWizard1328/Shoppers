@@ -1806,7 +1806,7 @@ export default function SquareManagement() {
           key="reconciliation"
           title="Reconciliation"
           rows={reconciliationRows}
-          isLoading={isLoading}
+          isLoading={isLoading && !hasInitialLoadCompleted}
           emptyTitle="No unmatched deliveries"
           emptyDescription="Deliveries that do not have a matching transaction by amount and Square location will appear here."
           showLocationColumn={currentUser && isAppOwner(currentUser)}
@@ -1823,15 +1823,15 @@ export default function SquareManagement() {
           </> : undefined}
         /> :
         activeView === 'deliveries' ?
-        <SquareCodDatasetTable key="deliveries" title="In App COD Deliveries" rows={filteredDeliveryRows} isLoading={isLoading} emptyTitle="No COD deliveries found" emptyDescription="COD deliveries from your local cache will appear here even if Square data was cleared." showLocationColumn={currentUser && isAppOwner(currentUser)} navHeight={navHeight} groupByCollected showCatalogColumn /> :
+        <SquareCodDatasetTable key="deliveries" title="In App COD Deliveries" rows={filteredDeliveryRows} isLoading={isLoading && !hasInitialLoadCompleted} emptyTitle="No COD deliveries found" emptyDescription="COD deliveries from your local cache will appear here even if Square data was cleared." showLocationColumn={currentUser && isAppOwner(currentUser)} navHeight={navHeight} groupByCollected showCatalogColumn /> :
         activeView === 'transactions' ?
-        <SquareCodDatasetTable key="transactions" title="Square Transactions" rows={filteredTransactionRows} isLoading={isLoading} emptyTitle="No Square transactions found" emptyDescription="Recent Square transactions for the active city will appear here." showLocationColumn={currentUser && isAppOwner(currentUser)} navHeight={navHeight} groupByCollected /> :
+        <SquareCodDatasetTable key="transactions" title="Square Transactions" rows={filteredTransactionRows} isLoading={isLoading && !hasInitialLoadCompleted} emptyTitle="No Square transactions found" emptyDescription="Recent Square transactions for the active city will appear here." showLocationColumn={currentUser && isAppOwner(currentUser)} navHeight={navHeight} groupByCollected /> :
 
         <SquareCodDatasetTable
           key="catalog"
           title="Square Catalog Items"
           rows={filteredCatalogRows}
-          isLoading={isLoading}
+          isLoading={isLoading && !hasInitialLoadCompleted}
           emptyTitle="No Square catalog items found"
           emptyDescription={`Offline catalog loaded: ${catalogItems.length} items, visible after filters: ${filteredCatalogItems.length}. If this stays at 0, the current store/driver filters do not match the filtered catalog records.`}
           showLocationColumn={currentUser && isAppOwner(currentUser)}
