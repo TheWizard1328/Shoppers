@@ -49,7 +49,7 @@ export function buildDeliveryStagedPanelProps({
     setDeleteConfirmation,
     isLoadingPredictions,
     onRefreshProjections: handleRefreshProjections,
-    shouldAutoFocusFields,
+    shouldAutoFocusFields: shouldAutoFocusFields,
     selectedDate
   };
 }
@@ -75,6 +75,7 @@ export function DeliveryStagedPanelDesktop({
   setDeleteConfirmation,
   isLoadingPredictions,
   onRefreshProjections,
+  shouldAutoFocusFields,
   selectedDate
 }) {
   return (
@@ -102,6 +103,7 @@ export function DeliveryStagedPanelDesktop({
           confirmAddProjectedToStaged={confirmAddProjectedToStaged}
           setDeleteConfirmation={setDeleteConfirmation}
           isLoadingPredictions={isLoadingPredictions}
+          shouldAutoFocusFields={shouldAutoFocusFields}
           selectedDate={selectedDate} />
         
       </div>
@@ -149,6 +151,7 @@ export function DeliveryStagedPanelMobile({
   setDeleteConfirmation,
   isLoadingPredictions,
   onRefreshProjections,
+  shouldAutoFocusFields,
   selectedDate
 }) {
   return (
@@ -196,6 +199,7 @@ export function DeliveryStagedPanelMobile({
               confirmAddProjectedToStaged={confirmAddProjectedToStaged}
               setDeleteConfirmation={setDeleteConfirmation}
               isLoadingPredictions={isLoadingPredictions}
+              shouldAutoFocusFields={shouldAutoFocusFields}
               selectedDate={selectedDate} />
             
             </div>
