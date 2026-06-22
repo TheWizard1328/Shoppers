@@ -11,7 +11,7 @@ const VIEWS = [
 export default function SquareCodViewSwitcher({ activeView, onChange, counts = {}, hidden = false }) {
   if (hidden) return null;
   return (
-    <div className="flex flex-row gap-2 md:flex md:flex-row md:flex-wrap md:items-center md:gap-3 py-1">
+    <div className="flex flex-row gap-2 w-full py-1">
       {VIEWS.map((view) => {
         const count = counts[view.key];
         const isActive = activeView === view.key;
