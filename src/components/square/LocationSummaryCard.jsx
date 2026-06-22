@@ -13,7 +13,7 @@ export default function LocationSummaryCard({ location, codTotal, itemCount, sto
       }}
       onClick={onClick}>
       
-      <CardContent className="p-2.5 md:p-3 flex flex-col justify-between h-full my-1 m">
+      <CardContent className="p-2.5 md:p-3 flex flex-col justify-between h-full my-1 max-w-[225px]">
         {/* Store name + location ID */}
         <div className="flex items-start gap-1.5 mb-2">
           <MapPin className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0 mt-0.5" />
