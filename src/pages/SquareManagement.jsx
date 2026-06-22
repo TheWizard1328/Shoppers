@@ -1604,7 +1604,7 @@ export default function SquareManagement() {
             }
 
             {/* Sub-row 3: Action buttons (Reconcile + Update Catalog) */}
-            {!isDriverView && currentUser && isAppOwner(currentUser) &&
+            {activeView === 'reconciliation' && !isDriverView && currentUser && isAppOwner(currentUser) &&
             <div className="flex flex-row gap-2">
               <Button onClick={updateCatalog} disabled={isLoading || isUpdatingCatalog || isSyncing} className="flex-1 h-9 gap-1.5 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-2">
                 <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isUpdatingCatalog ? 'animate-pulse' : ''}`} />
