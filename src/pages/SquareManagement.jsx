@@ -918,11 +918,13 @@ export default function SquareManagement() {
       delivery
       ));
 
-      toast.success('Marked as collected and removed from Square');
+      toast.success('Marked as collected — running sync...');
+      setItemToDelete(null);
+      setDeletingId(null);
+      await syncFromSquare();
     } catch (err) {
       console.error('Collect failed:', err);
       toast.error('Failed to mark collected: ' + err.message);
-    } finally {
       setDeletingId(null);
       setItemToDelete(null);
     }
