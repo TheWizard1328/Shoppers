@@ -99,8 +99,8 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
         </div>
 
         {/* Filters */}
-        <div className="border-b px-6 py-5">
-          <div className="grid grid-cols-3 gap-4">
+        <div className="border-b py-3 px-3">
+          <div className="grid grid-cols-3 gap-2">
             <div>
               <label className="text-sm font-medium text-slate-700 mb-1 block">Start Date</label>
               <Input
