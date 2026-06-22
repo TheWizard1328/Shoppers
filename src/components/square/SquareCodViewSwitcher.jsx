@@ -25,10 +25,10 @@ export default function SquareCodViewSwitcher({ activeView, onChange, counts = {
             onClick={() => onChange(view.key)}
             className="flex-1 h-auto min-h-[3rem] justify-center rounded-2xl px-2 py-1.5 md:h-9 md:flex-none md:w-[130px] md:rounded-md md:min-h-[2.25rem] md:py-2 md:px-3"
           >
-            <span className="flex flex-col items-center justify-center text-center leading-tight md:flex-row md:gap-1">
+            <span className="flex flex-col items-center justify-center text-center leading-tight">
               <span className="text-xs font-medium">{view.label}</span>
               {typeof count === "number" && (
-                <span className="text-[11px] opacity-80 md:opacity-60">({count})</span>
+                <span className="text-[11px] opacity-70">({count})</span>
               )}
             </span>
           </Button>);
