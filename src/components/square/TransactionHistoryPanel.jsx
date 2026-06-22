@@ -150,7 +150,7 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
             </div>
           </div>
 
-          <div className="space-y-4 py-3 px-5">
+          <div className="space-y-4 py-3 px-3">
             {uncollectedCatalogItems.length === 0 ?
             <div className="text-center py-12 text-slate-500">
                 <DollarSign className="w-12 h-12 mx-auto mb-4 opacity-50" />
