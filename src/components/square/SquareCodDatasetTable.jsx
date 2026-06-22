@@ -166,8 +166,7 @@ export default function SquareCodDatasetTable({
   navHeight,
   onRowClick,
   groupByCollected,
-  showCatalogColumn,
-  headerActions
+  showCatalogColumn
 }) {
   const notCollected = groupByCollected ? rows.filter((r) => !isRowCollected(r)) : rows;
   const collected = groupByCollected ? rows.filter((r) => isRowCollected(r)) : [];
@@ -176,10 +175,7 @@ export default function SquareCodDatasetTable({
   return (
     <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 flex flex-col md:flex-1 md:min-h-0">
       <CardHeader className="sticky top-0 z-10 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
-        <div className="flex items-center justify-between gap-2">
-          <CardTitle className="text-base md:text-lg text-slate-900 dark:text-slate-50">{title}</CardTitle>
-          {headerActions && <div className="flex items-center gap-2">{headerActions}</div>}
-        </div>
+        <CardTitle className="text-base md:text-lg text-slate-900 dark:text-slate-50">{title}</CardTitle>
       </CardHeader>
       <CardContent className="p-0 overflow-hidden flex flex-col md:flex-1 md:min-h-0">
         {isLoading ?

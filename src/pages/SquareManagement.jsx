@@ -1603,7 +1603,19 @@ export default function SquareManagement() {
               </div>
             }
 
-
+            {/* Sub-row 3: Action buttons (Reconcile + Update Catalog) */}
+            {activeView === 'reconciliation' && !isDriverView && currentUser && isAppOwner(currentUser) &&
+            <div className="flex flex-row gap-2">
+              <Button onClick={updateCatalog} disabled={isLoading || isUpdatingCatalog || isSyncing} className="flex-1 h-9 gap-1.5 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-2">
+                <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isUpdatingCatalog ? 'animate-pulse' : ''}`} />
+                <span>{isUpdatingCatalog ? 'Updating...' : 'Update Catalog'}</span>
+              </Button>
+              <Button onClick={runReconcile} disabled={isReconciling || isSyncing} className="flex-1 h-9 gap-1 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-3">
+                {isReconciling ? <Loader2 className="w-4 h-4 flex-shrink-0 animate-spin" /> : <RefreshCw className="w-4 h-4 flex-shrink-0" />}
+                {isReconciling ? 'Reconciling...' : 'Reconcile'}
+              </Button>
+            </div>
+            }
 
 
 
@@ -1802,36 +1814,17 @@ export default function SquareManagement() {
         }
 
         {activeView === 'reconciliation' ?
-        <SquareCodDatasetTable
-          key="reconciliation"
-          title="Reconciliation"
-          rows={reconciliationRows}
-          isLoading={isLoading && !hasInitialLoadCompleted}
-          emptyTitle="No unmatched deliveries"
-          emptyDescription="Deliveries that do not have a matching transaction by amount and Square location will appear here."
-          showLocationColumn={currentUser && isAppOwner(currentUser)}
-          navHeight={navHeight}
-          headerActions={!isDriverView && currentUser && isAppOwner(currentUser) ? <>
-            <Button onClick={updateCatalog} disabled={isLoading || isUpdatingCatalog || isSyncing} className="h-8 gap-1.5 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-2">
-              <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isUpdatingCatalog ? 'animate-pulse' : ''}`} />
-              <span>{isUpdatingCatalog ? 'Updating...' : 'Update Catalog'}</span>
-            </Button>
-            <Button onClick={runReconcile} disabled={isReconciling || isSyncing} className="h-8 gap-1 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-3">
-              {isReconciling ? <Loader2 className="w-4 h-4 flex-shrink-0 animate-spin" /> : <RefreshCw className="w-4 h-4 flex-shrink-0" />}
-              {isReconciling ? 'Reconciling...' : 'Reconcile'}
-            </Button>
-          </> : undefined}
-        /> :
+        <SquareCodDatasetTable key="reconciliation" title="Reconciliation" rows={reconciliationRows} isLoading={isLoading} emptyTitle="No unmatched deliveries" emptyDescription="Deliveries that do not have a matching transaction by amount and Square location will appear here." showLocationColumn={currentUser && isAppOwner(currentUser)} navHeight={navHeight} /> :
         activeView === 'deliveries' ?
-        <SquareCodDatasetTable key="deliveries" title="In App COD Deliveries" rows={filteredDeliveryRows} isLoading={isLoading && !hasInitialLoadCompleted} emptyTitle="No COD deliveries found" emptyDescription="COD deliveries from your local cache will appear here even if Square data was cleared." showLocationColumn={currentUser && isAppOwner(currentUser)} navHeight={navHeight} groupByCollected showCatalogColumn /> :
+        <SquareCodDatasetTable key="deliveries" title="In App COD Deliveries" rows={filteredDeliveryRows} isLoading={isLoading} emptyTitle="No COD deliveries found" emptyDescription="COD deliveries from your local cache will appear here even if Square data was cleared." showLocationColumn={currentUser && isAppOwner(currentUser)} navHeight={navHeight} groupByCollected showCatalogColumn /> :
         activeView === 'transactions' ?
-        <SquareCodDatasetTable key="transactions" title="Square Transactions" rows={filteredTransactionRows} isLoading={isLoading && !hasInitialLoadCompleted} emptyTitle="No Square transactions found" emptyDescription="Recent Square transactions for the active city will appear here." showLocationColumn={currentUser && isAppOwner(currentUser)} navHeight={navHeight} groupByCollected /> :
+        <SquareCodDatasetTable key="transactions" title="Square Transactions" rows={filteredTransactionRows} isLoading={isLoading} emptyTitle="No Square transactions found" emptyDescription="Recent Square transactions for the active city will appear here." showLocationColumn={currentUser && isAppOwner(currentUser)} navHeight={navHeight} groupByCollected /> :
 
         <SquareCodDatasetTable
           key="catalog"
           title="Square Catalog Items"
           rows={filteredCatalogRows}
-          isLoading={isLoading && !hasInitialLoadCompleted}
+          isLoading={isLoading}
           emptyTitle="No Square catalog items found"
           emptyDescription={`Offline catalog loaded: ${catalogItems.length} items, visible after filters: ${filteredCatalogItems.length}. If this stays at 0, the current store/driver filters do not match the filtered catalog records.`}
           showLocationColumn={currentUser && isAppOwner(currentUser)}
