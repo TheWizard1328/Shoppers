@@ -238,23 +238,6 @@ export function useInkbirdSensor(currentUser) {
     }
   }, [hasBluetooth, currentUser, connectDevice]);
 
-  // ── Force a fresh GATT read (called when user taps badge while connected) ─
-  const forceRead = useCallback(async () => {
-    if (!serverRef.current?.connected) return;
-    try {
-      const service  = await serverRef.current.getPrimaryService(INKBIRD_SERVICE_UUID);
-      const readChar = await service.getCharacteristic(INKBIRD_READ_UUID);
-      const dv       = await readChar.readValue();
-      const parsed   = decodeReading(dv);
-      if (parsed && mountedRef.current) {
-        setReading(parsed);
-        window.dispatchEvent(new CustomEvent('inkbirdReading', {
-          detail: { ...parsed, source: 'gatt-forced-read' }
-        }));
-      }
-    } catch (_) {}
-  }, []);
-
   // ── Manual disconnect ──────────────────────────────────────────────────
   const disconnect = useCallback(() => {
     clearTimeout(retryTimer.current);
@@ -296,13 +279,7 @@ export function useInkbirdSensor(currentUser) {
 
     navigator.bluetooth.getDevices().then(devices => {
       if (!mountedRef.current) return;
-      const inkbird = devices.find(d =>
-        d.name && (
-          INKBIRD_NAMES.includes(d.name) ||
-          d.name.startsWith('Inkbird') ||
-          d.name.startsWith('IBS')
-        )
-      );
+      const inkbird = devices.find(d => INKBIRD_NAMES.includes(d.name));
       if (inkbird) {
         deviceRef.current = inkbird;
         setSensorName(inkbird.name);
@@ -326,11 +303,29 @@ export function useInkbirdSensor(currentUser) {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── forceRead — demand a fresh FFF2 read from the sensor ──────────────
+  const forceRead = useCallback(async () => {
+    if (!deviceRef.current || !serverRef.current?.connected) return;
+    try {
+      const service  = await serverRef.current.getPrimaryService(INKBIRD_SERVICE_UUID);
+      const readChar = await service.getCharacteristic(INKBIRD_READ_UUID);
+      const dv       = await readChar.readValue();
+      const parsed   = decodeReading(dv);
+      if (parsed && mountedRef.current) {
+        setReading(parsed);
+        setStatus('connected');
+        window.dispatchEvent(new CustomEvent('inkbirdReading', {
+          detail: { ...parsed, source: 'gatt-force-read' }
+        }));
+      }
+    } catch (_) {}
+  }, []);
+
   return {
     status,
     reading,
     sensorName,
-    isPrimaryDevice: canUseBle,
+    isPrimaryDevice: canUseBle, // kept for API compat — true means BLE is available on this device
     connect,
     disconnect,
     triggerReconnect,

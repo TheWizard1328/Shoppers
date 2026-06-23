@@ -322,6 +322,22 @@ export function useNativeBleSensor(currentUser) {
     }
   }, [connectToDevice, scanAndConnect]);
 
+  // ── forceRead — demand a fresh FFF2 read from the sensor ──────────────
+  const forceRead = useCallback(async () => {
+    const id = deviceIdRef.current;
+    if (!id || !connectedRef.current) return;
+    const BleClient = await getBleClient();
+    if (!BleClient) return;
+    try {
+      const dv = await BleClient.read(id, INKBIRD_SERVICE_UUID, INKBIRD_READ_UUID);
+      const parsed = decodeReading(dv);
+      if (parsed && mountedRef.current) {
+        setReading(parsed);
+        window.dispatchEvent(new CustomEvent('inkbirdReading', { detail: { ...parsed, source: 'native-force-read' } }));
+      }
+    } catch (_) {}
+  }, []);
+
   return {
     status,
     reading,
@@ -330,5 +346,6 @@ export function useNativeBleSensor(currentUser) {
     connect,
     disconnect,
     triggerReconnect,
+    forceRead,
   };
 }
