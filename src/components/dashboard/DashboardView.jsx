@@ -315,6 +315,7 @@ export default function DashboardView({
           deliveryStats={deliveryStats} performanceStats={performanceStats} liveDistance={liveDistance} liveTimeOnDuty={liveTimeOnDuty}
           isLoadingPayrollStats={isLoadingPayrollStats} dailyPolylineCount={dailyPolylineCount} stats={stats}
           finalizedDutyTime={finalizedDutyTime}
+          setShowEndOfDayStats={setShowEndOfDayStats} setEndOfDayDriver={setEndOfDayDriver}
           refreshUser={refreshUser} dataSource={dataSource}
           isMobile={isMobile}
           mapStyle={mapStyle}

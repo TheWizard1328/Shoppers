@@ -14,6 +14,7 @@ export default function EndOfDayStatsDialog({
   isProcessing = false,
   performanceStats,
   localStats,
+  isRouteComplete = false,
 }) {
   const [stats, setStats] = useState(null);
 
@@ -34,7 +35,23 @@ export default function EndOfDayStatsDialog({
     const returned = localStats?.returned ?? 0;
     const totalKm = performanceStats?.totalKm ?? patientDeliveries.reduce((sum, d) => sum + (d.travel_dist || 0), 0);
     const totalPay = performanceStats?.totalPay ?? null;
-    const timeOnDuty = performanceStats?.totalTimeOnDuty ?? null;
+    // For incomplete routes, calculate time from first completed stop to NOW
+    let timeOnDuty = performanceStats?.totalTimeOnDuty ?? null;
+    const routeActuallyComplete = isRouteComplete || (localStats?.total > 0 && localStats?.inTransit === 0 && (localStats?.completed + (localStats?.failed || 0)) >= localStats?.total);
+
+    if (!routeActuallyComplete) {
+      // Use current time as the end point
+      const completedDeliveries = (deliveries || []).filter(d => d && d.actual_delivery_time && d.status === 'completed');
+      if (completedDeliveries.length > 0) {
+        const times = completedDeliveries.map(d => new Date(d.actual_delivery_time).getTime());
+        const firstTime = Math.min(...times);
+        const nowMs = Date.now();
+        const diffMin = Math.max(0, Math.round((nowMs - firstTime) / 60000));
+        const hh = String(Math.floor(diffMin / 60)).padStart(2, '0');
+        const mm = String(diffMin % 60).padStart(2, '0');
+        timeOnDuty = `${hh}:${mm}`;
+      }
+    }
 
     // Hourly rate from dashboard pay / duty time
     let hourlyRate = null;
@@ -55,6 +72,7 @@ export default function EndOfDayStatsDialog({
       totalPay: totalPay ? totalPay.toFixed(2) : null,
       timeOnDuty,
       hourlyRate,
+      routeComplete: routeActuallyComplete,
     });
 
     confetti({
@@ -88,7 +106,7 @@ export default function EndOfDayStatsDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-emerald-600">
             <CheckCircle className="w-6 h-6" />
-            <span style={{ color: 'var(--text-slate-900)' }}>Route Complete!</span>
+            <span style={{ color: 'var(--text-slate-900)' }}>{stats?.routeComplete ? 'Route Complete!' : 'Route Summary'}</span>
           </DialogTitle>
         </DialogHeader>
 
@@ -163,9 +181,9 @@ export default function EndOfDayStatsDialog({
           </div>
 
           {/* Completion Message */}
-          <div className="text-center py-3 px-4 rounded-lg border" style={{ background: 'var(--bg-emerald-50)', borderColor: 'var(--border-emerald-200)' }}>
-            <p className="text-sm font-medium text-emerald-700">
-              🎉 Great work today! All deliveries have been completed.
+          <div className="text-center py-3 px-4 rounded-lg border" style={{ background: stats.routeComplete ? 'var(--bg-emerald-50)' : 'var(--bg-blue-50)', borderColor: stats.routeComplete ? 'var(--border-emerald-200)' : 'var(--border-blue-200)' }}>
+            <p className={`text-sm font-medium ${stats.routeComplete ? 'text-emerald-700' : 'text-blue-700'}`}>
+              {stats.routeComplete ? '🎉 Great work today! All deliveries have been completed.' : `🚚 Route in progress — ${stats.completed} of ${stats.total} stops done.`}
             </p>
           </div>
 

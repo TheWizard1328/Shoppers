@@ -96,7 +96,7 @@ export default function DashboardDialogs({
       </Dialog>
 
       <AnimatePresence>
-        {showEndOfDayStats && <EndOfDayStatsDialog isOpen={showEndOfDayStats} onClose={() => { setShowEndOfDayStats(false); setEndOfDayDriver(null); }} deliveries={filteredDeliveries} driver={endOfDayDriver || currentUser} deliveryDate={format(selectedDate, 'yyyy-MM-dd')} isProcessing={isEntityUpdating} performanceStats={performanceStats} localStats={localStats} />}
+        {showEndOfDayStats && <EndOfDayStatsDialog isOpen={showEndOfDayStats} onClose={() => { setShowEndOfDayStats(false); setEndOfDayDriver(null); }} deliveries={filteredDeliveries} driver={endOfDayDriver || currentUser} deliveryDate={format(selectedDate, 'yyyy-MM-dd')} isProcessing={isEntityUpdating} performanceStats={performanceStats} localStats={localStats} isRouteComplete={!!endOfDayDriver} />}
       </AnimatePresence>
 
       <RouteNotification notification={routeNotification} onDismiss={() => setRouteNotification(null)} onNavigate={() => {
