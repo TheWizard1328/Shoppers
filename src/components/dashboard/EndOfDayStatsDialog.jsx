@@ -54,6 +54,15 @@ export default function EndOfDayStatsDialog({
 }) {
   const [stats, setStats] = useState(null);
   const encouragementRef = useRef(null);
+  const messageLockedRef = useRef(false);
+
+  // Reset lock when dialog closes so next open gets a fresh message
+  useEffect(() => {
+    if (!isOpen) {
+      messageLockedRef.current = false;
+      encouragementRef.current = null;
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -117,14 +126,17 @@ export default function EndOfDayStatsDialog({
       hourlyRate,
       routeComplete: routeActuallyComplete,
     };
-    // Pick a random message once per open (store in ref so it doesn't re-randomize on re-render)
-    encouragementRef.current = getEncouragementMessage({
-      routeComplete: routeActuallyComplete,
-      completed,
-      total,
-      timeOnDuty,
-      hourlyRate,
-    });
+    // Pick a random message only once per open session
+    if (!messageLockedRef.current) {
+      encouragementRef.current = getEncouragementMessage({
+        routeComplete: routeActuallyComplete,
+        completed,
+        total,
+        timeOnDuty,
+        hourlyRate,
+      });
+      messageLockedRef.current = true;
+    }
     setStats(newStats);
 
     confetti({
