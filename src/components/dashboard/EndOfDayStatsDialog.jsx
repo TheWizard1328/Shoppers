@@ -139,6 +139,14 @@ export default function EndOfDayStatsDialog({
               <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Total Stops</div>
             </div>
 
+            {stats.timeOnDuty && (
+              <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                <Clock className="w-5 h-5 mx-auto mb-1 text-slate-600" />
+                <div className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.timeOnDuty}</div>
+                <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Time on Duty</div>
+              </div>
+            )}
+
             <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-emerald-50)', borderColor: 'var(--border-emerald-200)' }}>
               <CheckCircle className="w-5 h-5 mx-auto mb-1 text-emerald-600" />
               <div className="text-2xl font-bold text-emerald-700">{stats.completed}</div>
@@ -150,14 +158,6 @@ export default function EndOfDayStatsDialog({
                 <XCircle className="w-5 h-5 mx-auto mb-1 text-red-600" />
                 <div className="text-2xl font-bold text-red-700">{stats.failed} / {stats.returned}</div>
                 <div className="text-xs text-red-600">Failed / Returns</div>
-              </div>
-            )}
-
-            {stats.timeOnDuty && (
-              <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                <Clock className="w-5 h-5 mx-auto mb-1 text-slate-600" />
-                <div className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.timeOnDuty}</div>
-                <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Time on Duty</div>
               </div>
             )}
 
