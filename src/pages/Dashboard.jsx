@@ -127,6 +127,25 @@ function Dashboard() {
   const [deliveryStats] = useState(null); const [liveDistance] = useState(0); const [liveTimeOnDuty] = useState(null);
   const [showEndOfDayStats, setShowEndOfDayStats] = useState(false);
   const [endOfDayDriver, setEndOfDayDriver] = useState(null);
+  const shownEodKeysRef = useRef(new Set());
+  const appUsersRef_eod = useRef(appUsers);
+  const currentUserRef_eod = useRef(currentUser);
+  useEffect(() => { appUsersRef_eod.current = appUsers; }, [appUsers]);
+  useEffect(() => { currentUserRef_eod.current = currentUser; }, [currentUser]);
+  useEffect(() => {
+    const handler = (e) => {
+      const { driverId, deliveryDate } = e?.detail || {};
+      if (!driverId || !deliveryDate) return;
+      const summaryKey = `${driverId}_${deliveryDate}`;
+      if (shownEodKeysRef.current.has(summaryKey)) return;
+      shownEodKeysRef.current.add(summaryKey);
+      const driverAppUser = appUsersRef_eod.current.find((au) => au?.user_id === driverId);
+      setEndOfDayDriver(driverAppUser || currentUserRef_eod.current);
+      setShowEndOfDayStats(true);
+    };
+    window.addEventListener('showRouteSummary', handler);
+    return () => window.removeEventListener('showRouteSummary', handler);
+  }, []); // stable mount-once listener; uses refs for always-fresh appUsers/currentUser
   const [snapshotData, setSnapshotData] = useState(null);
   const [pullToSyncKey] = useState(0);
   const [skippedStopsDialogData, setSkippedStopsDialogData] = useState(null);

@@ -73,23 +73,7 @@ export default function DashboardView({
   // Misc
   refreshUser, refreshData, dataSource,
 }) {
-  // Listen for showRouteSummary event fired by executeTerminalAction (useStopCardActions)
-  // and trigger the End of Day Stats dialog.
-  const shownEodKeysRef = useRef(new Set());
-  useEffect(() => {
-    const handler = (e) => {
-      const { driverId, deliveryDate } = e?.detail || {};
-      if (!driverId || !deliveryDate) return;
-      const summaryKey = `${driverId}_${deliveryDate}`;
-      if (shownEodKeysRef.current.has(summaryKey)) return;
-      shownEodKeysRef.current.add(summaryKey);
-      const driverAppUser = appUsers?.find((au) => au?.user_id === driverId);
-      setEndOfDayDriver(driverAppUser || currentUser);
-      setShowEndOfDayStats(true);
-    };
-    window.addEventListener('showRouteSummary', handler);
-    return () => window.removeEventListener('showRouteSummary', handler);
-  }, [appUsers, currentUser, setEndOfDayDriver, setShowEndOfDayStats]);
+  // (EOD dialog listener moved to Dashboard.jsx where state lives — more stable)
 
   // Show/hide the KITT optimization bar based on lifecycle events from all optimization flows
   useEffect(() => {
