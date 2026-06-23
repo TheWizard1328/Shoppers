@@ -222,15 +222,39 @@ export function useInkbirdSensor(currentUser) {
     if (!canUseBle) return; // desktop or no Bluetooth — skip
     setStatus('connecting');
     try {
-      const device = await navigator.bluetooth.requestDevice({
-        filters: [
-          { name: 'tps' },
-          { name: 'sps' },
-          { namePrefix: 'Inkbird' },
-          { namePrefix: 'IBS' },
-        ],
-        optionalServices: [INKBIRD_SERVICE_UUID],
-      });
+      // Try with name filters first; if the OS returns NotFoundError (device list
+      // is empty — common on Android tablets when the BLE radio is in a low-power
+      // state or the sensor advertises with a slight name variation), fall back to
+      // acceptAllDevices so the picker still opens and the user can select manually.
+      let device;
+      try {
+        device = await navigator.bluetooth.requestDevice({
+          filters: [
+            { name: 'tps' },
+            { name: 'sps' },
+            { namePrefix: 'tps' },
+            { namePrefix: 'sps' },
+            { namePrefix: 'Inkbird' },
+            { namePrefix: 'IBS' },
+          ],
+          optionalServices: [INKBIRD_SERVICE_UUID],
+        });
+      } catch (filterErr) {
+        // Only fall back if the picker was dismissed due to an empty filter list,
+        // not if the user cancelled (NotFoundError with no devices shown yet).
+        // We detect the "no matching devices" case by checking the error name AND
+        // whether it likely came from an empty list vs. a user cancel.
+        // On Android the error is still NotFoundError in both cases, so we always
+        // try the fallback — the user will still see all BLE devices and can pick.
+        if (filterErr?.name === 'NotFoundError' || filterErr?.name === 'TypeError') {
+          device = await navigator.bluetooth.requestDevice({
+            acceptAllDevices: true,
+            optionalServices: [INKBIRD_SERVICE_UUID],
+          });
+        } else {
+          throw filterErr;
+        }
+      }
       if (!mountedRef.current) return;
       deviceRef.current = device;
       setSensorName(device.name);
@@ -287,7 +311,14 @@ export function useInkbirdSensor(currentUser) {
 
     navigator.bluetooth.getDevices().then(devices => {
       if (!mountedRef.current) return;
-      const inkbird = devices.find(d => INKBIRD_NAMES.includes(d.name));
+      const inkbird = devices.find(d =>
+        d.name && (
+          INKBIRD_NAMES.includes(d.name) ||
+          INKBIRD_NAMES.some(n => d.name.startsWith(n)) ||
+          d.name.startsWith('Inkbird') ||
+          d.name.startsWith('IBS')
+        )
+      );
       if (inkbird) {
         deviceRef.current = inkbird;
         setSensorName(inkbird.name);
