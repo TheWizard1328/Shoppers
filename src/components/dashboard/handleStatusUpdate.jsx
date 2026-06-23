@@ -239,6 +239,10 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
     });
     const routeComplete = finishedStatuses.includes(newStatus) && !hasActiveStops;
 
+    console.log(`🏁 [EOD CHECK] deliveryId=${deliveryId} newStatus=${newStatus} driverId=${driverId} deliveryDate=${deliveryDate}`);
+    console.log(`🏁 [EOD CHECK] allDriverDeliveries count=${allDriverDeliveries.length}`, allDriverDeliveries.map(d => `${d.id.slice(-4)}:${d.status}`));
+    console.log(`🏁 [EOD CHECK] hasActiveStops=${hasActiveStops} routeComplete=${routeComplete} finishedIncludes=${finishedStatuses.includes(newStatus)}`);
+
     const wasLastStop = !hasActiveStops;
     let wasLastDispatcherStop = false;
     if (isDispatcher && !isAdmin && wasLastStop) {
@@ -294,11 +298,13 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
 
       // Show end-of-day dialog — dedup by key so it only shows once per driver/date
       const summaryKey = `${driverId}_${deliveryDate}`;
+      console.log(`🎉 [EOD DIALOG] routeComplete=true summaryKey=${summaryKey} alreadyShown=${hasShownSummaryRef.current.has(summaryKey)} hasShownSummaryRef=${!!hasShownSummaryRef} setShowEndOfDayStats=${typeof setShowEndOfDayStats}`);
       if (!hasShownSummaryRef.current.has(summaryKey)) {
         hasShownSummaryRef.current.add(summaryKey);
         const driverForDialog = driverAppUserForOffDuty || currentUser;
         setEndOfDayDriver(driverForDialog);
         setShowEndOfDayStats(true);
+        console.log(`🎉 [EOD DIALOG] setShowEndOfDayStats(true) called for driver=${driverForDialog?.user_name || driverForDialog?.id}`);
       }
       setSelectedCardId(null);
       setTimeout(() => { if (horizontalStopCardsRef.current) { const newHeight = horizontalStopCardsRef.current.offsetHeight; if (newHeight > 0 && newHeight !== stopCardsBaseHeight) { setStopCardsBaseHeight(newHeight); } } }, 1000);
