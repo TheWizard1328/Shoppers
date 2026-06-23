@@ -335,14 +335,14 @@ export default function StopCardHeader({
             // Only use live temp for today's deliveries; past dates use stored readings only
             const reading = (isToday ? liveTemp : null) || deliveryTemp;
             if (!reading) return (
-              <Badge className="mt-1 text-[10px] px-1.5 py-0 h-5 rounded-full bg-cyan-100 text-cyan-700 border border-cyan-300 font-bold inline-flex items-center gap-0.5">
-                <Thermometer className="w-2.5 h-2.5" />--°C
+              <Badge className="mt-1 text-[11px] px-1.5 py-0 h-6 rounded-full bg-cyan-100 text-cyan-700 border border-cyan-300 font-bold inline-flex items-center gap-0.5">
+                <Thermometer className="w-2.5 h-3" />--°C
               </Badge>
             );
             const isOut = reading.temperature_celsius < TEMP_MIN || reading.temperature_celsius > TEMP_MAX;
             return (
-              <Badge className={`mt-1 text-[10px] px-1.5 py-0 h-5 rounded-full font-bold inline-flex items-center gap-0.5 ${isOut ? 'bg-red-100 text-red-700 border border-red-300' : 'bg-cyan-100 text-cyan-700 border border-cyan-300'}`}>
-                <Thermometer className="w-2.5 h-2.5" />{reading.temperature_celsius}°C
+              <Badge className={`mt-1 text-[10px] px-1.5 py-0 h-6 rounded-full font-bold inline-flex items-center gap-0.5 ${isOut ? 'bg-red-100 text-red-700 border border-red-300' : 'bg-cyan-100 text-cyan-700 border border-cyan-300'}`}>
+                <Thermometer className="w-2.5 h-3" />{reading.temperature_celsius}°C
               </Badge>
             );
           })()}
