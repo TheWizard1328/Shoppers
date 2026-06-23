@@ -520,6 +520,8 @@ export default function DashboardView({
         showEndOfDayStats={showEndOfDayStats} setShowEndOfDayStats={setShowEndOfDayStats}
         endOfDayDriver={endOfDayDriver} setEndOfDayDriver={setEndOfDayDriver}
         routeNotification={routeNotification} setRouteNotification={setRouteNotification}
+        performanceStats={performanceStats}
+        localStats={stats}
         isAIEnabled={isAIEnabled}
         refreshUser={refreshUser}
       />

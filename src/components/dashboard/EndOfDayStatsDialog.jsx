@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, XCircle, Package, Clock, Home, MapPin, Camera, TrendingUp, DollarSign, Timer } from 'lucide-react';
+import { CheckCircle, XCircle, Package, Clock, Home, MapPin, Camera, DollarSign } from 'lucide-react';
 import { format } from 'date-fns';
 import confetti from 'canvas-confetti';
 
@@ -11,83 +11,49 @@ export default function EndOfDayStatsDialog({
   deliveries = [],
   driver,
   deliveryDate,
-  isProcessing = false
+  isProcessing = false,
+  performanceStats,
+  localStats,
 }) {
   const [stats, setStats] = useState(null);
 
   useEffect(() => {
-    if (!isOpen || !deliveries || deliveries.length === 0) return;
+    if (!isOpen) return;
 
-    const finishedStatuses = ['completed', 'failed', 'cancelled'];
-    
-    const isReturn = (delivery) => {
-      if (!delivery) return false;
-      const notes = delivery.delivery_notes || '';
-      const patientName = delivery.patient_name || '';
-      return notes.toLowerCase().includes('(rtn)') ||
-        patientName.toLowerCase().includes('(rtn)') ||
-        /\breturn\b/i.test(notes) ||
-        /\breturn\b/i.test(patientName);
-    };
-
-    const patientDeliveries = deliveries.filter(d => d && d.patient_id);
-    
-    const completed = patientDeliveries.filter(d => d.status === 'completed' && !isReturn(d)).length;
-    const failed = patientDeliveries.filter(d => d.status === 'failed' && !isReturn(d)).length;
-    const cancelled = patientDeliveries.filter(d => d.status === 'cancelled').length;
-    const returned = patientDeliveries.filter(isReturn).length;
-    
-    const successfulDeliveries = patientDeliveries.filter(d => d.status === 'completed' && !isReturn(d));
+    // POD count still needs to be derived from deliveries
+    const patientDeliveries = (deliveries || []).filter(d => d && d.patient_id);
+    const successfulDeliveries = patientDeliveries.filter(d => d.status === 'completed');
     const deliveriesWithPOD = successfulDeliveries.filter(d => {
-      const hasSignature = !!d.signature_image_url;
-      const hasPhoto = Array.isArray(d.proof_photo_urls) && d.proof_photo_urls.length > 0;
-      return hasSignature || hasPhoto;
+      return !!d.signature_image_url || (Array.isArray(d.proof_photo_urls) && d.proof_photo_urls.length > 0);
     }).length;
 
-    const totalDistance = patientDeliveries.reduce((sum, d) => sum + (d.travel_dist || 0), 0);
-    
-    // Sort finished deliveries by completion time
-    const finishedDeliveries = patientDeliveries.filter(d => 
-      d && finishedStatuses.includes(d.status) && d.actual_delivery_time
-    ).sort((a, b) => new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time));
-    
-    let timeOnDuty = null;
-    let diffMs = 0;
-    let avgTimeBetweenStops = null;
+    // Use dashboard card values directly
+    const total = localStats?.total ?? patientDeliveries.length;
+    const completed = localStats?.completed ?? successfulDeliveries.length;
+    const failed = localStats?.failed ?? patientDeliveries.filter(d => d.status === 'failed').length;
+    const returned = localStats?.returned ?? 0;
+    const totalKm = performanceStats?.totalKm ?? patientDeliveries.reduce((sum, d) => sum + (d.travel_dist || 0), 0);
+    const totalPay = performanceStats?.totalPay ?? null;
+    const timeOnDuty = performanceStats?.totalTimeOnDuty ?? null;
+
+    // Hourly rate from dashboard pay / duty time
     let hourlyRate = null;
-
-    if (finishedDeliveries.length > 1) {
-      const firstTime = new Date(finishedDeliveries[0].actual_delivery_time);
-      const lastTime = new Date(finishedDeliveries[finishedDeliveries.length - 1].actual_delivery_time);
-      diffMs = lastTime - firstTime;
-      const hours = Math.floor(diffMs / 3600000);
-      const minutes = Math.floor((diffMs % 3600000) / 60000);
-      timeOnDuty = `${hours}h ${minutes}m`;
-
-      // Avg time between stops in minutes
-      const totalMinutes = diffMs / 60000;
-      avgTimeBetweenStops = Math.round(totalMinutes / (finishedDeliveries.length - 1));
-
-      // Hourly rate: (completed deliveries * pay_rate_per_delivery) / total hours
-      const totalHours = diffMs / 3600000;
-      const payRate = driver?.pay_rate_per_delivery;
-      if (payRate && totalHours > 0) {
-        const estimatedPay = completed * payRate;
-        hourlyRate = (estimatedPay / totalHours).toFixed(2);
-      }
+    if (totalPay && timeOnDuty && timeOnDuty !== '00:00') {
+      const [hh, mm] = timeOnDuty.split(':').map(Number);
+      const totalHours = hh + mm / 60;
+      if (totalHours > 0) hourlyRate = (totalPay / totalHours).toFixed(2);
     }
 
     setStats({
-      total: patientDeliveries.length,
+      total,
       completed,
       failed,
-      cancelled,
       returned,
       deliveriesWithPOD,
       successfulDeliveries: successfulDeliveries.length,
-      totalDistance: totalDistance.toFixed(2),
+      totalDistance: Number(totalKm).toFixed(2),
+      totalPay: totalPay ? totalPay.toFixed(2) : null,
       timeOnDuty,
-      avgTimeBetweenStops,
       hourlyRate,
     });
 
@@ -96,7 +62,7 @@ export default function EndOfDayStatsDialog({
       spread: 70,
       origin: { y: 0.6 }
     });
-  }, [isOpen, deliveries]);
+  }, [isOpen, performanceStats, localStats]);
 
   if (!stats && !isProcessing) return null;
   if (!stats) return (
@@ -179,11 +145,11 @@ export default function EndOfDayStatsDialog({
               <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Proof of Delivery</div>
             </div>
 
-            {stats.avgTimeBetweenStops !== null && (
-              <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-blue-50)', borderColor: 'var(--border-blue-200)' }}>
-                <Timer className="w-5 h-5 mx-auto mb-1 text-blue-600" />
-                <div className="text-lg font-bold text-blue-700">{stats.avgTimeBetweenStops} min</div>
-                <div className="text-xs text-blue-600">Avg Time / Stop</div>
+            {stats.totalPay !== null && (
+              <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-emerald-50)', borderColor: 'var(--border-emerald-200)' }}>
+                <DollarSign className="w-5 h-5 mx-auto mb-1 text-emerald-600" />
+                <div className="text-lg font-bold text-emerald-700">${stats.totalPay}</div>
+                <div className="text-xs text-emerald-600">Total Pay</div>
               </div>
             )}
 

@@ -39,6 +39,8 @@ export default function DashboardDialogs({
   showEndOfDayStats, setShowEndOfDayStats, endOfDayDriver, setEndOfDayDriver,
   isEntityUpdating,
   routeNotification, setRouteNotification,
+  // Stats from dashboard card
+  performanceStats, localStats,
   // AI
   isAIEnabled,
   // Misc
@@ -94,7 +96,7 @@ export default function DashboardDialogs({
       </Dialog>
 
       <AnimatePresence>
-        {showEndOfDayStats && <EndOfDayStatsDialog isOpen={showEndOfDayStats} onClose={() => { setShowEndOfDayStats(false); setEndOfDayDriver(null); }} deliveries={filteredDeliveries} driver={endOfDayDriver || currentUser} deliveryDate={format(selectedDate, 'yyyy-MM-dd')} isProcessing={isEntityUpdating} />}
+        {showEndOfDayStats && <EndOfDayStatsDialog isOpen={showEndOfDayStats} onClose={() => { setShowEndOfDayStats(false); setEndOfDayDriver(null); }} deliveries={filteredDeliveries} driver={endOfDayDriver || currentUser} deliveryDate={format(selectedDate, 'yyyy-MM-dd')} isProcessing={isEntityUpdating} performanceStats={performanceStats} localStats={localStats} />}
       </AnimatePresence>
 
       <RouteNotification notification={routeNotification} onDismiss={() => setRouteNotification(null)} onNavigate={() => {
