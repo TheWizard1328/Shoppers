@@ -145,7 +145,7 @@ export default function EndOfDayStatsDialog({
               <div className="text-xs text-emerald-600">Completed</div>
             </div>
 
-            {(stats.failed > 0 || stats.returned > 0) && (
+            {(
               <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-red-50)', borderColor: 'var(--border-red-200)' }}>
                 <XCircle className="w-5 h-5 mx-auto mb-1 text-red-600" />
                 <div className="text-2xl font-bold text-red-700">{stats.failed} / {stats.returned}</div>
