@@ -7,7 +7,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
-import { Edit, Locate, MoreVertical, Trash2, User, XCircle } from "lucide-react";
+import { Edit, Locate, MoreVertical, RotateCcw, Trash2, User, XCircle } from "lucide-react";
 import { isInterStoreDelivery } from '../utils/interStoreDisplayName';
 
 export default function StopCardFooterMenu(props) {
@@ -33,7 +33,12 @@ export default function StopCardFooterMenu(props) {
     routeCompleted,
     isAssignedDriverOrAppOwner,
     canEdit,
-    allDeliveries = []
+    allDeliveries = [],
+    onRestart,
+    restartCurrentDelivery,
+    isRestarting,
+    isProcessingBackground,
+    isFailing,
   } = props;
 
   const canManageStop = !!(!isStrippedForDispatcher && (
@@ -105,6 +110,14 @@ export default function StopCardFooterMenu(props) {
             <DropdownMenuSeparator className="dark:bg-slate-600" />
             <DropdownMenuItem inset={false} onClick={(e) => { blockCardToggle(e); e.stopPropagation(); setPendingFailureStatus(isPickup ? 'cancelled' : 'failed'); setShowFailureReasonDialog(true); }} className="flex cursor-pointer items-center text-red-500 dark:text-red-400 text-base py-2.5 md:py-1.5 focus:bg-red-50 dark:focus:bg-red-950 focus:text-red-700 dark:focus:text-red-300">
               <XCircle className="w-5 h-5 mr-2" />{isPickupForMenu ? 'Cancel Pickup' : 'Mark as Failed'}
+            </DropdownMenuItem>
+          </>
+        )}
+        {routeCompleted && onRestart && delivery?.status !== 'failed' && ['completed', 'cancelled'].includes(delivery?.status) && (
+          <>
+            <DropdownMenuSeparator className="dark:bg-slate-600" />
+            <DropdownMenuItem inset={false} onClick={(e) => { blockCardToggle(e); e.stopPropagation(); restartCurrentDelivery(false); }} disabled={isRestarting || isProcessingBackground || isFailing} className="flex cursor-pointer items-center text-blue-600 dark:text-blue-400 text-base py-2.5 md:py-1.5 focus:bg-blue-50 dark:focus:bg-blue-950 focus:text-blue-700 dark:focus:text-blue-300">
+              <RotateCcw className="w-5 h-5 mr-2" />Restart
             </DropdownMenuItem>
           </>
         )}
