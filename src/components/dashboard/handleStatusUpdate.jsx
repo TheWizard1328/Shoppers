@@ -231,10 +231,14 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
     // excluding the current stop being completed right now (treat it as already finished).
     // Pending stops are NOT counted — they haven't been started and don't block completion.
     const activeStatuses = ['in_transit', 'en_route'];
+    // Route is complete when: finishing a terminal status AND no other stops are still active.
+    // We do NOT require the current stop to have been in_transit/en_route — a pending return
+    // delivery completing as the last stop should also trigger EOD.
     const remainingActiveCount = allDriverDeliveries.filter((d) => activeStatuses.includes(d.status) && d.id !== deliveryId).length;
-    const wasLastStop = remainingActiveCount === 0 && allDriverDeliveries.some((d) => activeStatuses.includes(d.status) && d.id === deliveryId);
-    const routeComplete = wasLastStop && finishedStatuses.includes(newStatus);
+    const hasAnyStartedStop = allDriverDeliveries.some((d) => d.id !== deliveryId && !['pending'].includes(d.status));
+    const routeComplete = finishedStatuses.includes(newStatus) && remainingActiveCount === 0 && hasAnyStartedStop;
 
+    const wasLastStop = remainingActiveCount === 0;
     let wasLastDispatcherStop = false;
     if (isDispatcher && !isAdmin && wasLastStop) {
       const dispatcherStoreIds = new Set((currentUser?.store_ids || []).map((id) => String(id)));
