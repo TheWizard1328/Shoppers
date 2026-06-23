@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { CheckCircle, XCircle, Package, Clock, Home, MapPin, Camera } from 'lucide-react';
+import { CheckCircle, XCircle, Package, Clock, Home, MapPin, Camera, TrendingUp, DollarSign, Timer } from 'lucide-react';
 import { format } from 'date-fns';
 import confetti from 'canvas-confetti';
 
@@ -19,10 +18,8 @@ export default function EndOfDayStatsDialog({
   useEffect(() => {
     if (!isOpen || !deliveries || deliveries.length === 0) return;
 
-    // Calculate stats
     const finishedStatuses = ['completed', 'failed', 'cancelled'];
     
-    // Helper to check if delivery is a return
     const isReturn = (delivery) => {
       if (!delivery) return false;
       const notes = delivery.delivery_notes || '';
@@ -33,7 +30,6 @@ export default function EndOfDayStatsDialog({
         /\breturn\b/i.test(patientName);
     };
 
-    // CRITICAL: Only count patient deliveries (not pickups)
     const patientDeliveries = deliveries.filter(d => d && d.patient_id);
     
     const completed = patientDeliveries.filter(d => d.status === 'completed' && !isReturn(d)).length;
@@ -48,26 +44,37 @@ export default function EndOfDayStatsDialog({
       return hasSignature || hasPhoto;
     }).length;
 
-    // Calculate total distance (sum of all travel_dist)
-    const totalDistance = patientDeliveries.reduce((sum, d) => {
-      return sum + (d.travel_dist || 0);
-    }, 0);
+    const totalDistance = patientDeliveries.reduce((sum, d) => sum + (d.travel_dist || 0), 0);
     
-    // Calculate time on duty (first to last delivery)
+    // Sort finished deliveries by completion time
     const finishedDeliveries = patientDeliveries.filter(d => 
       d && finishedStatuses.includes(d.status) && d.actual_delivery_time
-    ).sort((a, b) => 
-      new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time)
-    );
+    ).sort((a, b) => new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time));
     
     let timeOnDuty = null;
+    let diffMs = 0;
+    let avgTimeBetweenStops = null;
+    let hourlyRate = null;
+
     if (finishedDeliveries.length > 1) {
       const firstTime = new Date(finishedDeliveries[0].actual_delivery_time);
       const lastTime = new Date(finishedDeliveries[finishedDeliveries.length - 1].actual_delivery_time);
-      const diffMs = lastTime - firstTime;
+      diffMs = lastTime - firstTime;
       const hours = Math.floor(diffMs / 3600000);
       const minutes = Math.floor((diffMs % 3600000) / 60000);
       timeOnDuty = `${hours}h ${minutes}m`;
+
+      // Avg time between stops in minutes
+      const totalMinutes = diffMs / 60000;
+      avgTimeBetweenStops = Math.round(totalMinutes / (finishedDeliveries.length - 1));
+
+      // Hourly rate: (completed deliveries * pay_rate_per_delivery) / total hours
+      const totalHours = diffMs / 3600000;
+      const payRate = driver?.pay_rate_per_delivery;
+      if (payRate && totalHours > 0) {
+        const estimatedPay = completed * payRate;
+        hourlyRate = (estimatedPay / totalHours).toFixed(2);
+      }
     }
 
     setStats({
@@ -79,10 +86,11 @@ export default function EndOfDayStatsDialog({
       deliveriesWithPOD,
       successfulDeliveries: successfulDeliveries.length,
       totalDistance: totalDistance.toFixed(2),
-      timeOnDuty
+      timeOnDuty,
+      avgTimeBetweenStops,
+      hourlyRate,
     });
 
-    // Trigger confetti on mount
     confetti({
       particleCount: 100,
       spread: 70,
@@ -114,9 +122,7 @@ export default function EndOfDayStatsDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-emerald-600">
             <CheckCircle className="w-6 h-6" />
-            <span style={{ color: 'var(--text-slate-900)' }}>
-              Route Complete!
-            </span>
+            <span style={{ color: 'var(--text-slate-900)' }}>Route Complete!</span>
           </DialogTitle>
         </DialogHeader>
 
@@ -172,6 +178,22 @@ export default function EndOfDayStatsDialog({
               <div className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.deliveriesWithPOD} / {stats.successfulDeliveries}</div>
               <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Proof of Delivery</div>
             </div>
+
+            {stats.avgTimeBetweenStops !== null && (
+              <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-blue-50)', borderColor: 'var(--border-blue-200)' }}>
+                <Timer className="w-5 h-5 mx-auto mb-1 text-blue-600" />
+                <div className="text-lg font-bold text-blue-700">{stats.avgTimeBetweenStops} min</div>
+                <div className="text-xs text-blue-600">Avg Time / Stop</div>
+              </div>
+            )}
+
+            {stats.hourlyRate !== null && (
+              <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-purple-50)', borderColor: 'var(--border-purple-200)' }}>
+                <DollarSign className="w-5 h-5 mx-auto mb-1 text-purple-600" />
+                <div className="text-lg font-bold text-purple-700">${stats.hourlyRate}/hr</div>
+                <div className="text-xs text-purple-600">Hourly Rate</div>
+              </div>
+            )}
           </div>
 
           {/* Completion Message */}

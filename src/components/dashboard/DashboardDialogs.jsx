@@ -15,7 +15,6 @@ import QuickRouteAdjustments from '@/components/dashboard/QuickRouteAdjustments'
 import ModeSelectionDialog from '@/components/dashboard/ModeSelectionDialog';
 import useModeRouteDialog from '@/components/dashboard/useModeRouteDialog';
 
-import RouteSummaryModal from "@/components/dashboard/RouteSummaryModal";
 import EndOfDayStatsDialog from '@/components/dashboard/EndOfDayStatsDialog';
 
 import { useEffect } from 'react';
@@ -93,10 +92,6 @@ export default function DashboardDialogs({
           <RouteOptimizationSettings onClose={() => setShowOptimizationSettings(false)} currentUser={currentUser} />
         </DialogContent>
       </Dialog>
-
-      <AnimatePresence>
-        {showRouteSummary && <RouteSummaryModal deliveries={filteredDeliveries} patients={patients} stores={stores} driver={summaryDriver || currentUser} onClose={async () => { setShowRouteSummary(false); setSummaryDriver(null); if (isDriver && currentUser?.id) await refreshUser(); }} />}
-      </AnimatePresence>
 
       <AnimatePresence>
         {showEndOfDayStats && <EndOfDayStatsDialog isOpen={showEndOfDayStats} onClose={() => { setShowEndOfDayStats(false); setEndOfDayDriver(null); }} deliveries={filteredDeliveries} driver={endOfDayDriver || currentUser} deliveryDate={format(selectedDate, 'yyyy-MM-dd')} isProcessing={isEntityUpdating} />}
