@@ -273,13 +273,25 @@ export default function LiveTempBadge({
       }
       if (data.latest_reading) { setLastReading(data.latest_reading); triggerPulse(); }
     };
+    const onVisibilityRestored = () => {
+      // App regained focus — reconnect BLE if needed and take a fresh reading
+      triggerReconnect();
+      forceRead();
+      // Reset the DB poll timer so a fresh read fires immediately
+      clearInterval(dbPollTimerRef.current);
+      loadFromDb();
+      dbPollTimerRef.current = setInterval(loadFromDb, DB_POLL_MS);
+    };
+
     window.addEventListener('fridgeTempRecorded', onRecorded);
     window.addEventListener('rxTempLogsUpdated', onWs);
+    window.addEventListener('appVisibilityRestored', onVisibilityRestored);
     return () => {
       window.removeEventListener('fridgeTempRecorded', onRecorded);
       window.removeEventListener('rxTempLogsUpdated', onWs);
+      window.removeEventListener('appVisibilityRestored', onVisibilityRestored);
     };
-  }, [selectedDriverId, currentUser?.id, triggerPulse]);
+  }, [selectedDriverId, currentUser?.id, triggerPulse, triggerReconnect, forceRead, loadFromDb]);
 
   // Cleanup on unmount
   useEffect(() => () => {
