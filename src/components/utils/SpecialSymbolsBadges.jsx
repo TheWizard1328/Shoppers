@@ -103,8 +103,8 @@ export default function SpecialSymbolsBadges({
   const hasDriverNotes = !!delivery.delivery_notes;
 
   // Check if anything should be shown
-  const hasAnyContent = hasCOD || isFirstDelivery || hasOversized || hasSignature || hasFridgeItem ||
-  hasCallOnArrival || hasRingBell || hasDontRingBell || hasMailboxOk || hasDriverNotes;
+  const hasAnyContent = hasCOD || isFirstDelivery || hasOversized || hasSignature || 
+  hasCallOnArrival || hasRingBell || hasDontRingBell || hasMailboxOk || hasDriverNotes; //hasFridgeItem ||
 
   if (!hasAnyContent) return null;
 
