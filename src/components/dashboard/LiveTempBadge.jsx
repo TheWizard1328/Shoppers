@@ -74,7 +74,7 @@ export default function LiveTempBadge({
   const driverMode = checkIsDriver(currentUser);
 
   // ── Bridge: auto-selects native or web BLE ─────────────────────────────
-  const { status: bleStatus, reading: bleReading, sensorName, connect, triggerReconnect } =
+  const { status: bleStatus, reading: bleReading, sensorName, connect, triggerReconnect, forceRead } =
     useInkbirdSensorBridge(driverMode ? currentUser : null);
 
   // bleReading = { tempC, humidity, timestamp } | null
@@ -294,8 +294,11 @@ export default function LiveTempBadge({
     if (adminMode && !driverMode)          { loadFromDb(); triggerPulse(); return; }
 
     if (bleStatus === 'connected') {
-      // Already connected — just refresh DB reading
-      loadFromDb(); triggerPulse(); return;
+      // Already connected — force a fresh GATT read from the sensor, then also refresh DB
+      forceRead();
+      loadFromDb();
+      triggerPulse();
+      return;
     }
     if (bleStatus === 'connecting' || bleStatus === 'scanning') return; // in progress
 
@@ -306,7 +309,7 @@ export default function LiveTempBadge({
       triggerReconnect();
     }
   }, [isPastDate, selectedDriverIsMe, adminMode, driverMode, bleStatus, sensorName,
-      loadFromDb, triggerPulse, connect, triggerReconnect]);
+      loadFromDb, triggerPulse, connect, triggerReconnect, forceRead]);
 
   // ── Display values ────────────────────────────────────────────────────
   const showLiveBle = !isPastDate && selectedDriverIsMe && driverMode;

@@ -89,12 +89,7 @@ function saveSensorNameLocally(name) {
  *                        already connected. This is the key to hands-free
  *                        reconnection without ever showing the picker again.
  */
-const NOOP = () => {};
-const NOOP_ASYNC = async () => {};
-
 export function useInkbirdSensor(currentUser) {
-  // When this hook is the inactive branch (bridge passes null), return a stable no-op.
-  // We still need to call all hooks unconditionally (Rules of Hooks).
   const [status,     setStatus]     = useState('idle');
   const [reading,    setReading]    = useState(null);
   const [sensorName, setSensorName] = useState(getSavedSensorName);
@@ -112,11 +107,11 @@ export function useInkbirdSensor(currentUser) {
   const hasGetDevices = hasBluetooth && typeof navigator.bluetooth.getDevices === 'function';
 
   // ── BLE capability guard ───────────────────────────────────────────────
-  // Allow BLE on any device that has Web Bluetooth. The maxTouchPoints check
-  // was meant to exclude desktop, but it can return 0 on Android PWA before
-  // the first interaction — causing connect() to silently no-op on phones.
-  // If the user is a driver tapping the badge, they are on a mobile device.
-  const canUseBle = hasBluetooth;
+  // Any touch device (phone or tablet) with Web Bluetooth can connect BLE.
+  // Desktop PCs are excluded — not in the field, no Bluetooth sensor nearby.
+  // is_primary_tracker is for GPS location only — it must NOT gate BLE here.
+  const isTouchDevice = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
+  const canUseBle = hasBluetooth && isTouchDevice;
   // isPrimaryDevice kept in return for API compat — now equals canUseBle
 
   // ── Internal: GATT connect + subscribe ─────────────────────────────────
@@ -222,39 +217,15 @@ export function useInkbirdSensor(currentUser) {
     if (!canUseBle) return; // desktop or no Bluetooth — skip
     setStatus('connecting');
     try {
-      // Try with name filters first; if the OS returns NotFoundError (device list
-      // is empty — common on Android tablets when the BLE radio is in a low-power
-      // state or the sensor advertises with a slight name variation), fall back to
-      // acceptAllDevices so the picker still opens and the user can select manually.
-      let device;
-      try {
-        device = await navigator.bluetooth.requestDevice({
-          filters: [
-            { name: 'tps' },
-            { name: 'sps' },
-            { namePrefix: 'tps' },
-            { namePrefix: 'sps' },
-            { namePrefix: 'Inkbird' },
-            { namePrefix: 'IBS' },
-          ],
-          optionalServices: [INKBIRD_SERVICE_UUID],
-        });
-      } catch (filterErr) {
-        // Only fall back if the picker was dismissed due to an empty filter list,
-        // not if the user cancelled (NotFoundError with no devices shown yet).
-        // We detect the "no matching devices" case by checking the error name AND
-        // whether it likely came from an empty list vs. a user cancel.
-        // On Android the error is still NotFoundError in both cases, so we always
-        // try the fallback — the user will still see all BLE devices and can pick.
-        if (filterErr?.name === 'NotFoundError' || filterErr?.name === 'TypeError') {
-          device = await navigator.bluetooth.requestDevice({
-            acceptAllDevices: true,
-            optionalServices: [INKBIRD_SERVICE_UUID],
-          });
-        } else {
-          throw filterErr;
-        }
-      }
+      const device = await navigator.bluetooth.requestDevice({
+        filters: [
+          { name: 'tps' },
+          { name: 'sps' },
+          { namePrefix: 'Inkbird' },
+          { namePrefix: 'IBS' },
+        ],
+        optionalServices: [INKBIRD_SERVICE_UUID],
+      });
       if (!mountedRef.current) return;
       deviceRef.current = device;
       setSensorName(device.name);
@@ -266,6 +237,23 @@ export function useInkbirdSensor(currentUser) {
       setStatus(err?.name === 'NotFoundError' || err?.name === 'AbortError' ? 'idle' : 'error');
     }
   }, [hasBluetooth, currentUser, connectDevice]);
+
+  // ── Force a fresh GATT read (called when user taps badge while connected) ─
+  const forceRead = useCallback(async () => {
+    if (!serverRef.current?.connected) return;
+    try {
+      const service  = await serverRef.current.getPrimaryService(INKBIRD_SERVICE_UUID);
+      const readChar = await service.getCharacteristic(INKBIRD_READ_UUID);
+      const dv       = await readChar.readValue();
+      const parsed   = decodeReading(dv);
+      if (parsed && mountedRef.current) {
+        setReading(parsed);
+        window.dispatchEvent(new CustomEvent('inkbirdReading', {
+          detail: { ...parsed, source: 'gatt-forced-read' }
+        }));
+      }
+    } catch (_) {}
+  }, []);
 
   // ── Manual disconnect ──────────────────────────────────────────────────
   const disconnect = useCallback(() => {
@@ -289,9 +277,6 @@ export function useInkbirdSensor(currentUser) {
   useEffect(() => {
     mountedRef.current = true;
 
-    // Inactive branch — bridge passed null user to disable this hook
-    if (!currentUser && currentUser !== undefined) { setStatus('idle'); return; }
-
     if (!hasBluetooth) { setStatus('unsupported'); return; }
 
     // Any touch device with Web Bluetooth can use BLE.
@@ -314,7 +299,6 @@ export function useInkbirdSensor(currentUser) {
       const inkbird = devices.find(d =>
         d.name && (
           INKBIRD_NAMES.includes(d.name) ||
-          INKBIRD_NAMES.some(n => d.name.startsWith(n)) ||
           d.name.startsWith('Inkbird') ||
           d.name.startsWith('IBS')
         )
@@ -346,9 +330,10 @@ export function useInkbirdSensor(currentUser) {
     status,
     reading,
     sensorName,
-    isPrimaryDevice: canUseBle, // kept for API compat — true means BLE is available on this device
+    isPrimaryDevice: canUseBle,
     connect,
     disconnect,
     triggerReconnect,
+    forceRead,
   };
 }
