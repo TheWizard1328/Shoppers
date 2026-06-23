@@ -73,6 +73,24 @@ export default function DashboardView({
   // Misc
   refreshUser, refreshData, dataSource,
 }) {
+  // Listen for showRouteSummary event fired by executeTerminalAction (useStopCardActions)
+  // and trigger the End of Day Stats dialog. hasShownSummaryRef lives in Dashboard but we
+  // deduplicate here via sessionStorage to prevent showing it twice per driver/date.
+  useEffect(() => {
+    const handler = (e) => {
+      const { driverId, deliveryDate } = e?.detail || {};
+      if (!driverId || !deliveryDate) return;
+      const summaryKey = `eod_shown_${driverId}_${deliveryDate}`;
+      if (sessionStorage.getItem(summaryKey)) return;
+      sessionStorage.setItem(summaryKey, '1');
+      const driverAppUser = appUsers?.find((au) => au?.user_id === driverId);
+      setEndOfDayDriver(driverAppUser || currentUser);
+      setShowEndOfDayStats(true);
+    };
+    window.addEventListener('showRouteSummary', handler);
+    return () => window.removeEventListener('showRouteSummary', handler);
+  }, [appUsers, currentUser, setEndOfDayDriver, setShowEndOfDayStats]);
+
   // Show/hide the KITT optimization bar based on lifecycle events from all optimization flows
   useEffect(() => {
     const handleOptimizationStarted = (event) => {
