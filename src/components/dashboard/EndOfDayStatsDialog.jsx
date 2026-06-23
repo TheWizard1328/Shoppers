@@ -37,7 +37,9 @@ export default function EndOfDayStatsDialog({
     const totalPay = performanceStats?.totalPay ?? null;
     // For incomplete routes, calculate time from first completed stop to NOW
     let timeOnDuty = performanceStats?.totalTimeOnDuty ?? null;
-    const routeActuallyComplete = isRouteComplete || (localStats?.total > 0 && localStats?.inTransit === 0 && (localStats?.completed + (localStats?.failed || 0)) >= localStats?.total);
+    // Route is complete when nothing is still pending/in-transit.
+    // inTransit covers all non-terminal stops (pending, en_route) regardless of type (patient, ISP/ISD, returns).
+    const routeActuallyComplete = isRouteComplete || (localStats?.total > 0 && (localStats?.inTransit ?? 1) === 0);
 
     if (!routeActuallyComplete) {
       // Use current time as the end point
