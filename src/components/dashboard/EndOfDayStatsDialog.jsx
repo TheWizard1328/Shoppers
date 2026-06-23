@@ -76,7 +76,11 @@ export default function EndOfDayStatsDialog({
     let timeOnDuty = performanceStats?.totalTimeOnDuty ?? null;
     // Route is complete when nothing is still pending/in-transit.
     // inTransit covers all non-terminal stops (pending, en_route) regardless of type (patient, ISP/ISD, returns).
-    const routeActuallyComplete = isRouteComplete || (localStats?.total > 0 && (localStats?.inTransit ?? 1) === 0);
+    const routeActuallyComplete = isRouteComplete || (
+      localStats?.total > 0 &&
+      (localStats?.completed ?? 0) > 0 &&
+      (localStats?.inTransit ?? 1) === 0
+    );
 
     if (!routeActuallyComplete) {
       // Use current time as the end point
