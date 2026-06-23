@@ -74,8 +74,11 @@ export default function LiveTempBadge({
   const driverMode = checkIsDriver(currentUser);
 
   // ── Bridge: auto-selects native or web BLE ─────────────────────────────
+  // Always pass currentUser — the hook itself decides whether to activate BLE.
+  // Previously passing null when !driverMode caused the hook to initialize dead
+  // and never recover when app_roles loaded later (mount effect runs only once).
   const { status: bleStatus, reading: bleReading, sensorName, connect, triggerReconnect, forceRead } =
-    useInkbirdSensorBridge(driverMode ? currentUser : null);
+    useInkbirdSensorBridge(currentUser);
 
   // bleReading = { tempC, humidity, timestamp } | null
   const bleTemp = bleReading?.tempC ?? null;
