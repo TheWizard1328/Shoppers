@@ -229,8 +229,14 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
     const allDriverDeliveries = deliveriesWithStopOrder.filter((d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate);
     const activeStatuses = ['in_transit', 'en_route'];
     // Route is complete when this stop transitions to a terminal status AND no other stop
-    // on this route is still in_transit or en_route. Simple and definitive.
-    const hasActiveStops = allDriverDeliveries.some((d) => d.id !== deliveryId && activeStatuses.includes(d.status));
+    // on this route is still in_transit or en_route.
+    // CRITICAL: Exclude the delivery being updated from the active-stop check — it still
+    // carries its OLD status in deliveriesWithStopOrder (pre-update snapshot). We treat it
+    // as already finished (newStatus) for this calculation.
+    const hasActiveStops = allDriverDeliveries.some((d) => {
+      if (d.id === deliveryId) return activeStatuses.includes(newStatus); // use the new status for the updating stop
+      return activeStatuses.includes(d.status);
+    });
     const routeComplete = finishedStatuses.includes(newStatus) && !hasActiveStops;
 
     const wasLastStop = !hasActiveStops;
@@ -238,7 +244,10 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
     if (isDispatcher && !isAdmin && wasLastStop) {
       const dispatcherStoreIds = new Set((currentUser?.store_ids || []).map((id) => String(id)));
       const allDateDeliveries = deliveriesWithStopOrder.filter((d) => d && d.delivery_date === deliveryDate);
-      const remainingDispatcherActive = allDateDeliveries.filter((d) => d && d.id !== deliveryId && dispatcherStoreIds.has(String(d.store_id)) && activeStatuses.includes(d.status));
+      const remainingDispatcherActive = allDateDeliveries.filter((d) => {
+        if (!d || d.id === deliveryId) return false;
+        return dispatcherStoreIds.has(String(d.store_id)) && activeStatuses.includes(d.status);
+      });
       wasLastDispatcherStop = remainingDispatcherActive.length === 0;
     }
 
