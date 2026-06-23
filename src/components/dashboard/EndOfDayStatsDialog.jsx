@@ -1,9 +1,45 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, XCircle, Package, Clock, Home, MapPin, Camera, DollarSign } from 'lucide-react';
 import { format } from 'date-fns';
 import confetti from 'canvas-confetti';
+
+const pickRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+const getEncouragementMessage = ({ routeComplete, completed, total, timeOnDuty, hourlyRate }) => {
+  // Route fully done
+  if (routeComplete) {
+    return { emoji: '🎉', text: 'Great work today! All deliveries have been completed.', color: 'emerald' };
+  }
+
+  const remaining = total - completed;
+  const routeStarted = completed > 0;
+
+  // Route not yet started (all pending)
+  if (!routeStarted) {
+    const messages = [
+      { emoji: '🚀', text: `${total} stops ready to roll — let's have a great day out there!` },
+      { emoji: '💪', text: `${total} deliveries waiting on you. You've got this — let's get moving!` },
+      { emoji: '⭐', text: `A fresh route with ${total} stops ahead. Make it a great one!` },
+      { emoji: '🗺️', text: `Ready to hit the road? ${total} stops are counting on you today!` },
+    ];
+    return { ...pickRandom(messages), color: 'blue' };
+  }
+
+  // Route in progress — build a context-aware message
+  const timeStr = timeOnDuty && timeOnDuty !== '00:00' ? ` in ${timeOnDuty}` : '';
+  const payStr = hourlyRate ? ` at $${hourlyRate}/hr` : '';
+
+  const messages = [
+    { emoji: '🚚', text: `${completed} of ${total} done${timeStr}${payStr} — keep the momentum going, ${remaining} more to go!` },
+    { emoji: '💨', text: `Halfway there! ${completed} stops crushed${timeStr}${payStr}. ${remaining} left — finish strong!` },
+    { emoji: '🔥', text: `${completed} down, ${remaining} to go${timeStr}${payStr}. You're on fire — don't slow down now!` },
+    { emoji: '⚡', text: `Great pace! ${completed} completed${timeStr}${payStr}. Just ${remaining} more stops standing between you and done!` },
+    { emoji: '🏁', text: `${completed} of ${total} in the bag${timeStr}${payStr}. ${remaining} stops left — the finish line is in sight!` },
+  ];
+  return { ...pickRandom(messages), color: 'blue' };
+};
 
 export default function EndOfDayStatsDialog({ 
   isOpen, 
@@ -17,6 +53,7 @@ export default function EndOfDayStatsDialog({
   isRouteComplete = false,
 }) {
   const [stats, setStats] = useState(null);
+  const encouragementRef = useRef(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -63,7 +100,7 @@ export default function EndOfDayStatsDialog({
       if (totalHours > 0) hourlyRate = (totalPay / totalHours).toFixed(2);
     }
 
-    setStats({
+    const newStats = {
       total,
       completed,
       failed,
@@ -75,7 +112,16 @@ export default function EndOfDayStatsDialog({
       timeOnDuty,
       hourlyRate,
       routeComplete: routeActuallyComplete,
+    };
+    // Pick a random message once per open (store in ref so it doesn't re-randomize on re-render)
+    encouragementRef.current = getEncouragementMessage({
+      routeComplete: routeActuallyComplete,
+      completed,
+      total,
+      timeOnDuty,
+      hourlyRate,
     });
+    setStats(newStats);
 
     confetti({
       particleCount: 100,
@@ -183,11 +229,17 @@ export default function EndOfDayStatsDialog({
           </div>
 
           {/* Completion Message */}
-          <div className="text-center py-3 px-4 rounded-lg border" style={{ background: stats.routeComplete ? 'var(--bg-emerald-50)' : 'var(--bg-blue-50)', borderColor: stats.routeComplete ? 'var(--border-emerald-200)' : 'var(--border-blue-200)' }}>
-            <p className={`text-sm font-medium ${stats.routeComplete ? 'text-emerald-700' : 'text-blue-700'}`}>
-              {stats.routeComplete ? '🎉 Great work today! All deliveries have been completed.' : `🚚 Route in progress — ${stats.completed} of ${stats.total} stops done.`}
-            </p>
-          </div>
+          {encouragementRef.current && (() => {
+            const { emoji, text, color } = encouragementRef.current;
+            const bgVar = color === 'emerald' ? 'var(--bg-emerald-50)' : 'var(--bg-blue-50)';
+            const borderVar = color === 'emerald' ? 'var(--border-emerald-200)' : 'var(--border-blue-200)';
+            const textClass = color === 'emerald' ? 'text-emerald-700' : 'text-blue-700';
+            return (
+              <div className="text-center py-3 px-4 rounded-lg border" style={{ background: bgVar, borderColor: borderVar }}>
+                <p className={`text-sm font-medium ${textClass}`}>{emoji} {text}</p>
+              </div>
+            );
+          })()}
 
           {/* Action Buttons */}
           <div className="flex gap-3 pt-2">
