@@ -77,8 +77,30 @@ export async function handleReoptimizeRoute({
         delivery_date: deliveryDate
       }).catch(() => null);
       if (Array.isArray(freshDeliveries) && freshDeliveries.length > 0) {
-        await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', deliveryDate, freshDeliveries).catch(() => {});
-        updateDeliveriesLocally?.(freshDeliveries, true);
+        // CRITICAL: The optimizer only writes routing fields (stop_order, ETA, isNextDelivery, etc).
+        // It never touches status/arrival_time. However, due to async write timing, the fresh fetch
+        // can return a pickup stop before its status has been fully committed back, returning a
+        // stale/empty status. Guard against this by preserving the status and arrival_time of any
+        // currently active (en_route / in_transit) stop from the local state before replacing.
+        const { offlineDB: odb } = await import('@/components/utils/offlineDatabase');
+        const localDeliveries = await odb.getAll(odb.STORES.DELIVERIES).catch(() => []);
+        const localStatusMap = new Map(
+          (localDeliveries || [])
+            .filter(d => d?.id && (d.status === 'en_route' || d.status === 'in_transit'))
+            .map(d => [d.id, { status: d.status, arrival_time: d.arrival_time }])
+        );
+        const mergedDeliveries = freshDeliveries.map(d => {
+          const preserved = d?.id ? localStatusMap.get(d.id) : null;
+          if (!preserved) return d;
+          // Only restore if the fresh record has a weaker/missing status
+          const freshStatus = d.status;
+          if (!freshStatus || freshStatus === 'pending') {
+            return { ...d, status: preserved.status, ...(preserved.arrival_time ? { arrival_time: preserved.arrival_time } : {}) };
+          }
+          return d;
+        });
+        await offlineDB.replaceRecordsByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', deliveryDate, mergedDeliveries).catch(() => {});
+        updateDeliveriesLocally?.(mergedDeliveries, true);
       } else {
         await refreshData();
       }
