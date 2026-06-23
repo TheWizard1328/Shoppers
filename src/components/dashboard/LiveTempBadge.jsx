@@ -159,11 +159,13 @@ export default function LiveTempBadge({
   })();
 
   // selectedDriverId may be the AppUser record ID or the auth user ID — check both.
-  // Pure drivers always view their own route, so treat them as "self" regardless.
-  const selectedDriverIsMe = !driverMode || !adminMode ||
-    !selectedDriverId || selectedDriverId === 'all' ||
+  // For admin+driver users, always treat as "self" — they carry the sensor regardless
+  // of which driver route they're currently viewing on screen.
+  const selectedDriverIsMe = !selectedDriverId || selectedDriverId === 'all' ||
     selectedDriverId === currentUser?.id ||
-    selectedDriverId === currentUser?.user_id;
+    selectedDriverId === currentUser?.user_id ||
+    !adminMode || // pure driver: always self
+    driverMode;   // admin+driver: always self (they have the sensor)
   const isPastDate = selectedDate && selectedDate < todayLocal;
 
   // ── DB poll ───────────────────────────────────────────────────────────
