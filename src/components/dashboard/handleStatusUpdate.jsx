@@ -227,18 +227,13 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
     const isReturnByMarkers = (d) => { if (!d || !d.patient_id) return false; const patient = patients.find((p) => p && p.id === d.patient_id); const notes = d.delivery_notes || ''; const patientName = d.patient_name || ''; const patientFullName = patient?.full_name || ''; return notes.toLowerCase().includes('(rtn)') || patientName.toLowerCase().includes('(rtn)') || patientFullName.toLowerCase().includes('(rtn)') || /\breturn\b/i.test(notes) || /\breturn\b/i.test(patientName) || /\breturn\b/i.test(patientFullName); };
 
     const allDriverDeliveries = deliveriesWithStopOrder.filter((d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate);
-    // CRITICAL: route complete = no active (in_transit/en_route) stops remain for the selected driver,
-    // excluding the current stop being completed right now (treat it as already finished).
-    // Pending stops are NOT counted — they haven't been started and don't block completion.
     const activeStatuses = ['in_transit', 'en_route'];
-    // Route is complete when: finishing a terminal status AND no other stops are still active.
-    // We do NOT require the current stop to have been in_transit/en_route — a pending return
-    // delivery completing as the last stop should also trigger EOD.
-    const remainingActiveCount = allDriverDeliveries.filter((d) => activeStatuses.includes(d.status) && d.id !== deliveryId).length;
-    const hasAnyStartedStop = allDriverDeliveries.some((d) => d.id !== deliveryId && !['pending'].includes(d.status));
-    const routeComplete = finishedStatuses.includes(newStatus) && remainingActiveCount === 0 && hasAnyStartedStop;
+    // Route is complete when this stop transitions to a terminal status AND no other stop
+    // on this route is still in_transit or en_route. Simple and definitive.
+    const hasActiveStops = allDriverDeliveries.some((d) => d.id !== deliveryId && activeStatuses.includes(d.status));
+    const routeComplete = finishedStatuses.includes(newStatus) && !hasActiveStops;
 
-    const wasLastStop = remainingActiveCount === 0;
+    const wasLastStop = !hasActiveStops;
     let wasLastDispatcherStop = false;
     if (isDispatcher && !isAdmin && wasLastStop) {
       const dispatcherStoreIds = new Set((currentUser?.store_ids || []).map((id) => String(id)));
