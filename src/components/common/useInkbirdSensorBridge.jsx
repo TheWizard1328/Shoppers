@@ -20,5 +20,10 @@ export function useInkbirdSensorBridge(currentUser) {
   // so it short-circuits immediately without touching BLE APIs.
   const nativeSensor = useNativeBleSensor(USE_NATIVE ? currentUser : null);
   const webSensor    = useInkbirdSensor(USE_NATIVE ? null : currentUser);
-  return USE_NATIVE ? nativeSensor : webSensor;
+  const sensor = USE_NATIVE ? nativeSensor : webSensor;
+  // Safety: ensure forceRead is always a callable function regardless of hook version
+  return {
+    ...sensor,
+    forceRead: typeof sensor.forceRead === 'function' ? sensor.forceRead : () => {},
+  };
 }
