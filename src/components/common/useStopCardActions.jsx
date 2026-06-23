@@ -968,15 +968,9 @@ export default function useStopCardActions(params) {
     if (routeIsFinished) {
       fabControlEvents.notifyDoneButtonClicked();
 
-      // Go off-duty and stop location tracking (only when currently on duty)
-      if (currentUser?.driver_status === 'on_duty') {
-        try { await setDriverStatus({ newStatus: 'off_duty' }); locationTracker.stopTracking(); } catch {}
-        if (onDriverStatusChange) onDriverStatusChange('off_duty');
-      }
-
-      // Disable location sharing on the AppUser record
+      // Disable location sharing on the AppUser record for the completing driver
+      const driverAppUser = (appUsers || []).find((au) => au?.user_id === delivery.driver_id);
       try {
-        const driverAppUser = (appUsers || []).find((au) => au?.user_id === delivery.driver_id);
         if (driverAppUser?.id) {
           base44.entities.AppUser.update(driverAppUser.id, {
             driver_status: 'off_duty',
@@ -991,6 +985,15 @@ export default function useStopCardActions(params) {
           }).catch(() => {});
         }
       } catch {}
+
+      // If the current logged-in user IS the completing driver, also update local status + stop tracker
+      if (currentUser?.id === delivery.driver_id) {
+        const driverStatus = driverAppUser?.driver_status ?? currentUser?.driver_status;
+        if (driverStatus === 'on_duty') {
+          try { await setDriverStatus({ newStatus: 'off_duty' }); locationTracker.stopTracking(); } catch {}
+          if (onDriverStatusChange) onDriverStatusChange('off_duty');
+        }
+      }
 
       // Fire the EOD dialog event AFTER off-duty is handled
       window.dispatchEvent(new CustomEvent('showRouteSummary', {
