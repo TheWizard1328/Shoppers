@@ -124,7 +124,12 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
     const _dy = String(currentTime.getDate()).padStart(2, '0');
     let currentTimeISO = `${_yr}-${_mo}-${_dy}T${_h}:${_m}:${_s}`;
 
-    const updateData = { status: newStatus, ...extraData };
+    // Rule: pickups must always be en_route unless completed or cancelled
+    const resolvedStatus = isPickup && newStatus !== 'completed' && newStatus !== 'cancelled'
+      ? 'en_route'
+      : newStatus;
+
+    const updateData = { status: resolvedStatus, ...extraData };
 
     if (newStatus === 'completed' && targetDelivery.cod_total_amount_required > 0) {
       const hasCODPayments = targetDelivery.cod_payments && Array.isArray(targetDelivery.cod_payments) && targetDelivery.cod_payments.length > 0 && targetDelivery.cod_payments.some((p) => p?.amount > 0);

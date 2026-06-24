@@ -139,16 +139,33 @@ export const sanitizeDeliveryPayload = async (delivery = {}) => {
     ? new Set(Object.keys(schemaProperties))
     : FALLBACK_ALLOWED_FIELDS;
 
-  return Object.entries(delivery).reduce((clean, [key, rawValue]) => {
-    if (INTERNAL_ONLY_FIELDS.has(key)) return clean;
-    if (!allowedFields.has(key)) return clean;
+  const clean = Object.entries(delivery).reduce((acc, [key, rawValue]) => {
+    if (INTERNAL_ONLY_FIELDS.has(key)) return acc;
+    if (!allowedFields.has(key)) return acc;
 
     const value = normalizeValue(key, rawValue, schemaProperties[key]);
-    if (value === undefined) return clean;
+    if (value === undefined) return acc;
 
-    clean[key] = value;
-    return clean;
+    acc[key] = value;
+    return acc;
   }, {});
+
+  // Rule: pickups (no patient_id) that are not completed or cancelled must default to en_route
+  const isPickup = !clean.patient_id && !delivery.patient_id;
+  if (isPickup && 'status' in clean) {
+    const s = clean.status;
+    if (!s || (s !== 'completed' && s !== 'cancelled')) {
+      clean.status = 'en_route';
+    }
+  } else if (isPickup && !('status' in clean) && ('status' in delivery)) {
+    // status key present in original but got stripped — still enforce
+    const s = delivery.status;
+    if (!s || (s !== 'completed' && s !== 'cancelled')) {
+      clean.status = 'en_route';
+    }
+  }
+
+  return clean;
 };
 
 export const sanitizeDeliveryPayloads = async (deliveries = []) => Promise.all((deliveries || []).map((delivery) => sanitizeDeliveryPayload(delivery)));
