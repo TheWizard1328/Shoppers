@@ -408,6 +408,7 @@ export default function DeliveryForm({
         cod_payments: delivery.cod_payments || [], cod_payment_type: delivery.cod_payment_type || "No Payment", cod_amount: delivery.cod_amount || "",
         tracking_number: delivery.tracking_number || "", delivery_stop_id: delivery.delivery_stop_id || "", stop_id: delivery.stop_id || "", puid: delivery.puid || "",
         patient_name: patient?.full_name || delivery.patient_name || "", patient_phone: patient?.phone || delivery.patient_phone || "",
+        patient_email: patient?.email || delivery.patient_email || "",
         patient_phone_secondary: patient?.phone_secondary || "", unit_number: patient?.unit_number || delivery.unit_number || "",
         store_phone: stores?.find((s) => s && s.id === finalStoreId)?.phone || delivery.store_phone || "", store_id: finalStoreId, ampm_deliveries: finalAmpm,
         mailbox_ok: patient?.mailbox_ok !== undefined && patient?.mailbox_ok !== null ? patient.mailbox_ok : (delivery.mailbox_ok || false),
@@ -581,7 +582,7 @@ export default function DeliveryForm({
     const autoSelectedDriverId = driverManuallyChangedRef.current && formData.driver_id ? formData.driver_id : resolvedDriverId;
     const autoSelectedDriverName = driverManuallyChangedRef.current && formData.driver_id ? formData.driver_name : resolvedDriverName;
 
-    const updatedFormData = buildSelectedPatientFormData({ formData, patient, deliveryAMPM, autoSelectedDriverId, autoSelectedDriverName });
+    const updatedFormData = { ...buildSelectedPatientFormData({ formData, patient, deliveryAMPM, autoSelectedDriverId, autoSelectedDriverName }), patient_email: patient.email || '' };
     const routePickups = getRoutePickupsForStore({ allDeliveries, stagedDeliveries, storeId: patient.store_id, driverId: autoSelectedDriverId, deliveryDate: formData.delivery_date });
     const fallbackPickup = buildPendingNewPickup({ store: patientStore, formData: { ...updatedFormData, store_id: patient.store_id }, driverName: autoSelectedDriverName, stopId: generateStopId() });
     const chosenPickup = choosePickupForNewDelivery({ pickups: routePickups, fallbackPickup });

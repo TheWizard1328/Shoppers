@@ -113,6 +113,7 @@ export default function PatientForm({
   const [formData, setFormData] = useState({
     patient_id: "",
     full_name: "",
+    email: "",
     phone: "",
     phone_secondary: "",
     address: "",
@@ -245,6 +246,7 @@ export default function PatientForm({
       setFormData({
         patient_id: newPID,
         full_name: duplicateMode === 'duplicate' ? "" : patient.full_name || "",
+        email: duplicateMode === 'duplicate' ? "" : patient.email || "",
         phone: duplicateMode === 'duplicate' ? "" : patient.phone || "",
         phone_secondary: duplicateMode === 'duplicate' ? "" : patient.phone_secondary || "",
         address: duplicateMode === 'newAddress' ? "" : abbreviateAddressDirections(patient.address || ""),
@@ -1041,8 +1043,9 @@ export default function PatientForm({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-10 gap-2">
-                  <div className="px-1 col-span-4 space-y-1">
+                {/* Row 1: Full Name + Email (50/50) */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
                     <Label htmlFor="full_name" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Full Name *</Label>
                     <Input
                       id="full_name"
@@ -1053,9 +1056,23 @@ export default function PatientForm({
                       className={`h-10 md:h-9 text-sm ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400' : ''}`}
                       style={{ background: duplicateMode === 'duplicate' ? 'var(--bg-amber-50)' : 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                   </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="email" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Email Address</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={formData.email || ''}
+                      disabled={disableOtherFieldsDuringAddressLookup}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
+                      placeholder="Email address"
+                      className="h-10 md:h-9 text-sm"
+                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
+                  </div>
+                </div>
 
-                  <div className={`col-span-3 space-y-1 ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400 rounded' : ''}`}
-                  style={{ padding: duplicateMode === 'duplicate' ? '0.25rem' : '0' }}>
+                {/* Row 2: Phone + Alt. Phone (50/50) */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className={`space-y-1 ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400 rounded p-1' : ''}`}>
                     <Label htmlFor="phone" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Phone Number</Label>
                     <PhoneInput
                       id="phone"
@@ -1063,12 +1080,10 @@ export default function PatientForm({
                       disabled={disableOtherFieldsDuringAddressLookup}
                       onChange={(value) => setFormData((prev) => ({ ...prev, phone: value }))}
                       placeholder="Phone number"
-                      className={`h-10 md:h-9 text-sm`}
+                      className="h-10 md:h-9 text-sm"
                       style={{ background: duplicateMode === 'duplicate' ? 'var(--bg-amber-50)' : 'var(--bg-white)' }} />
                   </div>
-
-                  <div className={`col-span-3 space-y-1 ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400 rounded' : ''}`}
-                  style={{ padding: duplicateMode === 'duplicate' ? '0.25rem' : '0' }}>
+                  <div className={`space-y-1 ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400 rounded p-1' : ''}`}>
                     <Label htmlFor="phone_secondary" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Alt. Phone</Label>
                     <PhoneInput
                       id="phone_secondary"
@@ -1076,7 +1091,7 @@ export default function PatientForm({
                       disabled={disableOtherFieldsDuringAddressLookup}
                       onChange={(value) => setFormData((prev) => ({ ...prev, phone_secondary: value }))}
                       placeholder="Alt. phone"
-                      className={`h-10 md:h-9 text-sm`}
+                      className="h-10 md:h-9 text-sm"
                       style={{ background: duplicateMode === 'duplicate' ? 'var(--bg-amber-50)' : 'var(--bg-white)' }} />
                   </div>
                 </div>
