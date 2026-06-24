@@ -502,7 +502,7 @@ export default function DashboardView({
         currentUser={currentUser} isDriver={isDriver} isDispatcher={isDispatcher}
         deliveries={deliveries} patients={patients} stores={stores} drivers={drivers} appUsers={appUsers}
         filteredDeliveries={filteredDeliveries} deliveriesWithStopOrder={deliveriesWithStopOrder}
-        selectedDate={selectedDate} selectedDateStr={selectedDateStr}
+        selectedDate={selectedDate} selectedDateStr={selectedDateStr} selectedDriverId={selectedDriverId}
         driverLocation={driverLocation}
         showDeliveryForm={showDeliveryForm} setShowDeliveryForm={setShowDeliveryForm}
         editingDelivery={editingDelivery} setEditingDelivery={setEditingDelivery}
