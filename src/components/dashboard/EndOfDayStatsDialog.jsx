@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, XCircle, Package, Clock, Home, MapPin, Camera, DollarSign } from 'lucide-react';
+import { CheckCircle, XCircle, Package, Clock, Home, MapPin, Camera, DollarSign, Car, Bike } from 'lucide-react';
 import { format } from 'date-fns';
 import confetti from 'canvas-confetti';
 
@@ -80,6 +80,8 @@ export default function EndOfDayStatsDialog({
     const failed = localStats?.failed ?? patientDeliveries.filter(d => d.status === 'failed').length;
     const returned = localStats?.returned ?? 0;
     const totalKm = performanceStats?.totalKm ?? patientDeliveries.reduce((sum, d) => sum + (d.travel_dist || 0), 0);
+    const drivingKm = patientDeliveries.filter(d => !d.transport_mode || d.transport_mode === 'driving').reduce((sum, d) => sum + (d.travel_dist || 0), 0);
+    const cyclingKm = patientDeliveries.filter(d => d.transport_mode === 'cycling').reduce((sum, d) => sum + (d.travel_dist || 0), 0);
     const totalPay = performanceStats?.totalPay ?? null;
     // For incomplete routes, calculate time from first completed stop to NOW
     let timeOnDuty = performanceStats?.totalTimeOnDuty ?? null;
@@ -121,6 +123,8 @@ export default function EndOfDayStatsDialog({
       deliveriesWithPOD,
       successfulDeliveries: successfulDeliveries.length,
       totalDistance: Number(totalKm).toFixed(2),
+      drivingDistance: Number(drivingKm).toFixed(2),
+      cyclingDistance: Number(cyclingKm).toFixed(2),
       totalPay: totalPay ? totalPay.toFixed(2) : null,
       timeOnDuty,
       hourlyRate,
@@ -215,10 +219,26 @@ export default function EndOfDayStatsDialog({
               </div>
             )}
 
-            <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+            <div className="p-3 rounded-lg border text-center col-span-2" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
               <MapPin className="w-5 h-5 mx-auto mb-1 text-slate-600" />
               <div className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.totalDistance} km</div>
-              <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Total Distance</div>
+              <div className="text-xs mb-2" style={{ color: 'var(--text-slate-600)' }}>Total Distance</div>
+              {(parseFloat(stats.drivingDistance) > 0 || parseFloat(stats.cyclingDistance) > 0) && (
+                <div className="flex justify-center gap-4 pt-2 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+                  {parseFloat(stats.drivingDistance) > 0 && (
+                    <div className="flex items-center gap-1">
+                      <Car className="w-3.5 h-3.5 text-blue-600" />
+                      <span className="text-xs font-medium text-blue-700">{stats.drivingDistance} km</span>
+                    </div>
+                  )}
+                  {parseFloat(stats.cyclingDistance) > 0 && (
+                    <div className="flex items-center gap-1">
+                      <Bike className="w-3.5 h-3.5 text-green-600" />
+                      <span className="text-xs font-medium text-green-700">{stats.cyclingDistance} km</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
