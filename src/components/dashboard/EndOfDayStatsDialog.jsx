@@ -119,8 +119,13 @@ export default function EndOfDayStatsDialog({
       if (totalHours > 0) hourlyRate = (totalPay / totalHours).toFixed(2);
     }
 
-    // For a not-yet-started route, estimate total distance from estimated_distance_km fields
     const routeStarted = completed > 0;
+    // Remaining estimated distance = sum of estimated_distance_km for incomplete stops
+    const incompleteStops = (deliveries || []).filter(d => d && !['completed', 'failed', 'cancelled'].includes(d.status));
+    const remainingEstKm = !routeActuallyComplete && incompleteStops.length > 0
+      ? incompleteStops.reduce((sum, d) => sum + (d.estimated_distance_km || 0), 0)
+      : null;
+    // For a not-yet-started route, show total estimated distance
     const estimatedTotalKm = !routeStarted
       ? (deliveries || []).filter(d => d).reduce((sum, d) => sum + (d.estimated_distance_km || 0), 0)
       : null;
@@ -135,6 +140,7 @@ export default function EndOfDayStatsDialog({
       successfulDeliveries: successfulDeliveries.length,
       totalDistance: Number(totalKm).toFixed(2),
       estimatedDistance: estimatedTotalKm != null ? Number(estimatedTotalKm).toFixed(2) : null,
+      remainingDistance: remainingEstKm != null ? Number(remainingEstKm).toFixed(2) : null,
       drivingDistance: Number(drivingKm).toFixed(2),
       cyclingDistance: Number(cyclingKm).toFixed(2),
       totalPay: totalPay ? totalPay.toFixed(2) : null,
@@ -222,27 +228,29 @@ export default function EndOfDayStatsDialog({
               </div>
             )}
 
-            {/* Completed — split with Pending when route is incomplete */}
-            {!stats.routeComplete ? (
-              <>
-                <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-emerald-50)', borderColor: 'var(--border-emerald-200)' }}>
-                  <CheckCircle className="w-5 h-5 mx-auto mb-1 text-emerald-600" />
+            {/* Completed / Pending — single card with split values when incomplete */}
+            <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-emerald-50)', borderColor: 'var(--border-emerald-200)' }}>
+              <CheckCircle className="w-5 h-5 mx-auto mb-1 text-emerald-600" />
+              {!stats.routeComplete ? (
+                <>
+                  <div className="flex justify-center items-baseline gap-1.5">
+                    <span className="text-2xl font-bold text-emerald-700">{stats.completed}</span>
+                    <span className="text-base font-semibold text-slate-400">/</span>
+                    <span className="text-2xl font-bold text-amber-600">{stats.pending}</span>
+                  </div>
+                  <div className="flex justify-center gap-2 mt-0.5">
+                    <span className="text-xs text-emerald-600">Done</span>
+                    <span className="text-xs text-slate-400">/</span>
+                    <span className="text-xs text-amber-600">Pending</span>
+                  </div>
+                </>
+              ) : (
+                <>
                   <div className="text-2xl font-bold text-emerald-700">{stats.completed}</div>
                   <div className="text-xs text-emerald-600">Completed</div>
-                </div>
-                <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-amber-50)', borderColor: 'var(--border-amber-200)' }}>
-                  <Package className="w-5 h-5 mx-auto mb-1 text-amber-600" />
-                  <div className="text-2xl font-bold text-amber-700">{stats.pending}</div>
-                  <div className="text-xs text-amber-600">Remaining</div>
-                </div>
-              </>
-            ) : (
-              <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-emerald-50)', borderColor: 'var(--border-emerald-200)' }}>
-                <CheckCircle className="w-5 h-5 mx-auto mb-1 text-emerald-600" />
-                <div className="text-2xl font-bold text-emerald-700">{stats.completed}</div>
-                <div className="text-xs text-emerald-600">Completed</div>
-              </div>
-            )}
+                </>
+              )}
+            </div>
 
             <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-red-50)', borderColor: 'var(--border-red-200)' }}>
               <XCircle className="w-5 h-5 mx-auto mb-1 text-red-600" />
@@ -250,14 +258,31 @@ export default function EndOfDayStatsDialog({
               <div className="text-xs text-red-600">Failed / Returns</div>
             </div>
 
+            {/* Distance — single card, shows Total + Remaining when incomplete */}
             <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
               <MapPin className="w-5 h-5 mx-auto mb-1 text-slate-600" />
               {stats.estimatedDistance != null ? (
+                // Not started — show full est. total
                 <>
                   <div className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.estimatedDistance} km</div>
                   <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Est. Distance</div>
                 </>
+              ) : stats.remainingDistance != null ? (
+                // In progress — show actual total + remaining est.
+                <>
+                  <div className="flex justify-center items-baseline gap-1.5">
+                    <span className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.totalDistance}</span>
+                    <span className="text-xs font-semibold text-slate-400">+{stats.remainingDistance}</span>
+                    <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>km</span>
+                  </div>
+                  <div className="flex justify-center gap-2 mt-0.5">
+                    <span className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Done</span>
+                    <span className="text-xs text-slate-400">/</span>
+                    <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>Est. Rem.</span>
+                  </div>
+                </>
               ) : (
+                // Complete
                 <>
                   <div className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.totalDistance} km</div>
                   <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Total Distance</div>
@@ -265,18 +290,14 @@ export default function EndOfDayStatsDialog({
               )}
               {(parseFloat(stats.drivingDistance) > 0 && parseFloat(stats.cyclingDistance) > 0) && (
                 <div className="flex justify-center gap-3 mt-1.5 pt-1.5 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
-                  {parseFloat(stats.drivingDistance) > 0 && (
-                    <div className="flex items-center gap-1">
-                      <Car className="w-3 h-3 text-blue-600 shrink-0" />
-                      <span className="text-xs font-medium text-blue-700">{stats.drivingDistance} km</span>
-                    </div>
-                  )}
-                  {parseFloat(stats.cyclingDistance) > 0 && (
-                    <div className="flex items-center gap-1">
-                      <Bike className="w-3 h-3 text-green-600 shrink-0" />
-                      <span className="text-xs font-medium text-green-700">{stats.cyclingDistance} km</span>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-1">
+                    <Car className="w-3 h-3 text-blue-600 shrink-0" />
+                    <span className="text-xs font-medium text-blue-700">{stats.drivingDistance} km</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Bike className="w-3 h-3 text-green-600 shrink-0" />
+                    <span className="text-xs font-medium text-green-700">{stats.cyclingDistance} km</span>
+                  </div>
                 </div>
               )}
             </div>
