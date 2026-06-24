@@ -222,21 +222,21 @@ export default function EndOfDayStatsDialog({
               </div>
             )}
 
-            <div className="p-3 rounded-lg border text-center col-span-2" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+            <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
               <MapPin className="w-5 h-5 mx-auto mb-1 text-slate-600" />
               <div className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.totalDistance} km</div>
-              <div className="text-xs mb-2" style={{ color: 'var(--text-slate-600)' }}>Total Distance</div>
+              <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Total Distance</div>
               {(parseFloat(stats.drivingDistance) > 0 || parseFloat(stats.cyclingDistance) > 0) && (
-                <div className="flex justify-center gap-4 pt-2 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+                <div className="flex flex-col gap-0.5 mt-1.5 pt-1.5 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                   {parseFloat(stats.drivingDistance) > 0 && (
-                    <div className="flex items-center gap-1">
-                      <Car className="w-3.5 h-3.5 text-blue-600" />
+                    <div className="flex items-center justify-center gap-1">
+                      <Car className="w-3 h-3 text-blue-600 shrink-0" />
                       <span className="text-xs font-medium text-blue-700">{stats.drivingDistance} km</span>
                     </div>
                   )}
                   {parseFloat(stats.cyclingDistance) > 0 && (
-                    <div className="flex items-center gap-1">
-                      <Bike className="w-3.5 h-3.5 text-green-600" />
+                    <div className="flex items-center justify-center gap-1">
+                      <Bike className="w-3 h-3 text-green-600 shrink-0" />
                       <span className="text-xs font-medium text-green-700">{stats.cyclingDistance} km</span>
                     </div>
                   )}
