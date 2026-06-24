@@ -149,7 +149,8 @@ export default function EndOfDayStatsDialog({
     confetti({
       particleCount: 100,
       spread: 70,
-      origin: { y: 0.6 }
+      origin: { y: 0.6 },
+      zIndex: 10100,
     });
   }, [isOpen, performanceStats, localStats]);
 
@@ -227,15 +228,15 @@ export default function EndOfDayStatsDialog({
               <div className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.totalDistance} km</div>
               <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Total Distance</div>
               {(parseFloat(stats.drivingDistance) > 0 || parseFloat(stats.cyclingDistance) > 0) && (
-                <div className="flex flex-col gap-0.5 mt-1.5 pt-1.5 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+                <div className="flex justify-center gap-3 mt-1.5 pt-1.5 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                   {parseFloat(stats.drivingDistance) > 0 && (
-                    <div className="flex items-center justify-center gap-1">
+                    <div className="flex items-center gap-1">
                       <Car className="w-3 h-3 text-blue-600 shrink-0" />
                       <span className="text-xs font-medium text-blue-700">{stats.drivingDistance} km</span>
                     </div>
                   )}
                   {parseFloat(stats.cyclingDistance) > 0 && (
-                    <div className="flex items-center justify-center gap-1">
+                    <div className="flex items-center gap-1">
                       <Bike className="w-3 h-3 text-green-600 shrink-0" />
                       <span className="text-xs font-medium text-green-700">{stats.cyclingDistance} km</span>
                     </div>
