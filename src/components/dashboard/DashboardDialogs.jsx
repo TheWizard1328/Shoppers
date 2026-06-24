@@ -96,7 +96,26 @@ export default function DashboardDialogs({
       </Dialog>
 
       <AnimatePresence>
-        {showEndOfDayStats && <EndOfDayStatsDialog isOpen={showEndOfDayStats} onClose={() => { setShowEndOfDayStats(false); setEndOfDayDriver(null); }} deliveries={filteredDeliveries} driver={endOfDayDriver || currentUser} deliveryDate={format(selectedDate, 'yyyy-MM-dd')} isProcessing={isEntityUpdating} performanceStats={performanceStats} localStats={localStats} isRouteComplete={!!endOfDayDriver} />}
+        {showEndOfDayStats && (() => {
+          const selectedDriver = endOfDayDriver ||
+            (selectedDriverId && selectedDriverId !== 'all'
+              ? (appUsers.find(au => au?.user_id === selectedDriverId) || drivers.find(d => d?.id === selectedDriverId))
+              : null) ||
+            currentUser;
+          return (
+            <EndOfDayStatsDialog
+              isOpen={showEndOfDayStats}
+              onClose={() => { setShowEndOfDayStats(false); setEndOfDayDriver(null); }}
+              deliveries={filteredDeliveries}
+              driver={selectedDriver}
+              deliveryDate={format(selectedDate, 'yyyy-MM-dd')}
+              isProcessing={isEntityUpdating}
+              performanceStats={performanceStats}
+              localStats={localStats}
+              isRouteComplete={!!endOfDayDriver}
+            />
+          );
+        })()}
       </AnimatePresence>
 
       <RouteNotification notification={routeNotification} onDismiss={() => setRouteNotification(null)} onNavigate={() => {
