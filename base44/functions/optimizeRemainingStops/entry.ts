@@ -581,6 +581,9 @@ Deno.serve(async (req) => {
     console.log(`📋 [optimizeRemainingStops] Prepared ${stops.length} stops for HERE sequencing`);
 
     const historicalRoute = isHistoricalRouteDate(deliveryDate);
+
+    // Determine if this is a future route (date is after today in Edmonton time)
+    const isFutureRoute = !historicalRoute && deliveryDate > getEdmontonTodayDateString();
     const latestFinishedDelivery = getLatestFinishedDelivery(completedDeliveries);
 
     let currentPosition;
@@ -1021,7 +1024,18 @@ Deno.serve(async (req) => {
       // directionsLegs[0] reflects driver GPS -> isNextDelivery stop travel time.
       // IMPORTANT: Always add travel time for the first stop (even when it's the locked
       // isNextDelivery stop) so the ETA is current_time + travel_minutes, not just current_time.
+      //
+      // FUTURE ROUTES: Driver is not yet on duty — use the first stop's scheduled window start
+      // as the baseline instead of current wall-clock time, so ETAs reflect the planned schedule.
       let cumulativeTime = currentMinutes;
+      if (isFutureRoute && routeStops.length > 0) {
+        const firstStop = routeStops[0];
+        const firstWindowStart = parseTimeToMinutes(firstStop.windowStart || firstStop.delivery.delivery_time_start);
+        if (Number.isFinite(firstWindowStart)) {
+          cumulativeTime = firstWindowStart;
+          console.log(`🗓️ [optimizeRemainingStops] Future route detected — seeding ETA from first stop window start: ${formatMinutesToTime(cumulativeTime)}`);
+        }
+      }
 
       for (let i = 0; i < routeStops.length; i++) {
         const stop = routeStops[i];
