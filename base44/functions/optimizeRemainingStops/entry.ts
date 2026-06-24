@@ -1111,6 +1111,15 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Sort routeStops: pending stops always go to the end (after active in_transit/en_route stops)
+    routeStops.sort((a, b) => {
+      const aIsPending = a.delivery.status === 'pending';
+      const bIsPending = b.delivery.status === 'pending';
+      if (aIsPending && !bIsPending) return 1;
+      if (!aIsPending && bIsPending) return -1;
+      return 0;
+    });
+
     const activeStops = routeStops.map((stop) => ({
       ...stop.delivery,
       delivery_time_eta: stageEtaMap.get(stop.delivery.id) || stop.delivery.delivery_time_eta
@@ -1187,21 +1196,25 @@ Deno.serve(async (req) => {
         ? nextStopLogicalSegment.distanceKm
         : (typeof segmentPolyline?.estimatedDistanceKm === 'number' ? segmentPolyline.estimatedDistanceKm : null);
 
+      // Pending stops never get polylines — they haven't been routed yet
+      const isPending = stop.status === 'pending';
+
       const updateData = {
         stop_order: newOrder,
         display_stop_order: newOrder,
         delivery_time_eta: stop.delivery_time_eta,
         isNextDelivery: stop.id === nextStopId,
         transport_mode: safeTransportMode,
-        travel_dist: Number(directionsLegs[i]?.distance)
+        travel_dist: isPending ? null : (Number(directionsLegs[i]?.distance)
           ? Number((Number(directionsLegs[i].distance) / 1000).toFixed(3))
-          : null,
-        ...(logicalDurationMinutes != null ? { estimated_duration_minutes: logicalDurationMinutes } : {}),
-        ...(logicalDistanceKm != null ? { estimated_distance_km: logicalDistanceKm } : {}),
-        ...(segmentPolyline?.encodedPolyline ? {
+          : null),
+        ...(!isPending && logicalDurationMinutes != null ? { estimated_duration_minutes: logicalDurationMinutes } : {}),
+        ...(!isPending && logicalDistanceKm != null ? { estimated_distance_km: logicalDistanceKm } : {}),
+        ...(!isPending && segmentPolyline?.encodedPolyline ? {
           encoded_polyline: segmentPolyline.encodedPolyline,
           transport_mode: safeTransportMode
-        } : {})
+        } : {}),
+        ...(isPending ? { encoded_polyline: null, estimated_distance_km: null, estimated_duration_minutes: null } : {})
       };
 
       if (pendingStartTime) {

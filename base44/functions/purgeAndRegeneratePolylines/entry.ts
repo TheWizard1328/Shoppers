@@ -975,10 +975,10 @@ Deno.serve(async (req) => {
 
     const finishedStops = orderedDeliveries.filter((delivery) => FINISHED_STATUSES.has(delivery.status));
     const latestFinishedStop = finishedStops[finishedStops.length - 1] || null;
-    // "Active" for polyline purposes = in_transit/en_route OR pending (not yet started).
-    // A brand-new route has all pending stops — they still need polylines from home.
-    const POLYLINE_ACTIVE_STATUSES = new Set([...ACTIVE_STATUSES, 'pending']);
-    const activeStops = orderedDeliveries.filter((delivery) => POLYLINE_ACTIVE_STATUSES.has(delivery.status));
+    // "Active" for polyline purposes = in_transit/en_route ONLY.
+    // Pending stops have not been dispatched yet — never generate polylines for them.
+    const activeStops = orderedDeliveries.filter((delivery) => ACTIVE_STATUSES.has(delivery.status));
+    const pendingStops = orderedDeliveries.filter((delivery) => delivery.status === 'pending');
 
     // If scope=active_only but there are NO truly active stops and ALL stops are finished,
     // automatically escalate to completed_only so the full route gets polylines regenerated.
@@ -1391,6 +1391,18 @@ Deno.serve(async (req) => {
             segment_dest_lon: null,
             estimated_distance_km: null,
             estimated_duration_minutes: null
+          });
+        });
+
+        // Always null out polyline fields on pending stops — they are never routed
+        pendingStops.forEach((stop) => {
+          if (!stop?.id) return;
+          deliveryUpdatesById.set(stop.id, {
+            encoded_polyline: null,
+            transport_mode: null,
+            estimated_distance_km: null,
+            estimated_duration_minutes: null,
+            travel_dist: null
           });
         });
 
