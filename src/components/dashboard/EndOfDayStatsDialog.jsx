@@ -79,6 +79,7 @@ export default function EndOfDayStatsDialog({
     const completed = localStats?.completed ?? successfulDeliveries.length;
     const failed = localStats?.failed ?? patientDeliveries.filter(d => d.status === 'failed').length;
     const returned = localStats?.returned ?? 0;
+    const pending = patientDeliveries.filter(d => d.status === 'pending' || d.status === 'in_transit' || d.status === 'en_route').length;
     // Sum travel_dist across ALL stops regardless of status/type — driving/cycling must add up to total
     const allStops = (deliveries || []).filter(d => d);
     const drivingKm = allStops.filter(d => !d.transport_mode || d.transport_mode === 'driving').reduce((sum, d) => sum + (d.travel_dist || 0), 0);
@@ -118,20 +119,29 @@ export default function EndOfDayStatsDialog({
       if (totalHours > 0) hourlyRate = (totalPay / totalHours).toFixed(2);
     }
 
+    // For a not-yet-started route, estimate total distance from estimated_distance_km fields
+    const routeStarted = completed > 0;
+    const estimatedTotalKm = !routeStarted
+      ? (deliveries || []).filter(d => d).reduce((sum, d) => sum + (d.estimated_distance_km || 0), 0)
+      : null;
+
     const newStats = {
       total,
       completed,
+      pending,
       failed,
       returned,
       deliveriesWithPOD,
       successfulDeliveries: successfulDeliveries.length,
       totalDistance: Number(totalKm).toFixed(2),
+      estimatedDistance: estimatedTotalKm != null ? Number(estimatedTotalKm).toFixed(2) : null,
       drivingDistance: Number(drivingKm).toFixed(2),
       cyclingDistance: Number(cyclingKm).toFixed(2),
       totalPay: totalPay ? totalPay.toFixed(2) : null,
       timeOnDuty,
       hourlyRate,
       routeComplete: routeActuallyComplete,
+      routeStarted,
     };
     // Pick a random message only once per open session
     if (!messageLockedRef.current) {
@@ -146,12 +156,15 @@ export default function EndOfDayStatsDialog({
     }
     setStats(newStats);
 
-    confetti({
-      particleCount: 100,
-      spread: 70,
-      origin: { y: 0.6 },
-      zIndex: 10100,
-    });
+    // Only fire confetti when the route is fully complete
+    if (routeActuallyComplete) {
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 },
+        zIndex: 10100,
+      });
+    }
   }, [isOpen, performanceStats, localStats]);
 
   if (!stats && !isProcessing) return null;
@@ -209,24 +222,47 @@ export default function EndOfDayStatsDialog({
               </div>
             )}
 
-            <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-emerald-50)', borderColor: 'var(--border-emerald-200)' }}>
-              <CheckCircle className="w-5 h-5 mx-auto mb-1 text-emerald-600" />
-              <div className="text-2xl font-bold text-emerald-700">{stats.completed}</div>
-              <div className="text-xs text-emerald-600">Completed</div>
-            </div>
-
-            {(
-              <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-red-50)', borderColor: 'var(--border-red-200)' }}>
-                <XCircle className="w-5 h-5 mx-auto mb-1 text-red-600" />
-                <div className="text-2xl font-bold text-red-700">{stats.failed} / {stats.returned}</div>
-                <div className="text-xs text-red-600">Failed / Returns</div>
+            {/* Completed — split with Pending when route is incomplete */}
+            {!stats.routeComplete ? (
+              <>
+                <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-emerald-50)', borderColor: 'var(--border-emerald-200)' }}>
+                  <CheckCircle className="w-5 h-5 mx-auto mb-1 text-emerald-600" />
+                  <div className="text-2xl font-bold text-emerald-700">{stats.completed}</div>
+                  <div className="text-xs text-emerald-600">Completed</div>
+                </div>
+                <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-amber-50)', borderColor: 'var(--border-amber-200)' }}>
+                  <Package className="w-5 h-5 mx-auto mb-1 text-amber-600" />
+                  <div className="text-2xl font-bold text-amber-700">{stats.pending}</div>
+                  <div className="text-xs text-amber-600">Remaining</div>
+                </div>
+              </>
+            ) : (
+              <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-emerald-50)', borderColor: 'var(--border-emerald-200)' }}>
+                <CheckCircle className="w-5 h-5 mx-auto mb-1 text-emerald-600" />
+                <div className="text-2xl font-bold text-emerald-700">{stats.completed}</div>
+                <div className="text-xs text-emerald-600">Completed</div>
               </div>
             )}
 
+            <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-red-50)', borderColor: 'var(--border-red-200)' }}>
+              <XCircle className="w-5 h-5 mx-auto mb-1 text-red-600" />
+              <div className="text-2xl font-bold text-red-700">{stats.failed} / {stats.returned}</div>
+              <div className="text-xs text-red-600">Failed / Returns</div>
+            </div>
+
             <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
               <MapPin className="w-5 h-5 mx-auto mb-1 text-slate-600" />
-              <div className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.totalDistance} km</div>
-              <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Total Distance</div>
+              {stats.estimatedDistance != null ? (
+                <>
+                  <div className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.estimatedDistance} km</div>
+                  <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Est. Distance</div>
+                </>
+              ) : (
+                <>
+                  <div className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.totalDistance} km</div>
+                  <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Total Distance</div>
+                </>
+              )}
               {(parseFloat(stats.drivingDistance) > 0 && parseFloat(stats.cyclingDistance) > 0) && (
                 <div className="flex justify-center gap-3 mt-1.5 pt-1.5 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                   {parseFloat(stats.drivingDistance) > 0 && (
