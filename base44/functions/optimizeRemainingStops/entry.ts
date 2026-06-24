@@ -1111,7 +1111,15 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Sort routeStops: pending stops always go to the end (after active in_transit/en_route stops)
+    // Keep the optimized order for the UI dialog response — pending stops stay in their
+    // HERE-optimized positions so the Before vs After dialog shows the real optimized sequence.
+    const optimizedRouteStopsForResponse = routeStops.map((stop) => ({
+      ...stop.delivery,
+      delivery_time_eta: stageEtaMap.get(stop.delivery.id) || stop.delivery.delivery_time_eta
+    }));
+
+    // For DB writes / polyline generation: sort pending stops to the end so they never
+    // receive encoded polylines or routing metadata (they haven't been dispatched yet).
     routeStops.sort((a, b) => {
       const aIsPending = a.delivery.status === 'pending';
       const bIsPending = b.delivery.status === 'pending';
@@ -1262,19 +1270,25 @@ Deno.serve(async (req) => {
       forceFullRemainingRouteOptimization,
       nextDeliveryId: nextStopId,
       shouldRefreshPolylines,
-      optimizedRoute: activeStops.map((stop, index) => ({
-        deliveryId: stop.id,
-        newETA: stop.delivery_time_eta,
-        stop_order: startingOrder + index + 1,
-        isNextDelivery: stop.id === nextStopId,
-        transport_mode: stop.transport_mode || 'driving',
-        encoded_polyline: segmentPolylines[index]?.encodedPolyline || null,
-        estimated_distance_km: finalDeliveryWriteBatch[index]?.data?.estimated_distance_km ?? null,
-        estimated_duration_minutes: finalDeliveryWriteBatch[index]?.data?.estimated_duration_minutes ?? null,
-        travel_dist: Number(directionsLegs[index]?.distance)
-          ? Number((Number(directionsLegs[index].distance) / 1000).toFixed(3))
-          : null
-      }))
+      // optimizedRoute uses the HERE-optimized order (pending stops in their optimized positions)
+      // so the Before vs After dialog shows the real optimized sequence, not pending-last.
+      optimizedRoute: optimizedRouteStopsForResponse.map((stop, index) => {
+        const writeBatchEntry = finalDeliveryWriteBatch.find((b) => b.id === stop.id);
+        const legIndex = routeStops.findIndex((s) => s.delivery.id === stop.id);
+        return {
+          deliveryId: stop.id,
+          newETA: stop.delivery_time_eta,
+          stop_order: startingOrder + index + 1,
+          isNextDelivery: stop.id === nextStopId,
+          transport_mode: stop.transport_mode || 'driving',
+          encoded_polyline: segmentPolylines[index]?.encodedPolyline || null,
+          estimated_distance_km: writeBatchEntry?.data?.estimated_distance_km ?? null,
+          estimated_duration_minutes: writeBatchEntry?.data?.estimated_duration_minutes ?? null,
+          travel_dist: legIndex >= 0 && Number(directionsLegs[legIndex]?.distance)
+            ? Number((Number(directionsLegs[legIndex].distance) / 1000).toFixed(3))
+            : null
+        };
+      })
     });
 
   } catch (error) {
