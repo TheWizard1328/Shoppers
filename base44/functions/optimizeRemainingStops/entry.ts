@@ -584,6 +584,46 @@ Deno.serve(async (req) => {
 
     // Determine if this is a future route (date is after today in Edmonton time)
     const isFutureRoute = !historicalRoute && deliveryDate > getEdmontonTodayDateString();
+    // A route is "officially started" once at least 1 stop is finished
+    const routeOfficiallyStarted = completedDeliveries.length > 0;
+
+    // FUTURE ROUTE — PICKUPS ONLY:
+    // If the route is in the future, hasn't started, and ALL optimizable stops are pickups
+    // (no in_transit patient deliveries, ISP stops, returns, etc.), just assign each
+    // pickup's delivery_time_start as its ETA and preserve the existing order — no HERE call needed.
+    const allStopsArePickups = optimizableDeliveries.every(d => !d.patient_id);
+    if (isFutureRoute && !routeOfficiallyStarted && allStopsArePickups) {
+      console.log(`🗓️ [optimizeRemainingStops] Future pickups-only route — assigning delivery_time_start as ETA for each pickup, skipping HERE`);
+      const startingOrder = (startingStopOrder != null) ? startingStopOrder : completedDeliveries.length;
+      const writeBatch = optimizableDeliveries
+        .slice()
+        .sort((a, b) => parseTimeToMinutes(a.delivery_time_start || '00:00') - parseTimeToMinutes(b.delivery_time_start || '00:00'))
+        .map((delivery, i) => ({
+          id: delivery.id,
+          data: {
+            stop_order: startingOrder + i + 1,
+            delivery_time_eta: delivery.delivery_time_start || null,
+            isNextDelivery: i === 0,
+          }
+        }));
+      await processInChunks(writeBatch, 12, ({ id, data }) =>
+        base44.asServiceRole.entities.Delivery.update(id, data)
+      );
+      console.log(`✅ [optimizeRemainingStops] Future pickups-only: wrote ${writeBatch.length} stops`);
+      return Response.json({
+        success: true, driverId, deliveryDate,
+        routeChanged: false, optimizedCount: writeBatch.length,
+        stagesCount: 0, apiCallsMade: 0,
+        locationSource: 'future_pickup_schedule',
+        usedTimeWindows: false, preserveExistingOrder: true,
+        shouldRefreshPolylines: false,
+        optimizedRoute: writeBatch.map((w, i) => ({
+          deliveryId: w.id, newETA: w.data.delivery_time_eta,
+          stop_order: startingOrder + i + 1, isNextDelivery: i === 0
+        }))
+      });
+    }
+
     const latestFinishedDelivery = getLatestFinishedDelivery(completedDeliveries);
 
     let currentPosition;
@@ -1052,6 +1092,15 @@ Deno.serve(async (req) => {
         const windowStart = parseTimeToMinutes(stop.windowStart || stop.delivery.time_window_start);
         if (Number.isFinite(windowStart) && cumulativeTime < windowStart) {
           cumulativeTime = windowStart;
+        }
+
+        // FUTURE UNSTARTED ROUTE: Pickups must never be scheduled before their delivery_time_start.
+        // In-transit stops (ISP, retries, returns) are exempt — they can be optimized freely.
+        if (isFutureRoute && !routeOfficiallyStarted && stop.isPickup) {
+          const pickupScheduledStart = parseTimeToMinutes(stop.delivery.delivery_time_start);
+          if (Number.isFinite(pickupScheduledStart) && cumulativeTime < pickupScheduledStart) {
+            cumulativeTime = pickupScheduledStart;
+          }
         }
 
         const eta = formatMinutesToTime(cumulativeTime);
