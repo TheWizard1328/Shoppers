@@ -79,11 +79,12 @@ export default function EndOfDayStatsDialog({
     const completed = localStats?.completed ?? successfulDeliveries.length;
     const failed = localStats?.failed ?? patientDeliveries.filter(d => d.status === 'failed').length;
     const returned = localStats?.returned ?? 0;
-    // Use ALL deliveries (not just patient ones) for distance — includes pickups and cycling markers
+    // Sum travel_dist across ALL stops regardless of status/type — driving/cycling must add up to total
     const allStops = (deliveries || []).filter(d => d);
-    const totalKm = performanceStats?.totalKm ?? allStops.reduce((sum, d) => sum + (d.travel_dist || 0), 0);
     const drivingKm = allStops.filter(d => !d.transport_mode || d.transport_mode === 'driving').reduce((sum, d) => sum + (d.travel_dist || 0), 0);
     const cyclingKm = allStops.filter(d => d.transport_mode === 'cycling').reduce((sum, d) => sum + (d.travel_dist || 0), 0);
+    // Total is always the sum of breakdown values so they're guaranteed to match
+    const totalKm = drivingKm + cyclingKm;
     const totalPay = performanceStats?.totalPay ?? null;
     // For incomplete routes, calculate time from first completed stop to NOW
     let timeOnDuty = performanceStats?.totalTimeOnDuty ?? null;
