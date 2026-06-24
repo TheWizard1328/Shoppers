@@ -227,7 +227,7 @@ export default function EndOfDayStatsDialog({
               <MapPin className="w-5 h-5 mx-auto mb-1 text-slate-600" />
               <div className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.totalDistance} km</div>
               <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Total Distance</div>
-              {(parseFloat(stats.drivingDistance) > 0 || parseFloat(stats.cyclingDistance) > 0) && (
+              {(parseFloat(stats.drivingDistance) > 0 && parseFloat(stats.cyclingDistance) > 0) && (
                 <div className="flex justify-center gap-3 mt-1.5 pt-1.5 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                   {parseFloat(stats.drivingDistance) > 0 && (
                     <div className="flex items-center gap-1">
