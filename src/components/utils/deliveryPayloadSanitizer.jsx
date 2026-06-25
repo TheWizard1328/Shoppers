@@ -150,21 +150,10 @@ export const sanitizeDeliveryPayload = async (delivery = {}) => {
     return acc;
   }, {});
 
-  // Rule: pickups (no patient_id) that are not completed, cancelled, or failed must default to en_route
-  const isPickup = !clean.patient_id && !delivery.patient_id;
-  const PICKUP_TERMINAL_STATUSES = new Set(['completed', 'cancelled', 'failed']);
-  if (isPickup && 'status' in clean) {
-    const s = clean.status;
-    if (!s || !PICKUP_TERMINAL_STATUSES.has(s)) {
-      clean.status = 'en_route';
-    }
-  } else if (isPickup && !('status' in clean) && ('status' in delivery)) {
-    // status key present in original but got stripped — still enforce
-    const s = delivery.status;
-    if (!s || !PICKUP_TERMINAL_STATUSES.has(s)) {
-      clean.status = 'en_route';
-    }
-  }
+  // NOTE: Status is intentionally NOT coerced here. The caller (handleStatusUpdate,
+  // handleFailureConfirm, etc.) is responsible for sending the correct status.
+  // Coercing pickup status to en_route was causing failed/pending statuses to be
+  // cleared, preventing pending stops from attaching to their assigned pickup.
 
   return clean;
 };
