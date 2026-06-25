@@ -150,17 +150,18 @@ export const sanitizeDeliveryPayload = async (delivery = {}) => {
     return acc;
   }, {});
 
-  // Rule: pickups (no patient_id) that are not completed or cancelled must default to en_route
+  // Rule: pickups (no patient_id) that are not completed, cancelled, or failed must default to en_route
   const isPickup = !clean.patient_id && !delivery.patient_id;
+  const PICKUP_TERMINAL_STATUSES = new Set(['completed', 'cancelled', 'failed']);
   if (isPickup && 'status' in clean) {
     const s = clean.status;
-    if (!s || (s !== 'completed' && s !== 'cancelled')) {
+    if (!s || !PICKUP_TERMINAL_STATUSES.has(s)) {
       clean.status = 'en_route';
     }
   } else if (isPickup && !('status' in clean) && ('status' in delivery)) {
     // status key present in original but got stripped — still enforce
     const s = delivery.status;
-    if (!s || (s !== 'completed' && s !== 'cancelled')) {
+    if (!s || !PICKUP_TERMINAL_STATUSES.has(s)) {
       clean.status = 'en_route';
     }
   }
