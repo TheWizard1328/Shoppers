@@ -183,7 +183,7 @@ export default function PatientForm({
   }, [currentUser, cities, stores, formData.store_id]);
 
   // Keep ref in sync with latest allPatients without triggering re-renders
-  useEffect(() => { allPatientsRef.current = allPatients; }, [allPatients]);
+  useEffect(() => {allPatientsRef.current = allPatients;}, [allPatients]);
 
   // CRITICAL: Generate unique PID immediately on mount for new patients
   useEffect(() => {
@@ -928,27 +928,27 @@ export default function PatientForm({
                   </div>
                   {/* System Record ID + Last Delivery Date - only shown when editing existing patient */}
                   {patient?.id &&
-                  <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1">
                       <Label className="text-xs font-medium" style={{ color: 'var(--text-slate-500)' }}>System Record ID</Label>
                       <div
-                        className="h-9 px-3 flex items-center rounded-md text-xs font-mono select-all cursor-text overflow-x-auto"
-                        style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', border: '1px solid var(--border-slate-300)', color: 'var(--text-slate-500)' }}>
+                      className="px-3 flex items-center rounded-md text-xs font-mono select-all cursor-text overflow-x-auto h-12"
+                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', border: '1px solid var(--border-slate-300)', color: 'var(--text-slate-500)' }}>
                         {patient.id}
                       </div>
                     </div>
                     <div className="space-y-1">
                       <Label htmlFor="last_delivery_date" className="text-xs font-medium" style={{ color: 'var(--text-slate-500)' }}>Last Delivery Date</Label>
                       <Input
-                        id="last_delivery_date"
-                        type="date"
-                        value={formData.last_delivery_date || ""}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, last_delivery_date: e.target.value }))}
-                        className="h-9 text-xs"
-                        style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
+                      id="last_delivery_date"
+                      type="date"
+                      value={formData.last_delivery_date || ""}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, last_delivery_date: e.target.value }))}
+                      className="h-9 text-xs"
+                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                     </div>
                   </div>
-                  }
+                }
                 </div>
               }
 
