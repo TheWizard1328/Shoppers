@@ -1,11 +1,14 @@
 /**
- * handleStartDelivery - Handles the full start-delivery flow:
- * 1. Updates isNextDelivery flags
- * 2. Transitions stop to in_transit/en_route
- * 3. Re-orders stop_order so this stop is next
- * 4. Calls optimizeRemainingStops for accurate ETAs + sequencing
- * 5. AWAITS purgeAndRegeneratePolylines so polylines are written before UI refresh
- * 6. Fetches fresh deliveries (now with updated polylines) and updates UI
+ * handleStartDelivery - Offline-first Accept/Assign All flow:
+ *
+ * 1. Pause all sync processes
+ * 2. Compute all transitions locally, save to offlineDB only
+ * 3. Immediate UI update from local state
+ * 4. Batch sync transitioned stops to online DB
+ * 5. Invoke route optimizer (server now sees consistent state)
+ * 6. Invoke polyline generator
+ * 7. Remaining processes (blue polyline, notifications, scroll)
+ * 8. Final UI update from fresh server data
  */
 
 import { base44 } from '@/api/base44Client';
@@ -32,74 +35,129 @@ export async function handleStartDelivery({
   setIsEntityUpdating,
   setCurrentToNextPolyline,
 }) {
-  // Note: setIsEntityUpdating is intentionally NOT called here — the caller (useStopCardActions)
-  // already handles optimistic UI updates and releases locks immediately. Calling it here would
-  // block the UI for the full duration of background optimization.
+  // ─── STEP 1: Pause ALL sync processes ────────────────────────────────────
   pauseOfflineMutations();
   pauseOfflineSync();
   smartRefreshManager.pause();
   backgroundSyncManager.pause();
 
-  await new Promise((resolve) => setTimeout(resolve, 100));
+  const deliveryFromUI = deliveriesWithStopOrder.find((d) => d?.id === deliveryId);
+  if (!deliveryFromUI) {
+    resumeOfflineMutations();
+    resumeOfflineSync();
+    smartRefreshManager.resume();
+    backgroundSyncManager.resume();
+    console.error('❌ [handleStartDelivery] Delivery not found in local state:', deliveryId);
+    alert('Failed to start delivery: stop not found in local state.');
+    return;
+  }
 
-  let newNextDeliveryId = deliveryId;
+  const driverId = deliveryFromUI.driver_id;
+  const deliveryDate = deliveryFromUI.delivery_date;
+  const isPickup = !deliveryFromUI.patient_id;
+  const newStatus = isPickup ? 'en_route' : 'in_transit';
+  const now = new Date();
+  const etaMinutes = now.getHours() * 60 + now.getMinutes() + 5;
+  const etaString = `${String(Math.floor(etaMinutes / 60) % 24).padStart(2, '0')}:${String(etaMinutes % 60).padStart(2, '0')}`;
+
+  // Track which delivery IDs were mutated locally so we can batch-sync them
+  const transitionedIds = new Set();
 
   try {
-    const deliveryFromUI = deliveriesWithStopOrder.find((d) => d?.id === deliveryId);
-    if (!deliveryFromUI) throw new Error('Delivery not found in local state');
+    // ─── STEP 2: Compute all transitions locally, write ONLY to offlineDB ────
+    // Read the current driver route from IndexedDB (source of truth while syncs are paused)
+    const allLocalDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+    const driverLocalDeliveries = allLocalDeliveries.filter(
+      (d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate
+    );
 
-    const driverId = deliveryFromUI.driver_id;
-    const deliveryDate = deliveryFromUI.delivery_date;
-    const isPickup = !deliveryFromUI.patient_id;
-    const newStatus = isPickup ? 'en_route' : 'in_transit';
-    const now = new Date();
-    const etaMinutes = now.getHours() * 60 + now.getMinutes() + 5;
-    const etaString = `${String(Math.floor(etaMinutes / 60) % 24).padStart(2, '0')}:${String(etaMinutes % 60).padStart(2, '0')}`;
+    const finishedStatuses = new Set(['completed', 'failed', 'cancelled', 'returned']);
+    const completedCount = driverLocalDeliveries.filter((d) => finishedStatuses.has(d.status)).length;
+    const nextStopOrder = completedCount + 1;
 
-    // STEP 1: Clear ALL isNextDelivery flags for this driver/date
-    const allDriverDeliveries = await base44.entities.Delivery.filter({
-      driver_id: driverId,
-      delivery_date: deliveryDate
+    // Build the full mutated set we'll write to IndexedDB in one go
+    const mutatedDeliveries = driverLocalDeliveries.map((d) => {
+      if (!d) return d;
+
+      // Clear stale isNextDelivery from every other stop
+      if (d.id !== deliveryId && d.isNextDelivery) {
+        transitionedIds.add(d.id);
+        return { ...d, isNextDelivery: false, updated_date: new Date().toISOString() };
+      }
+
+      // Transition the target stop
+      if (d.id === deliveryId) {
+        transitionedIds.add(d.id);
+        return {
+          ...d,
+          isNextDelivery: true,
+          status: newStatus,
+          stop_order: nextStopOrder,
+          delivery_time_start: etaString,
+          delivery_time_eta: etaString,
+          updated_date: new Date().toISOString(),
+        };
+      }
+
+      return d;
     });
 
-    const resetPromises = allDriverDeliveries
-      .filter((d) => d.isNextDelivery)
-      .map((d) => base44.entities.Delivery.update(d.id, { isNextDelivery: false }));
+    // Write ALL mutations to offlineDB atomically
+    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, mutatedDeliveries);
+    console.log(`✅ [handleStartDelivery] Step 2 complete — ${transitionedIds.size} stops written to offlineDB`);
 
-    if (resetPromises.length > 0) await Promise.all(resetPromises);
-
-    // STEP 2: Set isNextDelivery=true and update status + stop_order
-    const finishedStatusesStep2 = ['completed', 'failed', 'cancelled', 'returned'];
-    const completedStopsStep2 = allDriverDeliveries.filter((d) => finishedStatusesStep2.includes(d.status));
-    const nextStopOrderStep2 = completedStopsStep2.length + 1;
-
-    const startUpdatePayload = {
-      isNextDelivery: true,
-      status: newStatus,
-      stop_order: nextStopOrderStep2,
-      delivery_time_start: etaString,
-      delivery_time_eta: etaString
-    };
-
-    await base44.entities.Delivery.update(deliveryId, startUpdatePayload);
-    window.dispatchEvent(new CustomEvent('deliveryUpdated', {
-      detail: { deliveryId, updates: startUpdatePayload, driverId, deliveryDate, source: 'startDelivery' }
-    }));
-
-    // STEP 3: Verify the update persisted
-    const refreshedDeliveriesAfterFlag = await base44.entities.Delivery.filter({
-      driver_id: driverId,
-      delivery_date: deliveryDate
-    });
-    const verifyNext = refreshedDeliveriesAfterFlag.find((d) => d.id === deliveryId);
-    if (!verifyNext?.isNextDelivery || verifyNext?.status !== newStatus) {
-      await base44.entities.Delivery.update(deliveryId, startUpdatePayload);
+    // ─── STEP 3: Immediate UI update from local state ─────────────────────
+    if (updateDeliveriesLocally) {
+      const otherDeliveries = (deliveries || []).filter(
+        (d) => d && d.delivery_date !== deliveryDate
+      );
+      updateDeliveriesLocally([...otherDeliveries, ...mutatedDeliveries], true);
     }
+    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+      detail: {
+        driverId,
+        deliveryDate,
+        triggeredBy: 'startDelivery_localFlush',
+        freshDeliveries: mutatedDeliveries,
+        fullReplacement: false,
+      },
+    }));
+    console.log('✅ [handleStartDelivery] Step 3 complete — UI updated from local state');
 
-    // STEP 4: Get driver's current GPS location for optimization
-    let driverCurrentLat = null;
-    let driverCurrentLon = null;
+    // ─── STEP 4: Batch sync transitioned stops to online DB ──────────────
+    // Build minimal payloads for only the records that changed
+    const syncPromises = [];
+    for (const d of mutatedDeliveries) {
+      if (!d || !transitionedIds.has(d.id)) continue;
+      const isTarget = d.id === deliveryId;
+      const payload = isTarget
+        ? {
+            isNextDelivery: true,
+            status: newStatus,
+            stop_order: nextStopOrder,
+            delivery_time_start: etaString,
+            delivery_time_eta: etaString,
+          }
+        : { isNextDelivery: false };
+      syncPromises.push(
+        base44.entities.Delivery.update(d.id, payload).catch((err) => {
+          console.warn(`⚠️ [handleStartDelivery] Sync failed for ${d.id}:`, err?.message);
+        })
+      );
+    }
+    await Promise.all(syncPromises);
+    console.log(`✅ [handleStartDelivery] Step 4 complete — ${syncPromises.length} stops synced to online DB`);
+
+    // ─── STEP 5: Invoke route optimizer ──────────────────────────────────
+    // Online DB is now consistent — optimizer will see the correct in_transit status
+    let optimizeData = null;
+    let optimizedRouteFromBackend = null;
+
     try {
+      const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+      let driverCurrentLat = null;
+      let driverCurrentLon = null;
       const driverAppUser = appUsers.find((u) => u?.user_id === driverId);
       if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
         driverCurrentLat = driverAppUser.current_latitude;
@@ -108,39 +166,34 @@ export async function handleStartDelivery({
         driverCurrentLat = driverLocation.latitude;
         driverCurrentLon = driverLocation.longitude;
       }
-    } catch (_) {}
 
-    // STEP 5: Optimize remaining stops for accurate sequencing + ETAs
-    let optimizedRouteFromBackend = null;
-    let optimizeData = null;
-    try {
-      const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       const optimizeResponse = await base44.functions.invoke('optimizeRemainingStops', {
         driverId,
         deliveryDate,
         currentLocalTime: localTimeString,
         deviceTime: now.toISOString(),
-        currentLocation: driverCurrentLat && driverCurrentLon ? {
-          lat: driverCurrentLat,
-          lon: driverCurrentLon
-        } : undefined,
+        currentLocation: driverCurrentLat && driverCurrentLon
+          ? { lat: driverCurrentLat, lon: driverCurrentLon }
+          : undefined,
         bypassDeduplication: true,
         bypassHistoricalCheck: true,
-        bypassDriverStatus: true
+        bypassDriverStatus: true,
       });
       optimizeData = optimizeResponse?.data || optimizeResponse || null;
       optimizedRouteFromBackend = optimizeData?.optimizedRoute || null;
-      console.log('✅ [handleStartDelivery] optimizeRemainingStops completed, success:', optimizeData?.success);
+      console.log('✅ [handleStartDelivery] Step 5 complete — optimizer success:', optimizeData?.success);
     } catch (optimizeError) {
-      console.warn('⚠️ [handleStartDelivery] Route optimization failed:', optimizeError.message);
+      console.warn('⚠️ [handleStartDelivery] Step 5 — optimizer failed:', optimizeError?.message);
     }
 
-    // STEP 5b: AWAIT purgeAndRegeneratePolylines — MUST complete before fetching deliveries
-    // so that the DB already has fresh encoded_polyline values when we read them in STEP 6.
+    // ─── STEP 6: Invoke polyline generator ───────────────────────────────
     if (optimizeData?.success) {
-      const orderedDeliveryIds = Array.isArray(optimizeData?.orderedDeliveryIds) && optimizeData.orderedDeliveryIds.length > 0
-        ? optimizeData.orderedDeliveryIds : null;
+      const orderedDeliveryIds =
+        Array.isArray(optimizeData?.orderedDeliveryIds) && optimizeData.orderedDeliveryIds.length > 0
+          ? optimizeData.orderedDeliveryIds
+          : null;
       const trueOriginCoords = optimizeData?.trueOriginCoords || null;
+
       try {
         await base44.functions.invoke('purgeAndRegeneratePolylines', {
           driverId,
@@ -152,60 +205,23 @@ export async function handleStartDelivery({
           bypassDriverStatus: true,
           recalculateEtas: false,
         });
-        console.log('✅ [handleStartDelivery] purgeAndRegeneratePolylines completed — polylines ready in DB');
+        console.log('✅ [handleStartDelivery] Step 6 complete — polylines regenerated');
       } catch (e) {
-        console.warn('⚠️ [handleStartDelivery] purgeAndRegeneratePolylines failed:', e?.message);
+        console.warn('⚠️ [handleStartDelivery] Step 6 — polyline regeneration failed:', e?.message);
       }
     }
 
-    // STEP 6: Fetch fresh deliveries AFTER polylines are written to DB
-    invalidate('Delivery');
-    const refreshedDeliveries = await base44.entities.Delivery.filter({
-      driver_id: driverId,
-      delivery_date: deliveryDate
-    });
-
-    // STEP 7: Merge optimized route data (ETAs, stop_order) into refreshed deliveries
-    if (optimizedRouteFromBackend && Array.isArray(optimizedRouteFromBackend)) {
-      const optimizedMap = new Map(
-        optimizedRouteFromBackend
-          .filter((stop) => stop?.deliveryId || stop?.delivery_id)
-          .map((stop) => [stop.deliveryId || stop.delivery_id, stop])
-      );
-      for (const delivery of refreshedDeliveries) {
-        if (!delivery?.id) continue;
-        const optimized = optimizedMap.get(delivery.id);
-        if (!optimized) continue;
-        if (Number.isFinite(Number(optimized.stop_order))) delivery.stop_order = Number(optimized.stop_order);
-        if (optimized.newETA || optimized.eta) delivery.delivery_time_eta = optimized.newETA || optimized.eta;
-        if (typeof optimized.travel_dist === 'number') delivery.travel_dist = optimized.travel_dist;
-        if (typeof optimized.estimated_distance_km === 'number') delivery.estimated_distance_km = optimized.estimated_distance_km;
-        if (typeof optimized.estimated_duration_minutes === 'number') delivery.estimated_duration_minutes = optimized.estimated_duration_minutes;
-      }
-    }
-
-    // STEP 8: Persist to offline DB (now includes fresh polylines from purgeAndRegenerate)
-    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, refreshedDeliveries);
-
-    const newNextDelivery = refreshedDeliveries.find((d) => d.isNextDelivery === true);
-    newNextDeliveryId = newNextDelivery?.id || deliveryId;
-
-    // STEP 9: Update UI state with fresh deliveries (polylines already updated)
-    if (updateDeliveriesLocally) {
-      const otherDeliveries = deliveries.filter((d) => d && d.delivery_date !== deliveryDate);
-      updateDeliveriesLocally([...otherDeliveries, ...refreshedDeliveries], true);
-    }
-
-    // Dispatch events to update map and stats
-    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-      detail: { driverId, deliveryDate, triggeredBy: 'startDelivery', freshDeliveries: refreshedDeliveries, fullReplacement: false }
-    }));
-
-    // STEP 10: Update blue polyline (driver -> next stop)
+    // ─── STEP 7: Remaining processes ─────────────────────────────────────
+    // 7a: Blue polyline (driver → next stop)
     try {
       const driver = users.find((u) => u && u.id === driverId);
-      if (driver && driver.driver_status === 'on_duty' && driver.location_tracking_enabled === true) {
-        const segment = determinePolylineSegment(refreshedDeliveries, driver, patients, stores);
+      if (driver?.driver_status === 'on_duty' && driver?.location_tracking_enabled === true) {
+        // Fetch the latest delivery set before computing the segment
+        const latestLocal = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+        const driverLatestDeliveries = latestLocal.filter(
+          (d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate
+        );
+        const segment = determinePolylineSegment(driverLatestDeliveries, driver, patients, stores);
         if (segment) {
           const polyline = await fetchPolylineForSegment(
             segment.originLat, segment.originLon, segment.destLat, segment.destLon
@@ -214,19 +230,10 @@ export async function handleStartDelivery({
         }
       }
     } catch (polylineError) {
-      console.warn('⚠️ [handleStartDelivery] Blue polyline update failed:', polylineError.message);
+      console.warn('⚠️ [handleStartDelivery] Step 7a — blue polyline failed:', polylineError?.message);
     }
 
-    // STEP 11: Scroll to next delivery card
-    setTimeout(() => {
-      const nextCard = refreshedDeliveries.find((d) => d && d.isNextDelivery === true);
-      if (nextCard) {
-        const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
-        if (cardElement) cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-      }
-    }, 800);
-
-    // STEP 12: Send notification
+    // 7b: Notification
     try {
       const deliveryStore = stores.find((s) => s?.id === deliveryFromUI?.store_id);
       await notifyDriverStarted({
@@ -234,53 +241,86 @@ export async function handleStartDelivery({
         patientName: deliveryFromUI?.patient_name || 'Unknown',
         delivery: deliveryFromUI,
         store: deliveryStore,
-        appUsers
+        appUsers,
       });
     } catch (notifyError) {
-      console.warn('⚠️ [handleStartDelivery] Notification failed:', notifyError);
+      console.warn('⚠️ [handleStartDelivery] Step 7b — notification failed:', notifyError);
     }
+
+    // ─── STEP 8: Final UI update from fresh server data ───────────────────
+    invalidate('Delivery');
+    const freshDeliveries = await base44.entities.Delivery.filter({
+      driver_id: driverId,
+      delivery_date: deliveryDate,
+    });
+
+    // Merge in optimized route data (ETAs, stop_order) from the backend response
+    if (optimizedRouteFromBackend && Array.isArray(optimizedRouteFromBackend)) {
+      const optimizedMap = new Map(
+        optimizedRouteFromBackend
+          .filter((stop) => stop?.deliveryId || stop?.delivery_id)
+          .map((stop) => [stop.deliveryId || stop.delivery_id, stop])
+      );
+      for (const delivery of freshDeliveries) {
+        if (!delivery?.id) continue;
+        const opt = optimizedMap.get(delivery.id);
+        if (!opt) continue;
+        if (Number.isFinite(Number(opt.stop_order))) delivery.stop_order = Number(opt.stop_order);
+        if (opt.newETA || opt.eta) delivery.delivery_time_eta = opt.newETA || opt.eta;
+        if (typeof opt.travel_dist === 'number') delivery.travel_dist = opt.travel_dist;
+        if (typeof opt.estimated_distance_km === 'number') delivery.estimated_distance_km = opt.estimated_distance_km;
+        if (typeof opt.estimated_duration_minutes === 'number') delivery.estimated_duration_minutes = opt.estimated_duration_minutes;
+      }
+    }
+
+    // Persist final server state (including polylines) back to offlineDB
+    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
+
+    if (updateDeliveriesLocally) {
+      const otherDeliveries = (deliveries || []).filter(
+        (d) => d && d.delivery_date !== deliveryDate
+      );
+      updateDeliveriesLocally([...otherDeliveries, ...freshDeliveries], true);
+    }
+
+    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+      detail: {
+        driverId,
+        deliveryDate,
+        triggeredBy: 'startDelivery_finalRefresh',
+        freshDeliveries,
+        fullReplacement: false,
+      },
+    }));
+
+    // Scroll to next stop card
+    setTimeout(() => {
+      const nextCard = freshDeliveries.find((d) => d?.isNextDelivery === true);
+      if (nextCard) {
+        const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
+        if (cardElement) cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
+    }, 800);
+
+    console.log('✅ [handleStartDelivery] Step 8 complete — final UI updated from server');
 
   } catch (error) {
     console.error('❌ [handleStartDelivery] Error:', error);
-    if (error.response?.status === 401 || error.message?.includes('Unauthorized') || error.message?.includes('session')) {
+    if (
+      error.response?.status === 401 ||
+      error.message?.includes('Unauthorized') ||
+      error.message?.includes('session')
+    ) {
       alert('Your session has expired. The page will now reload.');
       window.location.reload();
       return;
     }
     alert(`Failed to start delivery: ${error.message}`);
   } finally {
-    // Final refresh to offline DB and UI sync
-    try {
-      const delivery = deliveriesWithStopOrder.find((d) => d?.id === deliveryId);
-      if (delivery?.driver_id && delivery?.delivery_date) {
-        const finalRefreshed = await base44.entities.Delivery.filter({
-          driver_id: delivery.driver_id,
-          delivery_date: delivery.delivery_date
-        });
-        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, finalRefreshed);
-        finalRefreshed.forEach((d) => {
-          if (d?.id) smartRefreshManager.registerPendingUpdate(d.id, d.driver_id, d.delivery_date);
-        });
-        if (updateDeliveriesLocally) updateDeliveriesLocally(finalRefreshed, false);
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: {
-            driverId: finalRefreshed[0]?.driver_id,
-            deliveryDate: finalRefreshed[0]?.delivery_date,
-            triggeredBy: 'startDeliveryFinalRefresh',
-            freshDeliveries: finalRefreshed,
-            fullReplacement: false
-          }
-        }));
-      }
-    } catch (refreshError) {
-      console.error('❌ [handleStartDelivery] Final refresh failed:', refreshError);
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 5000));
+    await new Promise((resolve) => setTimeout(resolve, 3000));
     resumeOfflineMutations();
     resumeOfflineSync();
     smartRefreshManager.resume();
     backgroundSyncManager.resume();
-    // setIsEntityUpdating is managed by the caller — do not call it here
   }
 }
