@@ -932,7 +932,7 @@ export default function PatientForm({
                     <div className="space-y-1">
                       <Label className="text-xs font-medium" style={{ color: 'var(--text-slate-500)' }}>System Record ID</Label>
                       <div
-                      className="px-3 flex items-center rounded-md text-xs font-mono select-all cursor-text overflow-x-auto h-9"
+                      className="px-3 flex items-center rounded-md text-xs font-mono select-all cursor-text overflow-x-auto h-11"
                       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', border: '1px solid var(--border-slate-300)', color: 'var(--text-slate-500)' }}>
                         {patient.id}
                       </div>
