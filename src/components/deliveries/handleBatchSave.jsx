@@ -366,10 +366,15 @@ export async function handleBatchSave({
           .map((pickup) => [pickup.id || pickup.stop_id, pickup])
       ).values());
       
-      // Only trigger route optimization if there are new ACTIVE (en_route/in_transit) pickup
-      // containers created. Pure pending/staged-only transitions must NOT trigger optimization
-      // or polyline regeneration — adding pending stops should never hit the HERE API.
-      const activePickupsCreated = ensuredPickupRecords.some(
+      // Only trigger route optimization if there are NEW ACTIVE (en_route/in_transit) pickup
+      // containers actually created by ensurePickup calls — NOT pickups that were already in
+      // the staged list. Pure staged→pending transitions must NOT trigger optimization or
+      // polyline regeneration (adding pending stops should never hit the HERE API).
+      const freshlyEnsuredPickups = [
+        ...normalizedDefaultPickups,
+        ...ensuredPickups.map((result) => result?.data?.pickup).filter(Boolean)
+      ].filter((pickup) => pickup && !pickupRecordsFromStage.some((sp) => sp.id && sp.id === pickup.id));
+      const activePickupsCreated = freshlyEnsuredPickups.some(
         (pickup) => pickup && ['en_route', 'in_transit'].includes(pickup.status)
       );
       routeStructureChanged = hasNewActiveSops || activePickupsCreated;
@@ -487,9 +492,11 @@ export async function handleBatchSave({
           }).catch(() => null);
 
           // CRITICAL: Only queue optimization for structural route changes.
-          // Pure staged→pending transitions must NOT trigger optimization or polyline regeneration.
-          // New pickups, ISP/ISD stops, cycling markers, or new active stops DO trigger it.
-          if (routeStructureChanged) {
+          // Pure staged→pending transitions (deliveriesToUpdate > 0, newDeliveries === 0)
+          // must NEVER trigger optimization or polyline regeneration — they don't change
+          // the active route and should never show the orange overlay or hit the HERE API.
+          const isPureStagedToPendingTransition = newDeliveries.length === 0 && deliveriesToUpdate.length > 0;
+          if (routeStructureChanged && !isPureStagedToPendingTransition) {
             requestDeferredOptimization(refreshDriverId, refreshDeliveryDate, true);
           }
         }
