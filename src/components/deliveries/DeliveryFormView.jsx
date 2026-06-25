@@ -1066,7 +1066,7 @@ export default function DeliveryFormView({
                         </div>
 
                         {/* Delivery Options & COD */}
-                        <div className="px-3 py-2 rounded-lg space-y-2 border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                        <div className="px-3 rounded-lg space-y-2 border py-2.5" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                           <div className="grid grid-cols-[minmax(0,1fr)_minmax(9rem,0.9fr)] gap-3 items-start">
                             <div className="space-y-2 min-w-0">
                               <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Options</Label>
