@@ -311,21 +311,23 @@ export default function LiveTempBadge({
     if (adminMode && !driverMode)          { loadFromDb(); triggerPulse(); return; }
 
     if (bleStatus === 'connected') {
-      // Already connected — force a fresh GATT read from the sensor, then also refresh DB
       forceRead();
       loadFromDb();
       triggerPulse();
       return;
     }
-    if (bleStatus === 'connecting' || bleStatus === 'scanning') return; // in progress
 
-    // Not yet paired — show picker; already paired — reconnect
-    if (!sensorName) {
+    // In-flight — do nothing
+    if (bleStatus === 'connecting' || bleStatus === 'scanning') return;
+
+    // Try silent reconnect first (works when deviceRef is populated).
+    // If it returns false the device ref is gone (PWA/Chrome Android after restart)
+    // — always fall through to the picker so the tap is never a dead end.
+    const reconnected = triggerReconnect();
+    if (!reconnected) {
       connect();
-    } else {
-      triggerReconnect();
     }
-  }, [isPastDate, selectedDriverIsMe, adminMode, driverMode, bleStatus, sensorName,
+  }, [isPastDate, selectedDriverIsMe, adminMode, driverMode, bleStatus,
       loadFromDb, triggerPulse, connect, triggerReconnect, forceRead]);
 
   // ── Display values ────────────────────────────────────────────────────

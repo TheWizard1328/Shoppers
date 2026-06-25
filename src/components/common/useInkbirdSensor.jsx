@@ -149,23 +149,24 @@ export function useInkbirdSensor(currentUser) {
     }
   }, []);
 
-  // ── triggerReconnect — call from any user-gesture handler ──────────────
+  // ── triggerReconnect — returns true if it can attempt, false if caller should fall back ──
   const triggerReconnect = useCallback(() => {
     if (!mountedRef.current || !hasBluetooth) {
       appendInkbirdLog('warn', `triggerReconnect() skipped: hasBluetooth=${hasBluetooth}, mounted=${mountedRef.current}`);
-      return;
+      return false;
     }
     if (!deviceRef.current) {
-      appendInkbirdLog('warn', 'triggerReconnect() skipped: no device ref (need manual pair first)');
-      return;
+      appendInkbirdLog('warn', 'triggerReconnect() skipped: no device ref — caller should show picker');
+      return false;
     }
     if (connectingRef.current) {
       appendInkbirdLog('info', 'triggerReconnect() skipped: already connecting');
-      return;
+      return true; // in-flight, don't show picker
     }
-    if (status === 'connected') return;
+    if (status === 'connected') return true;
     appendInkbirdLog('info', `triggerReconnect() fired, status was: ${status}`);
     connectDevice(deviceRef.current);
+    return true;
   }, [status, connectDevice, hasBluetooth]);
 
   // ── forceRead — demand a fresh FFF2 read from the sensor ──────────────

@@ -8,12 +8,25 @@
 import { useInkbirdSensor } from './useInkbirdSensor';
 import { useNativeBleSensor } from './useNativeBleSensor';
 import { isCapacitorNativeApp } from '@/components/utils/locationProviders/capacitorRuntime';
+import { appendInkbirdLog } from '@/components/devices/InkbirdBleLog';
 
 // Computed once at module load — stable for the lifetime of the page.
 // Use native BLE ONLY when running inside a real Capacitor APK/IPA build.
 // In PWA / browser / editor: always use Web Bluetooth (navigator.bluetooth).
 // If Web Bluetooth is also absent (editor iframe), both hooks no-op gracefully.
 const USE_NATIVE = isCapacitorNativeApp();
+
+// Log the active BLE path once at startup so DeviceSettings diagnostics show it
+try {
+  appendInkbirdLog('info', `BLE bridge initialised`, {
+    mode: USE_NATIVE ? 'native-capacitor' : 'web-bluetooth',
+    isSecureContext: window?.isSecureContext,
+    isTopFrame: window === window?.top,
+    hasBluetooth: !!navigator?.bluetooth,
+    hasGetDevices: typeof navigator?.bluetooth?.getDevices === 'function',
+    userAgent: navigator?.userAgent?.slice(0, 80),
+  });
+} catch (_) {}
 
 export function useInkbirdSensorBridge(currentUser) {
   // Always call both hooks (Rules of Hooks) but pass null to the inactive one
