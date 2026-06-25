@@ -1097,7 +1097,7 @@ export default function DeliveryFormView({
 
                         {!useMobileLayout &&
                         <>
-                            <div className="pr-3 pl-3 rounded-lg space-y-2 border pb-2.5"
+                            <div className="pr-3 pl-3 rounded-lg space-y-2 border pb-3"
 
                           style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                           
@@ -1112,7 +1112,7 @@ export default function DeliveryFormView({
                           
                             </div>
 
-                            <div className="px-3 rounded-lg space-y-2 border py-2." style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                            <div className="px-3 rounded-lg space-y-2 border py-2" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                               <div className="flex gap-3">
                                 <div className="flex-[65] space-y-1">
                                   <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Address</Label>
