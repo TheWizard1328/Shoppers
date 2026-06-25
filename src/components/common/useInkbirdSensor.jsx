@@ -9,6 +9,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
+import { appendInkbirdLog } from '@/components/devices/InkbirdBleLog';
 
 const INKBIRD_SERVICE_UUID = '0000fff0-0000-1000-8000-00805f9b34fb';
 const INKBIRD_NOTIFY_UUID  = '0000fff6-0000-1000-8000-00805f9b34fb';
@@ -71,6 +72,7 @@ export function useInkbirdSensor(currentUser) {
     if (!mountedRef.current || connectingRef.current) return;
     connectingRef.current = true;
     setStatus('connecting');
+    appendInkbirdLog('info', `connectDevice() called`, { deviceName: device?.name, gattConnected: device?.gatt?.connected });
 
     try {
       try { serverRef.current?.disconnect(); } catch (_) {}
@@ -83,11 +85,14 @@ export function useInkbirdSensor(currentUser) {
       notifyRef.current = null;
       notifyHandlerRef.current = null;
 
+      appendInkbirdLog('info', 'Calling device.gatt.connect()…', { deviceName: device?.name });
       const server = await device.gatt.connect();
       if (!mountedRef.current) { server.disconnect(); connectingRef.current = false; return; }
       serverRef.current = server;
+      appendInkbirdLog('success', 'GATT connected, getting primary service…');
 
       const service = await server.getPrimaryService(INKBIRD_SERVICE_UUID);
+      appendInkbirdLog('success', 'Got primary service FFF0');
 
       // Snapshot read from FFF2
       try {
@@ -97,11 +102,17 @@ export function useInkbirdSensor(currentUser) {
         if (parsed && mountedRef.current) {
           setReading(parsed);
           setStatus('connected');
+          appendInkbirdLog('success', `FFF2 snapshot read: ${parsed.tempC}°C, ${parsed.humidity}% RH`);
           window.dispatchEvent(new CustomEvent('inkbirdReading', { detail: { ...parsed, source: 'gatt-read' } }));
+        } else {
+          appendInkbirdLog('warn', 'FFF2 read returned no valid data');
         }
-      } catch (_) {}
+      } catch (readErr) {
+        appendInkbirdLog('warn', `FFF2 read skipped: ${readErr?.message || readErr}`);
+      }
 
       // Subscribe to FFF6 notifications
+      appendInkbirdLog('info', 'Subscribing to FFF6 notifications…');
       const notifyChar = await service.getCharacteristic(INKBIRD_NOTIFY_UUID);
       notifyRef.current = notifyChar;
 
@@ -119,16 +130,19 @@ export function useInkbirdSensor(currentUser) {
       await notifyChar.startNotifications();
 
       if (mountedRef.current) setStatus('connected');
+      appendInkbirdLog('success', 'FFF6 notifications active — sensor fully connected');
 
       device.addEventListener('gattserverdisconnected', () => {
         if (!mountedRef.current) return;
         serverRef.current = null;
         connectingRef.current = false;
         setStatus('disconnected');
+        appendInkbirdLog('warn', 'GATT server disconnected unexpectedly');
       });
 
     } catch (err) {
       if (!mountedRef.current) { connectingRef.current = false; return; }
+      appendInkbirdLog('error', `connectDevice() failed: ${err?.message || err}`, { name: err?.name });
       setStatus('disconnected');
     } finally {
       connectingRef.current = false;
@@ -137,10 +151,20 @@ export function useInkbirdSensor(currentUser) {
 
   // ── triggerReconnect — call from any user-gesture handler ──────────────
   const triggerReconnect = useCallback(() => {
-    if (!mountedRef.current || !hasBluetooth) return;
-    if (!deviceRef.current) return;
-    if (connectingRef.current) return;
+    if (!mountedRef.current || !hasBluetooth) {
+      appendInkbirdLog('warn', `triggerReconnect() skipped: hasBluetooth=${hasBluetooth}, mounted=${mountedRef.current}`);
+      return;
+    }
+    if (!deviceRef.current) {
+      appendInkbirdLog('warn', 'triggerReconnect() skipped: no device ref (need manual pair first)');
+      return;
+    }
+    if (connectingRef.current) {
+      appendInkbirdLog('info', 'triggerReconnect() skipped: already connecting');
+      return;
+    }
     if (status === 'connected') return;
+    appendInkbirdLog('info', `triggerReconnect() fired, status was: ${status}`);
     connectDevice(deviceRef.current);
   }, [status, connectDevice, hasBluetooth]);
 
@@ -162,7 +186,11 @@ export function useInkbirdSensor(currentUser) {
 
   // ── First-time manual pair ─────────────────────────────────────────────
   const connect = useCallback(async () => {
-    if (!hasBluetooth) return;
+    if (!hasBluetooth) {
+      appendInkbirdLog('error', `connect() blocked: hasBluetooth=${hasBluetooth}, isDriverRole=${isDriverRole}, secureCtx=${window?.isSecureContext}, topFrame=${window === window?.top}`);
+      return;
+    }
+    appendInkbirdLog('info', 'connect() called — opening BLE device picker');
     setStatus('connecting');
     try {
       const device = await navigator.bluetooth.requestDevice({
@@ -179,10 +207,13 @@ export function useInkbirdSensor(currentUser) {
       setSensorName(device.name);
       saveSensorNameLocally(device.name);
       persistSensorToUserDevice(currentUser, device.name);
+      appendInkbirdLog('success', `Device selected from picker: "${device.name}"`);
       await connectDevice(device);
     } catch (err) {
       if (!mountedRef.current) return;
-      setStatus(err?.name === 'NotFoundError' || err?.name === 'AbortError' ? 'idle' : 'error');
+      const nextStatus = err?.name === 'NotFoundError' || err?.name === 'AbortError' ? 'idle' : 'error';
+      appendInkbirdLog('error', `connect() picker failed: ${err?.message || err}`, { name: err?.name, nextStatus });
+      setStatus(nextStatus);
     }
   }, [hasBluetooth, currentUser, connectDevice]);
 
@@ -206,28 +237,44 @@ export function useInkbirdSensor(currentUser) {
   useEffect(() => {
     mountedRef.current = true;
 
+    appendInkbirdLog('info', 'Hook mounted', {
+      hasBluetooth,
+      hasGetDevices,
+      isDriverRole,
+      isSecureContext: window?.isSecureContext,
+      isTopFrame: window === window?.top,
+      savedSensor: getSavedSensorName(),
+    });
+
     if (!hasBluetooth) {
+      const reason = !isDriverRole ? 'not a driver role' : 'navigator.bluetooth unavailable';
+      appendInkbirdLog('warn', `BLE unavailable on mount: ${reason}`);
       setStatus(isDriverRole ? 'unsupported' : 'idle');
       return;
     }
 
     if (!hasGetDevices) {
+      appendInkbirdLog('warn', 'getDevices() not available — need manual pair');
       setStatus('idle');
       return;
     }
 
     navigator.bluetooth.getDevices().then(devices => {
       if (!mountedRef.current) return;
+      appendInkbirdLog('info', `getDevices() returned ${devices.length} device(s)`, { names: devices.map(d => d.name) });
       const inkbird = devices.find(d => INKBIRD_NAMES.includes(d.name));
       if (inkbird) {
         deviceRef.current = inkbird;
         setSensorName(inkbird.name);
         saveSensorNameLocally(inkbird.name);
         setStatus('waiting-gesture');
+        appendInkbirdLog('success', `Known Inkbird found: "${inkbird.name}" — waiting for user gesture`);
       } else {
         setStatus('idle');
+        appendInkbirdLog('info', 'No known Inkbird in permitted devices list');
       }
-    }).catch(() => {
+    }).catch((err) => {
+      appendInkbirdLog('error', `getDevices() threw: ${err?.message || err}`);
       if (mountedRef.current) setStatus('idle');
     });
 

@@ -12,6 +12,7 @@ import { useUser } from '../components/utils/UserContext';
 import DeviceForm from '../components/devices/DeviceForm';
 import { toast } from 'sonner';
 import { getLocationProvider } from '../components/utils/locationProviders';
+import InkbirdBleLog from '../components/devices/InkbirdBleLog';
 
 const DEVICE_ID_KEY = 'rxdeliver_device_identifier';
 
@@ -447,6 +448,9 @@ export default function DeviceSettings() {
             </Card>
           );
         })}
+
+        {/* BLE diagnostics log */}
+        <InkbirdBleLog />
 
         {/* Empty state */}
         {devices.length === 0 && (
