@@ -84,6 +84,7 @@ export const runBootstrapBackgroundSync = async (callbacks = {}) => {
       await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, appUsers);
       await offlineDB.updateSyncStatus('AppUser', { status: 'synced', recordCount: appUsers.length });
       if (callbacks.setAppUsers) {
+        // CRITICAL: Pass the full fresh list — the callback in useLayoutInit uses a merge setter
         callbacks.setAppUsers(appUsers);
       }
       console.log(`✅ [BootstrapSync] AppUsers synced: ${appUsers.length}`);

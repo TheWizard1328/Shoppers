@@ -503,7 +503,13 @@ export function useLayoutEventHandlers({
         // Refresh driver locations to ensure colors are correct
         const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true);
         if (locationUpdates?.hasChanges) {
-          setAppUsers(locationUpdates.appUsers);
+          // CRITICAL: Merge — never replace. refreshDriverLocations may return a subset
+          // of all drivers, so a full replacement would wipe the others from state.
+          setAppUsers((prev) => {
+            const m = new Map((prev || []).map((u) => [u.id, u]));
+            (locationUpdates.appUsers || []).forEach((u) => { if (u?.id) m.set(u.id, u); });
+            return Array.from(m.values());
+          });
         }
 
         window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {

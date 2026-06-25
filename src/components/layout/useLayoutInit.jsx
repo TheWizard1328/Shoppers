@@ -234,7 +234,13 @@ export function useLayoutInit({
           runBootstrapBackgroundSync({
             setCities: (fresh) => setCities(fresh),
             setStores: (fresh) => setStores(fresh),
-            setAppUsers: (fresh) => setAppUsers(fresh),
+            // CRITICAL: Merge — never replace. Full replacement wipes drivers absent from
+            // this bootstrap fetch payload, breaking header/bottom-nav conditionals.
+            setAppUsers: (fresh) => setAppUsers((prev) => {
+              const m = new Map((prev || []).map((u) => [u.id, u]));
+              (fresh || []).forEach((u) => { if (u?.id) m.set(u.id, u); });
+              return Array.from(m.values());
+            }),
             setAdminImportEnabled,
             setAppVersion,
             setSquareLocationConfigs: (fresh) => {
