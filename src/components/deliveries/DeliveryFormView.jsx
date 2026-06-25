@@ -1169,7 +1169,7 @@ export default function DeliveryFormView({
 
                           </div>
 
-                          <div className="px-3 py-3 rounded-lg border min-h-[225px] flex flex-col" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                          <div className="px-3 rounded-lg border flex flex-col py-3 min-h-[218px]" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                             {/* desktop SmartBarcodeScanner barcodeInputRef is wired via shared ref */}
                             <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Preferences</Label>
                             <div className="flex-1 flex flex-col justify-around">
