@@ -419,14 +419,28 @@ export default function SquareManagement() {
 
       ;(async () => {
         try {
+          // Build a set of catalog object IDs that have a settled (completed/refunded) transaction
           const settledCatalogObjectIds = new Set(
-            (transactionRecords || []).
-            filter((t) => ['completed', 'refunded'].includes(t?.status) && t?.square_catalog_object_id).
-            map((t) => t.square_catalog_object_id)
+            (transactionRecords || [])
+              .filter((t) => ['completed', 'refunded'].includes(t?.status) && t?.square_catalog_object_id)
+              .map((t) => t.square_catalog_object_id)
           );
-          const itemsToClean = (catalogRecords || []).filter(
-            (item) => item?.id && settledCatalogObjectIds.has(item.id)
+          // Also index settled transactions by delivery_id for delivery-based matching
+          const settledDeliveryIds = new Set(
+            (transactionRecords || [])
+              .filter((t) => ['completed', 'refunded'].includes(t?.status) && t?.delivery_id)
+              .map((t) => t.delivery_id)
           );
+
+          const itemsToClean = (catalogRecords || []).filter((item) => {
+            if (!item?.id) return false;
+            // Match by catalog object ID directly
+            if (settledCatalogObjectIds.has(item.id)) return true;
+            // Match by delivery_id (catalog record has delivery_id from the backend match)
+            if (item.delivery_id && settledDeliveryIds.has(item.delivery_id)) return true;
+            return false;
+          });
+
           if (!itemsToClean.length) return;
 
           const deletions = itemsToClean.map((item) => ({
@@ -440,17 +454,19 @@ export default function SquareManagement() {
             deletions
           });
 
+          // Pull fresh data after deletions
           const cleanResponse = await base44.functions.invoke('squareGetCODData', { daysBack: 90 });
           const cleanData = cleanResponse?.data || cleanResponse || {};
           await squareCODOfflineManager.saveCatalogItemsOffline(cleanData.catalogRecords || []);
           await squareCODOfflineManager.savePaymentTransactionsOffline(cleanData.transactionRecords || []);
           const [freshCatalog, freshTransactions] = await Promise.all([
-          squareCODOfflineManager.getCatalogItemsOffline(),
-          squareCODOfflineManager.getPaymentTransactionsOffline()]
-          );
+            squareCODOfflineManager.getCatalogItemsOffline(),
+            squareCODOfflineManager.getPaymentTransactionsOffline(),
+          ]);
           setCatalogItems([...(freshCatalog || [])]);
           setAllTransactions([...(freshTransactions || [])]);
           setSoldCatalogItems([...(freshTransactions || []).filter((tx) => ['completed', 'refunded'].includes(tx.status))]);
+          toast.success(`Cleanup: removed ${itemsToClean.length} collected catalog item(s) from Square`);
         } catch (_) {/* background — never surface to user */}
       })();
 
@@ -991,9 +1007,25 @@ export default function SquareManagement() {
       items = catalogItems.filter((item) => squareLocationIds.includes(item.location_id));
     }
 
+    // Build a fast lookup of settled transaction delivery IDs and catalog object IDs
+    const settledTxCatalogIds = new Set(
+      (allTransactions || [])
+        .filter((t) => ['completed', 'refunded'].includes(t?.status) && t?.square_catalog_object_id)
+        .map((t) => t.square_catalog_object_id)
+    );
+    const settledTxDeliveryIds = new Set(
+      (allTransactions || [])
+        .filter((t) => ['completed', 'refunded'].includes(t?.status) && t?.delivery_id)
+        .map((t) => t.delivery_id)
+    );
+
     items = items.filter((item) => {
       const linkedDelivery = deliveries.find((d) => d?.id === item.delivery_id);
-      if (linkedDelivery?.status === 'pending') return false; // catalog items for pending deliveries are not yet settled
+      if (linkedDelivery?.status === 'pending') return false;
+      // Direct match by catalog object ID or delivery_id against settled transactions
+      const catalogObjId = item.catalog_object_id || item.id;
+      if (catalogObjId && settledTxCatalogIds.has(catalogObjId)) return false;
+      if (item.delivery_id && settledTxDeliveryIds.has(item.delivery_id)) return false;
       const soldInSquare = hasBeenSoldInSquare(item);
       return !item.is_sold && !soldInSquare;
     });
