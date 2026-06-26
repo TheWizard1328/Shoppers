@@ -1726,7 +1726,15 @@ export default function SquareManagement() {
               <CardContent className="px-3 py-4">
                 <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Uncollected COD's</div>
                 <div className="text-lg font-bold text-amber-600 dark:text-amber-400 leading-tight">
-                  ${filteredCatalogRows.filter((row) => !row.isCollected).reduce((sum, row) => sum + Number(row.amount || 0), 0).toFixed(2)}
+                  ${activeView === 'catalog'
+                    ? filteredCatalogRows.filter((row) => !row.isCollected).reduce((sum, row) => sum + Number(row.amount || 0), 0).toFixed(2)
+                    : (activeView === 'deliveries' ? filteredDeliveryRows : activeView === 'transactions' ? filteredTransactionRows : reconciliationRows)
+                        .filter((row) => {
+                          const cls = row.actions?.props?.className || '';
+                          return !cls.includes('bg-emerald');
+                        })
+                        .reduce((sum, row) => sum + Number(row.amount || 0), 0).toFixed(2)
+                  }
                 </div>
               </CardContent>
             </Card>
@@ -1744,21 +1752,6 @@ export default function SquareManagement() {
                 <div className="text-lg font-bold text-blue-600 dark:text-blue-400 leading-tight">{activeViewStats.locationValue}</div>
               </CardContent>
             </Card>
-
-            {(() => { const newRows = reconciliationRows.filter((r) => !r.catalogId || r.catalogId === '--'); return newRows.length > 0 ? <>
-            <Card className="bg-white dark:bg-slate-900 border-blue-200 dark:border-blue-800 max-w-[175px]">
-              <CardContent className="px-3 py-4">
-                <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">New Catalog Items</div>
-                <div className="text-lg font-bold text-blue-600 dark:text-blue-400 leading-tight">{newRows.length}</div>
-              </CardContent>
-            </Card>
-            <Card className="bg-white dark:bg-slate-900 border-blue-200 dark:border-blue-800 max-w-[175px]">
-              <CardContent className="px-3 py-4">
-                <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">New Items $</div>
-                <div className="text-lg font-bold text-blue-600 dark:text-blue-400 leading-tight">${newRows.reduce((s, r) => s + Number(r.amount || 0), 0).toFixed(2)}</div>
-              </CardContent>
-            </Card>
-            </> : null; })()}
             </div>
             }
           </div>
