@@ -639,6 +639,60 @@ async function handleReconcile(base44, payload) {
   };
 }
 
+// Deletes all Square catalog items that have a matching completed/paid Square order.
+// This is the cleanup step after getCodData — it compares the live catalog against live orders
+// and removes any catalog items where the COD has already been collected via Square POS.
+async function handleCleanupCollectedCatalogItems(base44, payload={}) {
+  const accessToken = ensureSquareToken();
+  const[allLocationConfigs]=await Promise.all([base44.asServiceRole.entities.SquareLocationConfig.list('-updated_date',500).catch(()=>[])]);
+  const locationIds = Array.from(new Set((allLocationConfigs||[]).map((c)=>c?.square_location_id).filter(Boolean)));
+  if (!locationIds.length) return { success: true, deleted: [], skipped: 'no_locations' };
+
+  // Fetch live catalog items and completed orders in parallel
+  const [liveCatalogItems, completedOrders] = await Promise.all([
+    listActiveCatalogItems(accessToken),
+    listOrders(locationIds, getLookbackStartAt(TRANSACTION_RETENTION_DAYS), accessToken, MAX_TRANSACTION_ORDERS, ['COMPLETED', 'OPEN']),
+  ]);
+
+  if (!liveCatalogItems?.length) return { success: true, deleted: [], skipped: 'no_catalog_items' };
+
+  const refundedOrderIds = buildRefundedOrderIdSet(completedOrders);
+  const paidOrderItems = flattenOrderItems((completedOrders||[]).filter((o) => !refundedOrderIds.has(o?.id)));
+
+  // Build lookup sets for paid items — by catalog_object_id AND by name+amount signature
+  const paidCatalogObjectIds = new Set(paidOrderItems.map((x) => x.catalog_object_id).filter(Boolean));
+  const paidItemSignatures = new Set(paidOrderItems.map((x) => buildItemSignature(x.item_name, x.amount_cents)));
+
+  // Find catalog items that have been paid
+  const toDelete = (liveCatalogItems||[]).filter((item) => {
+    if (!item?.id) return false;
+    const n = normalizeText(item?.item_data?.name);
+    const ac = getCatalogItemAmountCents(item);
+    const varIds = (item?.item_data?.variations||[]).map((v)=>v?.id).filter(Boolean);
+    if (paidCatalogObjectIds.has(item.id)) return true;
+    if (varIds.some((v) => paidCatalogObjectIds.has(v))) return true;
+    if (paidItemSignatures.has(buildItemSignature(n, ac))) return true;
+    return false;
+  });
+
+  if (!toDelete.length) return { success: true, deleted: [], message: 'No collected catalog items found' };
+
+  const objectIds = toDelete.map((i) => i.id).filter(Boolean);
+  const deleteResult = await deleteCatalogObjects(objectIds, accessToken);
+
+  // Clean up SquareCatalogItems DB records for deleted objects
+  const dbCleanupPromises = objectIds.map(async (objId) => {
+    const dbMatches = await base44.asServiceRole.entities.SquareCatalogItems.filter({ square_catalog_object_id: objId }).catch(() => []);
+    for (const r of dbMatches) await base44.asServiceRole.entities.SquareCatalogItems.delete(r.id).catch(() => null);
+    // Also mark related pending transactions as completed
+    const txMatches = await base44.asServiceRole.entities.SquareTransaction.filter({ square_catalog_object_id: objId, status: 'pending' }).catch(() => []);
+    for (const t of txMatches) await base44.asServiceRole.entities.SquareTransaction.update(t.id, { status: 'completed', raw_square_data: { ...(t.raw_square_data||{}), deleted_at: new Date().toISOString(), deleted_reason: 'collected_cleanup' } }).catch(() => null);
+  });
+  await Promise.all(dbCleanupPromises);
+
+  return { success: true, deleted: deleteResult.deleted, failed: deleteResult.failed, checkedCount: liveCatalogItems.length, deletedCount: deleteResult.deleted.length };
+}
+
 async function handleSyncSquareCods(base44, payload) {
   const event=payload?.event;
   if(event?.entity_name==='Delivery'){
@@ -683,6 +737,7 @@ Deno.serve(async (req) => {
     if(action==='syncOnlineSquareEntities'){await requireAdminIfAuthenticated(base44);return Response.json(await handleSyncOnlineSquareEntities(base44,payload));}
     if(action==='syncSquareCods'){await requireUser(base44);return Response.json(await handleSyncSquareCods(base44,payload));}
     if(action==='deleteCodItemsByNameAmount'){await requireUser(base44);return Response.json(await handleDeleteCodItemsByNameAmount(base44,payload));}
+    if(action==='cleanupCollectedCatalogItems'){await requireAdminIfAuthenticated(base44);return Response.json(await handleCleanupCollectedCatalogItems(base44,payload));}
     if(action==='reconcile'){await requireUser(base44);return Response.json(await handleReconcile(base44,payload));}
     throw new HttpError(400,'Missing or invalid action');
   } catch(error){const status=error?.status||500;return Response.json({error:error?.message||'Internal Server Error'},{status});}

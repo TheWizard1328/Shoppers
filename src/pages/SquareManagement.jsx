@@ -457,52 +457,17 @@ export default function SquareManagement() {
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
       window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
 
-      setIsSyncing(false);
-      setIsLoading(false);
-      toast.success('Square data synced locally');
-
-      ;(async () => {
-        try {
-          // Build a set of catalog object IDs that have a settled (completed/refunded) transaction
-          const settledCatalogObjectIds = new Set(
-            (transactionRecords || [])
-              .filter((t) => ['completed', 'refunded'].includes(t?.status) && t?.square_catalog_object_id)
-              .map((t) => t.square_catalog_object_id)
-          );
-          // Also index settled transactions by delivery_id for delivery-based matching
-          const settledDeliveryIds = new Set(
-            (transactionRecords || [])
-              .filter((t) => ['completed', 'refunded'].includes(t?.status) && t?.delivery_id)
-              .map((t) => t.delivery_id)
-          );
-
-          const itemsToClean = (catalogRecords || []).filter((item) => {
-            if (!item?.id) return false;
-            // Match by catalog object ID directly
-            if (settledCatalogObjectIds.has(item.id)) return true;
-            // Match by delivery_id (catalog record has delivery_id from the backend match)
-            if (item.delivery_id && settledDeliveryIds.has(item.delivery_id)) return true;
-            return false;
-          });
-
-          if (!itemsToClean.length) return;
-
-          const deletions = itemsToClean.map((item) => ({
-            catalogObjectId: item.id,
-            deliveryId: item.delivery_id || undefined,
-            reason: 'collected_cleanup'
-          }));
-
-          await base44.functions.invoke('squareCodCore', {
-            action: 'syncSquareCods',
-            deletions
-          });
-
-          // Pull fresh data after deletions
-          const cleanResponse = await base44.functions.invoke('squareGetCODData', { daysBack: 90 });
-          const cleanData = cleanResponse?.data || cleanResponse || {};
-          await squareCODOfflineManager.saveCatalogItemsOffline(cleanData.catalogRecords || []);
-          await squareCODOfflineManager.savePaymentTransactionsOffline(cleanData.transactionRecords || []);
+      // Cleanup: delete catalog items that have already been collected via Square POS.
+      // This runs inline (not as a background fire-and-forget) so the UI reflects the true state.
+      try {
+        const cleanupResult = await base44.functions.invoke('squareCodCore', { action: 'cleanupCollectedCatalogItems' });
+        const cleanupData = cleanupResult?.data || cleanupResult || {};
+        if (cleanupData?.deletedCount > 0) {
+          // Re-fetch after cleanup so the UI reflects removed items
+          const freshResponse = await base44.functions.invoke('squareGetCODData', { daysBack: 90 });
+          const freshData = freshResponse?.data || freshResponse || {};
+          await squareCODOfflineManager.saveCatalogItemsOffline(freshData.catalogRecords || []);
+          await squareCODOfflineManager.savePaymentTransactionsOffline(freshData.transactionRecords || []);
           const [freshCatalog, freshTransactions] = await Promise.all([
             squareCODOfflineManager.getCatalogItemsOffline(),
             squareCODOfflineManager.getPaymentTransactionsOffline(),
@@ -510,9 +475,13 @@ export default function SquareManagement() {
           setCatalogItems([...(freshCatalog || [])]);
           setAllTransactions([...(freshTransactions || [])]);
           setSoldCatalogItems([...(freshTransactions || []).filter((tx) => ['completed', 'refunded'].includes(tx.status))]);
-          toast.success(`Cleanup: removed ${itemsToClean.length} collected catalog item(s) from Square`);
-        } catch (_) {/* background — never surface to user */}
-      })();
+          toast.success(`Sync complete — removed ${cleanupData.deletedCount} collected catalog item(s)`);
+        } else {
+          toast.success('Square data synced locally');
+        }
+      } catch (_) {
+        toast.success('Square data synced locally');
+      }
 
       let onlineSyncError = null;
 
