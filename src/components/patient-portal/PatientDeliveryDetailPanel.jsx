@@ -73,7 +73,7 @@ export default function PatientDeliveryDetailPanel({ delivery, storeName, onClos
       <div className="flex-1 overflow-y-auto px-4 pb-4">
         <div className="mt-2">
           <InfoRow icon={MapPin} label="Pharmacy" value={storeName} />
-          <InfoRow icon={Clock} label="Delivery Window" value={timeWindow} />
+
           {actualTime && <InfoRow icon={CheckCircle} label="Delivered At" value={actualTime} />}
           {delivery.driver_name && <InfoRow icon={User} label="Driver" value={delivery.driver_name} />}
           {delivery.tracking_number && <InfoRow icon={Package} label="Tracking #" value={delivery.tracking_number} />}
