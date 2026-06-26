@@ -37,7 +37,7 @@ export default function PatientDeliveryCard({ delivery, storeName, isSelected, o
             {dateStr}
           </p>
           {delivery.delivery_time_start &&
-          <p className={`text-xs mt-0.5 min-w-[ ${isSelected ? 'text-slate-400' : 'text-slate-400'}`}>
+          <p className={`text-xs mt-0.5 min-w-[17 ${isSelected ? 'text-slate-400' : 'text-slate-400'}`}>
               Window: {delivery.delivery_time_start}
               {delivery.delivery_time_end ? ` – ${delivery.delivery_time_end}` : ''}
             </p>
