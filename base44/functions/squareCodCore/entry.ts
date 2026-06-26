@@ -299,6 +299,61 @@ async function handleCreateCodItem(base44, payload) {
   return{success:true,catalogObjectId,catalogVersion,itemName,transactionId:transaction?.id||existingTx[0]?.id};
 }
 
+// Delete catalog items by item name + amount + location — used when catalogObjectId is unknown.
+// Fetches the live Square catalog, finds all matching items, deletes them, then cleans up DB records.
+async function handleDeleteCodItemsByNameAmount(base44, payload) {
+  const accessToken = ensureSquareToken();
+  const { itemName, amountCents, locationId, deliveryId, reason } = payload || {};
+  if (!itemName && !deliveryId) throw new HttpError(400, 'itemName or deliveryId is required');
+
+  // Fetch live catalog to find the actual Square object IDs
+  const allCatalogItems = await listActiveCatalogItems(accessToken);
+  const targetAmountCents = toAmountCents(amountCents);
+  const normalizedTarget = normalizeText(itemName).toLowerCase();
+
+  const matchingItems = (allCatalogItems || []).filter((item) => {
+    const itemItemName = normalizeText(item?.item_data?.name).toLowerCase();
+    const itemAmountCents = getCatalogItemAmountCents(item);
+    const atLocation = !locationId || isCatalogItemAtLocation(item, locationId);
+    // Match by exact name + amount, or by delivery_id in description
+    const nameMatch = itemItemName === normalizedTarget || (normalizedTarget && itemItemName.includes(normalizedTarget));
+    const amountMatch = !targetAmountCents || itemAmountCents === targetAmountCents;
+    // Also match by delivery_id embedded in description
+    const descMatch = deliveryId && normalizeText(item?.item_data?.description).includes(deliveryId);
+    return atLocation && ((nameMatch && amountMatch) || descMatch);
+  });
+
+  if (!matchingItems.length) {
+    // Nothing in Square catalog — just clean up DB records
+    if (deliveryId) {
+      const dbItems = await base44.asServiceRole.entities.SquareCatalogItems.filter({ delivery_id: deliveryId }).catch(() => []);
+      for (const r of dbItems) await base44.asServiceRole.entities.SquareCatalogItems.delete(r.id).catch(() => null);
+    }
+    return { success: true, deleted: [], notFound: true };
+  }
+
+  const objectIds = matchingItems.map((i) => i.id).filter(Boolean);
+  const deleteResult = await deleteCatalogObjects(objectIds, accessToken);
+
+  // Clean up SquareCatalogItems entity records
+  for (const objId of objectIds) {
+    const dbMatches = await base44.asServiceRole.entities.SquareCatalogItems.filter({ square_catalog_object_id: objId }).catch(() => []);
+    for (const r of dbMatches) await base44.asServiceRole.entities.SquareCatalogItems.delete(r.id).catch(() => null);
+  }
+  if (deliveryId) {
+    const dbByDelivery = await base44.asServiceRole.entities.SquareCatalogItems.filter({ delivery_id: deliveryId }).catch(() => []);
+    for (const r of dbByDelivery) await base44.asServiceRole.entities.SquareCatalogItems.delete(r.id).catch(() => null);
+  }
+
+  // Cancel any pending SquareTransaction records linked to these items
+  for (const objId of objectIds) {
+    const txMatches = await base44.asServiceRole.entities.SquareTransaction.filter({ square_catalog_object_id: objId, status: 'pending' }).catch(() => []);
+    for (const t of txMatches) await base44.asServiceRole.entities.SquareTransaction.update(t.id, { status: 'cancelled', raw_square_data: { ...(t.raw_square_data || {}), deleted_at: new Date().toISOString(), deleted_reason: reason || 'name_amount_cleanup' } }).catch(() => null);
+  }
+
+  return { success: true, deleted: deleteResult.deleted, failed: deleteResult.failed, matchCount: matchingItems.length };
+}
+
 async function handleDeleteCodItem(base44, payload) {
   const accessToken=ensureSquareToken();
   const{deliveryId,transactionId,catalogObjectId,reason}=payload||{};
@@ -627,6 +682,7 @@ Deno.serve(async (req) => {
     if(action==='syncCatalogItems'){await requireAdminIfAuthenticated(base44);return Response.json(await handleSyncCatalogItems(base44,payload));}
     if(action==='syncOnlineSquareEntities'){await requireAdminIfAuthenticated(base44);return Response.json(await handleSyncOnlineSquareEntities(base44,payload));}
     if(action==='syncSquareCods'){await requireUser(base44);return Response.json(await handleSyncSquareCods(base44,payload));}
+    if(action==='deleteCodItemsByNameAmount'){await requireUser(base44);return Response.json(await handleDeleteCodItemsByNameAmount(base44,payload));}
     if(action==='reconcile'){await requireUser(base44);return Response.json(await handleReconcile(base44,payload));}
     throw new HttpError(400,'Missing or invalid action');
   } catch(error){const status=error?.status||500;return Response.json({error:error?.message||'Internal Server Error'},{status});}

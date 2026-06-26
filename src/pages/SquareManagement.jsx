@@ -236,17 +236,20 @@ export default function SquareManagement() {
     setError(null);
     try {
       const currentRows = reconciliationRowsRef.current || [];
+      const { offlineDB } = await import('@/components/utils/offlineDatabase');
 
-      // Step 1: Find catalog items that have a matching settled (completed/refunded) transaction
-      const settledTxCatalogObjectIds = new Set(
-        (allTransactions || [])
-          .filter((tx) => ['completed', 'refunded'].includes(tx?.status) && tx?.square_catalog_object_id)
-          .map((tx) => tx.square_catalog_object_id)
-      );
+      // Step 1: Find catalog items that match a settled (completed/refunded) transaction.
+      // Use item name + amount as the canonical match — these come directly from the Catalog tab
+      // and reliably identify the Square catalog object even if catalog_object_id is stale.
       const settledTxDeliveryIds = new Set(
         (allTransactions || [])
           .filter((tx) => ['completed', 'refunded'].includes(tx?.status) && tx?.delivery_id)
           .map((tx) => tx.delivery_id)
+      );
+      const settledTxCatalogObjectIds = new Set(
+        (allTransactions || [])
+          .filter((tx) => ['completed', 'refunded'].includes(tx?.status) && tx?.square_catalog_object_id)
+          .map((tx) => tx.square_catalog_object_id)
       );
 
       const catalogItemsToDelete = (catalogItems || []).filter((ci) => {
@@ -256,39 +259,47 @@ export default function SquareManagement() {
         return false;
       });
 
-      // Step 2: Delete from Square API + SquareCatalogItems entity
+      let deletedCount = 0;
       if (catalogItemsToDelete.length > 0) {
-        const deletions = catalogItemsToDelete.map((ci) => ({
-          catalogObjectId: ci.catalog_object_id || ci.id,
-          deliveryId: ci.delivery_id || undefined,
-          reason: 'has_transaction_cleanup'
-        }));
-        // Delete from Square API and the SquareCatalogItems entity (handleDeleteCodItem does both)
-        await base44.functions.invoke('squareCodCore', { action: 'syncSquareCods', deletions });
+        // Delete each item from Square API by item name + amount (most reliable identifier).
+        // The backend searches the live Square catalog for a matching item and deletes it,
+        // then cleans up SquareCatalogItems and SquareTransaction DB records.
+        await Promise.all(catalogItemsToDelete.map((ci) =>
+          base44.functions.invoke('squareCodCore', {
+            action: 'deleteCodItemsByNameAmount',
+            itemName: ci.name || ci.item_name,
+            amountCents: ci.price_cents ?? Math.round(Number(ci.price_dollars || ci.amount || 0) * 100),
+            locationId: ci.location_id || undefined,
+            deliveryId: ci.delivery_id || undefined,
+            reason: 'collected_catalog_cleanup',
+          }).catch(() => null)
+        ));
+        deletedCount = catalogItemsToDelete.length;
 
-        // Remove immediately from local state and offline cache
-        const deletedCatalogObjIds = new Set(catalogItemsToDelete.map((ci) => ci.catalog_object_id || ci.id).filter(Boolean));
-        const deletedDeliveryIds = new Set(catalogItemsToDelete.map((ci) => ci.delivery_id).filter(Boolean));
+        // Immediately remove from local React state
+        const deletedKeys = new Set([
+          ...catalogItemsToDelete.map((ci) => ci.catalog_object_id || ci.id).filter(Boolean),
+          ...catalogItemsToDelete.map((ci) => ci.delivery_id).filter(Boolean),
+        ]);
         setCatalogItems((prev) => prev.filter((ci) => {
           const objId = ci.catalog_object_id || ci.id;
-          if (objId && deletedCatalogObjIds.has(objId)) return false;
-          if (ci.delivery_id && deletedDeliveryIds.has(ci.delivery_id)) return false;
+          if (objId && deletedKeys.has(objId)) return false;
+          if (ci.delivery_id && deletedKeys.has(ci.delivery_id)) return false;
           return true;
         }));
 
-        // Purge deleted items from offline IndexedDB cache
-        const { offlineDB } = await import('@/components/utils/offlineDatabase');
+        // Purge from offline IndexedDB
         const offlineCatalog = await offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS);
-        const filtered = (offlineCatalog || []).filter((ci) => {
+        const kept = (offlineCatalog || []).filter((ci) => {
           const objId = ci.square_catalog_object_id || ci.id;
-          if (objId && deletedCatalogObjIds.has(objId)) return false;
-          if (ci.delivery_id && deletedDeliveryIds.has(ci.delivery_id)) return false;
+          if (objId && deletedKeys.has(objId)) return false;
+          if (ci.delivery_id && deletedKeys.has(ci.delivery_id)) return false;
           return true;
         });
-        await offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_CATALOG_ITEMS, filtered);
+        await offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_CATALOG_ITEMS, kept);
       }
 
-      // Step 3: Add catalog items for reconciliation rows that have NO catalog ID yet
+      // Step 2: Add catalog items for reconciliation rows that have NO catalog ID yet
       const itemsToAdd = currentRows
         .filter((row) => !row.catalogId || row.catalogId === '--')
         .map((row) => ({
@@ -311,7 +322,7 @@ export default function SquareManagement() {
         });
       }
 
-      // Step 4: Pull fresh catalog from Square API and refresh all local state
+      // Step 3: Pull fresh catalog + transactions from Square API and refresh all local state
       const codResponse = await base44.functions.invoke('squareCodCore', {
         action: 'getCodData',
         daysBack: Number(selectedDaysRange || 90),
@@ -334,7 +345,7 @@ export default function SquareManagement() {
       setSoldCatalogItems([...(freshTransactions || []).filter((tx) => ['completed', 'refunded'].includes(tx?.status))]);
 
       setActiveView('catalog');
-      toast.success(`Catalog updated: ${itemsToAdd.length} item(s) added, ${catalogItemsToDelete.length} collected item(s) removed`);
+      toast.success(`Catalog updated: ${itemsToAdd.length} item(s) added, ${deletedCount} collected item(s) removed`);
     } catch (err) {
       toast.error('Catalog update failed: ' + err.message);
       setError(err.message);
