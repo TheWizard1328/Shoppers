@@ -1,10 +1,45 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { CheckCircle, XCircle, Package, Clock, Home, MapPin, Camera } from 'lucide-react';
+import { CheckCircle, XCircle, Package, Clock, Home, MapPin, Camera, DollarSign, Car, Bike } from 'lucide-react';
 import { format } from 'date-fns';
 import confetti from 'canvas-confetti';
+
+const pickRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+const getEncouragementMessage = ({ routeComplete, completed, total, timeOnDuty, hourlyRate }) => {
+  // Route fully done
+  if (routeComplete) {
+    return { emoji: '🎉', text: 'Great work today! All deliveries have been completed.', color: 'emerald' };
+  }
+
+  const remaining = total - completed;
+  const routeStarted = completed > 0;
+
+  // Route not yet started (all pending)
+  if (!routeStarted) {
+    const messages = [
+      { emoji: '🚀', text: `${total} stops ready to roll — let's have a great day out there!` },
+      { emoji: '💪', text: `${total} deliveries waiting on you. You've got this — let's get moving!` },
+      { emoji: '⭐', text: `A fresh route with ${total} stops ahead. Make it a great one!` },
+      { emoji: '🗺️', text: `Ready to hit the road? ${total} stops are counting on you today!` },
+    ];
+    return { ...pickRandom(messages), color: 'blue' };
+  }
+
+  // Route in progress — build a context-aware message
+  const timeStr = timeOnDuty && timeOnDuty !== '00:00' ? ` in ${timeOnDuty}` : '';
+  const payStr = hourlyRate ? ` at $${hourlyRate}/hr` : '';
+
+  const messages = [
+    { emoji: '🚚', text: `${completed} of ${total} done${timeStr}${payStr} — keep the momentum going, ${remaining} more to go!` },
+    { emoji: '💨', text: `Halfway there! ${completed} stops crushed${timeStr}${payStr}. ${remaining} left — finish strong!` },
+    { emoji: '🔥', text: `${completed} down, ${remaining} to go${timeStr}${payStr}. You're on fire — don't slow down now!` },
+    { emoji: '⚡', text: `Great pace! ${completed} completed${timeStr}${payStr}. Just ${remaining} more stops standing between you and done!` },
+    { emoji: '🏁', text: `${completed} of ${total} in the bag${timeStr}${payStr}. ${remaining} stops left — the finish line is in sight!` },
+  ];
+  return { ...pickRandom(messages), color: 'blue' };
+};
 
 export default function EndOfDayStatsDialog({ 
   isOpen, 
@@ -12,83 +47,131 @@ export default function EndOfDayStatsDialog({
   deliveries = [],
   driver,
   deliveryDate,
-  isProcessing = false
+  isProcessing = false,
+  performanceStats,
+  localStats,
+  isRouteComplete = false,
 }) {
   const [stats, setStats] = useState(null);
+  const encouragementRef = useRef(null);
+  const messageLockedRef = useRef(false);
+
+  // Reset lock when dialog closes so next open gets a fresh message
+  useEffect(() => {
+    if (!isOpen) {
+      messageLockedRef.current = false;
+      encouragementRef.current = null;
+    }
+  }, [isOpen]);
 
   useEffect(() => {
-    if (!isOpen || !deliveries || deliveries.length === 0) return;
+    if (!isOpen) return;
 
-    // Calculate stats
-    const finishedStatuses = ['completed', 'failed', 'cancelled'];
-    
-    // Helper to check if delivery is a return
-    const isReturn = (delivery) => {
-      if (!delivery) return false;
-      const notes = delivery.delivery_notes || '';
-      const patientName = delivery.patient_name || '';
-      return notes.toLowerCase().includes('(rtn)') ||
-        patientName.toLowerCase().includes('(rtn)') ||
-        /\breturn\b/i.test(notes) ||
-        /\breturn\b/i.test(patientName);
-    };
-
-    // CRITICAL: Only count patient deliveries (not pickups)
-    const patientDeliveries = deliveries.filter(d => d && d.patient_id);
-    
-    const completed = patientDeliveries.filter(d => d.status === 'completed' && !isReturn(d)).length;
-    const failed = patientDeliveries.filter(d => d.status === 'failed' && !isReturn(d)).length;
-    const cancelled = patientDeliveries.filter(d => d.status === 'cancelled').length;
-    const returned = patientDeliveries.filter(isReturn).length;
-    
-    const successfulDeliveries = patientDeliveries.filter(d => d.status === 'completed' && !isReturn(d));
+    // POD count still needs to be derived from deliveries
+    const patientDeliveries = (deliveries || []).filter(d => d && d.patient_id);
+    const successfulDeliveries = patientDeliveries.filter(d => d.status === 'completed');
     const deliveriesWithPOD = successfulDeliveries.filter(d => {
-      const hasSignature = !!d.signature_image_url;
-      const hasPhoto = Array.isArray(d.proof_photo_urls) && d.proof_photo_urls.length > 0;
-      return hasSignature || hasPhoto;
+      return !!d.signature_image_url || (Array.isArray(d.proof_photo_urls) && d.proof_photo_urls.length > 0);
     }).length;
 
-    // Calculate total distance (sum of all travel_dist)
-    const totalDistance = patientDeliveries.reduce((sum, d) => {
-      return sum + (d.travel_dist || 0);
-    }, 0);
-    
-    // Calculate time on duty (first to last delivery)
-    const finishedDeliveries = patientDeliveries.filter(d => 
-      d && finishedStatuses.includes(d.status) && d.actual_delivery_time
-    ).sort((a, b) => 
-      new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time)
+    // Use dashboard card values directly
+    const total = localStats?.total ?? patientDeliveries.length;
+    const completed = localStats?.completed ?? successfulDeliveries.length;
+    const failed = localStats?.failed ?? patientDeliveries.filter(d => d.status === 'failed').length;
+    const returned = localStats?.returned ?? 0;
+    const pending = patientDeliveries.filter(d => d.status === 'pending' || d.status === 'in_transit' || d.status === 'en_route').length;
+    // Sum travel_dist across ALL stops regardless of status/type — driving/cycling must add up to total
+    const allStops = (deliveries || []).filter(d => d);
+    const drivingKm = allStops.filter(d => !d.transport_mode || d.transport_mode === 'driving').reduce((sum, d) => sum + (d.travel_dist || 0), 0);
+    const cyclingKm = allStops.filter(d => d.transport_mode === 'cycling').reduce((sum, d) => sum + (d.travel_dist || 0), 0);
+    // Total is always the sum of breakdown values so they're guaranteed to match
+    const totalKm = drivingKm + cyclingKm;
+    const totalPay = performanceStats?.totalPay ?? null;
+    // For incomplete routes, calculate time from first completed stop to NOW
+    let timeOnDuty = performanceStats?.totalTimeOnDuty ?? null;
+    // Route is complete when nothing is still pending/in-transit.
+    // inTransit covers all non-terminal stops (pending, en_route) regardless of type (patient, ISP/ISD, returns).
+    const routeActuallyComplete = isRouteComplete || (
+      localStats?.total > 0 &&
+      (localStats?.completed ?? 0) > 0 &&
+      (localStats?.inTransit ?? 1) === 0
     );
-    
-    let timeOnDuty = null;
-    if (finishedDeliveries.length > 1) {
-      const firstTime = new Date(finishedDeliveries[0].actual_delivery_time);
-      const lastTime = new Date(finishedDeliveries[finishedDeliveries.length - 1].actual_delivery_time);
-      const diffMs = lastTime - firstTime;
-      const hours = Math.floor(diffMs / 3600000);
-      const minutes = Math.floor((diffMs % 3600000) / 60000);
-      timeOnDuty = `${hours}h ${minutes}m`;
+
+    if (!routeActuallyComplete) {
+      // Use current time as the end point
+      const completedDeliveries = (deliveries || []).filter(d => d && d.actual_delivery_time && d.status === 'completed');
+      if (completedDeliveries.length > 0) {
+        const times = completedDeliveries.map(d => new Date(d.actual_delivery_time).getTime());
+        const firstTime = Math.min(...times);
+        const nowMs = Date.now();
+        const diffMin = Math.max(0, Math.round((nowMs - firstTime) / 60000));
+        const hh = String(Math.floor(diffMin / 60)).padStart(2, '0');
+        const mm = String(diffMin % 60).padStart(2, '0');
+        timeOnDuty = `${hh}:${mm}`;
+      }
     }
 
-    setStats({
-      total: patientDeliveries.length,
+    // Hourly rate from dashboard pay / duty time
+    let hourlyRate = null;
+    if (totalPay && timeOnDuty && timeOnDuty !== '00:00') {
+      const [hh, mm] = timeOnDuty.split(':').map(Number);
+      const totalHours = hh + mm / 60;
+      if (totalHours > 0) hourlyRate = (totalPay / totalHours).toFixed(2);
+    }
+
+    const routeStarted = completed > 0;
+    // Remaining estimated distance = sum of estimated_distance_km for incomplete stops
+    const incompleteStops = (deliveries || []).filter(d => d && !['completed', 'failed', 'cancelled'].includes(d.status));
+    const remainingEstKm = !routeActuallyComplete && incompleteStops.length > 0
+      ? incompleteStops.reduce((sum, d) => sum + (d.estimated_distance_km || 0), 0)
+      : null;
+    // For a not-yet-started route, show total estimated distance
+    const estimatedTotalKm = !routeStarted
+      ? (deliveries || []).filter(d => d).reduce((sum, d) => sum + (d.estimated_distance_km || 0), 0)
+      : null;
+
+    const newStats = {
+      total,
       completed,
+      pending,
       failed,
-      cancelled,
       returned,
       deliveriesWithPOD,
       successfulDeliveries: successfulDeliveries.length,
-      totalDistance: totalDistance.toFixed(2),
-      timeOnDuty
-    });
+      totalDistance: Number(totalKm).toFixed(2),
+      estimatedDistance: estimatedTotalKm != null ? Number(estimatedTotalKm).toFixed(2) : null,
+      remainingDistance: remainingEstKm != null ? Number(remainingEstKm).toFixed(2) : null,
+      drivingDistance: Number(drivingKm).toFixed(2),
+      cyclingDistance: Number(cyclingKm).toFixed(2),
+      totalPay: totalPay ? totalPay.toFixed(2) : null,
+      timeOnDuty,
+      hourlyRate,
+      routeComplete: routeActuallyComplete,
+      routeStarted,
+    };
+    // Pick a random message only once per open session
+    if (!messageLockedRef.current) {
+      encouragementRef.current = getEncouragementMessage({
+        routeComplete: routeActuallyComplete,
+        completed,
+        total,
+        timeOnDuty,
+        hourlyRate,
+      });
+      messageLockedRef.current = true;
+    }
+    setStats(newStats);
 
-    // Trigger confetti on mount
-    confetti({
-      particleCount: 100,
-      spread: 70,
-      origin: { y: 0.6 }
-    });
-  }, [isOpen, deliveries]);
+    // Only fire confetti when the route is fully complete
+    if (routeActuallyComplete) {
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 },
+        zIndex: 10100,
+      });
+    }
+  }, [isOpen, performanceStats, localStats]);
 
   if (!stats && !isProcessing) return null;
   if (!stats) return (
@@ -114,9 +197,7 @@ export default function EndOfDayStatsDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-emerald-600">
             <CheckCircle className="w-6 h-6" />
-            <span style={{ color: 'var(--text-slate-900)' }}>
-              Route Complete!
-            </span>
+            <span style={{ color: 'var(--text-slate-900)' }}>{stats?.routeComplete ? 'Route Complete!' : 'Route Summary'}</span>
           </DialogTitle>
         </DialogHeader>
 
@@ -139,20 +220,6 @@ export default function EndOfDayStatsDialog({
               <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Total Stops</div>
             </div>
 
-            <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-emerald-50)', borderColor: 'var(--border-emerald-200)' }}>
-              <CheckCircle className="w-5 h-5 mx-auto mb-1 text-emerald-600" />
-              <div className="text-2xl font-bold text-emerald-700">{stats.completed}</div>
-              <div className="text-xs text-emerald-600">Completed</div>
-            </div>
-
-            {(stats.failed > 0 || stats.returned > 0) && (
-              <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-red-50)', borderColor: 'var(--border-red-200)' }}>
-                <XCircle className="w-5 h-5 mx-auto mb-1 text-red-600" />
-                <div className="text-2xl font-bold text-red-700">{stats.failed} / {stats.returned}</div>
-                <div className="text-xs text-red-600">Failed / Returns</div>
-              </div>
-            )}
-
             {stats.timeOnDuty && (
               <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                 <Clock className="w-5 h-5 mx-auto mb-1 text-slate-600" />
@@ -161,10 +228,78 @@ export default function EndOfDayStatsDialog({
               </div>
             )}
 
+            {/* Completed / Pending — single card with split values when incomplete */}
+            <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-emerald-50)', borderColor: 'var(--border-emerald-200)' }}>
+              <CheckCircle className="w-5 h-5 mx-auto mb-1 text-emerald-600" />
+              {!stats.routeComplete ? (
+                <>
+                  <div className="flex justify-center items-baseline gap-1.5">
+                    <span className="text-2xl font-bold text-emerald-700">{stats.completed}</span>
+                    <span className="text-base font-semibold text-slate-400">/</span>
+                    <span className="text-2xl font-bold text-amber-600">{stats.pending}</span>
+                  </div>
+                  <div className="flex justify-center gap-2 mt-0.5">
+                    <span className="text-xs text-emerald-600">Done</span>
+                    <span className="text-xs text-slate-400">/</span>
+                    <span className="text-xs text-amber-600">Pending</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold text-emerald-700">{stats.completed}</div>
+                  <div className="text-xs text-emerald-600">Completed</div>
+                </>
+              )}
+            </div>
+
+            <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-red-50)', borderColor: 'var(--border-red-200)' }}>
+              <XCircle className="w-5 h-5 mx-auto mb-1 text-red-600" />
+              <div className="text-2xl font-bold text-red-700">{stats.failed} / {stats.returned}</div>
+              <div className="text-xs text-red-600">Failed / Returns</div>
+            </div>
+
+            {/* Distance — single card, shows Total + Remaining when incomplete */}
             <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
               <MapPin className="w-5 h-5 mx-auto mb-1 text-slate-600" />
-              <div className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.totalDistance} km</div>
-              <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Total Distance</div>
+              {stats.estimatedDistance != null ? (
+                // Not started — show full est. total
+                <>
+                  <div className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.estimatedDistance} km</div>
+                  <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Est. Distance</div>
+                </>
+              ) : stats.remainingDistance != null ? (
+                // In progress — show actual total + remaining est.
+                <>
+                  <div className="flex justify-center items-baseline gap-1.5">
+                    <span className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.totalDistance}</span>
+                    <span className="text-xs font-semibold text-slate-400">+{stats.remainingDistance}</span>
+                    <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>km</span>
+                  </div>
+                  <div className="flex justify-center gap-2 mt-0.5">
+                    <span className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Done</span>
+                    <span className="text-xs text-slate-400">/</span>
+                    <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>Est. Rem.</span>
+                  </div>
+                </>
+              ) : (
+                // Complete
+                <>
+                  <div className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.totalDistance} km</div>
+                  <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Total Distance</div>
+                </>
+              )}
+              {(parseFloat(stats.drivingDistance) > 0 && parseFloat(stats.cyclingDistance) > 0) && (
+                <div className="flex justify-center gap-3 mt-1.5 pt-1.5 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+                  <div className="flex items-center gap-1">
+                    <Car className="w-3 h-3 text-blue-600 shrink-0" />
+                    <span className="text-xs font-medium text-blue-700">{stats.drivingDistance} km</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Bike className="w-3 h-3 text-green-600 shrink-0" />
+                    <span className="text-xs font-medium text-green-700">{stats.cyclingDistance} km</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
@@ -172,14 +307,36 @@ export default function EndOfDayStatsDialog({
               <div className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{stats.deliveriesWithPOD} / {stats.successfulDeliveries}</div>
               <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Proof of Delivery</div>
             </div>
+
+            {stats.totalPay !== null && (
+              <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-emerald-50)', borderColor: 'var(--border-emerald-200)' }}>
+                <DollarSign className="w-5 h-5 mx-auto mb-1 text-emerald-600" />
+                <div className="text-lg font-bold text-emerald-700">${stats.totalPay}</div>
+                <div className="text-xs text-emerald-600">Total Pay</div>
+              </div>
+            )}
+
+            {stats.hourlyRate !== null && (
+              <div className="p-3 rounded-lg border text-center" style={{ background: 'var(--bg-purple-50)', borderColor: 'var(--border-purple-200)' }}>
+                <DollarSign className="w-5 h-5 mx-auto mb-1 text-purple-600" />
+                <div className="text-lg font-bold text-purple-700">${stats.hourlyRate}/hr</div>
+                <div className="text-xs text-purple-600">Hourly Rate</div>
+              </div>
+            )}
           </div>
 
           {/* Completion Message */}
-          <div className="text-center py-3 px-4 rounded-lg border" style={{ background: 'var(--bg-emerald-50)', borderColor: 'var(--border-emerald-200)' }}>
-            <p className="text-sm font-medium text-emerald-700">
-              🎉 Great work today! All deliveries have been completed.
-            </p>
-          </div>
+          {encouragementRef.current && (() => {
+            const { emoji, text, color } = encouragementRef.current;
+            const bgVar = color === 'emerald' ? 'var(--bg-emerald-50)' : 'var(--bg-blue-50)';
+            const borderVar = color === 'emerald' ? 'var(--border-emerald-200)' : 'var(--border-blue-200)';
+            const textClass = color === 'emerald' ? 'text-emerald-700' : 'text-blue-700';
+            return (
+              <div className="text-center py-3 px-4 rounded-lg border" style={{ background: bgVar, borderColor: borderVar }}>
+                <p className={`text-sm font-medium ${textClass}`}>{emoji} {text}</p>
+              </div>
+            );
+          })()}
 
           {/* Action Buttons */}
           <div className="flex gap-3 pt-2">

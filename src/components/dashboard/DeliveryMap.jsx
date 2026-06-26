@@ -1357,6 +1357,7 @@ export default function DeliveryMap({
         />
 
         <Pane name="routeBasePane" style={{ zIndex: 430 }} />
+        <Pane name="activeRoutePane" style={{ zIndex: 450 }} />
         <Pane name="completedBreadcrumbPane" style={{ zIndex: 460 }} />
 
         {mapReady && !showBreadcrumbs && (showRoutes || (typeof window !== "undefined" && localStorage.getItem("rxdeliver_show_routes") === "true")) && (

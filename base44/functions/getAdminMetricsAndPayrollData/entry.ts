@@ -649,7 +649,13 @@ Deno.serve(async (req) => {
       const relevantStoreIds = Array.from(new Set(deliveries.map((delivery) => delivery.store_id).filter(Boolean)));
       const relevantDriverIds = Array.from(new Set(deliveries.map((delivery) => delivery.driver_id).filter(Boolean)));
 
-      const relevantPatientIds = Array.from(new Set(deliveries.map((delivery) => delivery.patient_id).filter(Boolean)));
+      // CRITICAL: Filter out temp/invalid patient IDs (e.g. "temp_patient_...") before fetching.
+      // These are offline-mutation temp IDs that were never replaced in Delivery records.
+      // Passing them to the backend causes a 500 InvalidId error that crashes the whole function.
+      const isValidObjectId = (id) => typeof id === 'string' && /^[a-f0-9]{24}$/.test(id);
+      const relevantPatientIds = Array.from(new Set(
+        deliveries.map((delivery) => delivery.patient_id).filter(Boolean).filter(isValidObjectId)
+      ));
 
       const appUserFilter = cityId && cityId !== 'all'
         ? { city_ids: { $in: [cityId] } }

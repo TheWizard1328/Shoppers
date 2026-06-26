@@ -5,16 +5,15 @@ import { MapPin } from 'lucide-react';
 export default function LocationSummaryCard({ location, codTotal, itemCount, storeColor, onClick }) {
   return (
     <Card
-      className="cursor-pointer hover:shadow-md transition-shadow flex-shrink-0 h-full"
+      className="cursor-pointer hover:shadow-md transition-shadow flex-1 h-full min-w-[175px] max-w-[200px]"
       style={{
-        minWidth: '150px',
-        maxWidth: '200px',
+        minWidth: '175px',
         borderColor: storeColor?.border || undefined,
-        backgroundColor: storeColor?.bg || undefined,
+        backgroundColor: storeColor?.bg || undefined
       }}
-      onClick={onClick}
-    >
-      <CardContent className="p-2.5 md:p-3 flex flex-col justify-between h-full">
+      onClick={onClick}>
+      
+      <CardContent className="p-2.5 md:p-3 flex flex-col justify-between h-full my-1">
         {/* Store name + location ID */}
         <div className="flex items-start gap-1.5 mb-2">
           <MapPin className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0 mt-0.5" />
@@ -48,6 +47,6 @@ export default function LocationSummaryCard({ location, codTotal, itemCount, sto
           Click to view transaction history
         </p>
       </CardContent>
-    </Card>
-  );
+    </Card>);
+
 }

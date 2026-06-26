@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Package, Truck, CheckCircle, XCircle, DollarSign, Route, TrendingUp, Clock } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
-const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCount, small }) => {
+const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCount, small, superscript }) => {
   const colorClasses = {
     blue: "bg-blue-100 text-blue-600",
     purple: "bg-purple-100 text-purple-600",
@@ -19,12 +19,15 @@ const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCount, smal
         <Icon className="w-3 h-3" />
       </div>
       <div className="relative">
-        {driverCount !== undefined && driverCount > 0 &&
-      <span className="absolute -top-1 -right-1 text-[8px] font-bold" style={{ color: 'var(--text-slate-500)' }}>
-            {driverCount}
-          </span>
-      }
-        <span className={small ? "text-sm font-medium text-center" : "text-lg font-bold"} style={{ color: 'var(--text-slate-900)', display: 'inline-block', minWidth: small ? '2.5rem' : '1.5rem', textAlign: 'center' }}>{value}</span>
+        <span className="relative" style={{ display: 'inline-block', minWidth: small ? '2.5rem' : '1.5rem', textAlign: 'center' }}>
+          {superscript !== undefined && superscript > 0 &&
+            <span className="absolute -top-1 -left-0.5 text-[8px] font-bold leading-none" style={{ color: '#0369a1' }}>{superscript}</span>
+          }
+          {driverCount !== undefined && driverCount > 0 &&
+            <span className="absolute -top-1 -right-0.5 text-[8px] font-bold leading-none" style={{ color: 'var(--text-slate-500)' }}>{driverCount}</span>
+          }
+          <span className={small ? "text-sm font-medium text-center" : "text-lg font-bold"} style={{ color: 'var(--text-slate-900)' }}>{value}</span>
+        </span>
       </div>
     </div>;
 
@@ -52,7 +55,8 @@ export default function ActivePayStats({
   performanceStats, // { totalPay, totalKm, totalExtraKm, totalTimeOnDuty }
   liveDistance = 0, // Live travel_dist from current next delivery
   liveTimeOnDuty = null, // Live time on duty (null = use backend value)
-  isLoadingPayrollStats = false
+  isLoadingPayrollStats = false,
+  onStatsClick, // Optional: fires when driver clicks the panel
 }) {
   // Use localStats directly - always reflect the current date's data
   const stats = localStats || {
@@ -67,7 +71,8 @@ export default function ActivePayStats({
     totalDrivers: 0,
     inTransitDrivers: 0,
     completedDrivers: 0,
-    isdIspCount: 0
+    isdIspCount: 0,
+    inTransitIsdIsp: 0
   };
 
   // Use actual performanceStats (no estimates)
@@ -102,41 +107,33 @@ export default function ActivePayStats({
   };
 
   const isdIspCount = stats.isdIspCount || 0;
+  const inTransitIsdIsp = stats.inTransitIsdIsp || 0;
 
   return (
-    <div className="py-0.5 relative">
-      {/* ISD/ISP superscript - top left */}
-      {isdIspCount > 0 && (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="absolute -top-1 left-1 text-[9px] font-bold px-1 py-0.5 rounded-full leading-none cursor-help" style={{ background: '#e0f2fe', color: '#0369a1', zIndex: 1 }}>
-                {isdIspCount} ISD/ISP
-              </span>
-            </TooltipTrigger>
-            <TooltipContent className="z-[9999] border" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-900)', borderColor: 'var(--border-slate-300)' }}>
-              <p>Inter-Store Deliveries/Pickups: {isdIspCount}</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      )}
+    <div
+      className={`py-0.5 relative ${onStatsClick ? 'cursor-pointer' : ''}`}
+      onClick={onStatsClick ? (e) => { e.stopPropagation(); onStatsClick(); } : undefined}
+      title={onStatsClick ? 'View route summary' : undefined}
+    >
       {/* Row 1: Delivery Stats - 4 columns */}
       <div className="mb-1 grid grid-cols-4 gap-1">
         <StatBadge
           icon={Package}
           value={stats.total}
           driverCount={isDispatcher ? stats.totalDrivers : (isDriver || isAdmin) && stats.totalPickups > 0 ? stats.totalPickups : undefined}
+          superscript={isdIspCount > 0 ? isdIspCount : undefined}
           color="blue"
           label="Total"
-          tooltip={tooltipValues.total} />
+          tooltip={`${tooltipValues.total}${isdIspCount > 0 ? `, ISD/ISP: ${isdIspCount}` : ''}`} />
 
         <StatBadge
           icon={Truck}
           value={stats.inTransit}
           driverCount={isDispatcher ? stats.inTransitDrivers : (isDriver || isAdmin) && stats.activePickupsEnRoute > 0 ? stats.activePickupsEnRoute : undefined}
+          superscript={inTransitIsdIsp > 0 ? inTransitIsdIsp : undefined}
           color="purple"
           label="Active"
-          tooltip={tooltipValues.activeStops} />
+          tooltip={`${tooltipValues.activeStops}${inTransitIsdIsp > 0 ? `, ISD/ISP: ${inTransitIsdIsp}` : ''}`} />
 
         <StatBadge
           icon={CheckCircle}

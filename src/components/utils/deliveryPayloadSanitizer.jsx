@@ -139,16 +139,23 @@ export const sanitizeDeliveryPayload = async (delivery = {}) => {
     ? new Set(Object.keys(schemaProperties))
     : FALLBACK_ALLOWED_FIELDS;
 
-  return Object.entries(delivery).reduce((clean, [key, rawValue]) => {
-    if (INTERNAL_ONLY_FIELDS.has(key)) return clean;
-    if (!allowedFields.has(key)) return clean;
+  const clean = Object.entries(delivery).reduce((acc, [key, rawValue]) => {
+    if (INTERNAL_ONLY_FIELDS.has(key)) return acc;
+    if (!allowedFields.has(key)) return acc;
 
     const value = normalizeValue(key, rawValue, schemaProperties[key]);
-    if (value === undefined) return clean;
+    if (value === undefined) return acc;
 
-    clean[key] = value;
-    return clean;
+    acc[key] = value;
+    return acc;
   }, {});
+
+  // NOTE: Status is intentionally NOT coerced here. The caller (handleStatusUpdate,
+  // handleFailureConfirm, etc.) is responsible for sending the correct status.
+  // Coercing pickup status to en_route was causing failed/pending statuses to be
+  // cleared, preventing pending stops from attaching to their assigned pickup.
+
+  return clean;
 };
 
 export const sanitizeDeliveryPayloads = async (deliveries = []) => Promise.all((deliveries || []).map((delivery) => sanitizeDeliveryPayload(delivery)));

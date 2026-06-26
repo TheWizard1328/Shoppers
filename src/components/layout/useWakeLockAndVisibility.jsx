@@ -80,6 +80,11 @@ export function useWakeLockAndVisibility({
             }).catch(() => {});
           }
 
+          // Signal BLE consumers to reconnect and take a fresh reading after any absence
+          window.dispatchEvent(new CustomEvent('appVisibilityRestored', {
+            detail: { hiddenDurationMs: hiddenDuration }
+          }));
+
           if (hiddenDuration >= SMART_REFRESH_CYCLE && currentPageName === 'Dashboard' && initialGlobalFiltersSet && currentUser && dataLoaded && !isFormOverlayOpen) {
             smartRefreshManager.lastRefreshTimes = { driverLocation: 0, activeDeliveries: 0, todayDeliveries: 0, appUsers: 0, patients: 0, stores: 0 };
             const selectedDateStr = globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd');

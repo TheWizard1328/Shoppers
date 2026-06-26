@@ -42,7 +42,6 @@ export default function StopCardsSection({
 
       style={{
         position: 'absolute',
-        isolation: 'isolate',
         left: isSnapshotModeActive ? '5rem' : '0',
         top: 'auto',
         bottom: 'calc(var(--bottom-nav-height, 0px) + 0.25rem)',

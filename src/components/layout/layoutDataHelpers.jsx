@@ -93,7 +93,14 @@ export const applyFullDataToState = ({
   setDrivers(activeDrivers);
   
   if (appUsers && appUsers.length > 0) {
-    setAppUsers(appUsers);
+    // CRITICAL: Always MERGE — never replace. A full replacement wipes drivers whose
+    // AppUser records aren't included in this particular sync payload (scoped WebSocket
+    // flushes, city-filtered fetches, etc.), causing the header/bottom-nav to lose items.
+    setAppUsers((prev) => {
+      const m = new Map((prev || []).map((u) => [u.id, u]));
+      appUsers.forEach((u) => { if (u?.id) m.set(u.id, u); });
+      return Array.from(m.values());
+    });
   }
   
   // CRITICAL: Merge deliveries — never replace the entire array.

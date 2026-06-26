@@ -30,6 +30,10 @@
       "type": "string",
       "description": "Apartment, suite, or unit number"
     },
+    "email": {
+      "type": "string",
+      "description": "Patient email address"
+    },
     "phone": {
       "type": "string",
       "description": "Patient phone number"

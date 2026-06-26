@@ -103,8 +103,8 @@ export default function SpecialSymbolsBadges({
   const hasDriverNotes = !!delivery.delivery_notes;
 
   // Check if anything should be shown
-  const hasAnyContent = hasCOD || isFirstDelivery || hasOversized || hasSignature || hasFridgeItem ||
-  hasCallOnArrival || hasRingBell || hasDontRingBell || hasMailboxOk || hasDriverNotes;
+  const hasAnyContent = hasCOD || isFirstDelivery || hasOversized || hasSignature || 
+  hasCallOnArrival || hasRingBell || hasDontRingBell || hasMailboxOk || hasDriverNotes; //hasFridgeItem ||
 
   if (!hasAnyContent) return null;
 
@@ -122,20 +122,6 @@ export default function SpecialSymbolsBadges({
         {hasCOD && <span className={isCardSize ? config.text : ''} style={{ color: getCodSymbolColor(delivery) === 'inherit' ? '#0f172a' : getCodSymbolColor(delivery) }}>$</span>}
         {isFirstDelivery && <span className={`${isCardSize ? config.text : ''}`} style={{ color: '#1e40af' }}>N</span>}
         {hasOversized && <span className={`${isCardSize ? config.text : ''}`} style={{ color: '#9a3412' }}>O</span>}
-        {hasFridgeItem && (() => {
-          if (fridgeTemp != null) {
-            const isOut = fridgeTemp < TEMP_MIN || fridgeTemp > TEMP_MAX;
-            const isWarn = !isOut && (fridgeTemp < TEMP_MIN + 1 || fridgeTemp > TEMP_MAX - 1);
-            const tempColor = isOut ? '#dc2626' : isWarn ? '#b45309' : '#0e7490';
-            return (
-              <span className="inline-flex items-center gap-px" style={{ color: tempColor }}>
-                <Thermometer className={config.icon} style={{ color: tempColor }} />
-                <span className={isCardSize ? config.text : ''}>{fridgeTemp.toFixed(1)}°</span>
-              </span>
-            );
-          }
-          return <span style={{ color: '#0e7490' }}><Thermometer className={`${config.icon} inline`} style={{ color: '#0e7490' }} /></span>;
-        })()}
         {hasSignature && <PenLine className={config.icon} style={{ color: '#15803d' }} />}
         
         {/* Preference icons - intuitive colors, always forced (no dark mode) */}

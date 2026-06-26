@@ -182,9 +182,9 @@ export default function DeliveryFormView({
   }, [isInterStoreMode, interStoreReady, formData.driver_id]);
   // In interstore mode, keep the 'add' button visible — never auto-switch to 'done'
   // In pickup mode with stores checked, keep 'add' active so user can add more pickups
-  const effectiveButtonState = isInterStoreMode && !delivery ? 'add'
-    : isPickupMode && !delivery && selectedPickupStoreIds.size > 0 ? 'add'
-    : buttonState;
+  const effectiveButtonState = isInterStoreMode && !delivery ? 'add' :
+  isPickupMode && !delivery && selectedPickupStoreIds.size > 0 ? 'add' :
+  buttonState;
 
   // Clear selectedPickupStoreIds when form is cleared (selectedPickupOption reset to '')
   React.useEffect(() => {
@@ -532,16 +532,16 @@ export default function DeliveryFormView({
                 const hasDebitCredit = codPayments.some((p) => p.type === 'Debit' || p.type === 'Credit');
                 if (hasCashCheck && codAmount > 0) {
                   const { base44: b44 } = await import('@/api/base44Client');
-                  const storeRes = _formDataSnapshot.store_id
-                    ? await b44.entities.Store.filter({ id: _formDataSnapshot.store_id }).catch(() => [])
-                    : [];
+                  const storeRes = _formDataSnapshot.store_id ?
+                  await b44.entities.Store.filter({ id: _formDataSnapshot.store_id }).catch(() => []) :
+                  [];
                   b44.functions.invoke('squareCreateCodItem', {
                     deliveryId: delivery.id,
                     patientName: _formDataSnapshot.patient_name || '',
                     storeAbbreviation: storeRes?.[0]?.abbreviation || '',
                     codAmount,
                     deliveryDate: _formDataSnapshot.delivery_date,
-                    storeId: _formDataSnapshot.store_id || '',
+                    storeId: _formDataSnapshot.store_id || ''
                   }).catch(() => null);
                 } else if (hasDebitCredit) {
                   const { base44: b44 } = await import('@/api/base44Client');
@@ -648,12 +648,12 @@ export default function DeliveryFormView({
                 setIsCyclingMarkerMode?.(true);
                 setFormData((prev) => {
                   // Generate a collision-free BIK id for this new cycling marker
-                  const existingBikIds = (allDeliveries || [])
-                    .filter((d) => d?.delivery_id?.startsWith('BIK-'))
-                    .map((d) => d.delivery_id);
-                  const bikId = prev.delivery_id?.startsWith('BIK-')
-                    ? prev.delivery_id
-                    : generateBikDeliveryId(existingBikIds);
+                  const existingBikIds = (allDeliveries || []).
+                  filter((d) => d?.delivery_id?.startsWith('BIK-')).
+                  map((d) => d.delivery_id);
+                  const bikId = prev.delivery_id?.startsWith('BIK-') ?
+                  prev.delivery_id :
+                  generateBikDeliveryId(existingBikIds);
                   // AM before 14:00, PM from 14:00 onwards
                   const ampmNow = new Date().getHours() < 14 ? 'AM' : 'PM';
                   // created_by_app_user_id = the AppUser record id for the current user
@@ -668,7 +668,7 @@ export default function DeliveryFormView({
                     status: 'in_transit',
                     delivery_id: bikId,
                     ampm_deliveries: prev.ampm_deliveries || ampmNow,
-                    created_by_app_user_id: prev.created_by_app_user_id || createdByAppUserId,
+                    created_by_app_user_id: prev.created_by_app_user_id || createdByAppUserId
                   };
                 });
                 // Auto-populate GPS coords
@@ -1052,19 +1052,21 @@ export default function DeliveryFormView({
                       <div className="min-w-0 space-y-3">
 
                         {/* Notes */}
-                        <div className="px-3 py-2 rounded-lg space-y-3 border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                          <div className="space-y-1">
-                            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Notes</Label>
-                            <Textarea value={formData.delivery_instructions || selectedPatient?.notes || ''} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_instructions: e.target.value }))} placeholder="Patient delivery instructions..." className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none" disabled={isSaving} />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver Notes</Label>
-                            <Textarea value={formData.delivery_notes || ''} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_notes: e.target.value }))} placeholder="Driver notes for this delivery..." className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none" disabled={isSaving} />
+                        <div className="px-3 rounded-lg border py-2" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                          <div className="flex gap-3">
+                            <div className="flex-1 space-y-1">
+                              <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Notes</Label>
+                              <Textarea value={formData.delivery_instructions || selectedPatient?.notes || ''} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_instructions: e.target.value }))} placeholder="Patient delivery instructions..." className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none min-h-[150px]" disabled={isSaving} />
+                            </div>
+                            <div className="flex-1 space-y-1">
+                              <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver Notes</Label>
+                              <Textarea value={formData.delivery_notes || ''} onChange={(e) => setFormData((prev) => ({ ...prev, delivery_notes: e.target.value }))} placeholder="Driver notes for this delivery..." className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm text-sm resize-none min-h-[150px]" disabled={isSaving} />
+                            </div>
                           </div>
                         </div>
 
                         {/* Delivery Options & COD */}
-                        <div className="px-3 py-2 rounded-lg space-y-2 border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                        <div className="px-3 rounded-lg space-y-2 border py-2.5" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                           <div className="grid grid-cols-[minmax(0,1fr)_minmax(9rem,0.9fr)] gap-3 items-start">
                             <div className="space-y-2 min-w-0">
                               <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Options</Label>
@@ -1095,7 +1097,7 @@ export default function DeliveryFormView({
 
                         {!useMobileLayout &&
                         <>
-                            <div className="pr-3 pb-2 pl-3 rounded-lg space-y-2 border"
+                            <div className="pr-3 pl-3 rounded-lg space-y-2 border pb-3"
 
                           style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                           
@@ -1110,21 +1112,7 @@ export default function DeliveryFormView({
                           
                             </div>
 
-                            <div className="px-3 py-2 rounded-lg space-y-2 border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                              <div className="space-y-1">
-                                <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Name *</Label>
-                                <Input ref={patientNameInputRef} value={formData.patient_name || ''} onChange={(e) => setFormData((p) => ({ ...p, patient_name: e.target.value }))} placeholder="Patient name" data-hotkey-add="true" disabled={isSaving} className="h-9 text-sm" />
-                              </div>
-                              <div className="flex gap-3">
-                                <div className="flex-1 space-y-1">
-                                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Phone</Label>
-                                  <PhoneInput value={formData.patient_phone || ''} onChange={(v) => setFormData((p) => ({ ...p, patient_phone: v }))} data-hotkey-add="true" disabled={isSaving} className="h-9 text-sm" />
-                                </div>
-                                <div className="flex-1 space-y-1">
-                                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Alternate Phone</Label>
-                                  <PhoneInput value={formData.patient_phone_secondary || ''} onChange={(v) => setFormData((p) => ({ ...p, patient_phone_secondary: v }))} data-hotkey-add="true" disabled={isSaving} className="h-9 text-sm" />
-                                </div>
-                              </div>
+                            <div className="px-3 rounded-lg space-y-2 border py-2" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                               <div className="flex gap-3">
                                 <div className="flex-[65] space-y-1">
                                   <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Address</Label>
@@ -1134,6 +1122,28 @@ export default function DeliveryFormView({
                                 <div className="flex-[35] space-y-1">
                                   <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Unit #</Label>
                                   <Input value={formData.unit_number || ''} onChange={(e) => setFormData((p) => ({ ...p, unit_number: e.target.value }))} placeholder="Unit #" data-hotkey-add="true" disabled={isSaving} className="h-9 text-sm" />
+                                </div>
+                              </div>
+
+                              <div className="flex gap-3">
+                                <div className="flex-1 space-y-1">
+                                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Name *</Label>
+                                  <Input ref={patientNameInputRef} value={formData.patient_name || ''} onChange={(e) => setFormData((p) => ({ ...p, patient_name: e.target.value }))} placeholder="Patient name" data-hotkey-add="true" disabled={isSaving} className="h-9 text-sm" />
+                                </div>
+                                <div className="flex-1 space-y-1">
+                                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Email</Label>
+                                  <Input type="email" value={formData.patient_email || ''} onChange={(e) => setFormData((p) => ({ ...p, patient_email: e.target.value }))} placeholder="Email address" data-hotkey-add="true" disabled={isSaving} className="h-9 text-sm" />
+                                </div>
+                              </div>
+
+                              <div className="flex gap-3">
+                                <div className="flex-1 space-y-1">
+                                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Phone</Label>
+                                  <PhoneInput value={formData.patient_phone || ''} onChange={(v) => setFormData((p) => ({ ...p, patient_phone: v }))} data-hotkey-add="true" disabled={isSaving} className="h-9 text-sm" />
+                                </div>
+                                <div className="flex-1 space-y-1">
+                                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Alternate Phone</Label>
+                                  <PhoneInput value={formData.patient_phone_secondary || ''} onChange={(v) => setFormData((p) => ({ ...p, patient_phone_secondary: v }))} data-hotkey-add="true" disabled={isSaving} className="h-9 text-sm" />
                                 </div>
                               </div>
                             </div>
@@ -1159,7 +1169,7 @@ export default function DeliveryFormView({
 
                           </div>
 
-                          <div className="px-3 py-3 rounded-lg border min-h-[225px] flex flex-col" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                          <div className="px-3 rounded-lg border flex flex-col py-3 min-h-[218px]" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                             {/* desktop SmartBarcodeScanner barcodeInputRef is wired via shared ref */}
                             <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Preferences</Label>
                             <div className="flex-1 flex flex-col justify-around">
@@ -1268,11 +1278,17 @@ export default function DeliveryFormView({
                         
                           </div>
 
-                          {/* Patient Name / Phone / Address / Unit */}
+                          {/* Patient Name / Email / Phone / Address / Unit */}
                           <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                            <div className="space-y-1">
-                              <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Name *</Label>
-                              <Input ref={patientNameInputRef} value={formData.patient_name || ''} onChange={(e) => setFormData((p) => ({ ...p, patient_name: e.target.value }))} placeholder="Patient name" disabled={isSaving} className="h-9 text-sm" />
+                            <div className="flex gap-3">
+                              <div className="flex-1 space-y-1">
+                                <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Name *</Label>
+                                <Input ref={patientNameInputRef} value={formData.patient_name || ''} onChange={(e) => setFormData((p) => ({ ...p, patient_name: e.target.value }))} placeholder="Patient name" disabled={isSaving} className="h-9 text-sm" />
+                              </div>
+                              <div className="flex-1 space-y-1">
+                                <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Email</Label>
+                                <Input type="email" value={formData.patient_email || ''} onChange={(e) => setFormData((p) => ({ ...p, patient_email: e.target.value }))} placeholder="Email address" disabled={isSaving} className="h-9 text-sm" />
+                              </div>
                             </div>
                             <div className="flex gap-3">
                               <div className="flex-1 space-y-1">
@@ -1521,25 +1537,25 @@ export default function DeliveryFormView({
                   </Button> :
                 effectiveButtonState === 'add' ?
                 <Button type="button" size="sm" onClick={() => {
-                 if (isInterStoreMode) {
-                   runLockedAction('add_interstore_transfer', async () => {
-                     await handleAddInterStoreTransfer();
-                     // Reset InterStore fields so the form is ready for the next entry
-                     setFormData((prev) => ({
-                       ...prev,
-                       _interstore_source_id: '', _interstore_source_name: '', _interstore_source_number: '',
-                       _interstore_dest_id: '', _interstore_dest_name: '', _interstore_dest_number: '',
-                       _interstore_stop_type: 'pickup',
-                       _interstore_notes: '',
-                       _interstore_distance_km: null,
-                       driver_id: '', driver_name: '',
-                       status: 'in_transit',
-                       delivery_time_start: '', delivery_time_end: '',
-                       arrival_time: '', actual_delivery_time: '',
-                       fridge_item: false, oversized: false, signature_needed: false, no_charge: false,
-                     }));
-                   });
-                 } else {
+                  if (isInterStoreMode) {
+                    runLockedAction('add_interstore_transfer', async () => {
+                      await handleAddInterStoreTransfer();
+                      // Reset InterStore fields so the form is ready for the next entry
+                      setFormData((prev) => ({
+                        ...prev,
+                        _interstore_source_id: '', _interstore_source_name: '', _interstore_source_number: '',
+                        _interstore_dest_id: '', _interstore_dest_name: '', _interstore_dest_number: '',
+                        _interstore_stop_type: 'pickup',
+                        _interstore_notes: '',
+                        _interstore_distance_km: null,
+                        driver_id: '', driver_name: '',
+                        status: 'in_transit',
+                        delivery_time_start: '', delivery_time_end: '',
+                        arrival_time: '', actual_delivery_time: '',
+                        fridge_item: false, oversized: false, signature_needed: false, no_charge: false
+                      }));
+                    });
+                  } else {
                     runLockedAction('add_staged_delivery', async () => {
                       await handleAddPickupsMulti();
                       if (userHasRole(currentUser, 'admin') && !isPickupMode) {
@@ -1547,7 +1563,7 @@ export default function DeliveryFormView({
                       }
                     });
                   }
-                }} className="inline-flex min-h-11 min-w-20 items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 text-primary-foreground shadow h-8 rounded-md px-3 text-xs bg-blue-600 hover:bg-blue-700 gap-2"                  disabled={isSaving || effectiveDeliveryActionBusy || (isInterStoreMode ? !interStoreReady || !formData.driver_id : !formData.driver_id || !isFormValid && selectedPickupStoreIds.size === 0 || requiresDriverSelection)} title={isInterStoreMode && (!interStoreReady || !formData.driver_id) ? !formData.driver_id ? 'Select a driver to continue' : 'Select both From and To stores to continue' : !formData.driver_id ? 'Select a driver before adding' : !isFormValid && selectedPickupStoreIds.size === 0 ? 'Complete the required pickup fields before adding' : requiresDriverSelection ? 'Select a driver to create a pickup for this store/date' : undefined}>
+                }} className="inline-flex min-h-11 min-w-20 items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 text-primary-foreground shadow h-8 rounded-md px-3 text-xs bg-blue-600 hover:bg-blue-700 gap-2" disabled={isSaving || effectiveDeliveryActionBusy || (isInterStoreMode ? !interStoreReady || !formData.driver_id : !formData.driver_id || !isFormValid && selectedPickupStoreIds.size === 0 || requiresDriverSelection)} title={isInterStoreMode && (!interStoreReady || !formData.driver_id) ? !formData.driver_id ? 'Select a driver to continue' : 'Select both From and To stores to continue' : !formData.driver_id ? 'Select a driver before adding' : !isFormValid && selectedPickupStoreIds.size === 0 ? 'Complete the required pickup fields before adding' : requiresDriverSelection ? 'Select a driver to create a pickup for this store/date' : undefined}>
                     <Plus className="w-4 h-4" />{isInterStoreMode ? 'InterStore' : isPickupMode && selectedPickupStoreIds.size > 1 ? `Add (${selectedPickupStoreIds.size})` : 'Add'}
                   </Button> :
 
@@ -1598,16 +1614,16 @@ export default function DeliveryFormView({
                         const hasDebitCredit = codPayments.some((p) => p.type === 'Debit' || p.type === 'Credit');
                         if (hasCashCheck && codAmount > 0) {
                           const { base44: b44 } = await import('@/api/base44Client');
-                          const storeRes = _formDataSnapshot.store_id
-                            ? await b44.entities.Store.filter({ id: _formDataSnapshot.store_id }).catch(() => [])
-                            : [];
+                          const storeRes = _formDataSnapshot.store_id ?
+                          await b44.entities.Store.filter({ id: _formDataSnapshot.store_id }).catch(() => []) :
+                          [];
                           b44.functions.invoke('squareCreateCodItem', {
                             deliveryId: delivery.id,
                             patientName: _formDataSnapshot.patient_name || '',
                             storeAbbreviation: storeRes?.[0]?.abbreviation || '',
                             codAmount,
                             deliveryDate: _formDataSnapshot.delivery_date,
-                            storeId: _formDataSnapshot.store_id || '',
+                            storeId: _formDataSnapshot.store_id || ''
                           }).catch(() => null);
                         } else if (hasDebitCredit) {
                           const { base44: b44 } = await import('@/api/base44Client');

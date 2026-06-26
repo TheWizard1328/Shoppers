@@ -21,56 +21,68 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
 
   // Get uncollected catalog items for this location
   const uncollectedCatalogItems = useMemo(() => {
-    const locationItems = catalogItems.filter(item => item.location_id === location.square_location_id);
-    
+    const locationItems = catalogItems.filter((item) => item.location_id === location.square_location_id);
+
+    // Apply date range filter using updated_at or created_date
+    const dateFiltered = locationItems.filter((item) => {
+      const itemDate = new Date(item.updated_at || item.created_date);
+      if (dateRangeStart && itemDate < new Date(dateRangeStart)) return false;
+      if (dateRangeEnd) {
+        const end = new Date(dateRangeEnd);
+        end.setHours(23, 59, 59, 999);
+        if (itemDate > end) return false;
+      }
+      return true;
+    });
+
     // Filter out items that have a completed collection transaction
-    return locationItems.filter(item => {
-      const hasCollection = transactions.some(t => 
-        t.square_catalog_object_id === item.catalog_object_id &&
-        t.type === 'collection' &&
-        t.status === 'completed'
+    return dateFiltered.filter((item) => {
+      const hasCollection = transactions.some((t) =>
+      t.square_catalog_object_id === item.catalog_object_id &&
+      t.type === 'collection' &&
+      t.status === 'completed'
       );
       return !hasCollection;
     });
-  }, [catalogItems, location.square_location_id, transactions]);
+  }, [catalogItems, location.square_location_id, transactions, dateRangeStart, dateRangeEnd]);
 
   // Find stores that use this location config
   const locationStoreIds = useMemo(() => {
     // Need to get stores from parent component - for now, filter by catalog items
-    return catalogItems
-      .filter(item => item.location_id === location.square_location_id)
-      .map(item => item.store_id)
-      .filter((id, index, self) => id && self.indexOf(id) === index); // unique store IDs
+    return catalogItems.
+    filter((item) => item.location_id === location.square_location_id).
+    map((item) => item.store_id).
+    filter((id, index, self) => id && self.indexOf(id) === index); // unique store IDs
   }, [catalogItems, location.square_location_id]);
 
   // Get catalog object IDs for this location
   const locationCatalogIds = useMemo(() => {
-    return catalogItems
-      .filter(item => item.location_id === location.square_location_id)
-      .map(item => item.catalog_object_id);
+    return catalogItems.
+    filter((item) => item.location_id === location.square_location_id).
+    map((item) => item.catalog_object_id);
   }, [catalogItems, location.square_location_id]);
 
   // Filter transactions by location (by catalog object ID OR store ID)
   const baseFilteredTransactions = useMemo(() => {
-    let filtered = transactions.filter(t => 
-      locationCatalogIds.includes(t.square_catalog_object_id) ||
-      (t.store_id && locationStoreIds.includes(t.store_id))
+    let filtered = transactions.filter((t) =>
+    locationCatalogIds.includes(t.square_catalog_object_id) ||
+    t.store_id && locationStoreIds.includes(t.store_id)
     );
 
     // Date range filter
     if (dateRangeStart) {
       const startDate = new Date(dateRangeStart);
-      filtered = filtered.filter(t => new Date(t.created_date) >= startDate);
+      filtered = filtered.filter((t) => new Date(t.created_date) >= startDate);
     }
     if (dateRangeEnd) {
       const endDate = new Date(dateRangeEnd);
       endDate.setHours(23, 59, 59, 999);
-      filtered = filtered.filter(t => new Date(t.created_date) <= endDate);
+      filtered = filtered.filter((t) => new Date(t.created_date) <= endDate);
     }
 
     // Driver filter
     if (selectedDriver !== 'all') {
-      filtered = filtered.filter(t => t.driver_id === selectedDriver);
+      filtered = filtered.filter((t) => t.driver_id === selectedDriver);
     }
 
     return filtered.sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
@@ -87,8 +99,8 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start justify-end">
-      <div className="bg-white w-full max-w-2xl h-full overflow-y-auto shadow-lg">
-        <div className="sticky top-0 bg-white border-b p-6 flex items-center justify-between">
+      <div className="bg-white w-full max-w-[450px] h-full overflow-y-auto shadow-lg">
+        <div className="sticky top-0 bg-white border-b flex items-center justify-between py-3 px-6">
           <div>
             <h2 className="text-2xl font-bold text-slate-900">{location.name}</h2>
             <p className="text-sm text-slate-500">Transaction History</p>
@@ -99,23 +111,23 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
         </div>
 
         {/* Filters */}
-        <div className="border-b p-6">
-          <div className="grid grid-cols-3 gap-4">
+        <div className="border-b py-3 px-3">
+          <div className="grid grid-cols-3 gap-2">
             <div>
               <label className="text-sm font-medium text-slate-700 mb-1 block">Start Date</label>
               <Input
                 type="date"
                 value={dateRangeStart}
-                onChange={(e) => setDateRangeStart(e.target.value)}
-              />
+                onChange={(e) => setDateRangeStart(e.target.value)} />
+              
             </div>
             <div>
               <label className="text-sm font-medium text-slate-700 mb-1 block">End Date</label>
               <Input
                 type="date"
                 value={dateRangeEnd}
-                onChange={(e) => setDateRangeEnd(e.target.value)}
-              />
+                onChange={(e) => setDateRangeEnd(e.target.value)} />
+              
             </div>
             <div>
               <label className="text-sm font-medium text-slate-700 mb-1 block">Driver</label>
@@ -125,9 +137,9 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Drivers</SelectItem>
-                  {drivers.map(d => (
-                    <SelectItem key={d.id} value={d.id}>{d.user_name}</SelectItem>
-                  ))}
+                  {drivers.map((d) =>
+                  <SelectItem key={d.id} value={d.id}>{d.user_name}</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -136,8 +148,8 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
 
         {/* Uncollected Items Section */}
         <div className="border-b">
-          <div className="bg-amber-50 border-b p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Uncollected Items</h3>
+          <div className="bg-amber-50 border-b px-6 py-3">
+            <h3 className="text-lg font-semibold text-slate-900 mb-2">Uncollected Items</h3>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-600">Pending Collection</p>
@@ -150,59 +162,55 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
             </div>
           </div>
 
-          <div className="p-6 space-y-4">
-            {uncollectedCatalogItems.length === 0 ? (
-              <div className="text-center py-12 text-slate-500">
+          <div className="space-y-4 py-3 px-3">
+            {uncollectedCatalogItems.length === 0 ?
+            <div className="text-center py-12 text-slate-500">
                 <DollarSign className="w-12 h-12 mx-auto mb-4 opacity-50" />
                 <p>All items collected</p>
-              </div>
-            ) : (
-              uncollectedCatalogItems.map(item => (
-                <Card key={item.catalog_object_id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
-                    <div className="grid grid-cols-2 gap-4 mb-3">
-                      <div>
+              </div> :
+
+            uncollectedCatalogItems.map((item) =>
+            <Card key={item.catalog_object_id} className="hover:shadow-md transition-shadow">
+                  <CardContent className="px-4 py-2">
+                    <div className="flex gap-4 mb-3">
+                      <div className="w-3/4">
                         <p className="text-sm text-slate-500">Item</p>
                         <p className="font-semibold text-slate-900">{item.name || 'N/A'}</p>
                       </div>
-                      <div className="text-right">
+                      <div className="w-1/4 text-right">
                         <p className="text-sm text-slate-500">Amount</p>
                         <p className="font-bold text-amber-600">${(item.price_dollars || 0).toFixed(2)}</p>
                       </div>
                     </div>
 
-                    <div className="flex gap-2 mb-3">
-                      <Badge className="bg-amber-100 text-amber-800">Pending Collection</Badge>
-                    </div>
-
-                    <div className="text-xs text-slate-500">
-                      <p className="font-medium text-slate-600 mb-1">Last Updated</p>
-                      {item.updated_at ? new Date(item.updated_at).toLocaleString() : 'N/A'}
+                    <div className="flex items-center justify-between text-xs text-slate-500">
+                      <span><span className="font-medium text-slate-600">Last Updated: </span>{item.updated_at ? new Date(item.updated_at).toLocaleString() : 'N/A'}</span>
+                      <Badge className="bg-amber-100 text-amber-800">Pending</Badge>
                     </div>
                   </CardContent>
                 </Card>
-              ))
-            )}
+            )
+            }
           </div>
         </div>
 
         {/* Activity Section (Card Spends/Refunds, Driver Collections/Refunds) */}
         <div>
-          <div className="bg-slate-50 border-b p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Card Activity</h3>
-            <p className="text-sm text-slate-600 mb-4">Card spends, refunds, and driver collections</p>
+          <div className="bg-slate-50 border-b px-6 py-1">
+            <h3 className="text-lg font-semibold text-slate-900 mb-2">Card Activity</h3>
+            <p className="text-sm text-slate-600 mb-2">Card spends, refunds, and driver collections</p>
           </div>
 
-          <div className="p-6 space-y-4">
-            {activityTransactions.length === 0 ? (
-              <div className="text-center py-12 text-slate-500">
+          <div className="space-y-4 py-3 px-3">
+            {activityTransactions.length === 0 ?
+            <div className="text-center py-12 text-slate-500">
                 <Calendar className="w-12 h-12 mx-auto mb-4 opacity-50" />
                 <p>No activity found</p>
-              </div>
-            ) : (
-              activityTransactions.map(t => (
-                <Card key={t.id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
+              </div> :
+
+            activityTransactions.map((t) =>
+            <Card key={t.id} className="hover:shadow-md transition-shadow">
+                  <CardContent className="py-2 px-4">
                     <div className="grid grid-cols-2 gap-4 mb-3">
                       <div>
                         <p className="text-sm text-slate-500">Item</p>
@@ -227,16 +235,16 @@ export default function TransactionHistoryPanel({ location, transactions = [], d
                       </div>
                       <div>
                         <p className="font-medium text-slate-600 mb-1">Driver</p>
-                        {t.driver_id ? drivers.find(d => d.id === t.driver_id)?.user_name || 'Unknown' : 'N/A'}
+                        {t.driver_id ? drivers.find((d) => d.id === t.driver_id)?.user_name || 'Unknown' : 'N/A'}
                       </div>
                     </div>
                   </CardContent>
                 </Card>
-              ))
-            )}
+            )
+            }
           </div>
         </div>
       </div>
-    </div>
-  );
+    </div>);
+
 }

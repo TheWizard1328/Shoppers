@@ -113,6 +113,7 @@ export default function PatientForm({
   const [formData, setFormData] = useState({
     patient_id: "",
     full_name: "",
+    email: "",
     phone: "",
     phone_secondary: "",
     address: "",
@@ -129,7 +130,8 @@ export default function PatientForm({
     call_upon_arrival: false,
     ring_bell: false,
     dont_ring_bell: false,
-    back_door: false
+    back_door: false,
+    last_delivery_date: ""
   });
 
   const [isRecurring, setIsRecurring] = useState(false);
@@ -181,7 +183,7 @@ export default function PatientForm({
   }, [currentUser, cities, stores, formData.store_id]);
 
   // Keep ref in sync with latest allPatients without triggering re-renders
-  useEffect(() => { allPatientsRef.current = allPatients; }, [allPatients]);
+  useEffect(() => {allPatientsRef.current = allPatients;}, [allPatients]);
 
   // CRITICAL: Generate unique PID immediately on mount for new patients
   useEffect(() => {
@@ -244,6 +246,7 @@ export default function PatientForm({
       setFormData({
         patient_id: newPID,
         full_name: duplicateMode === 'duplicate' ? "" : patient.full_name || "",
+        email: duplicateMode === 'duplicate' ? "" : patient.email || "",
         phone: duplicateMode === 'duplicate' ? "" : patient.phone || "",
         phone_secondary: duplicateMode === 'duplicate' ? "" : patient.phone_secondary || "",
         address: duplicateMode === 'newAddress' ? "" : abbreviateAddressDirections(patient.address || ""),
@@ -260,7 +263,8 @@ export default function PatientForm({
         call_upon_arrival: patient.call_upon_arrival || false,
         ring_bell: patient.ring_bell || false,
         dont_ring_bell: patient.dont_ring_bell || false,
-        back_door: patient.back_door || false
+        back_door: patient.back_door || false,
+        last_delivery_date: patient.last_delivery_date || ""
       });
 
       setIsRecurring(hasRecurring);
@@ -922,17 +926,29 @@ export default function PatientForm({
                       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                     </div>
                   </div>
-                  {/* System Record ID - read only, only shown when editing existing patient */}
+                  {/* System Record ID + Last Delivery Date - only shown when editing existing patient */}
                   {patient?.id &&
-                  <div className="space-y-1">
-                    <Label className="text-xs font-medium" style={{ color: 'var(--text-slate-500)' }}>System Record ID</Label>
-                    <div
-                      className="h-9 px-3 flex items-center rounded-md text-xs font-mono select-all cursor-text overflow-x-auto"
+                <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-medium" style={{ color: 'var(--text-slate-500)' }}>System Record ID</Label>
+                      <div
+                      className="flex items-center rounded-md text-xs font-mono select-all cursor-text overflow-x-auto h-11 px-2"
                       style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', border: '1px solid var(--border-slate-300)', color: 'var(--text-slate-500)' }}>
-                      {patient.id}
+                        {patient.id}
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="last_delivery_date" className="text-xs font-medium" style={{ color: 'var(--text-slate-500)' }}>Last Delivery Date</Label>
+                      <Input
+                      id="last_delivery_date"
+                      type="date"
+                      value={formData.last_delivery_date || ""}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, last_delivery_date: e.target.value }))}
+                      className="h-9 text-xs"
+                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                     </div>
                   </div>
-                  }
+                }
                 </div>
               }
 
@@ -1027,8 +1043,9 @@ export default function PatientForm({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-10 gap-2">
-                  <div className="px-1 col-span-4 space-y-1">
+                {/* Row 1: Full Name + Email (50/50) */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
                     <Label htmlFor="full_name" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Full Name *</Label>
                     <Input
                       id="full_name"
@@ -1039,9 +1056,23 @@ export default function PatientForm({
                       className={`h-10 md:h-9 text-sm ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400' : ''}`}
                       style={{ background: duplicateMode === 'duplicate' ? 'var(--bg-amber-50)' : 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                   </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="email" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Email Address</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={formData.email || ''}
+                      disabled={disableOtherFieldsDuringAddressLookup}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
+                      placeholder="Email address"
+                      className="h-10 md:h-9 text-sm"
+                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
+                  </div>
+                </div>
 
-                  <div className={`col-span-3 space-y-1 ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400 rounded' : ''}`}
-                  style={{ padding: duplicateMode === 'duplicate' ? '0.25rem' : '0' }}>
+                {/* Row 2: Phone + Alt. Phone (50/50) */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className={`space-y-1 ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400 rounded p-1' : ''}`}>
                     <Label htmlFor="phone" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Phone Number</Label>
                     <PhoneInput
                       id="phone"
@@ -1049,12 +1080,10 @@ export default function PatientForm({
                       disabled={disableOtherFieldsDuringAddressLookup}
                       onChange={(value) => setFormData((prev) => ({ ...prev, phone: value }))}
                       placeholder="Phone number"
-                      className={`h-10 md:h-9 text-sm`}
+                      className="h-10 md:h-9 text-sm"
                       style={{ background: duplicateMode === 'duplicate' ? 'var(--bg-amber-50)' : 'var(--bg-white)' }} />
                   </div>
-
-                  <div className={`col-span-3 space-y-1 ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400 rounded' : ''}`}
-                  style={{ padding: duplicateMode === 'duplicate' ? '0.25rem' : '0' }}>
+                  <div className={`space-y-1 ${duplicateMode === 'duplicate' ? 'ring-2 ring-amber-400 rounded p-1' : ''}`}>
                     <Label htmlFor="phone_secondary" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Alt. Phone</Label>
                     <PhoneInput
                       id="phone_secondary"
@@ -1062,7 +1091,7 @@ export default function PatientForm({
                       disabled={disableOtherFieldsDuringAddressLookup}
                       onChange={(value) => setFormData((prev) => ({ ...prev, phone_secondary: value }))}
                       placeholder="Alt. phone"
-                      className={`h-10 md:h-9 text-sm`}
+                      className="h-10 md:h-9 text-sm"
                       style={{ background: duplicateMode === 'duplicate' ? 'var(--bg-amber-50)' : 'var(--bg-white)' }} />
                   </div>
                 </div>

@@ -378,7 +378,7 @@ export default function DeliveryForm({
       const livePatient = delivery.patient_id ? patients?.find((p) => p && p.id === delivery.patient_id) : null;
       const canonicalTimeStart = livePatient?.time_window_start || d.delivery_time_start || '';
       const canonicalTimeEnd = livePatient?.time_window_end || d.delivery_time_end || '';
-      setFormData(prev => ({ ...prev, delivery_date: d.delivery_date || prev.delivery_date, delivery_time_start: canonicalTimeStart, delivery_time_end: canonicalTimeEnd, delivery_time_eta: d.delivery_time_eta || '', arrival_time: d.arrival_time && !Number.isNaN(new Date(d.arrival_time).getTime()) ? format(new Date(d.arrival_time), 'HH:mm') : '', status: d.status || prev.status, driver_name: d.driver_name || '', driver_id: d.driver_id || '', prescription_number: d.prescription_number || '', delivery_instructions: d.delivery_instructions || prev.delivery_instructions, delivery_notes: d.delivery_notes || '', cod_total_amount_required: d.cod_total_amount_required ? d.cod_total_amount_required * 100 : 0, cod_payments: d.cod_payments || [], cod_payment_type: d.cod_payment_type || 'No Payment', cod_amount: d.cod_amount || '', tracking_number: d.tracking_number || '', stop_id: d.stop_id || '', puid: d.puid || '', store_phone: stores?.find((s) => s && s.id === d.store_id)?.phone || d.store_phone || '', store_id: d.store_id || '', ampm_deliveries: d.ampm_deliveries || null, signature_needed: d.signature_needed || false, fridge_item: d.fridge_item || false, oversized: d.oversized || false, after_hours_pickup: d.after_hours_pickup || false, no_charge: d.no_charge || false, extra_time: d.extra_time || 0, barcode_values: d.barcode_values || [], receipt_barcode_values: d.receipt_barcode_values || [], paid_km_override: d.paid_km_override ?? null }));
+      setFormData(prev => ({ ...prev, delivery_date: d.delivery_date || prev.delivery_date, delivery_time_start: canonicalTimeStart, delivery_time_end: canonicalTimeEnd, delivery_time_eta: d.delivery_time_eta || '', arrival_time: d.arrival_time || '', actual_delivery_time: d.actual_delivery_time || '', status: d.status || prev.status, driver_name: d.driver_name || '', driver_id: d.driver_id || '', prescription_number: d.prescription_number || '', delivery_instructions: d.delivery_instructions || prev.delivery_instructions, delivery_notes: d.delivery_notes || '', cod_total_amount_required: d.cod_total_amount_required ? d.cod_total_amount_required * 100 : 0, cod_payments: d.cod_payments || [], cod_payment_type: d.cod_payment_type || 'No Payment', cod_amount: d.cod_amount || '', tracking_number: d.tracking_number || '', stop_id: d.stop_id || '', puid: d.puid || '', store_phone: stores?.find((s) => s && s.id === d.store_id)?.phone || d.store_phone || '', store_id: d.store_id || '', ampm_deliveries: d.ampm_deliveries || null, signature_needed: d.signature_needed || false, fridge_item: d.fridge_item || false, oversized: d.oversized || false, after_hours_pickup: d.after_hours_pickup || false, no_charge: d.no_charge || false, extra_time: d.extra_time || 0, barcode_values: d.barcode_values || [], receipt_barcode_values: d.receipt_barcode_values || [], paid_km_override: d.paid_km_override ?? null }));
       if (d.actual_delivery_time && !Number.isNaN(new Date(d.actual_delivery_time).getTime())) setCompletionTime(format(new Date(d.actual_delivery_time), 'HH:mm'));
     });
     window.addEventListener('patientUpdated', handlePatientUpdated);
@@ -400,7 +400,7 @@ export default function DeliveryForm({
       setFormData({
         patient_id: delivery.patient_id || "", delivery_date: delivery.delivery_date || format(new Date(), 'yyyy-MM-dd'),
         delivery_time_start: patient?.time_window_start || delivery.delivery_time_start || "", delivery_time_end: patient?.time_window_end || delivery.delivery_time_end || "",
-        arrival_time: delivery.arrival_time && !Number.isNaN(new Date(delivery.arrival_time).getTime()) ? format(new Date(delivery.arrival_time), 'HH:mm') : "",
+        arrival_time: delivery.arrival_time || "",
         time_window_start: patient?.time_window_start || delivery.time_window_start || "", time_window_end: patient?.time_window_end || delivery.time_window_end || "",
         status: delivery.status || "Ready For Pickup", driver_name: delivery.driver_name || "", driver_id: delivery.driver_id || "",
         prescription_number: delivery.prescription_number || "", delivery_instructions: patient?.notes || delivery.delivery_instructions || "",
@@ -408,6 +408,7 @@ export default function DeliveryForm({
         cod_payments: delivery.cod_payments || [], cod_payment_type: delivery.cod_payment_type || "No Payment", cod_amount: delivery.cod_amount || "",
         tracking_number: delivery.tracking_number || "", delivery_stop_id: delivery.delivery_stop_id || "", stop_id: delivery.stop_id || "", puid: delivery.puid || "",
         patient_name: patient?.full_name || delivery.patient_name || "", patient_phone: patient?.phone || delivery.patient_phone || "",
+        patient_email: patient?.email || delivery.patient_email || "",
         patient_phone_secondary: patient?.phone_secondary || "", unit_number: patient?.unit_number || delivery.unit_number || "",
         store_phone: stores?.find((s) => s && s.id === finalStoreId)?.phone || delivery.store_phone || "", store_id: finalStoreId, ampm_deliveries: finalAmpm,
         mailbox_ok: patient?.mailbox_ok !== undefined && patient?.mailbox_ok !== null ? patient.mailbox_ok : (delivery.mailbox_ok || false),
@@ -429,6 +430,7 @@ export default function DeliveryForm({
         recurring_bimonthly: patient?.recurring_bimonthly || false, paid_km_override: delivery.paid_km_override ?? null,
         is_cycling_marker: delivery.is_cycling_marker || false,
         cycling_latitude: delivery.cycling_latitude ?? null, cycling_longitude: delivery.cycling_longitude ?? null,
+        actual_delivery_time: delivery.actual_delivery_time || '',
         // InterStore fields — pre-populate so the edit form shows the correct From/To stores
         // These may already be saved on the delivery, or will be resolved from delivery_id phones below
         _interstore_source_id: delivery._interstore_source_id || '',
@@ -580,7 +582,7 @@ export default function DeliveryForm({
     const autoSelectedDriverId = driverManuallyChangedRef.current && formData.driver_id ? formData.driver_id : resolvedDriverId;
     const autoSelectedDriverName = driverManuallyChangedRef.current && formData.driver_id ? formData.driver_name : resolvedDriverName;
 
-    const updatedFormData = buildSelectedPatientFormData({ formData, patient, deliveryAMPM, autoSelectedDriverId, autoSelectedDriverName });
+    const updatedFormData = { ...buildSelectedPatientFormData({ formData, patient, deliveryAMPM, autoSelectedDriverId, autoSelectedDriverName }), patient_email: patient.email || '' };
     const routePickups = getRoutePickupsForStore({ allDeliveries, stagedDeliveries, storeId: patient.store_id, driverId: autoSelectedDriverId, deliveryDate: formData.delivery_date });
     const fallbackPickup = buildPendingNewPickup({ store: patientStore, formData: { ...updatedFormData, store_id: patient.store_id }, driverName: autoSelectedDriverName, stopId: generateStopId() });
     const chosenPickup = choosePickupForNewDelivery({ pickups: routePickups, fallbackPickup });
@@ -1146,7 +1148,7 @@ export default function DeliveryForm({
   const sortedStagedDeliveries = useMemo(() => sortStagedDeliveries({ stagedDeliveries, stores, selectedDriverId: formData.driver_id }), [stagedDeliveries, stores, formData.driver_id]);
   const isDispatcherOnly = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
   const sortedProjectedDeliveries = useMemo(() => sortProjectedDeliveries({ projectedDeliveries, allDeliveries, stores, selectedDriverId: formData.driver_id, deliveryDate: formData.delivery_date, isDispatcher: isDispatcherOnly, scheduledDriverMap }), [projectedDeliveries, allDeliveries, stores, formData.driver_id, formData.delivery_date, isDispatcherOnly, scheduledDriverMap]);
-  const handleConfirmDelete = useConfirmDelete({ deleteConfirmation, setDeleteConfirmation, sortedStagedDeliveries, stagedDeliveries, editingStagedId, handleClearForm, setStagedDeliveries, setProjectedDeliveries, fullPredictionListRef, allDeliveries, formData, setHasChanges, setHasPendingDeletes, setEditingStagedId, setError, setIsDeletingPending, setAllDeletedWerePending });
+  const handleConfirmDelete = useConfirmDelete({ deleteConfirmation, setDeleteConfirmation, sortedStagedDeliveries, stagedDeliveries, editingStagedId, handleClearForm, setStagedDeliveries, setProjectedDeliveries, fullPredictionListRef, allDeliveries, formData, setHasChanges, setHasPendingDeletes, setEditingStagedId, setError, setIsDeletingPending, setAllDeletedWerePending, patientSearchInputRef, shouldAutoFocusFields });
 
   // Reset manual-change flag whenever the delivery date changes (so auto-select re-runs)
   const prevDeliveryDateRef = useRef(formData.delivery_date);

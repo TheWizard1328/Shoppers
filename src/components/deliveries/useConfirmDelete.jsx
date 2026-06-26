@@ -23,6 +23,8 @@ export function useConfirmDelete({
   setError,
   setIsDeletingPending,
   setAllDeletedWerePending,
+  patientSearchInputRef,
+  shouldAutoFocusFields,
 }) {
   return useCallback(async () => {
     const staged = deleteConfirmation.staged;
@@ -52,8 +54,9 @@ export function useConfirmDelete({
           handleClearForm();
         }
         setDeleteConfirmation({ show: false, staged: null, transferPickupId: null });
+        if (shouldAutoFocusFields) setTimeout(() => patientSearchInputRef?.current?.focus(), 150);
         return;
-      }
+        }
       if (!staged.patient_id && deleteConfirmation.transferPickupId) {
         const linkedStops = sortedStagedDeliveries.filter((s) => s.id && s.patient_id && s.puid === staged.stop_id);
         if (linkedStops.length) {
@@ -143,6 +146,7 @@ export function useConfirmDelete({
         handleClearForm();
       }
       setDeleteConfirmation({ show: false, staged: null, transferPickupId: null });
+      if (shouldAutoFocusFields) setTimeout(() => patientSearchInputRef?.current?.focus(), 150);
     } catch (err) {
       setError(`Failed: ${err.message}`);
     } finally {

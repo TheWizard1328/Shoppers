@@ -267,6 +267,45 @@ export default function useStopCardActions(params) {
         updateDeliveriesLocally
       });
 
+      // Build and append route summary note to the pickup delivery's notes
+      try {
+        const pickupDeliveries = pendingPickups || scopedPendingDeliveries;
+        const totalCount = pickupDeliveries.length;
+
+        const ispCount = pickupDeliveries.filter((d) => {
+          const id = String(d?.delivery_id || '').toUpperCase();
+          const notes = String(d?.delivery_notes || '').toLowerCase();
+          return id.startsWith('ISP') || notes.includes('(ips)') || notes.includes(' ips ');
+        }).length;
+        const isdCount = pickupDeliveries.filter((d) => {
+          const id = String(d?.delivery_id || '').toUpperCase();
+          const notes = String(d?.delivery_notes || '').toLowerCase();
+          return id.startsWith('ISD') || notes.includes('(isd)') || notes.includes(' isd ');
+        }).length;
+
+        const codItems = pickupDeliveries.filter((d) => Number(d?.cod_total_amount_required || 0) > 0);
+        const codCount = codItems.length;
+        const codTotal = codItems.reduce((sum, d) => sum + Number(d.cod_total_amount_required || 0), 0);
+
+        const oversizedCount = pickupDeliveries.filter((d) => d?.oversized === true).length;
+        const fridgeCount = pickupDeliveries.filter((d) => d?.fridge_item === true).length;
+
+        const noteLines = [`Deliveries: ${totalCount}`];
+        if (ispCount > 0 || isdCount > 0) noteLines.push(`ISP: ${ispCount} ISD: ${isdCount}`);
+        if (codCount > 0) noteLines.push(`COD's: ${codCount} - $${codTotal.toFixed(2)}`);
+        if (oversizedCount > 0) noteLines.push(`Oversized: ${oversizedCount}`);
+        if (fridgeCount > 0) noteLines.push(`Fridge: ${fridgeCount}`);
+
+        const summaryNote = noteLines.join('\n');
+        const existingNotes = delivery.delivery_notes && delivery.delivery_notes !== 'No driver notes' ? delivery.delivery_notes : '';
+        const updatedNotes = existingNotes ? `${existingNotes}\n${summaryNote}` : summaryNote;
+
+        await updateDeliveryLocal(delivery.id, { delivery_notes: updatedNotes }, { skipSmartRefresh: true });
+        updateDeliveriesLocally?.([{ ...delivery, delivery_notes: updatedNotes }], false);
+      } catch (noteErr) {
+        console.warn('[AcceptAll] Failed to write route summary note:', noteErr?.message || noteErr);
+      }
+
       // Small delay so React can render "Processing Pending Stops" before switching to "Optimizing Route"
       await new Promise((resolve) => setTimeout(resolve, 400));
 
@@ -925,16 +964,41 @@ export default function useStopCardActions(params) {
       });
     }
 
-    // 7. Route finished — show summary, go off-duty
+    // 7. Route finished — show EOD dialog, go off-duty, disable location sharing
     if (routeIsFinished) {
       fabControlEvents.notifyDoneButtonClicked();
+
+      // Disable location sharing on the AppUser record for the completing driver
+      const driverAppUser = (appUsers || []).find((au) => au?.user_id === delivery.driver_id);
+      try {
+        if (driverAppUser?.id) {
+          base44.entities.AppUser.update(driverAppUser.id, {
+            driver_status: 'off_duty',
+            location_tracking_enabled: false,
+            current_latitude: null,
+            current_longitude: null,
+            location_updated_at: null,
+          }).then(() => {
+            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+              detail: { appUsers: [{ ...driverAppUser, driver_status: 'off_duty', location_tracking_enabled: false }], singleUpdate: true }
+            }));
+          }).catch(() => {});
+        }
+      } catch {}
+
+      // If the current logged-in user IS the completing driver, also update local status + stop tracker
+      if (currentUser?.id === delivery.driver_id) {
+        const driverStatus = driverAppUser?.driver_status ?? currentUser?.driver_status;
+        if (driverStatus === 'on_duty') {
+          try { await setDriverStatus({ newStatus: 'off_duty' }); locationTracker.stopTracking(); } catch {}
+          if (onDriverStatusChange) onDriverStatusChange('off_duty');
+        }
+      }
+
+      // Fire the EOD dialog event AFTER off-duty is handled
       window.dispatchEvent(new CustomEvent('showRouteSummary', {
         detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date },
       }));
-      if (currentUser?.driver_status !== 'on_duty') {
-        try { await setDriverStatus({ newStatus: 'off_duty' }); locationTracker.stopTracking(); } catch {}
-        if (onDriverStatusChange) onDriverStatusChange('off_duty');
-      }
     }
 
     // 8. Broadcast status-changed event for card-rail and other listeners
@@ -1077,8 +1141,15 @@ export default function useStopCardActions(params) {
 
         fabControlEvents.notifyPhaseTwoCompleteRecenter();
         fabControlEvents.reactivateFAB(true, { suppressIfPhase1: true, reason: 'stop_status_change' });
-        // Only prompt if no arrival_time reading was already taken for this fridge stop
-        if (delivery?.fridge_item && !delivery?.arrival_time) triggerCoolerLogIfNeeded('Completed');
+        // Prompt cooler temp if:
+        // 1. Direct fridge delivery (fridge_item flag), OR
+        // 2. Pickup whose notes contain a "Fridge: N" summary (from Accept All)
+        const pickupHasFridgeItems = isPickup && (() => {
+          const notes = String(delivery?.delivery_notes || '');
+          const match = notes.match(/Fridge:\s*(\d+)/i);
+          return match && Number(match[1]) > 0;
+        })();
+        if ((delivery?.fridge_item || pickupHasFridgeItems) && !delivery?.arrival_time) triggerCoolerLogIfNeeded('Completed');
 
         if (!isPickup && patient?.id && Number(delivery?.cod_total_amount_required || 0) > 0) {
           await base44.functions.invoke('syncPatientLastDeliveryDate', {

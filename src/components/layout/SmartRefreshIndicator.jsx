@@ -350,7 +350,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
-              className="text-white text-xs font-medium pr-0.5">
+              className="!text-white text-xs font-medium pr-0.5">
               Syncing...
             </motion.span>
           </motion.button> :

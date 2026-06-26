@@ -174,13 +174,17 @@ function DeliveryMarkers({
     let markerPosition = [markerLatitude, markerLongitude];
     let dynamicZIndex;
     const isFinished = FINISHED_STATUSES.includes(delivery.status);
-    const isNext = delivery.isNextInLine;
+    const isActive = delivery.status === 'in_transit' || delivery.status === 'en_route';
     const isPending = delivery.status === 'pending';
+    const stopOrder = delivery.stop_order || delivery.number || 500;
 
-    if (isPending) dynamicZIndex = 5000 + (500 - (delivery.number || 500));
-    else if (isFinished) dynamicZIndex = 100 + (500 - (delivery.number || 500));
-    else dynamicZIndex = 1000 + (500 - (delivery.number || 500));
-    if (isNext && !isPending) dynamicZIndex = 2000;
+    // Z-index tiers (higher = on top):
+    // Active (in_transit/en_route): 8000 tier — lowest stop_order gets highest z (subtract stop_order)
+    // Incomplete (pending/other non-finished): 5000 tier — lowest stop_order gets highest z
+    // Completed (finished): 100 tier — highest stop_order gets highest z within tier (add stop_order)
+    if (isActive) dynamicZIndex = 8000 - stopOrder;
+    else if (isFinished) dynamicZIndex = 100 + stopOrder;
+    else dynamicZIndex = 5000 - stopOrder;
 
     if (isFanned && isClustered) {
       const pickupsAtLocation = groupedPickupMarkers.get(locationKey) || [];
@@ -189,9 +193,10 @@ function DeliveryMarkers({
         .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
       const clusterIndex = allMarkersAtLocation.findIndex(d => d && d.id === delivery.id);
       markerPosition = calculateFannedPositionWrapperWrapper(markerLatitude, markerLongitude, clusterIndex, allMarkersAtLocation.length, delivery.stop_order);
-      const incompleteMarkers = allMarkersAtLocation.filter(d => !FINISHED_STATUSES.includes(d.status));
-      if (isFinished) dynamicZIndex = 2000 - allMarkersAtLocation.length - clusterIndex;
-      else { const incIdx = incompleteMarkers.findIndex(d => d.id === delivery.id); dynamicZIndex = 3000 + (incompleteMarkers.length - incIdx); }
+      // Within a fanned cluster: active > pending > completed; within each tier use same ordering rules
+      if (isActive) dynamicZIndex = 9000 - stopOrder;
+      else if (isFinished) dynamicZIndex = 2000 + stopOrder;
+      else dynamicZIndex = 6000 - stopOrder;
     }
 
     const markerStoreColor = delivery.store ? getStoreColor(delivery.store) : null;

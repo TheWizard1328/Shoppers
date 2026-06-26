@@ -581,6 +581,49 @@ Deno.serve(async (req) => {
     console.log(`📋 [optimizeRemainingStops] Prepared ${stops.length} stops for HERE sequencing`);
 
     const historicalRoute = isHistoricalRouteDate(deliveryDate);
+
+    // Determine if this is a future route (date is after today in Edmonton time)
+    const isFutureRoute = !historicalRoute && deliveryDate > getEdmontonTodayDateString();
+    // A route is "officially started" once at least 1 stop is finished
+    const routeOfficiallyStarted = completedDeliveries.length > 0;
+
+    // FUTURE ROUTE — PICKUPS ONLY:
+    // If the route is in the future, hasn't started, and ALL optimizable stops are pickups
+    // (no in_transit patient deliveries, ISP stops, returns, etc.), just assign each
+    // pickup's delivery_time_start as its ETA and preserve the existing order — no HERE call needed.
+    const allStopsArePickups = optimizableDeliveries.every(d => !d.patient_id);
+    if (isFutureRoute && !routeOfficiallyStarted && allStopsArePickups) {
+      console.log(`🗓️ [optimizeRemainingStops] Future pickups-only route — assigning delivery_time_start as ETA for each pickup, skipping HERE`);
+      const startingOrder = (startingStopOrder != null) ? startingStopOrder : completedDeliveries.length;
+      const writeBatch = optimizableDeliveries
+        .slice()
+        .sort((a, b) => parseTimeToMinutes(a.delivery_time_start || '00:00') - parseTimeToMinutes(b.delivery_time_start || '00:00'))
+        .map((delivery, i) => ({
+          id: delivery.id,
+          data: {
+            stop_order: startingOrder + i + 1,
+            delivery_time_eta: delivery.delivery_time_start || null,
+            isNextDelivery: i === 0,
+          }
+        }));
+      await processInChunks(writeBatch, 12, ({ id, data }) =>
+        base44.asServiceRole.entities.Delivery.update(id, data)
+      );
+      console.log(`✅ [optimizeRemainingStops] Future pickups-only: wrote ${writeBatch.length} stops`);
+      return Response.json({
+        success: true, driverId, deliveryDate,
+        routeChanged: false, optimizedCount: writeBatch.length,
+        stagesCount: 0, apiCallsMade: 0,
+        locationSource: 'future_pickup_schedule',
+        usedTimeWindows: false, preserveExistingOrder: true,
+        shouldRefreshPolylines: false,
+        optimizedRoute: writeBatch.map((w, i) => ({
+          deliveryId: w.id, newETA: w.data.delivery_time_eta,
+          stop_order: startingOrder + i + 1, isNextDelivery: i === 0
+        }))
+      });
+    }
+
     const latestFinishedDelivery = getLatestFinishedDelivery(completedDeliveries);
 
     let currentPosition;
@@ -1021,7 +1064,18 @@ Deno.serve(async (req) => {
       // directionsLegs[0] reflects driver GPS -> isNextDelivery stop travel time.
       // IMPORTANT: Always add travel time for the first stop (even when it's the locked
       // isNextDelivery stop) so the ETA is current_time + travel_minutes, not just current_time.
+      //
+      // FUTURE ROUTES: Driver is not yet on duty — use the first stop's scheduled window start
+      // as the baseline instead of current wall-clock time, so ETAs reflect the planned schedule.
       let cumulativeTime = currentMinutes;
+      if (isFutureRoute && routeStops.length > 0) {
+        const firstStop = routeStops[0];
+        const firstWindowStart = parseTimeToMinutes(firstStop.windowStart || firstStop.delivery.delivery_time_start);
+        if (Number.isFinite(firstWindowStart)) {
+          cumulativeTime = firstWindowStart;
+          console.log(`🗓️ [optimizeRemainingStops] Future route detected — seeding ETA from first stop window start: ${formatMinutesToTime(cumulativeTime)}`);
+        }
+      }
 
       for (let i = 0; i < routeStops.length; i++) {
         const stop = routeStops[i];
@@ -1040,6 +1094,15 @@ Deno.serve(async (req) => {
           cumulativeTime = windowStart;
         }
 
+        // FUTURE UNSTARTED ROUTE: Pickups must never be scheduled before their delivery_time_start.
+        // In-transit stops (ISP, retries, returns) are exempt — they can be optimized freely.
+        if (isFutureRoute && !routeOfficiallyStarted && stop.isPickup) {
+          const pickupScheduledStart = parseTimeToMinutes(stop.delivery.delivery_time_start);
+          if (Number.isFinite(pickupScheduledStart) && cumulativeTime < pickupScheduledStart) {
+            cumulativeTime = pickupScheduledStart;
+          }
+        }
+
         const eta = formatMinutesToTime(cumulativeTime);
         stageEtaMap.set(stop.delivery.id, eta);
         cumulativeTime += stop.delivery.extra_time || (stop.isPickup ? 15 : 5);
@@ -1047,6 +1110,23 @@ Deno.serve(async (req) => {
         console.log(`  ✅ [optimizeRemainingStops] ${stop.delivery.patient_name || 'Pickup'} - ETA: ${eta}`);
       }
     }
+
+    // Keep the optimized order for the UI dialog response — pending stops stay in their
+    // HERE-optimized positions so the Before vs After dialog shows the real optimized sequence.
+    const optimizedRouteStopsForResponse = routeStops.map((stop) => ({
+      ...stop.delivery,
+      delivery_time_eta: stageEtaMap.get(stop.delivery.id) || stop.delivery.delivery_time_eta
+    }));
+
+    // For DB writes / polyline generation: sort pending stops to the end so they never
+    // receive encoded polylines or routing metadata (they haven't been dispatched yet).
+    routeStops.sort((a, b) => {
+      const aIsPending = a.delivery.status === 'pending';
+      const bIsPending = b.delivery.status === 'pending';
+      if (aIsPending && !bIsPending) return 1;
+      if (!aIsPending && bIsPending) return -1;
+      return 0;
+    });
 
     const activeStops = routeStops.map((stop) => ({
       ...stop.delivery,
@@ -1124,21 +1204,25 @@ Deno.serve(async (req) => {
         ? nextStopLogicalSegment.distanceKm
         : (typeof segmentPolyline?.estimatedDistanceKm === 'number' ? segmentPolyline.estimatedDistanceKm : null);
 
+      // Pending stops never get polylines — they haven't been routed yet
+      const isPending = stop.status === 'pending';
+
       const updateData = {
         stop_order: newOrder,
         display_stop_order: newOrder,
         delivery_time_eta: stop.delivery_time_eta,
         isNextDelivery: stop.id === nextStopId,
         transport_mode: safeTransportMode,
-        travel_dist: Number(directionsLegs[i]?.distance)
+        travel_dist: isPending ? null : (Number(directionsLegs[i]?.distance)
           ? Number((Number(directionsLegs[i].distance) / 1000).toFixed(3))
-          : null,
-        ...(logicalDurationMinutes != null ? { estimated_duration_minutes: logicalDurationMinutes } : {}),
-        ...(logicalDistanceKm != null ? { estimated_distance_km: logicalDistanceKm } : {}),
-        ...(segmentPolyline?.encodedPolyline ? {
+          : null),
+        ...(!isPending && logicalDurationMinutes != null ? { estimated_duration_minutes: logicalDurationMinutes } : {}),
+        ...(!isPending && logicalDistanceKm != null ? { estimated_distance_km: logicalDistanceKm } : {}),
+        ...(!isPending && segmentPolyline?.encodedPolyline ? {
           encoded_polyline: segmentPolyline.encodedPolyline,
           transport_mode: safeTransportMode
-        } : {})
+        } : {}),
+        ...(isPending ? { encoded_polyline: null, estimated_distance_km: null, estimated_duration_minutes: null } : {})
       };
 
       if (pendingStartTime) {
@@ -1186,19 +1270,25 @@ Deno.serve(async (req) => {
       forceFullRemainingRouteOptimization,
       nextDeliveryId: nextStopId,
       shouldRefreshPolylines,
-      optimizedRoute: activeStops.map((stop, index) => ({
-        deliveryId: stop.id,
-        newETA: stop.delivery_time_eta,
-        stop_order: startingOrder + index + 1,
-        isNextDelivery: stop.id === nextStopId,
-        transport_mode: stop.transport_mode || 'driving',
-        encoded_polyline: segmentPolylines[index]?.encodedPolyline || null,
-        estimated_distance_km: finalDeliveryWriteBatch[index]?.data?.estimated_distance_km ?? null,
-        estimated_duration_minutes: finalDeliveryWriteBatch[index]?.data?.estimated_duration_minutes ?? null,
-        travel_dist: Number(directionsLegs[index]?.distance)
-          ? Number((Number(directionsLegs[index].distance) / 1000).toFixed(3))
-          : null
-      }))
+      // optimizedRoute uses the HERE-optimized order (pending stops in their optimized positions)
+      // so the Before vs After dialog shows the real optimized sequence, not pending-last.
+      optimizedRoute: optimizedRouteStopsForResponse.map((stop, index) => {
+        const writeBatchEntry = finalDeliveryWriteBatch.find((b) => b.id === stop.id);
+        const legIndex = routeStops.findIndex((s) => s.delivery.id === stop.id);
+        return {
+          deliveryId: stop.id,
+          newETA: stop.delivery_time_eta,
+          stop_order: startingOrder + index + 1,
+          isNextDelivery: stop.id === nextStopId,
+          transport_mode: stop.transport_mode || 'driving',
+          encoded_polyline: segmentPolylines[index]?.encodedPolyline || null,
+          estimated_distance_km: writeBatchEntry?.data?.estimated_distance_km ?? null,
+          estimated_duration_minutes: writeBatchEntry?.data?.estimated_duration_minutes ?? null,
+          travel_dist: legIndex >= 0 && Number(directionsLegs[legIndex]?.distance)
+            ? Number((Number(directionsLegs[legIndex].distance) / 1000).toFixed(3))
+            : null
+        };
+      })
     });
 
   } catch (error) {

@@ -53,6 +53,7 @@ export default function StatsPanel({
   setShowQuickAdjustments,
   deliveryStats, performanceStats, liveDistance, liveTimeOnDuty, isLoadingPayrollStats,
   dailyPolylineCount, stats, finalizedDutyTime,
+  setShowEndOfDayStats, setEndOfDayDriver,
   refreshUser, dataSource,
   isMobile,
   preferredTravelMode,
@@ -252,7 +253,7 @@ export default function StatsPanel({
   }, [isDateFinished, isDriver, isAllDriversMode]);
 
   return (
-    <div className={statsCardPositioning} style={{ zIndex: isMobile && isExpanded ? 40 : isMobile ? 100 : 600, position: 'absolute', pointerEvents: 'none', visibility: statsPanelOpacity < 0.1 ? 'hidden' : 'visible', transition: 'visibility 0s linear 0.5s' }}>
+    <div className={statsCardPositioning} style={{ zIndex: isMobile && isExpanded ? 20 : isMobile ? 25 : 45, position: 'absolute', pointerEvents: 'none', visibility: statsPanelOpacity < 0.1 ? 'hidden' : 'visible', transition: 'visibility 0s linear 0.5s' }}>
       <div ref={statsCardRef} className="flex flex-col items-start gap-1 relative"
       style={{ opacity: statsPanelOpacity, transition: 'opacity 0.5s ease-in-out', pointerEvents: statsPanelOpacity < 0.1 ? 'none' : 'auto', width: (isMobile && window.innerWidth < 470) ? `${Math.round(window.innerWidth * 0.95)}px` : '625px' }} //'max-content', minWidth: (isMobile && window.innerWidth < 600) ? `${Math.round(window.innerWidth * 0.95)}px` : 
       onMouseEnter={() => handleStatsPanelInteraction(true)}
@@ -400,7 +401,12 @@ export default function StatsPanel({
               performanceStats={performanceStats}
               liveDistance={liveDistance}
               liveTimeOnDuty={finalizedDutyTime ?? liveTimeOnDuty}
-              isLoadingPayrollStats={isLoadingPayrollStats} />
+              isLoadingPayrollStats={isLoadingPayrollStats}
+              onStatsClick={(isDriver || isAdmin) && !isDispatcher && setShowEndOfDayStats ? () => {
+                setEndOfDayDriver?.(null);
+                setShowEndOfDayStats(true);
+              } : undefined}
+            />
             {!isDispatcherLockedExpanded &&
             <Button variant="ghost" size="sm" onClick={(e) => {e.stopPropagation();setIsExpanded(!isExpanded);}} disabled={currentUser?.status === 'inactive' && isDriver && !isAdmin} className={`h-8 w-8 p-0 flex-shrink-0 ${currentUser?.status === 'inactive' && isDriver && !isAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}>
                 {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}

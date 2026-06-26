@@ -7,8 +7,9 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
-import { Edit, Locate, MoreVertical, Trash2, User, XCircle } from "lucide-react";
+import { Edit, Locate, MoreVertical, RotateCcw, Trash2, User, XCircle, ExternalLink } from "lucide-react";
 import { isInterStoreDelivery } from '../utils/interStoreDisplayName';
+import { activatePatientViewOverlay } from '../patient-portal/PatientViewOverlay';
 
 export default function StopCardFooterMenu(props) {
   const {
@@ -33,7 +34,12 @@ export default function StopCardFooterMenu(props) {
     routeCompleted,
     isAssignedDriverOrAppOwner,
     canEdit,
-    allDeliveries = []
+    allDeliveries = [],
+    onRestart,
+    restartCurrentDelivery,
+    isRestarting,
+    isProcessingBackground,
+    isFailing,
   } = props;
 
   const canManageStop = !!(!isStrippedForDispatcher && (
@@ -59,6 +65,8 @@ export default function StopCardFooterMenu(props) {
   const canShowEditPatient = !!(!isDispatcherOnly && onEditPatient && patient && canManageStop && (isActiveDelivery || isFinishedRegularDelivery) && !isInterStore);
 
   const canShowUpdateGps = !!(!isDispatcherOnly && handleUpdateGPS && canManageStop && patient && !isPickupForMenu && !isInterStore && (isNextDelivery || isFinishedDelivery));
+
+  const canShowViewAsPatient = !!(isAppOwner?.(currentUser) && patient && delivery?.patient_id && !isInterStore);
 
   const canShowFailCancel = !!(!isDispatcherOnly && onStatusUpdate && canManageStop && (
     isActivePickup || (isActiveDelivery && isNextDelivery)
@@ -95,6 +103,12 @@ export default function StopCardFooterMenu(props) {
             <User className="w-5 h-5 mr-2" />Edit Patient
           </DropdownMenuItem>
         )}
+        {canShowViewAsPatient && (
+          <DropdownMenuItem inset={false} onClick={(e) => { blockCardToggle(e); e.stopPropagation(); activatePatientViewOverlay(patient); }}
+ className="flex cursor-pointer items-center text-base py-2.5 md:py-1.5 text-indigo-600 dark:text-indigo-400 focus:bg-indigo-50 dark:focus:bg-indigo-950 focus:text-indigo-700 dark:focus:text-indigo-300">
+            <ExternalLink className="w-5 h-5 mr-2" />View As Patient
+          </DropdownMenuItem>
+        )}
         {canShowUpdateGps && (
           <DropdownMenuItem inset={false} onClick={(e) => { blockCardToggle(e); handleUpdateGPS(e); }} className="flex cursor-pointer items-center text-base py-2.5 md:py-1.5 text-slate-900 dark:text-slate-100 focus:bg-slate-100 dark:focus:bg-slate-700 focus:text-slate-900 dark:focus:text-slate-100">
             <Locate className="w-5 h-5 mr-2" />Update GPS
@@ -105,6 +119,14 @@ export default function StopCardFooterMenu(props) {
             <DropdownMenuSeparator className="dark:bg-slate-600" />
             <DropdownMenuItem inset={false} onClick={(e) => { blockCardToggle(e); e.stopPropagation(); setPendingFailureStatus(isPickup ? 'cancelled' : 'failed'); setShowFailureReasonDialog(true); }} className="flex cursor-pointer items-center text-red-500 dark:text-red-400 text-base py-2.5 md:py-1.5 focus:bg-red-50 dark:focus:bg-red-950 focus:text-red-700 dark:focus:text-red-300">
               <XCircle className="w-5 h-5 mr-2" />{isPickupForMenu ? 'Cancel Pickup' : 'Mark as Failed'}
+            </DropdownMenuItem>
+          </>
+        )}
+        {routeCompleted && onRestart && delivery?.status !== 'failed' && ['completed', 'cancelled'].includes(delivery?.status) && (
+          <>
+            <DropdownMenuSeparator className="dark:bg-slate-600" />
+            <DropdownMenuItem inset={false} onClick={(e) => { blockCardToggle(e); e.stopPropagation(); restartCurrentDelivery(false); }} disabled={isRestarting || isProcessingBackground || isFailing} className="flex cursor-pointer items-center text-blue-600 dark:text-blue-400 text-base py-2.5 md:py-1.5 focus:bg-blue-50 dark:focus:bg-blue-950 focus:text-blue-700 dark:focus:text-blue-300">
+              <RotateCcw className="w-5 h-5 mr-2" />Restart
             </DropdownMenuItem>
           </>
         )}

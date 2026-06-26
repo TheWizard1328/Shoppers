@@ -315,6 +315,7 @@ export default function DashboardView({
           deliveryStats={deliveryStats} performanceStats={performanceStats} liveDistance={liveDistance} liveTimeOnDuty={liveTimeOnDuty}
           isLoadingPayrollStats={isLoadingPayrollStats} dailyPolylineCount={dailyPolylineCount} stats={stats}
           finalizedDutyTime={finalizedDutyTime}
+          setShowEndOfDayStats={setShowEndOfDayStats} setEndOfDayDriver={setEndOfDayDriver}
           refreshUser={refreshUser} dataSource={dataSource}
           isMobile={isMobile}
           mapStyle={mapStyle}
@@ -501,7 +502,7 @@ export default function DashboardView({
         currentUser={currentUser} isDriver={isDriver} isDispatcher={isDispatcher}
         deliveries={deliveries} patients={patients} stores={stores} drivers={drivers} appUsers={appUsers}
         filteredDeliveries={filteredDeliveries} deliveriesWithStopOrder={deliveriesWithStopOrder}
-        selectedDate={selectedDate} selectedDateStr={selectedDateStr}
+        selectedDate={selectedDate} selectedDateStr={selectedDateStr} selectedDriverId={selectedDriverId}
         driverLocation={driverLocation}
         showDeliveryForm={showDeliveryForm} setShowDeliveryForm={setShowDeliveryForm}
         editingDelivery={editingDelivery} setEditingDelivery={setEditingDelivery}
@@ -520,6 +521,8 @@ export default function DashboardView({
         showEndOfDayStats={showEndOfDayStats} setShowEndOfDayStats={setShowEndOfDayStats}
         endOfDayDriver={endOfDayDriver} setEndOfDayDriver={setEndOfDayDriver}
         routeNotification={routeNotification} setRouteNotification={setRouteNotification}
+        performanceStats={performanceStats}
+        localStats={stats}
         isAIEnabled={isAIEnabled}
         refreshUser={refreshUser}
       />

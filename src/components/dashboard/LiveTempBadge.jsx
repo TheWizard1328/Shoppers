@@ -74,8 +74,11 @@ export default function LiveTempBadge({
   const driverMode = checkIsDriver(currentUser);
 
   // ── Bridge: auto-selects native or web BLE ─────────────────────────────
-  const { status: bleStatus, reading: bleReading, sensorName, connect, triggerReconnect } =
-    useInkbirdSensorBridge(driverMode ? currentUser : null);
+  // Always pass currentUser — the hook itself decides whether to activate BLE.
+  // Previously passing null when !driverMode caused the hook to initialize dead
+  // and never recover when app_roles loaded later (mount effect runs only once).
+  const { status: bleStatus, reading: bleReading, sensorName, connect, triggerReconnect, forceRead } =
+    useInkbirdSensorBridge(currentUser);
 
   // bleReading = { tempC, humidity, timestamp } | null
   const bleTemp = bleReading?.tempC ?? null;
@@ -159,11 +162,13 @@ export default function LiveTempBadge({
   })();
 
   // selectedDriverId may be the AppUser record ID or the auth user ID — check both.
-  // Pure drivers always view their own route, so treat them as "self" regardless.
-  const selectedDriverIsMe = !driverMode || !adminMode ||
-    !selectedDriverId || selectedDriverId === 'all' ||
+  // For admin+driver users, always treat as "self" — they carry the sensor regardless
+  // of which driver route they're currently viewing on screen.
+  const selectedDriverIsMe = !selectedDriverId || selectedDriverId === 'all' ||
     selectedDriverId === currentUser?.id ||
-    selectedDriverId === currentUser?.user_id;
+    selectedDriverId === currentUser?.user_id ||
+    !adminMode || // pure driver: always self
+    driverMode;   // admin+driver: always self (they have the sensor)
   const isPastDate = selectedDate && selectedDate < todayLocal;
 
   // ── DB poll ───────────────────────────────────────────────────────────
@@ -273,13 +278,25 @@ export default function LiveTempBadge({
       }
       if (data.latest_reading) { setLastReading(data.latest_reading); triggerPulse(); }
     };
+    const onVisibilityRestored = () => {
+      // App regained focus — reconnect BLE if needed and take a fresh reading
+      triggerReconnect();
+      forceRead();
+      // Reset the DB poll timer so a fresh read fires immediately
+      clearInterval(dbPollTimerRef.current);
+      loadFromDb();
+      dbPollTimerRef.current = setInterval(loadFromDb, DB_POLL_MS);
+    };
+
     window.addEventListener('fridgeTempRecorded', onRecorded);
     window.addEventListener('rxTempLogsUpdated', onWs);
+    window.addEventListener('appVisibilityRestored', onVisibilityRestored);
     return () => {
       window.removeEventListener('fridgeTempRecorded', onRecorded);
       window.removeEventListener('rxTempLogsUpdated', onWs);
+      window.removeEventListener('appVisibilityRestored', onVisibilityRestored);
     };
-  }, [selectedDriverId, currentUser?.id, triggerPulse]);
+  }, [selectedDriverId, currentUser?.id, triggerPulse, triggerReconnect, forceRead, loadFromDb]);
 
   // Cleanup on unmount
   useEffect(() => () => {
@@ -294,19 +311,24 @@ export default function LiveTempBadge({
     if (adminMode && !driverMode)          { loadFromDb(); triggerPulse(); return; }
 
     if (bleStatus === 'connected') {
-      // Already connected — just refresh DB reading
-      loadFromDb(); triggerPulse(); return;
+      forceRead();
+      loadFromDb();
+      triggerPulse();
+      return;
     }
-    if (bleStatus === 'connecting' || bleStatus === 'scanning') return; // in progress
 
-    // Not yet paired — show picker; already paired — reconnect
-    if (!sensorName) {
+    // In-flight — do nothing
+    if (bleStatus === 'connecting' || bleStatus === 'scanning') return;
+
+    // Try silent reconnect first (works when deviceRef is populated).
+    // If it returns false the device ref is gone (PWA/Chrome Android after restart)
+    // — always fall through to the picker so the tap is never a dead end.
+    const reconnected = triggerReconnect();
+    if (!reconnected) {
       connect();
-    } else {
-      triggerReconnect();
     }
-  }, [isPastDate, selectedDriverIsMe, adminMode, driverMode, bleStatus, sensorName,
-      loadFromDb, triggerPulse, connect, triggerReconnect]);
+  }, [isPastDate, selectedDriverIsMe, adminMode, driverMode, bleStatus,
+      loadFromDb, triggerPulse, connect, triggerReconnect, forceRead]);
 
   // ── Display values ────────────────────────────────────────────────────
   const showLiveBle = !isPastDate && selectedDriverIsMe && driverMode;

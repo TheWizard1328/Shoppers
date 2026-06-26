@@ -73,6 +73,8 @@ export default function DashboardView({
   // Misc
   refreshUser, refreshData, dataSource,
 }) {
+  // (EOD dialog listener moved to Dashboard.jsx where state lives — more stable)
+
   // Show/hide the KITT optimization bar based on lifecycle events from all optimization flows
   useEffect(() => {
     const handleOptimizationStarted = (event) => {

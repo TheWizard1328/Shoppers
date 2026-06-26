@@ -124,7 +124,12 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
     const _dy = String(currentTime.getDate()).padStart(2, '0');
     let currentTimeISO = `${_yr}-${_mo}-${_dy}T${_h}:${_m}:${_s}`;
 
-    const updateData = { status: newStatus, ...extraData };
+    // Rule: pickups must always be en_route unless completed or cancelled
+    const resolvedStatus = isPickup && newStatus !== 'completed' && newStatus !== 'cancelled'
+      ? 'en_route'
+      : newStatus;
+
+    const updateData = { status: resolvedStatus, ...extraData };
 
     if (newStatus === 'completed' && targetDelivery.cod_total_amount_required > 0) {
       const hasCODPayments = targetDelivery.cod_payments && Array.isArray(targetDelivery.cod_payments) && targetDelivery.cod_payments.length > 0 && targetDelivery.cod_payments.some((p) => p?.amount > 0);
@@ -211,24 +216,43 @@ export async function handleStatusUpdate(deliveryId, newStatus, extraData = {}, 
       base44.entities.Patient.update(targetDelivery.patient_id, { last_delivery_date: deliveryDate }).catch((error) => console.warn('⚠️ Patient last_delivery_date update failed:', error));
     }
 
+    // If a pickup (no patient_id) is completed and any linked delivery has fridge_item=true,
+    // fire an event to show the fridge temperature dialog.
+    if (newStatus === 'completed' && !targetDelivery.patient_id) {
+      const hasFridgeLinkedDelivery = deliveriesWithStopOrder.some(
+        (d) => d && d.puid === targetDelivery.puid && d.fridge_item === true && d.id !== deliveryId
+      );
+      if (hasFridgeLinkedDelivery) {
+        window.dispatchEvent(new CustomEvent('showFridgeTempDialog'));
+      }
+    }
+
 
     const finishedStatuses = ['completed', 'failed', 'cancelled'];
     const isReturnByMarkers = (d) => { if (!d || !d.patient_id) return false; const patient = patients.find((p) => p && p.id === d.patient_id); const notes = d.delivery_notes || ''; const patientName = d.patient_name || ''; const patientFullName = patient?.full_name || ''; return notes.toLowerCase().includes('(rtn)') || patientName.toLowerCase().includes('(rtn)') || patientFullName.toLowerCase().includes('(rtn)') || /\breturn\b/i.test(notes) || /\breturn\b/i.test(patientName) || /\breturn\b/i.test(patientFullName); };
 
     const allDriverDeliveries = deliveriesWithStopOrder.filter((d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate);
-    // CRITICAL: route complete = no active (in_transit/en_route) stops remain for the selected driver,
-    // excluding the current stop being completed right now (treat it as already finished).
-    // Pending stops are NOT counted — they haven't been started and don't block completion.
     const activeStatuses = ['in_transit', 'en_route'];
-    const remainingActiveCount = allDriverDeliveries.filter((d) => activeStatuses.includes(d.status) && d.id !== deliveryId).length;
-    const wasLastStop = remainingActiveCount === 0 && allDriverDeliveries.some((d) => activeStatuses.includes(d.status) && d.id === deliveryId);
-    const routeComplete = wasLastStop && finishedStatuses.includes(newStatus);
+    // Route is complete when this stop transitions to a terminal status AND no other stop
+    // on this route is still in_transit or en_route.
+    // CRITICAL: Exclude the delivery being updated from the active-stop check — it still
+    // carries its OLD status in deliveriesWithStopOrder (pre-update snapshot). We treat it
+    // as already finished (newStatus) for this calculation.
+    const hasActiveStops = allDriverDeliveries.some((d) => {
+      if (d.id === deliveryId) return activeStatuses.includes(newStatus); // use the new status for the updating stop
+      return activeStatuses.includes(d.status);
+    });
+    const routeComplete = finishedStatuses.includes(newStatus) && !hasActiveStops;
 
+    const wasLastStop = !hasActiveStops;
     let wasLastDispatcherStop = false;
     if (isDispatcher && !isAdmin && wasLastStop) {
       const dispatcherStoreIds = new Set((currentUser?.store_ids || []).map((id) => String(id)));
       const allDateDeliveries = deliveriesWithStopOrder.filter((d) => d && d.delivery_date === deliveryDate);
-      const remainingDispatcherActive = allDateDeliveries.filter((d) => d && d.id !== deliveryId && dispatcherStoreIds.has(String(d.store_id)) && activeStatuses.includes(d.status));
+      const remainingDispatcherActive = allDateDeliveries.filter((d) => {
+        if (!d || d.id === deliveryId) return false;
+        return dispatcherStoreIds.has(String(d.store_id)) && activeStatuses.includes(d.status);
+      });
       wasLastDispatcherStop = remainingDispatcherActive.length === 0;
     }
 

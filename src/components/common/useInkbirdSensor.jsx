@@ -37,6 +37,7 @@ const INKBIRD_READ_UUID    = '0000fff2-0000-1000-8000-00805f9b34fb';
 const INKBIRD_NAMES        = ['tps', 'sps'];
 const LOCAL_STORAGE_KEY    = 'rxdeliver_inkbird_sensor_name';
 const MAX_RETRIES          = 5;
+const PERIODIC_READ_MS     = 60 * 1000; // 1 minute
 
 // ── Decode FFF2 / FFF6 DataView ───────────────────────────────────────────
 function decodeReading(dv) {
@@ -89,12 +90,7 @@ function saveSensorNameLocally(name) {
  *                        already connected. This is the key to hands-free
  *                        reconnection without ever showing the picker again.
  */
-const NOOP = () => {};
-const NOOP_ASYNC = async () => {};
-
 export function useInkbirdSensor(currentUser) {
-  // When this hook is the inactive branch (bridge passes null), return a stable no-op.
-  // We still need to call all hooks unconditionally (Rules of Hooks).
   const [status,     setStatus]     = useState('idle');
   const [reading,    setReading]    = useState(null);
   const [sensorName, setSensorName] = useState(getSavedSensorName);
@@ -105,6 +101,7 @@ export function useInkbirdSensor(currentUser) {
   const notifyHandlerRef   = useRef(null);
   const retryCount         = useRef(0);
   const retryTimer         = useRef(null);
+  const periodicReadTimer  = useRef(null);
   const mountedRef         = useRef(true);
   const connectingRef      = useRef(false);  // guard: prevent concurrent connect attempts
 
@@ -112,11 +109,11 @@ export function useInkbirdSensor(currentUser) {
   const hasGetDevices = hasBluetooth && typeof navigator.bluetooth.getDevices === 'function';
 
   // ── BLE capability guard ───────────────────────────────────────────────
-  // Allow BLE on any device that has Web Bluetooth. The maxTouchPoints check
-  // was meant to exclude desktop, but it can return 0 on Android PWA before
-  // the first interaction — causing connect() to silently no-op on phones.
-  // If the user is a driver tapping the badge, they are on a mobile device.
-  const canUseBle = hasBluetooth;
+  // Any touch device (phone or tablet) with Web Bluetooth can connect BLE.
+  // Desktop PCs are excluded — not in the field, no Bluetooth sensor nearby.
+  // is_primary_tracker is for GPS location only — it must NOT gate BLE here.
+  const isTouchDevice = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
+  const canUseBle = hasBluetooth && isTouchDevice;
   // isPrimaryDevice kept in return for API compat — now equals canUseBle
 
   // ── Internal: GATT connect + subscribe ─────────────────────────────────
@@ -246,6 +243,7 @@ export function useInkbirdSensor(currentUser) {
   // ── Manual disconnect ──────────────────────────────────────────────────
   const disconnect = useCallback(() => {
     clearTimeout(retryTimer.current);
+    clearInterval(periodicReadTimer.current);
     connectingRef.current = false;
     try {
       if (notifyRef.current && notifyHandlerRef.current) {
@@ -260,13 +258,41 @@ export function useInkbirdSensor(currentUser) {
     setStatus('idle');
   }, []);
 
+  // ── Force a fresh FFF2 read (callable externally) ─────────────────────
+  const forceRead = useCallback(async () => {
+    if (!serverRef.current?.connected) return;
+    try {
+      const service  = await serverRef.current.getPrimaryService(INKBIRD_SERVICE_UUID);
+      const readChar = await service.getCharacteristic(INKBIRD_READ_UUID);
+      const dv       = await readChar.readValue();
+      const parsed   = decodeReading(dv);
+      if (parsed && mountedRef.current) {
+        setReading(parsed);
+        setStatus('connected');
+        window.dispatchEvent(new CustomEvent('inkbirdReading', {
+          detail: { ...parsed, source: 'gatt-force-read' },
+        }));
+      }
+    } catch (_) {}
+  }, []);
+
+  // ── Periodic 5-minute read — starts/stops with connection state ────────
+  useEffect(() => {
+    if (status === 'connected') {
+      clearInterval(periodicReadTimer.current);
+      periodicReadTimer.current = setInterval(() => {
+        forceRead();
+      }, PERIODIC_READ_MS);
+    } else {
+      clearInterval(periodicReadTimer.current);
+    }
+    return () => clearInterval(periodicReadTimer.current);
+  }, [status, forceRead]);
+
   // ── Mount: find previously-permitted device but don't connect yet ──────
   // We just store the device ref so triggerReconnect() can use it on first tap.
   useEffect(() => {
     mountedRef.current = true;
-
-    // Inactive branch — bridge passed null user to disable this hook
-    if (!currentUser && currentUser !== undefined) { setStatus('idle'); return; }
 
     if (!hasBluetooth) { setStatus('unsupported'); return; }
 
@@ -319,5 +345,6 @@ export function useInkbirdSensor(currentUser) {
     connect,
     disconnect,
     triggerReconnect,
+    forceRead,
   };
 }

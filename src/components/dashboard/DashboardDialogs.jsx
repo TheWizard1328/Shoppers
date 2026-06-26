@@ -7,15 +7,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import DeliveryForm from "@/components/deliveries/DeliveryForm";
 import PatientForm from "@/components/patients/PatientForm";
 import RouteOptimizationSettings from "@/components/dashboard/RouteOptimizationSettings";
-import RouteSummaryModal from "@/components/dashboard/RouteSummaryModal";
 import RouteNotification from "@/components/dashboard/RouteNotification";
 import ProactiveAlertSystem from "@/components/dashboard/ProactiveAlertSystem";
-import EndOfDayStatsDialog from '@/components/dashboard/EndOfDayStatsDialog';
 import DispatcherPickupNotification from '@/components/dashboard/DispatcherPickupNotification';
 import ReconcileToast from '@/components/dashboard/ReconcileToast';
 import QuickRouteAdjustments from '@/components/dashboard/QuickRouteAdjustments';
 import ModeSelectionDialog from '@/components/dashboard/ModeSelectionDialog';
 import useModeRouteDialog from '@/components/dashboard/useModeRouteDialog';
+
+import EndOfDayStatsDialog from '@/components/dashboard/EndOfDayStatsDialog';
+
 import { useEffect } from 'react';
 
 export default function DashboardDialogs({
@@ -38,6 +39,8 @@ export default function DashboardDialogs({
   showEndOfDayStats, setShowEndOfDayStats, endOfDayDriver, setEndOfDayDriver,
   isEntityUpdating,
   routeNotification, setRouteNotification,
+  // Stats from dashboard card
+  performanceStats, localStats,
   // AI
   isAIEnabled,
   // Misc
@@ -93,11 +96,26 @@ export default function DashboardDialogs({
       </Dialog>
 
       <AnimatePresence>
-        {showRouteSummary && <RouteSummaryModal deliveries={filteredDeliveries} patients={patients} stores={stores} driver={summaryDriver || currentUser} onClose={async () => { setShowRouteSummary(false); setSummaryDriver(null); if (isDriver && currentUser?.id) await refreshUser(); }} />}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showEndOfDayStats && <EndOfDayStatsDialog isOpen={showEndOfDayStats} onClose={() => { setShowEndOfDayStats(false); setEndOfDayDriver(null); }} deliveries={filteredDeliveries} driver={endOfDayDriver || currentUser} deliveryDate={format(selectedDate, 'yyyy-MM-dd')} isProcessing={isEntityUpdating} />}
+        {showEndOfDayStats && (() => {
+          const selectedDriver = endOfDayDriver ||
+            (selectedDriverId && selectedDriverId !== 'all'
+              ? (appUsers.find(au => au?.user_id === selectedDriverId) || drivers.find(d => d?.id === selectedDriverId))
+              : null) ||
+            currentUser;
+          return (
+            <EndOfDayStatsDialog
+              isOpen={showEndOfDayStats}
+              onClose={() => { setShowEndOfDayStats(false); setEndOfDayDriver(null); }}
+              deliveries={filteredDeliveries}
+              driver={selectedDriver}
+              deliveryDate={format(selectedDate, 'yyyy-MM-dd')}
+              isProcessing={isEntityUpdating}
+              performanceStats={performanceStats}
+              localStats={localStats}
+              isRouteComplete={!!endOfDayDriver}
+            />
+          );
+        })()}
       </AnimatePresence>
 
       <RouteNotification notification={routeNotification} onDismiss={() => setRouteNotification(null)} onNavigate={() => {

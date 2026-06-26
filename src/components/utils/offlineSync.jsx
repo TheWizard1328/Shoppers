@@ -199,9 +199,39 @@ export const performPrioritySyncBeforeRefresh = async (selectedDateStr, cityId =
  * CRITICAL: Patients are synced only for the selected date's deliveries (lightweight priority load)
  * Background store-by-store patient sync happens separately after system cools down
  */
+const PRIORITY_SYNC_KEY = 'rxdeliver_priority_sync_ts';
+const PRIORITY_SYNC_FRESHNESS_MS = 5 * 60 * 1000; // 5 minutes
+
+const isPrioritySyncFresh = (selectedDateStr) => {
+  try {
+    const raw = localStorage.getItem(PRIORITY_SYNC_KEY);
+    if (!raw) return false;
+    const { ts, date } = JSON.parse(raw);
+    // Also invalidate if the selected date changed (e.g. day rolled over)
+    if (date !== selectedDateStr) return false;
+    return Date.now() - ts < PRIORITY_SYNC_FRESHNESS_MS;
+  } catch (_) { return false; }
+};
+
+const markPrioritySyncComplete = (selectedDateStr) => {
+  try {
+    localStorage.setItem(PRIORITY_SYNC_KEY, JSON.stringify({ ts: Date.now(), date: selectedDateStr }));
+  } catch (_) {}
+};
+
+export const invalidatePrioritySyncCache = () => {
+  try { localStorage.removeItem(PRIORITY_SYNC_KEY); } catch (_) {}
+};
+
 export const loadPriorityData = async (selectedDateStr, cityId = null, filters = {}) => {
   if (getSyncPaused()) return { skipped: true };
-  
+
+  // ── FRESHNESS GUARD: skip if we synced this date within the last 5 minutes ──
+  if (isPrioritySyncFresh(selectedDateStr)) {
+    console.log('⏭️ [PrioritySync] Skipped — data is fresh (< 5min old). Relying on SmartRefresh.');
+    return { skipped: true, fresh: true };
+  }
+
   setSyncInProgress(true);
   notifySyncStatus({ status: 'syncing', entity: 'Starting priority load...', progress: 5 });
   
@@ -286,6 +316,7 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
       offlineDB.updateSyncStatus('Patient', { status: 'synced', lastSync: now })
     ]);
     
+    markPrioritySyncComplete(selectedDateStr);
     notifySyncStatus({ status: 'complete', progress: 100 });
     return { success: true, cities, appUsers, deliveries, patients: syncedPatients };
   } catch (error) {

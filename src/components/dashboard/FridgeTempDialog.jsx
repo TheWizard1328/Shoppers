@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Thermometer, ChevronUp, ChevronDown, X, CheckCircle, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
 import { base44 } from '@/api/base44Client';
 
@@ -102,6 +104,32 @@ export default function FridgeTempDialog({ currentUser, deliveries, isMobileDevi
       })
       .catch(() => setLastReadingLoadedAt(Date.now()));
   }, [currentUser?.id, isDriver]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Listen for external trigger (e.g. pickup completion with fridge items)
+  useEffect(() => {
+    const handler = () => {
+      if (!isDriver) return;
+      setShowDialog(true);
+    };
+    window.addEventListener('showFridgeTempDialog', handler);
+    return () => window.removeEventListener('showFridgeTempDialog', handler);
+  }, [isDriver]);
+
+  const [manualInput, setManualInput] = useState('');
+
+  const handleManualInputChange = (e) => {
+    const val = e.target.value;
+    setManualInput(val);
+    const parsed = parseFloat(val);
+    if (!isNaN(parsed)) setTempValue(parsed);
+  };
+
+  const handleStepChange = (delta) => {
+    const next = Math.round((tempValue + delta) * 2) / 2;
+    const clamped = Math.min(20, Math.max(-10, next));
+    setTempValue(clamped);
+    setManualInput(String(clamped));
+  };
 
   const checkShouldPrompt = useCallback(() => {
     if (!isDriver) return;
@@ -207,7 +235,7 @@ export default function FridgeTempDialog({ currentUser, deliveries, isMobileDevi
 
   if (!isDriver || activeFridgeDeliveries.length === 0) return null;
 
-  return (
+  return createPortal(
     <AnimatePresence>
       {showDialog && (
         <motion.div
@@ -245,7 +273,7 @@ export default function FridgeTempDialog({ currentUser, deliveries, isMobileDevi
 
             <div className="flex items-center justify-center gap-4 mb-3">
               <button
-                onClick={() => setTempValue((v) => Math.max(-10, Math.round((v - 0.5) * 2) / 2))}
+                onClick={() => handleStepChange(-0.5)}
                 className="w-12 h-12 rounded-full bg-white border-2 border-slate-200 hover:border-cyan-400 flex items-center justify-center shadow-sm active:scale-95 transition-transform"
               >
                 <ChevronDown className="w-6 h-6 text-slate-600" />
@@ -259,11 +287,24 @@ export default function FridgeTempDialog({ currentUser, deliveries, isMobileDevi
               </div>
 
               <button
-                onClick={() => setTempValue((v) => Math.min(20, Math.round((v + 0.5) * 2) / 2))}
+                onClick={() => handleStepChange(0.5)}
                 className="w-12 h-12 rounded-full bg-white border-2 border-slate-200 hover:border-cyan-400 flex items-center justify-center shadow-sm active:scale-95 transition-transform"
               >
                 <ChevronUp className="w-6 h-6 text-slate-600" />
               </button>
+            </div>
+
+            <div className="flex items-center gap-2 mb-3">
+              <label className="text-xs text-slate-500 whitespace-nowrap">Manual entry:</label>
+              <Input
+                type="number"
+                step="0.5"
+                value={manualInput}
+                onChange={handleManualInputChange}
+                placeholder={String(tempValue)}
+                className="h-9 text-sm text-center"
+              />
+              <span className="text-xs text-slate-500">°C</span>
             </div>
 
             {isOutOfRange && (
@@ -300,6 +341,7 @@ export default function FridgeTempDialog({ currentUser, deliveries, isMobileDevi
         </div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }

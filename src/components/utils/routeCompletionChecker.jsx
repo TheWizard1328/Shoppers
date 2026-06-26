@@ -1,4 +1,5 @@
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
+const ACTIVE_STATUSES = ['in_transit', 'en_route'];
 
 const getLocalDateString = () => {
   const now = new Date();
@@ -16,8 +17,8 @@ export function isRouteCompleted(delivery, allDeliveries) {
 
   if (driverDeliveriesForDate.length === 0) return false;
 
-  const allFinished = driverDeliveriesForDate.every((d) => FINISHED_STATUSES.includes(d.status));
-  if (!allFinished) return false;
+  const hasActiveStops = driverDeliveriesForDate.some((d) => ACTIVE_STATUSES.includes(d.status));
+  if (hasActiveStops) return false;
 
   const now = new Date();
   const currentHour = now.getHours();
