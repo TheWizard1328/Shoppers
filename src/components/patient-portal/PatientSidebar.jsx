@@ -29,13 +29,13 @@ export default function PatientSidebar({ patient, deliveries, stores, isOpen, on
       {/* Overlay on mobile */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/40 z-30 md:hidden"
+          className="fixed inset-0 bg-black/40 z-[999] md:hidden"
           onClick={onClose}
         />
       )}
 
       <div
-        className={`fixed top-0 left-0 h-full w-72 bg-slate-50 border-r border-slate-200 flex flex-col z-40 transform transition-transform duration-300 ${
+        className={`fixed top-0 left-0 h-full w-72 bg-slate-50 border-r border-slate-200 flex flex-col z-[1000] transform transition-transform duration-300 ${
           isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
