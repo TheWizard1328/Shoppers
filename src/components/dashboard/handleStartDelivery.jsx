@@ -148,6 +148,10 @@ export async function handleStartDelivery({
     await Promise.all(syncPromises);
     console.log(`✅ [handleStartDelivery] Step 4 complete — ${syncPromises.length} stops synced to online DB`);
 
+    // Brief pause to let DB writes propagate before the optimizer reads the delivery list.
+    // Without this the optimizer may race the status writes and see the pickup as still 'pending'.
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+
     // ─── STEP 5: Invoke route optimizer ──────────────────────────────────
     // Online DB is now consistent — optimizer will see the correct in_transit status
     let optimizeData = null;
