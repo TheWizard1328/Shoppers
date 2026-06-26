@@ -180,10 +180,12 @@ export default function SquareCodDatasetTable({
   onRowClick,
   groupByCollected,
   showCatalogColumn,
-  headerActions
+  headerActions,
+  newCatalogRows
 }) {
   const notCollected = groupByCollected ? rows.filter((r) => !isRowCollected(r)) : rows;
   const collected = groupByCollected ? rows.filter((r) => isRowCollected(r)) : [];
+  const hasNewCatalogRows = newCatalogRows && newCatalogRows.length > 0;
   const colSpan = showLocationColumn ? 7 : 6;
 
   return (
@@ -227,6 +229,12 @@ export default function SquareCodDatasetTable({
               <div className="min-h-0 flex-1 overflow-y-auto overflow-x-auto" style={{ paddingBottom: navHeight ? navHeight + 8 : 8 }}>
                 <table className="w-full table-fixed">
                   <tbody>
+                    {hasNewCatalogRows &&
+                  <SectionDivider label={`New Catalog Items (${newCatalogRows.length})`} colSpan={colSpan} />
+                  }
+                    {hasNewCatalogRows && newCatalogRows.map((row, index) =>
+                  <DesktopRow key={getRowKey(row, index)} row={row} index={index} onRowClick={onRowClick} showLocationColumn={showLocationColumn} showCatalogColumn={showCatalogColumn} />
+                  )}
                     {groupByCollected && notCollected.length > 0 &&
                   <SectionDivider label={`Not Collected (${notCollected.length})`} colSpan={colSpan} />
                   }
@@ -246,6 +254,16 @@ export default function SquareCodDatasetTable({
 
             {/* Mobile */}
             <div className="md:hidden overflow-y-auto flex-1 min-h-0 space-y-3 p-4" style={{ paddingBottom: navHeight ? navHeight + 8 : 8 }}>
+              {hasNewCatalogRows &&
+            <div className="flex items-center gap-2 text-xs font-semibold text-blue-500 dark:text-blue-400 uppercase tracking-wider py-1">
+                  <div className="flex-1 h-px bg-blue-300 dark:bg-blue-600" />
+                  <span>New Catalog Items ({newCatalogRows.length})</span>
+                  <div className="flex-1 h-px bg-blue-300 dark:bg-blue-600" />
+                </div>
+            }
+              {hasNewCatalogRows && newCatalogRows.map((row, index) =>
+            <MobileCard key={row.id || `${row.itemName}-new-${index}`} row={row} index={index} onRowClick={onRowClick} showLocationColumn={showLocationColumn} showCatalogColumn={showCatalogColumn} />
+            )}
               {groupByCollected && notCollected.length > 0 &&
             <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider py-1">
                   <div className="flex-1 h-px bg-slate-300 dark:bg-slate-600" />

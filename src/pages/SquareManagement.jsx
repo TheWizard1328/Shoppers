@@ -1954,6 +1954,7 @@ export default function SquareManagement() {
           navHeight={navHeight}
           showCatalogColumn
           groupByCollected
+          newCatalogRows={reconciliationRows.filter((r) => !r.catalogId || r.catalogId === '--')}
           headerActions={!isDriverView && currentUser && isAppOwner(currentUser) ?
             <Button
               onClick={updateCatalog}
