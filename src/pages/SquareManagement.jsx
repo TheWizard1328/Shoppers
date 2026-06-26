@@ -231,63 +231,8 @@ export default function SquareManagement() {
   const selectedDriverUserIdsRef = useRef(new Set());
 
   const updateCatalog = useCallback(async () => {
-    if (isUpdatingCatalog || isSyncing) return;
-    setIsUpdatingCatalog(true);
-    setError(null);
-    try {
-      // Step 1: Build items from ALL reconciliation rows (all drivers, all stores, selected date range)
-      const currentRows = reconciliationRowsRef.current || [];
-      const items = currentRows
-        .map((row) => ({
-          deliveryId: row.rawDelivery?.id,
-          patientName: (() => {
-            const p = patients.find((pt) => pt?.id === row.rawDelivery?.patient_id || pt?.patient_id === row.rawDelivery?.patient_id);
-            return p?.full_name || null;
-          })(),
-          codAmount: row.rawDelivery?.cod_total_amount_required,
-          deliveryDate: row.rawDelivery?.delivery_date,
-          storeId: row.rawDelivery?.store_id,
-        }))
-        .filter((item) => item.deliveryId && Number(item.codAmount) > 0);
-
-      // Step 2: Purge Square catalog then push reconciliation items
-      await base44.functions.invoke('squareCodCore', {
-        action: 'syncSquareCods',
-        purgeCatalogFirst: true,
-        items,
-        deletions: [],
-      });
-
-      // Step 3: Pull the updated Square catalog back into local state ONLY — no delivery/transaction merge
-      const codResponse = await base44.functions.invoke('squareGetCODData', {
-        forceDeliveryRefresh: false, // do NOT pull deliveries — prevents contaminating reconcile tab
-        daysBack: Number(selectedDaysRange || 90),
-        mergeWithExisting: false,
-      });
-      const codData = codResponse?.data || codResponse || {};
-      const catalogRecords = codData.catalogRecords || [];
-      const transactionRecords = codData.transactionRecords || [];
-
-      await squareCODOfflineManager.saveCatalogItemsOffline(catalogRecords);
-      await squareCODOfflineManager.savePaymentTransactionsOffline(transactionRecords);
-
-      const [freshCatalog, freshTransactions] = await Promise.all([
-        squareCODOfflineManager.getCatalogItemsOffline(),
-        squareCODOfflineManager.getPaymentTransactionsOffline(),
-      ]);
-
-      setCatalogItems([...(freshCatalog || [])]);
-      setAllTransactions([...(freshTransactions || [])]);
-      setSoldCatalogItems([...(freshTransactions || []).filter((tx) => ['completed', 'refunded'].includes(tx?.status))]);
-
-      toast.success(`Catalog updated: ${catalogRecords.length} items synced to Square`);
-    } catch (err) {
-      toast.error('Catalog update failed: ' + err.message);
-      setError(err.message);
-    } finally {
-      setIsUpdatingCatalog(false);
-    }
-  }, [isUpdatingCatalog, isSyncing, patients, selectedDaysRange]);
+    // TODO: implement Update Catalog action
+  }, []);
 
   const runReconcile = useCallback(async () => {
     setIsReconciling(true);
