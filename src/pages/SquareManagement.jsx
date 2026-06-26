@@ -235,9 +235,29 @@ export default function SquareManagement() {
     setIsUpdatingCatalog(true);
     setError(null);
     try {
-      // Step 1: Build items from ALL reconciliation rows (all drivers, all stores)
       const currentRows = reconciliationRowsRef.current || [];
-      const items = currentRows
+
+      // Step 1: Delete catalog items that already have a Transaction ID (collected items lingering in catalog)
+      const catalogItemsWithTransactions = (catalogItems || []).filter((ci) => {
+        const hasTx = (allTransactions || []).some((tx) =>
+          tx?.square_catalog_object_id === (ci.catalog_object_id || ci.id) ||
+          (ci.delivery_id && tx?.delivery_id === ci.delivery_id && ['completed', 'refunded'].includes(tx?.status))
+        );
+        return hasTx;
+      });
+
+      if (catalogItemsWithTransactions.length > 0) {
+        const deletions = catalogItemsWithTransactions.map((ci) => ({
+          catalogObjectId: ci.catalog_object_id || ci.id,
+          deliveryId: ci.delivery_id || undefined,
+          reason: 'has_transaction_cleanup'
+        }));
+        await base44.functions.invoke('squareCodCore', { action: 'syncSquareCods', deletions });
+      }
+
+      // Step 2: Only add reconcile rows that have NO catalog ID
+      const itemsToAdd = currentRows
+        .filter((row) => !row.catalogId || row.catalogId === '--')
         .map((row) => ({
           deliveryId: row.rawDelivery?.id,
           patientName: (() => {
@@ -250,15 +270,15 @@ export default function SquareManagement() {
         }))
         .filter((item) => item.deliveryId && Number(item.codAmount) > 0);
 
-      // Step 1: Purge Square catalog then push all reconcile items
-      await base44.functions.invoke('squareCodCore', {
-        action: 'syncSquareCods',
-        purgeCatalogFirst: true,
-        items,
-        deletions: [],
-      });
+      if (itemsToAdd.length > 0) {
+        await base44.functions.invoke('squareCodCore', {
+          action: 'syncSquareCods',
+          items: itemsToAdd,
+          deletions: [],
+        });
+      }
 
-      // Step 2: Pull fresh catalog from Square API → update Catalog tab
+      // Step 3: Pull fresh catalog from Square API
       const codResponse = await base44.functions.invoke('squareCodCore', {
         action: 'getCodData',
         daysBack: Number(selectedDaysRange || 90),
@@ -280,20 +300,15 @@ export default function SquareManagement() {
       setAllTransactions([...(freshTransactions || [])]);
       setSoldCatalogItems([...(freshTransactions || []).filter((tx) => ['completed', 'refunded'].includes(tx?.status))]);
 
-      // Step 3: Clear the Reconcile tab items
-      setDeliveries([]);
-
-      // Step 4: Switch to Catalog tab
       setActiveView('catalog');
-
-      toast.success(`Catalog updated: ${catalogRecords.length} items synced to Square`);
+      toast.success(`Catalog updated: ${itemsToAdd.length} items added, ${catalogItemsWithTransactions.length} collected items removed`);
     } catch (err) {
       toast.error('Catalog update failed: ' + err.message);
       setError(err.message);
     } finally {
       setIsUpdatingCatalog(false);
     }
-  }, [isUpdatingCatalog, isSyncing, patients, selectedDaysRange]);
+  }, [isUpdatingCatalog, isSyncing, patients, selectedDaysRange, catalogItems, allTransactions]);
 
   const runReconcile = useCallback(async () => {
     setIsReconciling(true);
@@ -1868,7 +1883,10 @@ export default function SquareManagement() {
           navHeight={navHeight}
           headerActions={!isDriverView && currentUser && isAppOwner(currentUser) ?
           <>
-              <Button onClick={updateCatalog} disabled={isLoading || isUpdatingCatalog || isSyncing} className="h-9 gap-1.5 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-2">
+              <Button
+                onClick={updateCatalog}
+                disabled={isLoading || isUpdatingCatalog || isSyncing || (reconciliationRows.length > 0 && reconciliationRows.every((r) => r.catalogId && r.catalogId !== '--'))}
+                className="h-9 gap-1.5 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-2 disabled:opacity-50 disabled:cursor-not-allowed">
                 <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isUpdatingCatalog ? 'animate-pulse' : ''}`} />
                 <span>{isUpdatingCatalog ? 'Updating...' : 'Update Catalog'}</span>
               </Button>
