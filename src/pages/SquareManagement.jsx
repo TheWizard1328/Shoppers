@@ -252,46 +252,28 @@ export default function SquareManagement() {
 
   const runReconcile = useCallback(async () => {
     setIsReconciling(true);
-    setError(null);
     try {
-      // Build items from ALL reconciliation rows (all drivers, all stores) for the selected date range.
-      // reconciliationRowsRef holds the current computed unmatched deliveries.
-      const currentRows = reconciliationRowsRef.current || [];
-      const items = currentRows
-        .filter((row) => row.rawDelivery && Number(row.rawDelivery.cod_total_amount_required || 0) > 0)
-        .map((row) => ({
-          deliveryId: row.rawDelivery.id,
-          patientName: (() => {
-            const p = patients.find((p) => p?.id === row.rawDelivery.patient_id || p?.patient_id === row.rawDelivery.patient_id);
-            return p?.full_name || null;
-          })(),
-          codAmount: row.rawDelivery.cod_total_amount_required,
-          deliveryDate: row.rawDelivery.delivery_date,
-          storeId: row.rawDelivery.store_id,
-        }));
+      const { offlineDB } = await import('@/components/utils/offlineDatabase');
 
-      // Step 1: Purge Square catalog, then push all unmatched deliveries as new catalog items
-      const result = await base44.functions.invoke('squareCodCore', {
-        action: 'syncSquareCods',
-        purgeCatalogFirst: true,
-        items,
-        deletions: [],
-      });
-      const data = result?.data || result || {};
-      const created = (data.results || []).filter((r) => r.action === 'upsert' && r.status === 'ok').length;
-      const skipped = (data.results || []).filter((r) => r.status === 'skipped').length;
-      const errors = (data.results || []).filter((r) => r.status === 'error').length;
-      toast.success(`Square catalog cleared & rebuilt: ${created} created${skipped ? `, ${skipped} skipped` : ''}${errors ? `, ${errors} errors` : ''}`);
+      // Load all deliveries + transactions from offline DB — reconciliationRows useMemo does the matching
+      const [allOfflineDeliveries, offlineCatalog, offlineTransactions] = await Promise.all([
+      offlineDB.getAll(offlineDB.STORES.DELIVERIES),
+      offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS),
+      offlineDB.getAll(offlineDB.STORES.SQUARE_TRANSACTIONS)]
+      );
 
-      // Step 2: Pull fresh Square data into UI
-      await syncFromSquare();
+      setDeliveries([...(allOfflineDeliveries || [])]);
+      setCatalogItems([...(offlineCatalog || [])]);
+      setAllTransactions([...(offlineTransactions || [])]);
+      setSoldCatalogItems([...(offlineTransactions || []).filter((tx) => ['completed', 'refunded'].includes(tx.status))]);
+
+      toast.success('Reconciliation list updated');
     } catch (err) {
       toast.error('Reconcile failed: ' + err.message);
-      setError(err.message);
     } finally {
       setIsReconciling(false);
     }
-  }, [patients]);
+  }, []);
 
   const syncFromSquare = async () => {
     const now = Date.now();
