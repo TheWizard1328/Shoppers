@@ -233,6 +233,22 @@ export function useNativeBleSensor(currentUser) {
   connectToDeviceRef.current = connectToDevice;
   scanAndConnectRef.current  = scanAndConnect;
 
+  // ── forceRead — demand a fresh FFF2 read from the sensor ──────────────
+  const forceRead = useCallback(async () => {
+    const id = deviceIdRef.current;
+    if (!id || !connectedRef.current) return;
+    const BleClient = await getBleClient();
+    if (!BleClient) return;
+    try {
+      const dv = await BleClient.read(id, INKBIRD_SERVICE_UUID, INKBIRD_READ_UUID);
+      const parsed = decodeReading(dv);
+      if (parsed && mountedRef.current) {
+        setReading(parsed);
+        window.dispatchEvent(new CustomEvent('inkbirdReading', { detail: { ...parsed, source: 'native-force-read' } }));
+      }
+    } catch (_) {}
+  }, []);
+
   // ── Periodic 1-minute FFF2 read — keeps readings flowing in stable temps ────
   // FFF6 notifications arrive every ~1-2s so the reading state stays live,
   // but LiveTempBadge only persists once per HEARTBEAT_MS. This forceRead
@@ -342,22 +358,6 @@ export function useNativeBleSensor(currentUser) {
       scanAndConnect();
     }
   }, [connectToDevice, scanAndConnect]);
-
-  // ── forceRead — demand a fresh FFF2 read from the sensor ──────────────
-  const forceRead = useCallback(async () => {
-    const id = deviceIdRef.current;
-    if (!id || !connectedRef.current) return;
-    const BleClient = await getBleClient();
-    if (!BleClient) return;
-    try {
-      const dv = await BleClient.read(id, INKBIRD_SERVICE_UUID, INKBIRD_READ_UUID);
-      const parsed = decodeReading(dv);
-      if (parsed && mountedRef.current) {
-        setReading(parsed);
-        window.dispatchEvent(new CustomEvent('inkbirdReading', { detail: { ...parsed, source: 'native-force-read' } }));
-      }
-    } catch (_) {}
-  }, []);
 
   return {
     status,
