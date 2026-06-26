@@ -1429,6 +1429,9 @@ export default function SquareManagement() {
       const crossStoreStore = crossStoreConfig ? getStoreForConfig(crossStoreConfig) : null;
       const crossStoreName = crossStoreStore?.name || crossStoreConfig?.name || crossStoreTx?.location_id || null;
 
+      const linkedCatalogItem = (catalogItems || []).find((ci) => ci?.delivery_id === delivery.id);
+      const catalogObjectId = linkedCatalogItem?.catalog_object_id || linkedCatalogItem?.id || null;
+
       return {
         id: delivery.id,
         key: `${delivery.id || 'delivery'}|${resolvedLocationId}|${delivery.delivery_date || 'no-date'}`,
@@ -1439,8 +1442,8 @@ export default function SquareManagement() {
         amount: Number(delivery.cod_total_amount_required || 0),
         storeName: store?.name || 'Unknown',
         locationId: resolvedLocationId,
-        catalogId: '--',
-        transactionId: '--',
+        catalogId: catalogObjectId || '--',
+        transactionId: crossStoreTx ? (crossStoreTx.square_payment_id || crossStoreTx.square_transaction_id || crossStoreTx.id || '--') : '--',
         deliveryDate: delivery.delivery_date,
         collectionType: Array.isArray(delivery?.cod_payments) && delivery.cod_payments.length > 0 ?
         Array.from(new Set(delivery.cod_payments.map((payment) => payment?.type).filter(Boolean))).join(', ') :
@@ -1467,7 +1470,7 @@ export default function SquareManagement() {
       seenRowKeys.add(rowKey);
       return true;
     });
-  }, [deliveries, stores, visibleSquareLocationConfigIds, lookbackStart, todayDateString, selectedDriverFilter, selectedDriverUserIds, locationConfigs, allTransactions, hasMatchingSquareTransaction, patients, formatItemNameForDisplay]);
+  }, [deliveries, stores, visibleSquareLocationConfigIds, lookbackStart, todayDateString, selectedDriverFilter, selectedDriverUserIds, locationConfigs, allTransactions, hasMatchingSquareTransaction, patients, formatItemNameForDisplay, catalogItems]);
 
   reconciliationRowsRef.current = reconciliationRows;
 
