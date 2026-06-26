@@ -138,20 +138,39 @@ export default function PatientPortal() {
     return () => clearInterval(driverPollRef.current);
   }, [todayDelivery?.id, todayDelivery?.status]);
 
-  // ── Real-time subscribe to today's delivery updates ────────────────
+  // ── Real-time subscribe to all this patient's delivery updates ──────
   useEffect(() => {
-    if (!todayDelivery?.id) return;
+    if (!patient?.id) return;
     const unsubscribe = base44.entities.Delivery.subscribe((event) => {
-      if (event.data?.id === todayDelivery.id) {
-        setTodayDelivery((prev) => ({ ...prev, ...event.data }));
-        // Start expiration timer on completion
-        if (event.data?.status === 'completed') {
-          PatientSessionManager.startExpirationTimer();
+      const updated = event.data;
+      if (!updated?.id) return;
+
+      // Only care about deliveries belonging to this patient
+      if (updated.patient_id !== patient.id) return;
+
+      // Update the deliveries list
+      setDeliveries((prev) => {
+        const exists = prev.some((d) => d.id === updated.id);
+        if (exists) return prev.map((d) => d.id === updated.id ? { ...d, ...updated } : d);
+        return [updated, ...prev]; // new delivery arriving
+      });
+
+      // Keep todayDelivery in sync
+      setTodayDelivery((prev) => {
+        if (prev?.id === updated.id) {
+          const next = { ...prev, ...updated };
+          if (updated.status === 'completed') PatientSessionManager.startExpirationTimer();
+          return next;
         }
-      }
+        // If it's a new today delivery, promote it
+        if (updated.delivery_date === TODAY && !['cancelled', 'failed'].includes(updated.status) && !prev) {
+          return updated;
+        }
+        return prev;
+      });
     });
     return unsubscribe;
-  }, [todayDelivery?.id]);
+  }, [patient?.id]);
 
   // ── Map markers ───────────────────────────────────────────────────
   const storeMap = {};
