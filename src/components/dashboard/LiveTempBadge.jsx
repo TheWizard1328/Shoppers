@@ -19,8 +19,8 @@ const TEMP_MIN        = 2;
 const TEMP_MAX        = 8;
 const DB_POLL_MS      = 60000;
 const PULSE_MS        = 600;
-const HEARTBEAT_MS    = 10 * 60 * 1000; // 10 minutes
-const CHANGE_THRESHOLD = 0.1;           // °C
+const HEARTBEAT_MS    = 60 * 1000; // 1 minute — FFF6 notifications flow continuously, we persist once/min
+const CHANGE_THRESHOLD = 0.1;           // °C — secondary gate; primary gate is heartbeat every 1 min
 
 function localISOString() {
   const d = new Date();

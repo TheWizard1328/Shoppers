@@ -205,12 +205,13 @@ export function useInkbirdSensor(currentUser) {
   // This is the key API. StopCard wires this into every action button so that
   // any interaction from the driver silently reconnects the sensor if needed.
   const triggerReconnect = useCallback(() => {
-    if (!mountedRef.current) return;
-    if (!canUseBle) return; // desktop or no Bluetooth — skip BLE
-    if (!deviceRef.current) return; // no device known yet — need manual pair first
-    if (connectingRef.current) return; // already connecting
-    if (status === 'connected') return; // already good
+    if (!mountedRef.current) return false;
+    if (!canUseBle) return false;       // desktop or no Bluetooth
+    if (!deviceRef.current) return false; // no device known yet — need manual pair
+    if (connectingRef.current) return true; // already in-flight — treat as handled
+    if (status === 'connected') return true; // already good
     connectDevice(deviceRef.current);
+    return true; // reconnect initiated — caller should NOT fall back to picker
   }, [status, connectDevice, canUseBle]);
 
   // ── First-time manual pair ─────────────────────────────────────────────
@@ -276,7 +277,7 @@ export function useInkbirdSensor(currentUser) {
     } catch (_) {}
   }, []);
 
-  // ── Periodic 5-minute read — starts/stops with connection state ────────
+  // ── Periodic 1-minute FFF2 read — keepalive for stable-temp scenarios ──────
   useEffect(() => {
     if (status === 'connected') {
       clearInterval(periodicReadTimer.current);

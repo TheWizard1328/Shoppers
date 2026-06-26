@@ -19,6 +19,7 @@ const INKBIRD_NAME_PREFIXES   = ['tps', 'sps', 'inkbird', 'ibs'];
 const LOCAL_STORAGE_KEY       = 'rxdeliver_inkbird_sensor_name';
 const DEVICE_ID_KEY           = 'rxdeliver_inkbird_device_id';
 const RECONNECT_INTERVAL_MS   = 10000;
+const PERIODIC_READ_MS        = 60 * 1000; // 1 minute — FFF6 notifications fire every ~1-2s; we force an FFF2 read once/min as a keepalive
 const SCAN_DURATION_MS        = 5000;
 
 // ── Lazy BleClient loader ─────────────────────────────────────────────────────
@@ -87,6 +88,7 @@ export function useNativeBleSensor(currentUser) {
   const connectedRef      = useRef(false);
   const reconnectTimerRef = useRef(null);
   const bleInitRef        = useRef(false);
+  const periodicReadTimerRef = useRef(null); // 1-min FFF2 keepalive read
 
   // ── Init BleClient once ───────────────────────────────────────────────────
   const initBle = useCallback(async () => {
@@ -231,6 +233,23 @@ export function useNativeBleSensor(currentUser) {
   connectToDeviceRef.current = connectToDevice;
   scanAndConnectRef.current  = scanAndConnect;
 
+  // ── Periodic 1-minute FFF2 read — keeps readings flowing in stable temps ────
+  // FFF6 notifications arrive every ~1-2s so the reading state stays live,
+  // but LiveTempBadge only persists once per HEARTBEAT_MS. This forceRead
+  // ensures the FFF2 characteristic is polled as a keepalive and refreshes
+  // the reading even if the temp hasn't changed (stable cooler scenario).
+  useEffect(() => {
+    if (status === 'connected') {
+      clearInterval(periodicReadTimerRef.current);
+      periodicReadTimerRef.current = setInterval(() => {
+        if (connectedRef.current) forceRead();
+      }, PERIODIC_READ_MS);
+    } else {
+      clearInterval(periodicReadTimerRef.current);
+    }
+    return () => clearInterval(periodicReadTimerRef.current);
+  }, [status, forceRead]);
+
   // ── Mount: auto-connect if we have a saved device ID, else scan ───────────
   useEffect(() => {
     mountedRef.current = true;
@@ -256,6 +275,7 @@ export function useNativeBleSensor(currentUser) {
     return () => {
       mountedRef.current = false;
       clearTimeout(reconnectTimerRef.current);
+      clearInterval(periodicReadTimerRef.current);
       const id = deviceIdRef.current;
       if (id && connectedRef.current) {
         getBleClient().then(BleClient => {
@@ -297,6 +317,7 @@ export function useNativeBleSensor(currentUser) {
   // ── Manual disconnect ─────────────────────────────────────────────────────
   const disconnect = useCallback(async () => {
     clearTimeout(reconnectTimerRef.current);
+    clearInterval(periodicReadTimerRef.current);
     const id = deviceIdRef.current;
     if (id) {
       const BleClient = await getBleClient();
