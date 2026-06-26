@@ -275,7 +275,7 @@ export default function PatientPortal() {
               center={defaultCenter}
               zoom={13}
               style={{ height: '100%', width: '100%' }}
-              zoomControl={true}
+              zoomControl={false}
             >
               <TileLayer
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
