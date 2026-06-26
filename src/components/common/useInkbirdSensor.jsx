@@ -37,7 +37,7 @@ const INKBIRD_READ_UUID    = '0000fff2-0000-1000-8000-00805f9b34fb';
 const INKBIRD_NAMES        = ['tps', 'sps'];
 const LOCAL_STORAGE_KEY    = 'rxdeliver_inkbird_sensor_name';
 const MAX_RETRIES          = 5;
-const PERIODIC_READ_MS     = 5 * 60 * 1000; // 5 minutes
+const PERIODIC_READ_MS     = 60 * 1000; // 1 minute
 
 // ── Decode FFF2 / FFF6 DataView ───────────────────────────────────────────
 function decodeReading(dv) {
