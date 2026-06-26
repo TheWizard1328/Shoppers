@@ -56,13 +56,18 @@ const DesktopRow = ({ row, index, onRowClick, showLocationColumn, showCatalogCol
     {showLocationColumn &&
   <td className="p-3">
         <div className="text-xs font-mono truncate max-w-[180px] text-slate-600 dark:text-slate-400">
-          {showCatalogColumn ? row.catalogId || '--' : row.locationId || '--'}
+          {row.locationId || '--'}
         </div>
       </td>
   }
     <td className="p-3">
       <div className="text-xs font-mono truncate max-w-[150px] text-slate-600 dark:text-slate-400">
-        {showCatalogColumn ? row.transactionId || '--' : row.catalogId || '--'}
+        {row.catalogId || '--'}
+      </div>
+    </td>
+    <td className="p-3">
+      <div className="text-xs font-mono truncate max-w-[150px] text-slate-600 dark:text-slate-400">
+        {row.transactionId || '--'}
       </div>
     </td>
     <td className="p-3">
@@ -133,18 +138,22 @@ const MobileCard = ({ row, index, onRowClick, showLocationColumn, showCatalogCol
           </div>
           {showLocationColumn &&
             <div className="rounded-xl px-3 py-2" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
-              <div className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--text-slate-500)' }}>
-                {showCatalogColumn ? 'Catalog Item ID' : 'Square Location ID'}
-              </div>
+              <div className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--text-slate-500)' }}>Square Location ID</div>
               <div className="mt-1 text-xs font-mono break-all" style={{ color: 'var(--text-slate-700)' }}>
-                {showCatalogColumn ? row.catalogId || '--' : row.locationId || '--'}
+                {row.locationId || '--'}
               </div>
             </div>
           }
           <div className="rounded-xl px-3 py-2" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
+            <div className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--text-slate-500)' }}>Catalog ID</div>
+            <div className="mt-1 text-xs font-mono break-all" style={{ color: 'var(--text-slate-700)' }}>
+              {row.catalogId || '--'}
+            </div>
+          </div>
+          <div className="rounded-xl px-3 py-2" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
             <div className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--text-slate-500)' }}>Transaction ID</div>
             <div className="mt-1 text-xs font-mono break-all" style={{ color: 'var(--text-slate-700)' }}>
-              {showCatalogColumn ? row.transactionId || '--' : row.catalogId || '--'}
+              {row.transactionId || '--'}
             </div>
           </div>
           {row.notes &&
@@ -175,7 +184,7 @@ export default function SquareCodDatasetTable({
 }) {
   const notCollected = groupByCollected ? rows.filter((r) => !isRowCollected(r)) : rows;
   const collected = groupByCollected ? rows.filter((r) => isRowCollected(r)) : [];
-  const colSpan = showLocationColumn ? 6 : 5;
+  const colSpan = showLocationColumn ? 7 : 6;
 
   return (
     <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 flex flex-col md:flex-1 md:min-h-0">
@@ -207,7 +216,8 @@ export default function SquareCodDatasetTable({
                       <th className="p-3">Item Name</th>
                       <th className="p-3">Amount</th>
                       <th className="p-3">Store</th>
-                      {showLocationColumn && <th className="p-3">{showCatalogColumn ? 'Catalog Item ID' : 'Square Location ID'}</th>}
+                      {showLocationColumn && <th className="p-3">Square Location ID</th>}
+                      <th className="p-3">Catalog ID</th>
                       <th className="p-3">Transaction ID</th>
                       <th className="p-3">Actions</th>
                     </tr>
