@@ -1256,6 +1256,7 @@ export default function SquareManagement() {
         storeName: resolvedStore?.name || store?.name || resolvedConfig?.name || config?.name || 'Unknown',
         locationId: transaction.location_id || resolvedConfig?.square_location_id || '--',
         catalogId: transaction.square_catalog_object_id || '--',
+        transactionId: transaction.square_payment_id || transaction.square_transaction_id || transaction.id || '--',
         deliveryDate: displayDate,
         collectionDate,
         collectionType,
@@ -1420,6 +1421,7 @@ export default function SquareManagement() {
         storeName: store?.name || 'Unknown',
         locationId: resolvedLocationId,
         catalogId: '--',
+        transactionId: '--',
         deliveryDate: delivery.delivery_date,
         collectionType: Array.isArray(delivery?.cod_payments) && delivery.cod_payments.length > 0 ?
         Array.from(new Set(delivery.cod_payments.map((payment) => payment?.type).filter(Boolean))).join(', ') :
