@@ -1255,7 +1255,15 @@ export default function SquareManagement() {
         amount: Number(transaction.amount || 0),
         storeName: resolvedStore?.name || store?.name || resolvedConfig?.name || config?.name || 'Unknown',
         locationId: transaction.location_id || resolvedConfig?.square_location_id || '--',
-        catalogId: transaction.square_catalog_object_id || '--',
+        catalogId: (() => {
+          // Prefer the catalog item's own ID (matches Catalog tab); fall back to transaction's reference
+          const linkedCatalogItem = (catalogItems || []).find((ci) =>
+            (ci.delivery_id && matchedDelivery?.id && ci.delivery_id === matchedDelivery.id) ||
+            (ci.catalog_object_id && transaction.square_catalog_object_id && ci.catalog_object_id === transaction.square_catalog_object_id) ||
+            (ci.id && transaction.square_catalog_object_id && ci.id === transaction.square_catalog_object_id)
+          );
+          return linkedCatalogItem?.catalog_object_id || linkedCatalogItem?.id || transaction.square_catalog_object_id || '--';
+        })(),
         transactionId: transaction.square_payment_id || transaction.square_transaction_id || transaction.id || '--',
         deliveryDate: displayDate,
         collectionDate,
@@ -1309,9 +1317,20 @@ export default function SquareManagement() {
       // A catalog item is "Collected" ONLY if there is a matching transaction in the transactions list.
       // Match by: square_catalog_object_id on the transaction, OR delivery_id on the transaction.
       const catalogObjectId = item.catalog_object_id || item.id;
-      const matchingTx = (allTransactions || []).find((tx) =>
-        tx && linkedDelivery?.id && tx.delivery_id === linkedDelivery.id
-      );
+      const matchingTx = (allTransactions || []).find((tx) => {
+        if (!tx) return false;
+        // Match by delivery_id (most reliable)
+        if (linkedDelivery?.id && tx.delivery_id === linkedDelivery.id) return true;
+        // Match by catalog object ID on the transaction
+        if (tx.square_catalog_object_id && (tx.square_catalog_object_id === catalogObjectId || tx.square_catalog_object_id === item.id)) return true;
+        // Match by amount + location + delivery date from item name
+        const txAmountCents = Math.round(Number(tx.amount || 0) * 100);
+        const itemAmountCents = Math.round(Number(item.price_dollars || item.amount || 0) * 100);
+        if (txAmountCents !== itemAmountCents || !item.location_id || tx.location_id !== item.location_id) return false;
+        const itemDateStr = item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate;
+        const txDateStr = getTransactionEffectiveDateString(tx);
+        return !!(itemDateStr && txDateStr && itemDateStr === txDateStr);
+      });
       const isCollected = !!matchingTx;
       return {
         id: catalogObjectId,
