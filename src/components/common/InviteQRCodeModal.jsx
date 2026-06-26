@@ -111,6 +111,14 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
       return;
     }
 
+    // Patient role: directly link to the patient portal login — no invite token needed
+    if (selectedRole === 'patient') {
+      const url = `${PRODUCTION_DOMAIN}/patient-login`;
+      setInviteUrl(url);
+      setQrUrl(url);
+      return;
+    }
+
     setIsGenerating(true);
     try {
       const response = await base44.functions.invoke('generateInviteQRCode', {
@@ -229,7 +237,10 @@ export default function InviteQRCodeModal({ isOpen, onClose, currentUser, stores
               </p>
             ) : (
               <p className="text-xs text-slate-500 text-center">
-                Invite role: <span className="font-semibold">{selectedRole}</span>
+                {selectedRole === 'patient'
+                  ? <>Scan to open the <span className="font-semibold">Patient Portal</span> login page.</>
+                  : <>Invite role: <span className="font-semibold">{selectedRole}</span></>
+                }
               </p>
             )}
 
