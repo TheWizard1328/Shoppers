@@ -7,8 +7,9 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
-import { Edit, Locate, MoreVertical, RotateCcw, Trash2, User, XCircle } from "lucide-react";
+import { Edit, Locate, MoreVertical, RotateCcw, Trash2, User, XCircle, ExternalLink } from "lucide-react";
 import { isInterStoreDelivery } from '../utils/interStoreDisplayName';
+import { PatientSessionManager } from '../patient-portal/PatientSessionManager';
 
 export default function StopCardFooterMenu(props) {
   const {
@@ -65,6 +66,8 @@ export default function StopCardFooterMenu(props) {
 
   const canShowUpdateGps = !!(!isDispatcherOnly && handleUpdateGPS && canManageStop && patient && !isPickupForMenu && !isInterStore && (isNextDelivery || isFinishedDelivery));
 
+  const canShowViewAsPatient = !!(isAppOwner?.(currentUser) && patient && delivery?.patient_id && !isInterStore);
+
   const canShowFailCancel = !!(!isDispatcherOnly && onStatusUpdate && canManageStop && (
     isActivePickup || (isActiveDelivery && isNextDelivery)
   ) && !isInterStore);
@@ -98,6 +101,11 @@ export default function StopCardFooterMenu(props) {
         {canShowEditPatient && (
           <DropdownMenuItem inset={false} onClick={(e) => { blockCardToggle(e); e.stopPropagation(); onEditPatient(patient); }} className="flex cursor-pointer items-center text-base py-2.5 md:py-1.5 text-slate-900 dark:text-slate-100 focus:bg-slate-100 dark:focus:bg-slate-700 focus:text-slate-900 dark:focus:text-slate-100">
             <User className="w-5 h-5 mr-2" />Edit Patient
+          </DropdownMenuItem>
+        )}
+        {canShowViewAsPatient && (
+          <DropdownMenuItem inset={false} onClick={(e) => { blockCardToggle(e); e.stopPropagation(); PatientSessionManager.login(patient); window.open('/patient-portal', '_blank'); }} className="flex cursor-pointer items-center text-base py-2.5 md:py-1.5 text-indigo-600 dark:text-indigo-400 focus:bg-indigo-50 dark:focus:bg-indigo-950 focus:text-indigo-700 dark:focus:text-indigo-300">
+            <ExternalLink className="w-5 h-5 mr-2" />View As Patient
           </DropdownMenuItem>
         )}
         {canShowUpdateGps && (
