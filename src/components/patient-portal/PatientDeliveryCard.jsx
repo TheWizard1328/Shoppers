@@ -36,12 +36,20 @@ export default function PatientDeliveryCard({ delivery, storeName, isSelected, o
           <p className={`text-sm font-semibold mt-0.5 ${isSelected ? 'text-white' : 'text-slate-800'}`}>
             {dateStr}
           </p>
-          {delivery.delivery_time_start && (
+          {delivery.status === 'completed' && delivery.actual_delivery_time ? (
+            <p className={`text-xs mt-0.5 min-w-[175px] ${isSelected ? 'text-slate-400' : 'text-slate-400'}`}>
+              Delivered: {delivery.actual_delivery_time.substring(11, 16)}
+            </p>
+          ) : delivery.status === 'failed' && (delivery.actual_delivery_time || delivery.arrival_time) ? (
+            <p className={`text-xs mt-0.5 min-w-[175px] ${isSelected ? 'text-slate-400' : 'text-slate-400'}`}>
+              Attempted: {(delivery.actual_delivery_time || delivery.arrival_time).substring(11, 16)}
+            </p>
+          ) : delivery.delivery_time_start ? (
             <p className={`text-xs mt-0.5 ${isSelected ? 'text-slate-400' : 'text-slate-400 min-w-[175px]'}`}>
               Window: {delivery.delivery_time_start}
               {delivery.delivery_time_end ? ` – ${delivery.delivery_time_end}` : ''}
             </p>
-          )}
+          ) : null}
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
           <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border ${
