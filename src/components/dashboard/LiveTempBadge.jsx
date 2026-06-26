@@ -151,6 +151,8 @@ export default function LiveTempBadge({
       triggerPulse();
       prevTempRef.current = bleTemp;
     }
+    // Persist last known temp to localStorage so it survives BLE disconnects
+    try { localStorage.setItem('rxdeliver_last_ble_temp', JSON.stringify({ tempC: bleTemp, timestamp: new Date().toISOString() })); } catch (_) {}
     saveBleReading(bleTemp);
   }, [bleTemp, triggerPulse, saveBleReading]);
 
@@ -332,9 +334,21 @@ export default function LiveTempBadge({
 
   // ── Display values ────────────────────────────────────────────────────
   const showLiveBle = !isPastDate && selectedDriverIsMe && driverMode;
+
+  // Fallback: last BLE reading saved to localStorage (survives BLE disconnects between sessions)
+  const localStorageFallbackTemp = (() => {
+    if (bleTemp !== null || lastReading?.temperature_celsius != null) return null;
+    try {
+      const saved = JSON.parse(localStorage.getItem('rxdeliver_last_ble_temp') || 'null');
+      return saved?.tempC ?? null;
+    } catch (_) { return null; }
+  })();
+
   const displayTemp = isPastDate
     ? (avgReading?.avg ?? null)
-    : (showLiveBle && bleTemp !== null ? bleTemp : (lastReading?.temperature_celsius ?? null));
+    : (showLiveBle && bleTemp !== null
+        ? bleTemp
+        : (lastReading?.temperature_celsius ?? localStorageFallbackTemp ?? null));
 
   const isOut     = displayTemp !== null && (displayTemp < TEMP_MIN || displayTemp > TEMP_MAX);
   const isWarning = displayTemp !== null && !isOut && (displayTemp < TEMP_MIN + 1 || displayTemp > TEMP_MAX - 1);
@@ -352,7 +366,8 @@ export default function LiveTempBadge({
 
   const labelText = (() => {
     if (!isPastDate && showLiveBle && (bleStatus === 'connecting' || bleStatus === 'scanning')) return 'Connecting…';
-    if (!isPastDate && showLiveBle && bleStatus === 'disconnected') return sensorName ? 'Tap to reconnect' : 'Tap to pair';
+    // If disconnected but we have a cached/DB reading, show the temperature instead of "Tap to reconnect"
+    if (!isPastDate && showLiveBle && bleStatus === 'disconnected' && displayTemp === null) return sensorName ? 'Tap to reconnect' : 'Tap to pair';
     if (displayTemp !== null) return isPastDate ? `∅ ${displayTemp}°C` : `${displayTemp}°C`;
     if (isPastDate)           return 'No data';
     if (!driverMode || !selectedDriverIsMe) return 'No reading';
