@@ -1935,10 +1935,6 @@ export default function SquareManagement() {
                 <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isUpdatingCatalog ? 'animate-pulse' : ''}`} />
                 <span>{isUpdatingCatalog ? 'Updating...' : 'Update Catalog'}</span>
               </Button>
-              <Button onClick={runReconcile} disabled={isReconciling || isSyncing} className="h-9 gap-1 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-3">
-                {isReconciling ? <Loader2 className="w-4 h-4 flex-shrink-0 animate-spin" /> : <RefreshCw className="w-4 h-4 flex-shrink-0" />}
-                {isReconciling ? 'Reconciling...' : 'Reconcile'}
-              </Button>
             </> :
           undefined} /> :
 
@@ -1957,7 +1953,16 @@ export default function SquareManagement() {
           showLocationColumn={currentUser && isAppOwner(currentUser)}
           navHeight={navHeight}
           showCatalogColumn
-          groupByCollected />
+          groupByCollected
+          headerActions={!isDriverView && currentUser && isAppOwner(currentUser) ?
+            <Button
+              onClick={updateCatalog}
+              disabled={isLoading || isUpdatingCatalog || isSyncing}
+              className="h-9 gap-1.5 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-2 disabled:opacity-50 disabled:cursor-not-allowed">
+              <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isUpdatingCatalog ? 'animate-pulse' : ''}`} />
+              <span>{isUpdatingCatalog ? 'Updating...' : 'Update Catalog'}</span>
+            </Button> :
+            undefined} />
 
         }
 
