@@ -15,6 +15,8 @@ import { DeviceProvider } from '@/components/utils/DeviceContext';
 import SquareSyncAudit from '@/pages/SquareSyncAudit';
 import Companies from '@/pages/Companies';
 import DriverScheduleCalendar from '@/pages/DriverScheduleCalendar';
+import PatientLogin from '@/pages/PatientLogin';
+import PatientPortal from '@/pages/PatientPortal';
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
 import ForgotPassword from '@/pages/ForgotPassword';
@@ -77,6 +79,10 @@ const AuthenticatedApp = () => {
 
   return (
     <Routes>
+      {/* Patient Portal — public routes (no platform auth required) */}
+      <Route path="/patient-login" element={<PatientLogin />} />
+      <Route path="/patient-portal" element={<PatientPortal />} />
+
       {/* Public auth routes */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
