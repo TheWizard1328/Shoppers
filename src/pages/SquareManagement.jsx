@@ -235,31 +235,12 @@ export default function SquareManagement() {
     setIsUpdatingCatalog(true);
     setError(null);
     try {
-      // Build the list of unmatched deliveries from the current reconciliation view
-      const currentRows = reconciliationRowsRef.current || [];
-      const items = currentRows.map((row) => ({
-        deliveryId: row.rawDelivery?.id,
-        patientName: row.rawDelivery ? (() => {
-          const p = patients.find((p) => p?.id === row.rawDelivery.patient_id || p?.patient_id === row.rawDelivery.patient_id);
-          return p?.full_name || null;
-        })() : null,
-        codAmount: row.rawDelivery?.cod_total_amount_required,
-        deliveryDate: row.rawDelivery?.delivery_date,
-        storeId: row.rawDelivery?.store_id
-      })).filter((item) => item.deliveryId && item.codAmount > 0);
-
-      // Purge all Square catalog items first, then recreate from reconciliation data
-      const result = await base44.functions.invoke('squareCodCore', {
-        action: 'syncSquareCods',
-        purgeCatalogFirst: true,
-        items,
-        deletions: []
-      });
+      // Sync the Square catalog items from Square API into our DB
+      const result = await base44.functions.invoke('squareSyncCatalogItems', {});
       const data = result?.data || result || {};
-      const created = (data.results || []).filter((r) => r.action === 'upsert' && r.status === 'ok').length;
-      const skipped = (data.results || []).filter((r) => r.status === 'skipped').length;
-      const errors = (data.results || []).filter((r) => r.status === 'error').length;
-      toast.success(`Catalog purged & rebuilt: ${created} created${skipped ? `, ${skipped} skipped` : ''}${errors ? `, ${errors} errors` : ''}`);
+      const synced = data.synced ?? data.count ?? '?';
+      toast.success(`Catalog updated: ${synced} items synced`);
+      // Now pull fresh data into the UI
       await syncFromSquare();
     } catch (err) {
       toast.error('Catalog update failed: ' + err.message);
@@ -267,7 +248,7 @@ export default function SquareManagement() {
     } finally {
       setIsUpdatingCatalog(false);
     }
-  }, [isUpdatingCatalog, isSyncing, patients, refreshUiFromOfflineOnly]);
+  }, [isUpdatingCatalog, isSyncing]);
 
   const runReconcile = useCallback(async () => {
     setIsReconciling(true);
