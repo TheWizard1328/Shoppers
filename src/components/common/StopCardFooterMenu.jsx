@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Edit, Locate, MoreVertical, RotateCcw, Trash2, User, XCircle, ExternalLink } from "lucide-react";
 import { isInterStoreDelivery } from '../utils/interStoreDisplayName';
-import { activatePatientViewOverlay } from '../patient-portal/PatientViewOverlay';
+import { PatientSessionManager } from '../patient-portal/PatientSessionManager';
 
 export default function StopCardFooterMenu(props) {
   const {
@@ -104,7 +104,7 @@ export default function StopCardFooterMenu(props) {
           </DropdownMenuItem>
         )}
         {canShowViewAsPatient && (
-          <DropdownMenuItem inset={false} onClick={(e) => { blockCardToggle(e); e.stopPropagation(); activatePatientViewOverlay(patient); }} className="flex cursor-pointer items-center text-base py-2.5 md:py-1.5 text-indigo-600 dark:text-indigo-400 focus:bg-indigo-50 dark:focus:bg-indigo-950 focus:text-indigo-700 dark:focus:text-indigo-300">
+          <DropdownMenuItem inset={false} onClick={(e) => { blockCardToggle(e); e.stopPropagation(); PatientSessionManager.login(patient); window.open('/patient-portal', '_blank'); }} className="flex cursor-pointer items-center text-base py-2.5 md:py-1.5 text-indigo-600 dark:text-indigo-400 focus:bg-indigo-50 dark:focus:bg-indigo-950 focus:text-indigo-700 dark:focus:text-indigo-300">
             <ExternalLink className="w-5 h-5 mr-2" />View As Patient
           </DropdownMenuItem>
         )}

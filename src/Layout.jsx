@@ -60,7 +60,6 @@ import BatteryIndicator from './components/layout/BatteryIndicator';
 import SettingsMenu from './components/layout/SettingsMenu';
 import { getCompanyBranding, applyBrandingStyles } from './components/utils/brandingManager';
 import OptimizationSpinner from './components/common/OptimizationSpinner';
-import PatientViewOverlay from './components/patient-portal/PatientViewOverlay';
 import MobileBottomNav from './components/layout/MobileBottomNav';
 import SidebarUserFooter from './components/layout/SidebarUserFooter';
 import AdminNavigationSection from './components/layout/AdminNavigationSection';
@@ -1169,6 +1168,5 @@ export default function Layout({ children, currentPageName }) {
       }
 
       <OptimizationSpinner />
-      <PatientViewOverlay />
     </AppErrorBoundary>);
 }
