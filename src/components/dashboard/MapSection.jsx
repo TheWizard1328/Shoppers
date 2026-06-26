@@ -45,8 +45,11 @@ export default function MapSection({
     onImmersiveMapTap?.();
     const timeSinceDoubleTap = Date.now() - (window._lastMapDoubleTapAt || 0);
     if (timeSinceDoubleTap < 800) return;
+    // CRITICAL: Leaflet fitBounds animations fire moveend/zoomend after ~900ms.
+    // We must suppress user-interaction detection long enough to outlast the animation
+    // so a GPS-driven phase-2 reposition doesn't accidentally unlock the FAB.
     const timeSinceProgrammaticMove = Date.now() - (window._lastProgrammaticMapMove || 0);
-    if (timeSinceProgrammaticMove < 500) return;
+    if (timeSinceProgrammaticMove < 1500) return;
     fabControlEvents.notifyUserMapInteraction();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onImmersiveMapTap]);
