@@ -8,6 +8,7 @@ import { _cachedSquareAppId as _sharedSquareAppIdCache } from "./StopCard";
 import { toast } from "sonner";
 import { createPortal } from "react-dom";
 import { useAppData } from "../utils/AppDataContext";
+import { launchSquarePOS } from "../utils/squarePOSLauncher";
 
 // Generate the Square item name: "MM/DD(StoreAbbr)-PatientName"
 const generateSquareItemName = (delivery, patient, store) => {
@@ -86,40 +87,7 @@ export default function StopCardActionButtons(props) {
   // directly — no programmatic JS navigation, no location.href, no window.open.
   // Chrome Android only allows intent:// to reach the Activity Manager from a
   // genuine user-gesture anchor click; this is the most reliable way to do that.
-  const squareIntentUrl = useMemo(() => {
-    const effectiveAppId = squareAppId || _sharedSquareAppIdCache;
-    if (!effectiveAppId) return null;
-    const amountCents = Math.round(Number(delivery?.cod_total_amount_required || 0) * 100);
-    if (amountCents <= 0) return null;
-    const deliveryNote = generateSquareItemName(delivery, patient, store);
-    const squareLocationConfigs = reactiveSquareLocationConfigs;
-    const storeConfigId = store?.square_location_config_id || null;
-    const matchedConfig = storeConfigId
-      ? squareLocationConfigs.find((c) => c?.id === storeConfigId)
-      : null;
-    const squareLocationId = matchedConfig?.square_location_id ?? null;
-    const isBase44Editor = window.location.hostname.includes('base44.com');
-    const appCallbackUrl = isBase44Editor
-      ? (window.location.origin + window.location.pathname)
-      : (window.location.origin);
-    const callbackUri = encodeURIComponent('https://play.google.com/store/apps/details?id=com.squareup'); // encodeURIComponent(appCallbackUrl);
-    const fallbackUri = encodeURIComponent('https://play.google.com/store/apps/details?id=com.squareup');
-    return [
-      'intent:#Intent',
-      'action=com.squareup.pos.action.CHARGE',
-      'package=com.squareup',
-      'S.com.squareup.pos.WEB_CALLBACK_URI=' + callbackUri,
-      'S.com.squareup.pos.CLIENT_ID=' + effectiveAppId,
-      'S.com.squareup.pos.API_VERSION=v2.0',
-      // location_id stripped — omitting allows cross-location transactions without POS exit
-      'i.com.squareup.pos.TOTAL_AMOUNT=' + amountCents,
-      'S.com.squareup.pos.CURRENCY_CODE=CAD',
-      'S.com.squareup.pos.TENDER_TYPES=com.squareup.pos.TENDER_CARD,com.squareup.pos.TENDER_CASH,com.squareup.pos.TENDER_OTHER',
-      'S.com.squareup.pos.NOTE=' + encodeURIComponent(deliveryNote),
-      'S.browser_fallback_url=' + fallbackUri,
-      'end',
-    ].join(';');
-  }, [delivery, patient, store, squareAppId, reactiveSquareLocationConfigs]);
+
   // Human-readable Square location name for the confirmation modal
   const squareLocationName = useMemo(() => {
     const configs = reactiveSquareLocationConfigs;
@@ -178,77 +146,20 @@ export default function StopCardActionButtons(props) {
     return null;
   }, [allDeliveries, delivery, stores, squareLocationName, store]);
 
-  // Ref to the hidden anchor — clicked after user confirms location in modal
-  const squareAnchorRef = useRef(null);
   const [showSquareConfirm, setShowSquareConfirm] = useState(false);
 
-  // Fire Square POS directly — no dialog needed since we omit location_id.
+  // Fire Square POS via the shared launcher utility.
   const handleSquareConfirmed = useCallback(() => {
     setShowSquareConfirm(false);
-
     const effectiveAppId = squareAppId || _sharedSquareAppIdCache;
     console.log('[Square] handleSquareConfirmed fired', { effectiveAppId, cod: delivery?.cod_total_amount_required });
     if (!effectiveAppId) { toast.error('Square not ready yet — App ID missing.'); return; }
     const amountCents = Math.round(Number(delivery?.cod_total_amount_required || 0) * 100);
     if (amountCents <= 0) { toast.error('No COD amount set for this delivery.'); return; }
-    const deliveryNote = generateSquareItemName(delivery, patient, store);
-
-    // Include location_id so Square routes to the correct store — the OAuth token
-    // on the device is always scoped to a location, and sending the matching one
-    // prevents the 'wrong location' rejection.
-    const storeConfigId = store?.square_location_config_id || null;
-    const matchedCfg = storeConfigId
-      ? (reactiveSquareLocationConfigs || []).find((c) => c?.id === storeConfigId)
-      : null;
-    const squareLocationId = matchedCfg?.square_location_id || null;
-    const payload = {
-      client_id: effectiveAppId,
-      version: '1.3',
-      // location_id stripped — omitting allows cross-location transactions without POS exit
-      amount_money: { amount: amountCents, currency_code: 'CAD' },
-      notes: deliveryNote,
-    };
-    const squareUri = 'square-commerce-v1://payment/create?data=' + encodeURIComponent(JSON.stringify(payload));
-    console.log('[Square] Confirmed launch URI:', squareUri);
-    console.log('[Square] Payload:', JSON.stringify(payload));
-    toast.info('Launching Square POS…');
-
-    // Register visibilitychange to detect return from Square POS
-    let squareTookFocus = false;
-    const onVisibilityChange = () => {
-      if (document.hidden) {
-        squareTookFocus = true;
-      } else if (squareTookFocus) {
-        squareTookFocus = false;
-        document.removeEventListener('visibilitychange', onVisibilityChange);
-        const params = new URLSearchParams(window.location.search);
-        const status = params.get('status');
-        const errorCode = params.get('error_code');
-        const errorDescription = params.get('error_description');
-        if (status) {
-          const evt = status === 'ok' ? 'squarePaymentSuccess' : 'squarePaymentCancelled';
-          window.dispatchEvent(new CustomEvent(evt, { detail: { deliveryId: delivery?.id, errorCode, errorDescription } }));
-        }
-      }
-    };
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    setTimeout(() => document.removeEventListener('visibilitychange', onVisibilityChange), 10 * 60 * 1000);
-
-    // Navigate via hidden anchor — works in both Chrome PWA and native WebView
-    console.log('[Square] Creating anchor and clicking:', squareUri.substring(0, 120));
-    const a = document.createElement('a');
-    a.href = squareUri;
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    try {
-      a.click();
-      console.log('[Square] Anchor clicked successfully');
-    } catch (clickErr) {
-      console.error('[Square] Anchor click failed:', clickErr);
-      toast.error('Failed to open Square: ' + clickErr.message);
-    }
-    setTimeout(() => document.body.removeChild(a), 1000);
-  }, [delivery, patient, store, squareAppId, reactiveSquareLocationConfigs]);
+    const notes = generateSquareItemName(delivery, patient, store);
+    const callbackUrl = window.location.origin + window.location.pathname;
+    launchSquarePOS({ squareAppId: effectiveAppId, amountCents, currencyCode: 'CAD', callbackUrl, notes });
+  }, [delivery, patient, store, squareAppId]);
 
   const handleSquareButtonTap = useCallback((e) => {
     e.preventDefault();
@@ -273,9 +184,7 @@ export default function StopCardActionButtons(props) {
     window.location.href = openUri;
   }, [squareAppId]);
 
-  // No-op — launch is now handled entirely inside handleSquareConfirmed via a dynamic anchor.
-  // The hidden squareAnchorRef anchor is kept in the DOM for legacy compat but no longer clicked.
-  const handleSquareLaunch = (e) => { e.preventDefault(); e.stopPropagation(); };
+
 
 
   if (delivery.status === 'failed' && !isPickup) {
@@ -331,16 +240,7 @@ export default function StopCardActionButtons(props) {
          Array.isArray(currentUser?.app_roles) && currentUser.app_roles.includes('driver') &&
          isMobileDevice() &&
         <>
-          {squareIntentUrl && (
-            <a
-              ref={squareAnchorRef}
-              href={squareIntentUrl}
-              onClick={(e) => handleSquareLaunch(e)}
-              aria-hidden="true"
-              tabIndex={-1}
-              style={{ position: 'fixed', top: '-9999px', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
-            />
-          )}
+
           <button
             type="button"
             disabled={!hasValidSquareLocation}
