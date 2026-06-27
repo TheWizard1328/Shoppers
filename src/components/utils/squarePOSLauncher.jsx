@@ -28,6 +28,7 @@ export function launchSquarePOS({ squareAppId, amountCents, currencyCode = 'CAD'
   const encoded = encodeURIComponent(JSON.stringify(payload));
   const squareUrl = `square-commerce-v1://payment/create?data=${encoded}`;
 
+  console.warn('[Square POS] Payload:', payload);
   console.log('[Square POS] Opening URL:', squareUrl);
 
   // Use hidden <a> tag click — most reliable cross-platform method for custom URI schemes
