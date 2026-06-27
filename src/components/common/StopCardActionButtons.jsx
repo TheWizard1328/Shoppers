@@ -149,16 +149,20 @@ export default function StopCardActionButtons(props) {
   const [showSquareConfirm, setShowSquareConfirm] = useState(false);
 
   // Fire Square POS via the shared launcher utility.
+  // CRITICAL: launchSquarePOS must be called synchronously within the gesture handler.
+  // Call it BEFORE setShowSquareConfirm(false) — dismissing the portal triggers a React
+  // re-render which can break the gesture trust chain on Android WebView.
   const handleSquareConfirmed = useCallback(() => {
-    setShowSquareConfirm(false);
     const effectiveAppId = squareAppId || _sharedSquareAppIdCache;
     console.log('[Square] handleSquareConfirmed fired', { effectiveAppId, cod: delivery?.cod_total_amount_required });
-    if (!effectiveAppId) { toast.error('Square not ready yet — App ID missing.'); return; }
+    if (!effectiveAppId) { setShowSquareConfirm(false); toast.error('Square not ready yet — App ID missing.'); return; }
     const amountCents = Math.round(Number(delivery?.cod_total_amount_required || 0) * 100);
-    if (amountCents <= 0) { toast.error('No COD amount set for this delivery.'); return; }
+    if (amountCents <= 0) { setShowSquareConfirm(false); toast.error('No COD amount set for this delivery.'); return; }
     const notes = generateSquareItemName(delivery, patient, store);
     const callbackUrl = window.location.origin + window.location.pathname;
+    // Launch first — dismiss after so gesture context is not broken by a re-render
     launchSquarePOS({ squareAppId: effectiveAppId, amountCents, currencyCode: 'CAD', callbackUrl, notes });
+    setShowSquareConfirm(false);
   }, [delivery, patient, store, squareAppId]);
 
   const handleSquareButtonTap = useCallback((e) => {
