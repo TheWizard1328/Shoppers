@@ -294,7 +294,6 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
             const currentPhase = settings?.fab_map_cycle_phase || 1;
             setSavedPhaseBeforeBreak(currentPhase);
             fabControlEvents.notifyBreakStart(currentPhase);
-            if (appDataContext?.refreshData) await appDataContext.refreshData(false);
           } catch (e) { console.error('[DriverStatusToggle] Break phase save failed:', e); }
         } else if (newStatus === 'on_duty') {
           await reconcilePendingBreadcrumbsOnDuty({
@@ -331,8 +330,6 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
               }
             }
           } catch (e) { console.warn('[DriverStatusToggle] Could not set isNextDelivery:', e?.message); }
-
-          if (appDataContext?.refreshData) await appDataContext.refreshData(false);
 
           // Trigger route optimization
           const currentGPS = await getFreshGPS(5000);

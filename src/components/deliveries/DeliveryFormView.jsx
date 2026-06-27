@@ -1460,8 +1460,6 @@ export default function DeliveryFormView({
                       is_cycling_marker: true,
                       status: formData.status || 'in_transit',
                       ...(formData.arrival_time && { arrival_time: `${formData.delivery_date}T${formData.arrival_time}:00` }),
-                      ...(formData.delivery_time_start && { delivery_time_start: formData.delivery_time_start }),
-                      ...(formData.delivery_time_end && { delivery_time_end: formData.delivery_time_end }),
                       ...(formData.cycling_latitude != null && { cycling_latitude: formData.cycling_latitude }),
                       ...(formData.cycling_longitude != null && { cycling_longitude: formData.cycling_longitude })
                     };
@@ -1471,6 +1469,9 @@ export default function DeliveryFormView({
                       ...basePayload,
                       delivery_notes: formData.delivery_notes,
                       ...(startActualTime && { actual_delivery_time: startActualTime }),
+                      // Start marker uses the form's start time
+                      ...(formData.delivery_time_start && { delivery_time_start: formData.delivery_time_start }),
+                      ...(formData.delivery_time_end && { delivery_time_end: formData.delivery_time_end }),
                       transport_mode: 'driving'
                     })];
 
@@ -1482,6 +1483,9 @@ export default function DeliveryFormView({
                           ...basePayload,
                           delivery_notes: 'Cycling Route End',
                           ...(endActualTime && { actual_delivery_time: endActualTime }),
+                          // End marker uses the form's end time as its delivery_time_start
+                          // to mark the window start for deliveries between the two stops
+                          ...(formData.delivery_time_end && { delivery_time_start: formData.delivery_time_end }),
                           transport_mode: 'cycling'
                         })
                       );
