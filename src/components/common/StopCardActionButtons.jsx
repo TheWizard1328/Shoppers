@@ -191,10 +191,29 @@ export default function StopCardActionButtons(props) {
     setShowSquareConfirm(true);
   }, [squareIntentUrl]);
 
-  // User confirmed they are on the correct Square location — fire the anchor
+  // User confirmed they are on the correct Square location — fire Square POS
   const handleSquareConfirmed = useCallback(() => {
     setShowSquareConfirm(false);
-    // Register visibilitychange to handle return callback from Square
+
+    const effectiveAppId = squareAppId || _sharedSquareAppIdCache;
+    if (!effectiveAppId) { toast.error('Square not ready yet.'); return; }
+    const amountCents = Math.round(Number(delivery?.cod_total_amount_required || 0) * 100);
+    if (amountCents <= 0) { toast.error('No COD amount set for this delivery.'); return; }
+    const deliveryNote = generateSquareItemName(delivery, patient, store);
+
+    // Both PWA and native APK use square-commerce-v1:// with a JSON payload.
+    // NO location_id — Square uses whichever location is currently active in the POS app.
+    // The note encodes the store for reconciliation purposes.
+    const payload = {
+      client_id: effectiveAppId,
+      version: '1.3',
+      amount_money: { amount: amountCents, currency_code: 'CAD' },
+      notes: deliveryNote,
+    };
+    const squareUri = 'square-commerce-v1://payment/create?data=' + encodeURIComponent(JSON.stringify(payload));
+    console.log('[Square] Confirmed launch URI:', squareUri);
+
+    // Register visibilitychange to detect return from Square POS
     let squareTookFocus = false;
     const onVisibilityChange = () => {
       if (document.hidden) {
@@ -214,9 +233,15 @@ export default function StopCardActionButtons(props) {
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
     setTimeout(() => document.removeEventListener('visibilitychange', onVisibilityChange), 10 * 60 * 1000);
-    // Click the real hidden anchor — native browser navigation
-    if (squareAnchorRef.current) squareAnchorRef.current.click();
-  }, [delivery]);
+
+    // Navigate via hidden anchor — works in both Chrome PWA and native WebView
+    const a = document.createElement('a');
+    a.href = squareUri;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => document.body.removeChild(a), 1000);
+  }, [delivery, patient, store, squareAppId]);
 
   // Opens Square POS with no transaction payload — driver switches location manually
   const handleSquareManual = useCallback((e) => {
@@ -232,33 +257,9 @@ export default function StopCardActionButtons(props) {
     window.location.href = openUri;
   }, [squareAppId]);
 
-  const handleSquareLaunch = (e) => {
-    // Capacitor APK: intercept the anchor and launch via window.open with correct JSON payload.
-    // IMPORTANT: The intent:// URL in squareIntentUrl is for PWA/browser only.
-    // On the native APK, window.open(_system) is required to hand off to the Android intent system.
-    // The payload MUST be JSON (not a query string) — Square rejects malformed payloads.
-    // NO location_id is included — Square rejects if the app isn't already on the matching location.
-    const isNative = typeof window !== 'undefined' && !!window.Capacitor?.isNativePlatform?.();
-    if (isNative) {
-      e.preventDefault();
-      e.stopPropagation();
-      const effectiveAppId = squareAppId || _sharedSquareAppIdCache;
-      if (!effectiveAppId) { toast.error('Square not ready yet.'); return; }
-      const amountCents = Math.round(Number(delivery?.cod_total_amount_required || 0) * 100);
-      if (amountCents <= 0) { toast.error('No COD amount set for this delivery.'); return; }
-      const deliveryNote = generateSquareItemName(delivery, patient, store);
-      const payload = {
-        client_id: effectiveAppId,
-        version: '1.3',
-        amount_money: { amount: amountCents, currency_code: 'CAD' },
-        notes: deliveryNote,
-      };
-      const squareUri = 'square-commerce-v1://payment/create?data=' + encodeURIComponent(JSON.stringify(payload));
-      console.log('[Square] Native JSON launch:', squareUri);
-      window.open(squareUri, '_system');
-    }
-    // PWA/browser: do nothing — browser handles <a href={squareIntentUrl}> natively
-  };
+  // No-op — launch is now handled entirely inside handleSquareConfirmed via a dynamic anchor.
+  // The hidden squareAnchorRef anchor is kept in the DOM for legacy compat but no longer clicked.
+  const handleSquareLaunch = (e) => { e.preventDefault(); e.stopPropagation(); };
 
 
   if (delivery.status === 'failed' && !isPickup) {
