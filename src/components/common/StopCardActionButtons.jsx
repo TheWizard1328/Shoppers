@@ -233,7 +233,11 @@ export default function StopCardActionButtons(props) {
   }, [squareAppId]);
 
   const handleSquareLaunch = (e) => {
-    // Capacitor APK only: intercept the anchor and use the native bridge
+    // Capacitor APK: intercept the anchor and launch via window.open with correct JSON payload.
+    // IMPORTANT: The intent:// URL in squareIntentUrl is for PWA/browser only.
+    // On the native APK, window.open(_system) is required to hand off to the Android intent system.
+    // The payload MUST be JSON (not a query string) — Square rejects malformed payloads.
+    // NO location_id is included — Square rejects if the app isn't already on the matching location.
     const isNative = typeof window !== 'undefined' && !!window.Capacitor?.isNativePlatform?.();
     if (isNative) {
       e.preventDefault();
@@ -243,18 +247,17 @@ export default function StopCardActionButtons(props) {
       const amountCents = Math.round(Number(delivery?.cod_total_amount_required || 0) * 100);
       if (amountCents <= 0) { toast.error('No COD amount set for this delivery.'); return; }
       const deliveryNote = generateSquareItemName(delivery, patient, store);
-      const customUri = 'square-commerce-v1://payment/create?data=' +
-        encodeURIComponent([
-          'client_id=' + effectiveAppId,
-          'version=1.3',
-          'amount_money[amount]=' + amountCents,
-          'amount_money[currency_code]=CAD',
-          'notes=' + deliveryNote,
-        ].join('&'));
-      console.log('[Square] Native bridge launch:', customUri);
-      window.open(customUri, '_system');
+      const payload = {
+        client_id: effectiveAppId,
+        version: '1.3',
+        amount_money: { amount: amountCents, currency_code: 'CAD' },
+        notes: deliveryNote,
+      };
+      const squareUri = 'square-commerce-v1://payment/create?data=' + encodeURIComponent(JSON.stringify(payload));
+      console.log('[Square] Native JSON launch:', squareUri);
+      window.open(squareUri, '_system');
     }
-    // PWA: do nothing — browser handles <a href> natively
+    // PWA/browser: do nothing — browser handles <a href={squareIntentUrl}> natively
   };
 
 
