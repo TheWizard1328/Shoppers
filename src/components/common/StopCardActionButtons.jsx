@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { createPortal } from "react-dom";
 import { useAppData } from "../utils/AppDataContext";
 import { launchSquarePOS } from "../utils/squarePOSLauncher";
+import { remoteLogger } from "../utils/remoteLogger";
 
 // Generate the Square item name: "MM/DD(StoreAbbr)-PatientName"
 const generateSquareItemName = (delivery, patient, store) => {
@@ -154,12 +155,32 @@ export default function StopCardActionButtons(props) {
   // re-render which can break the gesture trust chain on Android WebView.
   const handleSquareConfirmed = useCallback(() => {
     const effectiveAppId = squareAppId || _sharedSquareAppIdCache;
-    console.log('[Square] handleSquareConfirmed fired', { effectiveAppId, cod: delivery?.cod_total_amount_required });
-    if (!effectiveAppId) { setShowSquareConfirm(false); toast.error('Square not ready yet — App ID missing.'); return; }
-    const amountCents = Math.round(Number(delivery?.cod_total_amount_required || 0) * 100);
-    if (amountCents <= 0) { setShowSquareConfirm(false); toast.error('No COD amount set for this delivery.'); return; }
+    const codAmount = delivery?.cod_total_amount_required;
+    remoteLogger.info('[Square] Confirm button tapped', JSON.stringify({
+      hasAppId: !!effectiveAppId,
+      appIdSource: effectiveAppId === squareAppId ? 'prop' : 'cache',
+      codAmount,
+      deliveryId: delivery?.id,
+      storeId: store?.id,
+      storeName: store?.name,
+    }));
+    console.log('[Square] handleSquareConfirmed fired', { effectiveAppId, cod: codAmount });
+    if (!effectiveAppId) {
+      remoteLogger.error('[Square] BLOCKED — effectiveAppId missing. squareAppId prop:', String(squareAppId), 'cache:', String(_sharedSquareAppIdCache));
+      setShowSquareConfirm(false);
+      toast.error('Square not ready yet — App ID missing.');
+      return;
+    }
+    const amountCents = Math.round(Number(codAmount || 0) * 100);
+    if (amountCents <= 0) {
+      remoteLogger.error('[Square] BLOCKED — amountCents is 0. cod_total_amount_required:', String(codAmount));
+      setShowSquareConfirm(false);
+      toast.error('No COD amount set for this delivery.');
+      return;
+    }
     const notes = generateSquareItemName(delivery, patient, store);
     const callbackUrl = window.location.origin + window.location.pathname;
+    remoteLogger.info('[Square] Calling launchSquarePOS', JSON.stringify({ amountCents, notes, callbackUrl }));
     // Launch first — dismiss after so gesture context is not broken by a re-render
     launchSquarePOS({ squareAppId: effectiveAppId, amountCents, currencyCode: 'CAD', callbackUrl, notes });
     setShowSquareConfirm(false);

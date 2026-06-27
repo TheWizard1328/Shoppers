@@ -1,23 +1,31 @@
+import { remoteLogger } from '@/components/utils/remoteLogger';
+
 /**
  * Square Point of Sale mobile launcher.
  *
- * Uses window.location.href to navigate to the square-commerce-v1:// custom scheme.
- * On Android WebView / Capacitor, shouldOverrideUrlLoading intercepts the navigation
- * and hands it to the Android intent system, opening Square POS directly.
+ * Dispatches a square-commerce-v1:// URI via a hidden <a target="_blank"> click.
+ * This keeps gesture trust intact on Android WebView and avoids navigating the
+ * PWA away from the current page (which window.location.href would do).
  *
- * IMPORTANT: Call this synchronously within a user gesture handler (onPointerDown / onClick).
- * Do NOT await anything before calling this — async gaps break gesture trust on Android WebView.
+ * IMPORTANT: Call this synchronously within a user gesture handler (onPointerDown).
  * Do NOT pass location_id — Square uses whichever location is active in the POS app.
  */
 export function launchSquarePOS({ squareAppId, amountCents, currencyCode = 'CAD', callbackUrl, notes }) {
-  console.log('[Square POS] launchSquarePOS called', { squareAppId, amountCents, notes });
+  remoteLogger.info('[Square POS] launchSquarePOS called', JSON.stringify({ squareAppId: squareAppId ? squareAppId.slice(0, 8) + '...' : null, amountCents, currencyCode, notes }));
 
   if (!squareAppId) {
+    remoteLogger.error('[Square POS] FAILED — squareAppId is missing or empty');
     console.warn('[Square POS] squareAppId not configured');
     return;
   }
 
-  // Minimal payload — no location_id, no extra fields that could confuse Square POS
+  if (!amountCents || amountCents <= 0) {
+    remoteLogger.error('[Square POS] FAILED — amountCents is zero or invalid', String(amountCents));
+    console.warn('[Square POS] amountCents invalid', amountCents);
+    return;
+  }
+
+  // Minimal payload — no location_id so Square uses its currently active location
   const payload = {
     client_id: squareAppId,
     version: '1.3',
@@ -30,13 +38,31 @@ export function launchSquarePOS({ squareAppId, amountCents, currencyCode = 'CAD'
   if (notes) payload.notes = notes;
   if (callbackUrl) payload.callback_url = callbackUrl;
 
-  const encoded = encodeURIComponent(JSON.stringify(payload));
+  const payloadJson = JSON.stringify(payload);
+  const encoded = encodeURIComponent(payloadJson);
   const squareUrl = `square-commerce-v1://payment/create?data=${encoded}`;
 
-  console.log('[Square POS] Payload:', JSON.stringify(payload));
+  remoteLogger.info('[Square POS] Payload built', payloadJson);
+  remoteLogger.info('[Square POS] URL length', String(squareUrl.length));
+  console.log('[Square POS] Payload:', payloadJson);
   console.log('[Square POS] Launching URL:', squareUrl);
 
-  // window.location.href is the most reliable way to trigger a custom URI scheme
-  // inside an Android WebView — the OS intercepts it and opens the registered app.
-  window.location.href = squareUrl;
+  // Hidden <a target="_blank"> click: dispatches the custom URI scheme within the
+  // user gesture context without navigating the current PWA page away.
+  try {
+    const a = document.createElement('a');
+    a.href = squareUrl;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      try { document.body.removeChild(a); } catch (_) {}
+    }, 1000);
+    remoteLogger.info('[Square POS] Anchor click dispatched successfully');
+  } catch (err) {
+    remoteLogger.error('[Square POS] Anchor click FAILED', String(err));
+    console.error('[Square POS] Launch error:', err);
+  }
 }
