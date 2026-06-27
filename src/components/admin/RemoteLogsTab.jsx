@@ -49,7 +49,8 @@ export default function RemoteLogsTab({ appUsers = [] }) {
 
   const updateSettings = async (patch) => {
     const current = await ensureSettings();
-    const updated = await base44.entities.RemoteLoggingSettings.update(current.id, { ...current, ...patch });
+    const merged = { ...current, ...patch };
+    const updated = await base44.entities.RemoteLoggingSettings.update(current.id, merged);
     setSettings(updated);
   };
 
@@ -117,7 +118,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
         <CardContent className="px-6 py-3 space-y-4">
           <div className="flex items-center justify-between">
             <span className="font-medium">Global logging</span>
-            <Switch checked={settings?.enabled === true} onCheckedChange={(checked) => updateSettings({ enabled: checked, capture_levels: ['warn', 'error', 'debug'] })} />
+            <Switch checked={settings?.enabled === true} onCheckedChange={(checked) => updateSettings({ enabled: checked, capture_levels: ['log', 'info', 'warn', 'error', 'debug'], included_user_ids: settings?.included_user_ids || [] })} />
           </div>
           <div className="space-y-1">
             <div className="font-medium">Only log selected users</div>
