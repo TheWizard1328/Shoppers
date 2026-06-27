@@ -187,7 +187,8 @@ export default function StopCardActionButtons(props) {
     setShowSquareConfirm(false);
 
     const effectiveAppId = squareAppId || _sharedSquareAppIdCache;
-    if (!effectiveAppId) { toast.error('Square not ready yet.'); return; }
+    console.log('[Square] handleSquareConfirmed fired', { effectiveAppId, cod: delivery?.cod_total_amount_required });
+    if (!effectiveAppId) { toast.error('Square not ready yet — App ID missing.'); return; }
     const amountCents = Math.round(Number(delivery?.cod_total_amount_required || 0) * 100);
     if (amountCents <= 0) { toast.error('No COD amount set for this delivery.'); return; }
     const deliveryNote = generateSquareItemName(delivery, patient, store);
@@ -209,6 +210,8 @@ export default function StopCardActionButtons(props) {
     };
     const squareUri = 'square-commerce-v1://payment/create?data=' + encodeURIComponent(JSON.stringify(payload));
     console.log('[Square] Confirmed launch URI:', squareUri);
+    console.log('[Square] Payload:', JSON.stringify(payload));
+    toast.info('Launching Square POS…');
 
     // Register visibilitychange to detect return from Square POS
     let squareTookFocus = false;
@@ -232,11 +235,18 @@ export default function StopCardActionButtons(props) {
     setTimeout(() => document.removeEventListener('visibilitychange', onVisibilityChange), 10 * 60 * 1000);
 
     // Navigate via hidden anchor — works in both Chrome PWA and native WebView
+    console.log('[Square] Creating anchor and clicking:', squareUri.substring(0, 120));
     const a = document.createElement('a');
     a.href = squareUri;
     a.style.display = 'none';
     document.body.appendChild(a);
-    a.click();
+    try {
+      a.click();
+      console.log('[Square] Anchor clicked successfully');
+    } catch (clickErr) {
+      console.error('[Square] Anchor click failed:', clickErr);
+      toast.error('Failed to open Square: ' + clickErr.message);
+    }
     setTimeout(() => document.body.removeChild(a), 1000);
   }, [delivery, patient, store, squareAppId, reactiveSquareLocationConfigs]);
 
