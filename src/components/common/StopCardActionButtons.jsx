@@ -111,6 +111,7 @@ export default function StopCardActionButtons(props) {
       'S.com.squareup.pos.WEB_CALLBACK_URI=' + callbackUri,
       'S.com.squareup.pos.CLIENT_ID=' + effectiveAppId,
       'S.com.squareup.pos.API_VERSION=v2.0',
+      ...(squareLocationId ? ['S.com.squareup.pos.LOCATION_ID=' + squareLocationId] : []),
       'i.com.squareup.pos.TOTAL_AMOUNT=' + amountCents,
       'S.com.squareup.pos.CURRENCY_CODE=CAD',
       'S.com.squareup.pos.TENDER_TYPES=com.squareup.pos.TENDER_CARD,com.squareup.pos.TENDER_CASH,com.squareup.pos.TENDER_OTHER',
@@ -119,9 +120,6 @@ export default function StopCardActionButtons(props) {
       'end',
     ].join(';');
   }, [delivery, patient, store, squareAppId, reactiveSquareLocationConfigs]);
-
-  // ...(squareLocationId ? ['S.com.squareup.pos.LOCATION_ID=' + squareLocationId] : []),    
-  
   // Human-readable Square location name for the confirmation modal
   const squareLocationName = useMemo(() => {
     const configs = reactiveSquareLocationConfigs;
