@@ -356,14 +356,12 @@ export default function StopCardActionButtons(props) {
           </button>
           {showSquareConfirm && createPortal(
             <div
-              className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 p-4"
-              onTouchEnd={(e) => e.stopPropagation()}
-              onClick={(e) => e.stopPropagation()}>
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 p-4"
+            onPointerDown={(e) => e.stopPropagation()}>
               <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl p-5 max-w-sm w-full border border-transparent dark:border-gray-700 relative">
                 <button
                   type="button"
-                  onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); setShowSquareConfirm(false); }}
-                  onClick={(e) => { e.stopPropagation(); setShowSquareConfirm(false); }}
+                  onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); setShowSquareConfirm(false); }}
                   className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1">
                   ✕
                 </button>
@@ -388,22 +386,19 @@ export default function StopCardActionButtons(props) {
                 <div className="flex flex-col gap-2">
                   <button
                     type="button"
-                    onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); handleSquareConfirmed(); }}
-                    onClick={(e) => { e.stopPropagation(); handleSquareConfirmed(); }}
+                    onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); handleSquareConfirmed(); }}
                     className="w-full py-3 rounded-lg bg-emerald-600 active:bg-emerald-700 text-white font-semibold text-sm">
                     ✅ I'm on the right location — Charge
                   </button>
                   <button
                     type="button"
-                    onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); handleSquareManual(e); }}
-                    onClick={(e) => { e.stopPropagation(); handleSquareManual(e); }}
+                    onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); handleSquareManual(e); }}
                     className="w-full py-3 rounded-lg bg-blue-600 active:bg-blue-700 text-white font-medium text-sm">
                     🔀 Open Square — switch location &amp; select manually
                   </button>
                   <button
                     type="button"
-                    onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); setShowSquareConfirm(false); }}
-                    onClick={(e) => { e.stopPropagation(); setShowSquareConfirm(false); }}
+                    onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); setShowSquareConfirm(false); }}
                     className="w-full py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 font-medium text-sm active:bg-gray-50 dark:active:bg-gray-800">
                     Dismiss
                   </button>
