@@ -82,12 +82,13 @@ export function useNativeBleSensor(currentUser) {
   const [reading,    setReading]    = useState(null);
   const [sensorName, setSensorName] = useState(getSavedSensorName);
 
-  const deviceIdRef       = useRef(getSavedDeviceId());
-  const mountedRef        = useRef(true);
-  const connectingRef     = useRef(false);
-  const connectedRef      = useRef(false);
-  const reconnectTimerRef = useRef(null);
-  const bleInitRef        = useRef(false);
+  const deviceIdRef          = useRef(getSavedDeviceId());
+  const mountedRef           = useRef(true);
+  const connectingRef        = useRef(false);
+  const connectedRef         = useRef(false);
+  const reconnectTimerRef    = useRef(null);
+  const bleInitRef           = useRef(false);
+  const latestReadingRef     = useRef(null);   // always holds the most recent decoded reading
   const periodicReadTimerRef = useRef(null); // 1-min FFF2 keepalive read
 
   // ── Init BleClient once ───────────────────────────────────────────────────
@@ -155,6 +156,7 @@ export function useNativeBleSensor(currentUser) {
         const dv = await BleClient.read(deviceId, INKBIRD_SERVICE_UUID, INKBIRD_READ_UUID);
         const parsed = decodeReading(dv);
         if (parsed && mountedRef.current) {
+          latestReadingRef.current = parsed;
           setReading(parsed);
           window.dispatchEvent(new CustomEvent('inkbirdReading', { detail: { ...parsed, source: 'native-read' } }));
         }
@@ -165,6 +167,7 @@ export function useNativeBleSensor(currentUser) {
         if (!mountedRef.current) return;
         const parsed = decodeReading(dv);
         if (parsed) {
+          latestReadingRef.current = parsed;
           setReading(parsed);
           window.dispatchEvent(new CustomEvent('inkbirdReading', { detail: { ...parsed, source: 'native-notify' } }));
         }
@@ -243,6 +246,7 @@ export function useNativeBleSensor(currentUser) {
       const dv = await BleClient.read(id, INKBIRD_SERVICE_UUID, INKBIRD_READ_UUID);
       const parsed = decodeReading(dv);
       if (parsed && mountedRef.current) {
+        latestReadingRef.current = parsed;
         setReading(parsed);
         window.dispatchEvent(new CustomEvent('inkbirdReading', { detail: { ...parsed, source: 'native-force-read' } }));
       }

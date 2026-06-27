@@ -99,6 +99,7 @@ export function useInkbirdSensor(currentUser) {
   const serverRef          = useRef(null);   // BluetoothRemoteGATTServer
   const notifyRef          = useRef(null);   // FFF6 characteristic
   const notifyHandlerRef   = useRef(null);
+  const latestReadingRef   = useRef(null);   // always holds the most recent decoded reading
   const retryCount         = useRef(0);
   const retryTimer         = useRef(null);
   const periodicReadTimer  = useRef(null);
@@ -146,6 +147,7 @@ export function useInkbirdSensor(currentUser) {
         const dv       = await readChar.readValue();
         const parsed   = decodeReading(dv);
         if (parsed && mountedRef.current) {
+          latestReadingRef.current = parsed;
           setReading(parsed);
           setStatus('connected');
           retryCount.current = 0;
@@ -163,6 +165,7 @@ export function useInkbirdSensor(currentUser) {
         if (!mountedRef.current) return;
         const parsed = decodeReading(evt.target.value);
         if (parsed) {
+          latestReadingRef.current = parsed;
           setReading(parsed);
           setStatus('connected');
           retryCount.current = 0;

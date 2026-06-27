@@ -77,7 +77,7 @@ export default function LiveTempBadge({
   // Always pass currentUser — the hook itself decides whether to activate BLE.
   // Previously passing null when !driverMode caused the hook to initialize dead
   // and never recover when app_roles loaded later (mount effect runs only once).
-  const { status: bleStatus, reading: bleReading, sensorName, connect, triggerReconnect, forceRead } =
+  const { status: bleStatus, reading: bleReading, sensorName, latestReadingRef, connect, triggerReconnect, forceRead } =
     useInkbirdSensorBridge(currentUser);
 
   // bleReading = { tempC, humidity, timestamp } | null
@@ -89,12 +89,13 @@ export default function LiveTempBadge({
   const [isPulsing,   setIsPulsing]   = useState(false);
   const [justSaved,   setJustSaved]   = useState(false);
 
-  const dbPollTimerRef   = useRef(null);
-  const pulseTimerRef    = useRef(null);
-  const savedFlashRef    = useRef(null);
-  const lastSavedTempRef = useRef(null);
-  const lastSavedTimeRef = useRef(0);
-  const prevTempRef      = useRef(null);
+  const dbPollTimerRef    = useRef(null);
+  const pulseTimerRef     = useRef(null);
+  const savedFlashRef     = useRef(null);
+  const heartbeatTimerRef = useRef(null);  // 1-min save interval — fires regardless of temp change
+  const lastSavedTempRef  = useRef(null);
+  const lastSavedTimeRef  = useRef(0);
+  const prevTempRef       = useRef(null);
 
   // ── Helpers ───────────────────────────────────────────────────────────
   const triggerPulse = useCallback(() => {
@@ -144,7 +145,9 @@ export default function LiveTempBadge({
     } catch (_) {}
   }, [currentUser?.id, sensorName, flashSaved]);
 
-  // ── React to new BLE readings ─────────────────────────────────────────
+  // ── React to new BLE readings — pulse animation + localStorage only ────
+  // DB save is handled by the heartbeat interval below so it fires even when
+  // temperature is perfectly stable and bleTemp never changes value.
   useEffect(() => {
     if (bleTemp === null) return;
     if (prevTempRef.current !== bleTemp) {
@@ -153,8 +156,26 @@ export default function LiveTempBadge({
     }
     // Persist last known temp to localStorage so it survives BLE disconnects
     try { localStorage.setItem('rxdeliver_last_ble_temp', JSON.stringify({ tempC: bleTemp, timestamp: new Date().toISOString() })); } catch (_) {}
-    saveBleReading(bleTemp);
-  }, [bleTemp, triggerPulse, saveBleReading]);
+  }, [bleTemp, triggerPulse]);
+
+  // ── 1-minute heartbeat save — completely decoupled from temp changes ───
+  // Notifications flow continuously every 1-2s. This interval fires every
+  // minute and saves whatever latestReadingRef.current holds — even if tempC
+  // has been rock-steady and bleTemp never caused a re-render.
+  useEffect(() => {
+    // Kick off an immediate save on first connect so we don't wait a full minute
+    if (bleStatus === 'connected' && latestReadingRef.current) {
+      saveBleReading(latestReadingRef.current.tempC);
+    }
+    clearInterval(heartbeatTimerRef.current);
+    if (bleStatus === 'connected') {
+      heartbeatTimerRef.current = setInterval(() => {
+        const latest = latestReadingRef.current;
+        if (latest?.tempC != null) saveBleReading(latest.tempC);
+      }, HEARTBEAT_MS);
+    }
+    return () => clearInterval(heartbeatTimerRef.current);
+  }, [bleStatus, latestReadingRef, saveBleReading]);
 
   // ── Computed date values ──────────────────────────────────────────────
   const todayLocal = (() => {

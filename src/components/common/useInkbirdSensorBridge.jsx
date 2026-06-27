@@ -38,5 +38,6 @@ export function useInkbirdSensorBridge(currentUser) {
   return {
     ...sensor,
     forceRead: typeof sensor.forceRead === 'function' ? sensor.forceRead : () => {},
+    latestReadingRef: sensor.latestReadingRef || { current: null },
   };
 }
