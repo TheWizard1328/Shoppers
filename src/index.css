@@ -272,10 +272,6 @@ div[id^="stop-card-"] > .rounded-xl:has([data-stop-status="completed"][data-stop
   z-index: 9999 !important;
 }
 
-.app-container {
-  padding-top: env(safe-area-inset-top);
-}
-
 /* iOS safe area support for bottom nav */
 .ios-safe-area-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0px) !important;
