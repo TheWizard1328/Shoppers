@@ -111,8 +111,7 @@ export default function StopCardActionButtons(props) {
       'S.com.squareup.pos.WEB_CALLBACK_URI=' + callbackUri,
       'S.com.squareup.pos.CLIENT_ID=' + effectiveAppId,
       'S.com.squareup.pos.API_VERSION=v2.0',
-      // LOCATION_ID intentionally omitted — Square rejects the payload if the app isn't already on the matching location.
-      // The delivery note encodes the store name for reconciliation. Drivers switch locations manually if needed.
+      ...(squareLocationId ? ['S.com.squareup.pos.LOCATION_ID=' + squareLocationId] : []),
       'i.com.squareup.pos.TOTAL_AMOUNT=' + amountCents,
       'S.com.squareup.pos.CURRENCY_CODE=CAD',
       'S.com.squareup.pos.TENDER_TYPES=com.squareup.pos.TENDER_CARD,com.squareup.pos.TENDER_CASH,com.squareup.pos.TENDER_OTHER',
@@ -193,11 +192,18 @@ export default function StopCardActionButtons(props) {
     if (amountCents <= 0) { toast.error('No COD amount set for this delivery.'); return; }
     const deliveryNote = generateSquareItemName(delivery, patient, store);
 
-    // NO location_id in payload — Square processes on whatever location is currently
-    // active in the POS app. This is intentional: drivers do not need to pre-switch locations.
+    // Include location_id so Square routes to the correct store — the OAuth token
+    // on the device is always scoped to a location, and sending the matching one
+    // prevents the 'wrong location' rejection.
+    const storeConfigId = store?.square_location_config_id || null;
+    const matchedCfg = storeConfigId
+      ? (reactiveSquareLocationConfigs || []).find((c) => c?.id === storeConfigId)
+      : null;
+    const squareLocationId = matchedCfg?.square_location_id || null;
     const payload = {
       client_id: effectiveAppId,
       version: '1.3',
+      ...(squareLocationId ? { location_id: squareLocationId } : {}),
       amount_money: { amount: amountCents, currency_code: 'CAD' },
       notes: deliveryNote,
     };
