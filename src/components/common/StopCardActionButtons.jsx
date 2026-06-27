@@ -243,9 +243,11 @@ export default function StopCardActionButtons(props) {
   const handleSquareButtonTap = useCallback((e) => {
     e.preventDefault();
     e.stopPropagation();
-    // Fire directly — no confirmation dialog. Square processes on whatever location is active.
-    handleSquareConfirmed();
-  }, [handleSquareConfirmed]);
+    // Show the confirmation dialog so the driver can confirm they are on the correct
+    // Square location before the payload fires. The location_id is now included in
+    // the payload, so Square will validate it — driver must be on the right location.
+    setShowSquareConfirm(true);
+  }, []);
 
   // Opens Square POS with no transaction payload — driver switches location manually
   const handleSquareManual = useCallback((e) => {
