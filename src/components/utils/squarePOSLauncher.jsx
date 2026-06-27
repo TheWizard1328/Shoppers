@@ -16,7 +16,7 @@ export function launchSquarePOS({ squareAppId, amountCents, currencyCode = 'CAD'
   }
 
   const payload = {
-    client_id: null, //squareAppId,
+    client_id: squareAppId,
     amount_money: { amount: Math.round(amountCents), currency_code: currencyCode }, 
     version: '1.3',
   };
