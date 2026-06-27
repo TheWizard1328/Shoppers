@@ -111,7 +111,8 @@ export default function StopCardActionButtons(props) {
       'S.com.squareup.pos.WEB_CALLBACK_URI=' + callbackUri,
       'S.com.squareup.pos.CLIENT_ID=' + effectiveAppId,
       'S.com.squareup.pos.API_VERSION=v2.0',
-      ...(squareLocationId ? ['S.com.squareup.pos.LOCATION_ID=' + squareLocationId] : []),
+      // LOCATION_ID intentionally omitted — Square rejects the payload if the app isn't already on the matching location.
+      // The delivery note encodes the store name for reconciliation. Drivers switch locations manually if needed.
       'i.com.squareup.pos.TOTAL_AMOUNT=' + amountCents,
       'S.com.squareup.pos.CURRENCY_CODE=CAD',
       'S.com.squareup.pos.TENDER_TYPES=com.squareup.pos.TENDER_CARD,com.squareup.pos.TENDER_CASH,com.squareup.pos.TENDER_OTHER',
