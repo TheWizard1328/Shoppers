@@ -183,15 +183,7 @@ export default function StopCardActionButtons(props) {
   const squareAnchorRef = useRef(null);
   const [showSquareConfirm, setShowSquareConfirm] = useState(false);
 
-  // Tap on the visible button — just opens the confirmation modal
-  const handleSquareButtonTap = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!squareIntentUrl) { toast.error('Square not ready yet. Please try again.'); return; }
-    setShowSquareConfirm(true);
-  }, [squareIntentUrl]);
-
-  // User confirmed they are on the correct Square location — fire Square POS
+  // Fire Square POS directly — no dialog needed since we omit location_id.
   const handleSquareConfirmed = useCallback(() => {
     setShowSquareConfirm(false);
 
@@ -201,24 +193,14 @@ export default function StopCardActionButtons(props) {
     if (amountCents <= 0) { toast.error('No COD amount set for this delivery.'); return; }
     const deliveryNote = generateSquareItemName(delivery, patient, store);
 
-    // Resolve the store's Square location_id from the matched config.
-    // Square POS requires the device to already be on this location — the driver
-    // uses the "Switch location" button first if needed.
-    const storeConfigId = store?.square_location_config_id || null;
-    const matchedCfg = storeConfigId
-      ? (reactiveSquareLocationConfigs || []).find((c) => c?.id === storeConfigId)
-      : null;
-    const squareLocationId = matchedCfg?.square_location_id || null;
-
+    // NO location_id in payload — Square processes on whatever location is currently
+    // active in the POS app. This is intentional: drivers do not need to pre-switch locations.
     const payload = {
       client_id: effectiveAppId,
       version: '1.3',
       amount_money: { amount: amountCents, currency_code: 'CAD' },
       notes: deliveryNote,
     };
-    // Only include location_id if we have one — Square will reject with ILLEGAL_LOCATION_ID
-    // if the POS is not already on this location, which is the correct behavior.
-    if (squareLocationId) payload.location_id = squareLocationId;
     const squareUri = 'square-commerce-v1://payment/create?data=' + encodeURIComponent(JSON.stringify(payload));
     console.log('[Square] Confirmed launch URI:', squareUri);
 
@@ -251,6 +233,13 @@ export default function StopCardActionButtons(props) {
     a.click();
     setTimeout(() => document.body.removeChild(a), 1000);
   }, [delivery, patient, store, squareAppId, reactiveSquareLocationConfigs]);
+
+  const handleSquareButtonTap = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Fire directly — no confirmation dialog. Square processes on whatever location is active.
+    handleSquareConfirmed();
+  }, [handleSquareConfirmed]);
 
   // Opens Square POS with no transaction payload — driver switches location manually
   const handleSquareManual = useCallback((e) => {
