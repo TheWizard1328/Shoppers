@@ -9,18 +9,24 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Thermometer, Bluetooth, BluetoothSearching, RefreshCw, Check } from 'lucide-react';
+import { Thermometer, Bluetooth, BluetoothSearching, BluetoothOff, RefreshCw, Check } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { isAdmin, isDriver as checkIsDriver } from '@/components/utils/userRoles';
 import { useInkbirdSensorBridge } from '@/components/common/useInkbirdSensorBridge';
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const TEMP_MIN        = 2;
-const TEMP_MAX        = 8;
-const DB_POLL_MS      = 60000;
-const PULSE_MS        = 600;
-const HEARTBEAT_MS    = 60 * 1000; // 1 minute — FFF6 notifications flow continuously, we persist once/min
-const CHANGE_THRESHOLD = 0.1;           // °C — secondary gate; primary gate is heartbeat every 1 min
+const TEMP_MIN         = 2;
+const TEMP_MAX         = 8;
+const DB_POLL_MS       = 60000;
+const PULSE_MS         = 600;
+const HEARTBEAT_MS     = 60 * 1000; // 1 min — FFF6 flows continuously, persist once/min
+const CHANGE_THRESHOLD = 0.1;       // °C
+const DOUBLE_TAP_MS    = 2000;      // window for double-tap unpair
+const INKBIRD_SERVICE_UUID = '0000fff0-0000-1000-8000-00805f9b34fb';
+const INKBIRD_FILTERS  = [
+  { name: 'tps' }, { name: 'sps' },
+  { namePrefix: 'Inkbird' }, { namePrefix: 'IBS' },
+];
 
 function localISOString() {
   const d = new Date();
@@ -77,7 +83,8 @@ export default function LiveTempBadge({
   // Always pass currentUser — the hook itself decides whether to activate BLE.
   // Previously passing null when !driverMode caused the hook to initialize dead
   // and never recover when app_roles loaded later (mount effect runs only once).
-  const { status: bleStatus, reading: bleReading, sensorName, latestReadingRef, setConnectedDevice, forceRead } =
+  const { status: bleStatus, reading: bleReading, sensorName, latestReadingRef,
+          setConnectedServer, forget: forgetSensor, forceRead } =
     useInkbirdSensorBridge(currentUser);
 
   // bleReading = { tempC, humidity, timestamp } | null
@@ -327,31 +334,51 @@ export default function LiveTempBadge({
     clearInterval(dbPollTimerRef.current);
   }, []);
 
-  // ── BLE state for in-progress connect ────────────────────────────────
-  const bleConnectingRef   = useRef(false);
-  const blePermittedDevice = useRef(null); // cached from getDevices() on mount
+  // ── BLE connect state ────────────────────────────────────────────────
+  const bleConnectingRef    = useRef(false);
+  const blePermittedDevice  = useRef(null);  // cached from getDevices() on mount
+  const lastTapTimeRef      = useRef(0);     // for double-tap detection
+  const [isUnpairing, setIsUnpairing] = useState(false);
 
-  // On mount: find any already-permitted Inkbird so we can reconnect without picker
+  // On mount: find any already-permitted Inkbird so reconnect needs no picker
   useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.bluetooth) return;
     if (typeof navigator.bluetooth.getDevices !== 'function') return;
     navigator.bluetooth.getDevices().then(devices => {
-      const inkbird = devices.find(d => d.name === 'tps' || d.name === 'sps' || (d.name || '').startsWith('Inkbird') || (d.name || '').startsWith('IBS'));
+      const inkbird = devices.find(d =>
+        d.name === 'tps' || d.name === 'sps' ||
+        (d.name || '').startsWith('Inkbird') || (d.name || '').startsWith('IBS'));
       if (inkbird) blePermittedDevice.current = inkbird;
     }).catch(() => {});
   }, []);
 
-  // ── Tap handler — owns the BLE connect gesture directly ───────────────
-  // This mirrors the Admin Inkbird Diagnostic "Connect Sensor" button exactly:
-  // 1. If already connected → forceRead + pulse
-  // 2. If a permitted device exists (getDevices) → reconnect silently
-  // 3. Otherwise → show OS requestDevice picker
-  // After getting a device + GATT connection, hands off to setConnectedDevice
-  // which starts FFF6 streaming + periodic FFF2 reads.
+  // ── Tap handler ────────────────────────────────────────────────────────
+  // Double-tap within DOUBLE_TAP_MS → unpair and forget the current sensor.
+  // Single tap:
+  //   • Already connected → forceRead + pulse
+  //   • Has permitted device → silent GATT reconnect (no picker)
+  //   • No device yet → OS requestDevice picker
+  // After connecting, passes (server, device) to the hook which starts
+  // FFF6 streaming. The hook also runs a 10s stale-data timer — if no
+  // reading arrives it marks 'error' and disconnects automatically.
   const handleTap = useCallback(async () => {
     if (isPastDate || !selectedDriverIsMe) { loadFromDb(); triggerPulse(); return; }
     if (adminMode && !driverMode)          { loadFromDb(); triggerPulse(); return; }
 
+    const now = Date.now();
+
+    // ── Double-tap: unpair ──────────────────────────────────────────────
+    if (now - lastTapTimeRef.current < DOUBLE_TAP_MS && (bleStatus === 'connected' || sensorName)) {
+      lastTapTimeRef.current = 0;
+      setIsUnpairing(true);
+      blePermittedDevice.current = null;
+      forgetSensor();
+      setTimeout(() => setIsUnpairing(false), 1200);
+      return;
+    }
+    lastTapTimeRef.current = now;
+
+    // ── Already connected → refresh ─────────────────────────────────────
     if (bleStatus === 'connected') {
       forceRead();
       loadFromDb();
@@ -359,41 +386,41 @@ export default function LiveTempBadge({
       return;
     }
 
-    if (bleConnectingRef.current) return; // already in-flight
-
-    if (!navigator.bluetooth) return; // Web Bluetooth not available
+    if (bleConnectingRef.current) return; // in-flight
+    if (!navigator?.bluetooth) return;
 
     bleConnectingRef.current = true;
     triggerPulse();
 
     try {
       let device = null;
+      let server = null;
 
-      // Step 1: try to reuse an already-permitted device (no picker needed)
+      // Step 1: reuse already-permitted device — no picker needed
       const permitted = blePermittedDevice.current;
       if (permitted) {
         try {
-          await permitted.gatt.connect();
+          server = await permitted.gatt.connect();
           device = permitted;
         } catch (_) {
-          // Stale ref — fall through to picker
           blePermittedDevice.current = null;
           device = null;
+          server = null;
         }
       }
 
-      // Step 2: show OS picker if no permitted device connected
+      // Step 2: OS picker for first-time pair or stale ref
       if (!device) {
         device = await navigator.bluetooth.requestDevice({
-          filters: [{ name: 'tps' }, { name: 'sps' }, { namePrefix: 'Inkbird' }, { namePrefix: 'IBS' }],
+          filters: INKBIRD_FILTERS,
           optionalServices: [INKBIRD_SERVICE_UUID],
         });
-        await device.gatt.connect();
+        server = await device.gatt.connect();
         blePermittedDevice.current = device;
       }
 
-      // Hand off to the hook — it sets up FFF6 streaming from here
-      await setConnectedDevice(device);
+      // Hand server + device to hook — it subscribes FFF6 and starts streaming
+      await setConnectedServer(server, device);
 
     } catch (err) {
       if (err?.name !== 'NotFoundError' && err?.name !== 'AbortError') {
@@ -402,8 +429,8 @@ export default function LiveTempBadge({
     } finally {
       bleConnectingRef.current = false;
     }
-  }, [isPastDate, selectedDriverIsMe, adminMode, driverMode, bleStatus,
-      loadFromDb, triggerPulse, forceRead, setConnectedDevice]);
+  }, [isPastDate, selectedDriverIsMe, adminMode, driverMode, bleStatus, sensorName,
+      loadFromDb, triggerPulse, forceRead, setConnectedServer, forgetSensor]);
 
   // ── Display values ────────────────────────────────────────────────────
   const showLiveBle = !isPastDate && selectedDriverIsMe && driverMode;
@@ -438,8 +465,9 @@ export default function LiveTempBadge({
   })();
 
   const labelText = (() => {
-    if (!isPastDate && showLiveBle && (bleStatus === 'connecting' || bleStatus === 'scanning' || bleStatus === 'reading')) return 'Connecting…';
-    // If disconnected but we have a cached/DB reading, show the temperature instead of "Tap to reconnect"
+    if (isUnpairing) return 'Unpaired';
+    if (!isPastDate && showLiveBle && bleConnectingRef.current) return 'Connecting…';
+    if (!isPastDate && showLiveBle && bleStatus === 'error') return 'Tap to retry';
     if (!isPastDate && showLiveBle && bleStatus === 'disconnected' && displayTemp === null) return sensorName ? 'Tap to reconnect' : 'Tap to pair';
     if (displayTemp !== null) return isPastDate ? `∅ ${displayTemp}°C` : `${displayTemp}°C`;
     if (isPastDate)           return 'No data';
@@ -447,25 +475,35 @@ export default function LiveTempBadge({
     return sensorName ? 'Tap to reconnect' : 'Tap to pair';
   })();
 
+  // Blue border when a sensor is paired (connected OR disconnected-but-known)
+  const isPaired = !isUnpairing && !!sensorName && (bleStatus === 'connected' || bleStatus === 'disconnected');
+  const pairedRing = isPaired ? '0 0 0 2px #3b82f6' : 'none'; // blue ring
+
   // Badge color
   const badgeStyle = (() => {
-    if (displayTemp === null) return { background: '#64748b', border: '1px solid #475569', color: '#ffffff' };
-    if (isOut)                return { background: '#dc2626', border: '1px solid #b91c1c', color: '#ffffff' };
-    if (isWarning)            return { background: '#eab308', border: '1px solid #ca8a04', color: '#000000' };
-    return                           { background: '#16a34a', border: '1px solid #15803d', color: '#ffffff' };
+    const ring = isPaired ? ', 0 0 0 2.5px #3b82f6' : '';
+    if (isUnpairing)          return { background: '#475569', border: '1px solid #334155', color: '#ffffff', boxShadow: `0 2px 8px rgba(0,0,0,0.3)${ring}` };
+    if (displayTemp === null) return { background: '#64748b', border: '1px solid #475569', color: '#ffffff', boxShadow: `0 2px 8px rgba(0,0,0,0.2)${ring}` };
+    if (isOut)                return { background: '#dc2626', border: '1px solid #b91c1c', color: '#ffffff', boxShadow: `0 2px 8px rgba(0,0,0,0.3)${ring}` };
+    if (isWarning)            return { background: '#eab308', border: '1px solid #ca8a04', color: '#000000', boxShadow: `0 2px 8px rgba(0,0,0,0.2)${ring}` };
+    return                           { background: '#16a34a', border: '1px solid #15803d', color: '#ffffff', boxShadow: `0 2px 8px rgba(0,0,0,0.2)${ring}` };
   })();
   const iconColor = isWarning ? '#000000' : '#ffffff';
 
   // Right icon
   const rightIcon = (() => {
+    if (isUnpairing)
+      return <BluetoothOff className="w-3 h-3 flex-shrink-0" style={{ color: iconColor, opacity: 0.7 }} />;
     if (justSaved)
       return <Check className="w-3 h-3 flex-shrink-0" style={{ color: isWarning ? '#166534' : '#86efac' }} />;
     if (!driverMode) return null;
-    if (bleStatus === 'connecting' || bleStatus === 'scanning' || bleStatus === 'reading')
+    if (bleConnectingRef.current)
       return <BluetoothSearching className="w-3.5 h-3.5 animate-pulse flex-shrink-0" style={{ color: iconColor }} />;
     if (bleStatus === 'connected')
       return <Bluetooth className="w-3 h-3 flex-shrink-0" style={{ color: isWarning ? '#166534' : '#86efac' }} />;
-    if (bleStatus === 'error' || bleStatus === 'disconnected')
+    if (bleStatus === 'error')
+      return <RefreshCw className="w-3 h-3 flex-shrink-0" style={{ color: '#f87171', opacity: 0.9 }} />;
+    if (bleStatus === 'disconnected')
       return <RefreshCw className="w-3 h-3 flex-shrink-0" style={{ color: iconColor, opacity: 0.6 }} />;
     return <Bluetooth className="w-3 h-3 flex-shrink-0" style={{ color: iconColor, opacity: 0.3 }} />;
   })();

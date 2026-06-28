@@ -37,7 +37,9 @@ export function useInkbirdSensorBridge(currentUser) {
   // Safety: ensure forceRead is always a callable function regardless of hook version
   return {
     ...sensor,
-    forceRead: typeof sensor.forceRead === 'function' ? sensor.forceRead : () => {},
-    latestReadingRef: sensor.latestReadingRef || { current: null },
+    forceRead:          typeof sensor.forceRead          === 'function' ? sensor.forceRead          : () => {},
+    forget:             typeof sensor.forget             === 'function' ? sensor.forget             : () => {},
+    setConnectedServer: typeof sensor.setConnectedServer === 'function' ? sensor.setConnectedServer : () => {},
+    latestReadingRef:   sensor.latestReadingRef || { current: null },
   };
 }
