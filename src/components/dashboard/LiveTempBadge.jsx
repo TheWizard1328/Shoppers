@@ -335,24 +335,18 @@ export default function LiveTempBadge({
   // On mount: find any already-permitted Inkbird so we can reconnect without picker
   useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.bluetooth) {
-      console.log('[LiveTempBadge] mount: navigator.bluetooth unavailable');
       return;
     }
     if (typeof navigator.bluetooth.getDevices !== 'function') {
-      console.log('[LiveTempBadge] mount: getDevices not available');
       return;
     }
     navigator.bluetooth.getDevices().then(devices => {
-      console.log('[LiveTempBadge] mount: getDevices returned', devices.length, 'device(s)', devices.map(d => d.name));
       const inkbird = devices.find(d => d.name === 'tps' || d.name === 'sps' || (d.name || '').startsWith('Inkbird') || (d.name || '').startsWith('IBS'));
       if (inkbird) {
         blePermittedDevice.current = inkbird;
-        console.log('[LiveTempBadge] mount: found permitted device:', inkbird.name, inkbird.id);
       } else {
-        console.log('[LiveTempBadge] mount: no permitted Inkbird found among', devices.length, 'devices');
       }
     }).catch(err => {
-      console.log('[LiveTempBadge] mount: getDevices failed:', err?.message);
     });
   }, []);
 
@@ -364,7 +358,7 @@ export default function LiveTempBadge({
   // After getting a device + GATT connection, hands off to setConnectedDevice
   // which starts FFF6 streaming + periodic FFF2 reads.
   const handleTap = useCallback(async () => {
-    console.log('[LiveTempBadge] handleTap fired', {
+    console.log(' handleTap fired', {
       isPastDate,
       selectedDriverIsMe,
       adminMode,
@@ -379,16 +373,13 @@ export default function LiveTempBadge({
     });
 
     if (isPastDate || !selectedDriverIsMe) {
-      console.log('[LiveTempBadge] GATE: isPastDate=' + isPastDate + ', selectedDriverIsMe=' + selectedDriverIsMe + ' → DB reload only, skip BLE');
       loadFromDb(); triggerPulse(); return;
     }
     if (adminMode && !driverMode) {
-      console.log('[LiveTempBadge] GATE: admin-only (no driver role) → DB reload only, skip BLE');
       loadFromDb(); triggerPulse(); return;
     }
 
     if (bleStatus === 'connected') {
-      console.log('[LiveTempBadge] GATE: already connected → forceRead');
       forceRead();
       loadFromDb();
       triggerPulse();
@@ -396,16 +387,13 @@ export default function LiveTempBadge({
     }
 
     if (bleConnectingRef.current) {
-      console.log('[LiveTempBadge] GATE: already connecting (bleConnectingRef) → skip');
       return; // already in-flight
     }
 
     if (!navigator.bluetooth) {
-      console.log('[LiveTempBadge] GATE: navigator.bluetooth is falsy → cannot connect');
       return; // Web Bluetooth not available
     }
 
-    console.log('[LiveTempBadge] GATE: all checks passed → proceeding to BLE connect');
     bleConnectingRef.current = true;
     triggerPulse();
 
@@ -440,7 +428,6 @@ export default function LiveTempBadge({
 
     } catch (err) {
       if (err?.name !== 'NotFoundError' && err?.name !== 'AbortError') {
-        console.warn('[LiveTempBadge] BLE connect failed:', err?.message);
       }
     } finally {
       bleConnectingRef.current = false;
@@ -515,27 +502,13 @@ export default function LiveTempBadge({
 
   // ── Visibility guard ──────────────────────────────────────────────────
   const isVisibleRole = adminMode || driverMode;
-  console.log('[LiveTempBadge] render check', {
-    renders: true,
-    isVisibleRole,
-    bleStatus,
-    displayTemp,
-    selectedDriverIsMe,
-    isPastDate,
-    adminMode,
-    driverMode,
-    sensorName: sensorName || null,
-    bleActive: bleStatus === 'connected' || bleStatus === 'connecting' || bleStatus === 'scanning',
-  });
   if (!isVisibleRole) {
-    console.log('[LiveTempBadge] HIDDEN: no admin/driver role');
     return null;
   }
   if (driverMode && !adminMode) {
     const bleActive = bleStatus === 'connected' || bleStatus === 'connecting' || bleStatus === 'scanning';
     // Always show badge for the driver's own route/today so they can tap to pair
     if (!bleActive && displayTemp === null && (!selectedDriverIsMe || isPastDate)) {
-      console.log('[LiveTempBadge] HIDDEN: driver-mode, no BLE active, no cached temp, and not self/past');
       return null;
     }
   }
@@ -562,9 +535,9 @@ export default function LiveTempBadge({
         <div
           role="button"
           tabIndex={0}
-          onClick={(e) => { console.log('[LiveTempBadge] ⚡ onClick fired'); handleTap(); }}
-          onTouchEnd={(e) => { console.log('[LiveTempBadge] ⚡ onTouchEnd fired'); e.preventDefault(); e.stopPropagation(); handleTap(); }}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { console.log('[LiveTempBadge] ⚡ onKeyDown Enter/Space fired'); handleTap(); } }}
+          onClick={(e) => { handleTap(); }}
+          onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); handleTap(); }}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { handleTap(); } }}
           className={`pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full shadow-lg text-sm font-semibold select-none cursor-pointer active:scale-95 ${isPulsing ? 'scale-110' : 'scale-100'}`}
           style={{
             ...badgeStyle,
