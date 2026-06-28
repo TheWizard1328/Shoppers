@@ -378,8 +378,34 @@ export default function InkbirdRawDiagnostic() {
     }
   }, [addLog, ensureDevice, pushTemp, stop]);
 
-  const forgetDevice = useCallback(() => {
+  const forgetDevice = useCallback(async () => {
+    const device = deviceRef.current;
+    // 1. Full teardown — stop notifications, disconnect GATT
+    clearInterval(pollRef.current);
+    clearTimeout(autoStopRef.current);
+    pollRef.current = null;
+    fff2Ref.current = null;
+    for (const ch of subsRef.current) {
+      try { await ch.stopNotifications(); } catch (_) {}
+    }
+    subsRef.current = [];
+    try { serverRef.current?.disconnect(); } catch (_) {}
+    serverRef.current = null;
+
+    // 2. Revoke the browser's Web Bluetooth permission so other apps/devices
+    //    can discover and connect to this sensor. Without this, the browser
+    //    holds the permission grant indefinitely via getDevices().
+    if (device && typeof device.forget === 'function') {
+      try {
+        await device.forget();
+        addLog('✓ BLE permission revoked — device is now discoverable by other apps.');
+      } catch (e) {
+        addLog(`⚠️ device.forget() failed: ${e.message}`);
+      }
+    }
+
     deviceRef.current = null; setPaired(null);
+    setStatus('idle');
     addLog('Forgot device — next scan will show picker.');
   }, [addLog]);
 

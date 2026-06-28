@@ -314,9 +314,17 @@ export function useInkbirdSensor(currentUser) {
       }
       serverRef.current?.disconnect();
     } catch (_) {}
+    // Revoke the browser's BLE permission so the sensor becomes discoverable
+    // by other apps/devices. Only called on explicit disconnect (not unexpected
+    // gattserverdisconnected).
+    const device = deviceRef.current;
+    if (device && typeof device.forget === 'function') {
+      device.forget().catch(() => {});
+    }
     notifyRef.current  = null;
     serverRef.current  = null;
     notifyHandlerRef.current = null;
+    deviceRef.current  = null;
     setStatus('idle');
   }, []);
 
