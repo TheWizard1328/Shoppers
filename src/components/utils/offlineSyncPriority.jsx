@@ -139,12 +139,23 @@ export const createOfflineSyncPriorityHelpers = ({
         }));
       }
 
-      // Sync today's RxTempLogs for all drivers in the city (current date only)
+      // Sync RxTempLogs for all drivers — prune records deleted server-side
       try {
         if (RxTempLogs) {
-          const todayTempLogs = await RxTempLogs.filter({ delivery_date: selectedDateStr });
-          if (todayTempLogs && todayTempLogs.length > 0) {
-            await offlineDB.bulkSave(offlineDB.STORES.RX_TEMP_LOGS, todayTempLogs);
+          const serverTempLogs = await RxTempLogs.filter({ delivery_date: selectedDateStr });
+          const serverIds = new Set((serverTempLogs || []).map(l => l?.id).filter(Boolean));
+          const localTempLogs = (await offlineDB.getAll(offlineDB.STORES.RX_TEMP_LOGS))
+            .filter(l => l?.delivery_date === selectedDateStr);
+          // Prune offline records that no longer exist on the server
+          const toDeleteTemp = localTempLogs.filter(l => l?.id && !serverIds.has(l.id));
+          if (toDeleteTemp.length > 0) {
+            await Promise.all(toDeleteTemp.map(l =>
+              offlineDB.deleteRecord(offlineDB.STORES.RX_TEMP_LOGS, l.id).catch(() => {})));
+            console.log(`🧹 [TempLogSync] Pruned ${toDeleteTemp.length} stale offline temp log(s) for ${selectedDateStr}`);
+          }
+          // Upsert whatever the server returned (even empty means all deleted)
+          if (serverTempLogs && serverTempLogs.length > 0) {
+            await offlineDB.bulkSave(offlineDB.STORES.RX_TEMP_LOGS, serverTempLogs);
           }
         }
       } catch (_) {}

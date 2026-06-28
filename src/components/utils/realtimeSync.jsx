@@ -702,6 +702,7 @@ const subscribeToEntity = (entityName) => {
                             entityName === 'Payroll' ? offlineDB.STORES.PAYROLL :
                             entityName === 'DeliveryBreadcrumbs' ? offlineDB.STORES.DELIVERY_BREADCRUMBS :
                             entityName === 'InterStoreLocation' ? offlineDB.STORES.INTER_STORE_LOCATIONS :
+                            entityName === 'RxTempLogs' ? offlineDB.STORES.RX_TEMP_LOGS :
                             null;
 
           if (storeName) {

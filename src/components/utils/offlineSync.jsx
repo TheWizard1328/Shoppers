@@ -299,11 +299,20 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
     invalidateEntityCache('Patient');
     notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 85, count: patientIds.length });
     
-    // Step 5: Sync RxTempLogs for today across all drivers in the city
+    // Step 5: Sync RxTempLogs — prune records deleted server-side
     try {
-      const todayTempLogs = await RxTempLogs.filter({ delivery_date: selectedDateStr });
-      if (todayTempLogs && todayTempLogs.length > 0) {
-        await offlineDB.bulkSave(offlineDB.STORES.RX_TEMP_LOGS, todayTempLogs);
+      const serverTempLogs = await RxTempLogs.filter({ delivery_date: selectedDateStr });
+      const serverIds = new Set((serverTempLogs || []).map(l => l?.id).filter(Boolean));
+      const localTempLogs = (await offlineDB.getAll(offlineDB.STORES.RX_TEMP_LOGS))
+        .filter(l => l?.delivery_date === selectedDateStr);
+      const toDeleteTemp = localTempLogs.filter(l => l?.id && !serverIds.has(l.id));
+      if (toDeleteTemp.length > 0) {
+        await Promise.all(toDeleteTemp.map(l =>
+          offlineDB.deleteRecord(offlineDB.STORES.RX_TEMP_LOGS, l.id).catch(() => {})));
+        console.log(`🧹 [TempLogSync] Pruned ${toDeleteTemp.length} stale offline temp log(s) for ${selectedDateStr}`);
+      }
+      if (serverTempLogs && serverTempLogs.length > 0) {
+        await offlineDB.bulkSave(offlineDB.STORES.RX_TEMP_LOGS, serverTempLogs);
       }
     } catch (_) {}
 
