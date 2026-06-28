@@ -75,6 +75,55 @@ function saveSensorNameLocally(name) {
   try { localStorage.setItem(LOCAL_STORAGE_KEY, name); } catch (_) {}
 }
 
+// ── Auto-save periodic BLE readings ─────────────────────────────────────────
+async function persistHeartbeatReading(parsed, currentUser, sensorName) {
+  const user = currentUser;
+  if (!user?.id) return;
+  // Throttle: at most once per 60 seconds to avoid DB spam from FFF6 notifications
+  const now = Date.now();
+  if (now - lastHeartbeatSave.current < 60000) return;
+  lastHeartbeatSave.current = now;
+  const pad = (n) => String(n).padStart(2, '0');
+  const d = new Date();
+  const dateStr = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  const localTimestamp = `${dateStr}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  const reading = {
+    tempC: parsed.tempC,
+    humidity: parsed.humidity,
+    timestamp: localTimestamp,
+    dateStr,
+    driverId: user.id,
+    sensorName,
+  };
+  // Save offline first
+  try {
+    const { offlineDB } = await import('../utils/offlineDatabase');
+    const existing = await offlineDB.getByCompoundIndex('rx_temp_logs', 'date_driver', [dateStr, user.id]);
+    const existingLog = existing?.[0];
+    const entry = { timestamp: localTimestamp, temperature_celsius: parsed.tempC, recorded_by_driver_id: user.id, trigger: 'heartbeat', input_method: 'ble', sensor_mac: sensorName };
+    if (existingLog) {
+      const readings = Array.isArray(existingLog.temperature_readings) ? existingLog.temperature_readings : [];
+      readings.push(entry);
+      await offlineDB.save('rx_temp_logs', { ...existingLog, temperature_readings: readings, latest_reading: entry, updated_date: new Date().toISOString() });
+    } else {
+      const id = `offline_temp_${dateStr}_${user.id}`;
+      await offlineDB.save('rx_temp_logs', { id, delivery_date: dateStr, driver_id: user.id, temperature_readings: [entry], latest_reading: entry, updated_date: new Date().toISOString() });
+    }
+  } catch (_) { /* offline save non-critical */ }
+  // Fire backend call (fire-and-forget)
+  base44.functions.invoke('recordFridgeTemperature', {
+    temperatureCelsius: parsed.tempC,
+    deliveryDate: dateStr,
+    driverId: user.id,
+    timestamp: localTimestamp,
+    trigger: 'heartbeat',
+    input_method: 'ble',
+    sensor_mac: sensorName,
+  }).catch(() => {});
+}
+// Ref shared outside hook
+const lastHeartbeatSave = { current: 0 };
+
 /**
  * useInkbirdSensor(currentUser)
  *
@@ -95,6 +144,9 @@ export function useInkbirdSensor(currentUser) {
   const [reading,    setReading]    = useState(null);
   const [sensorName, setSensorName] = useState(getSavedSensorName);
 
+  const currentUserRef    = useRef(currentUser);
+  currentUserRef.current  = currentUser;
+
   const deviceRef          = useRef(null);   // BluetoothDevice (persists across connects)
   const serverRef          = useRef(null);   // BluetoothRemoteGATTServer
   const notifyRef          = useRef(null);   // FFF6 characteristic
@@ -103,6 +155,8 @@ export function useInkbirdSensor(currentUser) {
   const retryCount         = useRef(0);
   const retryTimer         = useRef(null);
   const periodicReadTimer  = useRef(null);
+  const sensorNameRef      = useRef(getSavedSensorName());
+
   const mountedRef         = useRef(true);
   const connectingRef      = useRef(false);  // guard: prevent concurrent connect attempts
 
@@ -154,6 +208,7 @@ export function useInkbirdSensor(currentUser) {
           window.dispatchEvent(new CustomEvent('inkbirdReading', {
             detail: { ...parsed, source: 'gatt-read' }
           }));
+          persistHeartbeatReading(parsed, currentUserRef.current, sensorNameRef.current);
         }
       } catch (_) { /* FFF2 read not supported — fall through to notify */ }
 
@@ -172,6 +227,8 @@ export function useInkbirdSensor(currentUser) {
           window.dispatchEvent(new CustomEvent('inkbirdReading', {
             detail: { ...parsed, source: 'gatt-notify' }
           }));
+          // Auto-save periodic BLE readings to DB
+          persistHeartbeatReading(parsed, currentUserRef.current, sensorNameRef.current);
         }
       };
       notifyHandlerRef.current = handler;
@@ -235,6 +292,7 @@ export function useInkbirdSensor(currentUser) {
       if (!mountedRef.current) return;
       deviceRef.current = device;
       setSensorName(device.name);
+      sensorNameRef.current = device.name;
       saveSensorNameLocally(device.name);
       persistSensorToUserDevice(currentUser, device.name);
       await connectDevice(device);
@@ -276,6 +334,7 @@ export function useInkbirdSensor(currentUser) {
         window.dispatchEvent(new CustomEvent('inkbirdReading', {
           detail: { ...parsed, source: 'gatt-force-read' },
         }));
+        persistHeartbeatReading(parsed, currentUserRef.current, sensorNameRef.current);
       }
     } catch (_) {}
   }, []);
@@ -321,6 +380,7 @@ export function useInkbirdSensor(currentUser) {
       if (inkbird) {
         deviceRef.current = inkbird;
         setSensorName(inkbird.name);
+        sensorNameRef.current = inkbird.name;
         saveSensorNameLocally(inkbird.name);
         // Mark as waiting for a gesture to connect
         setStatus('waiting-gesture');
