@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import StoreCard from "../components/stores/StoreCard";
 import StoreForm from "../components/stores/StoreForm";
@@ -54,6 +54,7 @@ export default function StoresPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingStore, setEditingStore] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const skipNextContextSync = React.useRef(false);
 
   useEffect(() => {
     loadData();
@@ -111,11 +112,16 @@ export default function StoresPage() {
     if (contextDataLoaded) {
       // CRITICAL: Only update state if data actually changed (prevent re-renders)
       if (contextStores.length > 0) {
-        const sortedStores = sortStores(contextStores);
-        // Deep compare to avoid re-renders when data is identical
-        if (JSON.stringify(sortedStores) !== JSON.stringify(stores)) {
-          console.log("🔄 [Stores] Syncing stores from AppDataContext");
-          setStores(sortedStores);
+        // Skip one sync cycle after a local save to avoid overwriting our optimistic state
+        if (skipNextContextSync.current) {
+          skipNextContextSync.current = false;
+        } else {
+          const sortedStores = sortStores(contextStores);
+          // Deep compare to avoid re-renders when data is identical
+          if (JSON.stringify(sortedStores) !== JSON.stringify(stores)) {
+            console.log("🔄 [Stores] Syncing stores from AppDataContext");
+            setStores(sortedStores);
+          }
         }
       }
       if (contextCities.length > 0 && JSON.stringify(contextCities) !== JSON.stringify(cities)) {
@@ -208,15 +214,18 @@ export default function StoresPage() {
     try {
       if (editingStore) {
         const updatedStore = await updateStoreLocal(editingStore.id, storeData);
-        setStores(prev => prev.map(s => s.id === editingStore.id ? updatedStore : s));
+        setStores(prev => sortStores(prev.map(s => s.id === editingStore.id ? updatedStore : s)));
       } else {
         const newStore = await createStoreLocal(storeData);
-        setStores(prev => [...prev, newStore]);
+        setStores(prev => sortStores([...prev, newStore]));
       }
 
       // Close form first to prevent re-render issues
       setShowForm(false);
       setEditingStore(null);
+
+      // Skip the next context sync so our optimistic local state isn't overwritten
+      skipNextContextSync.current = true;
 
       // Then invalidate cache for background sync
       invalidate('Store');
