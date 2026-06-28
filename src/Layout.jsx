@@ -415,7 +415,13 @@ export default function Layout({ children, currentPageName }) {
       if (currentUser && !isReloadingFromAppUserChange.current) {
         const updatedAppUserForCurrentUser = updates.appUsers.find((au) => au && au.user_id === currentUser.id);
 
-        if (updatedAppUserForCurrentUser) {
+        // CRITICAL: Never reload for driver_status / location-only changes.
+        // DriverStatusToggle writes these fields; a full reload would wipe sidebar + all data.
+        const RELOAD_SKIP_KEYS = new Set(['driver_status', 'location_tracking_enabled', 'current_latitude', 'current_longitude', 'location_updated_at', 'updated_date', 'id', 'user_id']);
+        const hasOnlyTransientChanges = updatedAppUserForCurrentUser &&
+          Object.keys(updatedAppUserForCurrentUser).every(k => RELOAD_SKIP_KEYS.has(k));
+
+        if (updatedAppUserForCurrentUser && !hasOnlyTransientChanges) {
           if (hasCurrentUserRefreshImpact(currentUser, updatedAppUserForCurrentUser)) {
             isReloadingFromAppUserChange.current = true;
             setAppUsers(updates.appUsers);

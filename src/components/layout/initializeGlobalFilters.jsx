@@ -65,11 +65,31 @@ export const createMergedUser = (authUser, appUser) => {
   return merged;
 };
 
-// CRITICAL: driver_status, location fields intentionally excluded — changes to these
+// CRITICAL: driver_status, location fields, company_id intentionally excluded — changes to these
 // must NOT trigger a full data reload (would wipe sidebar + appUsers from state).
-const CURRENT_USER_REFRESH_KEYS = ['app_roles', 'store_ids', 'city_id', 'status', 'user_name', 'company_id', 'square_location_ids'];
-export const hasCurrentUserRefreshImpact = (currentUser, updateData = {}) =>
-  !!currentUser && !!updateData &&
-  CURRENT_USER_REFRESH_KEYS.some((key) =>
+// company_id is fixed at account creation and never changes during a session; including it
+// caused false-positive reloads because currentUser (merged auth+appUser) sometimes carries
+// it as undefined while the raw AppUser record has the real value.
+const CURRENT_USER_REFRESH_KEYS = ['app_roles', 'store_ids', 'city_id', 'status', 'user_name', 'square_location_ids'];
+
+// Keys that are purely operational/transient — changes to these alone should never trigger reload.
+const TRANSIENT_ONLY_KEYS = new Set(['driver_status', 'location_tracking_enabled', 'current_latitude', 'current_longitude', 'location_updated_at', 'updated_date']);
+
+export const hasCurrentUserRefreshImpact = (currentUser, updateData = {}) => {
+  if (!currentUser || !updateData) return false;
+
+  // Collect the keys that actually changed
+  const changedKeys = CURRENT_USER_REFRESH_KEYS.filter((key) =>
     key in updateData && JSON.stringify(currentUser[key] ?? null) !== JSON.stringify(updateData[key] ?? null)
   );
+
+  if (changedKeys.length === 0) return false;
+
+  // If the only changes in the entire update payload are transient fields, don't reload.
+  // This handles the case where a SmartRefresh poll returns appUser data that includes
+  // a sentinel refresh key alongside transient fields (e.g. company_id mismatch).
+  const nonTransientChangedKeys = Object.keys(updateData).filter(k => !TRANSIENT_ONLY_KEYS.has(k));
+  if (nonTransientChangedKeys.length === 0) return false;
+
+  return true;
+};
