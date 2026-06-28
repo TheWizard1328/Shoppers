@@ -76,19 +76,21 @@ export default function DeliveryPatientSearch({
         ...(currentUser?.store_ids || []),
         ...scheduledStoreIds,
       ]);
-      // NEW RULE: also include stores where the driver has a pickup in their current route.
-      // Pickup stores are found from deliveries where the driver is assigned and a puid (pickup ID) exists.
-      // Those deliveries have no patient_id (they're pickups), and the store_id tells us which store
-      // the driver picks up from.
+      // NEW RULE: also include stores where the driver has en-route pickups in their current route.
+      // Pickup stores are deliveries with a puid but no patient_id. Include them if they match
+      // the form's current delivery date, regardless of today's actual date. Additionally, only
+      // include pickups that are en_route — once these are marked completed, the driver already
+      // has them in-hand and doesn't need those stores shown as patient sources.
       if (allDeliveries && allDeliveries.length > 0) {
-        const todayLocal = new Date();
-        const pad = n => String(n).padStart(2, '0');
-        const dateStr = `${todayLocal.getFullYear()}-${pad(todayLocal.getMonth()+1)}-${pad(todayLocal.getDate())}`;
-        const driverPickupStoreIds = allDeliveries
-          .filter(d => d && driverIds.has(d.driver_id) && d.puid && !d.patient_id && d.delivery_date === dateStr)
-          .map(d => d.store_id)
-          .filter(Boolean);
-        driverPickupStoreIds.forEach(sid => assignedStoreIds.add(sid));
+        const routeDate = formData?.delivery_date;
+        if (routeDate) {
+          const driverPickupStoreIds = allDeliveries
+            .filter(d => d && driverIds.has(d.driver_id) && d.puid && !d.patient_id &&
+              d.delivery_date === routeDate && d.status === 'en_route')
+            .map(d => d.store_id)
+            .filter(Boolean);
+          driverPickupStoreIds.forEach(sid => assignedStoreIds.add(sid));
+        }
       }
       console.log(`[PatientSearch] driver ids: ${[...driverIds]}, assigned stores: ${[...assignedStoreIds]}, total stores checked: ${(stores||[]).length}`);
       // Always filter for drivers — if no stores assigned, show nothing
