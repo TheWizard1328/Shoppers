@@ -1057,7 +1057,7 @@ function MobileDriverGroup({ driverId, driver, entries, date, overrides, drivers
     const ampm = isAM ? 'AM' : 'PM';
     return sum + (deliveriesByDay?.[dateKey]?.filter(
       (d) => d.driver_id === driverId && d.store_id === store.id &&
-      d.patient_id && d.patient_id !== '' && (
+      ((d.patient_id && d.patient_id !== '') || d._interstore_source_id) && (
       !d.ampm_deliveries || d.ampm_deliveries === ampm)
     ).length || 0);
   }, 0) : 0;
@@ -1195,7 +1195,7 @@ function DriverGroupDraggable({ driverId, driver, entries, date, overrides, driv
           const ampm = isAM ? 'AM' : 'PM';
           return sum + (deliveriesByDay?.[dateKey]?.filter(
             (d) => d.driver_id === driverId && d.store_id === store.id &&
-            d.patient_id && d.patient_id !== '' && (
+            ((d.patient_id && d.patient_id !== '') || d._interstore_source_id) && (
             !d.ampm_deliveries || d.ampm_deliveries === ampm)
           ).length || 0);
         }, 0) : 0;
