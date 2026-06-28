@@ -110,12 +110,10 @@ export function useInkbirdSensor(currentUser) {
   const hasGetDevices = hasBluetooth && typeof navigator.bluetooth.getDevices === 'function';
 
   // ── BLE capability guard ───────────────────────────────────────────────
-  // Any touch device (phone or tablet) with Web Bluetooth can connect BLE.
-  // Desktop PCs are excluded — not in the field, no Bluetooth sensor nearby.
-  // is_primary_tracker is for GPS location only — it must NOT gate BLE here.
-  const isTouchDevice = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
-  const canUseBle = hasBluetooth && isTouchDevice;
-  // isPrimaryDevice kept in return for API compat — now equals canUseBle
+  // Use hasBluetooth as the sole gate — maxTouchPoints is unreliable in
+  // Android WebView/PWA contexts and was silently blocking BLE on real devices.
+  const canUseBle = hasBluetooth;
+  // isPrimaryDevice kept in return for API compat
 
   // ── Internal: GATT connect + subscribe ─────────────────────────────────
   const connectDevice = useCallback(async (device) => {
@@ -209,7 +207,7 @@ export function useInkbirdSensor(currentUser) {
   // any interaction from the driver silently reconnects the sensor if needed.
   const triggerReconnect = useCallback(() => {
     if (!mountedRef.current) return false;
-    if (!canUseBle) return false;       // desktop or no Bluetooth
+    if (!canUseBle) return false;       // no Bluetooth API available
     if (!deviceRef.current) return false; // no device known yet — need manual pair
     if (connectingRef.current) return true; // already in-flight — treat as handled
     if (status === 'connected') return true; // already good
@@ -220,7 +218,6 @@ export function useInkbirdSensor(currentUser) {
   // ── First-time manual pair ─────────────────────────────────────────────
   const connect = useCallback(async () => {
     if (!hasBluetooth) return;
-    if (!canUseBle) return; // desktop or no Bluetooth — skip
     setStatus('connecting');
     try {
       const device = await navigator.bluetooth.requestDevice({
@@ -300,10 +297,7 @@ export function useInkbirdSensor(currentUser) {
 
     if (!hasBluetooth) { setStatus('unsupported'); return; }
 
-    // Any touch device with Web Bluetooth can use BLE.
-    // Desktop devices (maxTouchPoints === 0) are excluded — they don't have
-    // Bluetooth in the field and the 'non-primary' block was causing the
-    // tablet tap to silently no-op.
+    // canUseBle === hasBluetooth — if Web Bluetooth API is absent, bail out.
     if (!canUseBle) {
       setStatus('non-primary');
       return;
@@ -345,6 +339,7 @@ export function useInkbirdSensor(currentUser) {
     status,
     reading,
     sensorName,
+    latestReadingRef,
     isPrimaryDevice: canUseBle, // kept for API compat — true means BLE is available on this device
     connect,
     disconnect,

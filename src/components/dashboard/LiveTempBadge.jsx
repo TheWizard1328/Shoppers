@@ -450,6 +450,7 @@ export default function LiveTempBadge({
           role="button"
           tabIndex={0}
           onClick={handleTap}
+          onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); handleTap(); }}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleTap(); }}
           className={`pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full shadow-lg text-sm font-semibold select-none cursor-pointer active:scale-95 ${isPulsing ? 'scale-110' : 'scale-100'}`}
           style={{
