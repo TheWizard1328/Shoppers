@@ -75,6 +75,20 @@ export default function DeliveryPatientSearch({
         ...(currentUser?.store_ids || []),
         ...scheduledStoreIds,
       ]);
+      // NEW RULE: also include stores where the driver has a pickup in their current route.
+      // Pickup stores are found from deliveries where the driver is assigned and a puid (pickup ID) exists.
+      // Those deliveries have no patient_id (they're pickups), and the store_id tells us which store
+      // the driver picks up from.
+      try {
+        const appDeliveries = window.__appDeliveries || [];
+        if (appDeliveries.length > 0) {
+          const driverPickupStoreIds = appDeliveries
+            .filter(d => d && driverIds.has(d.driver_id) && d.puid && !d.patient_id)
+            .map(d => d.store_id)
+            .filter(Boolean);
+          driverPickupStoreIds.forEach(sid => assignedStoreIds.add(sid));
+        }
+      } catch (_) {}
       console.log(`[PatientSearch] driver ids: ${[...driverIds]}, assigned stores: ${[...assignedStoreIds]}, total stores checked: ${(stores||[]).length}`);
       // Always filter for drivers — if no stores assigned, show nothing
       list = list.filter((patient) => assignedStoreIds.has(patient?.store_id));
