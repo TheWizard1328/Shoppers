@@ -58,11 +58,16 @@ const shouldSkipDuplicateLog = (level, message) => {
 };
 
 const loadSettings = async () => {
+  if (window.__remoteLogSettingsCache) {
+    activeSettings = window.__remoteLogSettingsCache;
+    window.__remoteLogSettingsCache = null;
+  }
   if (activeSettings) return activeSettings;
   if (!settingsPromise) {
-    settingsPromise = base44.entities.RemoteLoggingSettings.filter({ scope: 'global' }, '-updated_date', 1)
+    settingsPromise = base44.entities.RemoteLoggingSettings.filter({ scope: 'global' }, '-updated_date', 100)
       .then((rows) => {
-        activeSettings = rows?.[0] || null;
+        const valid = (rows || []).filter((s) => s?.scope === 'global');
+        activeSettings = valid.sort((a, b) => new Date(b.updated_date || 0) - new Date(a.updated_date || 0))[0] || null;
         return activeSettings;
       })
       .finally(() => {

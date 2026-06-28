@@ -19,21 +19,38 @@ export default function RemoteLogsTab({ appUsers = [] }) {
   const [logUserFilter, setLogUserFilter] = useState('all');
 
   const loadData = async () => {
-    const [logRows, settingsRows] = await Promise.all([
-    base44.entities.RemoteLogEntry.list('-timestamp', 300),
-    base44.entities.RemoteLoggingSettings.filter({ scope: 'global' }, '-updated_date', 1)]
-    );
-    setLogs(logRows || []);
-    setSettings(settingsRows?.[0] || null);
-    setSelectedUsers(settingsRows?.[0]?.included_user_ids || []);
+    try {
+      // Settings first — fast single record, needed immediately for toggle/selection state
+      const allSettings = await base44.entities.RemoteLoggingSettings.filter({ scope: 'global' }, '-updated_date', 10);
+      const valid = (allSettings || []).filter((s) => s?.scope === 'global');
+      const latest = valid.sort((a, b) => new Date(b.updated_date || 0) - new Date(a.updated_date || 0))[0] || null;
+      setSettings(latest);
+      setSelectedUsers(latest?.included_user_ids || []);
+      // Logs — slow, non-blocking
+      try {
+        const logRows = await base44.entities.RemoteLogEntry.list('-timestamp', 100);
+        setLogs(logRows || []);
+      } catch (_) {}
+    } catch (e) {
+      // Non-critical admin panel — empty state is fine
+    }
   };
 
   useEffect(() => {
-    loadData();
+    const timer = setTimeout(() => loadData(), 50);
+    return () => clearTimeout(timer);
   }, []);
 
   const ensureSettings = async () => {
     if (settings?.id) return settings;
+    const existing = await base44.entities.RemoteLoggingSettings.filter({ scope: 'global' }, '-updated_date', 100)
+      .then((rows) => (rows || []).filter((s) => s?.scope === 'global')
+        .sort((a, b) => new Date(b.updated_date || 0) - new Date(a.updated_date || 0))[0] || null);
+    if (existing) {
+      setSettings(existing);
+      setSelectedUsers(existing.included_user_ids || []);
+      return existing;
+    }
     const created = await base44.entities.RemoteLoggingSettings.create({
       scope: 'global',
       enabled: false,
@@ -49,8 +66,10 @@ export default function RemoteLogsTab({ appUsers = [] }) {
 
   const updateSettings = async (patch) => {
     const current = await ensureSettings();
-    const updated = await base44.entities.RemoteLoggingSettings.update(current.id, { ...current, ...patch });
+    const merged = { ...current, ...patch };
+    const updated = await base44.entities.RemoteLoggingSettings.update(current.id, merged);
     setSettings(updated);
+    window.__remoteLogSettingsCache = null;
   };
 
   const clearLogs = async () => {
@@ -117,7 +136,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
         <CardContent className="px-6 py-3 space-y-4">
           <div className="flex items-center justify-between">
             <span className="font-medium">Global logging</span>
-            <Switch checked={settings?.enabled === true} onCheckedChange={(checked) => updateSettings({ enabled: checked, capture_levels: ['warn', 'error', 'debug'] })} />
+            <Switch checked={settings?.enabled === true} onCheckedChange={(checked) => updateSettings({ enabled: checked, capture_levels: ['log', 'info', 'warn', 'error', 'debug'], included_user_ids: settings?.included_user_ids || [] })} />
           </div>
           <div className="space-y-1">
             <div className="font-medium">Only log selected users</div>
@@ -128,7 +147,8 @@ export default function RemoteLogsTab({ appUsers = [] }) {
                   options={driverOptions}
                   value={selectedDriverUsers}
                   onChange={(nextSelected) => {
-                    const next = [...new Set([...selectedStoreUsers, ...nextSelected])];
+                    const currentStoreIds = new Set(selectedUsers.filter((id) => storeOptions.some((o) => o.value === id)));
+                    const next = [...new Set([...nextSelected, ...currentStoreIds])];
                     setSelectedUsers(next);
                     updateSettings({ included_user_ids: next });
                   }}
@@ -141,11 +161,12 @@ export default function RemoteLogsTab({ appUsers = [] }) {
                   options={storeOptions}
                   value={selectedStoreUsers}
                   onChange={(nextSelected) => {
-                    const next = [...new Set([...selectedDriverUsers, ...nextSelected])];
+                    const currentDriverIds = new Set(selectedUsers.filter((id) => driverOptions.some((o) => o.value === id)));
+                    const next = [...new Set([...currentDriverIds, ...nextSelected])];
                     setSelectedUsers(next);
                     updateSettings({ included_user_ids: next });
                   }}
-                  placeholder="Select stores" className="h-auto inline-flex min-w-11 items-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border bg-background shadow-sm hover:bg-accent hover:text-accent-foreground px-4 w-full justify-between min-h-[52px] border-black undefined" />
+                  placeholder="Select stores" className="h-auto inline-flex min-w-11 items-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border bg-background shadow-sm hover:bg-accent hover:text-accept-foreground px-4 w-full justify-between min-h-[52px] border-black undefined" />
                 
               </div>
             </div>
