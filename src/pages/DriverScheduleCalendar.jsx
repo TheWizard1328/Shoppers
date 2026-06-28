@@ -886,11 +886,12 @@ export default function DriverScheduleCalendar() {
             const sortedDriverIds = [...driverMap.keys()].
             filter((id) => selectedDriverId === 'all' || id === selectedDriverId).
             filter((id) => {
+              // Only hide on past dates
+              if (!past) return true;
               const entries = driverMap.get(id);
               // If any entry is delivery-driven, always show the driver
               if (entries.some((e) => e.isDeliveryDriven)) return true;
-              // If all entries are scheduled (not delivery-driven), only show if driver
-              // has at least one actual delivery or pickup for this date
+              // Past date: only show if driver has at least one actual delivery or pickup
               const dayDelivs = deliveriesByDay[dateStr] || [];
               return dayDelivs.some((d) => d.driver_id === id && !d.is_cycling_marker);
             }).
