@@ -320,6 +320,39 @@ export function useInkbirdSensor(currentUser) {
     setStatus('idle');
   }, []);
 
+  // ── Forget device — disconnect + revoke Bluetooth permission ──────────
+  const forgetDevice = useCallback(async () => {
+    // 1. Stop any active connection
+    if (serverRef.current?.connected) {
+      try { serverRef.current.disconnect(); } catch (_) {}
+      await new Promise(r => setTimeout(r, 100));
+    }
+    // 2. Clean up internal state
+    clearTimeout(retryTimer.current);
+    clearInterval(periodicReadTimer.current);
+    connectingRef.current = false;
+    notifyRef.current  = null;
+    serverRef.current  = null;
+    notifyHandlerRef.current = null;
+    deviceRef.current  = null;
+    setSensorName(null);
+    sensorNameRef.current = null;
+    // 3. Clear localStorage
+    try { localStorage.removeItem(LOCAL_STORAGE_KEY); } catch (_) {}
+    try { localStorage.removeItem('rxdeliver_last_ble_temp'); } catch (_) {}
+    // 4. Revoke Bluetooth permission via device.forget()
+    try {
+      const devices = await navigator.bluetooth.getDevices();
+      for (const d of devices) {
+        if (typeof d.forget === 'function') {
+          // check if name matches our known Inkbird names
+          if (INKBIRD_NAMES.includes(d.name)) await d.forget();
+        }
+      }
+    } catch (_) {}
+    setStatus('idle');
+  }, []);
+
   // ── Force a fresh FFF2 read (callable externally) ─────────────────────
   const forceRead = useCallback(async () => {
     if (!serverRef.current?.connected) return;
@@ -410,5 +443,6 @@ export function useInkbirdSensor(currentUser) {
     disconnect,
     triggerReconnect,
     forceRead,
+    forgetDevice,
   };
 }

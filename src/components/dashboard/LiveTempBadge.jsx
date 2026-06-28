@@ -9,7 +9,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Thermometer, Bluetooth, BluetoothSearching, RefreshCw, Check } from 'lucide-react';
+import { Thermometer, Bluetooth, BluetoothSearching, RefreshCw, Check, Trash2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { isAdmin, isDriver as checkIsDriver } from '@/components/utils/userRoles';
 import { useInkbirdSensorBridge } from '@/components/common/useInkbirdSensorBridge';
@@ -77,7 +77,7 @@ export default function LiveTempBadge({
   // Always pass currentUser — the hook itself decides whether to activate BLE.
   // Previously passing null when !driverMode caused the hook to initialize dead
   // and never recover when app_roles loaded later (mount effect runs only once).
-  const { status: bleStatus, reading: bleReading, sensorName, latestReadingRef, connect, triggerReconnect, forceRead } =
+  const { status: bleStatus, reading: bleReading, sensorName, latestReadingRef, connect, triggerReconnect, forceRead, forgetDevice } =
     useInkbirdSensorBridge(currentUser);
 
   // bleReading = { tempC, humidity, timestamp } | null
@@ -328,6 +328,40 @@ export default function LiveTempBadge({
     clearInterval(dbPollTimerRef.current);
   }, []);
 
+  // ── Forget-mode: long-press to forget device ─────────────────────────
+  const [showForget, setShowForget] = useState(false);
+  const longPressTimerRef = useRef(null);
+  const [isLongPressing, setIsLongPressing] = useState(false);
+
+  const handlePointerDown = useCallback(() => {
+    setShowForget(false);
+    setIsLongPressing(false);
+    longPressTimerRef.current = setTimeout(() => {
+      setIsLongPressing(true);
+      setShowForget(true);
+    }, 600);
+  }, []);
+
+  const handlePointerUp = useCallback(() => {
+    clearTimeout(longPressTimerRef.current);
+    // Short press in forget mode dismisses the forget UI
+    if (isLongPressing) {
+      setIsLongPressing(false);
+      return;
+    }
+  }, [isLongPressing]);
+
+  const handlePointerLeave = useCallback(() => {
+    clearTimeout(longPressTimerRef.current);
+    if (isLongPressing) setIsLongPressing(false);
+  }, [isLongPressing]);
+
+  const handleForget = useCallback(async () => {
+    setShowForget(false);
+    setIsLongPressing(false);
+    try { await forgetDevice(); } catch (_) {}
+  }, [forgetDevice]);
+
   // ── Tap handler ───────────────────────────────────────────────────────
   const handleTap = useCallback(() => {
     if (isPastDate || !selectedDriverIsMe) { loadFromDb(); triggerPulse(); return; }
@@ -450,7 +484,16 @@ export default function LiveTempBadge({
           role="button"
           tabIndex={0}
           onClick={handleTap}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleTap(); }}
+          onPointerDown={handlePointerDown}
+          onPointerUp={handlePointerUp}
+          onPointerLeave={handlePointerLeave}
+          onContextMenu={(e) => { e.preventDefault(); handleForget(); }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              if (showForget) { handleForget(); return; }
+              handleTap();
+            }
+          }}
           className={`pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full shadow-lg text-sm font-semibold select-none cursor-pointer active:scale-95 ${isPulsing ? 'scale-110' : 'scale-100'}`}
           style={{
             ...badgeStyle,
@@ -458,17 +501,27 @@ export default function LiveTempBadge({
             transition: isPulsing ? 'transform 0.1s ease-out' : 'transform 0.5s ease-in',
           }}
         >
-          <Thermometer className="w-3.5 h-3.5 flex-shrink-0" style={{ color: iconColor }} />
+          {showForget ? (
+            <>
+              <Trash2 className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#fff' }} />
+              <span className="text-xs font-semibold" style={{ color: '#fff' }}>Forget device</span>
+              <span className="text-[10px] opacity-70" style={{ color: '#fff' }}>(tap)</span>
+            </>
+          ) : (
+            <>
+              <Thermometer className="w-3.5 h-3.5 flex-shrink-0" style={{ color: iconColor }} />
 
-          <Tooltip text={tempTooltip}>
-            <span style={{ color: iconColor }}>{labelText}</span>
-          </Tooltip>
+              <Tooltip text={tempTooltip}>
+                <span style={{ color: iconColor }}>{labelText}</span>
+              </Tooltip>
 
-          {(isOut || isWarning) && <span className="text-xs font-bold opacity-90" style={{ color: iconColor }}>⚠</span>}
-          {rightIcon}
+              {(isOut || isWarning) && <span className="text-xs font-bold opacity-90" style={{ color: iconColor }}>⚠</span>}
+              {rightIcon}
 
-          {isLive && (
-            <span className="w-1.5 h-1.5 rounded-full animate-pulse flex-shrink-0" style={{ background: isWarning ? '#166534' : '#86efac' }} />
+              {isLive && (
+                <span className="w-1.5 h-1.5 rounded-full animate-pulse flex-shrink-0" style={{ background: isWarning ? '#166534' : '#86efac' }} />
+              )}
+            </>
           )}
         </div>
       </motion.div>
