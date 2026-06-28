@@ -542,6 +542,16 @@ export default function DeliveryForm({
           driverStoreIds.add(baseStoreId);
         }
       });
+      // NEW RULE: also include stores where the driver has en-route pickups in their current route
+      if (allDeliveries && allDeliveries.length > 0) {
+        const routeDate = formData.delivery_date;
+        if (routeDate) {
+          allDeliveries
+            .filter(d => d && d.driver_id === currentUser.id && d.puid && !d.patient_id &&
+              d.delivery_date === routeDate && d.status === 'en_route')
+            .forEach(d => { if (d.store_id) driverStoreIds.add(d.store_id); });
+        }
+      }
       if (driverStoreIds.size > 0) {
         availablePatients = availablePatients.filter((p) => p && p.store_id && driverStoreIds.has(p.store_id));
       }
@@ -554,7 +564,7 @@ export default function DeliveryForm({
     });
     results = sortFilteredPatients(results, { currentUser, userHasRole, stores, stagedPatientIds, calculateDistance });
     return results.slice(0, 50).map(patient => ({ ...patient, _isAlreadyStaged: stagedPatientIds.has(patient.id) }));
-  }, [patientSearch, patients, stores, currentUser, formData.patient_id, stagedDeliveries]);
+  }, [patientSearch, patients, stores, currentUser, formData.patient_id, stagedDeliveries, allDeliveries]);
 
   const hasAnyDaySelected = useMemo(() => {
     return formData.recurring_weekly_mon || formData.recurring_weekly_tue || formData.recurring_weekly_wed || formData.recurring_weekly_thu || formData.recurring_weekly_fri || formData.recurring_weekly_sat || formData.recurring_weekly_sun;

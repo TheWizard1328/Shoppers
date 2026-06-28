@@ -54,62 +54,11 @@ export default function DeliveryPatientSearch({
   const { isMobile } = useDevice();
   const visiblePatients = React.useMemo(() => {
     let list = (filteredPatients || []).filter((patient) => !patient?._isDeletedLocally);
-    // Drivers only see patients from their assigned stores
-    // Store assignment for drivers is determined by which stores list the driver in any driver slot
-    if (userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher')) {
-      // Store driver slots store AppUser.user_id, so match against user_id primarily
-      const driverIds = new Set([currentUser?.user_id, currentUser?.id].filter(Boolean));
-      const driverSlotKeys = [
-        'weekday_am_driver_id', 'weekday_pm_driver_id',
-        'saturday_am_driver_id', 'saturday_pm_driver_id',
-        'sunday_am_driver_id', 'sunday_pm_driver_id'
-      ];
-      // Include stores where driver is a default slot, explicitly assigned (store_ids),
-      // OR scheduled via DriverScheduleOverride (scheduledDriverMap)
-      const scheduledStoreIds = Object.entries(scheduledDriverMap)
-        .filter(([, driverId]) => driverIds.has(driverId))
-        .map(([key]) => key.replace(/_AM$|_PM$/, ''));
-      const assignedStoreIds = new Set([
-        ...(stores || [])
-          .filter((s) => s && driverSlotKeys.some((key) => driverIds.has(s[key])))
-          .map((s) => s.id),
-        ...(currentUser?.store_ids || []),
-        ...scheduledStoreIds,
-      ]);
-      // NEW RULE: also include stores where the driver has en-route pickups in their current route.
-      // Pickup stores are deliveries with a puid but no patient_id. Include them if they match
-      // the form's current delivery date, regardless of today's actual date. Additionally, only
-      // include pickups that are en_route — once these are marked completed, the driver already
-      // has them in-hand and doesn't need those stores shown as patient sources.
-      if (allDeliveries && allDeliveries.length > 0) {
-        const routeDate = formData?.delivery_date;
-        if (routeDate) {
-          const driverPickupStoreIds = allDeliveries
-            .filter(d => d && driverIds.has(d.driver_id) && d.puid && !d.patient_id &&
-              d.delivery_date === routeDate && d.status === 'en_route')
-            .map(d => d.store_id)
-            .filter(Boolean);
-          driverPickupStoreIds.forEach(sid => assignedStoreIds.add(sid));
-        }
-      }
-      console.log(`[PatientSearch] driver ids: ${[...driverIds]}, assigned stores: ${[...assignedStoreIds]}, total stores checked: ${(stores||[]).length}`);
-      // Always filter for drivers — if no stores assigned, show nothing
-      list = list.filter((patient) => assignedStoreIds.has(patient?.store_id));
-    }
-    // For drivers: sort scheduled-store patients first, then default slot stores
-    if (userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher')) {
-      const scheduledStoreIds = new Set(currentUser?.store_ids || []);
-      list = [...list].sort((a, b) => {
-        const aScheduled = scheduledStoreIds.has(a?.store_id) ? 0 : 1;
-        const bScheduled = scheduledStoreIds.has(b?.store_id) ? 0 : 1;
-        return aScheduled - bScheduled;
-      });
-    }
 
     // Inactive patients: only show if no active patients match the search
     const activeList = list.filter((patient) => patient?.status !== 'inactive');
     return activeList.length > 0 ? activeList : list;
-  }, [filteredPatients, currentUser]);
+  }, [filteredPatients]);
 
   const handlePatientSearchKeyDown = (e) => {
     if (e.key === 'Tab' && onTabKey) {
