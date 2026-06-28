@@ -378,10 +378,40 @@ export default function InkbirdRawDiagnostic() {
     }
   }, [addLog, ensureDevice, pushTemp, stop]);
 
-  const forgetDevice = useCallback(() => {
-    deviceRef.current = null; setPaired(null);
-    addLog('Forgot device — next scan will show picker.');
-  }, [addLog]);
+  const forgetDevice = useCallback(async () => {
+    // 1. Stop any active connection first
+    if (serverRef.current?.connected) {
+      await stop();
+      await sleep(200);
+    }
+    // 2. Forget the GATT server handle
+    serverRef.current = null;
+    // 3. Clear internal state
+    const oldName = deviceRef.current?.name || paired;
+    deviceRef.current = null;
+    setPaired(null);
+    // 4. Try to revoke the Bluetooth permission so the OS releases the device.
+    //    navigator.bluetooth.getDevices() does NOT have a forget() on the collection,
+    //    but we can call forget() on the individual BluetoothDevice if available.
+    //    This tells the browser/OS to revoke its pairing permission, freeing the
+    //    Inkbird for other devices or browsers to detect and connect.
+    try {
+      const devices = await navigator.bluetooth.getDevices();
+      for (const d of devices) {
+        if (d.name === oldName || (deviceRef.current && d.id === deviceRef.current.id)) {
+          if (typeof d.forget === 'function') {
+            await d.forget();
+            addLog(`✓ Bluetooth permission revoked for "${d.name}"`);
+          }
+        }
+      }
+    } catch (e) {
+      addLog(`forget() not supported: ${e.message}`);
+    }
+    // 5. Also clear localStorage sensor name so the hook doesn't try to reconnect
+    try { localStorage.removeItem('rxdeliver_inkbird_sensor_name'); } catch (_) {}
+    addLog(`Forgot "${oldName}" — device is now available for other devices to detect.`);
+  }, [addLog, stop]);
 
   // ── Derived display ───────────────────────────────────────────────────────
   const isActive  = ['connecting','reading','polling'].includes(status);
