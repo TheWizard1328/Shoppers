@@ -401,6 +401,15 @@ export default function Layout({ children, currentPageName }) {
 
     if (updates.deliveries) updateDeliveriesLocally(updates.deliveries, false); // CRITICAL: merge, never replace — prevents wiping other drivers' stops
     if (updates.patients) setPatients(updates.patients);
+    // CRITICAL: Merge stores — never replace. SmartRefresh may return a city-scoped
+    // subset; a full replacement would wipe stores from other cities/pages.
+    if (updates.stores && updates.stores.length > 0) {
+      setStores((prev) => {
+        const map = new Map((prev || []).filter(Boolean).map((s) => [s.id, s]));
+        updates.stores.forEach((s) => { if (s?.id) map.set(s.id, s); });
+        return sortStores(Array.from(map.values()));
+      });
+    }
     if (updates.appUsers) {
 
       if (currentUser && !isReloadingFromAppUserChange.current) {
