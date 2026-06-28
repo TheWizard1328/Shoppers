@@ -399,6 +399,16 @@ export default function LiveTempBadge({
       forceRead();
       loadFromDb();
       triggerPulse();
+      // If no temperature is showing, or the last BLE reading is > 60s old,
+      // the connection is stale — unpair and re-pair.
+      const lastBleTs = latestReadingRef.current?.timestamp;
+      const stale = lastBleTs
+        ? (Date.now() - new Date(lastBleTs).getTime()) > 60000
+        : true; // no reading at all
+      const noDisplayTemp = bleTemp === null && lastReading?.temperature_celsius == null;
+      if ((noDisplayTemp || stale) && typeof triggerFallback === 'function') {
+        triggerFallback();
+      }
       return;
     }
 
