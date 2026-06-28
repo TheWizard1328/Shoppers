@@ -20,22 +20,25 @@ export default function RemoteLogsTab({ appUsers = [] }) {
 
   const loadData = async () => {
     try {
-      const [logRows, allSettings] = await Promise.all([
-      base44.entities.RemoteLogEntry.list('-timestamp', 200),
-      base44.entities.RemoteLoggingSettings.filter({ scope: 'global' }, '-updated_date', 50)]
-      );
-      setLogs(logRows || []);
+      // Settings first — fast single record, needed immediately for toggle/selection state
+      const allSettings = await base44.entities.RemoteLoggingSettings.filter({ scope: 'global' }, '-updated_date', 10);
       const valid = (allSettings || []).filter((s) => s?.scope === 'global');
       const latest = valid.sort((a, b) => new Date(b.updated_date || 0) - new Date(a.updated_date || 0))[0] || null;
       setSettings(latest);
       setSelectedUsers(latest?.included_user_ids || []);
+      // Logs — slow, non-blocking
+      try {
+        const logRows = await base44.entities.RemoteLogEntry.list('-timestamp', 100);
+        setLogs(logRows || []);
+      } catch (_) {}
     } catch (e) {
       // Non-critical admin panel — empty state is fine
     }
   };
 
   useEffect(() => {
-    loadData();
+    const timer = setTimeout(() => loadData(), 50);
+    return () => clearTimeout(timer);
   }, []);
 
   const ensureSettings = async () => {
