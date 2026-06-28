@@ -164,11 +164,11 @@ export function useInkbirdSensor(currentUser) {
   const hasGetDevices = hasBluetooth && typeof navigator.bluetooth.getDevices === 'function';
 
   // ── BLE capability guard ───────────────────────────────────────────────
-  // Any touch device (phone or tablet) with Web Bluetooth can connect BLE.
-  // Desktop PCs are excluded — not in the field, no Bluetooth sensor nearby.
+  // Any device with Web Bluetooth can connect BLE. Desktop, tablet, phone —
+  // if the browser supports it, we let it through. The diagnostic page
+  // (InkbirdRawDiagnostic) has no such restriction and works fine everywhere.
   // is_primary_tracker is for GPS location only — it must NOT gate BLE here.
-  const isTouchDevice = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
-  const canUseBle = hasBluetooth && isTouchDevice;
+  const canUseBle = hasBluetooth;
   // isPrimaryDevice kept in return for API compat — now equals canUseBle
 
   // ── Internal: GATT connect + subscribe ─────────────────────────────────

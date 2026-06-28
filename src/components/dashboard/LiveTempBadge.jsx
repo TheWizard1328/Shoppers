@@ -343,13 +343,11 @@ export default function LiveTempBadge({
     // In-flight — do nothing
     if (bleStatus === 'connecting' || bleStatus === 'scanning') return;
 
-    // Try silent reconnect first (works when deviceRef is populated).
-    // If it returns false the device ref is gone (PWA/Chrome Android after restart)
-    // — always fall through to the picker so the tap is never a dead end.
-    const reconnected = triggerReconnect();
-    if (!reconnected) {
-      connect();
-    }
+    // Try silent reconnect first — checks getDevices() in the hook first.
+    // If it returns false, no device was ever permitted — show the picker.
+    Promise.resolve(triggerReconnect()).then(reconnected => {
+      if (!reconnected) connect();
+    });
   }, [isPastDate, selectedDriverIsMe, adminMode, driverMode, bleStatus,
       loadFromDb, triggerPulse, connect, triggerReconnect, forceRead]);
 
