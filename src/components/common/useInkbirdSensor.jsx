@@ -127,7 +127,7 @@ export function useInkbirdSensor(currentUser) {
         setStatus('error');
         try { server.disconnect(); } catch (_) {}
       }
-    }, 10000);
+    }, 20000);
 
     try {
       const service = await server.getPrimaryService(INKBIRD_SERVICE_UUID);

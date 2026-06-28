@@ -335,7 +335,8 @@ export default function LiveTempBadge({
   }, []);
 
   // ── BLE connect state ────────────────────────────────────────────────
-  const bleConnectingRef    = useRef(false);
+  const bleConnectingRef    = useRef(false);  // guard: prevent concurrent connects
+  const [bleConnecting, setBleConnecting] = useState(false); // drives UI re-render
   const blePermittedDevice  = useRef(null);  // cached from getDevices() on mount
   const lastTapTimeRef      = useRef(0);     // for double-tap detection
   const [isUnpairing, setIsUnpairing] = useState(false);
@@ -390,6 +391,7 @@ export default function LiveTempBadge({
     if (!navigator?.bluetooth) return;
 
     bleConnectingRef.current = true;
+    setBleConnecting(true);
     triggerPulse();
 
     try {
@@ -428,6 +430,7 @@ export default function LiveTempBadge({
       }
     } finally {
       bleConnectingRef.current = false;
+      setBleConnecting(false);
     }
   }, [isPastDate, selectedDriverIsMe, adminMode, driverMode, bleStatus, sensorName,
       loadFromDb, triggerPulse, forceRead, setConnectedServer, forgetSensor]);
@@ -466,7 +469,7 @@ export default function LiveTempBadge({
 
   const labelText = (() => {
     if (isUnpairing) return 'Unpaired';
-    if (!isPastDate && showLiveBle && bleConnectingRef.current) return 'Connecting…';
+    if (!isPastDate && showLiveBle && bleConnecting) return 'Connecting…';
     if (!isPastDate && showLiveBle && bleStatus === 'error') return 'Tap to retry';
     if (!isPastDate && showLiveBle && bleStatus === 'disconnected' && displayTemp === null) return sensorName ? 'Tap to reconnect' : 'Tap to pair';
     if (displayTemp !== null) return isPastDate ? `∅ ${displayTemp}°C` : `${displayTemp}°C`;
@@ -475,9 +478,11 @@ export default function LiveTempBadge({
     return sensorName ? 'Tap to reconnect' : 'Tap to pair';
   })();
 
-  // Blue border when a sensor is paired (connected OR disconnected-but-known)
-  const isPaired = !isUnpairing && !!sensorName && (bleStatus === 'connected' || bleStatus === 'disconnected');
-  const pairedRing = isPaired ? '0 0 0 2px #3b82f6' : 'none'; // blue ring
+  // Blue border when a sensor is paired — sensorName in localStorage means the
+  // driver has previously paired, regardless of current connection status.
+  // This persists even through page reloads (sensorName comes from localStorage).
+  const isPaired = !isUnpairing && !!sensorName;
+  const pairedRing = isPaired ? '0 0 0 2.5px #3b82f6' : 'none'; // blue ring
 
   // Badge color
   const badgeStyle = (() => {
@@ -497,7 +502,7 @@ export default function LiveTempBadge({
     if (justSaved)
       return <Check className="w-3 h-3 flex-shrink-0" style={{ color: isWarning ? '#166534' : '#86efac' }} />;
     if (!driverMode) return null;
-    if (bleConnectingRef.current)
+    if (bleConnecting)
       return <BluetoothSearching className="w-3.5 h-3.5 animate-pulse flex-shrink-0" style={{ color: iconColor }} />;
     if (bleStatus === 'connected')
       return <Bluetooth className="w-3 h-3 flex-shrink-0" style={{ color: isWarning ? '#166534' : '#86efac' }} />;
