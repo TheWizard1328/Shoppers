@@ -48,6 +48,7 @@ export default function DeliveryPatientSearch({
   mobileStandalone = false,
   onTabKey = null,
   scheduledDriverMap = {},
+  allDeliveries = [],
 }) {
   const showCameraButton = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   const { isMobile } = useDevice();
@@ -79,16 +80,16 @@ export default function DeliveryPatientSearch({
       // Pickup stores are found from deliveries where the driver is assigned and a puid (pickup ID) exists.
       // Those deliveries have no patient_id (they're pickups), and the store_id tells us which store
       // the driver picks up from.
-      try {
-        const appDeliveries = window.__appDeliveries || [];
-        if (appDeliveries.length > 0) {
-          const driverPickupStoreIds = appDeliveries
-            .filter(d => d && driverIds.has(d.driver_id) && d.puid && !d.patient_id)
-            .map(d => d.store_id)
-            .filter(Boolean);
-          driverPickupStoreIds.forEach(sid => assignedStoreIds.add(sid));
-        }
-      } catch (_) {}
+      if (allDeliveries && allDeliveries.length > 0) {
+        const todayLocal = new Date();
+        const pad = n => String(n).padStart(2, '0');
+        const dateStr = `${todayLocal.getFullYear()}-${pad(todayLocal.getMonth()+1)}-${pad(todayLocal.getDate())}`;
+        const driverPickupStoreIds = allDeliveries
+          .filter(d => d && driverIds.has(d.driver_id) && d.puid && !d.patient_id && d.delivery_date === dateStr)
+          .map(d => d.store_id)
+          .filter(Boolean);
+        driverPickupStoreIds.forEach(sid => assignedStoreIds.add(sid));
+      }
       console.log(`[PatientSearch] driver ids: ${[...driverIds]}, assigned stores: ${[...assignedStoreIds]}, total stores checked: ${(stores||[]).length}`);
       // Always filter for drivers — if no stores assigned, show nothing
       list = list.filter((patient) => assignedStoreIds.has(patient?.store_id));

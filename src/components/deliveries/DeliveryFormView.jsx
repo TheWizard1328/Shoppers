@@ -883,6 +883,7 @@ export default function DeliveryFormView({
                           onCreatePatient={onCreatePatient} setIsPatientFormOpen={setIsPatientFormOpen}
                           handleSearchKeyDown={handleSearchKeyDown}
                           scheduledDriverMap={scheduledDriverMap}
+                          allDeliveries={allDeliveries}
                           onTabKey={() => codAmountInputRef?.current?.focus()} />
                         </div>
 
@@ -933,6 +934,7 @@ export default function DeliveryFormView({
                           onCreatePatient={onCreatePatient} setIsPatientFormOpen={setIsPatientFormOpen}
                           handleSearchKeyDown={handleSearchKeyDown}
                           scheduledDriverMap={scheduledDriverMap}
+                          allDeliveries={allDeliveries}
                           onTabKey={() => codAmountInputRef?.current?.focus()} />
                         </div>
 
