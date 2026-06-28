@@ -19,15 +19,19 @@ export default function RemoteLogsTab({ appUsers = [] }) {
   const [logUserFilter, setLogUserFilter] = useState('all');
 
   const loadData = async () => {
-    const [logRows, allSettings] = await Promise.all([
-    base44.entities.RemoteLogEntry.list('-timestamp', 300),
-    base44.entities.RemoteLoggingSettings.filter({ scope: 'global' }, '-updated_date', 100)]
-    );
-    setLogs(logRows || []);
-    const valid = (allSettings || []).filter((s) => s?.scope === 'global');
-    const latest = valid.sort((a, b) => new Date(b.updated_date || 0) - new Date(a.updated_date || 0))[0] || null;
-    setSettings(latest);
-    setSelectedUsers(latest?.included_user_ids || []);
+    try {
+      const [logRows, allSettings] = await Promise.all([
+      base44.entities.RemoteLogEntry.list('-timestamp', 200),
+      base44.entities.RemoteLoggingSettings.filter({ scope: 'global' }, '-updated_date', 50)]
+      );
+      setLogs(logRows || []);
+      const valid = (allSettings || []).filter((s) => s?.scope === 'global');
+      const latest = valid.sort((a, b) => new Date(b.updated_date || 0) - new Date(a.updated_date || 0))[0] || null;
+      setSettings(latest);
+      setSelectedUsers(latest?.included_user_ids || []);
+    } catch (e) {
+      // Non-critical admin panel — empty state is fine
+    }
   };
 
   useEffect(() => {
