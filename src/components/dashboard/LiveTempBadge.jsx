@@ -15,6 +15,7 @@ import { isAdmin, isDriver as checkIsDriver } from '@/components/utils/userRoles
 import { useInkbirdSensorBridge } from '@/components/common/useInkbirdSensorBridge';
 
 // ── Constants ──────────────────────────────────────────────────────────────
+const INKBIRD_SERVICE_UUID = '0000fff0-0000-1000-8000-00805f9b34fb';
 const TEMP_MIN        = 2;
 const TEMP_MAX        = 8;
 const DB_POLL_MS      = 60000;
@@ -333,12 +334,26 @@ export default function LiveTempBadge({
 
   // On mount: find any already-permitted Inkbird so we can reconnect without picker
   useEffect(() => {
-    if (typeof navigator === 'undefined' || !navigator.bluetooth) return;
-    if (typeof navigator.bluetooth.getDevices !== 'function') return;
+    if (typeof navigator === 'undefined' || !navigator.bluetooth) {
+      console.log('[LiveTempBadge] mount: navigator.bluetooth unavailable');
+      return;
+    }
+    if (typeof navigator.bluetooth.getDevices !== 'function') {
+      console.log('[LiveTempBadge] mount: getDevices not available');
+      return;
+    }
     navigator.bluetooth.getDevices().then(devices => {
+      console.log('[LiveTempBadge] mount: getDevices returned', devices.length, 'device(s)', devices.map(d => d.name));
       const inkbird = devices.find(d => d.name === 'tps' || d.name === 'sps' || (d.name || '').startsWith('Inkbird') || (d.name || '').startsWith('IBS'));
-      if (inkbird) blePermittedDevice.current = inkbird;
-    }).catch(() => {});
+      if (inkbird) {
+        blePermittedDevice.current = inkbird;
+        console.log('[LiveTempBadge] mount: found permitted device:', inkbird.name, inkbird.id);
+      } else {
+        console.log('[LiveTempBadge] mount: no permitted Inkbird found among', devices.length, 'devices');
+      }
+    }).catch(err => {
+      console.log('[LiveTempBadge] mount: getDevices failed:', err?.message);
+    });
   }, []);
 
   // ── Tap handler — owns the BLE connect gesture directly ───────────────
@@ -349,20 +364,48 @@ export default function LiveTempBadge({
   // After getting a device + GATT connection, hands off to setConnectedDevice
   // which starts FFF6 streaming + periodic FFF2 reads.
   const handleTap = useCallback(async () => {
-    if (isPastDate || !selectedDriverIsMe) { loadFromDb(); triggerPulse(); return; }
-    if (adminMode && !driverMode)          { loadFromDb(); triggerPulse(); return; }
+    console.log('[LiveTempBadge] handleTap fired', {
+      isPastDate,
+      selectedDriverIsMe,
+      adminMode,
+      driverMode,
+      bleStatus,
+      bleConnecting: bleConnectingRef.current,
+      hasBluetooth: !!navigator.bluetooth,
+      sensorName: sensorName || null,
+      hasPermittedDevice: !!blePermittedDevice.current,
+      currentUserId: currentUser?.id,
+      selectedDriverId,
+    });
+
+    if (isPastDate || !selectedDriverIsMe) {
+      console.log('[LiveTempBadge] GATE: isPastDate=' + isPastDate + ', selectedDriverIsMe=' + selectedDriverIsMe + ' → DB reload only, skip BLE');
+      loadFromDb(); triggerPulse(); return;
+    }
+    if (adminMode && !driverMode) {
+      console.log('[LiveTempBadge] GATE: admin-only (no driver role) → DB reload only, skip BLE');
+      loadFromDb(); triggerPulse(); return;
+    }
 
     if (bleStatus === 'connected') {
+      console.log('[LiveTempBadge] GATE: already connected → forceRead');
       forceRead();
       loadFromDb();
       triggerPulse();
       return;
     }
 
-    if (bleConnectingRef.current) return; // already in-flight
+    if (bleConnectingRef.current) {
+      console.log('[LiveTempBadge] GATE: already connecting (bleConnectingRef) → skip');
+      return; // already in-flight
+    }
 
-    if (!navigator.bluetooth) return; // Web Bluetooth not available
+    if (!navigator.bluetooth) {
+      console.log('[LiveTempBadge] GATE: navigator.bluetooth is falsy → cannot connect');
+      return; // Web Bluetooth not available
+    }
 
+    console.log('[LiveTempBadge] GATE: all checks passed → proceeding to BLE connect');
     bleConnectingRef.current = true;
     triggerPulse();
 
@@ -472,11 +515,29 @@ export default function LiveTempBadge({
 
   // ── Visibility guard ──────────────────────────────────────────────────
   const isVisibleRole = adminMode || driverMode;
-  if (!isVisibleRole) return null;
+  console.log('[LiveTempBadge] render check', {
+    renders: true,
+    isVisibleRole,
+    bleStatus,
+    displayTemp,
+    selectedDriverIsMe,
+    isPastDate,
+    adminMode,
+    driverMode,
+    sensorName: sensorName || null,
+    bleActive: bleStatus === 'connected' || bleStatus === 'connecting' || bleStatus === 'scanning',
+  });
+  if (!isVisibleRole) {
+    console.log('[LiveTempBadge] HIDDEN: no admin/driver role');
+    return null;
+  }
   if (driverMode && !adminMode) {
     const bleActive = bleStatus === 'connected' || bleStatus === 'connecting' || bleStatus === 'scanning';
     // Always show badge for the driver's own route/today so they can tap to pair
-    if (!bleActive && displayTemp === null && (!selectedDriverIsMe || isPastDate)) return null;
+    if (!bleActive && displayTemp === null && (!selectedDriverIsMe || isPastDate)) {
+      console.log('[LiveTempBadge] HIDDEN: driver-mode, no BLE active, no cached temp, and not self/past');
+      return null;
+    }
   }
 
   return (
@@ -501,9 +562,9 @@ export default function LiveTempBadge({
         <div
           role="button"
           tabIndex={0}
-          onClick={handleTap}
-          onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); handleTap(); }}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleTap(); }}
+          onClick={(e) => { console.log('[LiveTempBadge] ⚡ onClick fired'); handleTap(); }}
+          onTouchEnd={(e) => { console.log('[LiveTempBadge] ⚡ onTouchEnd fired'); e.preventDefault(); e.stopPropagation(); handleTap(); }}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { console.log('[LiveTempBadge] ⚡ onKeyDown Enter/Space fired'); handleTap(); } }}
           className={`pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full shadow-lg text-sm font-semibold select-none cursor-pointer active:scale-95 ${isPulsing ? 'scale-110' : 'scale-100'}`}
           style={{
             ...badgeStyle,
