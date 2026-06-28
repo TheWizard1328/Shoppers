@@ -78,7 +78,7 @@ export default function LiveTempBadge({
   // Always pass currentUser — the hook itself decides whether to activate BLE.
   // Previously passing null when !driverMode caused the hook to initialize dead
   // and never recover when app_roles loaded later (mount effect runs only once).
-  const { status: bleStatus, reading: bleReading, sensorName, latestReadingRef, setConnectedDevice, forceRead } =
+  const { status: bleStatus, reading: bleReading, sensorName, latestReadingRef, setConnectedDevice, forceRead, triggerFallback } =
     useInkbirdSensorBridge(currentUser);
 
   // bleReading = { tempC, humidity, timestamp } | null
@@ -327,6 +327,22 @@ export default function LiveTempBadge({
     clearTimeout(savedFlashRef.current);
     clearInterval(dbPollTimerRef.current);
   }, []);
+
+  // ── Auto-fallback: when detected as disconnected/error with no readings ──
+  // After 8s in a dead state, automatically forget and re-pair.
+  const autoFallbackTimerRef = useRef(null);
+  useEffect(() => {
+    // Only trigger fallback for driver's own today view
+    if (!driverMode || !selectedDriverIsMe || isPastDate) return;
+    const shouldFallback = (bleStatus === 'disconnected' || bleStatus === 'error') && displayTemp === null;
+    clearTimeout(autoFallbackTimerRef.current);
+    if (shouldFallback) {
+      autoFallbackTimerRef.current = setTimeout(() => {
+        if (typeof triggerFallback === 'function') triggerFallback();
+      }, 8000);
+    }
+    return () => clearTimeout(autoFallbackTimerRef.current);
+  }, [bleStatus, displayTemp, driverMode, selectedDriverIsMe, isPastDate, triggerFallback]);
 
   // ── BLE state for in-progress connect ────────────────────────────────
   const bleConnectingRef   = useRef(false);
