@@ -19,13 +19,15 @@ export default function RemoteLogsTab({ appUsers = [] }) {
   const [logUserFilter, setLogUserFilter] = useState('all');
 
   const loadData = async () => {
-    const [logRows, settingsRows] = await Promise.all([
+    const [logRows, allSettings] = await Promise.all([
     base44.entities.RemoteLogEntry.list('-timestamp', 300),
-    base44.entities.RemoteLoggingSettings.filter({ scope: 'global' }, '-updated_date', 1)]
+    base44.entities.RemoteLoggingSettings.filter({ scope: 'global' }, '-updated_date', 100)]
     );
     setLogs(logRows || []);
-    setSettings(settingsRows?.[0] || null);
-    setSelectedUsers(settingsRows?.[0]?.included_user_ids || []);
+    const valid = (allSettings || []).filter((s) => s?.scope === 'global');
+    const latest = valid.sort((a, b) => new Date(b.updated_date || 0) - new Date(a.updated_date || 0))[0] || null;
+    setSettings(latest);
+    setSelectedUsers(latest?.included_user_ids || []);
   };
 
   useEffect(() => {
@@ -52,6 +54,7 @@ export default function RemoteLogsTab({ appUsers = [] }) {
     const merged = { ...current, ...patch };
     const updated = await base44.entities.RemoteLoggingSettings.update(current.id, merged);
     setSettings(updated);
+    window.__remoteLogSettingsCache = null;
   };
 
   const clearLogs = async () => {
