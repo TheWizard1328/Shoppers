@@ -1,26 +1,20 @@
 /**
- * useInkbirdSensor.js
+ * useInkbirdSensor.jsx
  *
- * Manages a persistent BLE connection to the driver's Inkbird IBS-TH2 sensor.
+ * Pure streaming hook for Inkbird IBS-TH2 BLE sensor.
  *
- * ── PERSISTENCE ─────────────────────────────────────────────────────────────
- * Web Bluetooth remembers devices the user permitted via the OS picker.
- * navigator.bluetooth.getDevices() returns those devices WITHOUT showing the
- * picker again — but Chrome still requires a user gesture to actually call
- * gatt.connect(). This is why we hook into stop card button taps.
+ * The badge owns the connect gesture (requestDevice / gatt.connect).
+ * Once connected, it calls setConnectedDevice(device) and this hook
+ * takes over — subscribes to FFF6 notifications, polls FFF2, and
+ * exposes live readings + status.
  *
- * ── CONNECTION STRATEGY ──────────────────────────────────────────────────────
- * 1. Mount: call getDevices() — if the Inkbird is already permitted, store the
- *    device reference but DON'T connect yet (no gesture available at mount).
- * 2. triggerReconnect() — called on any stop card button tap (user gesture).
- *    If we have a device reference and are not already connected, connect now.
- *    This is the "piggyback on button taps" strategy — Chrome is happy because
- *    there IS a user gesture in the call stack.
- * 3. First-time pair: connect() shows the OS picker once, saves sensor name.
- * 4. On GATT connect: subscribe FFF6 notifications + do a FFF2 read snapshot.
- * 5. On unexpected disconnect: scheduleReconnect() — waits for next button tap.
+ * Status values:
+ *   'idle'          – no device yet
+ *   'connected'     – streaming
+ *   'disconnected'  – device known but not connected
+ *   'error'         – unrecoverable GATT error
  *
- * ── CONFIRMED GATT LAYOUT (Inkbird IBS-TH2, June 2026) ──────────────────────
+ * ── CONFIRMED GATT LAYOUT (Inkbird IBS-TH2, June 2026) ──────────────────
  *   Service  0xFFF0
  *   FFF2     READ    → bytes [0:1] uint16 LE ÷ 100 = temp °C
  *                       byte  [5]  uint8            = humidity %
@@ -29,17 +23,12 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
-// getCurrentDevice import removed — BLE gating no longer uses device DB
 
 const INKBIRD_SERVICE_UUID = '0000fff0-0000-1000-8000-00805f9b34fb';
 const INKBIRD_NOTIFY_UUID  = '0000fff6-0000-1000-8000-00805f9b34fb';
 const INKBIRD_READ_UUID    = '0000fff2-0000-1000-8000-00805f9b34fb';
-const INKBIRD_NAMES        = ['tps', 'sps'];
 const LOCAL_STORAGE_KEY    = 'rxdeliver_inkbird_sensor_name';
-const MAX_RETRIES          = 5;
-const PERIODIC_READ_MS     = 60 * 1000; // 1 minute
 
-// ── Decode FFF2 / FFF6 DataView ───────────────────────────────────────────
 function decodeReading(dv) {
   if (!dv || dv.byteLength < 2) return null;
   const tempC = +(dv.getUint16(0, true) / 100).toFixed(2);
@@ -48,7 +37,6 @@ function decodeReading(dv) {
   return { tempC, humidity, timestamp: new Date().toISOString() };
 }
 
-// ── Persist sensor name to UserDevice entity ──────────────────────────────
 async function persistSensorToUserDevice(currentUser, sensorName) {
   if (!currentUser?.id) return;
   try {
@@ -63,9 +51,7 @@ async function persistSensorToUserDevice(currentUser, sensorName) {
         inkbird_sensor: { name: sensorName, paired_at: new Date().toISOString() },
       },
     });
-  } catch (err) {
-    console.warn('[useInkbirdSensor] Could not persist sensor to UserDevice:', err?.message);
-  }
+  } catch (_) {}
 }
 
 function getSavedSensorName() {
@@ -75,90 +61,78 @@ function saveSensorNameLocally(name) {
   try { localStorage.setItem(LOCAL_STORAGE_KEY, name); } catch (_) {}
 }
 
-/**
- * useInkbirdSensor(currentUser)
- *
- * Returns:
- *   status          – 'idle' | 'waiting-gesture' | 'connecting' | 'reading'
- *                     | 'connected' | 'disconnected' | 'error' | 'unsupported'
- *   reading         – { tempC, humidity, timestamp } | null
- *   sensorName      – 'tps' | 'sps' | null
- *   connect()       – show OS picker (first-time pair)
- *   disconnect()    – manual disconnect
- *   triggerReconnect() – call this from any user-gesture handler (button tap).
- *                        Silently reconnects if disconnected/idle. No-op if
- *                        already connected. This is the key to hands-free
- *                        reconnection without ever showing the picker again.
- */
 export function useInkbirdSensor(currentUser) {
-  const [status,     setStatus]     = useState('idle');
-  const [reading,    setReading]    = useState(null);
+  const [status,     setStatus]    = useState('idle');
+  const [reading,    setReading]   = useState(null);
   const [sensorName, setSensorName] = useState(getSavedSensorName);
 
-  const deviceRef          = useRef(null);   // BluetoothDevice (persists across connects)
-  const serverRef          = useRef(null);   // BluetoothRemoteGATTServer
-  const notifyRef          = useRef(null);   // FFF6 characteristic
-  const notifyHandlerRef   = useRef(null);
-  const latestReadingRef   = useRef(null);   // always holds the most recent decoded reading
-  const retryCount         = useRef(0);
-  const retryTimer         = useRef(null);
-  const periodicReadTimer  = useRef(null);
-  const mountedRef         = useRef(true);
-  const connectingRef      = useRef(false);  // guard: prevent concurrent connect attempts
+  const serverRef         = useRef(null);
+  const notifyRef         = useRef(null);
+  const notifyHandlerRef  = useRef(null);
+  const latestReadingRef  = useRef(null);
+  const mountedRef        = useRef(true);
 
-  const hasBluetooth  = typeof navigator !== 'undefined' && !!navigator.bluetooth;
-  const hasGetDevices = hasBluetooth && typeof navigator.bluetooth.getDevices === 'function';
-
-  // ── BLE capability guard ───────────────────────────────────────────────
-  // Use hasBluetooth as the sole gate — maxTouchPoints is unreliable in
-  // Android WebView/PWA contexts and was silently blocking BLE on real devices.
-  const canUseBle = hasBluetooth;
-  // isPrimaryDevice kept in return for API compat
-
-  // ── Internal: GATT connect + subscribe ─────────────────────────────────
-  const connectDevice = useCallback(async (device) => {
-    if (!mountedRef.current || connectingRef.current) return;
-    connectingRef.current = true;
-    setStatus('reading');
-
-    try {
-      // Cleanup any stale server
-      try { serverRef.current?.disconnect(); } catch (_) {}
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
       try {
         if (notifyRef.current && notifyHandlerRef.current) {
           notifyRef.current.removeEventListener('characteristicvaluechanged', notifyHandlerRef.current);
-          await notifyRef.current.stopNotifications().catch(() => {});
+          notifyRef.current.stopNotifications().catch(() => {});
         }
+        serverRef.current?.disconnect();
       } catch (_) {}
-      notifyRef.current = null;
-      notifyHandlerRef.current = null;
+    };
+  }, []);
 
-      const server = await device.gatt.connect();
-      if (!mountedRef.current) { server.disconnect(); connectingRef.current = false; return; }
-      serverRef.current = server;
+  // ── Called by the badge after it has connected the device ────────────
+  const setConnectedDevice = useCallback(async (device) => {
+    if (!mountedRef.current) return;
+    setStatus('connected');
 
+    // Clean up any previous subscription
+    try {
+      if (notifyRef.current && notifyHandlerRef.current) {
+        notifyRef.current.removeEventListener('characteristicvaluechanged', notifyHandlerRef.current);
+        await notifyRef.current.stopNotifications().catch(() => {});
+      }
+    } catch (_) {}
+    notifyRef.current = null;
+    notifyHandlerRef.current = null;
+
+    const name = device.name || 'sensor';
+    setSensorName(name);
+    saveSensorNameLocally(name);
+    persistSensorToUserDevice(currentUser, name);
+
+    // Re-use the already-connected server passed from the badge
+    const server = device.gatt.connected
+      ? device.gatt  // already open
+      : await device.gatt.connect();
+
+    if (!mountedRef.current) { server.disconnect(); return; }
+    serverRef.current = server;
+
+    try {
       const service = await server.getPrimaryService(INKBIRD_SERVICE_UUID);
 
-      // ── Snapshot read from FFF2 ───────────────────────────────────────
+      // Snapshot read
       try {
         const readChar = await service.getCharacteristic(INKBIRD_READ_UUID);
-        const dv       = await readChar.readValue();
-        const parsed   = decodeReading(dv);
+        const dv = await readChar.readValue();
+        const parsed = decodeReading(dv);
         if (parsed && mountedRef.current) {
           latestReadingRef.current = parsed;
           setReading(parsed);
           setStatus('connected');
-          retryCount.current = 0;
-          window.dispatchEvent(new CustomEvent('inkbirdReading', {
-            detail: { ...parsed, source: 'gatt-read' }
-          }));
+          window.dispatchEvent(new CustomEvent('inkbirdReading', { detail: { ...parsed, source: 'gatt-read' } }));
         }
-      } catch (_) { /* FFF2 read not supported — fall through to notify */ }
+      } catch (_) {}
 
-      // ── Subscribe to FFF6 notifications ──────────────────────────────
+      // Subscribe notifications
       const notifyChar = await service.getCharacteristic(INKBIRD_NOTIFY_UUID);
       notifyRef.current = notifyChar;
-
       const handler = (evt) => {
         if (!mountedRef.current) return;
         const parsed = decodeReading(evt.target.value);
@@ -166,184 +140,55 @@ export function useInkbirdSensor(currentUser) {
           latestReadingRef.current = parsed;
           setReading(parsed);
           setStatus('connected');
-          retryCount.current = 0;
-          window.dispatchEvent(new CustomEvent('inkbirdReading', {
-            detail: { ...parsed, source: 'gatt-notify' }
-          }));
+          window.dispatchEvent(new CustomEvent('inkbirdReading', { detail: { ...parsed, source: 'gatt-notify' } }));
         }
       };
       notifyHandlerRef.current = handler;
       notifyChar.addEventListener('characteristicvaluechanged', handler);
       await notifyChar.startNotifications();
 
-      if (mountedRef.current) setStatus('connected');
-
-      // ── Handle unexpected GATT disconnect ─────────────────────────────
-      device.addEventListener('gattserverdisconnected', () => {
-        if (!mountedRef.current) return;
-        serverRef.current  = null;
-        connectingRef.current = false;
-        setStatus('disconnected');
-        // Don't auto-reconnect via timer — wait for the next button tap gesture
-        // to call triggerReconnect(). This avoids Chrome gesture requirement issues.
-      });
-
     } catch (err) {
-      if (!mountedRef.current) { connectingRef.current = false; return; }
-      // If we've hit the retry limit, mark as error so the UI shows manual fallback
-      if (retryCount.current >= MAX_RETRIES) {
-        setStatus('error');
-      } else {
-        // Brief delay then mark as disconnected — triggerReconnect on next tap
-        setStatus('disconnected');
-      }
-    } finally {
-      connectingRef.current = false;
+      console.warn('[useInkbirdSensor] GATT setup failed:', err?.message);
+      if (mountedRef.current) setStatus('error');
+      return;
     }
-  }, []);
 
-  // ── triggerReconnect — call from any button tap handler ────────────────
-  // This is the key API. StopCard wires this into every action button so that
-  // any interaction from the driver silently reconnects the sensor if needed.
-  const triggerReconnect = useCallback(() => {
-    if (!mountedRef.current) return false;
-    if (!canUseBle) return false;       // no Bluetooth API available
-    if (!deviceRef.current) return false; // no device known yet — need manual pair
-    if (connectingRef.current) return true; // already in-flight — treat as handled
-    if (status === 'connected') return true; // already good
-    connectDevice(deviceRef.current);
-    return true; // reconnect initiated — caller should NOT fall back to picker
-  }, [status, connectDevice, canUseBle]);
-
-  // ── First-time manual pair ─────────────────────────────────────────────
-  const connect = useCallback(async () => {
-    if (!hasBluetooth) return;
-    setStatus('connecting');
-    try {
-      const device = await navigator.bluetooth.requestDevice({
-        filters: [
-          { name: 'tps' },
-          { name: 'sps' },
-          { namePrefix: 'Inkbird' },
-          { namePrefix: 'IBS' },
-        ],
-        optionalServices: [INKBIRD_SERVICE_UUID],
-      });
+    // Handle unexpected disconnect
+    device.addEventListener('gattserverdisconnected', () => {
       if (!mountedRef.current) return;
-      deviceRef.current = device;
-      setSensorName(device.name);
-      saveSensorNameLocally(device.name);
-      persistSensorToUserDevice(currentUser, device.name);
-      await connectDevice(device);
-    } catch (err) {
-      if (!mountedRef.current) return;
-      setStatus(err?.name === 'NotFoundError' || err?.name === 'AbortError' ? 'idle' : 'error');
-    }
-  }, [hasBluetooth, currentUser, connectDevice]);
+      serverRef.current = null;
+      setStatus('disconnected');
+    });
 
-  // ── Manual disconnect ──────────────────────────────────────────────────
-  const disconnect = useCallback(() => {
-    clearTimeout(retryTimer.current);
-    clearInterval(periodicReadTimer.current);
-    connectingRef.current = false;
-    try {
-      if (notifyRef.current && notifyHandlerRef.current) {
-        notifyRef.current.removeEventListener('characteristicvaluechanged', notifyHandlerRef.current);
-        notifyRef.current.stopNotifications().catch(() => {});
-      }
-      serverRef.current?.disconnect();
-    } catch (_) {}
-    notifyRef.current  = null;
-    serverRef.current  = null;
-    notifyHandlerRef.current = null;
-    setStatus('idle');
-  }, []);
+  }, [currentUser]);
 
-  // ── Force a fresh FFF2 read (callable externally) ─────────────────────
+  // forceRead — do a one-shot FFF2 poll on demand
   const forceRead = useCallback(async () => {
     if (!serverRef.current?.connected) return;
     try {
-      const service  = await serverRef.current.getPrimaryService(INKBIRD_SERVICE_UUID);
+      const service = await serverRef.current.getPrimaryService(INKBIRD_SERVICE_UUID);
       const readChar = await service.getCharacteristic(INKBIRD_READ_UUID);
-      const dv       = await readChar.readValue();
-      const parsed   = decodeReading(dv);
+      const dv = await readChar.readValue();
+      const parsed = decodeReading(dv);
       if (parsed && mountedRef.current) {
+        latestReadingRef.current = parsed;
         setReading(parsed);
         setStatus('connected');
-        window.dispatchEvent(new CustomEvent('inkbirdReading', {
-          detail: { ...parsed, source: 'gatt-force-read' },
-        }));
+        window.dispatchEvent(new CustomEvent('inkbirdReading', { detail: { ...parsed, source: 'forced-read' } }));
       }
     } catch (_) {}
   }, []);
-
-  // ── Periodic 1-minute FFF2 read — keepalive for stable-temp scenarios ──────
-  useEffect(() => {
-    if (status === 'connected') {
-      clearInterval(periodicReadTimer.current);
-      periodicReadTimer.current = setInterval(() => {
-        forceRead();
-      }, PERIODIC_READ_MS);
-    } else {
-      clearInterval(periodicReadTimer.current);
-    }
-    return () => clearInterval(periodicReadTimer.current);
-  }, [status, forceRead]);
-
-  // ── Mount: find previously-permitted device but don't connect yet ──────
-  // We just store the device ref so triggerReconnect() can use it on first tap.
-  useEffect(() => {
-    mountedRef.current = true;
-
-    if (!hasBluetooth) { setStatus('unsupported'); return; }
-
-    // canUseBle === hasBluetooth — if Web Bluetooth API is absent, bail out.
-    if (!canUseBle) {
-      setStatus('non-primary');
-      return;
-    }
-
-    if (!hasGetDevices) {
-      // Can't auto-find permitted devices — need manual pair
-      setStatus('idle');
-      return;
-    }
-
-    navigator.bluetooth.getDevices().then(devices => {
-      if (!mountedRef.current) return;
-      const inkbird = devices.find(d => INKBIRD_NAMES.includes(d.name));
-      if (inkbird) {
-        deviceRef.current = inkbird;
-        setSensorName(inkbird.name);
-        saveSensorNameLocally(inkbird.name);
-        // Mark as waiting for a gesture to connect
-        setStatus('waiting-gesture');
-      } else {
-        setStatus('idle');
-      }
-    }).catch(() => {
-      if (mountedRef.current) setStatus('idle');
-    });
-
-    return () => {
-      mountedRef.current = false;
-      clearTimeout(retryTimer.current);
-      try {
-        notifyRef.current?.stopNotifications?.().catch(() => {});
-        serverRef.current?.disconnect?.();
-      } catch (_) {}
-    };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return {
     status,
     reading,
     sensorName,
     latestReadingRef,
-    isPrimaryDevice: canUseBle, // kept for API compat — true means BLE is available on this device
-    connect,
-    disconnect,
-    triggerReconnect,
+    setConnectedDevice, // badge calls this after its own gatt.connect()
     forceRead,
+    // Legacy shims so bridge/badge callers don't break
+    connect:          () => {},
+    triggerReconnect: () => false,
+    isPrimaryDevice:  typeof navigator !== 'undefined' && !!navigator.bluetooth,
   };
 }
