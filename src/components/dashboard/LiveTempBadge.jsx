@@ -321,18 +321,9 @@ export default function LiveTempBadge({
     };
   }, [selectedDriverId, currentUser?.id, triggerPulse, forceRead, loadFromDb]);
 
-  // Cleanup on unmount
-  useEffect(() => () => {
-    clearTimeout(pulseTimerRef.current);
-    clearTimeout(savedFlashRef.current);
-    clearInterval(dbPollTimerRef.current);
-  }, []);
-
   // ── Auto-fallback: when detected as disconnected/error with no readings ──
-  // After 8s in a dead state, automatically forget and re-pair.
   const autoFallbackTimerRef = useRef(null);
   useEffect(() => {
-    // Only trigger fallback for driver's own today view
     if (!driverMode || !selectedDriverIsMe || isPastDate) return;
     const shouldFallback = (bleStatus === 'disconnected' || bleStatus === 'error') && displayTemp === null;
     clearTimeout(autoFallbackTimerRef.current);
@@ -343,6 +334,13 @@ export default function LiveTempBadge({
     }
     return () => clearTimeout(autoFallbackTimerRef.current);
   }, [bleStatus, displayTemp, driverMode, selectedDriverIsMe, isPastDate, triggerFallback]);
+
+  // Cleanup on unmount
+  useEffect(() => () => {
+    clearTimeout(pulseTimerRef.current);
+    clearTimeout(savedFlashRef.current);
+    clearInterval(dbPollTimerRef.current);
+  }, []);
 
   // ── BLE state for in-progress connect ────────────────────────────────
   const bleConnectingRef   = useRef(false);
