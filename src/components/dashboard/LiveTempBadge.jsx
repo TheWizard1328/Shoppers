@@ -321,11 +321,13 @@ export default function LiveTempBadge({
     };
   }, [selectedDriverId, currentUser?.id, triggerPulse, forceRead, loadFromDb]);
 
-  // ── Auto-fallback: when detected as disconnected/error with no readings ──
+  // ── Auto-fallback: when detected as disconnected/error with no live BLE data ──
   const autoFallbackTimerRef = useRef(null);
   useEffect(() => {
     if (!driverMode || !selectedDriverIsMe || isPastDate) return;
-    const shouldFallback = (bleStatus === 'disconnected' || bleStatus === 'error') && displayTemp === null;
+    // Use only already-defined variables (no displayTemp — it's declared later)
+    const hasNoLiveData = bleTemp === null && lastReading?.temperature_celsius == null && avgReading?.avg == null;
+    const shouldFallback = (bleStatus === 'disconnected' || bleStatus === 'error') && hasNoLiveData;
     clearTimeout(autoFallbackTimerRef.current);
     if (shouldFallback) {
       autoFallbackTimerRef.current = setTimeout(() => {
@@ -333,7 +335,7 @@ export default function LiveTempBadge({
       }, 8000);
     }
     return () => clearTimeout(autoFallbackTimerRef.current);
-  }, [bleStatus, displayTemp, driverMode, selectedDriverIsMe, isPastDate, triggerFallback]);
+  }, [bleStatus, bleTemp, lastReading, avgReading, driverMode, selectedDriverIsMe, isPastDate, triggerFallback]);
 
   // Cleanup on unmount
   useEffect(() => () => {
