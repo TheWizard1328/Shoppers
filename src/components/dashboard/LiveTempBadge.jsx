@@ -396,19 +396,24 @@ export default function LiveTempBadge({
     }
 
     if (bleStatus === 'connected') {
-      forceRead();
-      loadFromDb();
-      triggerPulse();
-      // If no temperature is showing, or the last BLE reading is > 60s old,
-      // the connection is stale — unpair and re-pair.
+      // Check if this connection is stale before doing anything
       const lastBleTs = latestReadingRef.current?.timestamp;
       const stale = lastBleTs
         ? (Date.now() - new Date(lastBleTs).getTime()) > 60000
         : true; // no reading at all
       const noDisplayTemp = bleTemp === null && lastReading?.temperature_celsius == null;
-      if ((noDisplayTemp || stale) && typeof triggerFallback === 'function') {
+      const isStale = noDisplayTemp || stale;
+      if (isStale && typeof triggerFallback === 'function') {
+        // Connection is stale — clear our cached device ref so the normal
+        // path below shows the OS picker instead of trying to reconnect
+        blePermittedDevice.current = null;
         triggerFallback();
+        return;
       }
+      // Connection is good — just force a fresh read
+      forceRead();
+      loadFromDb();
+      triggerPulse();
       return;
     }
 
