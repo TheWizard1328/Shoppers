@@ -343,11 +343,13 @@ export default function LiveTempBadge({
     // In-flight — do nothing
     if (bleStatus === 'connecting' || bleStatus === 'scanning') return;
 
-    // Try silent reconnect first — checks getDevices() in the hook first.
-    // If it returns false, no device was ever permitted — show the picker.
-    Promise.resolve(triggerReconnect()).then(reconnected => {
-      if (!reconnected) connect();
-    });
+    // Try silent reconnect first — triggerReconnect returns synchronously.
+    // If it returns false, no device was permitted yet — show the picker.
+    // IMPORTANT: keep the connect() call synchronous here in the event handler
+    // stack so Chrome treats it as a user gesture.
+    if (!triggerReconnect()) {
+      connect();
+    }
   }, [isPastDate, selectedDriverIsMe, adminMode, driverMode, bleStatus,
       loadFromDb, triggerPulse, connect, triggerReconnect, forceRead]);
 
