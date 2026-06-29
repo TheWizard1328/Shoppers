@@ -110,11 +110,12 @@ export default function PatientPortal() {
         } catch (_) {}
       }
 
-      const storeIds = [...new Set(allDeliveries.map((d) => d.store_id).filter(Boolean))];
-      if (storeIds.length > 0) {
-        const allStores = await base44.entities.Store.filter({});
-        setStores(allStores.filter((s) => storeIds.includes(s.id)));
-      }
+      const storeIds = [...new Set([
+        ...allDeliveries.map((d) => d.store_id).filter(Boolean),
+        patient?.store_id,
+      ].filter(Boolean))];
+      const allStores = await base44.entities.Store.filter({});
+      setStores(allStores.filter((s) => storeIds.includes(s.id)));
     } catch (err) {
       console.error('PatientPortal load error:', err);
     } finally {
@@ -218,7 +219,7 @@ export default function PatientPortal() {
   const storeMap = {};
   stores.forEach((s) => { storeMap[s.id] = s; });
 
-  const activeStore   = todayDelivery ? storeMap[todayDelivery.store_id] : null;
+  const activeStore   = todayDelivery ? storeMap[todayDelivery.store_id] : (patient?.store_id ? storeMap[patient.store_id] : null);
   const statusConfig  = todayDelivery ? STATUS_CONFIG[todayDelivery.status] || STATUS_CONFIG.pending : null;
 
   const mapPositions = [
