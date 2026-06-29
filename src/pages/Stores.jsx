@@ -18,12 +18,12 @@ import StoreOnlineStatusBanner from '../components/stores/StoreOnlineStatusBanne
 
 export default function StoresPage() {
   const { currentUser } = useUser();
-  const { 
-    stores: contextStores = [], 
-    cities: contextCities = [], 
+  const {
+    stores: contextStores = [],
+    cities: contextCities = [],
     users: contextUsers = [],
     appUsers: contextAppUsers = [],
-    isDataLoaded: contextDataLoaded 
+    isDataLoaded: contextDataLoaded
   } = useAppData();
   const [stores, setStores] = useState(() => contextStores.length ? sortStores(contextStores) : []);
   const [cities, setCities] = useState(() => contextCities.length ? contextCities : []);
@@ -36,19 +36,19 @@ export default function StoresPage() {
         const { offlineDB } = await import('../components/utils/offlineDatabase');
         const offlineStores = await offlineDB.getAll(offlineDB.STORES.STORES);
         if ((offlineStores || []).length > 0) setStores(sortStores(offlineStores));
-      } catch (_) { /* non-critical */ }
+      } catch (_) {/* non-critical */}
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [drivers, setDrivers] = useState(() => {
     if (!contextUsers.length) return [];
-    return contextUsers
-      .filter(u => u && u.status === 'active' && (userHasRole(u, 'driver') || userHasRole(u, 'dispatcher') || userHasRole(u, 'admin')))
-      .sort((a, b) => {
-        const orderA = a.sort_order ?? Infinity;
-        const orderB = b.sort_order ?? Infinity;
-        if (orderA !== orderB) return orderA - orderB;
-        return (a.user_name || a.full_name || '').localeCompare(b.user_name || b.full_name || '');
-      });
+    return contextUsers.
+    filter((u) => u && u.status === 'active' && (userHasRole(u, 'driver') || userHasRole(u, 'dispatcher') || userHasRole(u, 'admin'))).
+    sort((a, b) => {
+      const orderA = a.sort_order ?? Infinity;
+      const orderB = b.sort_order ?? Infinity;
+      if (orderA !== orderB) return orderA - orderB;
+      return (a.user_name || a.full_name || '').localeCompare(b.user_name || b.full_name || '');
+    });
   });
   const [allUsers, setAllUsers] = useState(() => contextUsers.length ? contextUsers : []);
   const [showForm, setShowForm] = useState(false);
@@ -62,7 +62,7 @@ export default function StoresPage() {
     const handleOfflineRecordReplaced = (event) => {
       const { entity, oldId, record } = event.detail || {};
       if (entity !== 'Store' || !oldId || !record) return;
-      setStores(prev => sortStores(prev.map(store => store.id === oldId ? record : store)));
+      setStores((prev) => sortStores(prev.map((store) => store.id === oldId ? record : store)));
     };
 
     window.addEventListener('offlineMutationRecordReplaced', handleOfflineRecordReplaced);
@@ -74,7 +74,7 @@ export default function StoresPage() {
     const handleStoreUpdated = async (event) => {
       const { storeId, updatedStore } = event.detail || {};
       if (!storeId || !updatedStore) return;
-      setStores(prev => sortStores(prev.map(store => store.id === storeId ? { ...store, ...updatedStore } : store)));
+      setStores((prev) => sortStores(prev.map((store) => store.id === storeId ? { ...store, ...updatedStore } : store)));
     };
     window.addEventListener('storeUpdated', handleStoreUpdated);
     return () => {
@@ -88,17 +88,17 @@ export default function StoresPage() {
     const unsubscribe = base44.entities.Store.subscribe((event) => {
       console.log(`📡 [Stores] WebSocket: Store ${event.id} ${event.type}`);
       if (event.type === 'create') {
-        setStores(prev => sortStores([...prev.filter(s => s.id !== event.id), event.data]));
+        setStores((prev) => sortStores([...prev.filter((s) => s.id !== event.id), event.data]));
         if (event.data) {
           offlineDB.bulkSave(offlineDB.STORES.STORES, [event.data]).catch(() => {});
         }
       } else if (event.type === 'update') {
-        setStores(prev => sortStores(prev.map(s => s.id === event.id ? { ...s, ...event.data } : s)));
+        setStores((prev) => sortStores(prev.map((s) => s.id === event.id ? { ...s, ...event.data } : s)));
         if (event.data) {
           offlineDB.bulkSave(offlineDB.STORES.STORES, [event.data]).catch(() => {});
         }
       } else if (event.type === 'delete') {
-        setStores(prev => prev.filter(s => s.id !== event.id));
+        setStores((prev) => prev.filter((s) => s.id !== event.id));
         offlineDB.deleteRecord(offlineDB.STORES.STORES, event.id).catch(() => {});
       }
     });
@@ -118,11 +118,11 @@ export default function StoresPage() {
         } else {
           // MERGE: only apply stores from context that are updates to existing local stores
           // or new stores (created elsewhere). Never remove stores that context doesn't have.
-          const contextMap = new Map(contextStores.map(s => [s.id, s]));
-          const merged = stores.map(s => contextMap.has(s.id) ? { ...s, ...contextMap.get(s.id) } : s);
+          const contextMap = new Map(contextStores.map((s) => [s.id, s]));
+          const merged = stores.map((s) => contextMap.has(s.id) ? { ...s, ...contextMap.get(s.id) } : s);
           // Add any stores from context that are completely new
-          contextStores.forEach(cs => {
-            if (!merged.some(m => m.id === cs.id)) merged.push(cs);
+          contextStores.forEach((cs) => {
+            if (!merged.some((m) => m.id === cs.id)) merged.push(cs);
           });
           const sortedStores = sortStores(merged);
           if (JSON.stringify(sortedStores) !== JSON.stringify(stores)) {
@@ -143,10 +143,10 @@ export default function StoresPage() {
         setCities(contextCities);
       }
       if (contextUsers.length > 0 && contextUsers !== allUsers) {
-        const activeDrivers = contextUsers.filter(user =>
-          user &&
-          user.status === 'active' &&
-          (userHasRole(user, 'driver') || userHasRole(user, 'dispatcher') || userHasRole(user, 'admin'))
+        const activeDrivers = contextUsers.filter((user) =>
+        user &&
+        user.status === 'active' && (
+        userHasRole(user, 'driver') || userHasRole(user, 'dispatcher') || userHasRole(user, 'admin'))
         );
         const sortedDrivers = activeDrivers.sort((a, b) => {
           const orderA = a.sort_order ?? Infinity;
@@ -156,7 +156,7 @@ export default function StoresPage() {
           const nameB = b.user_name || b.full_name || '';
           return nameA.localeCompare(nameB);
         });
-        
+
         // Only update if data changed
         if (JSON.stringify(sortedDrivers) !== JSON.stringify(drivers)) {
           console.log("🔄 [Stores] Syncing drivers from AppDataContext");
@@ -175,20 +175,20 @@ export default function StoresPage() {
 
       // Fetch stores and cities
       const [storesData, citiesData, authUsers, appUsers] = await Promise.all([
-        getData('Store'),
-        getData('City'),
-        getData('User'),
-        getData('AppUser')
-      ]);
+      getData('Store'),
+      getData('City'),
+      getData('User'),
+      getData('AppUser')]
+      );
 
       // Merge users
       const mergedUsers = mergeUsersWithAppUsers(authUsers || [], appUsers || []);
 
       // Filter to only active drivers/dispatchers/admins
-      const activeDrivers = mergedUsers.filter(user =>
-        user &&
-        user.status === 'active' &&
-        (userHasRole(user, 'driver') || userHasRole(user, 'dispatcher') || userHasRole(user, 'admin'))
+      const activeDrivers = mergedUsers.filter((user) =>
+      user &&
+      user.status === 'active' && (
+      userHasRole(user, 'driver') || userHasRole(user, 'dispatcher') || userHasRole(user, 'admin'))
       );
 
       // Sort stores and drivers
@@ -229,10 +229,10 @@ export default function StoresPage() {
       let savedStore;
       if (editingStore) {
         savedStore = await updateStoreLocal(editingStore.id, storeData);
-        setStores(prev => sortStores(prev.map(s => s.id === editingStore.id ? savedStore : s)));
+        setStores((prev) => sortStores(prev.map((s) => s.id === editingStore.id ? savedStore : s)));
       } else {
         savedStore = await createStoreLocal(storeData);
-        setStores(prev => sortStores([...prev, savedStore]));
+        setStores((prev) => sortStores([...prev, savedStore]));
       }
 
       // Close form first to prevent re-render issues
@@ -260,7 +260,7 @@ export default function StoresPage() {
 
     try {
       await deleteStoreLocal(storeId);
-      setStores(prev => prev.filter(s => s.id !== storeId));
+      setStores((prev) => prev.filter((s) => s.id !== storeId));
       invalidate('Store');
     } catch (error) {
       console.error("Error deleting store:", error);
@@ -275,8 +275,8 @@ export default function StoresPage() {
           <div className="animate-spin w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full mx-auto mb-4"></div>
           <p style={{ color: 'var(--text-slate-600)' }}>Loading stores...</p>
         </div>
-      </div>
-    );
+      </div>);
+
   }
 
   return (
@@ -293,15 +293,15 @@ export default function StoresPage() {
               </p>
             </div>
           </div>
-          {currentUser && userHasRole(currentUser, 'admin') && (
-            <Button
-              onClick={handleAddStore}
-              className="bg-emerald-500 hover:bg-emerald-600"
-            >
+          {currentUser && userHasRole(currentUser, 'admin') &&
+          <Button
+            onClick={handleAddStore}
+            className="bg-emerald-500 hover:bg-emerald-600">
+            
               <Plus className="w-5 h-5 mr-2" />
               Add Store
             </Button>
-          )}
+          }
         </div>
 
         {/* Online Status Banner */}
@@ -311,38 +311,38 @@ export default function StoresPage() {
       {/* Scrollable content area */}
       <div className="flex-1 overflow-y-auto px-6 pb-6">
         <div className="max-w-8xl mx-auto">
-          {stores.length > 0 ? (
-            <div className="grid gap-5 justify-center" style={{ gridTemplateColumns: 'repeat(auto-fit, 400px)' }}>
-              {stores.map((store) => (
-                <StoreCard
-                  key={store.id}
-                  store={store}
-                  onEdit={handleEditStore}
-                  onDelete={handleDeleteStore}
-                  onSave={handleSaveStore}
-                  currentUser={currentUser}
-                  drivers={drivers}
-                  isLimitedView={currentUser && !userHasRole(currentUser, 'admin')}
-                  hideEditDelete={currentUser && userHasRole(currentUser, 'dispatcher')}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-12">
+          {stores.length > 0 ?
+          <div className="grid gap-5 justify-center" style={{ gridTemplateColumns: 'repeat(auto-fit, 400px)' }}>
+              {stores.map((store) =>
+            <StoreCard
+              key={store.id}
+              store={store}
+              onEdit={handleEditStore}
+              onDelete={handleDeleteStore}
+              onSave={handleSaveStore}
+              currentUser={currentUser}
+              drivers={drivers}
+              isLimitedView={currentUser && !userHasRole(currentUser, 'admin')}
+              hideEditDelete={currentUser && userHasRole(currentUser, 'dispatcher')} />
+
+            )}
+            </div> :
+
+          <div className="text-center py-12">
               <p className="mb-4" style={{ color: 'var(--text-slate-500)' }}>No stores found</p>
-              {currentUser && userHasRole(currentUser, 'admin') && (
-                <Button onClick={handleAddStore} variant="outline" style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
+              {currentUser && userHasRole(currentUser, 'admin') &&
+            <Button onClick={handleAddStore} variant="outline" style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
                   <Plus className="w-4 h-4 mr-2" />
                   Add Your First Store
                 </Button>
-              )}
+            }
             </div>
-          )}
+          }
         </div>
       </div>
 
       <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto px-6 py-5" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
           <StoreForm
             store={editingStore}
             onSave={handleSaveStore}
@@ -352,10 +352,10 @@ export default function StoresPage() {
             }}
             cities={cities}
             drivers={drivers}
-            allUsers={allUsers}
-          />
+            allUsers={allUsers} />
+          
         </DialogContent>
       </Dialog>
-    </div>
-  );
+    </div>);
+
 }
