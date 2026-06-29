@@ -83,7 +83,9 @@ export async function handleBatchSave({
   });
 
   const { newDeliveries, existingDeliveries } = splitStagedDeliveriesForBatch(filterValidStagedDeliveries(stagedDeliveries, allDeliveries));
-  const deliveriesToUpdate = existingDeliveries.filter(d => d.status === 'Staged');
+  // Include Staged-status deliveries (activating to route) AND any existing delivery that was
+  // directly edited by the user (status/time fields changed while viewing in the staged list).
+  const deliveriesToUpdate = existingDeliveries.filter(d => d.status === 'Staged' || d._wasEdited);
 
   console.log('[AddToRoute] handleBatchSave:split', {
     newCount: newDeliveries.length,
