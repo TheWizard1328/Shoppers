@@ -106,27 +106,26 @@ export function useConfirmDelete({
         }
       }));
 
-      // CRITICAL: Background only — never block UI waiting on stop-order or polyline calls
-      if (staged.driver_id && staged.delivery_date) {
+      // CRITICAL: Pending stop deletes never need optimization or polyline regeneration.
+      // Only run background stop-order recalc + optimize for active (non-pending) stops.
+      const isActivStop = !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(staged.status);
+      if (isActivStop && staged.driver_id && staged.delivery_date) {
         Promise.resolve().then(async () => {
           try {
             const { recalculateAndUpdateStopOrders } = await import('../utils/stopOrderManager');
             await recalculateAndUpdateStopOrders(staged.driver_id, staged.delivery_date);
-            if (!['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(staged.status)) {
-              // Optimize ETAs first, then purge and regenerate polylines
-              await base44.functions.invoke('optimizeRemainingStops', {
-                driverId: staged.driver_id,
-                deliveryDate: staged.delivery_date,
-                bypassDriverStatus: true,
-                bypassDeduplication: true,
-                bypassHistoricalCheck: true,
-              }).catch(() => {});
-              base44.functions.invoke('purgeAndRegeneratePolylines', {
-                driverId: staged.driver_id,
-                deliveryDate: staged.delivery_date,
-                scope: 'active_only',
-              }).catch(() => {});
-            }
+            await base44.functions.invoke('optimizeRemainingStops', {
+              driverId: staged.driver_id,
+              deliveryDate: staged.delivery_date,
+              bypassDriverStatus: true,
+              bypassDeduplication: true,
+              bypassHistoricalCheck: true,
+            }).catch(() => {});
+            base44.functions.invoke('purgeAndRegeneratePolylines', {
+              driverId: staged.driver_id,
+              deliveryDate: staged.delivery_date,
+              scope: 'active_only',
+            }).catch(() => {});
           } catch (_) {}
         });
       }
