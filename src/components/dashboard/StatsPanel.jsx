@@ -643,7 +643,7 @@ export default function StatsPanel({
               {legendData.map((route) =>
                 <button
                   key={route.driverId}
-                  type="button" className={`text-base leading-none rounded inline-flex h-[18px] min-h-0 items-center gap-0.5 self-center hover:bg-slate-100 transition-colors px-0.5 py-0    ${selectedDriverId === route.driverId ? 'underline underline-offset-2 font-semibold' : ''}`}
+                  type="button" className={`text-base leading-none rounded inline-flex min-h-0 items-center gap-0.5 self-center hover:bg-slate-100 transition-colors px-0.5 py-0 h-[20px]    ${selectedDriverId === route.driverId ? 'underline underline-offset-2 font-semibold' : ''}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     // Toggle: clicking the already-selected driver switches back to "All Drivers"
