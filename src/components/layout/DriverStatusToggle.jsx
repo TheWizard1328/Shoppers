@@ -255,7 +255,13 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
       // Persist to API + offline DB
       const updatedAppUser = await base44.entities.AppUser.update(appUserId, updatePayload);
       const { offlineDB } = await import('../utils/offlineDatabase');
-      await offlineDB.save(offlineDB.STORES.APP_USERS, updatedAppUser);
+      // CRITICAL: Merge the API response with the original updatePayload so driver_status
+      // and all other fields are guaranteed to be present in the offline DB record.
+      // The SDK response may omit certain fields — saving a partial record would cause
+      // future reads (via getEffectiveUser / getAppUserByUserId) to return undefined
+      // for driver_status, cascading into null database values.
+      const safeRecord = { ...updatedAppUser, ...updatePayload, id: appUserId };
+      await offlineDB.save(offlineDB.STORES.APP_USERS, safeRecord);
 
       // Call backend (handles isNextDelivery clearing, single-device enforcement, etc.)
       const result = await base44.functions.invoke('setDriverStatus', {
@@ -352,6 +358,20 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
       lastRequestedStatusRef.current = null;
       setStatus(previousStatus);
       if (isOwnUser) locationTracker.setDriverStatus(previousStatus);
+      // CRITICAL: Revert the offline DB to match the reverted React state.
+      // The frontend AppUser.update may have succeeded but the backend function
+      // (setDriverStatus) failed — leaving the offline DB with the new status
+      // while the UI shows the old one. Without this revert, getEffectiveUser()
+      // would read the stale new status from offline DB.
+      if (appUserId && previousStatus) {
+        try {
+          const { offlineDB } = await import('../utils/offlineDatabase');
+          const existingAppUser = await offlineDB.getById(offlineDB.STORES.APP_USERS, appUserId);
+          if (existingAppUser && existingAppUser.driver_status !== previousStatus) {
+            await offlineDB.save(offlineDB.STORES.APP_USERS, { ...existingAppUser, driver_status: previousStatus });
+          }
+        } catch (_) {}
+      }
       toast.error('Failed to update status. Please try again.');
       try {
         const { smartRefreshManager } = await import('../utils/smartRefreshManager');
