@@ -639,7 +639,7 @@ export default function StatsPanel({
             {!isAllDriversMode && !isAdmin && !isDispatcher ? null : legendData.length > 0 &&
             <div className="backdrop-blur-sm rounded-xl shadow-lg border h-auto overflow-visible w-full py-1" style={{ background: 'var(--bg-white)', opacity: 0.95, borderColor: 'var(--border-slate-200)' }}
             onMouseEnter={() => handleCardInteraction(true)} onMouseLeave={() => handleCardInteraction(false)}>
-            <div className="flex h-auto flex-wrap items-center justify-center gap-x-0.25 gap-y-0.5 leading-none">
+            <div className="flex h-auto flex-wrap items-center justify-center gap-x-0.25 leading-none">
               {legendData.map((route) =>
                 <button
                   key={route.driverId}
