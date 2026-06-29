@@ -481,8 +481,26 @@ const replaceAllRecords = async (storeName, records = []) => {
       console.warn(`[OfflineDB] replaceAllRecords: received 0 records for ${storeName} — skipping clear to prevent data loss`);
       return { success: true, count: 0 };
     }
-    await clearStore(storeName);
-    return await bulkSave(storeName, records);
+    
+    // UPSERT-FIRST strategy: Write all new records BEFORE pruning old ones.
+    // This guarantees the store is never empty mid-sync, preventing the UI
+    // from reading an empty dataset during a concurrent offline DB read
+    // (e.g. from a realtime event or intermediate render in syncOnFilterChange).
+    const writeResult = await bulkSave(storeName, records);
+    if (!writeResult.success) return writeResult;
+    
+    // Prune: delete local records that are NOT in the incoming set.
+    // Only delete confirmed records (skip temp_ prefixed local-only IDs).
+    const incomingIds = new Set(
+      records.filter(r => r?.id && !r.id.startsWith('temp_')).map(r => r.id)
+    );
+    const allExisting = await getAll(storeName);
+    const toDelete = allExisting.filter(r => r?.id && !r.id.startsWith('temp_') && !incomingIds.has(r.id));
+    if (toDelete.length > 0) {
+      await Promise.all(toDelete.map(r => deleteRecord(storeName, r.id).catch(() => {})));
+    }
+    
+    return { success: true, count: records.length };
   } catch (error) {
     return { success: false, error: error.message };
   }
