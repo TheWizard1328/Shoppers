@@ -416,7 +416,16 @@ export function useLayoutEventHandlers({
       if (freshPatients && freshPatients.length > 0) {
         setPatients((prev) => mergePatients(prev, freshPatients));
       }
-      if (freshStores && freshStores.length > 0) setStores(freshStores);
+      if (freshStores && freshStores.length > 0) {
+        // CRITICAL: Merge — never replace. Incoming freshStores may be a city-filtered
+        // subset (e.g., from PullToSync or a targeted sync). A full replacement would
+        // wipe stores from other cities from the Layout's state on ALL connected devices.
+        setStores((prev) => {
+          const map = new Map((prev || []).filter(Boolean).map((s) => [s.id, s]));
+          freshStores.forEach((store) => { if (store?.id) map.set(store.id, store); });
+          return Array.from(map.values()).sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+        });
+      }
       if (freshAppUsers && freshAppUsers.length > 0) {
         setAppUsers((prev) => {const m = new Map(prev.map((u) => [u.id, u]));freshAppUsers.forEach((u) => {if (u?.id) m.set(u.id, u);});return Array.from(m.values());});
       }

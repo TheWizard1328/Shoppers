@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
 import StoreCard from "../components/stores/StoreCard";
 import StoreForm from "../components/stores/StoreForm";
@@ -25,6 +25,8 @@ export default function StoresPage() {
     appUsers: contextAppUsers = [],
     isDataLoaded: contextDataLoaded
   } = useAppData();
+  // CRITICAL: Track max store count to detect wipe origins via console
+  const maxStoreCountRef = useRef(0);
   const [stores, setStores] = useState(() => contextStores.length ? sortStores(contextStores) : []);
   const [cities, setCities] = useState(() => contextCities.length ? contextCities : []);
 
@@ -104,6 +106,32 @@ export default function StoresPage() {
     });
     return unsubscribe;
   }, []);
+
+  // DIAGNOSTIC: Track max store count — logs a warning + trace if stores drops unexpectedly.
+  // Guards against re-entry — only checks once per shrink event.
+  const storeShrinkGateRef = useRef(false);
+  useEffect(() => {
+    if (stores.length > maxStoreCountRef.current) {
+      maxStoreCountRef.current = stores.length;
+      storeShrinkGateRef.current = false;
+    } else if (stores.length < maxStoreCountRef.current && stores.length > 0 && !storeShrinkGateRef.current) {
+      storeShrinkGateRef.current = true;
+      console.warn(`🛑 [Stores] Store count dropped from ${maxStoreCountRef.current} → ${stores.length}. Source:`, new Error().stack?.split('\n').slice(2, 6).join('\n'));
+      // Attempt to restore from offline DB
+      (async () => {
+        try {
+          const { offlineDB } = await import('../components/utils/offlineDatabase');
+          const allFromOffline = await offlineDB.getAll(offlineDB.STORES.STORES);
+          if (allFromOffline?.length > stores.length) {
+            console.log(`🔄 [Stores] Auto-restoring ${allFromOffline.length} stores from offline DB`);
+            setStores(sortStores(allFromOffline));
+          } else {
+            console.warn(`🛑 [Stores] Offline DB only has ${allFromOffline?.length || 0} stores — cannot auto-restore. Offline DB itself may be incomplete.`);
+          }
+        } catch (_) {}
+      })();
+    }
+  }, [stores]);
 
   // Sync context data for real-time updates - OPTIMIZED to prevent unnecessary re-renders
   // CRITICAL: Always MERGE context stores into local state — never replace. Context stores
