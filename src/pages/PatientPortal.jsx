@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Menu, X, Package, MapPin, Clock, Truck, CheckCircle, RefreshCw, HeartPulse, Wifi } from 'lucide-react';
@@ -75,6 +75,23 @@ function MapBoundsFitter({ positions }) {
 
 const TODAY = format(new Date(), 'yyyy-MM-dd');
 
+// Decode Google-encoded polyline to [[lat, lng], ...]
+function decodePolyline(encoded) {
+  if (!encoded || typeof encoded !== 'string') return [];
+  let index = 0, lat = 0, lng = 0;
+  const coords = [];
+  while (index < encoded.length) {
+    let b, shift = 0, result = 0;
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+    shift = 0; result = 0;
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    coords.push([lat / 1e5, lng / 1e5]);
+  }
+  return coords;
+}
+
 const STATUS_CONFIG = {
   completed: { label: 'Delivered',  color: 'text-green-700 bg-green-50 border-green-200',  Icon: CheckCircle },
   failed:    { label: 'Attempted',  color: 'text-red-700 bg-red-50 border-red-200',         Icon: X },
@@ -94,6 +111,7 @@ export default function PatientPortal() {
   const [loading, setLoading]               = useState(true);
   const [liveConnected, setLiveConnected]   = useState(false);
   const [stopsBeforePatient, setStopsBeforePatient] = useState(null);
+  const [routeDeliveries, setRouteDeliveries] = useState([]);
 
   // Keep a ref to the current todayDelivery so subscriptions can read it without
   // going stale in closures.
@@ -132,6 +150,7 @@ export default function PatientPortal() {
             delivery_date: TODAY,
           });
           routeDeliveriesRef.current = routeDeliveries;
+          setRouteDeliveries(routeDeliveries);
           const countBefore = routeDeliveries.filter((d) =>
             d.id !== activeToday.id &&
             Number(d.stop_order) < Number(activeToday.stop_order) &&
@@ -215,11 +234,11 @@ export default function PatientPortal() {
           // Patch or add this delivery into our local route snapshot
           const existing = routeDeliveriesRef.current;
           const idx = existing.findIndex((d) => d.id === updated.id);
-          if (idx >= 0) {
-            routeDeliveriesRef.current = existing.map((d) => d.id === updated.id ? { ...d, ...updated } : d);
-          } else {
-            routeDeliveriesRef.current = [...existing, updated];
-          }
+          const next = idx >= 0
+            ? existing.map((d) => d.id === updated.id ? { ...d, ...updated } : d)
+            : [...existing, updated];
+          routeDeliveriesRef.current = next;
+          setRouteDeliveries([...next]);
           // Recount badge using the patient's own delivery as reference
           recountStopsBefore(routeDeliveriesRef.current, route);
         }
@@ -311,6 +330,40 @@ export default function PatientPortal() {
 
   // Patient marker: colour based on delivery status / isNextDelivery, badge = stops before
   const patientIcon = makePatientIcon(todayDelivery?.status, todayDelivery?.isNextDelivery, stopsBeforePatient);
+
+  // Build the merged route polyline: stops from store up to and including the patient's stop,
+  // sorted by stop_order, decoded and concatenated.
+  const routePolylineCoords = useMemo(() => {
+    if (!todayDelivery?.stop_order || routeDeliveries.length === 0) return [];
+    const patientStopOrder = Number(todayDelivery.stop_order);
+
+    // Include all stops up to and including the patient's stop, sorted by stop_order
+    const relevantStops = routeDeliveries
+      .filter((d) => d.encoded_polyline && Number(d.stop_order) <= patientStopOrder)
+      .sort((a, b) => Number(a.stop_order) - Number(b.stop_order));
+
+    if (relevantStops.length === 0) return [];
+
+    // Decode and merge all segments, deduplicating shared endpoints
+    const merged = [];
+    for (const stop of relevantStops) {
+      const decoded = decodePolyline(stop.encoded_polyline);
+      if (decoded.length < 2) continue;
+      if (merged.length > 0) {
+        // Skip first point if it's the same as the last merged point
+        const [lastLat, lastLng] = merged[merged.length - 1];
+        const [firstLat, firstLng] = decoded[0];
+        if (Math.abs(lastLat - firstLat) < 1e-5 && Math.abs(lastLng - firstLng) < 1e-5) {
+          merged.push(...decoded.slice(1));
+        } else {
+          merged.push(...decoded);
+        }
+      } else {
+        merged.push(...decoded);
+      }
+    }
+    return merged;
+  }, [routeDeliveries, todayDelivery?.stop_order, todayDelivery?.id]);
 
   const mapPositions = [
     activeStore?.latitude  && activeStore?.longitude  ? [activeStore.latitude, activeStore.longitude]   : null,
@@ -440,6 +493,14 @@ export default function PatientPortal() {
               />
 
               {mapPositions.length > 0 && <MapBoundsFitter positions={mapPositions} />}
+
+              {/* Route polyline: store → intermediate stops → patient */}
+              {routePolylineCoords.length > 1 && (
+                <Polyline
+                  positions={routePolylineCoords}
+                  pathOptions={{ color: '#2563eb', weight: 4, opacity: 0.65, dashArray: '8, 6' }}
+                />
+              )}
 
               {/* Store marker */}
               {activeStore?.latitude && activeStore?.longitude && (
