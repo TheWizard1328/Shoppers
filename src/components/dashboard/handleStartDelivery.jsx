@@ -109,8 +109,10 @@ export async function handleStartDelivery({
 
     // ─── STEP 3: Immediate UI update from local state ─────────────────────
     if (updateDeliveriesLocally) {
+      // CRITICAL: Keep all other drivers' deliveries for the same date — only replace
+      // deliveries that belong to THIS driver on THIS date.
       const otherDeliveries = (deliveries || []).filter(
-        (d) => d && d.delivery_date !== deliveryDate
+        (d) => d && !(d.driver_id === driverId && d.delivery_date === deliveryDate)
       );
       updateDeliveriesLocally([...otherDeliveries, ...mutatedDeliveries], true);
     }
@@ -245,8 +247,9 @@ export async function handleStartDelivery({
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
 
     if (updateDeliveriesLocally) {
+      // CRITICAL: Same as Step 3 — preserve other drivers' same-date deliveries.
       const otherDeliveries = (deliveries || []).filter(
-        (d) => d && d.delivery_date !== deliveryDate
+        (d) => d && !(d.driver_id === driverId && d.delivery_date === deliveryDate)
       );
       updateDeliveriesLocally([...otherDeliveries, ...freshDeliveries], true);
     }

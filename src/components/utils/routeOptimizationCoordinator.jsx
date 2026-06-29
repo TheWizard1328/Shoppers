@@ -124,6 +124,9 @@ export async function performRouteOptimization({
     }
 
     // ── Step 3: Fetch fresh deliveries and persist to offline DB ──
+    // Wait briefly for the polyline backend function to finish writing encoded_polyline
+    // back to the DB before we fetch — without this, the fetch races the async write.
+    await new Promise((resolve) => setTimeout(resolve, 2000));
     invalidate('Delivery');
     const freshDeliveries = await base44.entities.Delivery.filter({
       driver_id: driverId,
