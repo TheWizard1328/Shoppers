@@ -14,7 +14,7 @@
  */
 
 import { base44 } from '@/api/base44Client';
-import { recalculateAndUpdateStopOrders } from './stopOrderManager';
+import { performRouteOptimization } from './routeOptimizationCoordinator';
 
 const DEBOUNCE_MS = 5000;
 
@@ -66,60 +66,27 @@ export function requestDeferredOptimization(driverId, deliveryDate, needsOptimiz
     // Signal that optimization is now actively running (KITT bar)
     window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId, deliveryDate, active: true } }));
 
-    try {
-      // Step 1: Recalculate stop orders (finished first by actual_delivery_time, then incomplete by ETA/start)
-      await recalculateAndUpdateStopOrders(driverId, deliveryDate, true /* skipPolylineRegeneration */);
+    // Use the unified coordinator — same FAB path (optimizeRemainingStops → regenerateType1Polyline)
+    await performRouteOptimization({
+      driverId,
+      deliveryDate,
+      source: 'edit_form_deferred',
+      bypassDriverStatus: true,
+    });
 
-      // Step 2: Fetch fresh ordered IDs after resort
-      const freshDeliveries = await base44.entities.Delivery.filter({
-        driver_id: driverId,
-        delivery_date: deliveryDate
-      }).catch(() => []);
+    // Done — hide KITT bar
+    window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId, deliveryDate, active: false } }));
 
-      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-      const activeStops = (freshDeliveries || [])
-        .filter(d => d?.id && !finishedStatuses.includes(d?.status) && d?.status !== 'pending' && d?.status !== 'Staged')
-        .sort((a, b) => (Number(a.stop_order) || 0) - (Number(b.stop_order) || 0));
-
-      const orderedDeliveryIds = activeStops.map(d => d.id);
-
-      if (orderedDeliveryIds.length > 0) {
-        // Step 3: Optimize remaining stops
-        await base44.functions.invoke('optimizeRemainingStops', {
-          driverId,
-          deliveryDate,
-          bypassDriverStatus: true
-        }).catch(() => null);
-
-        // Step 4: Purge and regenerate polylines with the ordered IDs
-        await base44.functions.invoke('purgeAndRegeneratePolylines', {
-          driverId,
-          deliveryDate,
-          routeStopOrder: orderedDeliveryIds,
-          reason: 'edit_form_deferred',
-          scope: 'active_only',
-          bypassDriverStatus: true
-        }).catch(() => null);
+    // Broadcast UI refresh
+    window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+      detail: {
+        driverId,
+        deliveryDate,
+        triggeredBy: 'optimizationDebouncer',
+        fullReplacement: false,
       }
-
-      // Done — hide KITT bar
-      window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId, deliveryDate, active: false } }));
-
-      // Step 5: Broadcast UI refresh
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-        detail: {
-          driverId,
-          deliveryDate,
-          triggeredBy: 'optimizationDebouncer',
-          fullReplacement: false
-        }
-      }));
-      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-
-    } catch (err) {
-      console.warn('[OptimizationDebouncer] Deferred optimization failed (non-fatal):', err?.message || err);
-      window.dispatchEvent(new CustomEvent('optimizationRunning', { detail: { driverId, deliveryDate, active: false } }));
-    }
+    }));
+    window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
   }, DEBOUNCE_MS);
 
   pending.set(key, { timerId, needsOptimization: finalNeedsOptimization });
