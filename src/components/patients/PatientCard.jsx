@@ -19,11 +19,13 @@ import {
   TrendingUp,
   Bell,
   BellOff,
-  Mailbox } from
+  Mailbox,
+  Globe } from
 "lucide-react";
 import { formatPhoneNumber } from "../utils/formatters";
 import { formatAddressWithUnit } from '../utils/formatters';
 import { format } from "date-fns";
+import { useNavigate } from "react-router-dom";
 
 import {
   DropdownMenu,
@@ -123,6 +125,8 @@ export default function PatientCard({
   onStatusToggle,
   currentUser
 }) {
+
+  const navigate = useNavigate();
 
   const handleEdit = (e) => {
     e.stopPropagation();
@@ -282,6 +286,20 @@ export default function PatientCard({
               title="Delete Patient">
 
               <Trash2 className="w-4 h-4" />
+            </Button>
+            }
+            {isAppOwner(currentUser) &&
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-blue-400 hover:text-blue-600"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/patient-portal?patientId=${patient.id}`);
+              }}
+              title="Open Patient Portal">
+
+              <Globe className="w-4 h-4" />
             </Button>
             }
           </div>
