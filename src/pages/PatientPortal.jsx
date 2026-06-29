@@ -17,25 +17,39 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
 
-const storeIcon = L.divIcon({
-  html: `<div style="background:white;width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);border:2px solid #e2e8f0;overflow:hidden;"><img src="https://media.base44.com/images/public/68570f3cd01bfa2d2408a9d6/189b7cc2c_ShoppersLogo.ico" style="width:30px;height:30px;object-fit:contain;" /></div>`,
-  className: '',
-  iconSize: [40, 40],
-  iconAnchor: [20, 20],
-});
+const HOUSE_SVG = (strokeColor) =>
+  `<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='${strokeColor}' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/><polyline points='9 22 9 12 15 12 15 22'/></svg>`;
 
-const patientIcon = L.divIcon({
-  html: `<div style="background:#2563eb;color:white;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);border:3px solid white;"><svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/><polyline points='9 22 9 12 15 12 15 22'/></svg></div>`,
-  className: '',
-  iconSize: [36, 36],
-  iconAnchor: [18, 18],
-});
+function makeStoreIcon(pickupDone) {
+  const bg = pickupDone ? '#16a34a' : 'white';
+  const border = pickupDone ? '#15803d' : '#e2e8f0';
+  return L.divIcon({
+    html: `<div style="background:${bg};width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);border:2px solid ${border};overflow:hidden;"><img src="https://media.base44.com/images/public/68570f3cd01bfa2d2408a9d6/189b7cc2c_ShoppersLogo.ico" style="width:30px;height:30px;object-fit:contain;" /></div>`,
+    className: '',
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
+  });
+}
+
+function makePatientIcon(deliveryStatus, isNextDelivery) {
+  let bg = '#2563eb';
+  let iconColor = 'white';
+  if (deliveryStatus === 'completed') { bg = '#16a34a'; }
+  else if (deliveryStatus === 'failed') { bg = '#dc2626'; }
+  else if (isNextDelivery) { bg = '#ca8a04'; iconColor = '#fef08a'; }
+  return L.divIcon({
+    html: `<div style="background:${bg};color:white;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);border:3px solid white;">${HOUSE_SVG(iconColor)}</div>`,
+    className: '',
+    iconSize: [36, 36],
+    iconAnchor: [18, 18],
+  });
+}
 
 const driverIcon = L.divIcon({
   html: `<div style="background:#16a34a;color:white;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);font-size:18px;border:3px solid white;">🚚</div>`,
   className: '',
   iconSize: [36, 36],
-  iconAnchor: [18, 18],
+  iconAnchor: [18, 36],
 });
 
 function MapBoundsFitter({ positions }) {
@@ -221,6 +235,13 @@ export default function PatientPortal() {
 
   const activeStore   = todayDelivery ? storeMap[todayDelivery.store_id] : (patient?.store_id ? storeMap[patient.store_id] : null);
   const statusConfig  = todayDelivery ? STATUS_CONFIG[todayDelivery.status] || STATUS_CONFIG.pending : null;
+
+  // Store marker: green bg when pickup is done (driver has left the store = in_transit/en_route/completed)
+  const pickupDone = todayDelivery ? ['in_transit', 'en_route', 'completed'].includes(todayDelivery.status) : false;
+  const storeIcon = makeStoreIcon(pickupDone);
+
+  // Patient marker: colour based on delivery status / isNextDelivery
+  const patientIcon = makePatientIcon(todayDelivery?.status, todayDelivery?.isNextDelivery);
 
   const mapPositions = [
     activeStore?.latitude  && activeStore?.longitude  ? [activeStore.latitude, activeStore.longitude]   : null,
