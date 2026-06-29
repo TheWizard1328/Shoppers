@@ -342,7 +342,7 @@ export default function StoresPage() {
       </div>
 
       <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto px-6 py-5" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto px-6 py-3" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
           <StoreForm
             store={editingStore}
             onSave={handleSaveStore}
