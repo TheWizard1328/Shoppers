@@ -675,7 +675,18 @@ const subscribeToEntity = (entityName) => {
                 // Non-critical — fall back to using data as-is
               }
             }
-            await offlineDB.save(storeName, dataToSave);
+            // CRITICAL: Merge AppUser data with existing offline record before saving.
+            // IndexedDB `put` REPLACES the entire record. The WebSocket event may
+            // carry only the changed fields (driver_status, location, etc.) and
+            // saving a partial record would wipe fields like app_roles, user_name.
+            let finalDataToSave = dataToSave;
+            if (entityName === 'AppUser' && type === 'update') {
+              try {
+                const existing = await offlineDB.getById(storeName, dataToSave?.id || id);
+                if (existing) finalDataToSave = { ...existing, ...dataToSave };
+              } catch (_) {}
+            }
+            await offlineDB.save(storeName, finalDataToSave);
             const savedLabel = entityName === 'Patient'
               ? (data?.full_name || data?.id || 'Patient')
               : entityName === 'AppUser'
@@ -912,7 +923,18 @@ export const broadcastMutation = async (entity, action, id, data, ids = null) =>
 
     if (storeName) {
       if ((action === 'create' || action === 'update') && data) {
-        await offlineDB.save(storeName, data);
+        // CRITICAL: Merge AppUser/Patient/Delivery data with existing offline record before saving.
+        // broadcastMutation is called by DriverStatusToggle with partial finalData (only
+        // driver_status, location fields) — saving that partial record directly via IndexedDB
+        // `put` would REPLACE the full record and lose app_roles, user_name, and all other fields.
+        let dataToSave = data;
+        if (entity === 'AppUser' && id) {
+          try {
+            const existing = await offlineDB.getById(storeName, id);
+            if (existing) dataToSave = { ...existing, ...data };
+          } catch (_) {}
+        }
+        await offlineDB.save(storeName, dataToSave);
         const broadcastSavedLabel = entity === 'Patient' ? (data?.full_name || id) : id;
         console.log(`💾 [RealtimeSync] [${rsTime()}] Broadcast saved ${entity} to offline DB: ${broadcastSavedLabel}`);
       } else if (action === 'delete' && id) {
