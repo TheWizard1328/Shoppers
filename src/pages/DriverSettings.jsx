@@ -372,23 +372,25 @@ export default function DriverSettings() {
                             <h3 className="font-semibold truncate" style={{ color: 'var(--text-slate-900)' }}>
                               {getDriverDisplayName(driver)}
                             </h3>
-                            <Badge className={`text-xs ${(latestAppUser?.status ?? driver.status) === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
-                              {(latestAppUser?.status ?? driver.status) === 'active' ? 'Active' : 'Inactive'}
-                            </Badge>
-                            <Badge className={`text-xs ${dutyStatus.color}`}>
-                              {dutyStatus.label}
-                            </Badge>
-                            {gpsLabel &&
-                            <Badge className={`text-xs gap-1 ${gpsLabel.isRecent ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
-                                <Navigation className="w-3 h-3" />
-                                GPS: {gpsLabel.label}
-                              </Badge>
-                            }
                           </div>
                           {distToStore &&
                           <Badge className="text-xs gap-1 bg-slate-100 text-slate-600 flex-shrink-0">
                               <MapPin className="w-3 h-3" />
                               {distToStore}
+                            </Badge>
+                          }
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          <Badge className={`text-xs ${(latestAppUser?.status ?? driver.status) === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
+                            {(latestAppUser?.status ?? driver.status) === 'active' ? 'Active' : 'Inactive'}
+                          </Badge>
+                          <Badge className={`text-xs ${dutyStatus.color}`}>
+                            {dutyStatus.label}
+                          </Badge>
+                          {gpsLabel &&
+                          <Badge className={`text-xs gap-1 ${gpsLabel.isRecent ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
+                              <Navigation className="w-3 h-3" />
+                              GPS: {gpsLabel.label}
                             </Badge>
                           }
                         </div>
