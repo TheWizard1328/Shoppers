@@ -282,6 +282,20 @@ export function useLayoutEventHandlers({
     };
     window.addEventListener('dataConflictsDetected', handleConflict);
 
+    // Listen for store updates from Stores page — surgical merge, no full reload
+    const handleStoreUpdated = (event) => {
+      const { storeId, updatedStore } = event.detail || {};
+      if (!storeId) return;
+      if (updatedStore) {
+        setStores((prev) => {
+          const map = new Map((prev || []).filter(Boolean).map((s) => [s.id, s]));
+          map.set(storeId, { ...(map.get(storeId) || {}), ...updatedStore });
+          return Array.from(map.values()).sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+        });
+      }
+    };
+    window.addEventListener('storeUpdated', handleStoreUpdated);
+
     // Listen for offline deletions and update UI immediately
     const handleOfflineDeliveriesDeleted = (event) => {
       const { deletedIds } = event.detail || {};
@@ -532,6 +546,7 @@ export function useLayoutEventHandlers({
       window.removeEventListener('patientsUpdated', handlePatientsUpdated);
       window.removeEventListener('userRolesChanged', handleUserRolesChanged);
       window.removeEventListener('deliveriesImported', handleDeliveriesImported);
+      window.removeEventListener('storeUpdated', handleStoreUpdated);
       window.removeEventListener('offlineDeliveriesDeleted', handleOfflineDeliveriesDeleted);
       window.removeEventListener('deliveriesUpdated', handleDeliveriesUpdated);
       // window.removeEventListener('driverLocationsUpdated', handleDriverLocationUpdated);

@@ -212,12 +212,13 @@ export default function StoresPage() {
 
   const handleSaveStore = async (storeData) => {
     try {
+      let savedStore;
       if (editingStore) {
-        const updatedStore = await updateStoreLocal(editingStore.id, storeData);
-        setStores(prev => sortStores(prev.map(s => s.id === editingStore.id ? updatedStore : s)));
+        savedStore = await updateStoreLocal(editingStore.id, storeData);
+        setStores(prev => sortStores(prev.map(s => s.id === editingStore.id ? savedStore : s)));
       } else {
-        const newStore = await createStoreLocal(storeData);
-        setStores(prev => sortStores([...prev, newStore]));
+        savedStore = await createStoreLocal(storeData);
+        setStores(prev => sortStores([...prev, savedStore]));
       }
 
       // Close form first to prevent re-render issues
@@ -227,8 +228,11 @@ export default function StoresPage() {
       // Skip the next context sync so our optimistic local state isn't overwritten
       skipNextContextSync.current = true;
 
-      // Then invalidate cache for background sync
-      invalidate('Store');
+      // Dispatch a targeted store update event so Layout merges just this store
+      // without triggering a full data reload (which invalidate('Store') would cause).
+      window.dispatchEvent(new CustomEvent('storeUpdated', {
+        detail: { storeId: savedStore?.id, updatedStore: savedStore }
+      }));
     } catch (error) {
       console.error("Error saving store:", error);
       throw error;
