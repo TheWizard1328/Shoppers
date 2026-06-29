@@ -39,6 +39,7 @@ import AdminDeliveriesTable from '../components/admin/AdminDeliveriesTable';
 import { matchesDeliveryCodFilter } from '../components/admin/deliveryCodFilter';
 import UserSettingsTable from '../components/admin/UserSettingsTable';
 import InkbirdRawDiagnostic from '../components/admin/InkbirdRawDiagnostic';
+import InkbirdBleLog from '../components/devices/InkbirdBleLog';
 
 // Wrapper to reload data when Routes tab is opened
 const PolylineViewerWrapper = ({ users, activeUtilityTab }) => {
@@ -1869,7 +1870,7 @@ export default function AdminUtilities() {
                   </TabsContent>
                   <TabsContent value="credits" className="mt-6"><IntegrationCreditsTab /></TabsContent><TabsContent value="temp-logs" className="mt-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 220px)' }}><TempLogTab drivers={driversForDropdown} currentUser={currentUser} /></TabsContent>
                   <TabsContent value="companies" className="mt-6"><CompanyDataTab /></TabsContent>
-                  <TabsContent value="ble-diagnostic" className="mt-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 220px)' }}><InkbirdRawDiagnostic /></TabsContent></Tabs>
+                  <TabsContent value="ble-diagnostic" className="mt-4 overflow-y-auto space-y-4" style={{ maxHeight: 'calc(100vh - 220px)' }}><InkbirdBleLog /><InkbirdRawDiagnostic /></TabsContent></Tabs>
               </div>
             }
           </TabsContent>

@@ -14,7 +14,7 @@ import {
 import { toast } from 'sonner';
 import { getLocationProvider } from '@/components/utils/locationProviders';
 import DeviceForm from '@/components/devices/DeviceForm';
-import InkbirdBleLog from '@/components/devices/InkbirdBleLog';
+// InkbirdBleLog moved to Admin Utilities - BLE Diag tab
 
 const DEVICE_ID_KEY = 'rxdeliver_device_identifier';
 
@@ -371,8 +371,7 @@ export default function DevicesPanel({ currentUser }) {
         </div>
       )}
 
-      {/* BLE diagnostics log */}
-      <InkbirdBleLog />
+      {/* BLE diagnostics log moved to Admin Utilities - BLE Diag tab */}
     </div>
   );
 }
