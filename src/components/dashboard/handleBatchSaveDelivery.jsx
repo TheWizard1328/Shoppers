@@ -548,8 +548,9 @@ export const handleBatchSaveDelivery = async ({
   setEditingDelivery(null);
   hasAutoSelectedRef.current = false;
 
-  setTimeout(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    await refreshData();
-  }, 0);
+  // CRITICAL: Do NOT call refreshData() here — it triggers a full reload that races with
+  // the WebSocket echo for each newly-created delivery, causing triplicated UI entries.
+  // The deliveriesUpdated event above (batchSaveImmediate) already merges the new records
+  // into the Layout state. The WebSocket echo will arrive shortly after and be deduplicated
+  // by realtimeSync's completion lockout. A full reload is unnecessary and harmful here.
 };

@@ -479,9 +479,9 @@ export async function handleBatchSave({
         const refreshDriverId = routeDriverId || deliveriesReadyForDB.find((delivery) => delivery?.patient_id)?.driver_id || existingDeliveriesWithTRs[0]?.driver_id || formData.driver_id;
         const refreshDeliveryDate = routeDeliveryDate || deliveriesReadyForDB.find((delivery) => delivery?.patient_id)?.delivery_date || existingDeliveriesWithTRs[0]?.delivery_date || formData.delivery_date;
 
-        if (hasOnlyPendingOrStagedChanges || deliveriesToUpdate.length > 0 && newDeliveries.length === 0) {
-          window.dispatchEvent(new CustomEvent('deliveriesUpdated', { detail: { deliveryDate: formData.delivery_date, driverId: formData.driver_id, triggeredBy: 'doneButtonUpdates', immediate: true } }));
-        } else {
+        if (!hasOnlyPendingOrStagedChanges && !(deliveriesToUpdate.length > 0 && newDeliveries.length === 0)) {
+          // Only run the full refresh for non-pending structural changes.
+          // Pending-only / Staged→Pending transitions are already dispatched by handleBatchSaveDelivery.
           await runCreateBatchRefresh({ refreshDriverId, refreshDeliveryDate });
         }
 
