@@ -100,6 +100,9 @@ export default function PatientPortal() {
   const todayDeliveryRef = useRef(null);
   todayDeliveryRef.current = todayDelivery;
 
+  // Holds the full driver route snapshot for live badge recalculation
+  const routeDeliveriesRef = useRef([]);
+
   // ── Initial data load ─────────────────────────────────────────────
   const loadData = useCallback(async () => {
     if (!patient?.id) return;
@@ -121,14 +124,14 @@ export default function PatientPortal() {
         PatientSessionManager.startExpirationTimer();
       }
 
-      // Count stops before patient on the driver's route
+      // Count stops before patient on the driver's route (and seed the live ref)
       if (activeToday?.driver_id && activeToday?.stop_order != null) {
         try {
           const routeDeliveries = await base44.entities.Delivery.filter({
             driver_id: activeToday.driver_id,
             delivery_date: TODAY,
           });
-          // All stops (pickup + patient deliveries) with a lower stop_order that are not yet completed
+          routeDeliveriesRef.current = routeDeliveries;
           const countBefore = routeDeliveries.filter((d) =>
             d.id !== activeToday.id &&
             Number(d.stop_order) < Number(activeToday.stop_order) &&
@@ -139,6 +142,7 @@ export default function PatientPortal() {
           setStopsBeforePatient(null);
         }
       } else {
+        routeDeliveriesRef.current = [];
         setStopsBeforePatient(null);
       }
 
@@ -170,9 +174,26 @@ export default function PatientPortal() {
     loadData();
   }, [loadData]);
 
+  // Keep a ref to the current todayDelivery's driver_id and stop_order for use in WS closures
+  const todayDeliveryRouteRef = useRef(null);
+  todayDeliveryRouteRef.current = todayDelivery
+    ? { driver_id: todayDelivery.driver_id, stop_order: todayDelivery.stop_order, id: todayDelivery.id }
+    : null;
+
+  // Helper: recount stops before patient from a given route deliveries array
+  const recountStopsBefore = useCallback((routeDeliveries, patientDelivery) => {
+    if (!patientDelivery?.stop_order == null) return;
+    const count = routeDeliveries.filter((d) =>
+      d.id !== patientDelivery.id &&
+      Number(d.stop_order) < Number(patientDelivery.stop_order) &&
+      !['completed', 'failed', 'cancelled'].includes(d.status)
+    ).length;
+    setStopsBeforePatient(count);
+  }, []);
+
   // ── WebSocket: Delivery subscription ─────────────────────────────
-  // Listens for any Delivery change and filters to this patient's records.
-  // Updates todayDelivery in real-time (status, ETA, driver assignment, etc.).
+  // Listens for any Delivery change. Filters to this patient's records for
+  // todayDelivery/deliveries state, AND tracks all route stops for the badge count.
   useEffect(() => {
     if (!patient?.id) return;
 
@@ -182,10 +203,29 @@ export default function PatientPortal() {
         const updated = event?.data;
         if (!updated?.id) return;
 
-        // Only process deliveries that belong to this patient
-        if (updated.patient_id !== patient.id) return;
-
         setLiveConnected(true);
+
+        // --- Update route deliveries ref for badge recalculation ---
+        const route = todayDeliveryRouteRef.current;
+        if (
+          route &&
+          updated.driver_id === route.driver_id &&
+          updated.delivery_date === TODAY
+        ) {
+          // Patch or add this delivery into our local route snapshot
+          const existing = routeDeliveriesRef.current;
+          const idx = existing.findIndex((d) => d.id === updated.id);
+          if (idx >= 0) {
+            routeDeliveriesRef.current = existing.map((d) => d.id === updated.id ? { ...d, ...updated } : d);
+          } else {
+            routeDeliveriesRef.current = [...existing, updated];
+          }
+          // Recount badge using the patient's own delivery as reference
+          recountStopsBefore(routeDeliveriesRef.current, route);
+        }
+
+        // --- Update this patient's own deliveries ---
+        if (updated.patient_id !== patient.id) return;
 
         // Patch deliveries list
         setDeliveries((prev) => {
@@ -213,7 +253,7 @@ export default function PatientPortal() {
     }
 
     return () => { try { unsub?.(); } catch (_) {} };
-  }, [patient?.id]);
+  }, [patient?.id, recountStopsBefore]);
 
   // ── WebSocket: AppUser subscription (driver location) ────────────
   // Listens for any AppUser change. When the record matches the driver assigned
