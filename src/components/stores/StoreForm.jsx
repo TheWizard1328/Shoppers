@@ -990,7 +990,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                 </div>
 
                 {/* Form Actions */}
-                <div className="flex justify-end gap-3 pt-3 pl-1" style={{ borderTop: '1px solid var(--border-slate-200)' }}>
+                <div className="flex justify-end gap-3 py-4" style={{ borderTop: '1px solid var(--border-slate-200)' }}>
                     <Button type="button" variant="outline" onClick={onCancel} style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
                         Cancel
                     </Button>
