@@ -273,6 +273,14 @@ const openDatabase = async () => {
 /**
  * Save a single record to a store
  */
+/**
+ * Save a single record to a store.
+ * CRITICAL: IndexedDB `put` REPLACES the entire existing record by ID — it does NOT
+ * perform a shallow merge. If you save `{ id, driver_status: 'off_duty' }`, the
+ * existing record's `app_roles`, `user_name`, and all other fields are PERMANENTLY
+ * lost. Always read the existing record first and merge before saving.
+ * See DriverStatusToggle for the correct merge pattern.
+ */
 const save = async (storeName, record) => {
   if (!record) {
     return { success: false, error: 'No record provided' };

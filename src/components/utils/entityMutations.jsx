@@ -955,7 +955,9 @@ export const createEntity = async (entityName, data, options = {}) => {
     const result = await base44.entities[entityName].create(data);
 
     if (entityName === 'AppUser') {
-      await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [result]);
+      // Merge with existing offline record to preserve all fields (IndexedDB put replaces the entire record)
+      const existingRecord = await offlineDB.getById(offlineDB.STORES.APP_USERS, result.id).catch(() => ({})) || {};
+      await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [{ ...existingRecord, ...result }]);
     }
 
     notifyMutation({ type: 'create', entity: entityName, id: result.id, data: result });
@@ -977,7 +979,11 @@ export const updateEntity = async (entityName, entityId, updates, options = {}) 
     const result = await base44.entities[entityName].update(entityId, updates);
 
     if (entityName === 'AppUser') {
-      await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [result]);
+      // CRITICAL: Merge with existing offline record to preserve all fields.
+      // The SDK update response may omit fields like app_roles, user_name, etc.
+      // Saving a partial record would overwrite the full record in IndexedDB.
+      const existingRecord = await offlineDB.getById(offlineDB.STORES.APP_USERS, entityId).catch(() => ({})) || {};
+      await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [{ ...existingRecord, ...result }]);
     }
 
     notifyMutation({ type: 'update', entity: entityName, id: entityId, data: result });
@@ -1046,7 +1052,10 @@ export const localUpdateAppUser = async (appUserId, updates, options = {}) => {
     
     // STEP 2: CRITICAL - DUAL-WRITE to offline DB immediately
     try {
-      await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [result]);
+      // CRITICAL: Merge with existing offline record to preserve app_roles and all other fields.
+      // The SDK update response may only return changed fields, not the full record.
+      const existingRecord = await offlineDB.getById(offlineDB.STORES.APP_USERS, appUserId).catch(() => ({})) || {};
+      await offlineDB.bulkSave(offlineDB.STORES.APP_USERS, [{ ...existingRecord, ...result }]);
       console.log(`💾 [EntityMutations] Synced AppUser to offline DB: ${appUserId}`);
     } catch (offlineError) {
       console.warn('⚠️ [EntityMutations] Failed to sync AppUser to offline DB:', offlineError.message);

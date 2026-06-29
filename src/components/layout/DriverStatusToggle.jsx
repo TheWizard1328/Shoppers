@@ -255,12 +255,14 @@ export default function DriverStatusToggle({ currentUser, targetUser, onStatusCh
       // Persist to API + offline DB
       const updatedAppUser = await base44.entities.AppUser.update(appUserId, updatePayload);
       const { offlineDB } = await import('../utils/offlineDatabase');
-      // CRITICAL: Merge the API response with the original updatePayload so driver_status
-      // and all other fields are guaranteed to be present in the offline DB record.
-      // The SDK response may omit certain fields — saving a partial record would cause
-      // future reads (via getEffectiveUser / getAppUserByUserId) to return undefined
-      // for driver_status, cascading into null database values.
-      const safeRecord = { ...updatedAppUser, ...updatePayload, id: appUserId };
+      // CRITICAL: Merge the API response with the EXISTING offline DB record AND the
+      // update payload. IndexedDB `put` REPLACES the entire record — it does NOT merge.
+      // If the SDK response omits fields (app_roles, user_name, etc.), saving just the
+      // response + updatePayload would permanently lose those fields in the offline DB.
+      // Future reads via getEffectiveUser/getAppUserByUserId would then return a merged
+      // user with empty app_roles, causing "No Role" in the sidebar and null driver_status.
+      const existingRecord = await offlineDB.getById(offlineDB.STORES.APP_USERS, appUserId).catch(() => ({})) || {};
+      const safeRecord = { ...existingRecord, ...updatedAppUser, ...updatePayload, id: appUserId };
       await offlineDB.save(offlineDB.STORES.APP_USERS, safeRecord);
 
       // Call backend (handles isNextDelivery clearing, single-device enforcement, etc.)
