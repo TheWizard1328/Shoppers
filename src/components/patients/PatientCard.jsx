@@ -25,7 +25,7 @@ import {
 import { formatPhoneNumber } from "../utils/formatters";
 import { formatAddressWithUnit } from '../utils/formatters';
 import { format } from "date-fns";
-import { useNavigate } from "react-router-dom";
+import { activatePatientViewOverlay } from '../patient-portal/PatientViewOverlay';
 
 import {
   DropdownMenu,
@@ -125,8 +125,6 @@ export default function PatientCard({
   onStatusToggle,
   currentUser
 }) {
-
-  const navigate = useNavigate();
 
   const handleEdit = (e) => {
     e.stopPropagation();
@@ -295,7 +293,7 @@ export default function PatientCard({
               className="h-8 w-8 text-blue-400 hover:text-blue-600"
               onClick={(e) => {
                 e.stopPropagation();
-                navigate(`/patient-portal?patientId=${patient.id}`);
+                activatePatientViewOverlay(patient);
               }}
               title="Open Patient Portal">
 
