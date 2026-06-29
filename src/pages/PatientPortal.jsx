@@ -379,9 +379,11 @@ export default function PatientPortal() {
     if (!todayDelivery?.stop_order || routeDeliveries.length === 0) return [];
     const patientStopOrder = Number(todayDelivery.stop_order);
 
-    // Include all stops up to and including the patient's stop, sorted by stop_order
+    // Include only INCOMPLETE stops up to and including the patient's stop.
+    // Completed/failed/cancelled stops are excluded so their polyline segments disappear.
+    const DONE_STATUSES = ['completed', 'failed', 'cancelled'];
     const relevantStops = routeDeliveries
-      .filter((d) => d.encoded_polyline && Number(d.stop_order) <= patientStopOrder)
+      .filter((d) => d.encoded_polyline && Number(d.stop_order) <= patientStopOrder && !DONE_STATUSES.includes(d.status))
       .sort((a, b) => Number(a.stop_order) - Number(b.stop_order));
 
     if (relevantStops.length === 0) return [];
