@@ -1,5 +1,4 @@
 import { useCallback } from 'react';
-import { base44 } from '@/api/base44Client';
 import {
   deleteDelivery as deleteDeliveryLocal,
   updateDelivery as updateDeliveryLocal,
@@ -30,12 +29,24 @@ export function useConfirmDelete({
     const staged = deleteConfirmation.staged;
     if (!staged) return;
     setIsDeletingPending(true);
+
+    // ── Pause all background sync operations ────────────────────────────────
     try {
+      const { smartRefreshManager } = await import('../utils/smartRefreshManager');
+      smartRefreshManager.pause();
+    } catch (_) {}
+    try {
+      const { backgroundSyncManager } = await import('../utils/backgroundSyncManager');
+      backgroundSyncManager.pause();
+    } catch (_) {}
+
+    try {
+      // ── Case 1: Staged-only (no real ID) — just remove from local list ───
       if (!staged.id) {
-        setStagedDeliveries((prev) => prev.filter((item) => item.id !== staged.id && item._tempId !== staged._tempId));
+        setStagedDeliveries((prev) => prev.filter((item) => item._tempId !== staged._tempId));
         const remainingStagedIds = new Set(
           stagedDeliveries
-            .filter((item) => item.id !== staged.id && item._tempId !== staged._tempId)
+            .filter((item) => item._tempId !== staged._tempId)
             .map((d) => d.patient_id)
             .filter(Boolean)
         );
@@ -56,7 +67,9 @@ export function useConfirmDelete({
         setDeleteConfirmation({ show: false, staged: null, transferPickupId: null });
         if (shouldAutoFocusFields) setTimeout(() => patientSearchInputRef?.current?.focus(), 150);
         return;
-        }
+      }
+
+      // ── Case 2: Pickup transfer — reassign linked stops before deleting ──
       if (!staged.patient_id && deleteConfirmation.transferPickupId) {
         const linkedStops = sortedStagedDeliveries.filter((s) => s.id && s.patient_id && s.puid === staged.stop_id);
         if (linkedStops.length) {
@@ -75,17 +88,16 @@ export function useConfirmDelete({
         }
       }
 
+      // ── Delete: offline DB + online DB (entityMutations handles both) ────
       await deleteDeliveryLocal(staged.id);
 
+      // ── Update local UI state ─────────────────────────────────────────────
       const nextStagedDeliveries = stagedDeliveries.filter(
         (item) => item.id !== staged.id && item._tempId !== staged._tempId
       );
-
       setStagedDeliveries(nextStagedDeliveries);
 
-      const remainingStagedIds = new Set(
-        nextStagedDeliveries.map((d) => d.patient_id).filter(Boolean)
-      );
+      const remainingStagedIds = new Set(nextStagedDeliveries.map((d) => d.patient_id).filter(Boolean));
       setProjectedDeliveries(
         fullPredictionListRef.current.filter(
           (pred) =>
@@ -96,49 +108,10 @@ export function useConfirmDelete({
         )
       );
 
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-        detail: {
-          deliveryId: staged.id,
-          driverId: staged.driver_id,
-          deliveryDate: staged.delivery_date,
-          triggeredBy: 'pendingDeliveryDelete',
-          preserveLocalState: true
-        }
-      }));
-
-      // CRITICAL: Pending stop deletes never need optimization or polyline regeneration.
-      // Only run background stop-order recalc + optimize for active (non-pending) stops.
-      const isActivStop = !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(staged.status);
-      if (isActivStop && staged.driver_id && staged.delivery_date) {
-        Promise.resolve().then(async () => {
-          try {
-            const { recalculateAndUpdateStopOrders } = await import('../utils/stopOrderManager');
-            await recalculateAndUpdateStopOrders(staged.driver_id, staged.delivery_date);
-            await base44.functions.invoke('optimizeRemainingStops', {
-              driverId: staged.driver_id,
-              deliveryDate: staged.delivery_date,
-              bypassDriverStatus: true,
-              bypassDeduplication: true,
-              bypassHistoricalCheck: true,
-            }).catch(() => {});
-            base44.functions.invoke('purgeAndRegeneratePolylines', {
-              driverId: staged.driver_id,
-              deliveryDate: staged.delivery_date,
-              scope: 'active_only',
-            }).catch(() => {});
-          } catch (_) {}
-        });
-      }
-
-      const { invalidate } = await import('../utils/dataManager');
-      invalidate('Delivery');
-
       setHasChanges(true);
       setHasPendingDeletes(true);
-      // Track whether this was a pending-status delete so callers can skip optimization
       if (typeof setAllDeletedWerePending === 'function') {
-        const wasPending = staged.status === 'pending';
-        setAllDeletedWerePending((prev) => prev && wasPending);
+        setAllDeletedWerePending((prev) => prev && staged.status === 'pending');
       }
       if (editingStagedId === staged._tempId) {
         setEditingStagedId(null);
@@ -146,10 +119,20 @@ export function useConfirmDelete({
       }
       setDeleteConfirmation({ show: false, staged: null, transferPickupId: null });
       if (shouldAutoFocusFields) setTimeout(() => patientSearchInputRef?.current?.focus(), 150);
+
     } catch (err) {
       setError(`Failed: ${err.message}`);
     } finally {
       setIsDeletingPending(false);
+      // ── Resume all background sync operations ──────────────────────────
+      try {
+        const { smartRefreshManager } = await import('../utils/smartRefreshManager');
+        smartRefreshManager.resume();
+      } catch (_) {}
+      try {
+        const { backgroundSyncManager } = await import('../utils/backgroundSyncManager');
+        backgroundSyncManager.resume();
+      } catch (_) {}
     }
   }, [deleteConfirmation, sortedStagedDeliveries, stagedDeliveries, editingStagedId, handleClearForm]);
 }
