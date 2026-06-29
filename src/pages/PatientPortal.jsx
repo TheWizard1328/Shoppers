@@ -31,14 +31,21 @@ function makeStoreIcon(pickupDone) {
   });
 }
 
-function makePatientIcon(deliveryStatus, isNextDelivery) {
+function makePatientIcon(deliveryStatus, isNextDelivery, stopsBeforeCount) {
   let bg = '#2563eb';
   let iconColor = 'white';
   if (deliveryStatus === 'completed') { bg = '#16a34a'; }
   else if (deliveryStatus === 'failed') { bg = '#dc2626'; }
   else if (isNextDelivery) { bg = '#ca8a04'; iconColor = '#fef08a'; }
+
+  // Cluster badge: show stops-before count only when delivery is not yet done and count > 0
+  const showBadge = stopsBeforeCount != null && stopsBeforeCount > 0 && !['completed', 'failed', 'cancelled'].includes(deliveryStatus);
+  const badge = showBadge
+    ? `<div style="position:absolute;top:-6px;right:-6px;background:#ef4444;color:white;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4);z-index:10;">${stopsBeforeCount}</div>`
+    : '';
+
   return L.divIcon({
-    html: `<div style="background:${bg};color:white;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);border:3px solid white;">${HOUSE_SVG(iconColor)}</div>`,
+    html: `<div style="position:relative;width:36px;height:36px;"><div style="background:${bg};color:white;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);border:3px solid white;">${HOUSE_SVG(iconColor)}</div>${badge}</div>`,
     className: '',
     iconSize: [36, 36],
     iconAnchor: [18, 18],
@@ -86,6 +93,7 @@ export default function PatientPortal() {
   const [driverLocation, setDriverLocation] = useState(null);
   const [loading, setLoading]               = useState(true);
   const [liveConnected, setLiveConnected]   = useState(false);
+  const [stopsBeforePatient, setStopsBeforePatient] = useState(null);
 
   // Keep a ref to the current todayDelivery so subscriptions can read it without
   // going stale in closures.
@@ -111,6 +119,27 @@ export default function PatientPortal() {
 
       if (activeToday?.status === 'completed') {
         PatientSessionManager.startExpirationTimer();
+      }
+
+      // Count stops before patient on the driver's route
+      if (activeToday?.driver_id && activeToday?.stop_order != null) {
+        try {
+          const routeDeliveries = await base44.entities.Delivery.filter({
+            driver_id: activeToday.driver_id,
+            delivery_date: TODAY,
+          });
+          // All stops (pickup + patient deliveries) with a lower stop_order that are not yet completed
+          const countBefore = routeDeliveries.filter((d) =>
+            d.id !== activeToday.id &&
+            Number(d.stop_order) < Number(activeToday.stop_order) &&
+            !['completed', 'failed', 'cancelled'].includes(d.status)
+          ).length;
+          setStopsBeforePatient(countBefore);
+        } catch (_) {
+          setStopsBeforePatient(null);
+        }
+      } else {
+        setStopsBeforePatient(null);
       }
 
       // Seed driver location from initial load (no poll — WS takes over after this)
@@ -240,8 +269,8 @@ export default function PatientPortal() {
   const pickupDone = todayDelivery ? ['in_transit', 'en_route', 'completed'].includes(todayDelivery.status) : false;
   const storeIcon = makeStoreIcon(pickupDone);
 
-  // Patient marker: colour based on delivery status / isNextDelivery
-  const patientIcon = makePatientIcon(todayDelivery?.status, todayDelivery?.isNextDelivery);
+  // Patient marker: colour based on delivery status / isNextDelivery, badge = stops before
+  const patientIcon = makePatientIcon(todayDelivery?.status, todayDelivery?.isNextDelivery, stopsBeforePatient);
 
   const mapPositions = [
     activeStore?.latitude  && activeStore?.longitude  ? [activeStore.latitude, activeStore.longitude]   : null,
