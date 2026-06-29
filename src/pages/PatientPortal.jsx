@@ -59,17 +59,51 @@ const driverIcon = L.divIcon({
   iconAnchor: [18, 36],
 });
 
+// Initial bounds fitter — runs once on first load
 function MapBoundsFitter({ positions }) {
   const map = useMap();
+  const fittedRef = useRef(false);
   useEffect(() => {
-    if (positions.length === 0) return;
+    if (fittedRef.current || positions.length === 0) return;
+    fittedRef.current = true;
     if (positions.length === 1) {
       map.setView(positions[0], 14);
-      return;
+    } else {
+      map.fitBounds(L.latLngBounds(positions), { padding: [60, 60] });
     }
-    const bounds = L.latLngBounds(positions);
-    map.fitBounds(bounds, { padding: [60, 60] });
   }, [positions.map(p => p.join(',')).join('|')]);
+  return null;
+}
+
+// Tracks driver+patient, handles double-tap to reset tracking
+function DriverTracker({ driverLocation, patientLatLng, trackingMode, onDoubleTap, onUserInteract }) {
+  const map = useMap();
+
+  // Auto-pan when driver moves and tracking is active
+  useEffect(() => {
+    if (!trackingMode || !driverLocation || !patientLatLng) return;
+    const positions = [
+      [driverLocation.lat, driverLocation.lng],
+      patientLatLng,
+    ];
+    map.fitBounds(L.latLngBounds(positions), { padding: [60, 60], animate: true });
+  }, [driverLocation?.lat, driverLocation?.lng, trackingMode]);
+
+  // Listen for double-tap to re-enable tracking mode
+  useEffect(() => {
+    const handleDblClick = () => onDoubleTap();
+    map.on('dblclick', handleDblClick);
+    // Any user drag/zoom disables tracking
+    const handleInteract = () => onUserInteract();
+    map.on('dragstart', handleInteract);
+    map.on('zoomstart', handleInteract);
+    return () => {
+      map.off('dblclick', handleDblClick);
+      map.off('dragstart', handleInteract);
+      map.off('zoomstart', handleInteract);
+    };
+  }, [map, onDoubleTap, onUserInteract]);
+
   return null;
 }
 
@@ -112,6 +146,8 @@ export default function PatientPortal() {
   const [liveConnected, setLiveConnected]   = useState(false);
   const [stopsBeforePatient, setStopsBeforePatient] = useState(null);
   const [routeDeliveries, setRouteDeliveries] = useState([]);
+  // trackingMode: when true the map auto-pans to keep driver+patient in view
+  const [trackingMode, setTrackingMode] = useState(false);
 
   // Keep a ref to the current todayDelivery so subscriptions can read it without
   // going stale in closures.
@@ -311,10 +347,16 @@ export default function PatientPortal() {
     return () => { try { unsub?.(); } catch (_) {} };
   }, [patient?.id]);
 
-  // ── Clear driver location when delivery is no longer active ───────
+  // ── Clear driver location + tracking when delivery is no longer active ───────
   useEffect(() => {
     const isActive = todayDelivery && ['in_transit', 'en_route'].includes(todayDelivery.status);
-    if (!isActive) setDriverLocation(null);
+    if (!isActive) {
+      setDriverLocation(null);
+      setTrackingMode(false);
+    } else {
+      // Auto-enable tracking when driver becomes active
+      setTrackingMode(true);
+    }
   }, [todayDelivery?.status]);
 
   // ── Map markers ───────────────────────────────────────────────────
@@ -374,6 +416,13 @@ export default function PatientPortal() {
   const defaultCenter = patient?.latitude && patient?.longitude
     ? [patient.latitude, patient.longitude]
     : [53.5461, -113.4938]; // Edmonton fallback
+
+  const patientLatLng = patient?.latitude && patient?.longitude
+    ? [patient.latitude, patient.longitude]
+    : null;
+
+  const handleDoubleTap = useCallback(() => setTrackingMode(true), []);
+  const handleUserInteract = useCallback(() => setTrackingMode(false), []);
 
   return (
     <div className="flex h-screen bg-slate-100 overflow-hidden">
@@ -479,7 +528,14 @@ export default function PatientPortal() {
         </div>
 
         {/* Map */}
-        <div className="flex-1 px-4 pb-4 overflow-hidden">
+        <div className="flex-1 px-4 pb-4 overflow-hidden relative">
+          {driverLocation && (
+            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[1000] pointer-events-none">
+              <div className={`text-xs font-medium px-3 py-1 rounded-full shadow border ${trackingMode ? 'bg-green-50 text-green-700 border-green-200' : 'bg-white text-slate-500 border-slate-200'}`}>
+                {trackingMode ? '📍 Tracking driver' : 'Double-tap map to track driver'}
+              </div>
+            </div>
+          )}
           <div className="h-full rounded-xl overflow-hidden border border-slate-200 shadow-sm">
             <MapContainer
               center={defaultCenter}
@@ -493,6 +549,13 @@ export default function PatientPortal() {
               />
 
               {mapPositions.length > 0 && <MapBoundsFitter positions={mapPositions} />}
+              <DriverTracker
+                driverLocation={driverLocation}
+                patientLatLng={patientLatLng}
+                trackingMode={trackingMode}
+                onDoubleTap={handleDoubleTap}
+                onUserInteract={handleUserInteract}
+              />
 
               {/* Route polyline: store → intermediate stops → patient */}
               {routePolylineCoords.length > 1 && (
