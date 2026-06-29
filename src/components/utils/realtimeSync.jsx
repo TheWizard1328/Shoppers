@@ -124,6 +124,11 @@ async function flushBuffered(entityName) {
           }));
         }
       }
+      if (entityName === 'Store' && data) {
+        window.dispatchEvent(new CustomEvent('storeUpdated', {
+          detail: { storeId: id, updatedStore: data, fromRealtime: true }
+        }));
+      }
       if (entityName === 'AppSettings' && data) {
         window.dispatchEvent(new CustomEvent('appSettingsUpdated', {
           detail: { type: eventType, id, data, fromRealtime: true }
@@ -743,6 +748,7 @@ export const connect = () => {
     subscribeToEntity('Message');
     subscribeToEntity('GoogleAPILog');
     subscribeToEntity('AppSettings');
+    subscribeToEntity('Store');
     subscribeToEntity('DeliveryBreadcrumbs');
     subscribeToEntity('InterStoreLocation');
     subscribeToEntity('TileCoverage');

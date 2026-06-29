@@ -68,15 +68,13 @@ export default function StoresPage() {
     window.addEventListener('offlineMutationRecordReplaced', handleOfflineRecordReplaced);
 
     // Listen for store updates from StoreCard (app fees checkbox, etc.)
+    // CRITICAL: Always merge surgically — never fetch/replace. A full reload on every
+    // store update would clear unmatched stores from React state, causing all devices to
+    // lose stores that don't match the current city/date filter in AppDataContext.
     const handleStoreUpdated = async (event) => {
       const { storeId, updatedStore } = event.detail || {};
-      if (!storeId) return;
-      if (updatedStore) {
-        setStores(prev => sortStores(prev.map(store => store.id === storeId ? { ...store, ...updatedStore } : store)));
-        return;
-      }
-      const freshStores = await getData('Store', null, null, true);
-      setStores(sortStores(freshStores || []));
+      if (!storeId || !updatedStore) return;
+      setStores(prev => sortStores(prev.map(store => store.id === storeId ? { ...store, ...updatedStore } : store)));
     };
     window.addEventListener('storeUpdated', handleStoreUpdated);
     return () => {
@@ -108,20 +106,36 @@ export default function StoresPage() {
   }, []);
 
   // Sync context data for real-time updates - OPTIMIZED to prevent unnecessary re-renders
+  // CRITICAL: Always MERGE context stores into local state — never replace. Context stores
+  // may be city-filtered (from Layout's AppDataContext). Replacing local stores with a
+  // filtered subset would wipe out stores from other cities on ALL devices simultaneously.
   useEffect(() => {
     if (contextDataLoaded) {
-      // CRITICAL: Only update state if data actually changed (prevent re-renders)
-      if (contextStores.length > 0) {
+      if (contextStores.length > 0 && stores.length > 0) {
         // Skip one sync cycle after a local save to avoid overwriting our optimistic state
         if (skipNextContextSync.current) {
           skipNextContextSync.current = false;
         } else {
-          const sortedStores = sortStores(contextStores);
-          // Deep compare to avoid re-renders when data is identical
+          // MERGE: only apply stores from context that are updates to existing local stores
+          // or new stores (created elsewhere). Never remove stores that context doesn't have.
+          const contextMap = new Map(contextStores.map(s => [s.id, s]));
+          const merged = stores.map(s => contextMap.has(s.id) ? { ...s, ...contextMap.get(s.id) } : s);
+          // Add any stores from context that are completely new
+          contextStores.forEach(cs => {
+            if (!merged.some(m => m.id === cs.id)) merged.push(cs);
+          });
+          const sortedStores = sortStores(merged);
           if (JSON.stringify(sortedStores) !== JSON.stringify(stores)) {
-            console.log("🔄 [Stores] Syncing stores from AppDataContext");
+            console.log("🔄 [Stores] Merging updated stores from AppDataContext");
             setStores(sortedStores);
           }
+        }
+      } else if (contextStores.length > 0 && stores.length === 0) {
+        // Only if stores is empty, accept context stores as initial seed
+        const sortedStores = sortStores(contextStores);
+        if (JSON.stringify(sortedStores) !== JSON.stringify(stores)) {
+          console.log("🔄 [Stores] Seeding stores from AppDataContext");
+          setStores(sortedStores);
         }
       }
       if (contextCities.length > 0 && JSON.stringify(contextCities) !== JSON.stringify(cities)) {
