@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { offlineDB } from '@/components/utils/offlineDatabase';
+import { clearAllTempLogs } from '@/functions/clearAllTempLogs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Loader2, RefreshCw, Thermometer, ChevronRight, ChevronDown, Trash2, AlertTriangle } from 'lucide-react';
+import { Loader2, RefreshCw, Thermometer, ChevronRight, ChevronDown, Trash2, AlertTriangle, AlertCircle } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceArea, ReferenceLine, ResponsiveContainer, Legend } from 'recharts';
 import { format } from 'date-fns';
 import { isAppOwner } from '@/components/utils/userRoles';
@@ -37,7 +38,8 @@ export default function TempLogTab({ drivers = [], currentUser }) {
   const [treeDriverId, setTreeDriverId] = useState(null); // which driver is open in the tree
   const [expandedLogIds, setExpandedLogIds] = useState(new Set());
   const [deleting, setDeleting] = useState(null); // logId being deleted, or 'all-{driverId}'
-  const [confirmDelete, setConfirmDelete] = useState(null); // { type: 'log'|'all'|'reading', logId?, driverId?, readingIdx? }
+  const [confirmDelete, setConfirmDelete] = useState(null); // { type: 'log'|'all'|'reading'|'clearAll', logId?, driverId?, readingIdx? }
+  const [clearingAll, setClearingAll] = useState(false);
   const [selectedLogId, setSelectedLogId] = useState(null); // log expanded inline in summary table
 
   const canDelete = isAppOwner(currentUser);
@@ -98,10 +100,20 @@ export default function TempLogTab({ drivers = [], currentUser }) {
     return () => {cancelled = true;};
   }, [selectedDate]);
 
-  // Live WebSocket subscription — updates chart in real-time when a driver saves a reading
+  // Live WebSocket subscription — updates chart in real-time and handles cross-device deletes
   useEffect(() => {
     const handleWsUpdate = async (e) => {
-      const updated = e.detail?.data;
+      const { type, id, data: updated } = e.detail || {};
+
+      // Handle delete events (from remote Clear All or individual delete)
+      if (type === 'delete') {
+        // Remove from offline DB
+        await offlineDB.deleteRecord(offlineDB.STORES.RX_TEMP_LOGS, id).catch(() => {});
+        // Remove from UI state
+        setLogs((prev) => prev.filter((l) => l.id !== id));
+        return;
+      }
+
       if (!updated?.driver_id || !updated?.delivery_date) return;
       if (updated.delivery_date !== selectedDate) return;
       if (selectedDriverId !== 'all' && updated.driver_id !== selectedDriverId) return;
@@ -124,6 +136,18 @@ export default function TempLogTab({ drivers = [], currentUser }) {
     window.addEventListener('rxTempLogsUpdated', handleWsUpdate);
     return () => window.removeEventListener('rxTempLogsUpdated', handleWsUpdate);
   }, [selectedDate, selectedDriverId]);
+
+  // Listen for the bulk-clear broadcast signal (set by the Clear All button after the backend call)
+  useEffect(() => {
+    const handleClearSignal = (e) => {
+      // Clear local state immediately — the realtime WS events will clean up offline DB on all devices
+      setLogs([]);
+      setClearingAll(false);
+      setConfirmDelete(null);
+    };
+    window.addEventListener('forceClearTempLogs', handleClearSignal);
+    return () => window.removeEventListener('forceClearTempLogs', handleClearSignal);
+  }, []);
 
   // Per-driver route boundaries: first and last completed/failed stop times
   const routeBoundaries = useMemo(() => {
@@ -327,6 +351,31 @@ export default function TempLogTab({ drivers = [], currentUser }) {
     setConfirmDelete(null);
   }, [logs]);
 
+  // Clear ALL temperature logs from online DB + all connected devices
+  const handleClearAll = useCallback(async () => {
+    setClearingAll(true);
+    try {
+      // 1. Delete all from online DB via backend function (service role)
+      const resp = await clearAllTempLogs();
+      if (resp?.data?.error) throw new Error(resp.data.error);
+
+      // 2. Clear local offline DB store
+      await offlineDB.clearStore(offlineDB.STORES.RX_TEMP_LOGS).catch(() => {});
+
+      // 3. Broadcast to all tabs on THIS device
+      window.dispatchEvent(new CustomEvent('forceClearTempLogs'));
+
+      // 4. The WebSocket subscription handles clearing other connected devices' offline DBs
+      // When deleteMany fires, each deleted record triggers a WS 'delete' event.
+      // The rxTempLogsUpdated handler above catches those and removes from state + offline DB.
+    } catch (err) {
+      console.error('❌ [TempLogTab] Clear all failed:', err);
+    } finally {
+      setClearingAll(false);
+      setConfirmDelete(null);
+    }
+  }, []);
+
   // Drivers that have logs for the current date/filter
   const driversWithLogs = useMemo(() => {
     const driverIds = [...new Set(logs.map((l) => l.driver_id))];
@@ -384,6 +433,34 @@ export default function TempLogTab({ drivers = [], currentUser }) {
             {logs.length} log{logs.length !== 1 ? 's' : ''} • {totalReadings} reading{totalReadings !== 1 ? 's' : ''}
           </span>
         }
+
+        {canDelete && logs.length > 0 && (
+          confirmDelete?.type === 'clearAll' ?
+          <div className="flex items-center gap-1.5 ml-auto">
+            <span className="text-xs text-red-600 font-medium">Clear ALL temp logs (online + all devices)?</span>
+            <button
+              onClick={handleClearAll}
+              disabled={clearingAll}
+              className="text-xs px-2 py-0.5 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+            >
+              {clearingAll ? <Loader2 className="w-3 h-3 animate-spin inline" /> : 'Yes'}
+            </button>
+            <button
+              onClick={() => setConfirmDelete(null)}
+              className="text-xs px-2 py-0.5 bg-slate-200 text-slate-700 rounded hover:bg-slate-300"
+            >
+              No
+            </button>
+          </div> :
+          <button
+            onClick={() => setConfirmDelete({ type: 'clearAll' })}
+            title="Clear all temperature logs from online DB and all devices"
+            className="ml-auto flex items-center gap-1 text-xs text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition-colors font-medium"
+          >
+            <AlertCircle className="w-3.5 h-3.5" />
+            Clear All Logs
+          </button>
+        )}
       </div>
 
       {/* Chart */}
