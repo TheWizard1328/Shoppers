@@ -67,9 +67,9 @@ export default function StatsPanel({
 
   useEffect(() => {
     if (!currentUser) return;
-    base44.entities.DriverScheduleOverride.filter({ driver_id: '__booked_off__' })
-      .then(setBookedOffOverrides)
-      .catch(() => {});
+    base44.entities.DriverScheduleOverride.filter({ driver_id: '__booked_off__' }).
+    then(setBookedOffOverrides).
+    catch(() => {});
     const unsubscribe = base44.entities.DriverScheduleOverride.subscribe((event) => {
       if (event.type === 'delete') {
         setBookedOffOverrides((prev) => prev.filter((o) => o.id !== event.id));
@@ -101,7 +101,7 @@ export default function StatsPanel({
       if (d < today) return false;
       const sameMonth = d.getFullYear() === year && d.getMonth() === month;
       const nextMonth = d.getFullYear() === (month === 11 ? year + 1 : year) && d.getMonth() === (month + 1) % 12;
-      return sameMonth || (includeNext && nextMonth);
+      return sameMonth || includeNext && nextMonth;
     }).length;
   }, [bookedOffOverrides]);
   const [showMapStyleOptions, setShowMapStyleOptions] = useState(false);
@@ -255,7 +255,7 @@ export default function StatsPanel({
   return (
     <div className={statsCardPositioning} style={{ zIndex: isMobile && isExpanded ? 20 : isMobile ? 20 : 40, position: 'absolute', pointerEvents: 'none', visibility: statsPanelOpacity < 0.1 ? 'hidden' : 'visible', transition: 'visibility 0s linear 0.5s' }}>
       <div ref={statsCardRef} className="flex flex-col items-start gap-1 relative"
-      style={{ opacity: statsPanelOpacity, transition: 'opacity 0.5s ease-in-out', pointerEvents: statsPanelOpacity < 0.1 ? 'none' : 'auto', width: (isMobile && window.innerWidth < 470) ? `${Math.round(window.innerWidth * 0.95)}px` : '625px' }} //'max-content', minWidth: (isMobile && window.innerWidth < 600) ? `${Math.round(window.innerWidth * 0.95)}px` : 
+      style={{ opacity: statsPanelOpacity, transition: 'opacity 0.5s ease-in-out', pointerEvents: statsPanelOpacity < 0.1 ? 'none' : 'auto', width: isMobile && window.innerWidth < 470 ? `${Math.round(window.innerWidth * 0.95)}px` : '625px' }} //'max-content', minWidth: (isMobile && window.innerWidth < 600) ? `${Math.round(window.innerWidth * 0.95)}px` : 
       onMouseEnter={() => handleStatsPanelInteraction(true)}
       onMouseLeave={() => handleStatsPanelInteraction(false)}>
 
@@ -294,15 +294,15 @@ export default function StatsPanel({
         <div className="flex flex-row items-start gap-1.5" style={{ pointerEvents: 'auto' }}>
         <div className="flex flex-col items-stretch gap-1" style={{ minWidth: 0, width: '100%' }}>
         <motion.div
-          data-stats-card="true"
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-          onMouseEnter={() => handleCardInteraction(true)}
-          onMouseLeave={() => handleCardInteraction(false)}
-          onClick={(e) => {e.stopPropagation();handleCardInteraction(true);if (retractClustersRef.current) retractClustersRef.current();}} className="px-2 py-0.5 rounded-2xl shadow-xl border cursor-pointer w-full"
+              data-stats-card="true"
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+              onMouseEnter={() => handleCardInteraction(true)}
+              onMouseLeave={() => handleCardInteraction(false)}
+              onClick={(e) => {e.stopPropagation();handleCardInteraction(true);if (retractClustersRef.current) retractClustersRef.current();}} className="px-2 py-0.5 rounded-2xl shadow-xl border cursor-pointer w-full"
 
-          style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', pointerEvents: 'auto', touchAction: 'none', position: 'relative' }}>
+              style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', pointerEvents: 'auto', touchAction: 'none', position: 'relative' }}>
 
           <div className="mb-0 flex items-center mt-0.25">
             {/* Left: title + status indicators */}
@@ -310,9 +310,9 @@ export default function StatsPanel({
               <h2 className="pl-2 text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>Dashboard</h2>
 
               {currentUser && <SmartRefreshIndicator inline={true} onManualRefresh={async () => {
-                const syncButton = document.querySelector('[data-offline-sync-button]');
-                if (syncButton) syncButton.click();
-              }} />}
+                    const syncButton = document.querySelector('[data-offline-sync-button]');
+                    if (syncButton) syncButton.click();
+                  }} />}
 
               {currentUser && <div className="flex items-center gap-1.5 ml-0">
                 <ConnectionIndicator />
@@ -321,18 +321,18 @@ export default function StatsPanel({
             </div>
 
             {/* Center: booked-off badge (mobile only) */}
-            {isMobile && (isAdmin || isDriver) && bookedOffCount > 0 && (
-              <div className="flex-1 flex justify-center">
+            {isMobile && (isAdmin || isDriver) && bookedOffCount > 0 &&
+                <div className="flex-1 flex justify-center">
                 <Link
-                  to="/DriverScheduleCalendar"
-                  onClick={(e) => e.stopPropagation()}
-                  style={{ textDecoration: 'none' }}>
+                    to="/DriverScheduleCalendar"
+                    onClick={(e) => e.stopPropagation()}
+                    style={{ textDecoration: 'none' }}>
                   <Badge variant="secondary" className="px-2 rounded-[10px]" style={{ background: '#fff7ed', color: '#c2410c' }}>
                     🚫 {bookedOffCount}
                   </Badge>
                 </Link>
               </div>
-            )}
+                }
             {/* Spacer when no badge so right side stays pushed right */}
             {!(isMobile && (isAdmin || isDriver) && bookedOffCount > 0) && <div className="flex-1" />}
 
@@ -346,72 +346,72 @@ export default function StatsPanel({
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0 z-[10001]" align="end" style={{ pointerEvents: 'auto', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
                   <Calendar
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={(date) => {
-                      if (!date) return;
-                      if (format(date, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd')) {setIsCalendarOpen(false);return;}
-                      handleDateChange(date);
-                    }}
-                    month={calendarMonth}
-                    onMonthChange={setCalendarMonth}
-                    footer={
-                    <div className="px-3 pb-2 pt-1 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+                        mode="single"
+                        selected={selectedDate}
+                        onSelect={(date) => {
+                          if (!date) return;
+                          if (format(date, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd')) {setIsCalendarOpen(false);return;}
+                          handleDateChange(date);
+                        }}
+                        month={calendarMonth}
+                        onMonthChange={setCalendarMonth}
+                        footer={
+                        <div className="px-3 pb-2 pt-1 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                         <TooltipProvider><Tooltip>
                           <TooltipTrigger asChild>
                             <button type="button" onClick={() => {const d = new Date();setCalendarMonth(d);handleDateChange(d);}}
-                            className="w-full flex items-center justify-center gap-1 p-1.5 rounded text-xs"
-                            style={{ color: 'var(--text-slate-600)' }}
-                            onMouseEnter={(e) => {e.currentTarget.style.background = 'var(--bg-slate-100)';e.currentTarget.style.color = 'var(--text-slate-800)';}}
-                            onMouseLeave={(e) => {e.currentTarget.style.background = 'transparent';e.currentTarget.style.color = 'var(--text-slate-600)';}}>
+                                className="w-full flex items-center justify-center gap-1 p-1.5 rounded text-xs"
+                                style={{ color: 'var(--text-slate-600)' }}
+                                onMouseEnter={(e) => {e.currentTarget.style.background = 'var(--bg-slate-100)';e.currentTarget.style.color = 'var(--text-slate-800)';}}
+                                onMouseLeave={(e) => {e.currentTarget.style.background = 'transparent';e.currentTarget.style.color = 'var(--text-slate-600)';}}>
                               <Clock className="w-3 h-3" />Today
                             </button>
                           </TooltipTrigger>
                           <TooltipContent><p>Go to today</p></TooltipContent>
                         </Tooltip></TooltipProvider>
                       </div>
-                    }
-                    className="rdp p-3" style={{ color: 'var(--text-slate-900)' }} />
+                        }
+                        className="rdp p-3" style={{ color: 'var(--text-slate-900)' }} />
                 </PopoverContent>
               </Popover>
 
               <Button
-                onClick={() => {if (currentUser?.status === 'inactive' && isDriver && !isAdmin) return; setEditingDelivery(null);setShowDeliveryForm(true);}}
-                size="sm"
-                className={`relative h-8 w-8 p-0 transition-colors ${currentUser?.status === 'inactive' && isDriver && !isAdmin ? 'bg-slate-300 cursor-not-allowed' : hasRateLimitError ? 'bg-red-500 hover:bg-red-600' : isDemoModeActive ? 'bg-blue-500 hover:bg-blue-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}
-                disabled={(isDateFinished && !isAdmin) || (currentUser?.status === 'inactive' && isDriver && !isAdmin)}
-                title={currentUser?.status === 'inactive' && isDriver && !isAdmin ? 'Inactive drivers cannot add deliveries' : hasRateLimitError ? 'Rate limit detected - please wait' : isDemoModeActive ? 'Add demo delivery' : 'Add delivery'}>
+                    onClick={() => {if (currentUser?.status === 'inactive' && isDriver && !isAdmin) return;setEditingDelivery(null);setShowDeliveryForm(true);}}
+                    size="sm"
+                    className={`relative h-8 w-8 p-0 transition-colors ${currentUser?.status === 'inactive' && isDriver && !isAdmin ? 'bg-slate-300 cursor-not-allowed' : hasRateLimitError ? 'bg-red-500 hover:bg-red-600' : isDemoModeActive ? 'bg-blue-500 hover:bg-blue-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}
+                    disabled={isDateFinished && !isAdmin || currentUser?.status === 'inactive' && isDriver && !isAdmin}
+                    title={currentUser?.status === 'inactive' && isDriver && !isAdmin ? 'Inactive drivers cannot add deliveries' : hasRateLimitError ? 'Rate limit detected - please wait' : isDemoModeActive ? 'Add demo delivery' : 'Add delivery'}>
                 <Plus className="w-4 h-4" />
                 {isDemoModeActive && !hasRateLimitError &&
-                <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white text-[8px] font-bold leading-none text-blue-600">
+                    <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white text-[8px] font-bold leading-none text-blue-600">
                     D
                   </span>
-                }
+                    }
               </Button>
             </div>
           </div>
 
           <div className="flex items-center justify-between gap-1.5">
             <ActivePayStats
-              deliveryStats={deliveryStats}
-              localStats={stats}
-              isDispatcher={isDispatcher}
-              isDriver={isDriver}
-              isAdmin={isAdmin}
-              performanceStats={performanceStats}
-              liveDistance={liveDistance}
-              liveTimeOnDuty={finalizedDutyTime ?? liveTimeOnDuty}
-              isLoadingPayrollStats={isLoadingPayrollStats}
-              onStatsClick={(isDriver || isAdmin) && !isDispatcher && setShowEndOfDayStats ? () => {
-                setEndOfDayDriver?.(null);
-                setShowEndOfDayStats(true);
-              } : undefined}
-            />
+                  deliveryStats={deliveryStats}
+                  localStats={stats}
+                  isDispatcher={isDispatcher}
+                  isDriver={isDriver}
+                  isAdmin={isAdmin}
+                  performanceStats={performanceStats}
+                  liveDistance={liveDistance}
+                  liveTimeOnDuty={finalizedDutyTime ?? liveTimeOnDuty}
+                  isLoadingPayrollStats={isLoadingPayrollStats}
+                  onStatsClick={(isDriver || isAdmin) && !isDispatcher && setShowEndOfDayStats ? () => {
+                    setEndOfDayDriver?.(null);
+                    setShowEndOfDayStats(true);
+                  } : undefined} />
+                
             {!isDispatcherLockedExpanded &&
-            <Button variant="ghost" size="sm" onClick={(e) => {e.stopPropagation();setIsExpanded(!isExpanded);}} disabled={currentUser?.status === 'inactive' && isDriver && !isAdmin} className={`h-8 w-8 p-0 flex-shrink-0 ${currentUser?.status === 'inactive' && isDriver && !isAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                <Button variant="ghost" size="sm" onClick={(e) => {e.stopPropagation();setIsExpanded(!isExpanded);}} disabled={currentUser?.status === 'inactive' && isDriver && !isAdmin} className={`h-8 w-8 p-0 flex-shrink-0 ${currentUser?.status === 'inactive' && isDriver && !isAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}>
                 {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </Button>
-            }
+                }
           </div>
 
           <AnimatePresence>
@@ -420,75 +420,75 @@ export default function StatsPanel({
                 <Select value={selectedDriverId || 'all'} onValueChange={handleDriverChange} disabled={isDriverDropdownDisabled}>
                   <SelectTrigger className="flex h-8 w-full items-center justify-between rounded-md border px-3 py-2 text-sm flex-1" style={{ pointerEvents: 'auto', touchAction: 'manipulation', background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                     <SelectValue placeholder="All Drivers">{
-                      !selectedDriverId
-                        ? (isDispatcher ? 'Loading...' : 'All Drivers')
-                        : selectedDriverId === 'all'
-                          ? 'All Drivers'
-                          : driversList.find((d) => d?.id === selectedDriverId)?.user_name || driversList.find((d) => d?.id === selectedDriverId)?.full_name || 'Driver'
-                    }</SelectValue>
+                          !selectedDriverId ?
+                          isDispatcher ? 'Loading...' : 'All Drivers' :
+                          selectedDriverId === 'all' ?
+                          'All Drivers' :
+                          driversList.find((d) => d?.id === selectedDriverId)?.user_name || driversList.find((d) => d?.id === selectedDriverId)?.full_name || 'Driver'
+                          }</SelectValue>
                   </SelectTrigger>
                   <SelectContent className="z-[10001]" style={{ pointerEvents: 'auto', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
                     <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Drivers</SelectItem>
                     {driversList.map((driver) =>
-                    <SelectItem key={driver.id} value={driver.id} style={{ color: driver._hasDispatcherStoreDeliveries ? '#047857' : 'var(--text-slate-900)', fontWeight: driver._hasDispatcherStoreDeliveries ? '700' : '400' }}>
+                        <SelectItem key={driver.id} value={driver.id} style={{ color: driver._hasDispatcherStoreDeliveries ? '#047857' : 'var(--text-slate-900)', fontWeight: driver._hasDispatcherStoreDeliveries ? '700' : '400' }}>
                         {driver.user_name || driver.full_name}
                       </SelectItem>
-                    )}
+                        )}
                   </SelectContent>
                 </Select>
 
                 {isDriver && !isAllDriversMode &&
-                <div className="flex items-center flex-shrink-0">
+                    <div className="flex items-center flex-shrink-0">
                     <div className="flex flex-col items-center gap-1">
                       <Button variant="outline" size="icon"
-                    disabled={currentUser?.status === 'inactive' && isDriver && !isAdmin}
-                    onClick={async () => {
-                      if (currentUser?.status === 'inactive' && isDriver && !isAdmin) return;
-                      const checked = !showAllDriverMarkers;
-                      setShowAllDriverMarkers(checked);
-                      if (currentUser?.id) saveSetting(currentUser.id, 'show_all_driver_markers', checked);
-                      setIsExpanded(false);
-                      if (checked) {
-                        setIsEntityUpdating(true);
-                        try {
-                          const selDateStr = format(selectedDate, 'yyyy-MM-dd');
-                          let allDateDeliveries;
-                          if (dataSource === 'online') {
-                            allDateDeliveries = await base44.entities.Delivery.filter({ delivery_date: selDateStr });
-                            offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDateDeliveries).catch(() => {});
-                          } else {
-                            allDateDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selDateStr);
-                            if (!allDateDeliveries || allDateDeliveries.length === 0) {
-                              allDateDeliveries = await base44.entities.Delivery.filter({ delivery_date: selDateStr });
-                              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDateDeliveries);
+                        disabled={currentUser?.status === 'inactive' && isDriver && !isAdmin}
+                        onClick={async () => {
+                          if (currentUser?.status === 'inactive' && isDriver && !isAdmin) return;
+                          const checked = !showAllDriverMarkers;
+                          setShowAllDriverMarkers(checked);
+                          if (currentUser?.id) saveSetting(currentUser.id, 'show_all_driver_markers', checked);
+                          setIsExpanded(false);
+                          if (checked) {
+                            setIsEntityUpdating(true);
+                            try {
+                              const selDateStr = format(selectedDate, 'yyyy-MM-dd');
+                              let allDateDeliveries;
+                              if (dataSource === 'online') {
+                                allDateDeliveries = await base44.entities.Delivery.filter({ delivery_date: selDateStr });
+                                offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDateDeliveries).catch(() => {});
+                              } else {
+                                allDateDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, selDateStr);
+                                if (!allDateDeliveries || allDateDeliveries.length === 0) {
+                                  allDateDeliveries = await base44.entities.Delivery.filter({ delivery_date: selDateStr });
+                                  await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, allDateDeliveries);
+                                }
+                              }
+                              if (updateDeliveriesLocally) {
+                                const other = deliveries.filter((d) => d && d.delivery_date !== selDateStr);
+                                updateDeliveriesLocally([...other, ...allDateDeliveries], true);
+                              }
+                              await new Promise((r) => setTimeout(r, 300));
+                              const locUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true);
+                              if (locUpdates?.hasChanges) driverLocationPoller.processLocationData(currentUser, allDateDeliveries, drivers, stores, locUpdates.appUsers, selectedDate);
+                              const showAllLocUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true, 'Dashboard', selectedDate);
+                              window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: showAllLocUpdates?.appUsers || appUsers, forceAll: true } }));
+                            } catch (e) {console.error(e);} finally {setIsEntityUpdating(false);}
+                          }
+                          if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}
+                          mapLockExpiresAtRef.current = null;
+                          if (setMapViewPhase && setIsMapViewLocked && setMapViewTrigger) {
+                            if (window.__fabFlashUpdate && (window.__currentMapViewPhase ?? 1) === 1) {
+                              window.__fabFlashUpdate();
+                              setIsMapViewLocked(true);
+                              lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();
+                              setMapViewTrigger((p) => p + 1);
+                              const lockDuration = 500;const expiresAt = Date.now() + lockDuration;mapLockExpiresAtRef.current = expiresAt;
+                              mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === expiresAt) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, lockDuration);
                             }
                           }
-                          if (updateDeliveriesLocally) {
-                            const other = deliveries.filter((d) => d && d.delivery_date !== selDateStr);
-                            updateDeliveriesLocally([...other, ...allDateDeliveries], true);
-                          }
-                          await new Promise((r) => setTimeout(r, 300));
-                          const locUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true);
-                          if (locUpdates?.hasChanges) driverLocationPoller.processLocationData(currentUser, allDateDeliveries, drivers, stores, locUpdates.appUsers, selectedDate);
-                          const showAllLocUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true, 'Dashboard', selectedDate);
-                          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', { detail: { appUsers: showAllLocUpdates?.appUsers || appUsers, forceAll: true } }));
-                        } catch (e) {console.error(e);} finally {setIsEntityUpdating(false);}
-                      }
-                      if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}
-                      mapLockExpiresAtRef.current = null;
-                      if (setMapViewPhase && setIsMapViewLocked && setMapViewTrigger) {
-                        if (window.__fabFlashUpdate && (window.__currentMapViewPhase ?? 1) === 1) {
-                          window.__fabFlashUpdate();
-                          setIsMapViewLocked(true);
-                          lastProgrammaticMapMoveRef.current = Date.now();window._lastProgrammaticMapMove = Date.now();
-                          setMapViewTrigger((p) => p + 1);
-                          const lockDuration = 500;const expiresAt = Date.now() + lockDuration;mapLockExpiresAtRef.current = expiresAt;
-                          mapLockTimeoutRef.current = setTimeout(() => {if (mapLockExpiresAtRef.current === expiresAt) {setIsMapViewLocked(false);mapLockExpiresAtRef.current = null;mapLockTimeoutRef.current = null;}}, lockDuration);
-                        }
-                      }
-                    }}
-                    className={`h-9 w-9 p-0 ${showAllDriverMarkers ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
-                    style={!showAllDriverMarkers ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}>
+                        }}
+                        className={`h-9 w-9 p-0 ${showAllDriverMarkers ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
+                        style={!showAllDriverMarkers ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}>
                         <Binoculars className="w-4 h-4" />
                       </Button>
                     </div>
@@ -537,12 +537,12 @@ export default function StatsPanel({
                           e.currentTarget.click();
                         }}
                         className={`h-9 w-9 p-0 text-white ${
-                          showBreadcrumbs
-                            ? 'bg-emerald-600 hover:bg-emerald-700'
-                            : showRoutes
-                              ? 'bg-blue-600 hover:bg-blue-700'
-                              : 'text-slate-700'
-                        }`}
+                        showBreadcrumbs ?
+                        'bg-emerald-600 hover:bg-emerald-700' :
+                        showRoutes ?
+                        'bg-blue-600 hover:bg-blue-700' :
+                        'text-slate-700'}`
+                        }
                         style={!showRoutes && !showBreadcrumbs ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)' } : {}}>
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <circle cx="8" cy="3" r="1.5" fill="currentColor" />
@@ -556,25 +556,25 @@ export default function StatsPanel({
                       </Button>
                     </div>
                   </div>
-                }
+                    }
 
                 {isDispatcherLockedExpanded && <div className="flex-1" />}
 
                 {!isDispatcherLockedExpanded &&
-                <Button variant="outline" size="sm" onClick={() => setShowOptimizationSettings(true)} className="h-8 w-8 p-0 flex-shrink-0" title="Route Optimization Settings" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                    <Button variant="outline" size="sm" onClick={() => setShowOptimizationSettings(true)} className="h-8 w-8 p-0 flex-shrink-0" title="Route Optimization Settings" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                     <Settings className="w-3.5 h-3.5" />
                   </Button>
-                }
+                    }
 
                 <Button variant="default" size="sm" onClick={() => {
-                  const nextShowRoutes = !showRoutes;
-                  setShowRoutes(nextShowRoutes);
-                  if (nextShowRoutes) {
-                    setShowBreadcrumbs(false);
-                    setBreadcrumbsData({ historical: [], current: [] });
-                  }
-                  setIsExpanded(false);
-                }} className={`gap-2 h-8 flex-shrink-0 ${showRoutes ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'} text-white`}>
+                      const nextShowRoutes = !showRoutes;
+                      setShowRoutes(nextShowRoutes);
+                      if (nextShowRoutes) {
+                        setShowBreadcrumbs(false);
+                        setBreadcrumbsData({ historical: [], current: [] });
+                      }
+                      setIsExpanded(false);
+                    }} className={`gap-2 h-8 flex-shrink-0 ${showRoutes ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'} text-white`}>
                   <Truck className="w-3.5 h-3.5" />{showRoutes ? 'Hide' : 'Show'}
                 </Button>
               </div>
@@ -593,22 +593,22 @@ export default function StatsPanel({
                   </>}
                   <div className="ml-auto">
                     {!isAllDriversMode &&
-                    <TravelModeControl
-                      currentUser={currentUser}
-                      appUsers={appUsers}
-                      value={preferredTravelMode}
-                      onChange={onTravelModeChange}
-                      selectedDriverId={selectedDriverId}
-                      dialogOpen={travelModeDialogOpen}
-                      onDialogOpenChange={(open) => { setTravelModeDialogOpen(open); if (open) setIsExpanded(false); }}
-                      nearbyStops={[]}
-                      selectedStopIds={cyclingSelectedStopIds}
-                      onToggleStop={(id) => setCyclingSelectedStopIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])}
-                      onOptimize={handleCyclingModeConfirm}
-                      isSubmitting={isOptimizingCyclingMode}
-                      renderDialogOutside={true}
-                    />
-                    }
+                        <TravelModeControl
+                          currentUser={currentUser}
+                          appUsers={appUsers}
+                          value={preferredTravelMode}
+                          onChange={onTravelModeChange}
+                          selectedDriverId={selectedDriverId}
+                          dialogOpen={travelModeDialogOpen}
+                          onDialogOpenChange={(open) => {setTravelModeDialogOpen(open);if (open) setIsExpanded(false);}}
+                          nearbyStops={[]}
+                          selectedStopIds={cyclingSelectedStopIds}
+                          onToggleStop={(id) => setCyclingSelectedStopIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])}
+                          onOptimize={handleCyclingModeConfirm}
+                          isSubmitting={isOptimizingCyclingMode}
+                          renderDialogOutside={true} />
+
+                        }
                   </div>
                 </div>
               </>}
@@ -637,65 +637,65 @@ export default function StatsPanel({
         </motion.div>
 
             {!isAllDriversMode && !isAdmin && !isDispatcher ? null : legendData.length > 0 &&
-        <div className="backdrop-blur-sm rounded-xl shadow-lg border h-auto overflow-visible w-full" style={{ background: 'var(--bg-white)', opacity: 0.95, borderColor: 'var(--border-slate-200)' }}
-        onMouseEnter={() => handleCardInteraction(true)} onMouseLeave={() => handleCardInteraction(false)}>
+            <div className="backdrop-blur-sm rounded-xl shadow-lg border h-auto overflow-visible w-full py-1" style={{ background: 'var(--bg-white)', opacity: 0.95, borderColor: 'var(--border-slate-200)' }}
+            onMouseEnter={() => handleCardInteraction(true)} onMouseLeave={() => handleCardInteraction(false)}>
             <div className="flex h-auto flex-wrap items-center justify-center gap-x-0.25 gap-y-0.5 leading-none">
               {legendData.map((route) =>
-            <button
-              key={route.driverId}
-              type="button" className={`my-1 px-0.5 py-0 text-base leading-none rounded inline-flex h-auto min-h-0 items-center gap-0.5 self-center hover:bg-slate-100 transition-colors ${selectedDriverId === route.driverId ? 'underline underline-offset-2 font-semibold' : ''}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                // Toggle: clicking the already-selected driver switches back to "All Drivers"
-                handleDriverChange(selectedDriverId === route.driverId ? 'all' : route.driverId);
-              }}>
+                <button
+                  key={route.driverId}
+                  type="button" className={`my-1 px-0.5 py-0 text-base leading-none rounded inline-flex h-auto min-h-0 items-center gap-0.5 self-center hover:bg-slate-100 transition-colors ${selectedDriverId === route.driverId ? 'underline underline-offset-2 font-semibold' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // Toggle: clicking the already-selected driver switches back to "All Drivers"
+                    handleDriverChange(selectedDriverId === route.driverId ? 'all' : route.driverId);
+                  }}>
                   <div className="relative flex items-center justify-center w-2.5 h-2.5 flex-shrink-0">
                     {route.hasHeartbeat &&
-                <div
-                  className="absolute inset-0 rounded-full animate-ping opacity-75"
-                  style={{ backgroundColor: getStatusColor(route.driverStatus) }} />
-
-                }
                     <div
-                  className="relative w-2.5 h-2.5 rounded-full shadow-sm"
-                  style={{ backgroundColor: getStatusColor(route.driverStatus) }} />
+                      className="absolute inset-0 rounded-full animate-ping opacity-75"
+                      style={{ backgroundColor: getStatusColor(route.driverStatus) }} />
+
+                    }
+                    <div
+                      className="relative w-2.5 h-2.5 rounded-full shadow-sm"
+                      style={{ backgroundColor: getStatusColor(route.driverStatus) }} />
                 
                   </div>
                   <span className="text-sm font-medium leading-none whitespace-nowrap" style={{ color: 'var(--text-slate-700)' }}>{route.driverName || 'Unknown'}</span>
                   <span className="text-sm leading-none" style={{ color: 'var(--text-slate-500)' }}>({route.totalStops})</span>
                 </button>
-            )}
+                )}
             </div>
           </div>
-        }
+            }
         </div>{/* end left column: stats card + legend */}
 
         {/* Offline DB badge - right column, desktop non-centered */}
-        {!isMobile && !isStatsCardCentered && (
+        {!isMobile && !isStatsCardCentered &&
           <div style={{ pointerEvents: 'auto', width: '240px', flexShrink: 0, alignSelf: 'flex-start' }}>
             <OfflineSyncIndicator inline={true} />
           </div>
-        )}
+          }
         </div>{/* end flex-row */}
 
         {/* TravelModeDialog rendered OUTSIDE AnimatePresence so it survives StatsCard collapse */}
-        {isDriver && !isAllDriversMode && travelModeDialogOpen && (
-          <TravelModeDialog
-            dialogOpen={travelModeDialogOpen}
-            onDialogOpenChange={(open) => setTravelModeDialogOpen(open)}
-            nearbyStops={getNearbyModeStops({
-              deliveries: filteredDeliveries || [],
-              patients: patients || [],
-              stores,
-              currentLocation: getCurrentDriverLocation({ currentUser, appUsers, driverLocation }),
-              radiusKm: 200,
-            })}
-            selectedStopIds={cyclingSelectedStopIds}
-            onToggleStop={(id) => setCyclingSelectedStopIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])}
-            onOptimize={handleCyclingModeConfirm}
-            isSubmitting={isOptimizingCyclingMode}
-          />
-        )}
+        {isDriver && !isAllDriversMode && travelModeDialogOpen &&
+        <TravelModeDialog
+          dialogOpen={travelModeDialogOpen}
+          onDialogOpenChange={(open) => setTravelModeDialogOpen(open)}
+          nearbyStops={getNearbyModeStops({
+            deliveries: filteredDeliveries || [],
+            patients: patients || [],
+            stores,
+            currentLocation: getCurrentDriverLocation({ currentUser, appUsers, driverLocation }),
+            radiusKm: 200
+          })}
+          selectedStopIds={cyclingSelectedStopIds}
+          onToggleStop={(id) => setCyclingSelectedStopIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])}
+          onOptimize={handleCyclingModeConfirm}
+          isSubmitting={isOptimizingCyclingMode} />
+
+        }
       </div>
     </div>);
 
