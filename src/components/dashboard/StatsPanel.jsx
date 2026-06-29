@@ -639,11 +639,11 @@ export default function StatsPanel({
             {!isAllDriversMode && !isAdmin && !isDispatcher ? null : legendData.length > 0 &&
             <div className="backdrop-blur-sm rounded-xl shadow-lg border h-auto overflow-visible w-full py-1" style={{ background: 'var(--bg-white)', opacity: 0.95, borderColor: 'var(--border-slate-200)' }}
             onMouseEnter={() => handleCardInteraction(true)} onMouseLeave={() => handleCardInteraction(false)}>
-            <div className="flex h-auto flex-wrap items-center justify-center gap-x-0.25 leading-none">
+            <div className="flex h-auto flex-wrap items-center justify-center gap-x-0.25 leading-none gap-y-0.5">
               {legendData.map((route) =>
                 <button
                   key={route.driverId}
-                  type="button" className={`my-1 px-0.5 py-0 text-base leading-none rounded inline-flex h-auto min-h-0 items-center gap-0.5 self-center hover:bg-slate-100 transition-colors ${selectedDriverId === route.driverId ? 'underline underline-offset-2 font-semibold' : ''}`}
+                  type="button" className={`my-1 px-0.5 py-0 text-base leading-none rounded inline-flex h-[ min-h-0 items-center gap-0.5 self-center hover:bg-slate-100 transition-colors  ${selectedDriverId === route.driverId ? 'underline underline-offset-2 font-semibold' : ''}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     // Toggle: clicking the already-selected driver switches back to "All Drivers"
