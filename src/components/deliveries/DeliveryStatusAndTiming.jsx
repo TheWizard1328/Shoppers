@@ -140,7 +140,7 @@ export default function DeliveryStatusAndTiming({
           <><SelectItem value="in_transit">In Transit</SelectItem><SelectItem value="completed">Completed</SelectItem></> :
           delivery ?
           isPickupMode ?
-          <><SelectItem value="en_route">En Route</SelectItem><SelectItem value="completed">Completed</SelectItem><SelectItem value="cancelled">Cancelled</SelectItem></> :
+          <><SelectItem value="en_route">En Route</SelectItem><SelectItem value="in_transit">In Transit</SelectItem><SelectItem value="completed">Completed</SelectItem><SelectItem value="cancelled">Cancelled</SelectItem></> :
           <><SelectItem value="pending">Pending</SelectItem><SelectItem value="in_transit">In Transit</SelectItem><SelectItem value="completed">Completed</SelectItem><SelectItem value="failed">Failed</SelectItem></> :
           <><SelectItem value="Staged">Staged</SelectItem><SelectItem value="pending">Pending</SelectItem><SelectItem value="in_transit">In Transit</SelectItem></>
           }
