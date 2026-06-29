@@ -400,7 +400,7 @@ export default function DeliveryForm({
       setFormData({
         patient_id: delivery.patient_id || "", delivery_date: delivery.delivery_date || format(new Date(), 'yyyy-MM-dd'),
         delivery_time_start: patient?.time_window_start || delivery.delivery_time_start || "", delivery_time_end: patient?.time_window_end || delivery.delivery_time_end || "",
-        arrival_time: delivery.arrival_time || "",
+        arrival_time: delivery.arrival_time ? (delivery.arrival_time.includes('T') ? delivery.arrival_time.substring(11, 16) : delivery.arrival_time) : "",
         time_window_start: patient?.time_window_start || delivery.time_window_start || "", time_window_end: patient?.time_window_end || delivery.time_window_end || "",
         status: delivery.status || "Ready For Pickup", driver_name: delivery.driver_name || "", driver_id: delivery.driver_id || "",
         prescription_number: delivery.prescription_number || "", delivery_instructions: patient?.notes || delivery.delivery_instructions || "",
