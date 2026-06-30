@@ -581,8 +581,8 @@ export default function PatientPortal() {
                 onUserInteract={handleUserInteract}
               />
 
-              {/* Static route polyline — only shown when delivery is actively in progress */}
-              {['in_transit', 'en_route'].includes(todayDelivery?.status) && staticPolylineCoords.length > 1 && (
+              {/* Static route polyline — only shown when live tracking is active and delivery is in progress */}
+              {showLiveTracking && ['in_transit', 'en_route'].includes(todayDelivery?.status) && staticPolylineCoords.length > 1 && (
                 <Polyline
                   positions={staticPolylineCoords}
                   pathOptions={{ color: '#2563eb', weight: 4, opacity: 0.65, dashArray: '8, 6' }}
