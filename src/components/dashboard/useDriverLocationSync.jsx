@@ -25,6 +25,9 @@ export default function useDriverLocationSync({
   selectedDriverId, // needed to re-trigger map when viewing another driver's location
 }) {
   const lastLiveDriverLocationRef = useRef(null);
+  // Tracks the driver's coordinates at the time of the last phase-2 map reposition
+  // so we can distance-gate updates and match the live-marker update cadence.
+  const lastMapPositionRef = useRef(null);
 
   // ── Live data refs ────────────────────────────────────────────────────────
   // These let syncMobileLocation always read current data without the effect
@@ -96,16 +99,31 @@ export default function useDriverLocationSync({
           const selectedId = window._selectedDriverIdRef?.current;
           if (selectedId && selectedId !== 'all' && selectedId !== currentUser.id) return;
           const minIntervalMs = mapViewPhaseRef.current === 2 ? 1200 : 1800;
-          if (now - lastProgrammaticMapMoveRef.current >= minIntervalMs) {
-            lastProgrammaticMapMoveRef.current = now;
-            window._lastProgrammaticMapMove = now;
-            pendingPhaseRef.current = mapViewPhaseRef.current;
-            setMapViewTrigger((prev) => prev + 1);
-          }
-          // Scroll to next delivery card in phase 2
+          // Phase 2: always try to scroll the next card into view on every GPS tick,
+          // regardless of whether the map itself repositions.
           if (mapViewPhaseRef.current === 2) {
             const nextCard = deliveriesWithStopOrderRef.current.find((d) => d && d.isNextDelivery === true);
             if (nextCard) document.getElementById(`stop-card-${nextCard.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+          }
+
+          // Phase 2 on primary device: require ≥15m of movement since the last
+          // map reposition so the view follows the live-location marker cadence.
+          // Fallback: if we haven't repositioned in 6s regardless of distance, allow it.
+          if (mapViewPhaseRef.current === 2 && isPrimaryDevice && lastMapPositionRef.current) {
+            const movedKm = calculateDistanceRef.current(
+              newLocation.latitude, newLocation.longitude,
+              lastMapPositionRef.current.latitude, lastMapPositionRef.current.longitude
+            );
+            const PHASE2_MIN_DIST_KM = 0.015; // 15 metres
+            const timeFallbackMs = minIntervalMs * 5; // ~6s — ensures map catches up if driver is slow
+            if (movedKm < PHASE2_MIN_DIST_KM && now - lastProgrammaticMapMoveRef.current < timeFallbackMs) return;
+          }
+          if (now - lastProgrammaticMapMoveRef.current >= minIntervalMs) {
+            lastProgrammaticMapMoveRef.current = now;
+            window._lastProgrammaticMapMove = now;
+            if (mapViewPhaseRef.current === 2) lastMapPositionRef.current = { latitude: newLocation.latitude, longitude: newLocation.longitude };
+            pendingPhaseRef.current = mapViewPhaseRef.current;
+            setMapViewTrigger((prev) => prev + 1);
           }
           return;
         }
