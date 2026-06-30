@@ -512,11 +512,13 @@ export default function LiveTempBadge({
   // driver has previously paired, regardless of current connection status.
   // This persists even through page reloads (sensorName comes from localStorage).
   const isPaired = !isUnpairing && !!sensorName;
-  const pairedRing = isPaired ? '0 0 0 2.5px #3b82f6' : 'none'; // blue ring
+  // Blue ring only when actively connected via BLE — not just because a device was
+  // previously paired. isPaired (sensorName exists) is intentionally NOT used here.
+  const pairedRing = isLive ? '0 0 0 2.5px #3b82f6' : 'none';
 
   // Badge color
   const badgeStyle = (() => {
-    const ring = isPaired ? ', 0 0 0 2.5px #3b82f6' : '';
+    const ring = isLive ? ', 0 0 0 2.5px #3b82f6' : '';
     if (isUnpairing)          return { background: '#475569', border: '1px solid #334155', color: '#ffffff', boxShadow: `0 2px 8px rgba(0,0,0,0.3)${ring}` };
     if (displayTemp === null) return { background: '#64748b', border: '1px solid #475569', color: '#ffffff', boxShadow: `0 2px 8px rgba(0,0,0,0.2)${ring}` };
     if (isOut)                return { background: '#dc2626', border: '1px solid #b91c1c', color: '#ffffff', boxShadow: `0 2px 8px rgba(0,0,0,0.3)${ring}` };
