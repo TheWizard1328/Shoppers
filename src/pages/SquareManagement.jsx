@@ -300,8 +300,9 @@ export default function SquareManagement() {
       }
 
       // Step 2: Add catalog items for reconciliation rows that have NO catalog ID yet
+      // Skip rows that already have a matching transaction ID (they're matched, just not in Square catalog)
       const itemsToAdd = currentRows
-        .filter((row) => !row.catalogId || row.catalogId === '--')
+        .filter((row) => (!row.catalogId || row.catalogId === '--') && (!row.transactionId || row.transactionId === '--'))
         .map((row) => ({
           deliveryId: row.rawDelivery?.id,
           patientName: (() => {
@@ -1492,6 +1493,17 @@ export default function SquareManagement() {
       const linkedCatalogItem = (catalogItems || []).find((ci) => ci?.delivery_id === delivery.id);
       const catalogObjectId = linkedCatalogItem?.catalog_object_id || linkedCatalogItem?.id || null;
 
+      // Find any matching transaction (same-location or cross-store) for the Transaction ID column
+      const anyMatchingTx = crossStoreTx || (allTransactions || []).find((tx) => {
+        if (!tx || tx.type !== 'collection') return false;
+        if (!['completed', 'pending'].includes(tx.status)) return false;
+        if (tx.delivery_id === delivery.id) return true;
+        const txAmountCents = Math.round(Number(tx.amount || 0) * 100);
+        if (txAmountCents !== deliveryAmountCents) return false;
+        if (!patientName) return false;
+        return patientNamesMatch(patientName, String(tx.item_name || ''));
+      }) || null;
+
       return {
         id: delivery.id,
         key: `${delivery.id || 'delivery'}|${resolvedLocationId}|${delivery.delivery_date || 'no-date'}`,
@@ -1503,7 +1515,7 @@ export default function SquareManagement() {
         storeName: store?.name || 'Unknown',
         locationId: resolvedLocationId,
         catalogId: catalogObjectId || '--',
-        transactionId: crossStoreTx ? (crossStoreTx.square_payment_id || crossStoreTx.square_transaction_id || crossStoreTx.id || '--') : '--',
+        transactionId: anyMatchingTx ? (anyMatchingTx.square_payment_id || anyMatchingTx.square_transaction_id || anyMatchingTx.id || '--') : '--',
         deliveryDate: delivery.delivery_date,
         collectionType: Array.isArray(delivery?.cod_payments) && delivery.cod_payments.length > 0 ?
         Array.from(new Set(delivery.cod_payments.map((payment) => payment?.type).filter(Boolean))).join(', ') :
