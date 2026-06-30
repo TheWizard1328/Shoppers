@@ -238,31 +238,31 @@ export default function SquareManagement() {
       const currentRows = reconciliationRowsRef.current || [];
 
       // Step 1: Push Reconcile rows that have NO transaction ID to Square catalog
-      const itemsToAdd = currentRows
-        .filter((row) => !row.transactionId || row.transactionId === '--')
-        .map((row) => ({
-          deliveryId: row.rawDelivery?.id,
-          patientName: (() => {
-            const p = patients.find((pt) => pt?.id === row.rawDelivery?.patient_id || pt?.patient_id === row.rawDelivery?.patient_id);
-            return p?.full_name || null;
-          })(),
-          storeId: row.rawDelivery?.store_id,
-          codAmount: row.rawDelivery?.cod_total_amount_required,
-          deliveryDate: row.rawDelivery?.delivery_date,
-        }))
-        .filter((item) => item.deliveryId && Number(item.codAmount) > 0);
+      const itemsToAdd = currentRows.
+      filter((row) => !row.transactionId || row.transactionId === '--').
+      map((row) => ({
+        deliveryId: row.rawDelivery?.id,
+        patientName: (() => {
+          const p = patients.find((pt) => pt?.id === row.rawDelivery?.patient_id || pt?.patient_id === row.rawDelivery?.patient_id);
+          return p?.full_name || null;
+        })(),
+        storeId: row.rawDelivery?.store_id,
+        codAmount: row.rawDelivery?.cod_total_amount_required,
+        deliveryDate: row.rawDelivery?.delivery_date
+      })).
+      filter((item) => item.deliveryId && Number(item.codAmount) > 0);
 
       if (itemsToAdd.length > 0) {
         await base44.functions.invoke('squareCodCore', {
           action: 'syncSquareCods',
           items: itemsToAdd,
-          deletions: [],
+          deletions: []
         });
       }
 
       // Step 2: Resync catalog items from Square API into local state
       const syncResponse = await base44.functions.invoke('squareCodCore', {
-        action: 'syncCatalogItems',
+        action: 'syncCatalogItems'
       });
       const syncData = syncResponse?.data || syncResponse || {};
       const freshCatalogRecords = syncData.catalogRecords || syncData.items || [];
@@ -400,9 +400,9 @@ export default function SquareManagement() {
           await squareCODOfflineManager.saveCatalogItemsOffline(freshData.catalogRecords || []);
           await squareCODOfflineManager.savePaymentTransactionsOffline(freshData.transactionRecords || []);
           const [freshCatalog, freshTransactions] = await Promise.all([
-            squareCODOfflineManager.getCatalogItemsOffline(),
-            squareCODOfflineManager.getPaymentTransactionsOffline(),
-          ]);
+          squareCODOfflineManager.getCatalogItemsOffline(),
+          squareCODOfflineManager.getPaymentTransactionsOffline()]
+          );
           setCatalogItems([...(freshCatalog || [])]);
           setAllTransactions([...(freshTransactions || [])]);
           setSoldCatalogItems([...(freshTransactions || []).filter((tx) => ['completed', 'refunded'].includes(tx.status))]);
@@ -540,6 +540,7 @@ export default function SquareManagement() {
 
 
 
+
           // Keep whatever was already loaded from offline DB on mount
         }return { offlineDB, nextLocationConfigs };} catch (err) {console.error('Failed to sync lookup data:', err);return null;}}; // First load: also load deliveries and trigger Square sync
     if (!initialLoadKeyRef.current) {// CRITICAL: Don't lock the initialLoadKey until we have locationConfigs.
@@ -547,8 +548,7 @@ export default function SquareManagement() {
       // would be empty when the filter chain evaluates — filtering out every delivery row.
       // Wait until either the offline DB or appDataStores has produced configs.
       const configsReady = (locationConfigsRef.current || []).length > 0 || (appDataStores || []).length > 0;if (!configsReady) return; // re-runs when appDataStores arrives
-      initialLoadKeyRef.current = true;(async () => {const result = await syncLookupData();if (!result) return;try {const { offlineDB } = result;
-          const { startDateStr, endDateStr } = getSourceWindow();
+      initialLoadKeyRef.current = true;(async () => {const result = await syncLookupData();if (!result) return;try {const { offlineDB } = result;const { startDateStr, endDateStr } = getSourceWindow();
           await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr);
           await loadSquareViewFromOffline();
           setIsLoading(false);
@@ -953,14 +953,14 @@ export default function SquareManagement() {
 
     // Build a fast lookup of settled transaction delivery IDs and catalog object IDs
     const settledTxCatalogIds = new Set(
-      (allTransactions || [])
-        .filter((t) => ['completed', 'refunded'].includes(t?.status) && t?.square_catalog_object_id)
-        .map((t) => t.square_catalog_object_id)
+      (allTransactions || []).
+      filter((t) => ['completed', 'refunded'].includes(t?.status) && t?.square_catalog_object_id).
+      map((t) => t.square_catalog_object_id)
     );
     const settledTxDeliveryIds = new Set(
-      (allTransactions || [])
-        .filter((t) => ['completed', 'refunded'].includes(t?.status) && t?.delivery_id)
-        .map((t) => t.delivery_id)
+      (allTransactions || []).
+      filter((t) => ['completed', 'refunded'].includes(t?.status) && t?.delivery_id).
+      map((t) => t.delivery_id)
     );
 
     items = items.filter((item) => {
@@ -1180,9 +1180,9 @@ export default function SquareManagement() {
     filter((transaction) => {
       if (!isCardSaleTransaction(transaction)) return false;
       // Always apply date filter — use item-name date first, fall back to created_date
-      const transactionDate = getTransactionFilterDate(transaction) ||
-        (transaction?.created_date ? new Date(transaction.created_date) : null) ||
-        (transaction?.raw_square_data?.payment_date ? new Date(transaction.raw_square_data.payment_date) : null);
+      const transactionDate = getTransactionFilterDate(transaction) || (
+      transaction?.created_date ? new Date(transaction.created_date) : null) || (
+      transaction?.raw_square_data?.payment_date ? new Date(transaction.raw_square_data.payment_date) : null);
       if (!transactionDate || transactionDate < lookbackStart) return false;
 
       const config = locationConfigs.find((c) => c?.square_location_id === transaction.location_id);
@@ -1251,9 +1251,9 @@ export default function SquareManagement() {
         catalogId: (() => {
           // Prefer the catalog item's own ID (matches Catalog tab); fall back to transaction's reference
           const linkedCatalogItem = (catalogItems || []).find((ci) =>
-            (ci.delivery_id && matchedDelivery?.id && ci.delivery_id === matchedDelivery.id) ||
-            (ci.catalog_object_id && transaction.square_catalog_object_id && ci.catalog_object_id === transaction.square_catalog_object_id) ||
-            (ci.id && transaction.square_catalog_object_id && ci.id === transaction.square_catalog_object_id)
+          ci.delivery_id && matchedDelivery?.id && ci.delivery_id === matchedDelivery.id ||
+          ci.catalog_object_id && transaction.square_catalog_object_id && ci.catalog_object_id === transaction.square_catalog_object_id ||
+          ci.id && transaction.square_catalog_object_id && ci.id === transaction.square_catalog_object_id
           );
           return linkedCatalogItem?.catalog_object_id || linkedCatalogItem?.id || transaction.square_catalog_object_id || '--';
         })(),
@@ -1333,7 +1333,7 @@ export default function SquareManagement() {
         storeName: store?.name || config?.name || 'Unknown',
         locationId: item.location_id || '--',
         catalogId: catalogObjectId || '--',
-        transactionId: matchingTx ? (matchingTx.square_payment_id || matchingTx.square_transaction_id || matchingTx.id || '--') : '--',
+        transactionId: matchingTx ? matchingTx.square_payment_id || matchingTx.square_transaction_id || matchingTx.id || '--' : '--',
         deliveryDate: item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate,
         subtext: item.description || item.status || null,
         isCollected,
@@ -1489,7 +1489,7 @@ export default function SquareManagement() {
         storeName: store?.name || 'Unknown',
         locationId: resolvedLocationId,
         catalogId: catalogObjectId || '--',
-        transactionId: anyMatchingTx ? (anyMatchingTx.square_payment_id || anyMatchingTx.square_transaction_id || anyMatchingTx.id || '--') : '--',
+        transactionId: anyMatchingTx ? anyMatchingTx.square_payment_id || anyMatchingTx.square_transaction_id || anyMatchingTx.id || '--' : '--',
         deliveryDate: delivery.delivery_date,
         collectionType: Array.isArray(delivery?.cod_payments) && delivery.cod_payments.length > 0 ?
         Array.from(new Set(delivery.cod_payments.map((payment) => payment?.type).filter(Boolean))).join(', ') :
@@ -1592,10 +1592,10 @@ export default function SquareManagement() {
   return (
     <div className="px-4 md:px-6 pt-4 md:pt-6 bg-background text-foreground w-full h-full overflow-y-auto md:overflow-hidden flex flex-col">
       {/* ═══════════════════════════════════════════════════════════════════
-                            MASTER LAYOUT  –  2 main rows × 2 columns
-                            Left column  : auto/shrink  (content-width)
-                            Right column : flex-1       (fills remaining width)
-                        ═══════════════════════════════════════════════════════════════════ */}
+                             MASTER LAYOUT  –  2 main rows × 2 columns
+                             Left column  : auto/shrink  (content-width)
+                             Right column : flex-1       (fills remaining width)
+                         ═══════════════════════════════════════════════════════════════════ */}
       <div className="flex-shrink-0 mb-4">
 
         {/* ── 2×2 GRID LAYOUT ── */}
@@ -1722,7 +1722,7 @@ export default function SquareManagement() {
             const uncollectedTotal = filteredCatalogRows.filter((row) => !row.isCollected).reduce((sum, row) => sum + Number(row.amount || 0), 0);
             const grandTotal = activeViewStats.amountValue + newCatalogTotal;
             return (
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-4 gap-2 mt-6">
                 <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
                   <CardContent className="p-2.5">
                     <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Total Amount</div>
@@ -1747,8 +1747,8 @@ export default function SquareManagement() {
                     <div className="text-lg font-bold text-blue-600 dark:text-blue-400 leading-tight">{newCatalogItems.length}{newCatalogTotal > 0 && <span className="text-xs text-blue-500 dark:text-blue-400 ml-1">${newCatalogTotal.toFixed(2)}</span>}</div>
                   </CardContent>
                 </Card>
-              </div>
-            );
+              </div>);
+
           })()}
 
           {/* R2-C2: Store location cards (catalog view only) */}
@@ -1794,8 +1794,8 @@ export default function SquareManagement() {
                       location={{ name: label, square_location_id: locationId }}
                       codTotal={codTotal}
                       itemCount={itemCount}
-                      onClick={() => config && setSelectedLocation(config)} />
-                  );
+                      onClick={() => config && setSelectedLocation(config)} />);
+
                 });
               })()}
             </div>
@@ -1918,9 +1918,9 @@ export default function SquareManagement() {
           headerActions={!isDriverView && currentUser && isAppOwner(currentUser) ?
           <>
               <Button
-                onClick={updateCatalog}
-                disabled={isLoading || isUpdatingCatalog || isSyncing || reconciliationRows.length === 0}
-                className="h-9 gap-1.5 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-2 disabled:opacity-50 disabled:cursor-not-allowed">
+              onClick={updateCatalog}
+              disabled={isLoading || isUpdatingCatalog || isSyncing || reconciliationRows.length === 0}
+              className="h-9 gap-1.5 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-2 disabled:opacity-50 disabled:cursor-not-allowed">
                 <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isUpdatingCatalog ? 'animate-pulse' : ''}`} />
                 <span>{isUpdatingCatalog ? 'Updating...' : 'Update Catalog'}</span>
               </Button>
@@ -1945,14 +1945,14 @@ export default function SquareManagement() {
           groupByCollected
           newCatalogRows={reconciliationRows.filter((r) => !r.catalogId || r.catalogId === '--')}
           headerActions={!isDriverView && currentUser && isAppOwner(currentUser) ?
-            <Button
-              onClick={updateCatalog}
-              disabled={isLoading || isUpdatingCatalog || isSyncing}
-              className="h-9 gap-1.5 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-2 disabled:opacity-50 disabled:cursor-not-allowed">
+          <Button
+            onClick={updateCatalog}
+            disabled={isLoading || isUpdatingCatalog || isSyncing}
+            className="h-9 gap-1.5 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-2 disabled:opacity-50 disabled:cursor-not-allowed">
               <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isUpdatingCatalog ? 'animate-pulse' : ''}`} />
               <span>{isUpdatingCatalog ? 'Updating...' : 'Update Catalog'}</span>
             </Button> :
-            undefined} />
+          undefined} />
 
         }
 
