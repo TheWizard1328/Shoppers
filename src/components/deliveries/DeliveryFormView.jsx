@@ -1466,14 +1466,33 @@ export default function DeliveryFormView({
                       ...(formData.cycling_longitude != null && { cycling_longitude: formData.cycling_longitude })
                     };
 
+                    // ── Compute 30-minute delivery windows for both markers ─────────────
+                    // Start marker: delivery_time_end = delivery_time_start + 30 min
+                    const startMarkerTimeStart = formData.delivery_time_start || null;
+                    const startMarkerTimeEnd = (() => {
+                      if (!startMarkerTimeStart) return null;
+                      const [h, m] = startMarkerTimeStart.split(':').map(Number);
+                      const total = h * 60 + m + 30;
+                      return `${String(Math.floor(total / 60) % 24).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+                    })();
+                    // End marker: its delivery_time_start = form's delivery_time_end,
+                    // its delivery_time_end = that + 30 min
+                    const endMarkerTimeStart = formData.delivery_time_end || null;
+                    const endMarkerTimeEnd = (() => {
+                      if (!endMarkerTimeStart) return null;
+                      const [h, m] = endMarkerTimeStart.split(':').map(Number);
+                      const total = h * 60 + m + 30;
+                      return `${String(Math.floor(total / 60) % 24).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+                    })();
+
                     const createPromises = [
                     base44.entities.Delivery.create({
                       ...basePayload,
                       delivery_notes: formData.delivery_notes,
                       ...(startActualTime && { actual_delivery_time: startActualTime }),
-                      // Start marker uses the form's start time
-                      ...(formData.delivery_time_start && { delivery_time_start: formData.delivery_time_start }),
-                      ...(formData.delivery_time_end && { delivery_time_end: formData.delivery_time_end }),
+                      // Start marker: explicit 30-minute delivery window
+                      ...(startMarkerTimeStart && { delivery_time_start: startMarkerTimeStart }),
+                      ...(startMarkerTimeEnd && { delivery_time_end: startMarkerTimeEnd }),
                       transport_mode: 'driving'
                     })];
 
@@ -1485,15 +1504,47 @@ export default function DeliveryFormView({
                           ...basePayload,
                           delivery_notes: 'Cycling Route End',
                           ...(endActualTime && { actual_delivery_time: endActualTime }),
-                          // End marker uses the form's end time as its delivery_time_start
-                          // to mark the window start for deliveries between the two stops
-                          ...(formData.delivery_time_end && { delivery_time_start: formData.delivery_time_end }),
+                          // End marker: 30-minute window starting at the form's end time
+                          ...(endMarkerTimeStart && { delivery_time_start: endMarkerTimeStart }),
+                          ...(endMarkerTimeEnd && { delivery_time_end: endMarkerTimeEnd }),
                           transport_mode: 'cycling'
                         })
                       );
                     }
 
                     const savedRecords = await Promise.all(createPromises);
+                    const startMarker = savedRecords[0] || null;
+                    const endMarker   = isStart ? (savedRecords[1] || null) : null;
+
+                    // ── Clear all isNextDelivery flags for this driver/date, then assign ──
+                    // to the cycling start marker so the optimizer anchors the route correctly.
+                    if (startMarker?.id) {
+                      try {
+                        // Fetch all deliveries for this driver/date and bulk-clear isNextDelivery
+                        const allDriverDeliveries = await base44.entities.Delivery.filter({
+                          driver_id: formData.driver_id,
+                          delivery_date: formData.delivery_date
+                        });
+                        const withFlagCleared = (allDriverDeliveries || []).filter(
+                          d => d && d.isNextDelivery && d.id !== startMarker.id
+                        );
+                        await Promise.all(
+                          withFlagCleared.map(d =>
+                            base44.entities.Delivery.update(d.id, { isNextDelivery: false }).catch(() => null)
+                          )
+                        );
+                        // Assign isNextDelivery to the cycling start marker
+                        await base44.entities.Delivery.update(startMarker.id, { isNextDelivery: true });
+                        // Reflect flag changes locally so UI is immediately consistent
+                        const localFlagUpdates = [
+                          ...withFlagCleared.map(d => ({ ...d, isNextDelivery: false })),
+                          { ...startMarker, isNextDelivery: true },
+                        ];
+                        applyDeliveryChangesLocally?.({ upserts: localFlagUpdates, deleteIds: [] });
+                      } catch (flagErr) {
+                        console.warn('[CyclingMarker] isNextDelivery assignment failed:', flagErr?.message || flagErr);
+                      }
+                    }
 
                     // ── Offline DB save (parallel with UI update) ────────────
                     const { offlineDB } = await import('@/components/utils/offlineDatabase');
