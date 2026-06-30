@@ -19,6 +19,7 @@ import SquareCodDatasetTable from "@/components/square/SquareCodDatasetTable";
 import { getStatusBadge, getTypeBadge, getPaymentMethodBadge } from "@/components/square/badgeHelpers";
 import { format } from "date-fns";
 import * as squareCODOfflineManager from "@/components/utils/squareCODOfflineManager";
+import { generateDriverColor, hexToRgba } from "@/components/utils/colorGenerator";
 
 export default function SquareManagement() {
   const {
@@ -1861,15 +1862,22 @@ export default function SquareManagement() {
                   if (!storeCardMap.has(cardKey)) storeCardMap.set(cardKey, { label, locationId, config, storeAbbr: abbr, sortOrder, items: [], newItems: [] });
                   storeCardMap.get(cardKey).newItems.push(row);
                 }
-                return Array.from(storeCardMap.values()).sort((a, b) => a.sortOrder - b.sortOrder).map(({ label, locationId, config, storeAbbr, items, newItems }) => {
+                return Array.from(storeCardMap.values()).sort((a, b) => a.sortOrder - b.sortOrder).map(({ label, locationId, config, storeAbbr, items, newItems, sortOrder }) => {
                   const codTotal = items.reduce((sum, item) => sum + Number(item.amount || 0), 0) + (newItems || []).reduce((sum, r) => sum + Number(r.amount || 0), 0);
                   const itemCount = items.length + (newItems || []).length;
+                  // Resolve the store's default driver color (same logic as dashboard)
+                  const resolvedStore = storeAbbr ? stores.find((s) => s?.abbreviation?.toUpperCase() === storeAbbr) : getStoreForConfig(config);
+                  const defaultDriverId = resolvedStore?.weekday_am_driver_id || resolvedStore?.weekday_pm_driver_id || resolvedStore?.saturday_am_driver_id || null;
+                  const defaultDriver = defaultDriverId ? drivers.find((d) => d?.id === defaultDriverId || d?.user_id === defaultDriverId) : null;
+                  const driverHex = defaultDriver?.user_name ? generateDriverColor(defaultDriver.user_name) : null;
+                  const cardStoreColor = driverHex ? { border: driverHex, bg: hexToRgba(driverHex, 0.06) } : undefined;
                   return (
                     <LocationSummaryCard
                       key={`${locationId}::${storeAbbr || 'unknown'}`}
                       location={{ name: label, square_location_id: locationId }}
                       codTotal={codTotal}
                       itemCount={itemCount}
+                      storeColor={cardStoreColor}
                       onClick={() => config && setSelectedLocation(config)} />);
 
                 });
