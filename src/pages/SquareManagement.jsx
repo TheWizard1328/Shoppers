@@ -1739,28 +1739,32 @@ export default function SquareManagement() {
             const collectedRows = filteredCatalogRows.filter((row) => row.isCollected);
             const uncollectedTotal = uncollectedRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
             const collectedAmount = collectedRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
-            // Total = uncollected catalog + new items (collected is subtracted out)
-            const grandTotal = uncollectedTotal + newCatalogTotal;
-            const totalItemCount = uncollectedRows.length + newCatalogItems.length;
+            const catalogTotal = filteredCatalogRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+            // Total = Catalog Items + New Items - Collected
+            const grandTotal = catalogTotal + newCatalogTotal - collectedAmount;
+            const totalItemCount = filteredCatalogRows.length + newCatalogItems.length;
             const uncollectedItemCount = uncollectedRows.length;
             const catalogOnlyItemCount = filteredCatalogRows.length;
-            const barBase = grandTotal > 0 ? grandTotal : 1;
-            const uncollectedPct = (uncollectedTotal / barBase) * 100;
-            const newItemsPct = (newCatalogTotal / barBase) * 100;
+            // Bar percentages relative to the overall pool (catalog + new) for all 4 cards
+            const overallPool = catalogTotal + newCatalogTotal > 0 ? catalogTotal + newCatalogTotal : 1;
+            const collectedPct = (collectedAmount / overallPool) * 100;
+            const uncollectedPct = (uncollectedTotal / overallPool) * 100;
+            const catalogPct = (catalogTotal / overallPool) * 100;
+            const newItemsPct = (newCatalogTotal / overallPool) * 100;
             return (
               <div className="grid grid-cols-4 gap-3 mt-6 mb-1">
-                {/* Total Amount */}
+                {/* Total Amount = Catalog + New - Collected */}
                 <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
                   <div className="px-5 pt-5 pb-3">
                     <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 mb-2">Total Amount</div>
                     <div className="text-2xl font-bold text-slate-900 dark:text-slate-50 tabular-nums">${grandTotal.toFixed(2)}</div>
-                    <div className="text-xs text-slate-400 dark:text-slate-500 mt-1">{uncollectedItemCount + newCatalogItems.length} item{(uncollectedItemCount + newCatalogItems.length) !== 1 ? 's' : ''}</div>
+                    <div className="text-xs text-slate-400 dark:text-slate-500 mt-1">{totalItemCount} item{totalItemCount !== 1 ? 's' : ''}</div>
                     <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex">
+                      {collectedPct > 0 && <div className="h-full bg-emerald-500" style={{ width: `${collectedPct}%` }} />}
                       {uncollectedPct > 0 && <div className="h-full bg-red-500" style={{ width: `${uncollectedPct}%` }} />}
                       {newItemsPct > 0 && <div className="h-full bg-amber-400" style={{ width: `${newItemsPct}%` }} />}
                     </div>
                   </div>
-                  
                 </div>
                 {/* Collected */}
                 <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
@@ -1769,22 +1773,20 @@ export default function SquareManagement() {
                     <div className="text-2xl font-bold text-slate-900 dark:text-slate-50 tabular-nums">${collectedAmount.toFixed(2)}</div>
                     <div className="text-xs text-slate-400 dark:text-slate-500 mt-1">{collectedRows.length} item{collectedRows.length !== 1 ? 's' : ''}</div>
                     <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                      <div className="h-full w-2/5 bg-emerald-500 rounded-full" />
+                      <div className="h-full bg-emerald-500" style={{ width: `${collectedPct}%` }} />
                     </div>
                   </div>
-                  
                 </div>
                 {/* Catalog Items */}
                 <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
                   <div className="px-5 pt-5 pb-3">
                     <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 mb-2">Catalog Items</div>
-                    <div className="text-2xl font-bold text-slate-900 dark:text-slate-50 tabular-nums">${activeViewStats.amountValue.toFixed(2)}</div>
+                    <div className="text-2xl font-bold text-slate-900 dark:text-slate-50 tabular-nums">${catalogTotal.toFixed(2)}</div>
                     <div className="text-xs text-slate-400 dark:text-slate-500 mt-1">{catalogOnlyItemCount} item{catalogOnlyItemCount !== 1 ? 's' : ''}</div>
                     <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                      <div className="h-full w-4/5 bg-emerald-500 rounded-full" />
+                      <div className="h-full bg-blue-500" style={{ width: `${catalogPct}%` }} />
                     </div>
                   </div>
-                  
                 </div>
                 {/* New Items */}
                 <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
@@ -1793,10 +1795,9 @@ export default function SquareManagement() {
                     <div className="text-2xl font-bold text-slate-900 dark:text-slate-50 tabular-nums">${newCatalogTotal.toFixed(2)}</div>
                     <div className="text-xs text-slate-400 dark:text-slate-500 mt-1">{newCatalogItems.length} item{newCatalogItems.length !== 1 ? 's' : ''}</div>
                     <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                      <div className="h-full w-1/4 bg-amber-400 rounded-full" />
+                      <div className="h-full bg-amber-400" style={{ width: `${newItemsPct}%` }} />
                     </div>
                   </div>
-                  
                 </div>
               </div>);
 
