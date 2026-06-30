@@ -22,12 +22,17 @@ export default function SquareCodDatasetTable({
   emptyDescription,
   showLocationColumn,
   navHeight,
-  onRowClick
+  onRowClick,
+  showCatalogColumn,
+  groupByCollected,
+  newCatalogRows,
+  headerActions,
 }) {
   return (
     <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 flex flex-col flex-1 min-h-0">
-      <CardHeader className="sticky top-0 z-10 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+      <CardHeader className="sticky top-0 z-10 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex-shrink-0 flex flex-row items-center justify-between gap-2">
         <CardTitle className="text-base md:text-lg text-slate-900 dark:text-slate-50">{title}</CardTitle>
+        {headerActions && <div className="flex items-center gap-2">{headerActions}</div>}
       </CardHeader>
       <CardContent className="p-0 overflow-hidden flex flex-col flex-1 min-h-0">
         {isLoading ?
@@ -42,76 +47,81 @@ export default function SquareCodDatasetTable({
           </div> :
 
         <>
+            {/* Desktop table — single <table> with sticky thead so header and body columns always align */}
             <div className="hidden md:flex flex-col flex-1 min-h-0 overflow-hidden">
-              <div className="overflow-x-auto px-0">
-                <table className="w-full table-fixed">
-                  <thead className="bg-white dark:bg-slate-900">
+              <div className="min-h-0 flex-1 overflow-y-auto overflow-x-auto" style={{ paddingBottom: navHeight ? navHeight + 8 : 8 }}>
+                <table className="w-full table-auto">
+                  <thead className="sticky top-0 z-10 bg-white dark:bg-slate-900">
                     <tr className="border-b text-left text-sm text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700">
-                      <th className="p-3">Item Name</th>
-                      <th className="p-3">Amount</th>
-                      <th className="p-3">Store</th>
-                      {showLocationColumn && <th className="p-3">Square Location ID</th>}
-                      <th className="p-3">Catalog ID</th>
-                      <th className="p-3">Collection Date</th>
-                      <th className="p-3">Actions</th>
+                      <th className="p-3 whitespace-nowrap">Item Name</th>
+                      <th className="p-3 whitespace-nowrap">Amount</th>
+                      <th className="p-3 whitespace-nowrap">Store</th>
+                      {showLocationColumn && <th className="p-3 whitespace-nowrap">Square Location ID</th>}
+                      {showCatalogColumn && <th className="p-3 whitespace-nowrap">Catalog ID</th>}
+                      <th className="p-3 whitespace-nowrap">Collection Date</th>
+                      <th className="p-3 whitespace-nowrap">Actions</th>
                     </tr>
                   </thead>
-                </table>
-              </div>
-              <div className="min-h-0 flex-1 overflow-y-auto overflow-x-auto" style={{ paddingBottom: navHeight ? navHeight + 8 : 8 }}>
-                <table className="w-full table-fixed">
                   <tbody>
-                    {rows.map((row, index) =>
-                  <tr
-                    key={row.id || `${row.itemName}-${index}`}
-                    onClick={onRowClick ? () => onRowClick(row) : undefined}
-                    className="transition-colors border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                    
+                    {rows.map((row, index) => (
+                      <tr
+                        key={row.id || `${row.itemName}-${index}`}
+                        onClick={onRowClick ? () => onRowClick(row) : undefined}
+                        className="transition-colors border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                        style={row.driverColor ? {
+                          borderLeft: `3px solid ${row.driverColor}`,
+                          backgroundColor: `${row.driverColor}0d`
+                        } : undefined}
+                      >
                         <td className="p-3">
                           <div className="font-medium text-sm text-slate-900 dark:text-slate-50">{row.itemName || 'N/A'}</div>
                           {row.subtext && <div className="text-xs mt-1 text-slate-600 dark:text-slate-400">{row.subtext}</div>}
                         </td>
-                        <td className="p-3">
+                        <td className="p-3 whitespace-nowrap">
                           <div className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{formatAmount(row.amount)}</div>
                           {row.collectionType && <div className="inline-flex mt-1 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-medium text-slate-700 dark:text-slate-300">{row.collectionType}</div>}
                         </td>
-                        <td className="p-3 text-sm text-slate-900 dark:text-slate-50">{row.storeName || 'Unknown'}</td>
-                        {showLocationColumn &&
-                    <td className="p-3">
-                            <div className="text-xs font-mono truncate max-w-[180px] text-slate-600 dark:text-slate-400">{row.locationId || 'â€”'}</div>
+                        <td className="p-3 text-sm whitespace-nowrap text-slate-900 dark:text-slate-50">{row.storeName || 'Unknown'}</td>
+                        {showLocationColumn && (
+                          <td className="p-3">
+                            <div className="text-xs font-mono truncate max-w-[180px] text-slate-600 dark:text-slate-400">{row.locationId || '—'}</div>
                           </td>
-                    }
-                        <td className="p-3">
-                          <div className="text-xs font-mono truncate max-w-[150px] text-slate-600 dark:text-slate-400">{row.catalogId || 'â€”'}</div>
-                        </td>
-                        <td className="p-3 text-xs text-slate-600 dark:text-slate-400">{formatDate(row.collectionDate || row.deliveryDate)}</td>
+                        )}
+                        {showCatalogColumn && (
+                          <td className="p-3">
+                            <div className="text-xs font-mono truncate max-w-[150px] text-slate-600 dark:text-slate-400">{row.catalogId || '—'}</div>
+                          </td>
+                        )}
+                        <td className="p-3 text-xs whitespace-nowrap text-slate-600 dark:text-slate-400">{formatDate(row.collectionDate || row.deliveryDate)}</td>
                         <td className="p-3">
                           <div className="space-y-1">
                             <div className="flex justify-start" onClick={(e) => e.stopPropagation()}>
-                              {row.actions || <span className="text-slate-400">â€”</span>}
+                              {row.actions || <span className="text-slate-400">—</span>}
                             </div>
-                            {row.notes &&
-                        <div className="text-xs text-slate-500 dark:text-slate-400 whitespace-pre-wrap text-right">
+                            {row.notes && (
+                              <div className="text-xs text-slate-500 dark:text-slate-400 whitespace-pre-wrap text-right">
                                 {row.notes}
                               </div>
-                        }
+                            )}
                           </div>
                         </td>
                       </tr>
-                  )}
+                    ))}
                   </tbody>
                 </table>
               </div>
             </div>
 
+            {/* Mobile cards */}
             <div className="md:hidden overflow-y-auto flex-1 min-h-0 space-y-3 p-4" style={{ paddingBottom: navHeight ? navHeight + 8 : 8 }}>
               {rows.map((row, index) =>
             <div
               key={row.id || `${row.itemName}-${index}`}
               onClick={onRowClick ? () => onRowClick(row) : undefined}
               role={onRowClick ? "button" : undefined}
-              className="rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
-              
+              className="rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden"
+              style={row.driverColor ? { borderLeft: `4px solid ${row.driverColor}` } : undefined}
+            >
                   <div className="p-4 border-b border-slate-100 dark:border-slate-700/70">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
@@ -137,14 +147,16 @@ export default function SquareCodDatasetTable({
                     {showLocationColumn &&
                 <div className="rounded-xl bg-slate-50 dark:bg-slate-900/50 px-3 py-2">
                         <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Square Location ID</div>
-                        <div className="mt-1 text-xs font-mono text-slate-700 dark:text-slate-300 break-all">{row.locationId || 'â€”'}</div>
+                        <div className="mt-1 text-xs font-mono text-slate-700 dark:text-slate-300 break-all">{row.locationId || '—'}</div>
                       </div>
                 }
 
-                    <div className="rounded-xl bg-slate-50 dark:bg-slate-900/50 px-3 py-2">
+                    {showCatalogColumn &&
+                <div className="rounded-xl bg-slate-50 dark:bg-slate-900/50 px-3 py-2">
                       <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Catalog ID</div>
-                      <div className="mt-1 text-xs font-mono text-slate-700 dark:text-slate-300 break-all">{row.catalogId || 'â€”'}</div>
+                      <div className="mt-1 text-xs font-mono text-slate-700 dark:text-slate-300 break-all">{row.catalogId || '—'}</div>
                     </div>
+                }
 
                     {row.notes &&
                 <div className="rounded-xl bg-amber-50 dark:bg-amber-900/10 px-3 py-2 text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
@@ -160,6 +172,6 @@ export default function SquareCodDatasetTable({
           </>
         }
       </CardContent>
-    </Card>);
-
+    </Card>
+  );
 }
