@@ -542,6 +542,7 @@ export default function SquareManagement() {
 
 
 
+
           // Keep whatever was already loaded from offline DB on mount
         }return { offlineDB, nextLocationConfigs };} catch (err) {console.error('Failed to sync lookup data:', err);return null;}}; // First load: also load deliveries and trigger Square sync
     if (!initialLoadKeyRef.current) {// CRITICAL: Don't lock the initialLoadKey until we have locationConfigs.
@@ -549,8 +550,7 @@ export default function SquareManagement() {
       // would be empty when the filter chain evaluates — filtering out every delivery row.
       // Wait until either the offline DB or appDataStores has produced configs.
       const configsReady = (locationConfigsRef.current || []).length > 0 || (appDataStores || []).length > 0;if (!configsReady) return; // re-runs when appDataStores arrives
-      initialLoadKeyRef.current = true;(async () => {const result = await syncLookupData();if (!result) return;try {const { offlineDB } = result;const { startDateStr, endDateStr } = getSourceWindow();await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr);
-          await loadSquareViewFromOffline();
+      initialLoadKeyRef.current = true;(async () => {const result = await syncLookupData();if (!result) return;try {const { offlineDB } = result;const { startDateStr, endDateStr } = getSourceWindow();await loadReconciliationFromOffline(offlineDB, startDateStr, endDateStr);await loadSquareViewFromOffline();
           setIsLoading(false);
           setHasInitialLoadCompleted(true);
           await syncFromSquare();
@@ -1319,7 +1319,7 @@ export default function SquareManagement() {
       // Match by: square_catalog_object_id on the transaction, OR delivery_id on the transaction.
       const catalogObjectId = item.catalog_object_id || item.id;
       const linkedPatient = linkedDelivery?.patient_id ?
-        patients.find((p) => p?.id === linkedDelivery.patient_id || p?.patient_id === linkedDelivery.patient_id) : null;
+      patients.find((p) => p?.id === linkedDelivery.patient_id || p?.patient_id === linkedDelivery.patient_id) : null;
       const linkedPatientName = linkedPatient?.full_name || parseSquareItemName(item.name || item.item_name)?.patientName || '';
       const matchingTx = (allTransactions || []).find((tx) => {
         if (!tx) return false;
@@ -1608,10 +1608,10 @@ export default function SquareManagement() {
   return (
     <div className="px-4 md:px-6 pt-4 md:pt-6 bg-background text-foreground w-full h-full overflow-y-auto md:overflow-hidden flex flex-col">
       {/* ═══════════════════════════════════════════════════════════════════
-                              MASTER LAYOUT  –  2 main rows × 2 columns
-                              Left column  : auto/shrink  (content-width)
-                              Right column : flex-1       (fills remaining width)
-                          ═══════════════════════════════════════════════════════════════════ */}
+                               MASTER LAYOUT  –  2 main rows × 2 columns
+                               Left column  : auto/shrink  (content-width)
+                               Right column : flex-1       (fills remaining width)
+                           ═══════════════════════════════════════════════════════════════════ */}
       <div className="flex-shrink-0 mb-4">
 
         {/* ── 2×2 GRID LAYOUT ── */}
@@ -1752,7 +1752,7 @@ export default function SquareManagement() {
                       <div className="h-full w-3/5 bg-blue-500 rounded-full" />
                     </div>
                   </div>
-                  <div className="h-1 bg-blue-500" />
+                  <div className="h-1 bg-blue-500 hidden" />
                 </div>
                 {/* Uncollected */}
                 <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
@@ -1764,7 +1764,7 @@ export default function SquareManagement() {
                       <div className="h-full w-2/5 bg-red-500 rounded-full" />
                     </div>
                   </div>
-                  <div className="h-1 bg-red-500" />
+                  <div className="h-1 bg-red-500 hidden" />
                 </div>
                 {/* Catalog Items */}
                 <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
@@ -1776,7 +1776,7 @@ export default function SquareManagement() {
                       <div className="h-full w-4/5 bg-emerald-500 rounded-full" />
                     </div>
                   </div>
-                  <div className="h-1 bg-emerald-500" />
+                  <div className="h-1 bg-emerald-500 hidden" />
                 </div>
                 {/* New Items */}
                 <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
@@ -1788,7 +1788,7 @@ export default function SquareManagement() {
                       <div className="h-full w-1/4 bg-amber-400 rounded-full" />
                     </div>
                   </div>
-                  <div className="h-1 bg-amber-400" />
+                  <div className="h-1 bg-amber-400 hidden" />
                 </div>
               </div>);
 
