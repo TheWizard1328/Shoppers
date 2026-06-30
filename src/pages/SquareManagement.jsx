@@ -1190,6 +1190,7 @@ export default function SquareManagement() {
         deliveryDate: delivery.delivery_date,
         collectionType,
         subtext: delivery.driver_name || null,
+        driverColor: getDriverColorForId(delivery.driver_id),
         actions: hasMatch ?
         <Button variant="secondary" size="sm" className="border border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">Collected</Button> :
         delivery.status === 'pending' ?
@@ -1205,7 +1206,14 @@ export default function SquareManagement() {
       seenRowKeys.add(rowKey);
       return true;
     });
-  }, [deliveries, lookbackStart, todayDateString, selectedDriverFilter, selectedDriverUserIds, patients, stores, locationConfigs, catalogItems, allTransactions, visibleSquareLocationConfigIds]);
+  }, [deliveries, lookbackStart, todayDateString, selectedDriverFilter, selectedDriverUserIds, patients, stores, locationConfigs, catalogItems, allTransactions, visibleSquareLocationConfigIds, getDriverColorForId]);
+
+  // Resolve the driver color (same palette as dashboard) for a given driver_id or driver user_id
+  const getDriverColorForId = useCallback((driverId) => {
+    if (!driverId) return null;
+    const driver = drivers.find((d) => d?.user_id === driverId || d?.id === driverId);
+    return driver?.user_name ? generateDriverColor(driver.user_name) : null;
+  }, [drivers]);
 
   const isCardSaleTransaction = useCallback((transaction) => {
     if (!transaction || isTransferTransaction(transaction)) return false;
@@ -1307,6 +1315,7 @@ export default function SquareManagement() {
         collectionDate,
         collectionType,
         subtext: collectedByName ? `Collected by ${collectedByName}` : transaction.payment_method || null,
+        driverColor: getDriverColorForId(matchedDelivery?.driver_id || transaction.driver_id),
         notes: transaction.raw_square_data?.note || transaction.raw_square_data?.notes || null,
         actions: matchedDelivery || transaction.square_payment_id || transaction.square_transaction_id ?
         <Button variant="secondary" size="sm" className="border border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">Collected</Button> :
@@ -1329,7 +1338,7 @@ export default function SquareManagement() {
       seenRowKeys.add(rowKey);
       return true;
     });
-  }, [allTransactions, lookbackStart, visibleLocationIds, selectedDriverFilter, selectedDriverUserIds, locationConfigs, stores, drivers, getTransactionSearchNames, getTransactionFilterDate, getTransactionEffectiveDateString, findMatchingDeliveryForTransaction, visibleSquareLocationConfigIds]);
+  }, [allTransactions, lookbackStart, visibleLocationIds, selectedDriverFilter, selectedDriverUserIds, locationConfigs, stores, drivers, getTransactionSearchNames, getTransactionFilterDate, getTransactionEffectiveDateString, findMatchingDeliveryForTransaction, visibleSquareLocationConfigIds, getDriverColorForId]);
 
   const filteredCatalogRows = useMemo(() => {
     const rows = (catalogItems || []).
@@ -1389,6 +1398,7 @@ export default function SquareManagement() {
         transactionId: matchingTx ? matchingTx.square_payment_id || matchingTx.square_transaction_id || matchingTx.id || '--' : '--',
         deliveryDate: item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate,
         subtext: item.description || item.status || null,
+        driverColor: getDriverColorForId(linkedDelivery?.driver_id),
         isCollected,
         actions: isCollected ?
         <Button variant="secondary" size="sm" className="border border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">Collected</Button> :
@@ -1419,7 +1429,7 @@ export default function SquareManagement() {
       seenRowKeys.add(rowKey);
       return true;
     });
-  }, [catalogItems, locationConfigs, stores, visibleLocationIds, driverScopedLocationIds, deletingId, lookbackStart, todayDateString, deliveries, visibleSquareLocationConfigIds, allTransactions, hasMatchingSquareTransaction]);
+  }, [catalogItems, locationConfigs, stores, visibleLocationIds, driverScopedLocationIds, deletingId, lookbackStart, todayDateString, deliveries, visibleSquareLocationConfigIds, allTransactions, hasMatchingSquareTransaction, getDriverColorForId]);
 
   // Build a fast set of delivery IDs that are already matched in the Transactions tab
   const transactionMatchedDeliveryIds = useMemo(() => {
@@ -1548,6 +1558,7 @@ export default function SquareManagement() {
         Array.from(new Set(delivery.cod_payments.map((payment) => payment?.type).filter(Boolean))).join(', ') :
         null,
         subtext: delivery.driver_name || null,
+        driverColor: getDriverColorForId(delivery.driver_id),
         crossStoreAlert: crossStoreTx ? { collectedAt: crossStoreName } : null,
         actions: crossStoreTx ?
         <div className="flex items-center gap-1.5">
@@ -1569,7 +1580,7 @@ export default function SquareManagement() {
       seenRowKeys.add(rowKey);
       return true;
     });
-  }, [deliveries, stores, visibleSquareLocationConfigIds, lookbackStart, todayDateString, selectedDriverFilter, selectedDriverUserIds, locationConfigs, allTransactions, hasMatchingSquareTransaction, patients, formatItemNameForDisplay, catalogItems, transactionMatchedDeliveryIds, transactionSignatures]);
+  }, [deliveries, stores, visibleSquareLocationConfigIds, lookbackStart, todayDateString, selectedDriverFilter, selectedDriverUserIds, locationConfigs, allTransactions, hasMatchingSquareTransaction, patients, formatItemNameForDisplay, catalogItems, transactionMatchedDeliveryIds, transactionSignatures, getDriverColorForId]);
 
   reconciliationRowsRef.current = reconciliationRows;
   filteredCatalogRowsRef.current = filteredCatalogRows;
