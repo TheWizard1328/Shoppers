@@ -88,6 +88,15 @@ export function useConfirmDelete({
         }
       }
 
+      // SAFETY: staged.id must be a real string/id. If undefined, bail out to
+      // prevent deleting unrelated pending deliveries from the staged list.
+      if (!staged.id) {
+        setStagedDeliveries((prev) => prev.filter((item) => item._tempId !== staged._tempId));
+        setDeleteConfirmation({ show: false, staged: null, transferPickupId: null });
+        if (shouldAutoFocusFields) setTimeout(() => patientSearchInputRef?.current?.focus(), 150);
+        return;
+      }
+
       // ── Delete: offline DB + online DB (entityMutations handles both) ────
       await deleteDeliveryLocal(staged.id);
 
