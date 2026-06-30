@@ -377,28 +377,13 @@ export default function PatientPortal() {
   // Patient marker: colour based on delivery status / isNextDelivery, badge = stops before
   const patientIcon = makePatientIcon(todayDelivery?.status, todayDelivery?.isNextDelivery, stopsBeforePatient);
 
-  // Build the merged route polyline: stops from store up to and including the patient's stop,
-  // sorted by stop_order, decoded and concatenated.
-  const routePolylineCoords = useMemo(() => {
-    if (!todayDelivery?.stop_order || routeDeliveries.length === 0) return [];
-    const patientStopOrder = Number(todayDelivery.stop_order);
-
-    // Include only INCOMPLETE stops up to and including the patient's stop.
-    // Completed/failed/cancelled stops are excluded so their polyline segments disappear.
-    const DONE_STATUSES = ['completed', 'failed', 'cancelled'];
-    const relevantStops = routeDeliveries
-      .filter((d) => d.encoded_polyline && Number(d.stop_order) <= patientStopOrder && !DONE_STATUSES.includes(d.status))
-      .sort((a, b) => Number(a.stop_order) - Number(b.stop_order));
-
-    if (relevantStops.length === 0) return [];
-
-    // Decode and merge all segments, deduplicating shared endpoints
+  // Helper: merge decoded polyline segments, deduplicating shared endpoints
+  const mergePolylineSegments = (stops) => {
     const merged = [];
-    for (const stop of relevantStops) {
+    for (const stop of stops) {
       const decoded = decodePolyline(stop.encoded_polyline);
       if (decoded.length < 2) continue;
       if (merged.length > 0) {
-        // Skip first point if it's the same as the last merged point
         const [lastLat, lastLng] = merged[merged.length - 1];
         const [firstLat, firstLng] = decoded[0];
         if (Math.abs(lastLat - firstLat) < 1e-5 && Math.abs(lastLng - firstLng) < 1e-5) {
@@ -411,6 +396,30 @@ export default function PatientPortal() {
       }
     }
     return merged;
+  };
+
+  // Build route polylines split into:
+  // 1. staticPolylineCoords — all legs EXCEPT the current leg (always visible)
+  // 2. currentLegCoords — the leg leading to the driver's isNextDelivery stop (only shown with showLiveTracking)
+  const { staticPolylineCoords, currentLegCoords } = useMemo(() => {
+    if (!todayDelivery?.stop_order || routeDeliveries.length === 0) return { staticPolylineCoords: [], currentLegCoords: [] };
+    const patientStopOrder = Number(todayDelivery.stop_order);
+    const DONE_STATUSES = ['completed', 'failed', 'cancelled'];
+
+    const relevantStops = routeDeliveries
+      .filter((d) => d.encoded_polyline && Number(d.stop_order) <= patientStopOrder && !DONE_STATUSES.includes(d.status))
+      .sort((a, b) => Number(a.stop_order) - Number(b.stop_order));
+
+    if (relevantStops.length === 0) return { staticPolylineCoords: [], currentLegCoords: [] };
+
+    // The current leg is the stop with isNextDelivery=true (driver is actively heading there)
+    const currentLegStop = relevantStops.find((d) => d.isNextDelivery === true);
+    const staticStops = relevantStops.filter((d) => d.isNextDelivery !== true);
+
+    return {
+      staticPolylineCoords: mergePolylineSegments(staticStops),
+      currentLegCoords: currentLegStop ? decodePolyline(currentLegStop.encoded_polyline) : [],
+    };
   }, [routeDeliveries, todayDelivery?.stop_order, todayDelivery?.id]);
 
   const mapPositions = [
@@ -570,11 +579,19 @@ export default function PatientPortal() {
                 onUserInteract={handleUserInteract}
               />
 
-              {/* Route polyline: store → intermediate stops → patient — only when live tracking is active */}
-              {showLiveTracking && routePolylineCoords.length > 1 && (
+              {/* Static route polyline — always visible (excludes current leg) */}
+              {staticPolylineCoords.length > 1 && (
                 <Polyline
-                  positions={routePolylineCoords}
+                  positions={staticPolylineCoords}
                   pathOptions={{ color: '#2563eb', weight: 4, opacity: 0.65, dashArray: '8, 6' }}
+                />
+              )}
+
+              {/* Current leg polyline (to driver's next stop) — only shown when live tracking is active */}
+              {showLiveTracking && currentLegCoords.length > 1 && (
+                <Polyline
+                  positions={currentLegCoords}
+                  pathOptions={{ color: '#16a34a', weight: 4, opacity: 0.75, dashArray: '8, 6' }}
                 />
               )}
 
