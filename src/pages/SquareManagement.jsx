@@ -1598,10 +1598,10 @@ export default function SquareManagement() {
                         ═══════════════════════════════════════════════════════════════════ */}
       <div className="flex-shrink-0 mb-4">
 
-        {/* ── MAIN 2-COL LAYOUT ── static left col | auto right col ── */}
-        <div className="grid grid-cols-1 gap-2 md:gap-3 md:mb-3 md:grid-cols-[40%_60%]">
+        {/* ── 2×2 GRID LAYOUT ── */}
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-[40%_60%]">
 
-          {/* LEFT col – filters/tabs + stat cards stacked */}
+          {/* R1-C1: Filters + Tab buttons */}
           <div className="flex flex-col gap-2">
 
             {/* Sub-row 1: Drivers | Stores | Date range | Sync */}
@@ -1698,45 +1698,10 @@ export default function SquareManagement() {
 
 
 
-            {/* Sub-row 3b: 2×2 stat cards (catalog view only) */}
-            {activeView === 'catalog' && currentUser && isAppOwner(currentUser) && (() => {
-              const newCatalogItems = reconciliationRows.filter((r) => !r.catalogId || r.catalogId === '--');
-              const newCatalogTotal = newCatalogItems.reduce((s, r) => s + Number(r.amount || 0), 0);
-              const uncollectedTotal = filteredCatalogRows.filter((row) => !row.isCollected).reduce((sum, row) => sum + Number(row.amount || 0), 0);
-              const grandTotal = activeViewStats.amountValue + newCatalogTotal;
-              return (
-                <div className="grid grid-cols-4 gap-2">
-                  <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-                    <CardContent className="p-2.5">
-                      <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Total Amount</div>
-                      <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 leading-tight">${grandTotal.toFixed(2)}</div>
-                    </CardContent>
-                  </Card>
-                  <Card className="bg-white dark:bg-slate-900 border-amber-200 dark:border-amber-800">
-                    <CardContent className="p-2.5">
-                      <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Uncollected</div>
-                      <div className="text-lg font-bold text-amber-600 dark:text-amber-400 leading-tight">${(uncollectedTotal + newCatalogTotal).toFixed(2)}</div>
-                    </CardContent>
-                  </Card>
-                  <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-                    <CardContent className="p-2.5">
-                      <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Catalog Items</div>
-                      <div className="text-lg font-bold text-slate-900 dark:text-slate-50 leading-tight">{activeViewStats.primaryValue}</div>
-                    </CardContent>
-                  </Card>
-                  <Card className="bg-white dark:bg-slate-900 border-blue-200 dark:border-blue-800">
-                    <CardContent className="p-2.5">
-                      <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">New Items</div>
-                      <div className="text-lg font-bold text-blue-600 dark:text-blue-400 leading-tight">{newCatalogItems.length}{newCatalogTotal > 0 && <span className="text-xs text-blue-500 dark:text-blue-400 ml-1">${newCatalogTotal.toFixed(2)}</span>}</div>
-                    </CardContent>
-                  </Card>
-                </div>
-              );
-            })()}
           </div>
 
-          {/* RIGHT col – sync status + stat cards + store location cards */}
-          <div className="flex-1 min-w-0 flex flex-col gap-2 self-start">
+          {/* R1-C2: Sync status card */}
+          <div className="flex-1 min-w-0 self-start">
             {syncStatus &&
             <SyncStatusIndicator
               syncStatus={syncStatus}
@@ -1748,70 +1713,94 @@ export default function SquareManagement() {
               salesCount={filteredSalesCount}
               collectedCodTypeBreakdown={collectedCodTypeBreakdown} />
             }
-
-
-
-            {activeView === 'catalog' && currentUser && isAppOwner(currentUser) && locationConfigs.length > 0 &&
-            <div>
-              <h2 className="text-sm font-semibold mb-1.5 text-slate-900 dark:text-slate-50">By Store</h2>
-              <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-                 {(() => {
-                  const storeCardMap = new Map();
-                  const newCatalogItemsForStore = reconciliationRows.filter((r) => !r.catalogId || r.catalogId === '--');
-
-                  // Add existing catalog items
-                  for (const item of filteredCatalogRows) {
-                    const parsed = parseSquareItemName(item.itemName || item.name || '');
-                    const abbr = parsed?.storeAbbr ? parsed.storeAbbr.toUpperCase() : null;
-                    const locationId = item.locationId;
-                    const config = locationConfigs.find((c) => c?.square_location_id === locationId);
-                    const storeByAbbr = abbr ? stores.find((s) => s?.abbreviation?.toUpperCase() === abbr) : null;
-                    const storeByConfig = getStoreForConfig(config);
-                    const resolvedStore = storeByAbbr || storeByConfig;
-                    const label = resolvedStore?.name || abbr || config?.name || 'Unknown';
-                    const sortOrder = resolvedStore?.sort_order ?? Infinity;
-                    const cardKey = `${locationId}::${abbr || 'unknown'}`;
-                    if (!storeCardMap.has(cardKey)) {
-                      storeCardMap.set(cardKey, { label, locationId, config, storeAbbr: abbr, sortOrder, items: [], newItems: [] });
-                    }
-                    storeCardMap.get(cardKey).items.push(item);
-                  }
-
-                  // Add new catalog items (from reconciliation, no catalog ID yet)
-                  for (const row of newCatalogItemsForStore) {
-                    const store = stores.find((s) => s?.id === row.rawStoreId);
-                    const config = store ? getConfigForStore(store) : null;
-                    const locationId = row.locationId !== '--' ? row.locationId : config?.square_location_id || null;
-                    if (!locationId) continue;
-                    const abbr = store?.abbreviation?.toUpperCase() || null;
-                    const label = store?.name || row.storeName || 'Unknown';
-                    const sortOrder = store?.sort_order ?? Infinity;
-                    const cardKey = `${locationId}::${abbr || 'unknown'}`;
-                    if (!storeCardMap.has(cardKey)) {
-                      storeCardMap.set(cardKey, { label, locationId, config, storeAbbr: abbr, sortOrder, items: [], newItems: [] });
-                    }
-                    storeCardMap.get(cardKey).newItems.push(row);
-                  }
-
-                  return Array.from(storeCardMap.values()).
-                  sort((a, b) => a.sortOrder - b.sortOrder).
-                  map(({ label, locationId, config, storeAbbr, items, newItems }) => {
-                    const codTotal = items.reduce((sum, item) => sum + Number(item.amount || 0), 0)
-                      + (newItems || []).reduce((sum, r) => sum + Number(r.amount || 0), 0);
-                    const itemCount = items.length + (newItems || []).length;
-                    return (
-                      <LocationSummaryCard
-                        key={`${locationId}::${storeAbbr || 'unknown'}`}
-                        location={{ name: label, square_location_id: locationId }}
-                        codTotal={codTotal}
-                        itemCount={itemCount}
-                        onClick={() => config && setSelectedLocation(config)} />);
-                  });
-                })()}
-              </div>
-            </div>
-            }
           </div>
+
+          {/* R2-C1: 4 stat cards (catalog view only) */}
+          {activeView === 'catalog' && currentUser && isAppOwner(currentUser) && (() => {
+            const newCatalogItems = reconciliationRows.filter((r) => !r.catalogId || r.catalogId === '--');
+            const newCatalogTotal = newCatalogItems.reduce((s, r) => s + Number(r.amount || 0), 0);
+            const uncollectedTotal = filteredCatalogRows.filter((row) => !row.isCollected).reduce((sum, row) => sum + Number(row.amount || 0), 0);
+            const grandTotal = activeViewStats.amountValue + newCatalogTotal;
+            return (
+              <div className="grid grid-cols-4 gap-2">
+                <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+                  <CardContent className="p-2.5">
+                    <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Total Amount</div>
+                    <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 leading-tight">${grandTotal.toFixed(2)}</div>
+                  </CardContent>
+                </Card>
+                <Card className="bg-white dark:bg-slate-900 border-amber-200 dark:border-amber-800">
+                  <CardContent className="p-2.5">
+                    <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Uncollected</div>
+                    <div className="text-lg font-bold text-amber-600 dark:text-amber-400 leading-tight">${(uncollectedTotal + newCatalogTotal).toFixed(2)}</div>
+                  </CardContent>
+                </Card>
+                <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+                  <CardContent className="p-2.5">
+                    <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Catalog Items</div>
+                    <div className="text-lg font-bold text-slate-900 dark:text-slate-50 leading-tight">{activeViewStats.primaryValue}</div>
+                  </CardContent>
+                </Card>
+                <Card className="bg-white dark:bg-slate-900 border-blue-200 dark:border-blue-800">
+                  <CardContent className="p-2.5">
+                    <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">New Items</div>
+                    <div className="text-lg font-bold text-blue-600 dark:text-blue-400 leading-tight">{newCatalogItems.length}{newCatalogTotal > 0 && <span className="text-xs text-blue-500 dark:text-blue-400 ml-1">${newCatalogTotal.toFixed(2)}</span>}</div>
+                  </CardContent>
+                </Card>
+              </div>
+            );
+          })()}
+
+          {/* R2-C2: Store location cards (catalog view only) */}
+          {activeView === 'catalog' && currentUser && isAppOwner(currentUser) && locationConfigs.length > 0 &&
+          <div className="flex-1 min-w-0 self-start">
+            <h2 className="text-sm font-semibold mb-1.5 text-slate-900 dark:text-slate-50">By Store</h2>
+            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+              {(() => {
+                const storeCardMap = new Map();
+                const newCatalogItemsForStore = reconciliationRows.filter((r) => !r.catalogId || r.catalogId === '--');
+                for (const item of filteredCatalogRows) {
+                  const parsed = parseSquareItemName(item.itemName || item.name || '');
+                  const abbr = parsed?.storeAbbr ? parsed.storeAbbr.toUpperCase() : null;
+                  const locationId = item.locationId;
+                  const config = locationConfigs.find((c) => c?.square_location_id === locationId);
+                  const storeByAbbr = abbr ? stores.find((s) => s?.abbreviation?.toUpperCase() === abbr) : null;
+                  const storeByConfig = getStoreForConfig(config);
+                  const resolvedStore = storeByAbbr || storeByConfig;
+                  const label = resolvedStore?.name || abbr || config?.name || 'Unknown';
+                  const sortOrder = resolvedStore?.sort_order ?? Infinity;
+                  const cardKey = `${locationId}::${abbr || 'unknown'}`;
+                  if (!storeCardMap.has(cardKey)) storeCardMap.set(cardKey, { label, locationId, config, storeAbbr: abbr, sortOrder, items: [], newItems: [] });
+                  storeCardMap.get(cardKey).items.push(item);
+                }
+                for (const row of newCatalogItemsForStore) {
+                  const store = stores.find((s) => s?.id === row.rawStoreId);
+                  const config = store ? getConfigForStore(store) : null;
+                  const locationId = row.locationId !== '--' ? row.locationId : config?.square_location_id || null;
+                  if (!locationId) continue;
+                  const abbr = store?.abbreviation?.toUpperCase() || null;
+                  const label = store?.name || row.storeName || 'Unknown';
+                  const sortOrder = store?.sort_order ?? Infinity;
+                  const cardKey = `${locationId}::${abbr || 'unknown'}`;
+                  if (!storeCardMap.has(cardKey)) storeCardMap.set(cardKey, { label, locationId, config, storeAbbr: abbr, sortOrder, items: [], newItems: [] });
+                  storeCardMap.get(cardKey).newItems.push(row);
+                }
+                return Array.from(storeCardMap.values()).sort((a, b) => a.sortOrder - b.sortOrder).map(({ label, locationId, config, storeAbbr, items, newItems }) => {
+                  const codTotal = items.reduce((sum, item) => sum + Number(item.amount || 0), 0) + (newItems || []).reduce((sum, r) => sum + Number(r.amount || 0), 0);
+                  const itemCount = items.length + (newItems || []).length;
+                  return (
+                    <LocationSummaryCard
+                      key={`${locationId}::${storeAbbr || 'unknown'}`}
+                      location={{ name: label, square_location_id: locationId }}
+                      codTotal={codTotal}
+                      itemCount={itemCount}
+                      onClick={() => config && setSelectedLocation(config)} />
+                  );
+                });
+              })()}
+            </div>
+          </div>
+          }
         </div>
 
         {/* Reconciliation stat cards — full-width single row */}
