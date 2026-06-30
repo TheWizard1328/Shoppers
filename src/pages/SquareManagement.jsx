@@ -1006,7 +1006,7 @@ export default function SquareManagement() {
   const lookbackStart = useMemo(() => {
     const date = new Date();
     date.setHours(0, 0, 0, 0);
-    date.setDate(date.getDate() - Number(selectedDaysRange || 90));
+    date.setDate(date.getDate() - Number(selectedDaysRange || 90) + 1);
     return date;
   }, [selectedDaysRange]);
 
