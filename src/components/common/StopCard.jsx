@@ -33,7 +33,6 @@ import { generateCompletionTimestamp, calculateRetroactiveStopTiming, parseLocal
 import { generateUniqueSID } from '../dashboard/DashboardHelpers';
 import StopCardConfirmDialogs from './StopCardConfirmDialogs';
 import CoolerTempReader from './CoolerTempReader';
-import { useInkbirdSensorBridge } from './useInkbirdSensorBridge';
 import StopCardReturnDialog from './StopCardReturnDialog';
 import InterStoreDropoffDialog from './InterStoreDropoffDialog';
 import MultiDeliveryArrivalDialog from './MultiDeliveryArrivalDialog';
@@ -720,18 +719,22 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
     setInterStoreMatch
   });
 
-  // ── BLE sensor: runs in background on fridge-item stops only ──────────────
-  // We call useInkbirdSensor unconditionally (hooks must not be conditional)
-  // but only use triggerReconnect() when this is actually a fridge item.
-  const inkbirdSensor = useInkbirdSensorBridge(delivery?.fridge_item ? currentUser : null);
-  const { triggerReconnect } = inkbirdSensor;
+  // ── BLE reconnect: fired to LiveTempBadge via window event on any fridge-item tap ──
+  // LiveTempBadge is the sole owner of the BluetoothDevice ref and GATT server.
+  // We fire a custom event from within the user-gesture call stack so Chrome's
+  // gesture-trust requirement is satisfied. The badge listener ignores the event
+  // if it's already connected or no paired device is cached.
+  const dispatchBleReconnect = useCallback(() => {
+    if (!delivery?.fridge_item) return;
+    window.dispatchEvent(new CustomEvent('inkbirdReconnectRequest'));
+  }, [delivery?.fridge_item]);
 
-  // Wrap the three action handlers to piggyback BLE reconnect on each tap.
-  // Chrome requires a real user gesture in the call stack for gatt.connect().
-  // These button presses ARE user gestures — perfect for a silent reconnect.
-  const handleStartActionWithBle     = useCallback((e) => { if (delivery?.fridge_item) triggerReconnect(); return handleStartAction(e);     }, [delivery?.fridge_item, triggerReconnect, handleStartAction]);
-  const handleCompleteActionWithBle  = useCallback((e) => { if (delivery?.fridge_item) triggerReconnect(); return handleCompleteAction(e);  }, [delivery?.fridge_item, triggerReconnect, handleCompleteAction]);
-  const handleFailureConfirmWithBle  = useCallback((...args) => { if (delivery?.fridge_item) triggerReconnect(); return handleFailureConfirm(...args); }, [delivery?.fridge_item, triggerReconnect, handleFailureConfirm]);
+  const handleStartActionWithBle    = useCallback((e) => { dispatchBleReconnect(); return handleStartAction(e);    }, [dispatchBleReconnect, handleStartAction]);
+  const handleCompleteActionWithBle = useCallback((e) => { dispatchBleReconnect(); return handleCompleteAction(e); }, [dispatchBleReconnect, handleCompleteAction]);
+  const handleFailureConfirmWithBle = useCallback((...args) => { dispatchBleReconnect(); return handleFailureConfirm(...args); }, [dispatchBleReconnect, handleFailureConfirm]);
+  const handleRetryDeliveryWithBle  = useCallback((e) => { dispatchBleReconnect(); return handleRetryDelivery(e);  }, [dispatchBleReconnect, handleRetryDelivery]);
+  const handleReturnClickWithBle    = useCallback((e) => { dispatchBleReconnect(); return handleReturnClick(e);    }, [dispatchBleReconnect, handleReturnClick]);
+  const restartWithBle              = useCallback((...args) => { dispatchBleReconnect(); return restartCurrentDelivery(...args); }, [dispatchBleReconnect, restartCurrentDelivery]);
 
   if (!delivery) return null;
 
@@ -922,7 +925,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
               currentUser={currentUser}
               onDone={clearCoolerLog}
               actionLabel={pendingCoolerLog.actionLabel}
-              sensorHook={inkbirdSensor}
+              sensorHook={undefined}
             />
           )}
           
@@ -1192,7 +1195,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
             routeCompleted={routeCompleted}
             isPastDeliveryDate={isPastDeliveryDate}
             onRestart={onRestart}
-            restartCurrentDelivery={restartCurrentDelivery}
+            restartCurrentDelivery={restartWithBle}
             isRestarting={isRestarting}
             isProcessingBackground={isProcessingBackground}
             isFailing={isFailing}
@@ -1204,11 +1207,11 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
             isCurrentCardStartLocked={isCurrentCardStartLocked}
             isStarting={isStarting}
             isRetrying={isRetrying}
-            handleRetryDelivery={handleRetryDelivery}
+            handleRetryDelivery={handleRetryDeliveryWithBle}
             canRetry={canRetry}
             hasFutureRetry={hasFutureRetry}
             hasCompletedDelivery={hasCompletedDelivery}
-            handleReturnClick={handleReturnClick}
+            handleReturnClick={handleReturnClickWithBle}
             isPreparingReturn={isPreparingReturn}
             isCreatingReturn={isCreatingReturn}
             hasFutureReturn={hasFutureReturn}
@@ -1220,6 +1223,7 @@ export default function StopCard({ delivery, store, driver, patients = [], curre
             allDeliveries={allDeliveries}
             onStartDelivery={onStartDelivery}
             handleCompleteAction={handleCompleteActionWithBle}
+            dispatchBleReconnect={dispatchBleReconnect}
             hasCODRequired={hasCODRequired}
             isCODComplete={isCODComplete}
             squareAppId={squareAppId} />

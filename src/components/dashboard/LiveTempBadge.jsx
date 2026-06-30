@@ -327,12 +327,15 @@ export default function LiveTempBadge({
     };
   }, [selectedDriverId, currentUser?.id, triggerPulse, forceRead, loadFromDb]);
 
+
   // Cleanup on unmount
   useEffect(() => () => {
     clearTimeout(pulseTimerRef.current);
     clearTimeout(savedFlashRef.current);
     clearInterval(dbPollTimerRef.current);
   }, []);
+
+  const showLiveBle = !isPastDate && selectedDriverIsMe && driverMode;
 
   // ── BLE connect state ────────────────────────────────────────────────
   const bleConnectingRef    = useRef(false);  // guard: prevent concurrent connects
@@ -434,9 +437,36 @@ export default function LiveTempBadge({
     }
   }, [isPastDate, selectedDriverIsMe, adminMode, driverMode, bleStatus, sensorName,
       loadFromDb, triggerPulse, forceRead, setConnectedServer, forgetSensor]);
+  // ── Silent BLE reconnect — fired by StopCard button/menu interactions ──────
+  // Any fridge-item stop card fires 'inkbirdReconnectRequest' on user tap.
+  // We attempt a silent GATT reconnect only when not already connected and a
+  // previously-paired device is cached in blePermittedDevice.current.
+  // No picker — this only works for already-permitted devices.
+  useEffect(() => {
+    const onReconnectRequest = async () => {
+      if (!showLiveBle) return;                        // only for this driver today
+      if (bleStatus === 'connected') return;           // already streaming — no-op
+      if (bleConnectingRef.current) return;            // mid-connect — no-op
+      const permitted = blePermittedDevice.current;
+      if (!permitted) return;                          // no known device — no-op
+      bleConnectingRef.current = true;
+      setBleConnecting(true);
+      try {
+        const server = await permitted.gatt.connect();
+        await setConnectedServer(server, permitted);
+      } catch (err) {
+        blePermittedDevice.current = null; // stale ref — clear so next tap opens picker
+        console.warn('[LiveTempBadge] Silent reconnect failed:', err?.message);
+      } finally {
+        bleConnectingRef.current = false;
+        setBleConnecting(false);
+      }
+    };
+    window.addEventListener('inkbirdReconnectRequest', onReconnectRequest);
+    return () => window.removeEventListener('inkbirdReconnectRequest', onReconnectRequest);
+  }, [bleStatus, showLiveBle, setConnectedServer]);
 
   // ── Display values ────────────────────────────────────────────────────
-  const showLiveBle = !isPastDate && selectedDriverIsMe && driverMode;
 
   // Fallback: last BLE reading saved to localStorage (survives BLE disconnects between sessions)
   const localStorageFallbackTemp = (() => {
