@@ -934,19 +934,29 @@ export default function DeliveryMap({
   const immersiveExitSuppressUntilRef = useRef(0);
   useEffect(() => {
     if (prevImmersiveHiddenRef.current && !immersiveHidden) {
-      // Immersive just exited — suppress phase 2 map repositioning for 5 seconds
-      immersiveExitSuppressUntilRef.current = Date.now() + 5000;
+      // Immersive just exited — suppress phase 2 map repositioning for 1.5 seconds
+      // (just enough for the padding re-render to settle; driver is approaching a stop
+      // and needs GPS follow to resume quickly, not be dead for 5 seconds).
+      immersiveExitSuppressUntilRef.current = Date.now() + 1500;
     }
     prevImmersiveHiddenRef.current = immersiveHidden;
   }, [immersiveHidden]);
   const currentDriverLocationRef = useRef(currentDriverLocation);
   useEffect(() => { currentDriverLocationRef.current = currentDriverLocation; }, [currentDriverLocation]);
+  // Internal ref so Phase 2 follow effect always reads the live lock state
+  // without having to list isMapViewLocked as a dep (which causes the effect to
+  // re-run and wipe Phase 2 anchor refs on every state sync cycle).
+  const isMapViewLockedRef = useRef(isMapViewLocked);
+  useEffect(() => { isMapViewLockedRef.current = isMapViewLocked; }, [isMapViewLocked]);
   const routeAwareCurrentDriverMarkerRef = useRef(routeAwareCurrentDriverMarker);
   useEffect(() => { routeAwareCurrentDriverMarkerRef.current = routeAwareCurrentDriverMarker; }, [routeAwareCurrentDriverMarker]);
   const routeAwareDriverLocationMarkersRef = useRef(routeAwareDriverLocationMarkers);
   useEffect(() => { routeAwareDriverLocationMarkersRef.current = routeAwareDriverLocationMarkers; }, [routeAwareDriverLocationMarkers]);
   useEffect(() => {
-    if (!map || mapViewPhase !== 2 || !isMapViewLocked) {
+    // CRITICAL: Use isMapViewLockedRef.current (not the prop) — reading the prop causes this
+    // effect to re-run and wipe Phase 2 anchor refs on every React state sync cycle, including
+    // when immersiveHidden toggles at 250m proximity. The ref always reflects the live value.
+    if (!map || mapViewPhase !== 2 || !isMapViewLockedRef.current) {
       phase2FollowKeyRef.current = "";
       phase2OwnDriverAnchorRef.current = null;
       phase2LastFitDriverLocationRef.current = null;
@@ -1107,10 +1117,17 @@ export default function DeliveryMap({
   // re-run fitBounds on every GPS tick → 1-second map blink even while stationary.
   // The effect reads the ref directly; the 50m movement guard inside prevents spurious repaints.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, mapViewPhase, isMapViewLocked, selectedDriverId, currentUser?.id,
+  // immersiveHidden intentionally removed from deps — it's read via immersiveExitSuppressUntilRef
+  // inside the effect. Having it here caused the effect to re-run on every 250m proximity exit,
+  // wiping phase2OwnDriverAnchorRef and killing auto-pan until the next GPS trigger.
+  // isMapViewLocked removed — read via isMapViewLockedRef.current (see guard above).
+  // effectiveTopOverlayHeight/stopCardsHeight drive padding but not the follow anchor logic;
+  // the padding refs are stable refs that are always current when fitBounds is called.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, mapViewPhase, selectedDriverId, currentUser?.id,
     deliveryMarkers.map((m) => `${m?.driver_id}:${m?.id}:${m?.latitude}:${m?.longitude}:${m?.isNextDelivery}:${m?.isNextInLine}:${m?.stop_order}:${m?.status}`).join('|'),
     pickupMarkers.map((m) => `${m?.driver_id}:${m?.id}:${m?.latitude}:${m?.longitude}:${m?.isNextDelivery}:${m?.isNextInLine}:${m?.stop_order}:${m?.status}`).join('|'),
-    isMobile, immersiveHidden, effectiveTopOverlayHeight, areStopCardsVisible, stopCardsHeight]);
+    isMobile]);
 
   useEffect(() => {
     if (!map || !tileLayerConfig?.base || !map._loaded || !map._container || !map._mapPane) return;

@@ -89,8 +89,10 @@ export default function useDriverLocationSync({
         const fabReportsPhase = window.__currentMapViewPhase ?? mapViewPhaseRef.current;
         if (isMapViewLockedRef.current && (mapViewPhaseRef.current === 2 || mapViewPhaseRef.current === 3) && (fabReportsPhase === 2 || fabReportsPhase === 3)) {
           if ((window._suppressMapRepositionUntil || 0) > now) return;
-          // CRITICAL: Suppress GPS-driven map repositioning for 5s after exiting immersive mode
-          if ((window._lastImmersiveExitAt || 0) > now - 5000) return;
+          // Suppress GPS-driven map repositioning for 1.5s after exiting immersive mode
+          // (just enough time for the padding re-render to settle — driver still needs the map
+          // to follow them at 250m from the stop, so 5s was too long here).
+          if ((window._lastImmersiveExitAt || 0) > now - 1500) return;
           const selectedId = window._selectedDriverIdRef?.current;
           if (selectedId && selectedId !== 'all' && selectedId !== currentUser.id) return;
           const minIntervalMs = mapViewPhaseRef.current === 2 ? 1200 : 1800;
