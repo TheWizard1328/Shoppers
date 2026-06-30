@@ -401,10 +401,11 @@ export default function PatientPortal() {
   };
 
   // Build route polylines split into:
-  // 1. staticPolylineCoords — all legs EXCEPT the current leg (always visible)
-  // 2. currentLegCoords — the leg leading to the driver's isNextDelivery stop (only shown with showLiveTracking)
-  const { staticPolylineCoords, currentLegCoords } = useMemo(() => {
-    if (!todayDelivery?.stop_order || routeDeliveries.length === 0) return { staticPolylineCoords: [], currentLegCoords: [] };
+  // 1. staticPolylineCoords — all legs EXCEPT the first stop's leg and the current leg (always visible)
+  // 2. firstLegCoords — the leg from store → first stop (hidden when off duty / before 9:30)
+  // 3. currentLegCoords — the leg leading to the driver's isNextDelivery stop (hidden when off duty / before 9:30)
+  const { staticPolylineCoords, firstLegCoords, currentLegCoords } = useMemo(() => {
+    if (!todayDelivery?.stop_order || routeDeliveries.length === 0) return { staticPolylineCoords: [], firstLegCoords: [], currentLegCoords: [] };
     const patientStopOrder = Number(todayDelivery.stop_order);
     const DONE_STATUSES = ['completed', 'failed', 'cancelled'];
 
@@ -412,14 +413,25 @@ export default function PatientPortal() {
       .filter((d) => d.encoded_polyline && Number(d.stop_order) <= patientStopOrder && !DONE_STATUSES.includes(d.status))
       .sort((a, b) => Number(a.stop_order) - Number(b.stop_order));
 
-    if (relevantStops.length === 0) return { staticPolylineCoords: [], currentLegCoords: [] };
+    if (relevantStops.length === 0) return { staticPolylineCoords: [], firstLegCoords: [], currentLegCoords: [] };
 
-    // The current leg is the stop with isNextDelivery=true (driver is actively heading there)
+    const firstStop = relevantStops[0];
+    const minStopOrder = Number(firstStop.stop_order);
+
+    // Current leg = stop with isNextDelivery=true
     const currentLegStop = relevantStops.find((d) => d.isNextDelivery === true);
-    const staticStops = relevantStops.filter((d) => d.isNextDelivery !== true);
+
+    // Static = everything except first stop leg and current leg
+    const staticStops = relevantStops.filter((d) =>
+      Number(d.stop_order) !== minStopOrder && d.isNextDelivery !== true
+    );
+
+    // First leg = first stop only (unless it's also the current leg, then it's covered there)
+    const firstLegStop = firstStop.isNextDelivery ? null : firstStop;
 
     return {
       staticPolylineCoords: mergePolylineSegments(staticStops),
+      firstLegCoords: firstLegStop ? decodePolyline(firstLegStop.encoded_polyline) : [],
       currentLegCoords: currentLegStop ? decodePolyline(currentLegStop.encoded_polyline) : [],
     };
   }, [routeDeliveries, todayDelivery?.stop_order, todayDelivery?.id]);
@@ -581,15 +593,23 @@ export default function PatientPortal() {
                 onUserInteract={handleUserInteract}
               />
 
-              {/* Static route polyline — only shown when live tracking is active and delivery is in progress */}
-              {showLiveTracking && ['in_transit', 'en_route'].includes(todayDelivery?.status) && staticPolylineCoords.length > 1 && (
+              {/* Static polyline — all legs except first stop and current leg — always visible */}
+              {staticPolylineCoords.length > 1 && (
                 <Polyline
                   positions={staticPolylineCoords}
                   pathOptions={{ color: '#2563eb', weight: 4, opacity: 0.65, dashArray: '8, 6' }}
                 />
               )}
 
-              {/* Current leg polyline (to driver's next stop) — only shown when live tracking is active */}
+              {/* First stop leg — hidden when off duty or before 9:30 AM */}
+              {showLiveTracking && firstLegCoords.length > 1 && (
+                <Polyline
+                  positions={firstLegCoords}
+                  pathOptions={{ color: '#2563eb', weight: 4, opacity: 0.65, dashArray: '8, 6' }}
+                />
+              )}
+
+              {/* Current leg (isNextDelivery stop) — hidden when off duty or before 9:30 AM */}
               {showLiveTracking && currentLegCoords.length > 1 && (
                 <Polyline
                   positions={currentLegCoords}
