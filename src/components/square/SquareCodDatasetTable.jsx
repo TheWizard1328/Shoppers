@@ -220,23 +220,19 @@ export default function SquareCodDatasetTable({
         <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
             {/* Desktop */}
             <div className="hidden md:flex flex-col flex-1 min-h-0 overflow-hidden">
-              <div className="overflow-x-auto px-0">
-                <table className="w-full table-auto">
-                  <thead className="bg-white dark:bg-slate-900">
-                    <tr className="border-b text-left text-sm text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700">
-                      <th className="p-3">Item Name</th>
-                      <th className="p-3">Amount</th>
-                      <th className="p-3">Store</th>
-                      {showLocationColumn && <th className="p-3">Square Location ID</th>}
-                      <th className="p-3">Catalog ID</th>
-                      <th className="p-3">Transaction ID</th>
-                      <th className="p-3">Actions</th>
-                    </tr>
-                  </thead>
-                </table>
-              </div>
               <div className="min-h-0 flex-1 overflow-y-auto overflow-x-auto" style={{ paddingBottom: navHeight ? navHeight + 8 : 8 }}>
                 <table className="w-full table-auto">
+                  <thead className="sticky top-0 z-10 bg-white dark:bg-slate-900">
+                    <tr className="border-b text-left text-sm text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700">
+                      <th className="p-3 whitespace-nowrap">Item Name</th>
+                      <th className="p-3 whitespace-nowrap">Amount</th>
+                      <th className="p-3 whitespace-nowrap">Store</th>
+                      {showLocationColumn && <th className="p-3 whitespace-nowrap">Square Location ID</th>}
+                      <th className="p-3 whitespace-nowrap">Catalog ID</th>
+                      <th className="p-3 whitespace-nowrap">Transaction ID</th>
+                      <th className="p-3 whitespace-nowrap">Actions</th>
+                    </tr>
+                  </thead>
                   <tbody>
                     {hasNewCatalogRows &&
                   <SectionDivider label={`New Catalog Items (${newCatalogRows.length})`} colSpan={colSpan} />
