@@ -217,8 +217,10 @@ export default function PatientPortal() {
       const storeIds = [...new Set([
         ...allDeliveries.map((d) => d.store_id).filter(Boolean),
         patient?.store_id,
+        activeToday?.store_id,
       ].filter(Boolean))];
       const allStores = await base44.entities.Store.filter({});
+      // Keep all stores that match any delivery store OR the patient's home store
       setStores(allStores.filter((s) => storeIds.includes(s.id)));
     } catch (err) {
       console.error('PatientPortal load error:', err);
@@ -579,8 +581,8 @@ export default function PatientPortal() {
                 onUserInteract={handleUserInteract}
               />
 
-              {/* Static route polyline — always visible (excludes current leg) */}
-              {staticPolylineCoords.length > 1 && (
+              {/* Static route polyline — only shown when delivery is actively in progress */}
+              {['in_transit', 'en_route'].includes(todayDelivery?.status) && staticPolylineCoords.length > 1 && (
                 <Polyline
                   positions={staticPolylineCoords}
                   pathOptions={{ color: '#2563eb', weight: 4, opacity: 0.65, dashArray: '8, 6' }}
