@@ -148,6 +148,7 @@ export default function PatientPortal() {
   const [routeDeliveries, setRouteDeliveries] = useState([]);
   // trackingMode: when true the map auto-pans to keep driver+patient in view
   const [trackingMode, setTrackingMode] = useState(false);
+  const [driverStatus, setDriverStatus] = useState(null);
 
   // Keep a ref to the current todayDelivery so subscriptions can read it without
   // going stale in closures.
@@ -206,6 +207,7 @@ export default function PatientPortal() {
         try {
           const appUsers = await base44.entities.AppUser.filter({ user_id: activeToday.driver_id });
           const driver = appUsers?.[0];
+          if (driver?.driver_status) setDriverStatus(driver.driver_status);
           if (driver?.current_latitude && driver?.current_longitude) {
             setDriverLocation({ lat: driver.current_latitude, lng: driver.current_longitude, name: driver.user_name });
           }
@@ -332,6 +334,8 @@ export default function PatientPortal() {
         // which matches delivery.driver_id)
         if (updated.user_id !== today.driver_id) return;
 
+        if (updated.driver_status) setDriverStatus(updated.driver_status);
+
         if (updated.current_latitude && updated.current_longitude) {
           setDriverLocation({
             lat: updated.current_latitude,
@@ -426,6 +430,13 @@ export default function PatientPortal() {
   const handleDoubleTap = useCallback(() => setTrackingMode(true), []);
   const handleUserInteract = useCallback(() => setTrackingMode(false), []);
 
+  // Live tracking is only visible after 9:30 AM and when driver is on_duty
+  const isAfter930am = (() => {
+    const now = new Date();
+    return now.getHours() > 9 || (now.getHours() === 9 && now.getMinutes() >= 30);
+  })();
+  const showLiveTracking = isAfter930am && driverStatus === 'on_duty';
+
   return (
     <div className="flex h-screen bg-slate-100 overflow-hidden">
       <PatientPortalGuard />
@@ -509,7 +520,7 @@ export default function PatientPortal() {
                   </span>
                 )}
               </div>
-              {driverLocation && (
+              {showLiveTracking && driverLocation && (
                 <div className="mt-2 pt-2 border-t border-slate-100 flex items-center gap-2 text-xs text-green-700">
                   <Wifi className="w-3.5 h-3.5" />
                   Driver location updating live
@@ -531,7 +542,7 @@ export default function PatientPortal() {
 
         {/* Map */}
         <div className="flex-1 px-4 pb-4 overflow-hidden relative">
-          {driverLocation && (
+          {showLiveTracking && driverLocation && (
             <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[1000] pointer-events-none">
               <div className={`text-xs font-medium px-3 py-1 rounded-full shadow border ${trackingMode ? 'bg-green-50 text-green-700 border-green-200' : 'bg-white text-slate-500 border-slate-200'}`}>
                 {trackingMode ? '📍 Tracking driver' : 'Double-tap map to track driver'}
@@ -552,15 +563,15 @@ export default function PatientPortal() {
 
               {mapPositions.length > 0 && <MapBoundsFitter positions={mapPositions} />}
               <DriverTracker
-                driverLocation={driverLocation}
+                driverLocation={showLiveTracking ? driverLocation : null}
                 patientLatLng={patientLatLng}
                 trackingMode={trackingMode}
                 onDoubleTap={handleDoubleTap}
                 onUserInteract={handleUserInteract}
               />
 
-              {/* Route polyline: store → intermediate stops → patient */}
-              {routePolylineCoords.length > 1 && (
+              {/* Route polyline: store → intermediate stops → patient — only when live tracking is active */}
+              {showLiveTracking && routePolylineCoords.length > 1 && (
                 <Polyline
                   positions={routePolylineCoords}
                   pathOptions={{ color: '#2563eb', weight: 4, opacity: 0.65, dashArray: '8, 6' }}
@@ -581,8 +592,8 @@ export default function PatientPortal() {
                 </Marker>
               )}
 
-              {/* Driver marker */}
-              {driverLocation && (
+              {/* Driver marker — only when live tracking is enabled */}
+              {showLiveTracking && driverLocation && (
                 <Marker position={[driverLocation.lat, driverLocation.lng]} icon={driverIcon}>
                   <Popup><strong>Your Driver</strong><br />{driverLocation.name || 'On the way!'}</Popup>
                 </Marker>
