@@ -232,85 +232,8 @@ export default function SquareManagement() {
   const selectedDriverUserIdsRef = useRef(new Set());
 
   const updateCatalog = useCallback(async () => {
-    if (isUpdatingCatalog || isSyncing) return;
-    setIsUpdatingCatalog(true);
-    setError(null);
-    try {
-      const currentReconciliationRows = reconciliationRowsRef.current || [];
-
-      // ── Step 1: Delete catalog items that have a Transaction ID ──────────
-      // Collect from both the Catalog tab rows AND the Reconcile tab rows.
-      const catalogRowsWithTx = (filteredCatalogRowsRef.current || []).filter(
-        (row) => row.transactionId && row.transactionId !== '--' && row.catalogId && row.catalogId !== '--'
-      );
-      const reconcileRowsWithTx = currentReconciliationRows.filter(
-        (row) => row.transactionId && row.transactionId !== '--' && row.catalogId && row.catalogId !== '--'
-      );
-      // Dedupe by catalogId
-      const toDeleteMap = new Map();
-      [...catalogRowsWithTx, ...reconcileRowsWithTx].forEach((row) => {
-        if (!toDeleteMap.has(row.catalogId)) toDeleteMap.set(row.catalogId, row);
-      });
-      const toDelete = Array.from(toDeleteMap.values());
-
-      let deletedCount = 0;
-      for (const row of toDelete) {
-        try {
-          // Delete from Square API
-          await base44.functions.invoke('squareDeleteCodItem', { catalogObjectId: row.catalogId });
-          // Delete from online DB
-          const existing = await base44.entities.SquareCatalogItems.filter({ square_catalog_object_id: row.catalogId });
-          for (const record of existing || []) {
-            await base44.entities.SquareCatalogItems.delete(record.id);
-          }
-          deletedCount++;
-        } catch (_) { /* skip failed individual deletions */ }
-      }
-
-      // Purge deleted items from offline DB
-      if (deletedCount > 0) {
-        const { offlineDB } = await import('@/components/utils/offlineDatabase');
-        const allOfflineCatalog = (await offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS)) || [];
-        const deletedCatalogIds = new Set(toDelete.map((r) => r.catalogId));
-        const remaining = allOfflineCatalog.filter((item) => !deletedCatalogIds.has(item.square_catalog_object_id) && !deletedCatalogIds.has(item.id));
-        await offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_CATALOG_ITEMS, remaining);
-      }
-
-      // ── Step 2: Add items without a Catalog ID to Square ────────────────
-      // These are Reconcile rows where catalogId is '--' (no catalog entry yet).
-      const rowsToAdd = currentReconciliationRows.filter(
-        (row) => !row.catalogId || row.catalogId === '--'
-      );
-      const itemsToAdd = rowsToAdd.map((row) => ({
-        deliveryId: row.rawDelivery?.id,
-        patientName: (() => {
-          const p = patients.find((pt) => pt?.id === row.rawDelivery?.patient_id || pt?.patient_id === row.rawDelivery?.patient_id);
-          return p?.full_name || null;
-        })(),
-        storeId: row.rawDelivery?.store_id,
-        codAmount: row.rawDelivery?.cod_total_amount_required,
-        deliveryDate: row.rawDelivery?.delivery_date,
-      })).filter((item) => item.deliveryId && Number(item.codAmount) > 0);
-
-      if (itemsToAdd.length > 0) {
-        await base44.functions.invoke('squareCodCore', {
-          action: 'syncSquareCods',
-          items: itemsToAdd,
-          deletions: [],
-        });
-      }
-
-      // ── Step 3: Refresh UI from offline DB ──────────────────────────────
-      await refreshUiFromOfflineOnly();
-
-      toast.success(`Catalog updated: ${itemsToAdd.length} added, ${deletedCount} deleted`);
-    } catch (err) {
-      toast.error('Catalog update failed: ' + err.message);
-      setError(err.message);
-    } finally {
-      setIsUpdatingCatalog(false);
-    }
-  }, [isUpdatingCatalog, isSyncing, patients, refreshUiFromOfflineOnly]);
+    // TODO: implement
+  }, []);
 
   const runReconcile = useCallback(async () => {
     setIsReconciling(true);
