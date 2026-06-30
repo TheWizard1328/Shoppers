@@ -1738,31 +1738,54 @@ export default function SquareManagement() {
             const uncollectedTotal = filteredCatalogRows.filter((row) => !row.isCollected).reduce((sum, row) => sum + Number(row.amount || 0), 0);
             const grandTotal = activeViewStats.amountValue + newCatalogTotal;
             return (
-              <div className="grid grid-cols-4 gap-2 mt-6 mb-1">
-                <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-                  <CardContent className="p-3 flex items-center justify-between gap-2">
-                    <div className="text-xs font-medium text-slate-500 dark:text-slate-400 leading-tight">Total Amount</div>
-                    <div className="text-base font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">${grandTotal.toFixed(2)}</div>
-                  </CardContent>
-                </Card>
-                <Card className="bg-white dark:bg-slate-900 border-amber-200 dark:border-amber-800">
-                  <CardContent className="p-3 flex items-center justify-between gap-2">
-                    <div className="text-xs font-medium text-slate-500 dark:text-slate-400 leading-tight">Uncollected</div>
-                    <div className="text-base font-bold text-amber-600 dark:text-amber-400 tabular-nums">${(uncollectedTotal + newCatalogTotal).toFixed(2)}</div>
-                  </CardContent>
-                </Card>
-                <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-                  <CardContent className="p-3 flex items-center justify-between gap-2">
-                    <div className="text-xs font-medium text-slate-500 dark:text-slate-400 leading-tight">Catalog Items</div>
-                    <div className="text-base font-bold text-slate-900 dark:text-slate-50 tabular-nums">{activeViewStats.primaryValue}</div>
-                  </CardContent>
-                </Card>
-                <Card className="bg-white dark:bg-slate-900 border-blue-200 dark:border-blue-800">
-                  <CardContent className="p-3 flex items-center justify-between gap-2">
-                    <div className="text-xs font-medium text-slate-500 dark:text-slate-400 leading-tight">New Items</div>
-                    <div className="text-base font-bold text-blue-600 dark:text-blue-400 tabular-nums">{newCatalogItems.length}{newCatalogTotal > 0 && <span className="text-xs font-semibold text-blue-500 dark:text-blue-400 ml-1">${newCatalogTotal.toFixed(2)}</span>}</div>
-                  </CardContent>
-                </Card>
+              <div className="grid grid-cols-4 gap-3 mt-6 mb-1">
+                {/* Total Amount */}
+                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
+                  <div className="px-5 pt-5 pb-3">
+                    <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 mb-2">Total Amount</div>
+                    <div className="text-2xl font-bold text-slate-900 dark:text-slate-50 tabular-nums">${grandTotal.toFixed(2)}</div>
+                    <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                      <div className="h-full w-3/5 bg-blue-500 rounded-full" />
+                    </div>
+                  </div>
+                  <div className="h-1 bg-blue-500" />
+                </div>
+                {/* Uncollected */}
+                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
+                  <div className="px-5 pt-5 pb-3">
+                    <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 mb-2">Uncollected</div>
+                    <div className="text-2xl font-bold text-slate-900 dark:text-slate-50 tabular-nums">${(uncollectedTotal + newCatalogTotal).toFixed(2)}</div>
+                    <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                      <div className="h-full w-2/5 bg-red-500 rounded-full" />
+                    </div>
+                  </div>
+                  <div className="h-1 bg-red-500" />
+                </div>
+                {/* Catalog Items */}
+                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
+                  <div className="px-5 pt-5 pb-3">
+                    <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 mb-2">Catalog Items</div>
+                    <div className="text-2xl font-bold text-slate-900 dark:text-slate-50 tabular-nums">{activeViewStats.primaryValue}</div>
+                    <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                      <div className="h-full w-4/5 bg-emerald-500 rounded-full" />
+                    </div>
+                  </div>
+                  <div className="h-1 bg-emerald-500" />
+                </div>
+                {/* New Items */}
+                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
+                  <div className="px-5 pt-5 pb-3">
+                    <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 mb-2">New Items</div>
+                    <div className="text-2xl font-bold text-slate-900 dark:text-slate-50 tabular-nums">
+                      {newCatalogItems.length}
+                      {newCatalogTotal > 0 && <span className="text-sm font-semibold text-amber-500 ml-2">${newCatalogTotal.toFixed(2)}</span>}
+                    </div>
+                    <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                      <div className="h-full w-1/4 bg-amber-400 rounded-full" />
+                    </div>
+                  </div>
+                  <div className="h-1 bg-amber-400" />
+                </div>
               </div>);
 
           })()}
