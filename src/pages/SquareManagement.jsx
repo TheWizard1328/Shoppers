@@ -864,7 +864,7 @@ export default function SquareManagement() {
       if (transaction.delivery_id && transaction.delivery_id === delivery?.id) return true;
 
       const transactionAmountSet = getTransactionAmountSet(transaction);
-      if (!amountSetsIntersect(deliveryAmountSet, transactionAmountSet)) return false;
+      const amountsMatch = amountSetsIntersect(deliveryAmountSet, transactionAmountSet);
 
       const parsed = parseSquareItemName(String(transaction.item_name || '').trim());
       const parsedTransactionDateString = parsed?.deliveryDate || null;
@@ -886,9 +886,13 @@ export default function SquareManagement() {
       !!transactionStoreAbbreviation && storeAbbreviation === transactionStoreAbbreviation ||
       String(transaction.item_name || '').toLowerCase().includes(storeAbbreviation));
 
-
       const searchableText = String(transaction.item_name || transaction.raw_square_data?.note || transaction.raw_square_data?.notes || '').trim();
       const nameMatches = !!patientName && !!searchableText && patientNamesMatch(patientName, searchableText);
+
+      // Amount + name alone is sufficient (handles plain-text transaction item names like "Wendy Paustian")
+      if (amountsMatch && nameMatches) return true;
+
+      if (!amountsMatch) return false;
 
       if (dateMatches && (locationMatches || abbreviationMatches || nameMatches)) return true;
       if (locationMatches && (abbreviationMatches || nameMatches)) return true;
@@ -1112,15 +1116,19 @@ export default function SquareManagement() {
         if (!tx || tx.type !== 'collection') return false;
         if (!['completed', 'refunded', 'pending'].includes(tx.status)) return false;
         if (tx.delivery_id && tx.delivery_id === delivery.id) return true;
+        const deliveryPatient = patients.find((p) => p?.id === delivery.patient_id || p?.patient_id === delivery.patient_id);
+        const txSearchText = String(tx.item_name || tx.raw_square_data?.note || tx.raw_square_data?.notes || '').trim();
+        const nameMatches = !!(deliveryPatient?.full_name && txSearchText && patientNamesMatch(deliveryPatient.full_name, txSearchText));
         const txAmountSet = getTransactionAmountSet(tx);
-        if (!amountSetsIntersect(getDeliveryPaymentAmountSet(delivery), txAmountSet)) return false;
+        const amountsMatch = amountSetsIntersect(getDeliveryPaymentAmountSet(delivery), txAmountSet);
+        // Amount + name is sufficient
+        if (amountsMatch && nameMatches) return true;
+        if (!amountsMatch) return false;
         const parsed = parseSquareItemName(String(tx.item_name || ''));
         const txDate = parsed?.deliveryDate || null;
         const txStoreAbbr = String(parsed?.storeAbbr || '').trim().toLowerCase();
         const deliveryStoreAbbr = String(store?.abbreviation || '').trim().toLowerCase();
         const abbrMatches = !!deliveryStoreAbbr && (txStoreAbbr === deliveryStoreAbbr || String(tx.item_name || '').toLowerCase().includes(deliveryStoreAbbr));
-        const patient = patients.find((p) => p?.id === delivery.patient_id || p?.patient_id === delivery.patient_id);
-        const nameMatches = !!(patient?.full_name && patientNamesMatch(patient.full_name, String(tx.item_name || '')));
         if (txDate === delivery.delivery_date && (abbrMatches || nameMatches || tx.location_id === resolvedLocationId)) return true;
         if (abbrMatches && nameMatches) return true;
         return false;
@@ -1310,16 +1318,24 @@ export default function SquareManagement() {
       // A catalog item is "Collected" ONLY if there is a matching transaction in the transactions list.
       // Match by: square_catalog_object_id on the transaction, OR delivery_id on the transaction.
       const catalogObjectId = item.catalog_object_id || item.id;
+      const linkedPatient = linkedDelivery?.patient_id ?
+        patients.find((p) => p?.id === linkedDelivery.patient_id || p?.patient_id === linkedDelivery.patient_id) : null;
+      const linkedPatientName = linkedPatient?.full_name || parseSquareItemName(item.name || item.item_name)?.patientName || '';
       const matchingTx = (allTransactions || []).find((tx) => {
         if (!tx) return false;
         // Match by delivery_id (most reliable)
         if (linkedDelivery?.id && tx.delivery_id === linkedDelivery.id) return true;
         // Match by catalog object ID on the transaction
         if (tx.square_catalog_object_id && (tx.square_catalog_object_id === catalogObjectId || tx.square_catalog_object_id === item.id)) return true;
-        // Match by amount + location + delivery date from item name
         const txAmountCents = Math.round(Number(tx.amount || 0) * 100);
         const itemAmountCents = Math.round(Number(item.price_dollars || item.amount || 0) * 100);
-        if (txAmountCents !== itemAmountCents || !item.location_id || tx.location_id !== item.location_id) return false;
+        const amountsMatch = txAmountCents === itemAmountCents;
+        const txSearchableText = String(tx.item_name || tx.raw_square_data?.note || tx.raw_square_data?.notes || '').trim();
+        const txNameMatches = !!linkedPatientName && !!txSearchableText && patientNamesMatch(linkedPatientName, txSearchableText);
+        // Amount + patient name match (handles plain-text transaction names)
+        if (amountsMatch && txNameMatches) return true;
+        // Amount + location + delivery date from item name
+        if (!amountsMatch || !item.location_id || tx.location_id !== item.location_id) return false;
         const itemDateStr = item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate;
         const txDateStr = getTransactionEffectiveDateString(tx);
         return !!(itemDateStr && txDateStr && itemDateStr === txDateStr);
