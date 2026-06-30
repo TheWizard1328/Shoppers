@@ -297,8 +297,21 @@ export default function SquareManagement() {
         });
       }
 
-      // ── Step 3: Refresh UI from offline DB ──────────────────────────────
-      await refreshUiFromOfflineOnly();
+      // ── Step 3: Refresh UI from offline DB (windowed deliveries only) ───
+      const { offlineDB: offlineDB2 } = await import('@/components/utils/offlineDatabase');
+      const { startDateStr, endDateStr } = getSourceWindow();
+      const windowedDeliveries = await loadDeliveriesFromOffline(offlineDB2, startDateStr, endDateStr);
+      if (windowedDeliveries.length > 0) setDeliveries([...windowedDeliveries]);
+      const [freshCatalog, freshTransactions] = await Promise.all([
+        getCatalogItemsOffline(),
+        getPaymentTransactionsOffline(),
+      ]);
+      if (freshCatalog) setCatalogItems([...freshCatalog]);
+      if (freshTransactions) {
+        setAllTransactions([...freshTransactions]);
+        setSoldCatalogItems([...freshTransactions.filter((tx) => ['completed', 'refunded'].includes(tx?.status))]);
+      }
+      await loadSyncStatus();
 
       toast.success(`Catalog updated: ${itemsToAdd.length} added, ${toDelete.length} deleted`);
     } catch (err) {
