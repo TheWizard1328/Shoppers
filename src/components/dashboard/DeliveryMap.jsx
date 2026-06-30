@@ -912,12 +912,43 @@ export default function DeliveryMap({
     try {
       const bounds = L.latLngBounds((Array.isArray(shouldFitBounds.bounds) ? shouldFitBounds.bounds : []).filter((point) => Array.isArray(point) && point.length === 2 && Number.isFinite(point[0]) && Number.isFinite(point[1])));
       if (!bounds.isValid()) return;
-      // Run fitBounds first so Leaflet computes the correct zoom for the given bounds + padding
-      map.fitBounds(bounds, { ...(shouldFitBounds.options || {}), paddingTopLeft: shouldFitBounds.options?.paddingTopLeft || [60, 60], paddingBottomRight: shouldFitBounds.options?.paddingBottomRight || [60, 60], animate: true }); // false
-      // Then apply the -0.1 reduction to the zoom Leaflet actually chose, so the final render
-      // is always slightly zoomed out from the computed best-fit level
-      const fittedZoom = map.getZoom();
-      map.setZoom(fittedZoom, { animate: true }); //- 0.1  // false
+
+      const opts = shouldFitBounds.options || {};
+      const requestedMaxZoom = typeof opts.maxZoom === 'number' ? opts.maxZoom : 17.5;
+      const paddingTopLeft    = opts.paddingTopLeft    || [60, 60];
+      const paddingBottomRight= opts.paddingBottomRight|| [60, 60];
+      const currentZoom = map.getZoom();
+      const alreadyAtOrAboveMaxZoom = currentZoom >= requestedMaxZoom - 0.05;
+
+      // When the map is already at or above maxZoom, Leaflet's fitBounds clamps the zoom
+      // to maxZoom and — since the bounds already fit within the current viewport at that
+      // zoom — silently skips the pan entirely. Phase 2 and Phase 3 both hit this when
+      // the driver is zoomed all the way in. Fix: detect that case and do a direct setView
+      // to the padding-adjusted center of the bounds instead of calling fitBounds.
+      if (alreadyAtOrAboveMaxZoom) {
+        const center = bounds.getCenter();
+        const size = map.getSize();
+        // Adjust center to compensate for asymmetric padding so the bounds center
+        // appears visually centred within the padded viewport area
+        const totalHorizPad = paddingTopLeft[0] + paddingBottomRight[0];
+        const totalVertPad  = paddingTopLeft[1] + paddingBottomRight[1];
+        const horizShift = (paddingTopLeft[0] - paddingBottomRight[0]) / 2;
+        const vertShift  = (paddingTopLeft[1] - paddingBottomRight[1]) / 2;
+        const projected = map.project(center, currentZoom);
+        const adjusted  = map.unproject(L.point(projected.x + horizShift, projected.y + vertShift), currentZoom);
+        map.setView(adjusted, currentZoom, { animate: opts.animate !== false, duration: opts.duration || 0.5 });
+        // Stamp so moveend/zoomend guards don't treat this as a user-gesture unlock
+        window._lastProgrammaticMapMove = Date.now() + 1500;
+      } else {
+        // Normal path — zoom out (or stay) and pan to fit all bounds points
+        map.fitBounds(bounds, { ...opts, paddingTopLeft, paddingBottomRight, animate: true });
+        // Apply the -0.1 reduction to the zoom Leaflet actually chose so the final
+        // render is always slightly zoomed out from the computed best-fit level
+        const fittedZoom = map.getZoom();
+        map.setZoom(fittedZoom, { animate: true });
+        window._lastProgrammaticMapMove = Date.now() + 1500;
+      }
+
       onBoundsFitted?.();
     } catch {}
   }, [map, shouldFitBounds, onBoundsFitted]);
