@@ -76,6 +76,11 @@
       "format": "date-time",
       "description": "Timestamp of the patient's most recent successful portal login"
     },
+    "portal_login_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Total number of successful patient portal logins"
+    },
     "status": {
       "type": "string",
       "enum": [
