@@ -1789,7 +1789,7 @@ export default function SquareManagement() {
                     <div className="text-xs text-slate-400 dark:text-slate-500 mt-1">{totalItemCount} item{totalItemCount !== 1 ? 's' : ''}</div>
                     <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex">
                       {collectedPct > 0 && <div className="h-full bg-emerald-500" style={{ width: `${collectedPct}%` }} />}
-                      {uncollectedPct > 0 && <div className="h-full bg-red-500" style={{ width: `${uncollectedPct}%` }} />}
+                      {catalogPct > 0 && <div className="h-full bg-blue-500" style={{ width: `${catalogPct}%` }} />}
                       {newItemsPct > 0 && <div className="h-full bg-amber-400" style={{ width: `${newItemsPct}%` }} />}
                     </div>
                   </div>
