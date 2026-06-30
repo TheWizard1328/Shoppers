@@ -1119,6 +1119,13 @@ export default function SquareManagement() {
     return new Set(locationConfigs.filter((config) => configIds.has(config?.id)).map((config) => config?.square_location_id).filter(Boolean));
   }, [currentUser, currentAppUser, drivers, selectedDriverFilter, locationConfigs]);
 
+  // Resolve the driver color (same palette as dashboard) for a given driver_id or driver user_id
+  const getDriverColorForId = useCallback((driverId) => {
+    if (!driverId) return null;
+    const driver = drivers.find((d) => d?.user_id === driverId || d?.id === driverId);
+    return driver?.user_name ? generateDriverColor(driver.user_name) : null;
+  }, [drivers]);
+
   const filteredDeliveryRows = useMemo(() => {
     const rows = (deliveries || []).filter((d) => d && Number(d.cod_total_amount_required || 0) > 0).
     filter((delivery) => {
@@ -1207,13 +1214,6 @@ export default function SquareManagement() {
       return true;
     });
   }, [deliveries, lookbackStart, todayDateString, selectedDriverFilter, selectedDriverUserIds, patients, stores, locationConfigs, catalogItems, allTransactions, visibleSquareLocationConfigIds, getDriverColorForId]);
-
-  // Resolve the driver color (same palette as dashboard) for a given driver_id or driver user_id
-  const getDriverColorForId = useCallback((driverId) => {
-    if (!driverId) return null;
-    const driver = drivers.find((d) => d?.user_id === driverId || d?.id === driverId);
-    return driver?.user_name ? generateDriverColor(driver.user_name) : null;
-  }, [drivers]);
 
   const isCardSaleTransaction = useCallback((transaction) => {
     if (!transaction || isTransferTransaction(transaction)) return false;
