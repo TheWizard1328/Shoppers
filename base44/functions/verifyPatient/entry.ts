@@ -4,31 +4,31 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const body = await req.json();
-    const { full_name, phone, email, save_email } = body;
+    // patient_id = the entity id selected from the lookup step
+    const { patient_id, phone, email, save_email } = body;
 
-    if (!full_name || !phone) {
-      return Response.json({ error: 'Name and phone are required' }, { status: 400 });
+    if (!patient_id || !phone) {
+      return Response.json({ error: 'Patient ID and phone are required' }, { status: 400 });
     }
 
-    // Normalize: strip non-digits from phone for comparison
     const normalizePhone = (p) => (p || '').replace(/\D/g, '');
     const inputPhone = normalizePhone(phone);
-    const inputName = full_name.trim().toLowerCase();
     const inputEmail = (email || '').trim().toLowerCase();
 
-    // Fetch all active patients (service role — no user auth needed for portal login)
-    const patients = await base44.asServiceRole.entities.Patient.filter({ status: 'active' });
+    // Fetch the specific patient by id
+    const match = await base44.asServiceRole.entities.Patient.get(patient_id);
 
-    const match = patients.find((p) => {
-      const nameMatch = (p.full_name || '').trim().toLowerCase() === inputName;
-      const phoneMatch =
-        normalizePhone(p.phone) === inputPhone ||
-        normalizePhone(p.phone_secondary) === inputPhone;
-      return nameMatch && phoneMatch;
-    });
+    if (!match || match.status !== 'active') {
+      return Response.json({ error: 'Patient not found.' }, { status: 404 });
+    }
 
-    if (!match) {
-      return Response.json({ error: 'No matching patient found. Please check your name and phone number.' }, { status: 404 });
+    // Verify phone still matches (security check)
+    const phoneMatch =
+      normalizePhone(match.phone) === inputPhone ||
+      normalizePhone(match.phone_secondary) === inputPhone;
+
+    if (!phoneMatch) {
+      return Response.json({ error: 'Phone number does not match our records.' }, { status: 401 });
     }
 
     const hasEmail = !!(match.email && match.email.trim());
@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Build update payload: always stamp last_login_date and increment login count; optionally save new email
+    // Build update payload: always stamp last_login_date and increment login count
     const updatePayload = {
       last_login_date: new Date().toISOString(),
       portal_login_count: (match.portal_login_count || 0) + 1,
@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
       updatePayload.email = email.trim();
     }
 
-    // Update patient record asynchronously (fire and forget — don't block login)
+    // Update patient record asynchronously
     base44.asServiceRole.entities.Patient.update(match.id, updatePayload).catch(() => {});
 
     return Response.json({
