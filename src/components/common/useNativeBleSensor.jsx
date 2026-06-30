@@ -151,7 +151,7 @@ export function useNativeBleSensor(currentUser) {
 
       connectedRef.current = true;
 
-      // Snapshot read from FFF2
+      // Snapshot read from FFF2 — primary read on connect
       try {
         const dv = await BleClient.read(deviceId, INKBIRD_SERVICE_UUID, INKBIRD_READ_UUID);
         const parsed = decodeReading(dv);
@@ -160,20 +160,28 @@ export function useNativeBleSensor(currentUser) {
           setReading(parsed);
           window.dispatchEvent(new CustomEvent('inkbirdReading', { detail: { ...parsed, source: 'native-read' } }));
         }
-      } catch (_) {}
+      } catch (readErr) {
+        console.warn('[NativeBLE] FFF2 initial read failed (non-fatal):', readErr?.message);
+      }
 
-      // Subscribe to FFF6 notifications
-      await BleClient.startNotifications(deviceId, INKBIRD_SERVICE_UUID, INKBIRD_NOTIFY_UUID, (dv) => {
-        if (!mountedRef.current) return;
-        const parsed = decodeReading(dv);
-        if (parsed) {
-          latestReadingRef.current = parsed;
-          setReading(parsed);
-          window.dispatchEvent(new CustomEvent('inkbirdReading', { detail: { ...parsed, source: 'native-notify' } }));
-        }
-      });
-
+      // Mark connected NOW — the periodic FFF2 poll will provide readings even
+      // if FFF6 notification subscription below fails (some TPS firmware variants).
       if (mountedRef.current) setStatus('connected');
+
+      // Subscribe to FFF6 notifications — best-effort; failure is non-fatal
+      try {
+        await BleClient.startNotifications(deviceId, INKBIRD_SERVICE_UUID, INKBIRD_NOTIFY_UUID, (dv) => {
+          if (!mountedRef.current) return;
+          const parsed = decodeReading(dv);
+          if (parsed) {
+            latestReadingRef.current = parsed;
+            setReading(parsed);
+            window.dispatchEvent(new CustomEvent('inkbirdReading', { detail: { ...parsed, source: 'native-notify' } }));
+          }
+        });
+      } catch (notifyErr) {
+        console.warn('[NativeBLE] FFF6 startNotifications failed (non-fatal, FFF2 poll will cover):', notifyErr?.message);
+      }
 
     } catch (err) {
       if (!mountedRef.current) { connectingRef.current = false; return; }
@@ -249,9 +257,20 @@ export function useNativeBleSensor(currentUser) {
         latestReadingRef.current = parsed;
         setReading(parsed);
         window.dispatchEvent(new CustomEvent('inkbirdReading', { detail: { ...parsed, source: 'native-force-read' } }));
+      } else if (!parsed) {
+        console.warn('[NativeBLE] forceRead: decodeReading returned null (unexpected byte layout)');
       }
-    } catch (_) {}
-  }, []);
+    } catch (err) {
+      console.warn('[NativeBLE] forceRead FFF2 read failed:', err?.message);
+      // If the GATT connection dropped without firing the disconnect callback,
+      // flip connectedRef so scheduleReconnect can take over.
+      if (err?.message?.includes('disconnected') || err?.message?.includes('GATT')) {
+        connectedRef.current = false;
+        if (mountedRef.current) setStatus('disconnected');
+        scheduleReconnect();
+      }
+    }
+  }, [scheduleReconnect]);
 
   // ── Periodic FFF2 poll — primary reading source for SPS devices ─────────────
   // SPS/IBS-TH2 devices do not reliably push FFF6 notifications after initial
@@ -361,14 +380,42 @@ export function useNativeBleSensor(currentUser) {
     }
   }, [connectToDevice, scanAndConnect]);
 
+  // ── forget / unpair ──────────────────────────────────────────────────────
+  const forget = useCallback(async () => {
+    clearTimeout(reconnectTimerRef.current);
+    clearInterval(periodicReadTimerRef.current);
+    const id = deviceIdRef.current;
+    if (id) {
+      const BleClient = await getBleClient();
+      if (BleClient) {
+        try { await BleClient.stopNotifications(id, INKBIRD_SERVICE_UUID, INKBIRD_NOTIFY_UUID); } catch (_) {}
+        try { await BleClient.disconnect(id); } catch (_) {}
+      }
+    }
+    deviceIdRef.current = null;
+    connectedRef.current = false;
+    connectingRef.current = false;
+    latestReadingRef.current = null;
+    try { localStorage.removeItem(DEVICE_ID_KEY); } catch (_) {}
+    try { localStorage.removeItem(LOCAL_STORAGE_KEY); } catch (_) {}
+    setSensorName(null);
+    setReading(null);
+    setStatus('idle');
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   return {
     status,
     reading,
     sensorName,
+    latestReadingRef,           // ← required by LiveTempBadge heartbeat save
     isPrimaryDevice: true,
     connect,
     disconnect,
+    forget,                     // ← required by LiveTempBadge double-tap unpair
     triggerReconnect,
     forceRead,
+    // setConnectedServer is intentionally absent — native hook manages its own
+    // GATT connection internally; the bridge shims this to a no-op for safety.
+    setConnectedServer: () => {},
   };
 }
