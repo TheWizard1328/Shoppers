@@ -71,6 +71,11 @@
       "format": "date",
       "description": "The date of the patient's last delivery"
     },
+    "last_login_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp of the patient's most recent successful portal login"
+    },
     "status": {
       "type": "string",
       "enum": [
