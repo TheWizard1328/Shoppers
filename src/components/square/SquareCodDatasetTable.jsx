@@ -71,7 +71,7 @@ const DesktopRow = ({ row, index, onRowClick, showLocationColumn, showCatalogCol
       </td>
       <td className="p-3">
         <div className="text-xs font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">
-          {row.transactionId || '--'}
+          {row.transactionId ? (row.transactionId.includes(':') ? row.transactionId.split(':')[0] : row.transactionId) : '--'}
         </div>
       </td>
       <td className="p-3">
@@ -162,7 +162,7 @@ const MobileCard = ({ row, index, onRowClick, showLocationColumn, showCatalogCol
           <div className="rounded-xl px-3 py-2" style={{ background: 'var(--bg-slate-100, rgba(148,163,184,0.15))' }}>
             <div className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--text-slate-500)' }}>Transaction ID</div>
             <div className="mt-1 text-xs font-mono break-all" style={{ color: 'var(--text-slate-700)' }}>
-              {row.transactionId || '--'}
+              {row.transactionId ? (row.transactionId.includes(':') ? row.transactionId.split(':')[0] : row.transactionId) : '--'}
             </div>
           </div>
           {row.notes &&
