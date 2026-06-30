@@ -1735,10 +1735,11 @@ export default function SquareManagement() {
           {activeView === 'catalog' && currentUser && isAppOwner(currentUser) && (() => {
             const newCatalogItems = reconciliationRows.filter((r) => !r.catalogId || r.catalogId === '--');
             const newCatalogTotal = newCatalogItems.reduce((s, r) => s + Number(r.amount || 0), 0);
-            const uncollectedTotal = filteredCatalogRows.filter((row) => !row.isCollected).reduce((sum, row) => sum + Number(row.amount || 0), 0);
-            const grandTotal = activeViewStats.amountValue + newCatalogTotal;
-            const totalItemCount = filteredCatalogRows.length + newCatalogItems.length;
-            const uncollectedItemCount = filteredCatalogRows.filter((r) => !r.isCollected).length + newCatalogItems.length;
+            const catalogTotal = filteredCatalogRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+            const uncollectedRows = filteredCatalogRows.filter((row) => !row.isCollected);
+            const uncollectedTotal = uncollectedRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+            const totalItemCount = filteredCatalogRows.length;
+            const uncollectedItemCount = uncollectedRows.length;
             const catalogOnlyItemCount = filteredCatalogRows.length;
             return (
               <div className="grid grid-cols-4 gap-3 mt-6 mb-1">
@@ -1746,7 +1747,7 @@ export default function SquareManagement() {
                 <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
                   <div className="px-5 pt-5 pb-3">
                     <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 mb-2">Total Amount</div>
-                    <div className="text-2xl font-bold text-slate-900 dark:text-slate-50 tabular-nums">${grandTotal.toFixed(2)}</div>
+                    <div className="text-2xl font-bold text-slate-900 dark:text-slate-50 tabular-nums">${catalogTotal.toFixed(2)}</div>
                     <div className="text-xs text-slate-400 dark:text-slate-500 mt-1">{totalItemCount} item{totalItemCount !== 1 ? 's' : ''}</div>
                     <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                       <div className="h-full w-3/5 bg-blue-500 rounded-full" />
@@ -1758,7 +1759,7 @@ export default function SquareManagement() {
                 <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
                   <div className="px-5 pt-5 pb-3">
                     <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 mb-2">Uncollected</div>
-                    <div className="text-2xl font-bold text-slate-900 dark:text-slate-50 tabular-nums">${(uncollectedTotal + newCatalogTotal).toFixed(2)}</div>
+                    <div className="text-2xl font-bold text-slate-900 dark:text-slate-50 tabular-nums">${uncollectedTotal.toFixed(2)}</div>
                     <div className="text-xs text-slate-400 dark:text-slate-500 mt-1">{uncollectedItemCount} item{uncollectedItemCount !== 1 ? 's' : ''}</div>
                     <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                       <div className="h-full w-2/5 bg-red-500 rounded-full" />
