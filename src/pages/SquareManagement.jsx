@@ -1740,27 +1740,27 @@ export default function SquareManagement() {
             return (
               <div className="grid grid-cols-4 gap-2 mt-6 mb-1">
                 <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-                  <CardContent className="p-2.5">
-                    <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Total Amount</div>
-                    <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 leading-tight">${grandTotal.toFixed(2)}</div>
+                  <CardContent className="p-3 flex items-center justify-between gap-2">
+                    <div className="text-xs font-medium text-slate-500 dark:text-slate-400 leading-tight">Total Amount</div>
+                    <div className="text-base font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">${grandTotal.toFixed(2)}</div>
                   </CardContent>
                 </Card>
                 <Card className="bg-white dark:bg-slate-900 border-amber-200 dark:border-amber-800">
-                  <CardContent className="p-2.5">
-                    <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Uncollected</div>
-                    <div className="text-lg font-bold text-amber-600 dark:text-amber-400 leading-tight">${(uncollectedTotal + newCatalogTotal).toFixed(2)}</div>
+                  <CardContent className="p-3 flex items-center justify-between gap-2">
+                    <div className="text-xs font-medium text-slate-500 dark:text-slate-400 leading-tight">Uncollected</div>
+                    <div className="text-base font-bold text-amber-600 dark:text-amber-400 tabular-nums">${(uncollectedTotal + newCatalogTotal).toFixed(2)}</div>
                   </CardContent>
                 </Card>
                 <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-                  <CardContent className="p-2.5">
-                    <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Catalog Items</div>
-                    <div className="text-lg font-bold text-slate-900 dark:text-slate-50 leading-tight">{activeViewStats.primaryValue}</div>
+                  <CardContent className="p-3 flex items-center justify-between gap-2">
+                    <div className="text-xs font-medium text-slate-500 dark:text-slate-400 leading-tight">Catalog Items</div>
+                    <div className="text-base font-bold text-slate-900 dark:text-slate-50 tabular-nums">{activeViewStats.primaryValue}</div>
                   </CardContent>
                 </Card>
                 <Card className="bg-white dark:bg-slate-900 border-blue-200 dark:border-blue-800">
-                  <CardContent className="p-2.5">
-                    <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">New Items</div>
-                    <div className="text-lg font-bold text-blue-600 dark:text-blue-400 leading-tight">{newCatalogItems.length}{newCatalogTotal > 0 && <span className="text-xs text-blue-500 dark:text-blue-400 ml-1">${newCatalogTotal.toFixed(2)}</span>}</div>
+                  <CardContent className="p-3 flex items-center justify-between gap-2">
+                    <div className="text-xs font-medium text-slate-500 dark:text-slate-400 leading-tight">New Items</div>
+                    <div className="text-base font-bold text-blue-600 dark:text-blue-400 tabular-nums">{newCatalogItems.length}{newCatalogTotal > 0 && <span className="text-xs font-semibold text-blue-500 dark:text-blue-400 ml-1">${newCatalogTotal.toFixed(2)}</span>}</div>
                   </CardContent>
                 </Card>
               </div>);
@@ -1823,66 +1823,63 @@ export default function SquareManagement() {
         {activeView === 'reconciliation' && currentUser && isAppOwner(currentUser) &&
         <div className="grid grid-cols-10 gap-2">
           <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-            <CardContent className="p-2.5">
-              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Locations</div>
-              <div className="text-lg font-bold text-blue-600 dark:text-blue-400 leading-tight">{new Set(reconciliationRows.map((r) => r.locationId).filter(Boolean)).size}</div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white dark:bg-slate-900 border-emerald-200 dark:border-emerald-800">
-            <CardContent className="p-2.5">
-              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Transactions</div>
-              <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 leading-tight">{filteredTransactionRows.length}</div>
+            <CardContent className="p-3 flex items-center justify-between gap-1">
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Locations</div>
+              <div className="text-base font-bold text-blue-600 dark:text-blue-400 tabular-nums">{new Set(reconciliationRows.map((r) => r.locationId).filter(Boolean)).size}</div>
             </CardContent>
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-emerald-200 dark:border-emerald-800">
-            <CardContent className="p-2.5">
-              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Collected $</div>
-              <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 leading-tight">${filteredTransactionRows.reduce((s, r) => s + Number(r.amount || 0), 0).toFixed(2)}</div>
+            <CardContent className="p-3 flex items-center justify-between gap-1">
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Transactions</div>
+              <div className="text-base font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{filteredTransactionRows.length}</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-white dark:bg-slate-900 border-emerald-200 dark:border-emerald-800">
+            <CardContent className="p-3 flex items-center justify-between gap-1">
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Collected $</div>
+              <div className="text-base font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">${filteredTransactionRows.reduce((s, r) => s + Number(r.amount || 0), 0).toFixed(2)}</div>
             </CardContent>
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-            <CardContent className="p-2.5">
-              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Cash</div>
-              <div className="text-lg font-bold text-slate-900 dark:text-slate-50 leading-tight">{collectedCodTypeBreakdown.Cash}</div>
+            <CardContent className="p-3 flex items-center justify-between gap-1">
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Cash</div>
+              <div className="text-base font-bold text-slate-900 dark:text-slate-50 tabular-nums">{collectedCodTypeBreakdown.Cash}</div>
             </CardContent>
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-            <CardContent className="p-2.5">
-              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Debit</div>
-              <div className="text-lg font-bold text-slate-900 dark:text-slate-50 leading-tight">{collectedCodTypeBreakdown.Debit}</div>
+            <CardContent className="p-3 flex items-center justify-between gap-1">
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Debit</div>
+              <div className="text-base font-bold text-slate-900 dark:text-slate-50 tabular-nums">{collectedCodTypeBreakdown.Debit}</div>
             </CardContent>
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-            <CardContent className="p-2.5">
-              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Credit</div>
-              <div className="text-lg font-bold text-slate-900 dark:text-slate-50 leading-tight">{collectedCodTypeBreakdown.Credit}</div>
+            <CardContent className="p-3 flex items-center justify-between gap-1">
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Credit</div>
+              <div className="text-base font-bold text-slate-900 dark:text-slate-50 tabular-nums">{collectedCodTypeBreakdown.Credit}</div>
             </CardContent>
           </Card>
-
           <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-            <CardContent className="p-2.5">
-              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">COD Deliveries</div>
-              <div className="text-lg font-bold text-slate-900 dark:text-slate-50 leading-tight">{codDeliveriesCount}</div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white dark:bg-slate-900 border-red-200 dark:border-red-800">
-            <CardContent className="p-2.5">
-              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Unmatched</div>
-              <div className="text-lg font-bold text-red-600 dark:text-red-400 leading-tight">{reconciliationRows.length}</div>
+            <CardContent className="p-3 flex items-center justify-between gap-1">
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">COD Deliveries</div>
+              <div className="text-base font-bold text-slate-900 dark:text-slate-50 tabular-nums">{codDeliveriesCount}</div>
             </CardContent>
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-red-200 dark:border-red-800">
-            <CardContent className="p-2.5">
-              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Unmatched $</div>
-              <div className="text-lg font-bold text-red-600 dark:text-red-400 leading-tight">${reconciliationRows.reduce((s, r) => s + Number(r.amount || 0), 0).toFixed(2)}</div>
+            <CardContent className="p-3 flex items-center justify-between gap-1">
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Unmatched</div>
+              <div className="text-base font-bold text-red-600 dark:text-red-400 tabular-nums">{reconciliationRows.length}</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-white dark:bg-slate-900 border-red-200 dark:border-red-800">
+            <CardContent className="p-3 flex items-center justify-between gap-1">
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Unmatched $</div>
+              <div className="text-base font-bold text-red-600 dark:text-red-400 tabular-nums">${reconciliationRows.reduce((s, r) => s + Number(r.amount || 0), 0).toFixed(2)}</div>
             </CardContent>
           </Card>
           <Card className="bg-white dark:bg-slate-900 border-orange-200 dark:border-orange-800">
-            <CardContent className="p-2.5">
-              <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">Cross-Store</div>
-              <div className="text-lg font-bold text-orange-600 dark:text-orange-400 leading-tight">{reconciliationRows.filter((r) => r.crossStoreAlert).length}</div>
+            <CardContent className="p-3 flex items-center justify-between gap-1">
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Cross-Store</div>
+              <div className="text-base font-bold text-orange-600 dark:text-orange-400 tabular-nums">{reconciliationRows.filter((r) => r.crossStoreAlert).length}</div>
             </CardContent>
           </Card>
         </div>
