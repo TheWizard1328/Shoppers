@@ -236,73 +236,10 @@ export default function SquareManagement() {
     setError(null);
     try {
       const currentRows = reconciliationRowsRef.current || [];
-      const { offlineDB } = await import('@/components/utils/offlineDatabase');
 
-      // Step 1: Find catalog items that match a settled (completed/refunded) transaction.
-      // Use item name + amount as the canonical match — these come directly from the Catalog tab
-      // and reliably identify the Square catalog object even if catalog_object_id is stale.
-      const settledTxDeliveryIds = new Set(
-        (allTransactions || [])
-          .filter((tx) => ['completed', 'refunded'].includes(tx?.status) && tx?.delivery_id)
-          .map((tx) => tx.delivery_id)
-      );
-      const settledTxCatalogObjectIds = new Set(
-        (allTransactions || [])
-          .filter((tx) => ['completed', 'refunded'].includes(tx?.status) && tx?.square_catalog_object_id)
-          .map((tx) => tx.square_catalog_object_id)
-      );
-
-      const catalogItemsToDelete = (catalogItems || []).filter((ci) => {
-        const catalogObjId = ci.catalog_object_id || ci.id;
-        if (catalogObjId && settledTxCatalogObjectIds.has(catalogObjId)) return true;
-        if (ci.delivery_id && settledTxDeliveryIds.has(ci.delivery_id)) return true;
-        return false;
-      });
-
-      let deletedCount = 0;
-      if (catalogItemsToDelete.length > 0) {
-        // Delete each item from Square API by item name + amount (most reliable identifier).
-        // The backend searches the live Square catalog for a matching item and deletes it,
-        // then cleans up SquareCatalogItems and SquareTransaction DB records.
-        await Promise.all(catalogItemsToDelete.map((ci) =>
-          base44.functions.invoke('squareCodCore', {
-            action: 'deleteCodItemsByNameAmount',
-            itemName: ci.name || ci.item_name,
-            amountCents: ci.price_cents ?? Math.round(Number(ci.price_dollars || ci.amount || 0) * 100),
-            locationId: ci.location_id || undefined,
-            deliveryId: ci.delivery_id || undefined,
-            reason: 'collected_catalog_cleanup',
-          }).catch(() => null)
-        ));
-        deletedCount = catalogItemsToDelete.length;
-
-        // Immediately remove from local React state
-        const deletedKeys = new Set([
-          ...catalogItemsToDelete.map((ci) => ci.catalog_object_id || ci.id).filter(Boolean),
-          ...catalogItemsToDelete.map((ci) => ci.delivery_id).filter(Boolean),
-        ]);
-        setCatalogItems((prev) => prev.filter((ci) => {
-          const objId = ci.catalog_object_id || ci.id;
-          if (objId && deletedKeys.has(objId)) return false;
-          if (ci.delivery_id && deletedKeys.has(ci.delivery_id)) return false;
-          return true;
-        }));
-
-        // Purge from offline IndexedDB
-        const offlineCatalog = await offlineDB.getAll(offlineDB.STORES.SQUARE_CATALOG_ITEMS);
-        const kept = (offlineCatalog || []).filter((ci) => {
-          const objId = ci.square_catalog_object_id || ci.id;
-          if (objId && deletedKeys.has(objId)) return false;
-          if (ci.delivery_id && deletedKeys.has(ci.delivery_id)) return false;
-          return true;
-        });
-        await offlineDB.replaceAllRecords(offlineDB.STORES.SQUARE_CATALOG_ITEMS, kept);
-      }
-
-      // Step 2: Add catalog items for reconciliation rows that have NO catalog ID yet
-      // Skip rows that already have a matching transaction ID (they're matched, just not in Square catalog)
+      // Step 1: Push Reconcile rows that have NO transaction ID to Square catalog
       const itemsToAdd = currentRows
-        .filter((row) => (!row.catalogId || row.catalogId === '--') && (!row.transactionId || row.transactionId === '--'))
+        .filter((row) => !row.transactionId || row.transactionId === '--')
         .map((row) => ({
           deliveryId: row.rawDelivery?.id,
           patientName: (() => {
@@ -323,37 +260,30 @@ export default function SquareManagement() {
         });
       }
 
-      // Step 3: Pull fresh catalog + transactions from Square API and refresh all local state
-      const codResponse = await base44.functions.invoke('squareCodCore', {
-        action: 'getCodData',
-        daysBack: Number(selectedDaysRange || 90),
-        forceDeliveryRefresh: false,
+      // Step 2: Resync catalog items from Square API into local state
+      const syncResponse = await base44.functions.invoke('squareCodCore', {
+        action: 'syncCatalogItems',
       });
-      const codData = codResponse?.data || codResponse || {};
-      const catalogRecords = codData.catalogRecords || [];
-      const transactionRecords = codData.transactionRecords || [];
+      const syncData = syncResponse?.data || syncResponse || {};
+      const freshCatalogRecords = syncData.catalogRecords || syncData.items || [];
 
-      await squareCODOfflineManager.saveCatalogItemsOffline(catalogRecords);
-      await squareCODOfflineManager.savePaymentTransactionsOffline(transactionRecords);
+      if (freshCatalogRecords.length > 0) {
+        await squareCODOfflineManager.saveCatalogItemsOffline(freshCatalogRecords);
+      }
 
-      const [freshCatalog, freshTransactions] = await Promise.all([
-        squareCODOfflineManager.getCatalogItemsOffline(),
-        squareCODOfflineManager.getPaymentTransactionsOffline(),
-      ]);
-
+      const freshCatalog = await squareCODOfflineManager.getCatalogItemsOffline();
       setCatalogItems([...(freshCatalog || [])]);
-      setAllTransactions([...(freshTransactions || [])]);
-      setSoldCatalogItems([...(freshTransactions || []).filter((tx) => ['completed', 'refunded'].includes(tx?.status))]);
 
+      // Step 3: Switch to Catalog tab
       setActiveView('catalog');
-      toast.success(`Catalog updated: ${itemsToAdd.length} item(s) added, ${deletedCount} collected item(s) removed`);
+      toast.success(`Catalog updated: ${itemsToAdd.length} item(s) added to Square`);
     } catch (err) {
       toast.error('Catalog update failed: ' + err.message);
       setError(err.message);
     } finally {
       setIsUpdatingCatalog(false);
     }
-  }, [isUpdatingCatalog, isSyncing, patients, selectedDaysRange, catalogItems, allTransactions]);
+  }, [isUpdatingCatalog, isSyncing, patients, selectedDaysRange]);
 
   const runReconcile = useCallback(async () => {
     setIsReconciling(true);
@@ -2000,7 +1930,7 @@ export default function SquareManagement() {
           <>
               <Button
                 onClick={updateCatalog}
-                disabled={isLoading || isUpdatingCatalog || isSyncing || (reconciliationRows.length > 0 && reconciliationRows.every((r) => r.catalogId && r.catalogId !== '--'))}
+                disabled={isLoading || isUpdatingCatalog || isSyncing || reconciliationRows.length === 0}
                 className="h-9 gap-1.5 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 px-2 disabled:opacity-50 disabled:cursor-not-allowed">
                 <CloudDownload className={`w-4 h-4 flex-shrink-0 ${isUpdatingCatalog ? 'animate-pulse' : ''}`} />
                 <span>{isUpdatingCatalog ? 'Updating...' : 'Update Catalog'}</span>
