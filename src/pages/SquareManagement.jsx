@@ -227,6 +227,7 @@ export default function SquareManagement() {
   }, [locationConfigs]);
 
   const reconciliationRowsRef = useRef([]);
+  const filteredCatalogRowsRef = useRef([]);
   const visibleStoreIdsRef = useRef(new Set());
   const selectedDriverUserIdsRef = useRef(new Set());
 
@@ -239,7 +240,7 @@ export default function SquareManagement() {
 
       // ── Step 1: Delete catalog items that have a Transaction ID ──────────
       // Collect from both the Catalog tab rows AND the Reconcile tab rows.
-      const catalogRowsWithTx = filteredCatalogRows.filter(
+      const catalogRowsWithTx = (filteredCatalogRowsRef.current || []).filter(
         (row) => row.transactionId && row.transactionId !== '--' && row.catalogId && row.catalogId !== '--'
       );
       const reconcileRowsWithTx = currentReconciliationRows.filter(
@@ -309,7 +310,7 @@ export default function SquareManagement() {
     } finally {
       setIsUpdatingCatalog(false);
     }
-  }, [isUpdatingCatalog, isSyncing, patients, filteredCatalogRows, refreshUiFromOfflineOnly]);
+  }, [isUpdatingCatalog, isSyncing, patients, refreshUiFromOfflineOnly]);
 
   const runReconcile = useCallback(async () => {
     setIsReconciling(true);
@@ -1561,6 +1562,7 @@ export default function SquareManagement() {
   }, [deliveries, stores, visibleSquareLocationConfigIds, lookbackStart, todayDateString, selectedDriverFilter, selectedDriverUserIds, locationConfigs, allTransactions, hasMatchingSquareTransaction, patients, formatItemNameForDisplay, catalogItems, transactionMatchedDeliveryIds, transactionSignatures]);
 
   reconciliationRowsRef.current = reconciliationRows;
+  filteredCatalogRowsRef.current = filteredCatalogRows;
 
   const codDeliveriesCount = useMemo(() => filteredDeliveryRows.length, [filteredDeliveryRows]);
 
