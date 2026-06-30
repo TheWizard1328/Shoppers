@@ -1249,9 +1249,11 @@ export default function SquareManagement() {
     (allTransactions || []).
     filter((transaction) => {
       if (!isCardSaleTransaction(transaction)) return false;
-      const hasFormattedItemDate = !!parseSquareItemName(transaction?.item_name)?.deliveryDate;
-      const transactionDate = getTransactionFilterDate(transaction);
-      if (hasFormattedItemDate && (!transactionDate || transactionDate < lookbackStart)) return false;
+      // Always apply date filter — use item-name date first, fall back to created_date
+      const transactionDate = getTransactionFilterDate(transaction) ||
+        (transaction?.created_date ? new Date(transaction.created_date) : null) ||
+        (transaction?.raw_square_data?.payment_date ? new Date(transaction.raw_square_data.payment_date) : null);
+      if (!transactionDate || transactionDate < lookbackStart) return false;
 
       const config = locationConfigs.find((c) => c?.square_location_id === transaction.location_id);
       // Check visibility: config found by location_id OR store resolved from config.store_name
@@ -1436,6 +1438,31 @@ export default function SquareManagement() {
     });
   }, [catalogItems, locationConfigs, stores, visibleLocationIds, driverScopedLocationIds, deletingId, lookbackStart, todayDateString, deliveries, visibleSquareLocationConfigIds, allTransactions, hasMatchingSquareTransaction]);
 
+  // Build a fast set of delivery IDs that are already matched in the Transactions tab
+  const transactionMatchedDeliveryIds = useMemo(() => {
+    const ids = new Set();
+    for (const tx of allTransactions || []) {
+      if (!tx || tx.type !== 'collection') continue;
+      if (!['completed', 'pending'].includes(tx.status)) continue;
+      if (tx.delivery_id) ids.add(tx.delivery_id);
+    }
+    return ids;
+  }, [allTransactions]);
+
+  // Build a fast set of (amount+patientName) signatures from transactions so we can match by name
+  const transactionSignatures = useMemo(() => {
+    const sigs = new Set();
+    for (const tx of allTransactions || []) {
+      if (!tx || tx.type !== 'collection') continue;
+      if (!['completed', 'pending'].includes(tx.status)) continue;
+      const amtCents = Math.round(Number(tx.amount || 0) * 100);
+      const parsed = parseSquareItemName(String(tx.item_name || ''));
+      const name = normalizePatientName(parsed?.patientName || tx.item_name || '');
+      if (name) sigs.add(`${amtCents}::${name}`);
+    }
+    return sigs;
+  }, [allTransactions]);
+
   const reconciliationRows = useMemo(() => {
     const rows = (deliveries || []).
     filter((delivery) => {
@@ -1459,6 +1486,23 @@ export default function SquareManagement() {
 
       const resolvedLocationId = storeConfig?.square_location_id || null;
       if (!resolvedLocationId) return false;
+
+      // Exclude if directly matched by delivery_id in any transaction
+      if (transactionMatchedDeliveryIds.has(delivery.id)) return false;
+
+      // Exclude if matched by amount + patient name in any transaction
+      const patient = patients.find((p) => p?.id === delivery.patient_id || p?.patient_id === delivery.patient_id);
+      if (patient?.full_name) {
+        const amtCents = Math.round(Number(delivery.cod_total_amount_required || 0) * 100);
+        const deliveryName = normalizePatientName(patient.full_name);
+        // Check if any transaction signature matches this delivery's amount + name
+        const hasNameMatch = Array.from(transactionSignatures).some((sig) => {
+          const [sigAmt, sigName] = sig.split('::');
+          if (Number(sigAmt) !== amtCents) return false;
+          return patientNamesMatch(deliveryName, sigName);
+        });
+        if (hasNameMatch) return false;
+      }
 
       return !hasMatchingSquareTransaction(delivery, resolvedLocationId, allTransactions);
     }).
@@ -1542,7 +1586,7 @@ export default function SquareManagement() {
       seenRowKeys.add(rowKey);
       return true;
     });
-  }, [deliveries, stores, visibleSquareLocationConfigIds, lookbackStart, todayDateString, selectedDriverFilter, selectedDriverUserIds, locationConfigs, allTransactions, hasMatchingSquareTransaction, patients, formatItemNameForDisplay, catalogItems]);
+  }, [deliveries, stores, visibleSquareLocationConfigIds, lookbackStart, todayDateString, selectedDriverFilter, selectedDriverUserIds, locationConfigs, allTransactions, hasMatchingSquareTransaction, patients, formatItemNameForDisplay, catalogItems, transactionMatchedDeliveryIds, transactionSignatures]);
 
   reconciliationRowsRef.current = reconciliationRows;
 
