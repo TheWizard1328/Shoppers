@@ -1770,8 +1770,8 @@ export default function SquareManagement() {
                 <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
                   <div className="px-5 pt-5 pb-3">
                     <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 mb-2">Catalog Items</div>
-                    <div className="text-2xl font-bold text-slate-900 dark:text-slate-50 tabular-nums">{catalogOnlyItemCount}</div>
-                    <div className="text-xs text-slate-400 dark:text-slate-500 mt-1">${activeViewStats.amountValue.toFixed(2)}</div>
+                    <div className="text-2xl font-bold text-slate-900 dark:text-slate-50 tabular-nums">${activeViewStats.amountValue.toFixed(2)}</div>
+                    <div className="text-xs text-slate-400 dark:text-slate-500 mt-1">{catalogOnlyItemCount} item{catalogOnlyItemCount !== 1 ? 's' : ''}</div>
                     <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                       <div className="h-full w-4/5 bg-emerald-500 rounded-full" />
                     </div>
@@ -1782,8 +1782,8 @@ export default function SquareManagement() {
                 <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
                   <div className="px-5 pt-5 pb-3">
                     <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400 dark:text-slate-500 mb-2">New Items</div>
-                    <div className="text-2xl font-bold text-slate-900 dark:text-slate-50 tabular-nums">{newCatalogItems.length}</div>
-                    <div className="text-xs text-slate-400 dark:text-slate-500 mt-1">${newCatalogTotal.toFixed(2)}</div>
+                    <div className="text-2xl font-bold text-slate-900 dark:text-slate-50 tabular-nums">${newCatalogTotal.toFixed(2)}</div>
+                    <div className="text-xs text-slate-400 dark:text-slate-500 mt-1">{newCatalogItems.length} item{newCatalogItems.length !== 1 ? 's' : ''}</div>
                     <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                       <div className="h-full w-1/4 bg-amber-400 rounded-full" />
                     </div>
