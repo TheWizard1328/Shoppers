@@ -104,22 +104,11 @@ Deno.serve(async (req) => {
 
     console.log(`[handleStartDelivery] Set isNextDelivery on ${deliveryId} (stop_order=${nextStopOrder}), cleared ${previousNextDelivery?.id || 'none'}`);
 
-    // STEP 2: Fire optimizeRemainingStops — delayed 2s to let all DB writes (including the
-    // frontend's status update to en_route/in_transit) fully commit before the optimizer reads
-    // the delivery list. Without this delay the optimizer races with the frontend sync and may
-    // read the pickup as still 'pending', causing a status flicker on the UI.
-    setTimeout(() => {
-      base44.functions.invoke('optimizeRemainingStops', {
-        driverId,
-        deliveryDate,
-        currentLocalTime,
-        bypassDriverStatus: true,
-        triggerSource: 'handleStartDelivery',
-        ...(hereApiKey ? { hereApiKey } : {})
-      }).catch((e) => {
-        console.warn('[handleStartDelivery] optimizeRemainingStops fire-and-forget failed:', e?.message);
-      });
-    }, 2000);
+    // STEP 2: optimizeRemainingStops is intentionally NOT fired here.
+    // The client's background tail (useStopCardActions) calls optimizeRemainingStops
+    // after awaiting handleStartDelivery, then does its own forceRefreshDriverDeliveries.
+    // Firing it here too caused two concurrent optimizer calls within 2-4s — one was
+    // always deduplicated/skipped, and both raced on partially-committed DB state.
 
     return Response.json({
       success: true,

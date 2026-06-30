@@ -223,6 +223,7 @@ const extractOptimizationContext = (body = {}) => {
       preserveExistingOrder: body.preserveExistingOrder === true,
       forceFullRemainingRouteOptimization: body.forceFullRemainingRouteOptimization === true,
       bypassDriverStatus: body.bypassDriverStatus === true,
+      bypassDeduplication: body.bypassDeduplication === true,
       triggerSource: body.triggerSource || 'manual',
       cyclingSegmentOnly: body.cyclingSegmentOnly === true,
       cyclingOrigin: body.cyclingOrigin || null,
@@ -318,6 +319,7 @@ Deno.serve(async (req) => {
       preserveExistingOrder = false,
       forceFullRemainingRouteOptimization = false,
       bypassDriverStatus = false,
+      bypassDeduplication = false,
       triggerSource = 'manual',
       cyclingSegmentOnly = false,
       cyclingOrigin = null,
@@ -351,7 +353,7 @@ Deno.serve(async (req) => {
     const dedupeCheck = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: dedupeKey }, '-updated_date', 1);
     const dedupeRecord = dedupeCheck?.[0] || null;
     const lastRunAt = dedupeRecord?.setting_value?.last_run_at ? new Date(dedupeRecord.setting_value.last_run_at).getTime() : 0;
-    if (lastRunAt && Date.now() - lastRunAt < AUTOMATION_DEDUPE_WINDOW_MS) {
+    if (!bypassDeduplication && lastRunAt && Date.now() - lastRunAt < AUTOMATION_DEDUPE_WINDOW_MS) {
       return Response.json({
         success: true,
         skipped: true,

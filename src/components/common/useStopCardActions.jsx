@@ -318,8 +318,40 @@ export default function useStopCardActions(params) {
       window.dispatchEvent(new CustomEvent('pendingToInTransit', { detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date } }));
       invalidate('Delivery');
 
-      // STEP 1: Short delay to allow backend to settle all status updates before optimization reads them.
-      await new Promise((resolve) => setTimeout(resolve, 600));
+      // STEP 1: Wait for all backend status writes to commit before calling the optimizer.
+      // A flat 600ms delay was insufficient when writing 10-20 deliveries in parallel —
+      // the optimizer would fetch the DB and still see some as 'pending'.
+      // Instead we poll until all transitioned deliveries are confirmed in_transit (max ~4s).
+      try {
+        const expectedIds = new Set(stagedChangedDeliveries.map(d => d.id).filter(Boolean));
+        const maxAttempts = 8;
+        const pollIntervalMs = 500;
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+          await new Promise(r => setTimeout(r, pollIntervalMs));
+          try {
+            const confirmedDeliveries = await base44.entities.Delivery.filter({
+              driver_id: delivery.driver_id,
+              delivery_date: delivery.delivery_date
+            });
+            const confirmedInTransit = new Set(
+              (confirmedDeliveries || [])
+                .filter(d => d.status === 'in_transit' && expectedIds.has(d.id))
+                .map(d => d.id)
+            );
+            if (confirmedInTransit.size >= expectedIds.size) {
+              console.log(`[AcceptAll] All ${expectedIds.size} writes confirmed in_transit after ${(attempt + 1) * pollIntervalMs}ms`);
+              break;
+            }
+            console.log(`[AcceptAll] Write confirmation poll ${attempt + 1}/${maxAttempts}: ${confirmedInTransit.size}/${expectedIds.size} confirmed`);
+          } catch (_) {
+            // Poll failure is non-fatal — just move on after a brief wait
+            break;
+          }
+        }
+      } catch (_) {
+        // Entire verification block is non-fatal — proceed to optimizer regardless
+        await new Promise(r => setTimeout(r, 600));
+      }
 
       // STEP 2: Run route optimization using the same centralized call as the manual re-optimize FAB.
       const hereApiKey = await getOrFetchHereApiKey();
@@ -741,16 +773,26 @@ export default function useStopCardActions(params) {
           pauseRealtimeSync();
           try {
             const hereApiKey = await getOrFetchHereApiKey();
-            const optimizeResponse = await base44.functions.invoke('optimizeRemainingStops', {
+            // Brief settle window — handleStartDelivery already committed the started
+            // stop's status but client-side batch writes (stop_order, isNextDelivery)
+            // may still be in-flight. 800ms is enough for a single-stop write.
+            await new Promise(r => setTimeout(r, 800));
+            const now3 = new Date();
+            const currentLocalTime3 = `${String(now3.getHours()).padStart(2, '0')}:${String(now3.getMinutes()).padStart(2, '0')}`;
+            const optimizeData = await invokeOptimizeAwareCycling({
               driverId: delivery.driver_id,
               deliveryDate: delivery.delivery_date,
-              currentLocalTime,
-              deviceTime: new Date().toISOString(),
+              currentLocalTime: currentLocalTime3,
+              deviceTime: now3.toISOString(),
+              hereApiKey,
+              deliveriesWithStopOrder: allDeliveries || [],
+              patients: patients || [],
+              stores: stores || [],
               forceFullRemainingRouteOptimization: true,
+              bypassDeduplication: true,
               bypassDriverStatus: true,
-              hereApiKey
+              triggerSource: 'start_button',
             }).catch(() => null);
-            const optimizeData = optimizeResponse?.data || optimizeResponse || null;
 
             // Fetch fresh deliveries after optimization to capture authoritative stop_order
             const refreshedImmediately = await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
