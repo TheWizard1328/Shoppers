@@ -26,6 +26,7 @@ import { backgroundSyncManager } from '../utils/backgroundSyncManager';
 import { getOrFetchHereApiKey } from '../utils/hereApiKeyStore';
 import { invokeOptimizeAwareCycling } from '../utils/cyclingAwareOptimizer';
 import { notifyDriverAcceptedAll, notifyDispatcherAssignedAll, notifyDriverStarted, notifyDriverCompleted, notifyDriverFailed, notifyDriverRetry, notifyDriverReturn } from "../utils/deliveryMessaging";
+import { updatePreferredTravelMode } from '../dashboard/travelModeHelpers';
 
 const START_ACTION_NAME = 'start_delivery';
 
@@ -1225,6 +1226,19 @@ export default function useStopCardActions(params) {
 
         onClick?.(null);
         queueConsolidateBreadcrumbs({ driverId: delivery.driver_id, deliveryDate: delivery.delivery_date, stopOrder: delivery.stop_order, status: 'completed' });
+
+        // ── Cycling end marker completed: reset driver travel mode back to driving ──
+        // When the driver taps Complete on the Cycling Route End marker we know the
+        // cycling segment is fully finished. Reset preferred_travel_mode to 'driving'
+        // so all subsequent stops default to driving mode.
+        if (delivery?.is_cycling_marker && String(delivery?.delivery_notes || '').toLowerCase().includes('end')) {
+          try {
+            await updatePreferredTravelMode(appUsers, delivery.driver_id, 'driving');
+          } catch (modeErr) {
+            console.warn('[CyclingEnd] Failed to reset travel mode to driving:', modeErr?.message || modeErr);
+          }
+        }
+
         toast.success(`${isPickup ? 'Pickup' : 'Delivery'} completed!`);
       } catch (error) {
         toast.error(`Failed to complete: ${error.message}`);
