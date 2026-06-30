@@ -48,11 +48,12 @@ Deno.serve(async (req) => {
     }
 
     // Build update payload: always stamp last_login_date and increment login count
+    // Also save email if this is their first login and one was provided
     const updatePayload = {
       last_login_date: new Date().toISOString(),
       portal_login_count: (match.portal_login_count || 0) + 1,
     };
-    if (save_email && inputEmail && !hasEmail) {
+    if (inputEmail && !hasEmail) {
       updatePayload.email = email.trim();
     }
 

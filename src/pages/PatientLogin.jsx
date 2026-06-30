@@ -23,9 +23,7 @@ export default function PatientLogin() {
   const [selectedPatient, setSelectedPatient] = useState(null); // {id, full_name, has_email}
   const [showNamePicker, setShowNamePicker] = useState(false);
 
-  // Step: 'login' | 'collect_email'
-  const [step, setStep] = useState('login');
-  const [pendingPatient, setPendingPatient] = useState(null);
+
 
   const lookupTimerRef = useRef(null);
 
@@ -98,14 +96,7 @@ export default function PatientLogin() {
       const data = res.data;
 
       if (data?.success && data?.patient) {
-        if (data.is_first_login) {
-          // First login — prompt for email
-          setPendingPatient(data.patient);
-          setStep('collect_email');
-          setLoading(false);
-          return;
-        }
-        PatientSessionManager.login(data.patient);
+        PatientSessionManager.login({ ...data.patient, email: email.trim() || data.patient.email });
         setSuccess(true);
         setTimeout(() => { window.location.href = '/patient-portal'; }, 1200);
       } else {
@@ -118,33 +109,7 @@ export default function PatientLogin() {
     }
   };
 
-  // Collect email for first-time login
-  const handleSaveEmail = async (e) => {
-    e.preventDefault();
-    if (!email.trim()) {
-      setError('Please enter a valid email address.');
-      return;
-    }
-    setError('');
-    setLoading(true);
-    try {
-      await verifyPatient({
-        patient_id: pendingPatient.id,
-        phone: pendingPatient.phone,
-        email: email.trim(),
-        save_email: true,
-      });
-      PatientSessionManager.login({ ...pendingPatient, email: email.trim() });
-      setSuccess(true);
-      setTimeout(() => { window.location.href = '/patient-portal'; }, 1200);
-    } catch {
-      setError('Could not save your email. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const isCollectEmailStep = step === 'collect_email';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
@@ -160,42 +125,8 @@ export default function PatientLogin() {
 
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
 
-          {/* ── Collect email step (first-time login) ── */}
-          {isCollectEmailStep ? (
-            <>
-              <div className="flex items-center gap-3 mb-4 p-3 rounded-lg bg-blue-50 border border-blue-200">
-                <Mail className="w-5 h-5 text-blue-600 shrink-0" />
-                <div>
-                  <p className="text-sm font-semibold text-blue-800">Welcome, {pendingPatient?.full_name}!</p>
-                  <p className="text-xs text-blue-600 mt-0.5">Please add an email address. Future logins will require it.</p>
-                </div>
-              </div>
-
-              {success && (
-                <div className="mb-4 p-3 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 shrink-0" />
-                  Email saved! Loading your portal...
-                </div>
-              )}
-              {error && <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">{error}</div>}
-
-              <form onSubmit={handleSaveEmail} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="newEmail">Email Address</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <Input id="newEmail" type="email" placeholder="you@example.com" value={email}
-                      onChange={(e) => setEmail(e.target.value)} className="pl-10 h-12" required autoFocus />
-                  </div>
-                </div>
-                <Button type="submit" className="w-full h-12 font-medium bg-slate-900 hover:bg-slate-800 text-white" disabled={loading || success}>
-                  {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</> : 'Save & Continue'}
-                </Button>
-              </form>
-            </>
-          ) : (
-            /* ── Main login form ── */
-            <>
+          {/* ── Main login form ── */}
+          <>
               <h2 className="text-lg font-semibold text-slate-800 mb-1">Sign in to your portal</h2>
               <p className="text-sm text-slate-500 mb-6">Enter your phone number to get started.</p>
 
@@ -284,8 +215,7 @@ export default function PatientLogin() {
                   {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Verifying...</> : 'Access My Deliveries'}
                 </Button>
               </form>
-            </>
-          )}
+          </>
 
           <p className="mt-6 text-center text-xs text-slate-400">
             Having trouble? Contact your pharmacy for assistance.
