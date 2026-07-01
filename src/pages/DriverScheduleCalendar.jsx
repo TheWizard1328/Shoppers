@@ -913,7 +913,7 @@ export default function DriverScheduleCalendar() {
               <div
                 key={dateStr}
                 ref={today ? todayRef : null}
-                className={`rounded-xl border flex flex-col ${today ? 'border-blue-400 shadow-md' : past ? 'border-slate-200' : 'border-green-300'}`}
+                className={`rounded-xl border flex flex-col relative overflow-hidden ${today ? 'border-blue-400 shadow-md' : past ? 'border-slate-200' : 'border-green-300'}`}
                 style={{ background: 'var(--bg-white)', minHeight: 90 }}>
 
                 <div className={`rounded-t-xl flex items-center px-5`}
@@ -937,9 +937,27 @@ export default function DriverScheduleCalendar() {
                 <div className="flex-1 p-1.5 space-y-2">
                   {/* Stat Holiday Banner */}
                   {statHoliday &&
-                  <div className="rounded-md px-2 py-1 text-center text-[10px] font-semibold" style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d' }}>
-                    🎉 {statHoliday.holiday_name}
-                    <div className="text-[9px] font-normal opacity-75 mt-0.5">Stat Holiday — No scheduled drivers</div>
+                  <div className="absolute inset-0 overflow-hidden pointer-events-none" style={{ zIndex: 2 }}>
+                    <div style={{
+                      position: 'absolute',
+                      top: 0, left: 0, right: 0, bottom: 0,
+                      background: 'repeating-linear-gradient(135deg, #fef3c7 0px, #fef3c7 18px, #fde68a 18px, #fde68a 20px)',
+                      opacity: 0.55,
+                    }} />
+                    <div style={{
+                      position: 'absolute',
+                      top: '50%', left: '50%',
+                      transform: 'translate(-50%, -50%) rotate(-35deg)',
+                      whiteSpace: 'nowrap',
+                      textAlign: 'center',
+                    }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#92400e', letterSpacing: '0.03em', textShadow: '0 1px 2px rgba(255,255,255,0.8)' }}>
+                        🎉 {statHoliday.holiday_name}
+                      </div>
+                      <div style={{ fontSize: 9, color: '#b45309', marginTop: 2, textShadow: '0 1px 2px rgba(255,255,255,0.8)' }}>
+                        Stat Holiday
+                      </div>
+                    </div>
                   </div>
                   }
                   {!statHoliday && <>
