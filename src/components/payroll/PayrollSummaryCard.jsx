@@ -409,7 +409,7 @@ export default function PayrollSummaryCard({
   useEffect(() => {
     if (appFeeOverlayAllDriversId !== 'all' || !currentUser?.id) return;
     const existingAmt = driverEdits[currentUser.id]?.appFeeAmount;
-    if (existingAmt != null && Number(existingAmt) > 0) return; // only prefill if blank/zero
+    if (existingAmt != null && Number(existingAmt) != 0) return; // only prefill if blank/zero
     const ownerPct = Math.max(0, 100 - sumAllDriversAppFeePercent - otherAppFeePercent);
     const ownerAmt = Math.round(calculateAppFeeAmount(currentUser.id, ownerPct) * 100) / 100;
     setDriverEdits((prev) => ({
