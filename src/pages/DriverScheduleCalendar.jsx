@@ -845,29 +845,22 @@ export default function DriverScheduleCalendar() {
             // Find drivers who have actual deliveries for a store on this date
             // but are NOT already the scheduled driver for that store/slot combo.
             const dayDeliveries = deliveriesByDay[dateStr] || [];
-            // Build a set of all driver IDs that already have entries from interstore stops
-            // so we can create synthetic store entries for drivers with only ISP/ISD stops
-            const interStoreDriverStoreMap = new Map(); // driverId -> Set of storeIds already processed
             dayDeliveries.forEach((delivery) => {
-              if (!delivery.driver_id || !delivery.store_id) return;
+              if (!delivery.driver_id) return;
               // Must be a patient delivery, ISP, or ISD stop (not a cycling marker or bare pickup with no content)
-              const isPatientDelivery = delivery.patient_id && delivery.patient_id !== '';
-              const isInterStore = delivery._interstore_source_id || delivery._interstore_dest_id;
+              const isPatientDelivery = !!(delivery.patient_id && delivery.patient_id !== '');
+              const isInterStore = !!(delivery._interstore_source_id || delivery._interstore_dest_id);
               if (!isPatientDelivery && !isInterStore) return;
               if (delivery.status === 'cancelled') return;
 
-              // For ISP/ISD, the store_id may not be in visibleStores (e.g. the ISP source store isn't one of our stores).
-              // In that case, fall back to any store already assigned to this driver, or the first visible store.
-              let store = visibleStores.find((s) => s.id === delivery.store_id);
+              // Resolve the store for this delivery.
+              // ISP/ISD stops may have a store_id that isn't one of our pharmacy stores,
+              // or may have no store_id at all (ISD dropoff). Fall back accordingly.
+              let store = delivery.store_id ? visibleStores.find((s) => s.id === delivery.store_id) : null;
               if (!store && isInterStore) {
-                // Try to find a store this driver is already mapped to for this date
+                // Use a store the driver already has an entry for today, else the first visible store
                 const driverEntry = driverMap.get(delivery.driver_id);
-                if (driverEntry && driverEntry.length > 0) {
-                  store = driverEntry[0].store;
-                } else {
-                  // Use first visible store as a placeholder so the driver card appears
-                  store = visibleStores[0];
-                }
+                store = (driverEntry && driverEntry.length > 0) ? driverEntry[0].store : visibleStores[0];
               }
               if (!store) return;
 
@@ -1159,9 +1152,7 @@ function MobileDriverGroup({ driverId, driver, entries, date, overrides, drivers
   const dateKey = format(date, 'yyyy-MM-dd');
   const total = isMyGroup ? (() => {
     const dayDelivs = deliveriesByDay?.[dateKey] || [];
-    // Count all qualifying stops for this driver across all entries, deduped by id
     const counted = new Set();
-    // Build the set of store IDs covered by this driver's entries (for patient delivery matching)
     const entryStoreIds = new Set(entries.map((e) => e.store.id));
     dayDelivs.forEach((d) => {
       if (counted.has(d.id)) return;
@@ -1169,9 +1160,8 @@ function MobileDriverGroup({ driverId, driver, entries, date, overrides, drivers
       if (d.status === 'cancelled') return;
       const isInterStore = !!(d._interstore_source_id || d._interstore_dest_id);
       const isPatient = !!(d.patient_id && d.patient_id !== '');
-      if (!isPatient && !isInterStore) return;
-      // Patient deliveries must belong to one of the driver's entry stores
-      if (isPatient && !entryStoreIds.has(d.store_id)) return;
+      // Count ISP/ISD always; count patient stops only if their store is in this driver's entries
+      if (!isInterStore && (!isPatient || !entryStoreIds.has(d.store_id))) return;
       counted.add(d.id);
     });
     return counted.size;
@@ -1315,8 +1305,8 @@ function DriverGroupDraggable({ driverId, driver, entries, date, overrides, driv
             if (d.status === 'cancelled') return;
             const isInterStore = !!(d._interstore_source_id || d._interstore_dest_id);
             const isPatient = !!(d.patient_id && d.patient_id !== '');
-            if (!isPatient && !isInterStore) return;
-            if (isPatient && !entryStoreIds.has(d.store_id)) return;
+            // Count ISP/ISD always; count patient stops only if their store is in this driver's entries
+            if (!isInterStore && (!isPatient || !entryStoreIds.has(d.store_id))) return;
             counted.add(d.id);
           });
           return counted.size;
