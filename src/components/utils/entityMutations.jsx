@@ -68,6 +68,8 @@ const sanitizeDeliveryData = (deliveryData) => {
 
 // Lazy load broadcastMutation / pause helpers to avoid circular dependency issues
 const broadcastMutation = async (entity, action, id, data, ids = null) => {
+  // In batch silent mode, skip per-record broadcasts. Batch caller fires one bulk event.
+  if (isBatchSilentMode) return;
   try {
     const { broadcastMutation: broadcast } = await import('./realtimeSync');
     return broadcast(entity, action, id, data, ids);
@@ -141,6 +143,7 @@ const getCurrentCreatorAppUserId = async () => {
 let mutationListeners = [];
 let mutationsPaused = false;
 let isBatchFormSaving = false; // CRITICAL: Track if Add To Route form is batch saving
+let isBatchSilentMode = false; // CRITICAL: Suppress ALL per-record UI notifications during a batch save
 
 /**
  * Pause all mutations (during route optimization)
@@ -177,6 +180,25 @@ export const setBatchFormSaving = (isSaving) => {
 export const isBatchFormSavingActive = () => isBatchFormSaving;
 
 /**
+ * Enter batch silent mode — all per-record notifyMutation / broadcastMutation / smartRefresh
+ * calls are suppressed. A single bulk broadcast is made at the end by the caller.
+ */
+export const enterBatchSilentMode = () => {
+  isBatchSilentMode = true;
+  isBatchFormSaving = true;
+  console.log('🔇 [EntityMutations] Batch silent mode ON — suppressing per-record UI updates');
+};
+
+/**
+ * Exit batch silent mode and re-enable per-record broadcasts.
+ */
+export const exitBatchSilentMode = () => {
+  isBatchSilentMode = false;
+  isBatchFormSaving = false;
+  console.log('🔊 [EntityMutations] Batch silent mode OFF — per-record UI updates restored');
+};
+
+/**
  * Subscribe to mutation events for UI updates
  * Callback receives: { type, entity, id, data, oldId?, newId? }
  */
@@ -195,6 +217,9 @@ const notifyMutation = (mutation) => {
     console.log('⏸️ [EntityMutations] Notification skipped - mutations paused');
     return;
   }
+  // In batch silent mode, skip per-record UI notifications entirely.
+  // The batch caller is responsible for a single bulk update at the end.
+  if (isBatchSilentMode) return;
 
   mutationListeners.forEach(callback => {
     try {
@@ -223,9 +248,9 @@ const pauseSmartRefresh = async () => {
  * Restart smart refresh after mutation
  */
 const restartSmartRefresh = async () => {
-  // CRITICAL: Skip restart if batch form is saving (prevents spam during Add To Route)
-  if (isBatchFormSaving) {
-    console.log('⏭️ [EntityMutations] Skipping SmartRefresh restart - batch form saving active');
+  // CRITICAL: Skip restart if batch form is saving or in silent mode
+  if (isBatchFormSaving || isBatchSilentMode) {
+    console.log('⏭️ [EntityMutations] Skipping SmartRefresh restart - batch save active');
     return;
   }
   

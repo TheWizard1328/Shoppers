@@ -1,6 +1,6 @@
 import { format } from 'date-fns';
 import { generateUniqueSID, addMinutesToTime } from "@/components/dashboard/DashboardHelpers";
-import { batchCreateDeliveriesLocal, updateDeliveryLocal } from "@/components/utils/entityMutations";
+import { batchCreateDeliveriesLocal, updateDeliveryLocal, enterBatchSilentMode, exitBatchSilentMode } from "@/components/utils/entityMutations";
 import { base44 } from "@/api/base44Client";
 import { determineAMPMFromTime } from '@/components/utils/ampmUtils';
 
@@ -58,6 +58,15 @@ export const handleBatchSaveDelivery = async ({
     console.warn('[AddToRoute] ⚠️ No staged deliveries found!');
     return;
   }
+
+  // CRITICAL: Enter silent mode for the entire batch — suppresses per-record notifyMutation,
+  // broadcastMutation, and SmartRefresh restarts. A single deliveriesUpdated event fires at the end.
+  enterBatchSilentMode();
+  let _realtimePauseModule = null;
+  try {
+    _realtimePauseModule = await import('@/components/utils/realtimeSync');
+    _realtimePauseModule.pauseRealtimeSync();
+  } catch (_) {}
 
   const deliveriesByGroup = {};
   stagedDeliveries.forEach((delivery) => {
@@ -517,11 +526,21 @@ export const handleBatchSaveDelivery = async ({
 
   }
 
+  // CRITICAL: Always exit silent mode after the batch loop — even if an error occurred above
+  exitBatchSilentMode();
+  try {
+    if (_realtimePauseModule?.resumeRealtimeSync) _realtimePauseModule.resumeRealtimeSync();
+    else {
+      const { resumeRealtimeSync } = await import('@/components/utils/realtimeSync');
+      resumeRealtimeSync();
+    }
+  } catch (_) {}
+
   invalidate('Delivery');
 
   const batchDeliveryDate = stagedDeliveries[0]?.delivery_date || format(selectedDate, 'yyyy-MM-dd');
   const batchDriverId = stagedDeliveries[0]?.driver_id;
-  
+
   // Use the locally created/updated deliveries to update UI immediately
   const resolvedEnsuredPickups = (ensuredPickupRecords || []).map((delivery) => {
     const resolved = createdDeliveryMap.get(`pickup__${delivery?.store_id}__${delivery?.delivery_date}__${delivery?.driver_id || ''}__${delivery?.ampm_deliveries || ''}`);
