@@ -408,8 +408,10 @@ export default function PayrollSummaryCard({
   // Auto-populate App Owner fee amount when the "Manage App Owner App Fee" dialog opens
   useEffect(() => {
     if (appFeeOverlayAllDriversId !== 'all' || !currentUser?.id) return;
+    const existingAmt = driverEdits[currentUser.id]?.appFeeAmount;
+    if (existingAmt != null && Number(existingAmt) > 0) return; // only prefill if blank/zero
     const ownerPct = Math.max(0, 100 - sumAllDriversAppFeePercent - otherAppFeePercent);
-    const ownerAmt = calculateAppFeeAmount(currentUser.id, ownerPct);
+    const ownerAmt = Math.round(calculateAppFeeAmount(currentUser.id, ownerPct) * 100) / 100;
     setDriverEdits((prev) => ({
       ...prev,
       [currentUser.id]: {
