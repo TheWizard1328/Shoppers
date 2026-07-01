@@ -46,6 +46,7 @@ import { prepareDeliverySaveData, buildPickupSnapshot, getDeliverySubmitFlags } 
 import { resolveDistanceFromStore, buildPickupStagedDelivery, buildPatientStagedDelivery } from './deliveryStagingHelpers';
 import { closeDeliveryFormAfterSave } from '../utils/deliveryFormActionHelpers';
 import { resolveDefaultDriverForNewDelivery, expandStoresForTimeSlots } from './deliveryStoreResolutionHelpers';
+import { loadStatHolidays, getStatHoliday } from '../utils/statHolidayResolver';
 import { shouldUseImmediateAddToRouteStage, buildImmediateAddToRouteStage } from './Add2RouteStatusHelper';
 import { createPatientFromDraft, resolvePickupPuid, resolvePickupTimeWindow } from './deliveryAddHelpers';
 import { addPickupToRoute } from './pickupAddHelpers';
@@ -236,6 +237,8 @@ export default function DeliveryForm({
   const originalPidRef = useRef('');
   const autoCreatedPickupsRef = useRef(new Set()), batchSaveLockRef = useRef(false);
   const driverManuallyChangedRef = useRef(false); // true once user explicitly picks a driver
+  const [statHolidayWarning, setStatHolidayWarning] = useState(null); // holiday name or null
+  const statHolidaysRef = useRef(null); // cached holiday list
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -1160,6 +1163,35 @@ export default function DeliveryForm({
   const sortedProjectedDeliveries = useMemo(() => sortProjectedDeliveries({ projectedDeliveries, allDeliveries, stores, selectedDriverId: formData.driver_id, deliveryDate: formData.delivery_date, isDispatcher: isDispatcherOnly, scheduledDriverMap }), [projectedDeliveries, allDeliveries, stores, formData.driver_id, formData.delivery_date, isDispatcherOnly, scheduledDriverMap]);
   const handleConfirmDelete = useConfirmDelete({ deleteConfirmation, setDeleteConfirmation, sortedStagedDeliveries, stagedDeliveries, editingStagedId, handleClearForm, setStagedDeliveries, setProjectedDeliveries, fullPredictionListRef, allDeliveries, formData, setHasChanges, setHasPendingDeletes, setEditingStagedId, setError, setIsDeletingPending, setAllDeletedWerePending, patientSearchInputRef, shouldAutoFocusFields });
 
+  // Stat holiday enforcement — clear auto-selected driver and force manual selection
+  useEffect(() => {
+    if (delivery) return; // only for new deliveries
+    if (!formData.delivery_date) { setStatHolidayWarning(null); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        if (!statHolidaysRef.current) statHolidaysRef.current = await loadStatHolidays();
+        if (cancelled) return;
+        const holiday = getStatHoliday(formData.delivery_date, statHolidaysRef.current);
+        if (holiday) {
+          setStatHolidayWarning(holiday.holiday_name);
+          // Clear the auto-selected driver so the user must pick manually
+          setFormData((prev) => {
+            if (driverManuallyChangedRef.current) return prev; // user already picked — respect their choice
+            return { ...prev, driver_id: '', driver_name: '' };
+          });
+          // Open the driver dropdown so they can't miss it
+          if (!driverManuallyChangedRef.current) {
+            setTimeout(() => setForceOpenDriverSelectOnLoad(true), 100);
+          }
+        } else {
+          setStatHolidayWarning(null);
+        }
+      } catch { /* non-critical */ }
+    })();
+    return () => { cancelled = true; };
+  }, [delivery, formData.delivery_date]);
+
   // Reset manual-change flag whenever the delivery date changes (so auto-select re-runs)
   const prevDeliveryDateRef = useRef(formData.delivery_date);
   useEffect(() => {
@@ -1214,6 +1246,7 @@ export default function DeliveryForm({
       forceOpenDriverOnLoad={forceOpenDriverSelectOnLoad}
       applyDeliveryChangesLocally={applyDeliveryChangesLocally}
       scheduledDriverMap={scheduledDriverMap}
+      statHolidayWarning={statHolidayWarning}
     />
   );
 }

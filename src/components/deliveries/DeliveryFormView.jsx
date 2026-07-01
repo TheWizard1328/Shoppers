@@ -139,7 +139,8 @@ export default function DeliveryFormView({
   buttonState, cancelButtonState, isFormValid, hasChanges, isPatientFormOpen,
   closeOnSave, onCancel, openMode, forceOpenDriverOnLoad = false, pickupsAddedCount = 0,
   applyDeliveryChangesLocally, onDriverManuallyChanged,
-  scheduledDriverMap = {}
+  scheduledDriverMap = {},
+  statHolidayWarning = null
 }) {
   const activeFieldScrollFrameRef = useRef(null);
   const barcodeInputRef = useRef(null);
@@ -288,9 +289,11 @@ export default function DeliveryFormView({
     }
   }, []);
 
-  // Require driver selection when no regular pickup exists for the patient's store/date/slot
+  // Require driver selection when no regular pickup exists for the patient's store/date/slot,
+  // OR when the delivery date is a stat holiday (must always pick manually).
   const requiresDriverSelection = (() => {
     if (delivery || isPickupMode) return false; // only for new patient deliveries
+    if (statHolidayWarning && !formData?.driver_id) return true; // stat holiday — force selection
     if (formData?.driver_id) return false; // driver already chosen
     const patientToCheck = selectedPatient || (formData?.patient_id && patients ? patients.find((p) => p && p.id === formData.patient_id) : null);
     const storeId = patientToCheck?.store_id || formData?.store_id;
@@ -692,6 +695,11 @@ export default function DeliveryFormView({
             }
           </CardHeader>
 
+          {statHolidayWarning &&
+          <div className="px-3 py-2 text-sm font-semibold flex items-center gap-2 border-b" style={{ background: '#fef3c7', color: '#92400e', borderColor: '#fcd34d' }}>
+            🎉 {statHolidayWarning} — Stat Holiday. Please select a driver manually.
+          </div>
+          }
           {error && <div className="p-3 text-sm text-center" style={{ background: '#fee2e2', color: '#991b1b' }}>Error: {error}</div>}
           {isPayrollLocked && payrollLockMessage &&
           <div className="p-3 text-sm text-center border-b flex items-center justify-center gap-2" style={{ background: '#fef3c7', color: '#78350f', borderColor: '#fcd34d' }}>

@@ -1,0 +1,160 @@
+import React, { useState, useEffect } from 'react';
+import { base44 } from '@/api/base44Client';
+import { format, parseISO } from 'date-fns';
+import { CalendarDays, Plus, Trash2, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
+import { invalidateStatHolidayCache } from '@/components/utils/statHolidayResolver';
+
+export default function StatHolidays() {
+  const [holidays, setHolidays] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [newDate, setNewDate] = useState('');
+  const [newName, setNewName] = useState('');
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const list = await base44.entities.StatHoliday.list('date', 200);
+      setHolidays(list.sort((a, b) => a.date.localeCompare(b.date)));
+    } catch {
+      toast.error('Failed to load stat holidays');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handleAdd = async () => {
+    if (!newDate || !newName.trim()) {
+      toast.error('Please enter both a date and a holiday name.');
+      return;
+    }
+    if (holidays.some((h) => h.date === newDate)) {
+      toast.error('A stat holiday already exists for that date.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const created = await base44.entities.StatHoliday.create({ date: newDate, holiday_name: newName.trim() });
+      setHolidays((prev) => [...prev, created].sort((a, b) => a.date.localeCompare(b.date)));
+      invalidateStatHolidayCache();
+      setNewDate('');
+      setNewName('');
+      toast.success('Stat holiday added');
+    } catch {
+      toast.error('Failed to add stat holiday');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    try {
+      await base44.entities.StatHoliday.delete(id);
+      setHolidays((prev) => prev.filter((h) => h.id !== id));
+      invalidateStatHolidayCache();
+      toast.success('Stat holiday removed');
+    } catch {
+      toast.error('Failed to remove stat holiday');
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden" style={{ background: 'var(--bg-slate-50)', color: 'var(--text-slate-900)' }}>
+      {/* Header */}
+      <div className="flex-shrink-0 border-b px-5 py-4 flex items-center gap-3" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+        <CalendarDays className="w-5 h-5 text-amber-500" />
+        <div>
+          <h1 className="text-lg font-bold">Stat Holidays</h1>
+          <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
+            Stat holiday dates suppress automatic driver scheduling and require manual driver selection in the delivery form.
+          </p>
+        </div>
+        {loading && <RefreshCw className="w-4 h-4 animate-spin text-blue-500 ml-auto" />}
+      </div>
+
+      <div className="flex-1 overflow-auto p-5 space-y-6">
+        {/* Add Holiday Form */}
+        <div className="rounded-xl border p-4 space-y-3" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+          <h2 className="text-sm font-semibold">Add Stat Holiday</h2>
+          <div className="flex gap-3 items-end flex-wrap">
+            <div className="space-y-1">
+              <Label className="text-xs">Date</Label>
+              <Input
+                type="date"
+                value={newDate}
+                onChange={(e) => setNewDate(e.target.value)}
+                className="h-9 w-44"
+                disabled={saving}
+              />
+            </div>
+            <div className="space-y-1 flex-1 min-w-[180px]">
+              <Label className="text-xs">Holiday Name</Label>
+              <Input
+                placeholder="e.g. Canada Day"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+                className="h-9"
+                disabled={saving}
+              />
+            </div>
+            <Button onClick={handleAdd} disabled={saving || !newDate || !newName.trim()} className="gap-2 h-9">
+              <Plus className="w-4 h-4" />Add
+            </Button>
+          </div>
+        </div>
+
+        {/* Holiday List */}
+        <div className="rounded-xl border overflow-hidden" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+          {loading ? (
+            <div className="py-10 text-center text-sm" style={{ color: 'var(--text-slate-400)' }}>Loading...</div>
+          ) : holidays.length === 0 ? (
+            <div className="py-10 text-center text-sm" style={{ color: 'var(--text-slate-400)' }}>
+              No stat holidays configured yet.
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                  <th className="px-4 py-2 text-left text-xs font-semibold" style={{ color: 'var(--text-slate-500)' }}>Date</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold" style={{ color: 'var(--text-slate-500)' }}>Holiday Name</th>
+                  <th className="px-4 py-2 text-right text-xs font-semibold" style={{ color: 'var(--text-slate-500)' }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {holidays.map((h, idx) => (
+                  <tr
+                    key={h.id}
+                    className="border-b"
+                    style={{ borderColor: 'var(--border-slate-100)', background: idx % 2 === 0 ? 'var(--bg-white)' : 'var(--bg-slate-50)' }}>
+                    <td className="px-4 py-2.5 font-medium">
+                      🎉 {format(parseISO(h.date), 'MMMM d, yyyy')}
+                    </td>
+                    <td className="px-4 py-2.5" style={{ color: 'var(--text-slate-700)' }}>
+                      {h.holiday_name}
+                    </td>
+                    <td className="px-4 py-2.5 text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-red-400 hover:text-red-600"
+                        onClick={() => handleDelete(h.id)}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

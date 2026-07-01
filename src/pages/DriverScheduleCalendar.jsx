@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { userHasRole } from '@/components/utils/userRoles';
 import { generateDriverColor, getContrastColor } from '@/components/utils/colorGenerator';
+import { loadStatHolidays, getStatHoliday } from '@/components/utils/statHolidayResolver';
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
@@ -407,6 +408,7 @@ export default function DriverScheduleCalendar() {
   const [stores, setStores] = useState([]);
   const [appUsers, setAppUsers] = useState([]);
   const [overrides, setOverrides] = useState([]);
+  const [statHolidays, setStatHolidays] = useState([]);
   const [deliveriesByDay, setDeliveriesByDay] = useState({});
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -430,14 +432,16 @@ export default function DriverScheduleCalendar() {
     const load = async () => {
       setLoading(true);
       try {
-        const [user, storeList, userList] = await Promise.all([
+        const [user, storeList, userList, holidays] = await Promise.all([
         base44.auth.me(),
         base44.entities.Store.list('sort_order', 200),
-        base44.entities.AppUser.list('sort_order', 200)]
+        base44.entities.AppUser.list('sort_order', 200),
+        loadStatHolidays()]
         );
         setCurrentUser(user);
         setStores(storeList.filter((s) => s.status !== 'inactive'));
         setAppUsers(userList);
+        setStatHolidays(holidays || []);
         // Auto-select driver filter for non-admin drivers
         const appUser = userList.find((u) => u.user_id === user?.id);
         if (appUser && appUser.app_roles?.includes('driver') && !userHasRole(user, 'admin')) {
@@ -816,6 +820,7 @@ export default function DriverScheduleCalendar() {
             const today = isToday(date);
             const dateStr = format(date, 'yyyy-MM-dd');
             const dayName = format(date, 'EEE');
+            const statHoliday = getStatHoliday(dateStr, statHolidays);
 
             // Build scheduled driver map from store schedule + overrides
             const driverMap = new Map();
@@ -930,6 +935,14 @@ export default function DriverScheduleCalendar() {
                 </div>
 
                 <div className="flex-1 p-1.5 space-y-2">
+                  {/* Stat Holiday Banner */}
+                  {statHoliday &&
+                  <div className="rounded-md px-2 py-1 text-center text-[10px] font-semibold" style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d' }}>
+                    🎉 {statHoliday.holiday_name}
+                    <div className="text-[9px] font-normal opacity-75 mt-0.5">Stat Holiday — No scheduled drivers</div>
+                  </div>
+                  }
+                  {!statHoliday && <>
                   {sortedDriverIds.map((driverId) => {
                     const driver = appUsers.find((u) => u.user_id === driverId || u.id === driverId);
                     const entries = driverMap.get(driverId);
@@ -1003,6 +1016,7 @@ export default function DriverScheduleCalendar() {
 
                   {/* Drop zones when dragging */}
                   {!isMobile && dragItem?.dateStr === dateStr && (() => {
+
                     // If there's already an unassigned/booked-off card visible, it acts as the book-off drop zone
                     const hasNoDriverCard = noDriverEntries.length > 0;
                     if (isAdmin) return (
@@ -1033,6 +1047,7 @@ export default function DriverScheduleCalendar() {
                         }
                       </>);
                   })()}
+                  </>}
                 </div>
               </div>);
           })}
