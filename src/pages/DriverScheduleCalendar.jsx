@@ -846,7 +846,11 @@ export default function DriverScheduleCalendar() {
             // but are NOT already the scheduled driver for that store/slot combo.
             const dayDeliveries = deliveriesByDay[dateStr] || [];
             dayDeliveries.forEach((delivery) => {
-              if (!delivery.driver_id || !delivery.store_id || !delivery.patient_id) return;
+              if (!delivery.driver_id || !delivery.store_id) return;
+              // Must be a patient delivery, ISP, or ISD stop (not a cycling marker or bare pickup with no content)
+              const isPatientDelivery = delivery.patient_id && delivery.patient_id !== '';
+              const isInterStore = delivery._interstore_source_id || delivery._interstore_dest_id;
+              if (!isPatientDelivery && !isInterStore) return;
               if (delivery.status === 'cancelled') return;
               const store = visibleStores.find((s) => s.id === delivery.store_id);
               if (!store) return;
