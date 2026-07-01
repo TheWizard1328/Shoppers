@@ -913,7 +913,7 @@ export default function DriverScheduleCalendar() {
               <div
                 key={dateStr}
                 ref={today ? todayRef : null}
-                className={`rounded-xl border flex flex-col relative overflow-hidden ${today ? 'border-blue-400 shadow-md' : past ? 'border-slate-200' : 'border-green-300'}`}
+                className={`rounded-xl border flex flex-col ${today ? 'border-blue-400 shadow-md' : past ? 'border-slate-200' : 'border-green-300'}`}
                 style={{ background: 'var(--bg-white)', minHeight: 90 }}>
 
                 <div className={`rounded-t-xl flex items-center px-5`}
@@ -934,10 +934,10 @@ export default function DriverScheduleCalendar() {
                   }
                 </div>
 
-                <div className="flex-1 p-1.5 space-y-2">
-                  {/* Stat Holiday Banner */}
+                <div className="flex-1 p-1.5 space-y-2 relative overflow-hidden">
+                  {/* Stat Holiday Banner — behind driver content, only in the body area */}
                   {statHoliday &&
-                  <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 2, overflow: 'hidden' }}>
+                  <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 0, overflow: 'hidden' }}>
                     {/* Solid amber fill behind the ribbon */}
                     <div style={{ position: 'absolute', inset: 0, background: '#fef9c3', opacity: 0.6 }} />
                     {/* Corner-to-corner ribbon: wide band rotated at atan(h/w) ≈ using CSS diagonal trick */}
@@ -960,7 +960,6 @@ export default function DriverScheduleCalendar() {
                     </div>
                   </div>
                   }
-                  {!statHoliday && <>
                   {sortedDriverIds.map((driverId) => {
                     const driver = appUsers.find((u) => u.user_id === driverId || u.id === driverId);
                     const entries = driverMap.get(driverId);
@@ -1065,7 +1064,6 @@ export default function DriverScheduleCalendar() {
                         }
                       </>);
                   })()}
-                  </>}
                 </div>
               </div>);
           })}
