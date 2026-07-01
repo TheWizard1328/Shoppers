@@ -163,15 +163,35 @@ export const AppDataProvider = ({ children, value }) => {
       }
 
       if (appUsersChanged) {
-        const offlineAppUsers = await offlineDB.getAll(offlineDB.STORES.APP_USERS);
+        // CRITICAL: Do NOT re-read IDB here (offlineDB.getAll). The IDB bulkSave above
+        // is async and may not have committed yet — getAll can return the pre-write snapshot,
+        // injecting STALE coordinates into nextAppUsers. This is the primary cause of the
+        // slingshot bounce: the driver's marker snaps to an old location then snaps back
+        // when the WS path fires with the real fresh coords a few ms later.
+        //
+        // Use the same in-memory merge strategy that deliveries already use: merge
+        // appUserUpserts (the fresh WS data) directly into appUsersRef.current.
+        // The IDB write above ensures persistence; we do not need to re-read it here.
         const currentAppUsers = appUsersRef.current || [];
         const deleteSet = new Set(appUserDeletes);
-        const appUserById = new Map(currentAppUsers.filter(Boolean).map((item) => [item.id, item]));
-        (Array.isArray(offlineAppUsers) ? offlineAppUsers : []).forEach((item) => {
-          if (item?.id) appUserById.set(item.id, item);
-        });
+        const ts = (item) => {
+          const v = item?.location_updated_at || item?.updated_date || item?.created_date;
+          return v ? new Date(v).getTime() : 0;
+        };
+        const appUserById = new Map(
+          currentAppUsers
+            .filter((item) => item?.id && !appUserDeletes.includes(item.id))
+            .map((item) => [item.id, item])
+        );
         appUserUpserts.forEach((item) => {
-          if (item?.id) appUserById.set(item.id, item);
+          if (!item?.id) return;
+          const existing = appUserById.get(item.id);
+          // Freshness guard: only accept the incoming upsert if it is newer-or-equal.
+          // (The upsert comes from a WS push, so it should always be the freshest data,
+          // but guard defensively in case of out-of-order delivery.)
+          if (!existing || ts(item) >= ts(existing)) {
+            appUserById.set(item.id, item);
+          }
         });
         deleteSet.forEach((id) => appUserById.delete(id));
         nextAppUsers = Array.from(appUserById.values());
@@ -290,9 +310,17 @@ export const AppDataProvider = ({ children, value }) => {
 
     if (appUsersChanged) {
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-          detail: { appUsers: nextAppUsers, singleUpdate: appUserUpserts.length === 1, fromRealtime: true, fullReplacement: true }
-        }));
+        // CRITICAL: Dispatch ONLY the appUserUpserts (fresh incoming WS records), NOT nextAppUsers.
+        // nextAppUsers is the full merged array of all drivers; dispatching it means
+        // DriverLocationMarkers receives records for drivers who did NOT change this tick,
+        // and those records may carry stale coords from the in-memory snapshot that haven't
+        // been refreshed yet by a more recent WS event. Dispatching only the upserts keeps
+        // the marker update surgical — only the driver(s) who actually moved get updated.
+        if (appUserUpserts.length > 0) {
+          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+            detail: { appUsers: appUserUpserts, fromRealtime: true, mergeMode: 'merge' }
+          }));
+        }
 
         if (appUserUpserts.length === 1) {
           window.dispatchEvent(new CustomEvent('appUserUpdated', {
