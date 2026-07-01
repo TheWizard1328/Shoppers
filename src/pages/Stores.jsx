@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { loadStatHolidays, isStatHoliday } from '../components/utils/statHolidayResolver';
+import { format } from 'date-fns';
 import { base44 } from "@/api/base44Client";
 import StoreCard from "../components/stores/StoreCard";
 import StoreForm from "../components/stores/StoreForm";
@@ -56,7 +58,17 @@ export default function StoresPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingStore, setEditingStore] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [todayStatHoliday, setTodayStatHoliday] = useState(null); // StatHoliday record for today, or null
   const skipNextContextSync = React.useRef(false);
+
+  // Load stat holidays and check if today is one
+  useEffect(() => {
+    loadStatHolidays().then((holidays) => {
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      const holiday = holidays.find((h) => h.date === todayStr) || null;
+      setTodayStatHoliday(holiday);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -351,7 +363,8 @@ export default function StoresPage() {
               currentUser={currentUser}
               drivers={drivers}
               isLimitedView={currentUser && !userHasRole(currentUser, 'admin')}
-              hideEditDelete={currentUser && userHasRole(currentUser, 'dispatcher')} />
+              hideEditDelete={currentUser && userHasRole(currentUser, 'dispatcher')}
+              todayStatHoliday={todayStatHoliday} />
 
             )}
             </div> :

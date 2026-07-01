@@ -28,7 +28,7 @@ import { formatPhoneNumber } from "../utils/formatters";
 import { userHasRole } from "../utils/userRoles";
 import { updateStoreLocal } from "@/components/utils/offlineMutations";
 
-export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser, drivers, onSelect, isSelected, isLimitedView, hideEditDelete }) {
+export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser, drivers, onSelect, isSelected, isLimitedView, hideEditDelete, todayStatHoliday }) {
   const [editingColor, setEditingColor] = useState(false);
   const [editableStore, setEditableStore] = useState({ ...store });
   const [copiedId, setCopiedId] = useState(false);
@@ -473,20 +473,28 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                   const driverName = getDriverName(driverId, store[driverNameField]);
                   const canEdit = !isLimitedView && canQuickEditSlot(slotKey);
                   const timeStr = store[startField] && store[endField] ? `${store[startField]} - ${store[endField]}` : null;
+                  // On stat holidays, show the holiday name instead of the scheduled driver (limited view only)
+                  const isStatHolidaySlot = isLimitedView && !!todayStatHoliday && isEnabled && !!driverId;
 
                   const inner = (
                     <div className={`p-2 rounded min-h-[76px] flex flex-col justify-between space-y-1 transition-all duration-200 ${canEdit ? 'cursor-pointer hover:ring-1 hover:ring-emerald-400' : 'cursor-default'}`}
-                      style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store[enabledField], driverId) }}>
+                      style={{ background: isStatHolidaySlot ? '#fef9c3' : 'var(--bg-slate-100)', ...(isStatHolidaySlot ? { borderLeft: '3px solid #eab308' } : getSlotBgStyle(store[enabledField], driverId)) }}>
                       <div className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>{label}</div>
-                      {isEnabled && driverId ?
+                      {isStatHolidaySlot ? (
+                        <>
+                          <div className="text-sm font-medium" style={{ color: '#92400e' }}>Stat Holiday</div>
+                          <div className="text-xs" style={{ color: '#b45309' }}>{todayStatHoliday.holiday_name}</div>
+                        </>
+                      ) : isEnabled && driverId ? (
                         <>
                           <div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>{driverName}</div>
                           {timeStr && <div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>{timeStr}</div>}
-                        </> :
+                        </>
+                      ) : (
                         <div className="text-xs italic" style={{ color: 'var(--text-slate-400)' }}>
                           {!isEnabled ? 'Disabled' : 'No driver'}
                         </div>
-                      }
+                      )}
                     </div>
                   );
 
