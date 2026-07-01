@@ -26,7 +26,22 @@ export const resolvePatientDriverAssignment = ({
     getStoreAssignedTimeSlot(patientStore, deliveryDate, allDeliveries) ||
     'AM';
 
-  // Priority 1: DriverScheduleOverride — slot-aware lookup (storeId_PM or storeId_AM), then base storeId
+  // Priority 1: Driver who already has a store pickup for this store on this date/slot
+  const existingPickupDriverId = (() => {
+    if (!allDeliveries || !patientStore?.id || !deliveryDate) return null;
+    const pickup = allDeliveries.find((d) =>
+      d &&
+      !d.patient_id &&
+      d.store_id === patientStore.id &&
+      d.delivery_date === deliveryDate &&
+      (d.ampm_deliveries || 'AM') === deliveryAMPM &&
+      d.driver_id &&
+      !['cancelled', 'failed'].includes(d.status)
+    );
+    return pickup?.driver_id || null;
+  })();
+
+  // Priority 2: DriverScheduleOverride — slot-aware lookup (storeId_PM or storeId_AM), then base storeId
   const slotKey = `${patientStore.id}_${deliveryAMPM}`;
   const fallbackSlotKey = `${patientStore.id}_${deliveryAMPM === 'PM' ? 'AM' : 'PM'}`;
   const overrideDriverId =
@@ -38,10 +53,12 @@ export const resolvePatientDriverAssignment = ({
   let driverId;
   if (isSoleDriverUser(currentUser)) {
     driverId = currentUser.id || currentUser.user_id || '';
+  } else if (existingPickupDriverId) {
+    driverId = existingPickupDriverId;
   } else if (overrideDriverId) {
     driverId = overrideDriverId;
   } else {
-    // Priority 2: Store default driver for the correct AM/PM slot
+    // Priority 3: Store default driver for the correct AM/PM slot
     const fields = dayOfWeek === 6
       ? { am: 'saturday_am_driver_id', pm: 'saturday_pm_driver_id' }
       : dayOfWeek === 0
