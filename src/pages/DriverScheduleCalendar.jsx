@@ -961,6 +961,16 @@ export default function DriverScheduleCalendar() {
                   </div>
                   }
                   {sortedDriverIds.map((driverId) => {
+                    // On stat holidays, only show drivers who have actual deliveries/pickups/interstores
+                    if (statHoliday) {
+                      const dayDelivs = deliveriesByDay[dateStr] || [];
+                      const hasAssignment = dayDelivs.some((d) =>
+                        d.driver_id === driverId && !d.is_cycling_marker &&
+                        (d.patient_id || d._interstore_source_id || d.store_id)
+                      );
+                      if (!hasAssignment) return null;
+                    }
+
                     const driver = appUsers.find((u) => u.user_id === driverId || u.id === driverId);
                     const entries = driverMap.get(driverId);
                     const driverColor = generateDriverColor(driver?.user_name || driverId);
@@ -969,8 +979,8 @@ export default function DriverScheduleCalendar() {
                     const isMyGroup = !isAdmin && driverId === currentUser?.id;
                     if (!isMobile && (isAdmin || isMyGroup)) {
                       return (
+                        <div key={driverId} style={{ position: 'relative', zIndex: statHoliday ? 1 : undefined }}>
                         <DriverGroupDraggable
-                          key={driverId}
                           driverId={driverId}
                           driver={driver}
                           entries={entries}
@@ -987,12 +997,13 @@ export default function DriverScheduleCalendar() {
                           isMobile={isMobile}
                           dragItem={dragItem}
                           onDragStart={setDragItem}
-                          stores={stores} />);
+                          stores={stores} />
+                        </div>);
                     }
 
                     return (
+                      <div key={driverId} style={{ position: 'relative', zIndex: statHoliday ? 1 : undefined }}>
                       <MobileDriverGroup
-                        key={driverId}
                         driverId={driverId}
                         driver={driver}
                         entries={entries}
@@ -1008,7 +1019,8 @@ export default function DriverScheduleCalendar() {
                         onToggleSlotLock={handleToggleSlotLock}
                         isMobile={isMobile}
                         driverColor={driverColor}
-                        driverTextColor={driverTextColor} />);
+                        driverTextColor={driverTextColor} />
+                      </div>);
                   })}
 
                   {/* BookOff / Unassigned slots */}
