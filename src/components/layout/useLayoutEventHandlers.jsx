@@ -150,10 +150,13 @@ export function useLayoutEventHandlers({
             return exists ? prev : [...prev, mutation.data];
           });
 
-          // CRITICAL: Immediately dispatch location update for new AppUser
-          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-            detail: { appUsers: null, singleUpdate: mutation.data }
-          }));
+          // Dispatch with appUsers array so DriverLocationMarkers can merge it properly.
+          // Never use appUsers:null + singleUpdate — DriverLocationMarkers bails on null appUsers.
+          if (mutation.data?.current_latitude && mutation.data?.current_longitude) {
+            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+              detail: { appUsers: [mutation.data], mergeMode: 'merge' }
+            }));
+          }
         }
       } else if (mutation.type === 'update') {
         if (mutation.entity === 'Patient') {
@@ -174,10 +177,13 @@ export function useLayoutEventHandlers({
         } else if (mutation.entity === 'AppUser') {
           setAppUsers((prev) => prev.map((a) => a?.id === mutation.id ? { ...a, ...mutation.data } : a));
 
-          // CRITICAL: Immediately dispatch location update for AppUser changes
-          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-            detail: { appUsers: null, singleUpdate: mutation.data }
-          }));
+          // Dispatch with appUsers array so DriverLocationMarkers can merge it properly.
+          // Never use appUsers:null + singleUpdate — DriverLocationMarkers bails on null appUsers.
+          if (mutation.data?.current_latitude && mutation.data?.current_longitude) {
+            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+              detail: { appUsers: [mutation.data], mergeMode: 'merge' }
+            }));
+          }
         }
       }
     });

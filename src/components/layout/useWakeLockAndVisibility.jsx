@@ -69,11 +69,32 @@ export function useWakeLockAndVisibility({
           } else if (!locationTracker.isPrimaryDevice) {
             // Non-primary device: reload AppUsers from offline DB and broadcast so markers
             // reflect the latest persisted location data without waiting for a WebSocket event.
+            // CRITICAL: Only broadcast records that have NOT been updated via WebSocket in the
+            // last 10 seconds. The WebSocket path (realtimeSync) already wrote the freshest
+            // coords to the offline DB and dispatched driverLocationsUpdated with the real
+            // timestamp. If we broadcast the entire IDB snapshot unconditionally here, records
+            // without a real location_updated_at get stamped as ts=0 by mergeVisibleDriversByFreshness
+            // and are correctly ignored — but records that DO have a real (older) timestamp can
+            // still win the freshness race if the WS event hasn't arrived yet for this device,
+            // causing the marker to snap back to the last persisted position mid-animation.
+            // Gating on __wsAppUserLastUpdate prevents the IDB snapshot from racing the live WS stream.
             import('../utils/offlineDatabase').then(({ offlineDB }) => {
-              offlineDB.getAll(offlineDB.STORES.APP_USERS).then((appUsers) => {
-                if (appUsers && appUsers.length > 0) {
+              offlineDB.getAll(offlineDB.STORES.APP_USERS).then((allAppUsers) => {
+                if (!allAppUsers || allAppUsers.length === 0) return;
+                const now = Date.now();
+                const WS_GRACE_MS = 10000; // suppress IDB broadcast for drivers updated via WS in last 10s
+                const wsLastUpdate = window.__wsAppUserLastUpdate || new Map();
+                // Only include drivers whose last WS update was more than WS_GRACE_MS ago
+                // (i.e., the WS stream is not actively delivering fresh coords for them).
+                const staleOrUnseenAppUsers = allAppUsers.filter((au) => {
+                  if (!au?.id) return false;
+                  const key = au.user_id || au.id;
+                  const lastWs = wsLastUpdate.get(key) || 0;
+                  return (now - lastWs) >= WS_GRACE_MS;
+                });
+                if (staleOrUnseenAppUsers.length > 0) {
                   window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-                    detail: { appUsers, fromOfflineDB: true, mergeMode: 'merge' }
+                    detail: { appUsers: staleOrUnseenAppUsers, fromOfflineDB: true, mergeMode: 'merge' }
                   }));
                 }
               }).catch(() => {});

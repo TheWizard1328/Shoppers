@@ -374,7 +374,10 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
           ...user,
           current_latitude: user.current_latitude,
           current_longitude: user.current_longitude,
-          location_updated_at: user.location_updated_at || new Date().toISOString()
+          // CRITICAL: Never fabricate a timestamp. If location_updated_at is missing, leave it
+          // undefined so mergeVisibleDriversByFreshness treats this record as ts=0 (oldest) and
+          // will never let it overwrite a record that already has a real timestamp.
+          location_updated_at: user.location_updated_at ?? undefined
         }));
 
       setVisibleDrivers((prev) => {
