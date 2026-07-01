@@ -239,7 +239,6 @@ export default function DeliveryForm({
   const driverManuallyChangedRef = useRef(false); // true once user explicitly picks a driver
   const [statHolidayWarning, setStatHolidayWarning] = useState(null); // holiday name or null
   const statHolidaysRef = useRef(null); // cached holiday list
-  const statHolidayActiveRef = useRef(false); // true when the selected date is a stat holiday
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -265,7 +264,6 @@ export default function DeliveryForm({
 
   useEffect(() => {
     if (delivery || formData.driver_id || driverManuallyChangedRef.current) return;
-    if (statHolidayActiveRef.current) return; // stat holiday — no auto-select
     const storesToUse = freshStores || stores;
     if (!currentUser || !storesToUse || !drivers || allDrivers.length === 0) return;
     const { driverId: driverIdToSet, driverName: driverNameToSet } = resolveDefaultDriverForNewDelivery({
@@ -289,7 +287,6 @@ export default function DeliveryForm({
   // Runs when the form opens (new delivery only) and when delivery_date changes.
   useEffect(() => {
     if (delivery) return; // editing existing delivery — don't override
-    if (statHolidayActiveRef.current) return; // stat holiday — dispatcher must pick manually
     const isDispatcher = userHasRole(currentUser, 'dispatcher');
     const isDriver = userHasRole(currentUser, 'driver');
     const isAdmin = userHasRole(currentUser, 'admin');
@@ -1177,7 +1174,6 @@ export default function DeliveryForm({
         if (cancelled) return;
         const holiday = getStatHoliday(formData.delivery_date, statHolidaysRef.current);
         if (holiday) {
-          statHolidayActiveRef.current = true;
           setStatHolidayWarning(holiday.holiday_name);
           // Clear the auto-selected driver so the user must pick manually
           setFormData((prev) => {
@@ -1189,7 +1185,6 @@ export default function DeliveryForm({
             setTimeout(() => setForceOpenDriverSelectOnLoad(true), 100);
           }
         } else {
-          statHolidayActiveRef.current = false;
           setStatHolidayWarning(null);
         }
       } catch { /* non-critical */ }
@@ -1197,13 +1192,12 @@ export default function DeliveryForm({
     return () => { cancelled = true; };
   }, [delivery, formData.delivery_date]);
 
-  // Reset manual-change and stat-holiday flags whenever the delivery date changes (so auto-select re-runs)
+  // Reset manual-change flag whenever the delivery date changes (so auto-select re-runs)
   const prevDeliveryDateRef = useRef(formData.delivery_date);
   useEffect(() => {
     if (formData.delivery_date !== prevDeliveryDateRef.current) {
       prevDeliveryDateRef.current = formData.delivery_date;
       driverManuallyChangedRef.current = false; // date changed — re-derive scheduled driver
-      statHolidayActiveRef.current = false; // will be re-evaluated by holiday effect
     }
   }, [formData.delivery_date]);
 
