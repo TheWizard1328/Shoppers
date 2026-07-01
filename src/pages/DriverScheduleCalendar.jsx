@@ -842,59 +842,36 @@ export default function DriverScheduleCalendar() {
             });
 
             // ── Delivery-driven slots ──────────────────────────────────────
-            // Find drivers who have actual deliveries for a store on this date
-            // but are NOT already the scheduled driver for that store/slot combo.
+            // Use delivery.store_id + delivery.ampm_deliveries as the primary binding keys.
             const dayDeliveries = deliveriesByDay[dateStr] || [];
+            const storeById = new Map(visibleStores.map((s) => [s.id, s]));
             dayDeliveries.forEach((delivery) => {
               if (!delivery.driver_id) return;
-              // Must be a patient delivery, ISP, or ISD stop (not a cycling marker or bare pickup with no content)
-              const isPatientDelivery = !!(delivery.patient_id && delivery.patient_id !== '');
-              const isInterStore = !!(delivery._interstore_source_id || delivery._interstore_dest_id);
-              if (!isPatientDelivery && !isInterStore) return;
               if (delivery.status === 'cancelled') return;
+              if (delivery.is_cycling_marker) return;
+              const isPatient = !!(delivery.patient_id && delivery.patient_id !== '');
+              const isInterStore = !!(delivery._interstore_source_id || delivery._interstore_dest_id);
+              if (!isPatient && !isInterStore) return;
 
-              // Resolve the store for this delivery.
-              // ISP/ISD stops may have a store_id that isn't one of our pharmacy stores,
-              // or may have no store_id at all (ISD dropoff). Fall back accordingly.
-              let store = delivery.store_id ? visibleStores.find((s) => s.id === delivery.store_id) : null;
-              if (!store && isInterStore) {
-                // Use a store the driver already has an entry for today, else the first visible store
-                const driverEntry = driverMap.get(delivery.driver_id);
-                store = (driverEntry && driverEntry.length > 0) ? driverEntry[0].store : visibleStores[0];
-              }
+              const store = delivery.store_id ? storeById.get(delivery.store_id) : null;
               if (!store) return;
 
+              // Map ampm_deliveries → slot key suffix; default to AM if unset
               const ampm = delivery.ampm_deliveries; // 'AM', 'PM', or undefined
-              const slotKeys = getSlotKey(date);
+              const [amSk, pmSk] = getSlotKey(date);
+              const sk = (!ampm || ampm === 'AM') ? amSk : pmSk;
 
-              slotKeys.forEach((sk) => {
-                const isAM = sk.endsWith('_am');
-                // Only match if ampm matches (or no ampm set on delivery)
-                if (ampm && (isAM && ampm !== 'AM' || !isAM && ampm !== 'PM')) return;
+              // Skip if this driver is already the scheduled driver for this store/slot
+              const override = overrides.find((o) => o.date === dateStr && o.slot_key === sk && o.store_id === store.id);
+              const scheduledDriverId = override ? override.driver_id : getDefaultDriverId(store, sk);
+              if (scheduledDriverId === delivery.driver_id) return;
 
-                // Check if this driver is already the scheduled driver for this store/slot
-                const scheduledDriverId = (() => {
-                  const override = overrides.find((o) => o.date === dateStr && o.slot_key === sk && o.store_id === store.id);
-                  const defId = getDefaultDriverId(store, sk);
-                  return override ? override.driver_id : defId;
-                })();
-
-                if (scheduledDriverId === delivery.driver_id) return; // already shown
-
-                // Check if the slot is enabled; if it is, it's already in the scheduled view — skip
-                // If slot is NOT enabled for the store, still show as delivery-driven
-                // If slot IS enabled but driver is different, show as delivery-driven
-                const slotAlreadyCovered = isSlotEnabled(store, sk) && scheduledDriverId === delivery.driver_id;
-                if (slotAlreadyCovered) return;
-
-                // Add to driver's group as a delivery-driven entry
-                if (!driverMap.has(delivery.driver_id)) driverMap.set(delivery.driver_id, []);
-                const group = driverMap.get(delivery.driver_id);
-                const alreadyHas = group.some((e) => e.store.id === store.id && e.slotKey === sk);
-                if (!alreadyHas) {
-                  group.push({ store, slotKey: sk, startTime: getSlotStartTime(store, sk), isDeliveryDriven: true });
-                }
-              });
+              if (!driverMap.has(delivery.driver_id)) driverMap.set(delivery.driver_id, []);
+              const group = driverMap.get(delivery.driver_id);
+              const alreadyHas = group.some((e) => e.store.id === store.id && e.slotKey === sk);
+              if (!alreadyHas) {
+                group.push({ store, slotKey: sk, startTime: getSlotStartTime(store, sk), isDeliveryDriven: true });
+              }
             });
 
             driverMap.forEach((entries) => entries.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || '')));
@@ -1150,22 +1127,12 @@ function MobileDriverGroup({ driverId, driver, entries, date, overrides, drivers
 
   const isMyGroup = isAdmin || driverId === currentUser?.id;
   const dateKey = format(date, 'yyyy-MM-dd');
-  const total = isMyGroup ? (() => {
-    const dayDelivs = deliveriesByDay?.[dateKey] || [];
-    const counted = new Set();
-    const entryStoreIds = new Set(entries.map((e) => e.store.id));
-    dayDelivs.forEach((d) => {
-      if (counted.has(d.id)) return;
-      if (d.driver_id !== driverId) return;
-      if (d.status === 'cancelled') return;
-      const isInterStore = !!(d._interstore_source_id || d._interstore_dest_id);
-      const isPatient = !!(d.patient_id && d.patient_id !== '');
-      // Count ISP/ISD always; count patient stops only if their store is in this driver's entries
-      if (!isInterStore && (!isPatient || !entryStoreIds.has(d.store_id))) return;
-      counted.add(d.id);
-    });
-    return counted.size;
-  })() : 0;
+  const total = isMyGroup ? (deliveriesByDay?.[dateKey] || []).filter((d) =>
+    d.driver_id === driverId &&
+    d.status !== 'cancelled' &&
+    !d.is_cycling_marker &&
+    (d.patient_id && d.patient_id !== '' || d._interstore_source_id || d._interstore_dest_id)
+  ).length : 0;
 
   const scheduledEntries = entries.filter((e) => !e.isDeliveryDriven);
   const canBookOff = canBookOffDay && scheduledEntries.length > 0;
@@ -1295,22 +1262,12 @@ function DriverGroupDraggable({ driverId, driver, entries, date, overrides, driv
       {(() => {
         const isMyGroup = isAdmin || driverId === currentUser?.id;
         const dateKey = format(date, 'yyyy-MM-dd');
-        const total = isMyGroup ? (() => {
-          const dayDelivs = deliveriesByDay?.[dateKey] || [];
-          const counted = new Set();
-          const entryStoreIds = new Set(entries.map((e) => e.store.id));
-          dayDelivs.forEach((d) => {
-            if (counted.has(d.id)) return;
-            if (d.driver_id !== driverId) return;
-            if (d.status === 'cancelled') return;
-            const isInterStore = !!(d._interstore_source_id || d._interstore_dest_id);
-            const isPatient = !!(d.patient_id && d.patient_id !== '');
-            // Count ISP/ISD always; count patient stops only if their store is in this driver's entries
-            if (!isInterStore && (!isPatient || !entryStoreIds.has(d.store_id))) return;
-            counted.add(d.id);
-          });
-          return counted.size;
-        })() : 0;
+        const total = isMyGroup ? (deliveriesByDay?.[dateKey] || []).filter((d) =>
+          d.driver_id === driverId &&
+          d.status !== 'cancelled' &&
+          !d.is_cycling_marker &&
+          (d.patient_id && d.patient_id !== '' || d._interstore_source_id || d._interstore_dest_id)
+        ).length : 0;
 
         // All lock keys for this driver's scheduled entries
         const allLockKeys = scheduledEntries.map(({ store, slotKey }) => slotLockKey(dateStr, store.id, slotKey));
