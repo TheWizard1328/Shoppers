@@ -1,11 +1,9 @@
 import React, { useState } from 'react';
 import { HeartPulse, LogOut, Package, ChevronDown, ChevronUp } from 'lucide-react';
 import PatientDeliveryCard from './PatientDeliveryCard';
-import PatientDeliveryDetailPanel from './PatientDeliveryDetailPanel';
 import { PatientSessionManager } from './PatientSessionManager';
 
 export default function PatientSidebar({ patient, deliveries, stores, isOpen, onClose }) {
-  const [selectedDelivery, setSelectedDelivery] = useState(null);
   const [showAll, setShowAll] = useState(false);
 
   const storeMap = {};
@@ -78,8 +76,6 @@ export default function PatientSidebar({ patient, deliveries, stores, isOpen, on
                   key={delivery.id}
                   delivery={delivery}
                   storeName={storeMap[delivery.store_id]}
-                  isSelected={selectedDelivery?.id === delivery.id}
-                  onClick={() => setSelectedDelivery(delivery)}
                 />
               ))}
 
@@ -96,14 +92,7 @@ export default function PatientSidebar({ patient, deliveries, stores, isOpen, on
                 </button>
               )}
 
-              {/* Slide-out detail panel */}
-              {selectedDelivery && (
-                <PatientDeliveryDetailPanel
-                  delivery={selectedDelivery}
-                  storeName={storeMap[selectedDelivery.store_id]}
-                  onClose={() => setSelectedDelivery(null)}
-                />
-              )}
+
             </div>
           )}
         </div>
