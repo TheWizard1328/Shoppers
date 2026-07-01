@@ -716,11 +716,20 @@ export const deleteDelivery = async (deliveryId, options = {}) => {
       }
     }
 
-    // If delivery didn't exist in either DB, skip the rest
+    // If delivery didn't exist in either DB, still remove it from UI/cache in case
+    // it exists in React state but was already cleaned from both DBs.
     if (!existedOffline && !existedOnline) {
-      console.log('⏭️ [EntityMutations] Delivery not found in offline or online DB, skipping:', deliveryId);
+      console.log('⏭️ [EntityMutations] Delivery not found in offline or online DB — removing from UI anyway:', deliveryId);
+      const { removeDeletedFromCache } = await import('./dataManager');
+      removeDeletedFromCache('Delivery', [deliveryId]);
+      const { smartRefreshManager } = await import('./smartRefreshManager');
+      smartRefreshManager.deletedDeliveryIds.add(deliveryId);
+      notifyMutation({ type: 'delete', entity: 'Delivery', id: deliveryId, data: null });
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', { detail: { deletedIds: [deliveryId] } }));
+      }
       await restartSmartRefresh();
-      return false; // Indicate it was already deleted
+      return true;
     }
 
     if (deletedDeliverySnapshot?.driver_id && deletedDeliverySnapshot?.delivery_date) {
@@ -920,11 +929,19 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
     
     console.log(`☁️ [EntityMutations] Backend deleted ${deletedOnlineIds.length} deliveries (${notFoundIds.length} not found)`);
 
-    // If nothing was deleted from either DB, skip the rest
+    // If nothing was deleted from either DB, still remove from UI/cache
     if (idsToDeleteOffline.length === 0 && deletedOnlineIds.length === 0) {
-      console.log('⏭️ [EntityMutations] No deliveries found in offline or online DB, all already deleted');
+      console.log('⏭️ [EntityMutations] No deliveries found in offline or online DB — removing from UI anyway:', deliveryIds);
+      const { removeDeletedFromCache } = await import('./dataManager');
+      removeDeletedFromCache('Delivery', deliveryIds);
+      const { smartRefreshManager } = await import('./smartRefreshManager');
+      deliveryIds.forEach(id => smartRefreshManager.deletedDeliveryIds.add(id));
+      notifyMutation({ type: 'batch_delete', entity: 'Delivery', ids: deliveryIds, data: null });
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', { detail: { deletedIds: deliveryIds } }));
+      }
       await restartSmartRefresh();
-      return false;
+      return true;
     }
     
     const firstDeletedDelivery = offlineDeliveries.find(d => idsToDeleteOffline.includes(d.id));
