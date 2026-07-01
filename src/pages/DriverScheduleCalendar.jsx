@@ -1131,7 +1131,7 @@ function MobileDriverGroup({ driverId, driver, entries, date, overrides, drivers
     d.driver_id === driverId &&
     d.status !== 'cancelled' &&
     !d.is_cycling_marker &&
-    (d.patient_id && d.patient_id !== '' || d._interstore_source_id || d._interstore_dest_id)
+    (d.patient_id && d.patient_id !== '' || d._interstore_source_id || d._interstore_dest_id || d.after_hours_pickup)
   ).length : 0;
 
   const scheduledEntries = entries.filter((e) => !e.isDeliveryDriven);
@@ -1266,7 +1266,7 @@ function DriverGroupDraggable({ driverId, driver, entries, date, overrides, driv
           d.driver_id === driverId &&
           d.status !== 'cancelled' &&
           !d.is_cycling_marker &&
-          (d.patient_id && d.patient_id !== '' || d._interstore_source_id || d._interstore_dest_id)
+          (d.patient_id && d.patient_id !== '' || d._interstore_source_id || d._interstore_dest_id || d.after_hours_pickup)
         ).length : 0;
 
         // All lock keys for this driver's scheduled entries
