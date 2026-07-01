@@ -260,7 +260,15 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
             </Label>
             <Select
               value={values.storeChoice}
-              onValueChange={(value) => setValues((current) => ({ ...current, storeChoice: value }))}
+              onValueChange={(value) => {
+                const selected = pickupOptions.find((o) => o.value === value);
+                setValues((current) => ({
+                  ...current,
+                  storeChoice: value,
+                  // Sync AM/PM to match the chosen slot
+                  ampmChoice: selected ? selected.slot : current.ampmChoice,
+                }));
+              }}
               disabled={pickupFieldsDisabled || pickupOptions.length === 0}>
               
               <SelectTrigger style={getFieldStyle('storeChoice')}>
@@ -283,7 +291,19 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
               <Label style={{ color: "var(--text-slate-900)" }}>AM/PM</Label>
               <Select
                 value={values.ampmChoice}
-                onValueChange={(value) => setValues((current) => ({ ...current, ampmChoice: value }))}
+                onValueChange={(value) => {
+                  setValues((current) => {
+                    // If a specific store slot is selected, try to switch to the same store's other slot
+                    if (current.storeChoice && current.storeChoice !== 'unchanged') {
+                      const currentOption = pickupOptions.find((o) => o.value === current.storeChoice);
+                      if (currentOption && currentOption.slot !== value) {
+                        const newOption = pickupOptions.find((o) => o.storeId === currentOption.storeId && o.slot === value);
+                        if (newOption) return { ...current, ampmChoice: value, storeChoice: newOption.value };
+                      }
+                    }
+                    return { ...current, ampmChoice: value };
+                  });
+                }}
                 disabled={isSaving}>
                 <SelectTrigger style={getFieldStyle('ampmChoice')}>
                   <SelectValue />
@@ -317,7 +337,18 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
               <Label style={{ color: "var(--text-slate-900)" }}>AM/PM</Label>
               <Select
                 value={values.ampmChoice}
-                onValueChange={(value) => setValues((current) => ({ ...current, ampmChoice: value }))}
+                onValueChange={(value) => {
+                  setValues((current) => {
+                    if (current.storeChoice && current.storeChoice !== 'unchanged') {
+                      const currentOption = pickupOptions.find((o) => o.value === current.storeChoice);
+                      if (currentOption && currentOption.slot !== value) {
+                        const newOption = pickupOptions.find((o) => o.storeId === currentOption.storeId && o.slot === value);
+                        if (newOption) return { ...current, ampmChoice: value, storeChoice: newOption.value };
+                      }
+                    }
+                    return { ...current, ampmChoice: value };
+                  });
+                }}
                 disabled={isSaving}>
                 <SelectTrigger style={getFieldStyle('ampmChoice')}>
                   <SelectValue />
