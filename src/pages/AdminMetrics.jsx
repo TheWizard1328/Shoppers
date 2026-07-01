@@ -64,6 +64,7 @@ export default function AdminMetrics() {
   const [showEnvelopeAdjustedTotals, setShowEnvelopeAdjustedTotals] = useState(false);
   const [selectedCityId, setSelectedCityId] = useState(null); // Will be set to user's city
   const [cities, setCities] = useState([]);
+  const [appUsers, setAppUsers] = useState([]);
   const [metricsData, setMetricsData] = useState(null);
   const citySelectTriggerRef = useRef(null);
 
@@ -118,9 +119,13 @@ export default function AdminMetrics() {
           setCities(sortedCachedCities);
         }
 
-        const citiesData = await base44.entities.City.list();
+        const [citiesData, appUsersData] = await Promise.all([
+          base44.entities.City.list(),
+          base44.entities.AppUser.list('sort_order', 200),
+        ]);
         const sortedCities = citiesData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
         setCities(sortedCities);
+        setAppUsers(appUsersData);
 
         // Default to sidebar city filter, then user's city_id, then first city
         const sidebarCityId = globalFilters.getSelectedCityId();
@@ -708,14 +713,26 @@ export default function AdminMetrics() {
   const driversWithDeliveries = useMemo(() => {
     if (!metricsData?.driverData) return [];
     const all = metricsData.driverData;
-    if (!selectedMonth) return all.filter((d) => (d.billable || 0) + (d.nonBillable || 0) > 0);
+    if (!selectedMonth) return all
+      .filter((d) => (d.billable || 0) + (d.nonBillable || 0) > 0)
+      .sort((a, b) => {
+        const auA = appUsers.find((u) => u.user_id === a.driverId || u.id === a.driverId);
+        const auB = appUsers.find((u) => u.user_id === b.driverId || u.id === b.driverId);
+        return (auA?.sort_order ?? 999) - (auB?.sort_order ?? 999);
+      });
     const monthDriverData = metricsData.dailyDriverData?.[selectedMonth];
     if (!monthDriverData) return [];
     const driverIdsInMonth = new Set(
       Object.values(monthDriverData).flat().filter((d) => (d.billable || 0) + (d.nonBillable || 0) > 0).map((d) => d.driverId)
     );
-    return all.filter((d) => driverIdsInMonth.has(d.driverId));
-  }, [metricsData, selectedMonth]);
+    return all
+      .filter((d) => driverIdsInMonth.has(d.driverId))
+      .sort((a, b) => {
+        const auA = appUsers.find((u) => u.user_id === a.driverId || u.id === a.driverId);
+        const auB = appUsers.find((u) => u.user_id === b.driverId || u.id === b.driverId);
+        return (auA?.sort_order ?? 999) - (auB?.sort_order ?? 999);
+      });
+  }, [metricsData, selectedMonth, appUsers]);
 
   const renderHeaderSection = () =>
   <div className="shrink-0 space-y-3">
