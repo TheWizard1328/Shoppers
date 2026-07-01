@@ -225,8 +225,7 @@ export default function Settings() {
       icon: User,
       items: [
         { label: 'Profile', description: currentUser?.user_name || currentUser?.full_name || 'Tap to edit', onClick: () => setOpenPanel('profile') },
-        { label: 'Email', description: currentUser?.email || 'Not available', disabled: true },
-        { label: 'e-Transfer Email', description: eTransEmail || 'Not set — edit Profile to add', disabled: true },
+        { label: 'Email', description: currentUser?.email || 'Not available', eTransEmail: eTransEmail || 'Not set', disabled: true, isEmailRow: true },
       ],
     },
     {
@@ -280,20 +279,37 @@ export default function Settings() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-1">
-                {section.items.map((item, i) => (
-                  <button
-                    key={i}
-                    onClick={item.onClick}
-                    disabled={item.disabled}
-                    className={`w-full flex items-center justify-between px-3 py-3 rounded-lg transition-colors text-left select-none ${item.disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-50 active:bg-slate-100'}`}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>{item.label}</p>
-                      {item.description && <p className="text-sm truncate" style={{ color: 'var(--text-slate-500)' }}>{item.description}</p>}
-                    </div>
-                    {!item.disabled && <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0 ml-2" />}
-                  </button>
-                ))}
+                {section.items.map((item, i) => {
+                  if (item.isEmailRow) {
+                    return (
+                      <div key={i} className="flex items-center gap-2 px-3 py-3 opacity-60">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium" style={{ color: 'var(--text-slate-500)' }}>Email</p>
+                          <p className="text-sm truncate" style={{ color: 'var(--text-slate-900)' }}>{item.description}</p>
+                        </div>
+                        <div className="w-px self-stretch" style={{ background: 'var(--border-slate-200)' }} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium" style={{ color: 'var(--text-slate-500)' }}>e-Transfer Email</p>
+                          <p className="text-sm truncate" style={{ color: 'var(--text-slate-900)' }}>{item.eTransEmail}</p>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return (
+                    <button
+                      key={i}
+                      onClick={item.onClick}
+                      disabled={item.disabled}
+                      className={`w-full flex items-center justify-between px-3 py-3 rounded-lg transition-colors text-left select-none ${item.disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-50 active:bg-slate-100'}`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>{item.label}</p>
+                        {item.description && <p className="text-sm truncate" style={{ color: 'var(--text-slate-500)' }}>{item.description}</p>}
+                      </div>
+                      {!item.disabled && <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0 ml-2" />}
+                    </button>
+                  );
+                })}
               </CardContent>
             </Card>
           );
