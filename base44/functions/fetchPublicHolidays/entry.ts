@@ -19,11 +19,19 @@ Deno.serve(async (req) => {
 
     const data = await res.json();
 
-    // Map to our StatHoliday shape
-    const holidays = data.map((h) => ({
-      date: h.date,           // YYYY-MM-DD
-      holiday_name: h.name,
-    }));
+    // Filter to "Public" type only (statutory), deduplicate by date keeping the first entry
+    const seen = new Set();
+    const holidays = data
+      .filter((h) => Array.isArray(h.types) ? h.types.includes('Public') : h.type === 'Public')
+      .filter((h) => {
+        if (seen.has(h.date)) return false;
+        seen.add(h.date);
+        return true;
+      })
+      .map((h) => ({
+        date: h.date,
+        holiday_name: h.name,
+      }));
 
     return Response.json({ holidays });
   } catch (error) {
