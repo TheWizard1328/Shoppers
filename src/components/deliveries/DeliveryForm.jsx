@@ -725,8 +725,16 @@ export default function DeliveryForm({
     if (userHasRole(currentUser, 'admin')) {
       setFormData((prev) => ({ ...prev, driver_id: '', driver_name: '' }));
     }
+    // Sole drivers always stay selected as themselves after clearing
+    const isSoleDriver = userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher');
+    if (isSoleDriver && currentUser?.id) {
+      const selfDriver = allDrivers.find((d) => d && d.id === currentUser.id);
+      if (selfDriver) {
+        setFormData((prev) => ({ ...prev, driver_id: currentUser.id, driver_name: getDriverNameForStorage(selfDriver) }));
+      }
+    }
     resetDriverFilterOnClear(currentUser, stores, userHasRole);
-  }, [stagedDeliveries, shouldAutoFocusFields, currentUser, stores]);
+  }, [stagedDeliveries, shouldAutoFocusFields, currentUser, stores, allDrivers]);
 
   const handleAddToStaging = useCallback(async (overrideFormData, extraPickups = []) => {
     const fd = overrideFormData || formData;
