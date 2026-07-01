@@ -18,6 +18,7 @@ export default function StatHolidays() {
   const [newDate, setNewDate] = useState('');
   const [newName, setNewName] = useState('');
   const [importCountry, setImportCountry] = useState('CA');
+  const [importProvince, setImportProvince] = useState('CA-AB');
   const [importYear, setImportYear] = useState(String(new Date().getFullYear()));
 
   const load = async () => {
@@ -61,7 +62,8 @@ export default function StatHolidays() {
   const handleImport = async () => {
     setImporting(true);
     try {
-      const res = await fetchPublicHolidays({ countryCode: importCountry, year: parseInt(importYear) });
+      const province = importCountry === 'CA' ? importProvince : null;
+      const res = await fetchPublicHolidays({ countryCode: importCountry, year: parseInt(importYear), province });
       const fetched = res?.data?.holidays || [];
       if (!fetched.length) { toast.error('No holidays returned for that selection.'); return; }
 
@@ -120,7 +122,7 @@ export default function StatHolidays() {
           <div className="flex gap-3 items-end flex-wrap">
             <div className="space-y-1">
               <Label className="text-xs">Country</Label>
-              <Select value={importCountry} onValueChange={setImportCountry}>
+              <Select value={importCountry} onValueChange={(v) => { setImportCountry(v); setImportProvince(''); }}>
                 <SelectTrigger className="h-9 w-40">
                   <SelectValue />
                 </SelectTrigger>
@@ -135,6 +137,31 @@ export default function StatHolidays() {
                 </SelectContent>
               </Select>
             </div>
+            {importCountry === 'CA' && (
+              <div className="space-y-1">
+                <Label className="text-xs">Province</Label>
+                <Select value={importProvince} onValueChange={setImportProvince}>
+                  <SelectTrigger className="h-9 w-48">
+                    <SelectValue placeholder="Select province" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CA-AB">Alberta</SelectItem>
+                    <SelectItem value="CA-BC">British Columbia</SelectItem>
+                    <SelectItem value="CA-MB">Manitoba</SelectItem>
+                    <SelectItem value="CA-NB">New Brunswick</SelectItem>
+                    <SelectItem value="CA-NL">Newfoundland & Labrador</SelectItem>
+                    <SelectItem value="CA-NS">Nova Scotia</SelectItem>
+                    <SelectItem value="CA-NT">Northwest Territories</SelectItem>
+                    <SelectItem value="CA-NU">Nunavut</SelectItem>
+                    <SelectItem value="CA-ON">Ontario</SelectItem>
+                    <SelectItem value="CA-PE">Prince Edward Island</SelectItem>
+                    <SelectItem value="CA-QC">Quebec</SelectItem>
+                    <SelectItem value="CA-SK">Saskatchewan</SelectItem>
+                    <SelectItem value="CA-YT">Yukon</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-1">
               <Label className="text-xs">Year</Label>
               <Select value={importYear} onValueChange={setImportYear}>
