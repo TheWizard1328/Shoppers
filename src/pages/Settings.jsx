@@ -21,7 +21,7 @@ import DevicesPanel from '@/components/devices/DevicesPanel';
 const DEVICE_ID_KEY = 'rxdeliver_device_identifier';
 
 // ── Profile Panel ─────────────────────────────────────────────────────────────
-function ProfilePanel({ currentUser }) {
+function ProfilePanel({ currentUser, onClose }) {
   const [displayName, setDisplayName] = useState(currentUser?.user_name || currentUser?.full_name || '');
   const [phone, setPhone] = useState(currentUser?.phone || '');
   const [eTransEmail, setETransEmail] = useState('');
@@ -42,6 +42,7 @@ function ProfilePanel({ currentUser }) {
         await base44.entities.AppUser.update(appUsers[0].id, { user_name: displayName, phone, ETrans_Email: eTransEmail });
       }
       toast.success('Profile updated');
+      if (onClose) onClose();
     } catch {
       toast.error('Failed to save profile');
     } finally {
@@ -303,7 +304,7 @@ export default function Settings() {
 
       {/* ── Dialogs ── */}
       <SettingsDialog open={openPanel === 'profile'} onOpenChange={(o) => !o && setOpenPanel(null)} title="Account" description="Update your display name and phone number." icon={User}>
-        <ProfilePanel currentUser={currentUser} />
+        <ProfilePanel currentUser={currentUser} onClose={() => setOpenPanel(null)} />
       </SettingsDialog>
 
       <SettingsDialog open={openPanel === 'notifications'} onOpenChange={(o) => !o && setOpenPanel(null)} title="Notifications" description="Control how and when you receive alerts." icon={Bell}>
