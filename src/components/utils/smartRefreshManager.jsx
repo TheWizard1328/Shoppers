@@ -20,8 +20,8 @@ class LightweightRefreshManager {
     this.intervals = {
       cities: 300000,        // 5min - Full Cities dataset
       stores: 300000,        // 5min - Full Stores dataset
-      appUsers: 60000,       // 1min - AppUser backup sync (catches WebSocket misses)
-      offlineSync: 60000,    // 1min - Offline DB reconciliation
+      appUsers: 300000,      // 5min - AppUser backup sync (WebSocket handles real-time)
+      offlineSync: 120000,   // 2min - Offline DB reconciliation (IndexedDB only, no API call)
       cacheRefresh: 300000   // 5min - Cache consistency check
     };
 
@@ -33,9 +33,9 @@ class LightweightRefreshManager {
       cacheRefresh: 0
     };
 
-    // Rate limiting - relaxed for better perf
+    // Rate limiting
     this.lastApiCallTime = 0;
-    this.minTimeBetweenCalls = 500;  // Reduced from 5000ms for faster cycles
+    this.minTimeBetweenCalls = 2000; // 2s minimum between consecutive API calls
     this.consecutiveErrors = 0;
     this.maxConsecutiveErrors = 2;
     this.errorCooldownUntil = 0;
