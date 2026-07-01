@@ -1125,7 +1125,21 @@ export default function DeliveryFormView({
                             <div className="px-3 rounded-lg space-y-2 border py-2" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                               <div className="flex gap-3">
                                 <div className="flex-[65] space-y-1">
-                                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Address</Label>
+                                  <div className="relative" style={{ height: '1.5rem' }}>
+                                    <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Address</Label>
+                                    {delivery && selectedPatient && handleNewAddressPatient &&
+                                    <span
+                                      role="button"
+                                      tabIndex={0}
+                                      onClick={() => handleNewAddressPatient(selectedPatient)}
+                                      onKeyDown={(e) => e.key === 'Enter' && handleNewAddressPatient(selectedPatient)}
+                                      className="absolute right-0 top-0 cursor-pointer select-none">
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 transition-colors">
+                                        Change Address
+                                      </span>
+                                    </span>
+                                    }
+                                  </div>
                                   <Input value={selectedPatient?.address || ''} disabled placeholder="Address from patient record" className="bg-white h-9 text-sm" />
                                 </div>
 
@@ -1312,7 +1326,21 @@ export default function DeliveryFormView({
                             </div>
                             <div className="flex gap-3">
                               <div className="flex-[65] space-y-1">
-                                <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Address</Label>
+                                <div className="relative" style={{ height: '1.5rem' }}>
+                                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Address</Label>
+                                  {delivery && selectedPatient && handleNewAddressPatient &&
+                                  <span
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => handleNewAddressPatient(selectedPatient)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleNewAddressPatient(selectedPatient)}
+                                    className="absolute right-0 top-0 cursor-pointer select-none">
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300 transition-colors">
+                                      Change Address
+                                    </span>
+                                  </span>
+                                  }
+                                </div>
                                 <Input value={selectedPatient?.address || ''} disabled placeholder="Address from patient record" className="bg-white h-9 text-sm" />
                               </div>
 
