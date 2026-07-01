@@ -204,7 +204,7 @@ export default function StatsPanel({
         if (!delivery) return false;
         if (!finishedStatuses.has(delivery.status)) return false;
         if (!!delivery.patient_id) return true; // regular delivery
-        if (delivery.after_hours_pickup === true) return true; // after-hours pickup
+        if (!isDispatcher && delivery.after_hours_pickup === true) return true; // after-hours pickup (hidden from dispatchers)
         // ISD / ISP inter-store deliveries (no patient_id but have a delivery_id with ISD/ISP)
         if (delivery.delivery_id && /ISD|ISP/i.test(delivery.delivery_id)) return true;
         return false;
