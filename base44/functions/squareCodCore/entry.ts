@@ -586,7 +586,25 @@ async function handleSyncCatalogItems(base44, payload={}) {
   for(const tid of Array.from(new Set(txToComplete.filter(Boolean))))await base44.asServiceRole.entities.SquareTransaction.update(tid,{status:'completed'});
   let createdCount=0;let updatedCount=0;
   for(const entry of deliveriesToSync){const{delivery,itemName,patientName,patientId,amountCents,locationId,existingCatalogItem}=entry;const sig=buildItemSignature(itemName,amountCents);let ci=existingCatalogItem||catalogBySignature.get(sig)||null;if(!ci?.id){ci=await createCatalogItem({itemName,amountCents,locationId,deliveryId:delivery.id,patientName,accessToken});if(!ci?.id)throw new Error(`Square did not return a catalog item for delivery ${delivery.id}`);catalogBySignature.set(sig,ci);catalogByDateLocationAmount.set(buildLocationDateAmountSignature(locationId,delivery.delivery_date,amountCents),ci);createdCount++;}const exPending=(txByDeliveryId.get(delivery.id)||[]).find((t)=>t.status==='pending');const txPayload={item_name:itemName,amount:Number(delivery.cod_total_amount_required||0),amount_cents:amountCents,type:'collection',status:'pending',delivery_id:delivery.id,patient_id:patientId,store_id:delivery.store_id,location_id:locationId,driver_id:delivery.driver_id||null,dispatcher_id:delivery.dispatcher_id||null,square_catalog_object_id:ci.id,square_catalog_version:ci.version||null};if(exPending){await base44.asServiceRole.entities.SquareTransaction.update(exPending.id,txPayload);updatedCount++;}else await base44.asServiceRole.entities.SquareTransaction.create(txPayload);}
-  const allTxAfter=await base44.asServiceRole.entities.SquareTransaction.list('-updated_date',2000);const toRemove=(allTxAfter||[]).filter((t)=>t?.square_catalog_object_id&&t?.status&&t.status!=='pending');const extraIds=Array.from(new Set(toRemove.map((t)=>t.square_catalog_object_id).filter(Boolean))).filter((id)=>!deleteResult.deleted.includes(id));const extraDel=extraIds.length?await deleteCatalogObjects(extraIds,accessToken):{deleted:[],failed:[]};
+  // Post-sync cleanup: remove Square catalog items for transactions that are already completed/settled.
+  // CRITICAL: only delete the catalog item if the SquareTransaction's item_name structurally matches
+  // a non-pending tx — never use just catalog_object_id because the same object_id may be reused
+  // across different delivery dates for the same patient+amount, causing false deletions.
+  const allTxAfter=await base44.asServiceRole.entities.SquareTransaction.list('-updated_date',2000);
+  const toRemove=(allTxAfter||[]).filter((t)=>{
+    if(!t?.square_catalog_object_id||!t?.status||t.status==='pending')return false;
+    // Only sweep catalog items where the settled tx name EXACTLY matches the live catalog item name
+    const liveItem=recentCatalogItems.find((ci)=>ci?.id===t.square_catalog_object_id);
+    if(!liveItem)return false; // catalog item already gone — nothing to delete
+    const liveName=normalizeText(liveItem?.item_data?.name);
+    const txName=normalizeText(t?.item_name);
+    if(isStructuredCodName(liveName)&&isStructuredCodName(txName)){
+      const txDateIso=(t?.raw_square_data?.payment_date||t?.created_date||'').slice(0,10);
+      return structuredCodNamesMatch(txName,liveName,txDateIso)===true;
+    }
+    return liveName===txName; // non-structured: require exact normalized text match
+  });
+  const extraIds=Array.from(new Set(toRemove.map((t)=>t.square_catalog_object_id).filter(Boolean))).filter((id)=>!deleteResult.deleted.includes(id));const extraDel=extraIds.length?await deleteCatalogObjects(extraIds,accessToken):{deleted:[],failed:[]};
   const stale=(allTxAfter||[]).filter((t)=>{const tm=new Date(t?.created_date||t?.updated_date||0).getTime();return Number.isFinite(tm)&&tm<txRetentionMs;});for(const t of stale)await base44.asServiceRole.entities.SquareTransaction.delete(t.id);
   return{success:true,scanned_deliveries:allCodDeliveries.length,catalog_items_seen:recentCatalogItems.length,paid_order_items_seen:paidOrderItems.length,deleted_catalog_items:deleteResult.deleted.length+extraDel.deleted.length,cancelled_transactions:Array.from(new Set(txToCancel.filter(Boolean))).length,completed_transactions:Array.from(new Set(txToComplete.filter(Boolean))).length,created_catalog_items:createdCount,updated_pending_transactions:updatedCount,pruned_transactions:stale.length,synced_square_catalog_items:0};
 }
@@ -742,19 +760,23 @@ async function handleCleanupCollectedCatalogItems(base44, payload={}) {
   const refundedOrderIds = buildRefundedOrderIdSet(completedOrders);
   const paidOrderItems = flattenOrderItems((completedOrders||[]).filter((o) => !refundedOrderIds.has(o?.id)));
 
-  // Build lookup sets for paid items — by catalog_object_id AND by name+amount signature
+  // Build lookup set for paid items — by catalog_object_id only (exact Square ID match).
+  // Do NOT use name+amount signature here: buildItemSignature strips the date prefix so
+  // "06/02(LD)-Angela Dottor" and "06/30(LD)-Angela Dottor" would collide and the June 30
+  // catalog item would be falsely deleted when only June 2 was paid.
   const paidCatalogObjectIds = new Set(paidOrderItems.map((x) => x.catalog_object_id).filter(Boolean));
-  const paidItemSignatures = new Set(paidOrderItems.map((x) => buildItemSignature(x.item_name, x.amount_cents)));
 
-  // Find catalog items that have been paid
+  // Find catalog items that have been paid — exact Square object ID match only.
   const toDelete = (liveCatalogItems||[]).filter((item) => {
     if (!item?.id) return false;
-    const n = normalizeText(item?.item_data?.name);
-    const ac = getCatalogItemAmountCents(item);
     const varIds = (item?.item_data?.variations||[]).map((v)=>v?.id).filter(Boolean);
     if (paidCatalogObjectIds.has(item.id)) return true;
     if (varIds.some((v) => paidCatalogObjectIds.has(v))) return true;
-    if (paidItemSignatures.has(buildItemSignature(n, ac))) return true;
+    // Structured name: require exact structural match with a paid order item (same date+store+patient)
+    const n = normalizeText(item?.item_data?.name);
+    if (isStructuredCodName(n)) {
+      return paidOrderItems.some((pi) => structuredCodNamesMatch(pi.item_name, n, (pi.payment_date||pi.order_created_at||'').slice(0,10))===true);
+    }
     return false;
   });
 
