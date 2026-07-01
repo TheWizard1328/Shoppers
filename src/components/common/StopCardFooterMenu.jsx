@@ -64,7 +64,8 @@ export default function StopCardFooterMenu(props) {
   const isFinishedPickup = isPickupForMenu && isFinishedDelivery;
   const isFinishedRegularDelivery = !isPickupForMenu && isFinishedDelivery;
 
-  const canShowEdit = !!(canManageStop && !routeCompleted && (isActiveDelivery || isActivePickup || isFinishedPickup || isFinishedRegularDelivery));
+  const isAdminOrOwner = !!(isAppOwner?.(currentUser) || userHasRole?.(currentUser, 'admin'));
+  const canShowEdit = !!(canManageStop && (!routeCompleted || isAdminOrOwner) && (isActiveDelivery || isActivePickup || isFinishedPickup || isFinishedRegularDelivery));
 
   const isDriverOnly = !!(userHasRole?.(currentUser, 'driver') && !userHasRole?.(currentUser, 'admin') && !isAppOwner?.(currentUser));
   const canShowEditPatient = !!(!isDispatcherOnly && !isDriverOnly && onEditPatient && patient && canManageStop && (isActiveDelivery || isFinishedRegularDelivery) && !isInterStore);
