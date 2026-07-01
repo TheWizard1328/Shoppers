@@ -41,15 +41,14 @@ const isStructuredCodName = (v) => /^\d{2}[\/-]\d{2}\([^)]+\)-.+/.test(String(v|
 // For structured names, extract the date portion as YYYY-MM-DD (best-guess year via parseDateValue).
 // Returns null if not structured or date can't be parsed.
 const getStructuredCodDate = (v) => { if (!isStructuredCodName(v)) return null; return toIsoDate(v); };
-// Primary match rule: if BOTH strings are structured COD names, they must match exactly
-// (same date, store abbr, patient name) AND the transaction date must be >= catalog item date.
+// Primary match rule: if BOTH strings are structured COD names, they must be a literal
+// 1-to-1 match (trim only, no stripping) AND the transaction date must be >= catalog item date.
 // Returns true=match, false=no-match, null=not both structured (fall through to other logic).
 const structuredCodNamesMatch = (txName, catalogName, txDateIso) => {
   if (!isStructuredCodName(txName) || !isStructuredCodName(catalogName)) return null;
-  const txNorm = normalizeMatchName(txName);
-  const catNorm = normalizeMatchName(catalogName);
-  if (txNorm !== catNorm) return false; // structured but different → definitive no-match
-  // Dates match semantically; also enforce tx date >= catalog item date
+  // Pure 1-to-1: trim only, no lowercasing, no date/prefix stripping
+  if (normalizeText(txName) !== normalizeText(catalogName)) return false;
+  // Enforce tx date >= catalog item date
   const catDateIso = getStructuredCodDate(catalogName);
   const effectiveTxDateIso = getStructuredCodDate(txName) || txDateIso;
   if (catDateIso && effectiveTxDateIso && effectiveTxDateIso < catDateIso) return false;
