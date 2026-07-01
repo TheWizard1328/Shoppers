@@ -1,19 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { format, parseISO } from 'date-fns';
-import { CalendarDays, Plus, Trash2, RefreshCw } from 'lucide-react';
+import { CalendarDays, Plus, Trash2, RefreshCw, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { invalidateStatHolidayCache } from '@/components/utils/statHolidayResolver';
+import { fetchPublicHolidays } from '@/functions/fetchPublicHolidays';
 
 export default function StatHolidays() {
   const [holidays, setHolidays] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [newDate, setNewDate] = useState('');
   const [newName, setNewName] = useState('');
+  const [importCountry, setImportCountry] = useState('CA');
+  const [importYear, setImportYear] = useState(String(new Date().getFullYear()));
 
   const load = async () => {
     setLoading(true);
@@ -53,6 +58,33 @@ export default function StatHolidays() {
     }
   };
 
+  const handleImport = async () => {
+    setImporting(true);
+    try {
+      const res = await fetchPublicHolidays({ countryCode: importCountry, year: parseInt(importYear) });
+      const fetched = res?.data?.holidays || [];
+      if (!fetched.length) { toast.error('No holidays returned for that selection.'); return; }
+
+      const existingDates = new Set(holidays.map((h) => h.date));
+      const toAdd = fetched.filter((h) => !existingDates.has(h.date));
+
+      if (!toAdd.length) { toast.info('All holidays for that year are already in your list.'); return; }
+
+      let added = 0;
+      for (const h of toAdd) {
+        const created = await base44.entities.StatHoliday.create(h);
+        setHolidays((prev) => [...prev, created].sort((a, b) => a.date.localeCompare(b.date)));
+        added++;
+      }
+      invalidateStatHolidayCache();
+      toast.success(`Imported ${added} holiday${added !== 1 ? 's' : ''}`);
+    } catch (e) {
+      toast.error('Import failed: ' + (e?.message || 'Unknown error'));
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const handleDelete = async (id) => {
     try {
       await base44.entities.StatHoliday.delete(id);
@@ -79,6 +111,50 @@ export default function StatHolidays() {
       </div>
 
       <div className="flex-1 overflow-auto p-5 space-y-6">
+        {/* Import from Public API */}
+        <div className="rounded-xl border p-4 space-y-3" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+          <div>
+            <h2 className="text-sm font-semibold">Import Public Holidays</h2>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-slate-500)' }}>Fetch official public holidays from Nager.Date and add any that aren't already in your list.</p>
+          </div>
+          <div className="flex gap-3 items-end flex-wrap">
+            <div className="space-y-1">
+              <Label className="text-xs">Country</Label>
+              <Select value={importCountry} onValueChange={setImportCountry}>
+                <SelectTrigger className="h-9 w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CA">🇨🇦 Canada</SelectItem>
+                  <SelectItem value="US">🇺🇸 United States</SelectItem>
+                  <SelectItem value="GB">🇬🇧 United Kingdom</SelectItem>
+                  <SelectItem value="AU">🇦🇺 Australia</SelectItem>
+                  <SelectItem value="NZ">🇳🇿 New Zealand</SelectItem>
+                  <SelectItem value="DE">🇩🇪 Germany</SelectItem>
+                  <SelectItem value="FR">🇫🇷 France</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Year</Label>
+              <Select value={importYear} onValueChange={setImportYear}>
+                <SelectTrigger className="h-9 w-28">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[new Date().getFullYear() - 1, new Date().getFullYear(), new Date().getFullYear() + 1].map((y) => (
+                    <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={handleImport} disabled={importing} variant="outline" className="gap-2 h-9">
+              {importing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {importing ? 'Importing...' : 'Import Holidays'}
+            </Button>
+          </div>
+        </div>
+
         {/* Add Holiday Form */}
         <div className="rounded-xl border p-4 space-y-3" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
           <h2 className="text-sm font-semibold">Add Stat Holiday</h2>
