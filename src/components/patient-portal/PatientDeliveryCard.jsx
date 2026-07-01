@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { format } from 'date-fns';
-import { CheckCircle, XCircle, Clock, Truck, ChevronDown, ChevronUp, User, Package, FileText, Camera, DollarSign } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Truck, ChevronDown, ChevronUp, MapPin, User, Package, FileText, Camera, DollarSign } from 'lucide-react';
 
 const STATUS_CONFIG = {
   completed: { label: 'Delivered', color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-200', Icon: CheckCircle },
@@ -102,10 +102,13 @@ export default function PatientDeliveryCard({ delivery, storeName }) {
       {expanded && (
         <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-xl border border-slate-200 bg-white shadow-xl overflow-hidden">
           <div className="p-3 space-y-0.5">
+            <InfoRow icon={MapPin} label="Pharmacy" value={storeName} />
+            {actualTime && <InfoRow icon={CheckCircle} label="Delivered at" value={actualTime} />}
             {delivery.driver_name && <InfoRow icon={User} label="Driver" value={delivery.driver_name} />}
             {delivery.tracking_number && <InfoRow icon={Package} label="Tracking #" value={delivery.tracking_number} />}
             {delivery.prescription_number && <InfoRow icon={FileText} label="Prescription #" value={delivery.prescription_number} />}
             {delivery.delivery_notes && <InfoRow icon={FileText} label="Notes" value={delivery.delivery_notes} />}
+            {hasCod && <InfoRow icon={DollarSign} label="COD Required" value={`$${codTotal.toFixed(2)}`} />}
           </div>
 
           {hasCod && codPayments.length > 0 && (
