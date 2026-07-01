@@ -446,7 +446,14 @@ export const handleBatchSaveDelivery = async ({
         fridge_item: stop.fridge_item || false,
         oversized: stop.oversized || false,
         extra_time: stop.extra_time || 5,
-        first_delivery: stop.first_delivery || false
+        first_delivery: stop.first_delivery || false,
+        // Cycling marker fields — preserved only when stop is a cycling marker
+        ...(stop.is_cycling_marker ? {
+          is_cycling_marker: true,
+          cycling_latitude: stop.cycling_latitude ?? null,
+          cycling_longitude: stop.cycling_longitude ?? null,
+          transport_mode: stop.transport_mode || 'cycling',
+        } : {}),
       };
 
       if (stop.isNew) {
