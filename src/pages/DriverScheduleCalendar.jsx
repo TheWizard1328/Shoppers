@@ -934,7 +934,7 @@ export default function DriverScheduleCalendar() {
                   }
                 </div>
 
-                <div className="flex-1 p-1.5 space-y-2">
+                <div className="flex-1 p-1.5 flex flex-col gap-2">
                   {sortedDriverIds.map((driverId) => {
                     const dayDelivs = deliveriesByDay[dateStr] || [];
 
@@ -1041,19 +1041,8 @@ export default function DriverScheduleCalendar() {
                     setDragItem={setDragItem} />
                   }
 
-                  {/* Stat Holiday Banner — rendered below driver cards */}
-                  {statHoliday &&
-                  <div className="rounded-lg overflow-hidden" style={{ background: '#fef9c3', border: '1px solid #fde047' }}>
-                    <div style={{ padding: '8px 6px', textAlign: 'center' }}>
-                      <div style={{ fontSize: 12, fontWeight: 800, color: '#78350f', letterSpacing: '0.04em', lineHeight: 1.3 }}>
-                        🎉 {statHoliday.holiday_name}
-                      </div>
-                      <div style={{ fontSize: 10, fontWeight: 600, color: '#92400e', marginTop: 1, opacity: 0.85 }}>
-                        Stat Holiday
-                      </div>
-                    </div>
-                  </div>
-                  }
+                  {/* Stat Holiday Banner — fills remaining space with diagonal text */}
+                  {statHoliday && <StatHolidayBanner name={statHoliday.holiday_name} />}
 
                   {/* Drop zones when dragging */}
                   {!isMobile && dragItem?.dateStr === dateStr && (() => {
@@ -1091,6 +1080,47 @@ export default function DriverScheduleCalendar() {
                 </div>
               </div>);
           })}
+        </div>
+      </div>
+    </div>);
+}
+
+// ── StatHolidayBanner ─────────────────────────────────────────────────────────
+
+function StatHolidayBanner({ name }) {
+  const ref = useRef(null);
+  const [angle, setAngle] = useState(-35);
+
+  useEffect(() => {
+    if (!ref.current) return;
+    const { offsetWidth: w, offsetHeight: h } = ref.current;
+    if (w && h) setAngle(-Math.atan2(h, w) * (180 / Math.PI));
+    const ro = new ResizeObserver(([entry]) => {
+      const { width: w2, height: h2 } = entry.contentRect;
+      if (w2 && h2) setAngle(-Math.atan2(h2, w2) * (180 / Math.PI));
+    });
+    ro.observe(ref.current);
+    return () => ro.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      className="flex-1 rounded-lg overflow-hidden relative"
+      style={{ background: '#fef9c3', border: '1px solid #fde047', minHeight: 40 }}>
+      <div style={{
+        position: 'absolute',
+        top: '50%', left: '50%',
+        width: '200%',
+        transform: `translate(-50%, -50%) rotate(${angle}deg)`,
+        textAlign: 'center',
+        pointerEvents: 'none',
+      }}>
+        <div style={{ fontSize: 11, fontWeight: 800, color: '#78350f', letterSpacing: '0.04em', lineHeight: 1.3 }}>
+          🎉 {name} 🎉
+        </div>
+        <div style={{ fontSize: 9, fontWeight: 600, color: '#92400e', marginTop: 1, opacity: 0.85 }}>
+          Stat Holiday
         </div>
       </div>
     </div>);
