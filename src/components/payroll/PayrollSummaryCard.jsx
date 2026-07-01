@@ -1280,6 +1280,7 @@ export default function PayrollSummaryCard({
                     onDeductionsClick={setDeductionOverlayDriverId}
                     onBonusClick={setBonusOverlayDriverId}
                     payrollRecord={driverPayrollRecord}
+                    appUsers={appUsers}
                     onPaidAmountSave={async (driverId, paidAmount) => {
                       skipNextAutoSyncRef.current = true;
                       await savePayrollChanges(driverId, { paid_amount: paidAmount });
@@ -1298,14 +1299,22 @@ export default function PayrollSummaryCard({
                 }));
               };
 
+              const driverAppUser = appUsers.find((au) => au && (au.user_id === data.driver.id || au.id === data.driver.id));
               return (
                 <div key={data.driver.id} className="hidden md:block p-3 rounded-lg" style={{ background: idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
               {/* Driver Name - Top Left with optional Confirm button for admin-drivers */}
               <div className="flex items-center justify-between mb-1">
-                <h3 className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-                  {data.driver.user_name || data.driver.full_name}
-                </h3>
-                <div className="flex items-center gap-2">
+                <div>
+                  <h3 className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+                    {data.driver.user_name || data.driver.full_name}
+                  </h3>
+                  {driverAppUser?.ETrans_Email &&
+                    <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
+                      e-Transfer: {driverAppUser.ETrans_Email}
+                    </p>
+                  }
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
                   {canShowConfirmButton &&
                     <Button
                       size="sm"

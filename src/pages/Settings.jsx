@@ -24,14 +24,22 @@ const DEVICE_ID_KEY = 'rxdeliver_device_identifier';
 function ProfilePanel({ currentUser }) {
   const [displayName, setDisplayName] = useState(currentUser?.user_name || currentUser?.full_name || '');
   const [phone, setPhone] = useState(currentUser?.phone || '');
+  const [eTransEmail, setETransEmail] = useState('');
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    base44.entities.AppUser.filter({ user_id: currentUser.id }).then((appUsers) => {
+      if (appUsers?.length > 0) setETransEmail(appUsers[0].ETrans_Email || '');
+    }).catch(() => {});
+  }, [currentUser?.id]);
 
   const handleSave = async () => {
     setSaving(true);
     try {
       const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
       if (appUsers?.length > 0) {
-        await base44.entities.AppUser.update(appUsers[0].id, { user_name: displayName, phone });
+        await base44.entities.AppUser.update(appUsers[0].id, { user_name: displayName, phone, ETrans_Email: eTransEmail });
       }
       toast.success('Profile updated');
     } catch {
@@ -55,6 +63,11 @@ function ProfilePanel({ currentUser }) {
       <div className="space-y-1">
         <Label htmlFor="phone">Phone Number</Label>
         <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1 (555) 000-0000" type="tel" />
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor="eTransEmail">e-Transfer Email</Label>
+        <Input id="eTransEmail" value={eTransEmail} onChange={(e) => setETransEmail(e.target.value)} placeholder="your@email.com" type="email" />
+        <p className="text-xs text-slate-400">Used for Interac e-Transfer payroll payments.</p>
       </div>
       <Button onClick={handleSave} disabled={saving} className="w-full gap-2 mt-2">
         {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
