@@ -1163,7 +1163,8 @@ export default function DeliveryForm({
   const sortedProjectedDeliveries = useMemo(() => sortProjectedDeliveries({ projectedDeliveries, allDeliveries, stores, selectedDriverId: formData.driver_id, deliveryDate: formData.delivery_date, isDispatcher: isDispatcherOnly, scheduledDriverMap }), [projectedDeliveries, allDeliveries, stores, formData.driver_id, formData.delivery_date, isDispatcherOnly, scheduledDriverMap]);
   const handleConfirmDelete = useConfirmDelete({ deleteConfirmation, setDeleteConfirmation, sortedStagedDeliveries, stagedDeliveries, editingStagedId, handleClearForm, setStagedDeliveries, setProjectedDeliveries, fullPredictionListRef, allDeliveries, formData, setHasChanges, setHasPendingDeletes, setEditingStagedId, setError, setIsDeletingPending, setAllDeletedWerePending, patientSearchInputRef, shouldAutoFocusFields });
 
-  // Stat holiday enforcement — clear auto-selected driver and force manual selection
+  // Stat holiday enforcement — for dispatchers, only force manual selection if no driver
+  // is scheduled and no other driver has a pickup for their store on that date.
   useEffect(() => {
     if (delivery) return; // only for new deliveries
     if (!formData.delivery_date) { setStatHolidayWarning(null); return; }
@@ -1175,13 +1176,44 @@ export default function DeliveryForm({
         const holiday = getStatHoliday(formData.delivery_date, statHolidaysRef.current);
         if (holiday) {
           setStatHolidayWarning(holiday.holiday_name);
-          // Clear the auto-selected driver so the user must pick manually
-          setFormData((prev) => {
-            if (driverManuallyChangedRef.current) return prev; // user already picked — respect their choice
-            return { ...prev, driver_id: '', driver_name: '' };
-          });
-          // Open the driver dropdown so they can't miss it
-          if (!driverManuallyChangedRef.current) {
+          if (driverManuallyChangedRef.current) return; // user already picked — respect their choice
+
+          const isDispatcherOnly = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
+          if (isDispatcherOnly) {
+            // For dispatchers: check if a scheduled driver exists for their store
+            const dispatcherStoreId = (currentUser.store_ids || [])[0];
+            const scheduledMap = scheduledDriverMapRef.current;
+            const scheduledDriverId = scheduledMap[dispatcherStoreId] || scheduledMap[`${dispatcherStoreId}_AM`] || scheduledMap[`${dispatcherStoreId}_PM`] || null;
+
+            if (scheduledDriverId) {
+              // A scheduled driver exists — auto-select them (don't force manual)
+              const driver = allDrivers.find((d) => d && (d.id === scheduledDriverId || d.user_id === scheduledDriverId));
+              if (driver) {
+                setFormData((prev) => ({ ...prev, driver_id: driver.id, driver_name: getDriverNameForStorage(driver) }));
+              }
+              return;
+            }
+
+            // No scheduled driver — check if any driver has a pickup for this store on this date
+            const pickupDriver = dispatcherStoreId && allDeliveries
+              ? allDeliveries.find((d) => d && !d.patient_id && d.store_id === dispatcherStoreId && d.delivery_date === formData.delivery_date && ['en_route', 'in_transit', 'pending'].includes(d.status))
+              : null;
+
+            if (pickupDriver?.driver_id) {
+              // Auto-select the driver who already has a pickup for this store
+              const driver = allDrivers.find((d) => d && (d.id === pickupDriver.driver_id || d.user_id === pickupDriver.driver_id));
+              if (driver) {
+                setFormData((prev) => ({ ...prev, driver_id: driver.id, driver_name: getDriverNameForStorage(driver) }));
+              }
+              return;
+            }
+
+            // No scheduled driver and no pickup driver — force manual selection
+            setFormData((prev) => ({ ...prev, driver_id: '', driver_name: '' }));
+            setTimeout(() => setForceOpenDriverSelectOnLoad(true), 100);
+          } else {
+            // Non-dispatcher (admin) — existing behavior: clear and force manual
+            setFormData((prev) => ({ ...prev, driver_id: '', driver_name: '' }));
             setTimeout(() => setForceOpenDriverSelectOnLoad(true), 100);
           }
         } else {
@@ -1190,7 +1222,7 @@ export default function DeliveryForm({
       } catch { /* non-critical */ }
     })();
     return () => { cancelled = true; };
-  }, [delivery, formData.delivery_date]);
+  }, [delivery, formData.delivery_date, allDeliveries, allDrivers]);
 
   // Reset manual-change flag whenever the delivery date changes (so auto-select re-runs)
   const prevDeliveryDateRef = useRef(formData.delivery_date);
