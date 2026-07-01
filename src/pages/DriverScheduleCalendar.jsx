@@ -952,7 +952,7 @@ export default function DriverScheduleCalendar() {
                       boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
                     }}>
                       <div style={{ fontSize: 13, fontWeight: 800, color: '#78350f', letterSpacing: '0.04em', lineHeight: 1.2, textShadow: '0 1px 0 rgba(255,255,255,0.5)' }}>
-                        🎉 {statHoliday.holiday_name}
+                        🎉 {statHoliday.holiday_name} 🎉
                       </div>
                       <div style={{ fontSize: 10, fontWeight: 600, color: '#92400e', marginTop: 2, opacity: 0.85 }}>
                         Stat Holiday
