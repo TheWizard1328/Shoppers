@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { format } from 'date-fns';
-import { CheckCircle, XCircle, Clock, Truck, ChevronDown, ChevronUp, MapPin, User, Package, FileText, Camera } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Truck, ChevronDown, ChevronUp, MapPin, User, Package, FileText, Camera, DollarSign } from 'lucide-react';
 
 const STATUS_CONFIG = {
   completed: { label: 'Delivered', color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-200', Icon: CheckCircle },
@@ -36,6 +36,10 @@ export default function PatientDeliveryCard({ delivery, storeName }) {
   const actualTime = delivery.actual_delivery_time
     ? format(new Date(delivery.actual_delivery_time), 'h:mm a')
     : null;
+
+  const codTotal = delivery.cod_total_amount_required || 0;
+  const codPayments = delivery.cod_payments || [];
+  const hasCod = codTotal > 0;
 
   const timeWindow = delivery.delivery_time_start
     ? `${delivery.delivery_time_start}${delivery.delivery_time_end ? ` – ${delivery.delivery_time_end}` : ''}`
@@ -73,6 +77,11 @@ export default function PatientDeliveryCard({ delivery, storeName }) {
                 Window: {timeWindow}
               </p>
             ) : null}
+            {hasCod && (
+              <p className={`text-xs mt-0.5 font-semibold ${expanded ? 'text-green-400' : 'text-green-600'}`}>
+                COD: ${codTotal.toFixed(2)}
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
             <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border ${
@@ -99,7 +108,24 @@ export default function PatientDeliveryCard({ delivery, storeName }) {
             {delivery.tracking_number && <InfoRow icon={Package} label="Tracking #" value={delivery.tracking_number} />}
             {delivery.prescription_number && <InfoRow icon={FileText} label="Prescription #" value={delivery.prescription_number} />}
             {delivery.delivery_notes && <InfoRow icon={FileText} label="Notes" value={delivery.delivery_notes} />}
+            {hasCod && <InfoRow icon={DollarSign} label="COD Required" value={`$${codTotal.toFixed(2)}`} />}
           </div>
+
+          {hasCod && codPayments.length > 0 && (
+            <div className="px-3 pb-3">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5 flex items-center gap-1">
+                <DollarSign className="w-3 h-3" /> COD Payments Collected
+              </p>
+              <div className="space-y-1">
+                {codPayments.map((p, i) => (
+                  <div key={i} className="flex items-center justify-between text-xs bg-green-50 border border-green-100 rounded-lg px-2.5 py-1.5">
+                    <span className="text-slate-600 font-medium">{p.type}</span>
+                    <span className="text-green-700 font-semibold">${Number(p.amount).toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {delivery.proof_photo_urls?.length > 0 && (
             <div className="px-3 pb-3">
