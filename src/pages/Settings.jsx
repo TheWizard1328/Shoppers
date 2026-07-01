@@ -210,7 +210,17 @@ export default function Settings() {
   useEffect(() => {
     if (!currentUser?.id) return;
     base44.entities.AppUser.filter({ user_id: currentUser.id }).then((appUsers) => {
-      if (appUsers?.length > 0) setETransEmail(appUsers[0].ETrans_Email || '');
+      if (appUsers?.length > 0) {
+        const email = appUsers[0].ETrans_Email || '';
+        setETransEmail(email);
+        // Drivers without an e-Transfer email: auto-open profile to prompt them to add it
+        const isDriverOnly = Array.isArray(appUsers[0].app_roles) &&
+          appUsers[0].app_roles.includes('driver') &&
+          !appUsers[0].app_roles.includes('admin');
+        if (isDriverOnly && !email) {
+          setOpenPanel('profile');
+        }
+      }
     }).catch(() => {});
   }, [currentUser?.id]);
 

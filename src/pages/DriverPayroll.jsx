@@ -1,7 +1,10 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { DollarSign, ChevronLeft, ChevronRight, Share2, Loader2, Download, RefreshCw } from "lucide-react";
+import { DollarSign, ChevronLeft, ChevronRight, Share2, Loader2, Download, RefreshCw, User, Save } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { sortUsers, sortStores } from '../components/utils/sorting';
 import { useUser } from '../components/utils/UserContext';
 import { useAppData } from '../components/utils/AppDataContext';
@@ -270,9 +273,22 @@ export default function DriverPayroll() {
   const lastFetchTimestampRef = useRef(0);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const citySelectTriggerRef = useRef(null);
+  const [showETransEmailDialog, setShowETransEmailDialog] = useState(false);
+  const [eTransEmailDraft, setETransEmailDraft] = useState('');
+  const [savingETransEmail, setSavingETransEmail] = useState(false);
 
   // Define isDriver early (after refs, before useMemo/useCallback that might use it)
   const isDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin');
+
+  // Drivers without e-Transfer email: prompt them to add one
+  useEffect(() => {
+    if (!isDriver || !currentUser?.id) return;
+    base44.entities.AppUser.filter({ user_id: currentUser.id }).then((appUsers) => {
+      if (appUsers?.length > 0 && !appUsers[0].ETrans_Email) {
+        setShowETransEmailDialog(true);
+      }
+    }).catch(() => {});
+  }, [isDriver, currentUser?.id]);
   const isPayrollPageActive = typeof window !== 'undefined' && window.location.pathname.toLowerCase().includes('driverpayroll');
 
   const years = useMemo(() => {
@@ -1339,6 +1355,58 @@ export default function DriverPayroll() {
         onClose={() => setShowScreenshotModal(false)}
         imageDataUrl={screenshotDataUrl}
         filename={`driver-payroll-${selectedYear}.png`} />
+
+        {/* e-Transfer Email Prompt for drivers missing it */}
+        <Dialog open={showETransEmailDialog} onOpenChange={setShowETransEmailDialog}>
+          <DialogContent style={{ background: 'var(--bg-white)' }}>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <User className="w-4 h-4" />
+                Add Your e-Transfer Email
+              </DialogTitle>
+              <DialogDescription>
+                You don't have an Interac e-Transfer email set. Please add one so payroll payments can be sent to you.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <div className="space-y-1">
+                <Label htmlFor="etrans-email-payroll">e-Transfer Email</Label>
+                <Input
+                  id="etrans-email-payroll"
+                  type="email"
+                  placeholder="your@email.com"
+                  value={eTransEmailDraft}
+                  onChange={(e) => setETransEmailDraft(e.target.value)} />
+              </div>
+              <Button
+                className="w-full gap-2"
+                disabled={savingETransEmail || !eTransEmailDraft.trim()}
+                onClick={async () => {
+                  setSavingETransEmail(true);
+                  try {
+                    const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
+                    if (appUsers?.length > 0) {
+                      await base44.entities.AppUser.update(appUsers[0].id, { ETrans_Email: eTransEmailDraft.trim() });
+                      toast.success('e-Transfer email saved');
+                      setShowETransEmailDialog(false);
+                    }
+                  } catch {
+                    toast.error('Failed to save');
+                  } finally {
+                    setSavingETransEmail(false);
+                  }
+                }}>
+                {savingETransEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                Save
+              </Button>
+              <button
+                className="w-full text-xs text-slate-400 hover:text-slate-600 !min-h-0 h-auto py-1"
+                onClick={() => setShowETransEmailDialog(false)}>
+                Skip for now
+              </button>
+            </div>
+          </DialogContent>
+        </Dialog>
       
       </div>
     </div>;

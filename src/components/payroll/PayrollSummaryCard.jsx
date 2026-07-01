@@ -1304,15 +1304,19 @@ export default function PayrollSummaryCard({
                 <div key={data.driver.id} className="hidden md:block p-3 rounded-lg" style={{ background: idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
               {/* Driver Name - Top Left with optional Confirm button for admin-drivers */}
               <div className="flex items-center justify-between mb-1">
-                <div>
+                <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                     {data.driver.user_name || data.driver.full_name}
                   </h3>
-                  {driverAppUser?.ETrans_Email &&
-                    <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
-                      e-Transfer: {driverAppUser.ETrans_Email}
-                    </p>
-                  }
+                  {driverAppUser?.ETrans_Email ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                      💳 {driverAppUser.ETrans_Email}
+                    </span>
+                  ) : isDriver && data.driver.id === currentUser?.id ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                      ⚠️ No e-Transfer email set
+                    </span>
+                  ) : null}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {canShowConfirmButton &&
