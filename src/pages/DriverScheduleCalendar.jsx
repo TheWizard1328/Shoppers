@@ -845,6 +845,9 @@ export default function DriverScheduleCalendar() {
             // Find drivers who have actual deliveries for a store on this date
             // but are NOT already the scheduled driver for that store/slot combo.
             const dayDeliveries = deliveriesByDay[dateStr] || [];
+            // Build a set of all driver IDs that already have entries from interstore stops
+            // so we can create synthetic store entries for drivers with only ISP/ISD stops
+            const interStoreDriverStoreMap = new Map(); // driverId -> Set of storeIds already processed
             dayDeliveries.forEach((delivery) => {
               if (!delivery.driver_id || !delivery.store_id) return;
               // Must be a patient delivery, ISP, or ISD stop (not a cycling marker or bare pickup with no content)
@@ -852,7 +855,20 @@ export default function DriverScheduleCalendar() {
               const isInterStore = delivery._interstore_source_id || delivery._interstore_dest_id;
               if (!isPatientDelivery && !isInterStore) return;
               if (delivery.status === 'cancelled') return;
-              const store = visibleStores.find((s) => s.id === delivery.store_id);
+
+              // For ISP/ISD, the store_id may not be in visibleStores (e.g. the ISP source store isn't one of our stores).
+              // In that case, fall back to any store already assigned to this driver, or the first visible store.
+              let store = visibleStores.find((s) => s.id === delivery.store_id);
+              if (!store && isInterStore) {
+                // Try to find a store this driver is already mapped to for this date
+                const driverEntry = driverMap.get(delivery.driver_id);
+                if (driverEntry && driverEntry.length > 0) {
+                  store = driverEntry[0].store;
+                } else {
+                  // Use first visible store as a placeholder so the driver card appears
+                  store = visibleStores[0];
+                }
+              }
               if (!store) return;
 
               const ampm = delivery.ampm_deliveries; // 'AM', 'PM', or undefined
@@ -1141,15 +1157,27 @@ function MobileDriverGroup({ driverId, driver, entries, date, overrides, drivers
 
   const isMyGroup = isAdmin || driverId === currentUser?.id;
   const dateKey = format(date, 'yyyy-MM-dd');
-  const total = isMyGroup ? entries.reduce((sum, { store, slotKey }) => {
-    const isAM = slotKey.endsWith('_am');
-    const ampm = isAM ? 'AM' : 'PM';
-    return sum + (deliveriesByDay?.[dateKey]?.filter(
-      (d) => d.driver_id === driverId && d.store_id === store.id &&
-      ((d.patient_id && d.patient_id !== '') || d._interstore_source_id || d._interstore_dest_id) && (
-      !d.ampm_deliveries || d.ampm_deliveries === ampm)
-    ).length || 0);
-  }, 0) : 0;
+  const total = isMyGroup ? (() => {
+    const dayDelivs = deliveriesByDay?.[dateKey] || [];
+    // Count all qualifying stops for this driver (avoid double-counting across store entries)
+    const counted = new Set();
+    entries.forEach(({ store, slotKey }) => {
+      const isAM = slotKey.endsWith('_am');
+      const ampm = isAM ? 'AM' : 'PM';
+      dayDelivs.forEach((d) => {
+        if (counted.has(d.id)) return;
+        if (d.driver_id !== driverId) return;
+        if (d.ampm_deliveries && d.ampm_deliveries !== ampm) return;
+        const isInterStore = d._interstore_source_id || d._interstore_dest_id;
+        const isPatient = d.patient_id && d.patient_id !== '';
+        if (!isPatient && !isInterStore) return;
+        // For patient deliveries, match by store; for ISP/ISD, count globally for the driver
+        if (isPatient && d.store_id !== store.id) return;
+        counted.add(d.id);
+      });
+    });
+    return counted.size;
+  })() : 0;
 
   const scheduledEntries = entries.filter((e) => !e.isDeliveryDriven);
   const canBookOff = canBookOffDay && scheduledEntries.length > 0;
@@ -1279,15 +1307,25 @@ function DriverGroupDraggable({ driverId, driver, entries, date, overrides, driv
       {(() => {
         const isMyGroup = isAdmin || driverId === currentUser?.id;
         const dateKey = format(date, 'yyyy-MM-dd');
-        const total = isMyGroup ? entries.reduce((sum, { store, slotKey }) => {
-          const isAM = slotKey.endsWith('_am');
-          const ampm = isAM ? 'AM' : 'PM';
-          return sum + (deliveriesByDay?.[dateKey]?.filter(
-            (d) => d.driver_id === driverId && d.store_id === store.id &&
-            ((d.patient_id && d.patient_id !== '') || d._interstore_source_id || d._interstore_dest_id) && (
-            !d.ampm_deliveries || d.ampm_deliveries === ampm)
-          ).length || 0);
-        }, 0) : 0;
+        const total = isMyGroup ? (() => {
+          const dayDelivs = deliveriesByDay?.[dateKey] || [];
+          const counted = new Set();
+          entries.forEach(({ store, slotKey }) => {
+            const isAM = slotKey.endsWith('_am');
+            const ampm = isAM ? 'AM' : 'PM';
+            dayDelivs.forEach((d) => {
+              if (counted.has(d.id)) return;
+              if (d.driver_id !== driverId) return;
+              if (d.ampm_deliveries && d.ampm_deliveries !== ampm) return;
+              const isInterStore = d._interstore_source_id || d._interstore_dest_id;
+              const isPatient = d.patient_id && d.patient_id !== '';
+              if (!isPatient && !isInterStore) return;
+              if (isPatient && d.store_id !== store.id) return;
+              counted.add(d.id);
+            });
+          });
+          return counted.size;
+        })() : 0;
 
         // All lock keys for this driver's scheduled entries
         const allLockKeys = scheduledEntries.map(({ store, slotKey }) => slotLockKey(dateStr, store.id, slotKey));
