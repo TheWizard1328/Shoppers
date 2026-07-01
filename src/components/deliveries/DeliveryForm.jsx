@@ -138,7 +138,8 @@ export default function DeliveryForm({
     initialDriverId,
     resolveDefaultDriverForNewDelivery,
     userHasRole,
-    getDriverNameForStorage
+    getDriverNameForStorage,
+    allDeliveries
   }));
 
   const [patientSearch, setPatientSearch] = useState("");
@@ -275,7 +276,8 @@ export default function DeliveryForm({
       initialDriverId,
       userHasRole,
       getDriverNameForStorage,
-      scheduledDriverMap: scheduledDriverMapRef.current
+      scheduledDriverMap: scheduledDriverMapRef.current,
+      allDeliveries: allDeliveries || []
     });
     if (driverIdToSet && driverNameToSet) {
       setFormData((prev) => ({ ...prev, driver_id: driverIdToSet, driver_name: driverNameToSet }));
