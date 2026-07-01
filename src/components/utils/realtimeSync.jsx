@@ -618,6 +618,7 @@ const subscribeToEntity = (entityName) => {
                             entityName === 'DeliveryBreadcrumbs' ? offlineDB.STORES.DELIVERY_BREADCRUMBS :
                             entityName === 'InterStoreLocation' ? offlineDB.STORES.INTER_STORE_LOCATIONS :
                             entityName === 'RxTempLogs' ? offlineDB.STORES.RX_TEMP_LOGS :
+                            entityName === 'StatHoliday' ? offlineDB.STORES.STAT_HOLIDAYS :
                             entityName === 'Message' ? null : null;
 
           if (entityName === 'Message' && typeof window !== 'undefined') {
@@ -719,6 +720,7 @@ const subscribeToEntity = (entityName) => {
                             entityName === 'DeliveryBreadcrumbs' ? offlineDB.STORES.DELIVERY_BREADCRUMBS :
                             entityName === 'InterStoreLocation' ? offlineDB.STORES.INTER_STORE_LOCATIONS :
                             entityName === 'RxTempLogs' ? offlineDB.STORES.RX_TEMP_LOGS :
+                            entityName === 'StatHoliday' ? offlineDB.STORES.STAT_HOLIDAYS :
                             null;
 
           if (storeName) {
@@ -764,6 +766,7 @@ export const connect = () => {
     subscribeToEntity('InterStoreLocation');
     subscribeToEntity('TileCoverage');
     subscribeToEntity('RxTempLogs');
+    subscribeToEntity('StatHoliday');
 
     // Instantly cascade Patient changes to related Deliveries in OFFLINE DB + UI
     // Guard: only register this listener ONCE across all connect() calls.

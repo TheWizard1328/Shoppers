@@ -299,6 +299,15 @@ export const loadPriorityData = async (selectedDateStr, cityId = null, filters =
     invalidateEntityCache('Patient');
     notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 85, count: patientIds.length });
     
+    // Step 4b: Sync StatHolidays (tiny dataset — full replace, no date filter)
+    try {
+      const { StatHoliday } = await import('@/entities/StatHoliday');
+      const statHolidays = await StatHoliday.list();
+      if (statHolidays && statHolidays.length > 0) {
+        await offlineDB.replaceAllRecords(offlineDB.STORES.STAT_HOLIDAYS, statHolidays);
+      }
+    } catch (_) {}
+
     // Step 5: Sync RxTempLogs — prune records deleted server-side
     try {
       const serverTempLogs = await RxTempLogs.filter({ delivery_date: selectedDateStr });

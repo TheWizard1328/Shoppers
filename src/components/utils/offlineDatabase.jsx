@@ -4,7 +4,7 @@
  */
 
 const DB_NAME = 'rxdeliver_persistent_offline_v2';
-const DB_VERSION = 18; // v18: Added rx_temp_logs store
+const DB_VERSION = 19; // v19: Added stat_holidays store
 const CACHE_SCHEMA_VERSION = 1;
 const DEFAULT_CACHE_SCOPE = 'global';
 
@@ -30,7 +30,8 @@ const STORES = {
   INTER_STORE_LOCATIONS: 'inter_store_locations',
   TILE_CACHE_META: 'tile_cache_meta',  // city-scoped tile hash metadata
   TILE_COVERAGE: 'tile_coverage',         // collective driver tile discovery — mirrors TileCoverage Base44 entity
-  RX_TEMP_LOGS: 'rx_temp_logs'            // cooler temperature logs per driver/date
+  RX_TEMP_LOGS: 'rx_temp_logs',           // cooler temperature logs per driver/date
+  STAT_HOLIDAYS: 'stat_holidays'          // statutory holidays for date lookups
 };
 
 let dbInstance = null;
@@ -251,6 +252,13 @@ const openDatabase = async () => {
         tempLogStore.createIndex('delivery_date', 'delivery_date', { unique: false });
         tempLogStore.createIndex('date_driver', ['delivery_date', 'driver_id'], { unique: false });
         tempLogStore.createIndex('updated_date', 'updated_date', { unique: false });
+      }
+
+      // v19: stat_holidays — statutory holidays for offline date lookups
+      if (!db.objectStoreNames.contains(STORES.STAT_HOLIDAYS)) {
+        const statHolidayStore = db.createObjectStore(STORES.STAT_HOLIDAYS, { keyPath: 'id' });
+        statHolidayStore.createIndex('date', 'date', { unique: true });
+        statHolidayStore.createIndex('updated_date', 'updated_date', { unique: false });
       }
 
       // v16: tile_coverage — local mirror of the TileCoverage Base44 entity
