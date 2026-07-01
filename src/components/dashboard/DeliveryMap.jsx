@@ -1083,12 +1083,18 @@ export default function DeliveryMap({
     if (!map?._loaded || !map?._container || !map?._mapPane) return;
 
     const now = Date.now();
+    const PHASE2_MAX_ZOOM = 17.5;
     const destinationChanged = phase2FollowKeyRef.current !== nextKey;
     const currentMapBounds = map.getBounds();
+    const currentZoomForGuard = map.getZoom();
+    const atMaxZoom = currentZoomForGuard >= PHASE2_MAX_ZOOM - 0.05;
     const driverAlreadyInView = currentMapBounds?.contains?.([currentDriverFitLocation.latitude, currentDriverFitLocation.longitude]);
     const stopAlreadyInView = currentMapBounds?.contains?.([currentStopFitLocation.latitude, currentStopFitLocation.longitude]);
-    // Skip refit if both driver and next stop are already visible on screen
-    const bothAlreadyInView = driverAlreadyInView && stopAlreadyInView;
+    // At max zoom we CANNOT rely on "both in view" as a skip guard:
+    // Leaflet's fitBounds would clamp zoom and silently skip the pan, so at max zoom
+    // we must pan whenever the driver has moved enough — even if both points are on screen.
+    // Below max zoom the standard "both in view → no refit needed" logic is fine.
+    const bothAlreadyInView = !atMaxZoom && driverAlreadyInView && stopAlreadyInView;
     const shouldRefit = (destinationChanged || hasMovedEnoughForMapFit || stopChangedEnoughForMapFit) && !bothAlreadyInView;
     if (!shouldRefit) {
       if (isMobile && phase2PaddingRef.current !== paddingKey && now < phase2OverlayStabilizeUntilRef.current) {
@@ -1096,8 +1102,6 @@ export default function DeliveryMap({
       }
       return;
     }
-
-    const PHASE2_MAX_ZOOM = 17.5;
     const paddingTopLeft = [25, isMobile ? (immersiveHidden ? 25 : effectiveTopOverlayHeight + 25) : 60];
     const paddingBottomRight = [25, immersiveHidden ? 25 : ((areStopCardsVisible && !immersiveHidden) ? stopCardsHeight + 10 : 60)];
 
