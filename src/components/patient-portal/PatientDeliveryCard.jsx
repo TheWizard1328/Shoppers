@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { format } from 'date-fns';
-import { CheckCircle, XCircle, Clock, Truck, ChevronDown, ChevronUp, MapPin, User, Package, FileText, Camera, DollarSign } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Truck, ChevronDown, ChevronUp, User, Package, FileText, Camera, DollarSign } from 'lucide-react';
 
 const STATUS_CONFIG = {
   completed: { label: 'Delivered', color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-200', Icon: CheckCircle },
@@ -37,13 +37,13 @@ export default function PatientDeliveryCard({ delivery, storeName }) {
     ? format(new Date(delivery.actual_delivery_time), 'h:mm a')
     : null;
 
+  const arrivalTime = delivery.arrival_time
+    ? delivery.arrival_time.substring(11, 16)
+    : null;
+
   const codTotal = delivery.cod_total_amount_required || 0;
   const codPayments = delivery.cod_payments || [];
   const hasCod = codTotal > 0;
-
-  const timeWindow = delivery.delivery_time_start
-    ? `${delivery.delivery_time_start}${delivery.delivery_time_end ? ` – ${delivery.delivery_time_end}` : ''}`
-    : null;
 
   return (
     <div className="relative">
@@ -64,19 +64,6 @@ export default function PatientDeliveryCard({ delivery, storeName }) {
             <p className={`text-sm font-semibold mt-0.5 ${expanded ? 'text-white' : 'text-slate-800'}`}>
               {dateStr}
             </p>
-            {delivery.status === 'completed' && actualTime ? (
-              <p className={`text-xs mt-0.5 ${expanded ? 'text-slate-400' : 'text-slate-400'}`}>
-                Delivered: {actualTime}
-              </p>
-            ) : delivery.status === 'failed' && (delivery.actual_delivery_time || delivery.arrival_time) ? (
-              <p className={`text-xs mt-0.5 ${expanded ? 'text-slate-400' : 'text-slate-400'}`}>
-                Attempted: {(delivery.actual_delivery_time || delivery.arrival_time).substring(11, 16)}
-              </p>
-            ) : timeWindow ? (
-              <p className={`text-xs mt-0.5 ${expanded ? 'text-slate-400' : 'text-slate-400'}`}>
-                Window: {timeWindow}
-              </p>
-            ) : null}
             {hasCod && (
               <p className={`text-xs mt-0.5 font-semibold ${expanded ? 'text-green-400' : 'text-green-600'}`}>
                 COD: ${codTotal.toFixed(2)}
@@ -102,13 +89,12 @@ export default function PatientDeliveryCard({ delivery, storeName }) {
       {expanded && (
         <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-xl border border-slate-200 bg-white shadow-xl overflow-hidden">
           <div className="p-3 space-y-0.5">
-            <InfoRow icon={MapPin} label="Pharmacy" value={storeName} />
-            {actualTime && <InfoRow icon={CheckCircle} label="Delivered at" value={actualTime} />}
             {delivery.driver_name && <InfoRow icon={User} label="Driver" value={delivery.driver_name} />}
+            {arrivalTime && <InfoRow icon={Truck} label="Picked up at" value={arrivalTime} />}
+            {actualTime && <InfoRow icon={CheckCircle} label="Delivered at" value={actualTime} />}
             {delivery.tracking_number && <InfoRow icon={Package} label="Tracking #" value={delivery.tracking_number} />}
             {delivery.prescription_number && <InfoRow icon={FileText} label="Prescription #" value={delivery.prescription_number} />}
-            {delivery.delivery_notes && <InfoRow icon={FileText} label="Notes" value={delivery.delivery_notes} />}
-            {hasCod && <InfoRow icon={DollarSign} label="COD Required" value={`$${codTotal.toFixed(2)}`} />}
+            {delivery.delivery_notes && <InfoRow icon={FileText} label="Driver Notes" value={delivery.delivery_notes} />}
           </div>
 
           {hasCod && codPayments.length > 0 && (
