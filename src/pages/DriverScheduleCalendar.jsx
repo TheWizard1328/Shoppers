@@ -1116,10 +1116,10 @@ function StatHolidayBanner({ name }) {
         textAlign: 'center',
         pointerEvents: 'none',
       }}>
-        <div style={{ fontSize: 11, fontWeight: 800, color: '#78350f', letterSpacing: '0.04em', lineHeight: 1.3 }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#78350f', letterSpacing: '0.04em', lineHeight: 1.3 }}>
           🎉 {name} 🎉
         </div>
-        <div style={{ fontSize: 9, fontWeight: 600, color: '#92400e', marginTop: 1, opacity: 0.85 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: '#92400e', marginTop: 1, opacity: 0.85 }}>
           Stat Holiday
         </div>
       </div>
