@@ -171,14 +171,14 @@ function DriverSlotCell({
     const ampm = isAM ? 'AM' : 'PM';
     const filterDriverId = isDeliveryDriven ? deliveryDrivenDriverId : effectiveDriverId;
     return (deliveriesByDay[dateStr] || []).filter((d) => {
+      const isPatientOrAHPickup = (d.patient_id && d.patient_id !== '') || d.after_hours_pickup;
       if (isBookedOff && !filterDriverId) {
-        // Show unassigned pending stops for this store/slot
         return !d.driver_id && d.store_id === store.id &&
-          d.patient_id && d.patient_id !== '' && d.status === 'pending' &&
+          isPatientOrAHPickup && d.status === 'pending' &&
           (!d.ampm_deliveries || d.ampm_deliveries === ampm);
       }
       return d.driver_id === filterDriverId && d.store_id === store.id &&
-        d.patient_id && d.patient_id !== '' &&
+        isPatientOrAHPickup &&
         (!d.ampm_deliveries || d.ampm_deliveries === ampm);
     });
   }, [deliveriesByDay, dateStr, effectiveDriverId, deliveryDrivenDriverId, isDeliveryDriven, isBookedOff, store.id, isAM, isMySlot]);
@@ -191,15 +191,15 @@ function DriverSlotCell({
     if (isBookedOff && !filterDriverId) {
       return (deliveriesByDay[dateStr] || []).filter((d) =>
         !d.driver_id && d.store_id === store.id &&
-        d.patient_id && d.patient_id !== '' && d.status === 'pending' &&
+        ((d.patient_id && d.patient_id !== '') || d.after_hours_pickup) && d.status === 'pending' &&
         (!d.ampm_deliveries || d.ampm_deliveries === ampm)
       ).length;
     }
     if (!filterDriverId) return 0;
     return (deliveriesByDay[dateStr] || []).filter((d) =>
-    d.driver_id === filterDriverId && d.store_id === store.id &&
-    d.patient_id && d.patient_id !== '' && (
-    !d.ampm_deliveries || d.ampm_deliveries === ampm)
+      d.driver_id === filterDriverId && d.store_id === store.id &&
+      ((d.patient_id && d.patient_id !== '') || d.after_hours_pickup) &&
+      (!d.ampm_deliveries || d.ampm_deliveries === ampm)
     ).length;
   }, [deliveriesByDay, dateStr, effectiveDriverId, deliveryDrivenDriverId, isDeliveryDriven, isBookedOff, store.id, isAM]);
 
@@ -210,13 +210,14 @@ function DriverSlotCell({
     const filterDriverId = isDeliveryDriven ? deliveryDrivenDriverId : effectiveDriverId;
     if (!filterDriverId && !isBookedOff) return [];
     return (deliveriesByDay[dateStr] || []).filter((d) => {
+      const isPatientOrAHPickup = (d.patient_id && d.patient_id !== '') || d.after_hours_pickup;
       if (isBookedOff && !filterDriverId) {
         return !d.driver_id && d.store_id === store.id &&
-          d.patient_id && d.patient_id !== '' && d.status === 'pending' &&
+          isPatientOrAHPickup && d.status === 'pending' &&
           (!d.ampm_deliveries || d.ampm_deliveries === ampm);
       }
       return d.driver_id === filterDriverId && d.store_id === store.id &&
-        d.patient_id && d.patient_id !== '' &&
+        isPatientOrAHPickup &&
         (!d.ampm_deliveries || d.ampm_deliveries === ampm);
     });
   }, [deliveriesByDay, dateStr, effectiveDriverId, deliveryDrivenDriverId, isDeliveryDriven, isBookedOff, store.id, isAM]);
