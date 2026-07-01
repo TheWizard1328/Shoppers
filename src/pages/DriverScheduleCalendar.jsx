@@ -934,53 +934,53 @@ export default function DriverScheduleCalendar() {
                   }
                 </div>
 
-                <div className="flex-1 p-1.5 space-y-2 relative overflow-hidden">
-                  {/* Stat Holiday Banner — behind driver content, only in the body area */}
-                  {statHoliday &&
-                  <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 0, overflow: 'hidden' }}>
-                    {/* Solid amber fill behind the ribbon */}
-                    <div style={{ position: 'absolute', inset: 0, background: '#fef9c3', opacity: 0.6 }} />
-                    {/* Corner-to-corner ribbon: wide band rotated at atan(h/w) ≈ using CSS diagonal trick */}
-                    <div style={{
-                      position: 'absolute',
-                      top: '50%', left: '50%',
-                      width: '200%',
-                      transform: 'translate(-50%, -50%) rotate(-35deg)',
-                      background: '#fde047',
-                      padding: '10px 0',
-                      textAlign: 'center',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
-                    }}>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: '#78350f', letterSpacing: '0.04em', lineHeight: 1.2, textShadow: '0 1px 0 rgba(255,255,255,0.5)' }}>
-                        🎉 {statHoliday.holiday_name} 🎉
-                      </div>
-                      <div style={{ fontSize: 10, fontWeight: 600, color: '#92400e', marginTop: 2, opacity: 0.85 }}>
-                        Stat Holiday
-                      </div>
-                    </div>
-                  </div>
-                  }
+                <div className="flex-1 p-1.5 space-y-2">
                   {sortedDriverIds.map((driverId) => {
+                    const dayDelivs = deliveriesByDay[dateStr] || [];
+
                     // On stat holidays, only show drivers who have actual deliveries/pickups/interstores
                     if (statHoliday) {
-                      const dayDelivs = deliveriesByDay[dateStr] || [];
                       const hasAssignment = dayDelivs.some((d) =>
-                        d.driver_id === driverId && !d.is_cycling_marker &&
-                        (d.patient_id || d._interstore_source_id || d.store_id)
+                        d.driver_id === driverId && !d.is_cycling_marker
                       );
                       if (!hasAssignment) return null;
                     }
 
                     const driver = appUsers.find((u) => u.user_id === driverId || u.id === driverId);
-                    const entries = driverMap.get(driverId);
                     const driverColor = generateDriverColor(driver?.user_name || driverId);
                     const driverTextColor = getContrastColor(driverColor);
+
+                    // On stat holidays, build entries from actual deliveries instead of default schedule
+                    let entries = driverMap.get(driverId);
+                    if (statHoliday) {
+                      const assignedStoreIds = [...new Set(
+                        dayDelivs
+                          .filter((d) => d.driver_id === driverId && !d.is_cycling_marker)
+                          .map((d) => d.store_id)
+                          .filter(Boolean)
+                      )];
+                      entries = assignedStoreIds.flatMap((storeId) => {
+                        const store = stores.find((s) => s.id === storeId);
+                        if (!store) return [];
+                        // Determine AM/PM from deliveries for this store
+                        const storeDelivs = dayDelivs.filter((d) => d.driver_id === driverId && d.store_id === storeId);
+                        const hasAM = storeDelivs.some((d) => !d.ampm_deliveries || d.ampm_deliveries === 'AM');
+                        const hasPM = storeDelivs.some((d) => d.ampm_deliveries === 'PM');
+                        const slots = [];
+                        if (hasAM) slots.push({ store, slotKey: `weekday_am`, startTime: store.weekday_am_start || '08:00', isDeliveryDriven: true });
+                        if (hasPM) slots.push({ store, slotKey: `weekday_pm`, startTime: store.weekday_pm_start || '13:00', isDeliveryDriven: true });
+                        if (!hasAM && !hasPM) slots.push({ store, slotKey: `weekday_am`, startTime: store.weekday_am_start || '08:00', isDeliveryDriven: true });
+                        return slots;
+                      });
+                    }
+
+                    if (!entries || entries.length === 0) return null;
 
                     const isMyGroup = !isAdmin && driverId === currentUser?.id;
                     if (!isMobile && (isAdmin || isMyGroup)) {
                       return (
-                        <div key={driverId} style={{ position: 'relative', zIndex: statHoliday ? 1 : undefined }}>
                         <DriverGroupDraggable
+                          key={driverId}
                           driverId={driverId}
                           driver={driver}
                           entries={entries}
@@ -997,13 +997,12 @@ export default function DriverScheduleCalendar() {
                           isMobile={isMobile}
                           dragItem={dragItem}
                           onDragStart={setDragItem}
-                          stores={stores} />
-                        </div>);
+                          stores={stores} />);
                     }
 
                     return (
-                      <div key={driverId} style={{ position: 'relative', zIndex: statHoliday ? 1 : undefined }}>
                       <MobileDriverGroup
+                        key={driverId}
                         driverId={driverId}
                         driver={driver}
                         entries={entries}
@@ -1019,8 +1018,7 @@ export default function DriverScheduleCalendar() {
                         onToggleSlotLock={handleToggleSlotLock}
                         isMobile={isMobile}
                         driverColor={driverColor}
-                        driverTextColor={driverTextColor} />
-                      </div>);
+                        driverTextColor={driverTextColor} />);
                   })}
 
                   {/* BookOff / Unassigned slots */}
@@ -1041,6 +1039,20 @@ export default function DriverScheduleCalendar() {
                     isMobile={isMobile}
                     dragItem={dragItem}
                     setDragItem={setDragItem} />
+                  }
+
+                  {/* Stat Holiday Banner — rendered below driver cards */}
+                  {statHoliday &&
+                  <div className="rounded-lg overflow-hidden" style={{ background: '#fef9c3', border: '1px solid #fde047' }}>
+                    <div style={{ padding: '8px 6px', textAlign: 'center' }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: '#78350f', letterSpacing: '0.04em', lineHeight: 1.3 }}>
+                        🎉 {statHoliday.holiday_name}
+                      </div>
+                      <div style={{ fontSize: 10, fontWeight: 600, color: '#92400e', marginTop: 1, opacity: 0.85 }}>
+                        Stat Holiday
+                      </div>
+                    </div>
+                  </div>
                   }
 
                   {/* Drop zones when dragging */}
