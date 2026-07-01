@@ -937,24 +937,24 @@ export default function DriverScheduleCalendar() {
                 <div className="flex-1 p-1.5 space-y-2">
                   {/* Stat Holiday Banner */}
                   {statHoliday &&
-                  <div className="absolute inset-0 overflow-hidden pointer-events-none" style={{ zIndex: 2 }}>
-                    <div style={{
-                      position: 'absolute',
-                      top: 0, left: 0, right: 0, bottom: 0,
-                      background: 'repeating-linear-gradient(135deg, #fef3c7 0px, #fef3c7 18px, #fde68a 18px, #fde68a 20px)',
-                      opacity: 0.55,
-                    }} />
+                  <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 2, overflow: 'hidden' }}>
+                    {/* Solid amber fill behind the ribbon */}
+                    <div style={{ position: 'absolute', inset: 0, background: '#fef9c3', opacity: 0.6 }} />
+                    {/* Corner-to-corner ribbon: wide band rotated at atan(h/w) ≈ using CSS diagonal trick */}
                     <div style={{
                       position: 'absolute',
                       top: '50%', left: '50%',
+                      width: '200%',
                       transform: 'translate(-50%, -50%) rotate(-35deg)',
-                      whiteSpace: 'nowrap',
+                      background: '#fde047',
+                      padding: '10px 0',
                       textAlign: 'center',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
                     }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#92400e', letterSpacing: '0.03em', textShadow: '0 1px 2px rgba(255,255,255,0.8)' }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: '#78350f', letterSpacing: '0.04em', lineHeight: 1.2, textShadow: '0 1px 0 rgba(255,255,255,0.5)' }}>
                         🎉 {statHoliday.holiday_name}
                       </div>
-                      <div style={{ fontSize: 9, color: '#b45309', marginTop: 2, textShadow: '0 1px 2px rgba(255,255,255,0.8)' }}>
+                      <div style={{ fontSize: 10, fontWeight: 600, color: '#92400e', marginTop: 2, opacity: 0.85 }}>
                         Stat Holiday
                       </div>
                     </div>
