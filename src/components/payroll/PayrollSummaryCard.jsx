@@ -405,6 +405,21 @@ export default function PayrollSummaryCard({
     } catch (error) {console.error('❌ [Payroll] Failed to save changes:', error);}
   };
 
+  // Auto-populate App Owner fee amount when the "Manage App Owner App Fee" dialog opens
+  useEffect(() => {
+    if (appFeeOverlayAllDriversId !== 'all' || !currentUser?.id) return;
+    const ownerPct = Math.max(0, 100 - sumAllDriversAppFeePercent - otherAppFeePercent);
+    const ownerAmt = calculateAppFeeAmount(currentUser.id, ownerPct);
+    setDriverEdits((prev) => ({
+      ...prev,
+      [currentUser.id]: {
+        ...prev[currentUser.id],
+        appFeePercent: ownerPct,
+        appFeeAmount: ownerAmt,
+      }
+    }));
+  }, [appFeeOverlayAllDriversId]);
+
   // Initialize deduction input drafts when dialog opens
   useEffect(() => {
     if (!deductionOverlayDriverId) {
