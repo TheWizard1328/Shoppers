@@ -21,7 +21,7 @@ import DevicesPanel from '@/components/devices/DevicesPanel';
 const DEVICE_ID_KEY = 'rxdeliver_device_identifier';
 
 // ── Profile Panel ─────────────────────────────────────────────────────────────
-function ProfilePanel({ currentUser, onClose }) {
+export function ProfilePanel({ currentUser, onClose }) {
   const [displayName, setDisplayName] = useState(currentUser?.user_name || currentUser?.full_name || '');
   const [phone, setPhone] = useState(currentUser?.phone || '');
   const [eTransEmail, setETransEmail] = useState('');
@@ -179,7 +179,7 @@ function AppearancePanel({ currentUser, settings, onThemeChange }) {
 }
 
 // ── Settings Dialog wrapper ───────────────────────────────────────────────────
-function SettingsDialog({ open, onOpenChange, title, description, icon: Icon, children }) {
+export function SettingsDialog({ open, onOpenChange, title, description, icon: Icon, children }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-full max-w-md max-h-[85vh] overflow-y-auto px-4 py-4">
