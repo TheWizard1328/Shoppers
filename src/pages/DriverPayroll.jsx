@@ -1095,7 +1095,7 @@ export default function DriverPayroll() {
     </SettingsDialog>
   );
 
-  if (!currentUser) return <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}><span className="text-lg text-slate-600">Please log in to view payroll</span></div>;
+  if (!currentUser) return <>{eTransDialog}<div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}><span className="text-lg text-slate-600">Please log in to view payroll</span></div></>;
   if (needsCitySelection) return <><div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}><span className="text-lg text-slate-600">Select a city to view payroll.</span></div>{eTransDialog}</>;
   if (isLoadingPayroll || payPeriod === null || selectedPeriodIndex === null) return <><div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}><div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full"></div><span className="ml-3 text-lg text-slate-600">Loading payroll data...</span></div>{eTransDialog}</>;
 
