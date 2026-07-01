@@ -201,9 +201,17 @@ export default function Settings() {
   const { currentUser } = useUser();
   const [openPanel, setOpenPanel] = useState(null);
   const [userSettings, setUserSettings] = useState(null);
+  const [eTransEmail, setETransEmail] = useState('');
 
   useEffect(() => {
     if (currentUser?.id) loadUserSettings(currentUser.id).then(setUserSettings);
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    base44.entities.AppUser.filter({ user_id: currentUser.id }).then((appUsers) => {
+      if (appUsers?.length > 0) setETransEmail(appUsers[0].ETrans_Email || '');
+    }).catch(() => {});
   }, [currentUser?.id]);
 
   const handleThemeChange = (newTheme) => {
@@ -218,6 +226,7 @@ export default function Settings() {
       items: [
         { label: 'Profile', description: currentUser?.user_name || currentUser?.full_name || 'Tap to edit', onClick: () => setOpenPanel('profile') },
         { label: 'Email', description: currentUser?.email || 'Not available', disabled: true },
+        { label: 'e-Transfer Email', description: eTransEmail || 'Not set — edit Profile to add', disabled: true },
       ],
     },
     {
@@ -304,7 +313,7 @@ export default function Settings() {
 
       {/* ── Dialogs ── */}
       <SettingsDialog open={openPanel === 'profile'} onOpenChange={(o) => !o && setOpenPanel(null)} title="Account" description="Update your display name and phone number." icon={User}>
-        <ProfilePanel currentUser={currentUser} onClose={() => setOpenPanel(null)} />
+        <ProfilePanel currentUser={currentUser} onClose={() => { setOpenPanel(null); base44.entities.AppUser.filter({ user_id: currentUser.id }).then((au) => { if (au?.length > 0) setETransEmail(au[0].ETrans_Email || ''); }).catch(() => {}); }} />
       </SettingsDialog>
 
       <SettingsDialog open={openPanel === 'notifications'} onOpenChange={(o) => !o && setOpenPanel(null)} title="Notifications" description="Control how and when you receive alerts." icon={Bell}>
