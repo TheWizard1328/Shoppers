@@ -110,8 +110,15 @@ function BulkEditStopsForm({ selectedCount, drivers, stores, allDeliveries, pati
 
   const pickupOptions = useMemo(() => {
     if (!values.delivery_date || hasMixedPuids) return [];
-    return allowedStores.flatMap((store) => getStoreSlotOptions(store, values.delivery_date, effectiveDriverId));
-  }, [allowedStores, effectiveDriverId, values.delivery_date, hasMixedPuids]);
+    // If the selected stops all share a store, only show slots for that store (ignoring driver filter)
+    const selectedStoreIds = new Set((selectedDeliveries || []).map((d) => d?.store_id).filter(Boolean));
+    const relevantStores = selectedStoreIds.size > 0
+      ? allowedStores.filter((store) => selectedStoreIds.has(store.id))
+      : allowedStores;
+    // Use the effective driver filter only when not scoped to specific stores from the selection
+    const driverFilterId = selectedStoreIds.size > 0 ? null : effectiveDriverId;
+    return relevantStores.flatMap((store) => getStoreSlotOptions(store, values.delivery_date, driverFilterId));
+  }, [allowedStores, effectiveDriverId, values.delivery_date, hasMixedPuids, selectedDeliveries]);
 
   useEffect(() => {
     if (hasMixedPuids || values.storeChoice === "unchanged") return;
