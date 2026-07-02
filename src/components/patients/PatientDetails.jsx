@@ -23,10 +23,12 @@ import {
 import { format } from "date-fns";
 
 const RecentDeliveries = ({ deliveries, patient, currentUser, onEditDelivery }) => {
+  const [codOnly, setCodOnly] = useState(false);
 
   // Filter deliveries for this patient and sort by date (most recent first)
   const patientDeliveries = deliveries.
   filter((d) => d.patient_id === patient.id).
+  filter((d) => !codOnly || (Number(d.cod_total_amount_required || 0) > 0)).
   sort((a, b) => new Date(b.delivery_date) - new Date(a.delivery_date)).
   slice(0, 20);
 
@@ -48,9 +50,20 @@ const RecentDeliveries = ({ deliveries, patient, currentUser, onEditDelivery }) 
   return (
     <Card className="shadow-sm flex flex-col h-full" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
       <CardHeader className="px-4 py-2 flex-shrink-0">
-        <CardTitle className="flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
-          <Package className="w-5 h-5 text-blue-600" />
-          Recent Deliveries
+        <CardTitle className="flex items-center justify-between gap-2" style={{ color: 'var(--text-slate-900)' }}>
+          <span className="flex items-center gap-2">
+            <Package className="w-5 h-5 text-blue-600" />
+            Recent Deliveries
+          </span>
+          <label className="flex items-center gap-1.5 text-xs font-normal cursor-pointer select-none" style={{ color: 'var(--text-slate-600)' }}>
+            <input
+              type="checkbox"
+              checked={codOnly}
+              onChange={(e) => setCodOnly(e.target.checked)}
+              className="rounded"
+            />
+            COD only
+          </label>
         </CardTitle>
       </CardHeader>
       <CardContent className="flex-1 min-h-0 flex flex-col">
