@@ -918,13 +918,34 @@ export default function DeliveryMap({
       const paddingTopLeft    = opts.paddingTopLeft    || [60, 60];
       const paddingBottomRight= opts.paddingBottomRight|| [60, 60];
       const currentZoom = map.getZoom();
-      const alreadyAtOrAboveMaxZoom = currentZoom >= requestedMaxZoom - 0.05;
 
-      // When the map is already at or above maxZoom, Leaflet's fitBounds clamps the zoom
-      // to maxZoom and — since the bounds already fit within the current viewport at that
-      // zoom — silently skips the pan entirely. Phase 2 and Phase 3 both hit this when
-      // the driver is zoomed all the way in. Fix: detect that case and do a direct setView
-      // to the padding-adjusted center of the bounds instead of calling fitBounds.
+      // BUG FIX: the old check only asked "is the map CURRENTLY zoomed in near max?" —
+      // it never asked "do the NEW bounds actually need that same tight zoom?". That meant
+      // cycling from a tight Phase 2/3 view (e.g. zoom 17.9 on one stop) to Phase 1 (which
+      // needs to zoom OUT to fit the whole city) would wrongly take the "just pan, keep zoom"
+      // shortcut below — recentering correctly but leaving the zoom stuck at the old tight level.
+      // Fix: compute what zoom Leaflet would ACTUALLY pick for the new bounds (via
+      // getBoundsZoom, which is a pure calculation — it doesn't move the map), clamped to
+      // requestedMaxZoom. Only take the "skip fitBounds" shortcut when that computed zoom is
+      // ALSO already at/above max — i.e. the new bounds genuinely want the same tight zoom we're
+      // already at, so a real fitBounds call would get clamped and silently skip the pan anyway.
+      let targetZoomForBounds = requestedMaxZoom;
+      try {
+        const avgPadding = L.point(
+          (paddingTopLeft[0] + paddingBottomRight[0]) / 2,
+          (paddingTopLeft[1] + paddingBottomRight[1]) / 2
+        );
+        targetZoomForBounds = Math.min(map.getBoundsZoom(bounds, false, avgPadding), requestedMaxZoom);
+      } catch {}
+
+      const alreadyAtOrAboveMaxZoom = currentZoom >= requestedMaxZoom - 0.05 && targetZoomForBounds >= requestedMaxZoom - 0.05;
+
+      // When the map is already at or above maxZoom AND the new bounds also want that same
+      // max zoom, Leaflet's fitBounds clamps the zoom to maxZoom and — since the bounds
+      // already fit within the current viewport at that zoom — silently skips the pan entirely.
+      // Phase 2 and Phase 3 both hit this when the driver is zoomed all the way in. Fix: detect
+      // that case and do a direct setView to the padding-adjusted center of the bounds instead
+      // of calling fitBounds.
       if (alreadyAtOrAboveMaxZoom) {
         const center = bounds.getCenter();
         const size = map.getSize();
@@ -1087,7 +1108,18 @@ export default function DeliveryMap({
     const destinationChanged = phase2FollowKeyRef.current !== nextKey;
     const currentMapBounds = map.getBounds();
     const currentZoomForGuard = map.getZoom();
-    const atMaxZoom = currentZoomForGuard >= PHASE2_MAX_ZOOM - 0.05;
+    // Same fix as the shouldFitBounds effect above: only treat this as "at max zoom" if the
+    // driver+stop pair ALSO actually needs max zoom (not just because the map happens to be
+    // zoomed in tight from a previous, closer stop pair).
+    let targetZoomForPair = PHASE2_MAX_ZOOM;
+    try {
+      const pairBounds = L.latLngBounds([
+        [currentDriverFitLocation.latitude, currentDriverFitLocation.longitude],
+        [currentStopFitLocation.latitude, currentStopFitLocation.longitude]
+      ]);
+      targetZoomForPair = Math.min(map.getBoundsZoom(pairBounds, false, L.point(25, 60)), PHASE2_MAX_ZOOM);
+    } catch {}
+    const atMaxZoom = currentZoomForGuard >= PHASE2_MAX_ZOOM - 0.05 && targetZoomForPair >= PHASE2_MAX_ZOOM - 0.05;
     const driverAlreadyInView = currentMapBounds?.contains?.([currentDriverFitLocation.latitude, currentDriverFitLocation.longitude]);
     const stopAlreadyInView = currentMapBounds?.contains?.([currentStopFitLocation.latitude, currentStopFitLocation.longitude]);
     // At max zoom we CANNOT rely on "both in view" as a skip guard:
@@ -1119,7 +1151,7 @@ export default function DeliveryMap({
     // At max zoom: fitBounds would clamp zoom and stop panning. Instead, pan to the
     // midpoint of driver + next stop so both stay centered as they get closer.
     const currentZoomLevel = map.getZoom();
-    const alreadyAtMaxZoom = currentZoomLevel >= PHASE2_MAX_ZOOM - 0.05;
+    const alreadyAtMaxZoom = currentZoomLevel >= PHASE2_MAX_ZOOM - 0.05 && targetZoomForPair >= PHASE2_MAX_ZOOM - 0.05;
     if (alreadyAtMaxZoom) {
       const midLat = (currentDriverFitLocation.latitude + currentStopFitLocation.latitude) / 2;
       const midLng = (currentDriverFitLocation.longitude + currentStopFitLocation.longitude) / 2;
