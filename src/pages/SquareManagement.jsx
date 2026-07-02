@@ -730,6 +730,16 @@ export default function SquareManagement() {
     });
   };
 
+  // A delivery is considered a "manual override" (collected without Square) if it has
+  // Debit or Credit cod_payments recorded and no matching Square transaction.
+  // These should be excluded from Reconcile and Catalog tabs.
+  function isManualCardOverride(delivery) {
+    const payments = Array.isArray(delivery?.cod_payments) ? delivery.cod_payments : [];
+    if (payments.length === 0) return false;
+    return payments.some((p) => p?.type === 'Debit' || p?.type === 'Credit') &&
+      payments.every((p) => p?.type === 'Debit' || p?.type === 'Credit');
+  }
+
   function getDeliveryPaymentAmountSet(delivery) {
     const amounts = new Set();
     const totalRequired = Math.round(Number(delivery?.cod_total_amount_required || 0) * 100);
@@ -1353,6 +1363,8 @@ export default function SquareManagement() {
       // Exclude catalog items linked to pending or future-dated deliveries
       const linkedDelivery = item.delivery_id ? deliveries.find((d) => d?.id === item.delivery_id) : null;
       if (linkedDelivery?.status === 'pending') return false;
+      // Exclude if the linked delivery was paid by Debit/Credit (manual override — no Square transaction needed)
+      if (linkedDelivery && isManualCardOverride(linkedDelivery)) return false;
       const itemDate = item.delivery_date || parseSquareItemName(item.name || item.item_name)?.deliveryDate;
       if (itemDate && itemDate > todayDateString) return false;
       return true;
@@ -1479,6 +1491,9 @@ export default function SquareManagement() {
 
       const resolvedLocationId = storeConfig?.square_location_id || null;
       if (!resolvedLocationId) return false;
+
+      // Exclude deliveries with Debit/Credit payments — treated as manually collected (no Square needed)
+      if (isManualCardOverride(delivery)) return false;
 
       // Exclude if directly matched by delivery_id in any transaction
       if (transactionMatchedDeliveryIds.has(delivery.id)) return false;
