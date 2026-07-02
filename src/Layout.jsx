@@ -651,12 +651,38 @@ export default function Layout({ children, currentPageName }) {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Subscribe this device to Web Push once the user is known. Safe to call
-  // repeatedly — initPushNotifications no-ops if already subscribed, unsupported,
-  // or permission was previously denied.
+  // Subscribe this device to Web Push once the user is known.
+  //
+  // IMPORTANT: Notification.requestPermission() must run inside a real user
+  // gesture (tap/click) — iOS Safari and modern mobile Chrome silently ignore
+  // (or auto-deny) permission requests fired from a useEffect on page load,
+  // so calling initPushNotifications() directly here would never actually
+  // prompt anyone. Instead:
+  //   - if permission is already 'granted' (returning user), re-subscribe
+  //     silently right away — no gesture needed for an already-granted permission.
+  //   - if permission is 'default' (never asked), wait for the user's very next
+  //     tap anywhere in the app and fire the request from inside that gesture.
   useEffect(() => {
-    if (!currentUser?.id) return;
-    initPushNotifications(currentUser.id).catch(() => {});
+    if (!currentUser?.id || typeof Notification === 'undefined') return;
+
+    if (Notification.permission === 'granted') {
+      initPushNotifications(currentUser.id).catch(() => {});
+      return;
+    }
+
+    if (Notification.permission !== 'default') return; // 'denied' — nothing to do
+
+    const handleFirstGesture = () => {
+      document.removeEventListener('pointerdown', handleFirstGesture, true);
+      document.removeEventListener('keydown', handleFirstGesture, true);
+      initPushNotifications(currentUser.id).catch(() => {});
+    };
+    document.addEventListener('pointerdown', handleFirstGesture, true);
+    document.addEventListener('keydown', handleFirstGesture, true);
+    return () => {
+      document.removeEventListener('pointerdown', handleFirstGesture, true);
+      document.removeEventListener('keydown', handleFirstGesture, true);
+    };
   }, [currentUser?.id]);
 
   // Deep-link handler: a push notification for a chat message opens the app at
