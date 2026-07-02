@@ -8,7 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, CreditCard, AlertCircle } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Plus, Pencil, Trash2, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 
 export default function SquareLocationConfigs() {
@@ -19,10 +20,10 @@ export default function SquareLocationConfigs() {
   const [editingConfig, setEditingConfig] = useState(null);
   const [formData, setFormData] = useState({
     name: "",
-    store_name: "",
     square_location_id: "",
     status: "active",
-    notes: ""
+    notes: "",
+    selectedStoreIds: [] // local only — used to update Store.square_location_config_id
   });
 
   // Hydrate stores from offline IndexedDB immediately on mount
@@ -54,25 +55,24 @@ export default function SquareLocationConfigs() {
     }
   };
 
+  // Returns all stores linked to this config via store.square_location_config_id
+  const getLinkedStores = (config) =>
+    stores.filter((s) => s?.square_location_config_id === config.id);
+
   const handleOpenDialog = (config = null) => {
     if (config) {
       setEditingConfig(config);
+      const linked = stores.filter((s) => s?.square_location_config_id === config.id).map((s) => s.id);
       setFormData({
         name: config.name || "",
-        store_name: config.store_name || "",
         square_location_id: config.square_location_id || "",
         status: config.status || "active",
-        notes: config.notes || ""
+        notes: config.notes || "",
+        selectedStoreIds: linked
       });
     } else {
       setEditingConfig(null);
-      setFormData({
-        name: "",
-        store_name: "",
-        square_location_id: "",
-        status: "active",
-        notes: ""
-      });
+      setFormData({ name: "", square_location_id: "", status: "active", notes: "", selectedStoreIds: [] });
     }
     setShowDialog(true);
   };
@@ -80,12 +80,18 @@ export default function SquareLocationConfigs() {
   const handleCloseDialog = () => {
     setShowDialog(false);
     setEditingConfig(null);
-    setFormData({
-      name: "",
-      store_name: "",
-      square_location_id: "",
-      status: "active",
-      notes: ""
+    setFormData({ name: "", square_location_id: "", status: "active", notes: "", selectedStoreIds: [] });
+  };
+
+  const toggleStoreId = (storeId) => {
+    setFormData((prev) => {
+      const exists = prev.selectedStoreIds.includes(storeId);
+      return {
+        ...prev,
+        selectedStoreIds: exists
+          ? prev.selectedStoreIds.filter((id) => id !== storeId)
+          : [...prev.selectedStoreIds, storeId]
+      };
     });
   };
 
@@ -96,13 +102,35 @@ export default function SquareLocationConfigs() {
     }
 
     try {
+      let configId = editingConfig?.id;
+      const payload = {
+        name: formData.name,
+        square_location_id: formData.square_location_id,
+        status: formData.status,
+        notes: formData.notes
+      };
+
       if (editingConfig) {
-        await base44.entities.SquareLocationConfig.update(editingConfig.id, formData);
-        toast.success("Square location config updated");
+        await base44.entities.SquareLocationConfig.update(configId, payload);
       } else {
-        await base44.entities.SquareLocationConfig.create(formData);
-        toast.success("Square location config created");
+        const created = await base44.entities.SquareLocationConfig.create(payload);
+        configId = created.id;
       }
+
+      // Update all stores: link selected ones to this config, unlink previously-linked ones
+      const previouslyLinked = stores
+        .filter((s) => s?.square_location_config_id === editingConfig?.id)
+        .map((s) => s.id);
+
+      const toUnlink = previouslyLinked.filter((id) => !formData.selectedStoreIds.includes(id));
+      const toLink = formData.selectedStoreIds;
+
+      await Promise.all([
+        ...toUnlink.map((id) => base44.entities.Store.update(id, { square_location_config_id: "" })),
+        ...toLink.map((id) => base44.entities.Store.update(id, { square_location_config_id: configId }))
+      ]);
+
+      toast.success(editingConfig ? "Square location config updated" : "Square location config created");
       handleCloseDialog();
       loadData();
     } catch (error) {
@@ -112,12 +140,11 @@ export default function SquareLocationConfigs() {
   };
 
   const handleDelete = async (config) => {
-
-    if (!window.confirm(`Are you sure you want to delete "${config.name}"?`)) {
-      return;
-    }
-
+    if (!window.confirm(`Are you sure you want to delete "${config.name}"?`)) return;
     try {
+      // Unlink all stores pointing to this config
+      const linked = stores.filter((s) => s?.square_location_config_id === config.id);
+      await Promise.all(linked.map((s) => base44.entities.Store.update(s.id, { square_location_config_id: "" })));
       await base44.entities.SquareLocationConfig.delete(config.id);
       toast.success("Square location config deleted");
       loadData();
@@ -127,18 +154,14 @@ export default function SquareLocationConfigs() {
     }
   };
 
-  // Find the store whose name matches this config's store_name
-  const getAssignedStore = (config) => {
-    if (!config.store_name) return null;
-    return stores.find((s) => s.name === config.store_name) || null;
-  };
+  const sortedStores = [...stores].filter(Boolean).sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
 
   if (isLoading) {
     return (
       <div className="p-6 flex items-center justify-center">
         <div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full"></div>
-      </div>);
-
+      </div>
+    );
   }
 
   return (
@@ -154,8 +177,8 @@ export default function SquareLocationConfigs() {
         </Button>
       </div>
 
-      {configs.length === 0 ?
-      <Card>
+      {configs.length === 0 ? (
+        <Card>
           <CardContent className="p-8 text-center">
             <CreditCard className="w-12 h-12 text-slate-300 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-slate-900 mb-2">No Square Locations Configured</h3>
@@ -165,13 +188,13 @@ export default function SquareLocationConfigs() {
               Add Location
             </Button>
           </CardContent>
-        </Card> :
-
-      <div className="space-y-4">
+        </Card>
+      ) : (
+        <div className="space-y-4">
           {[...configs].sort((a, b) => (a.status === 'active' ? 0 : 1) - (b.status === 'active' ? 0 : 1)).map((config) => {
-          const assignedStore = getAssignedStore(config);
-          return (
-            <Card key={config.id} className={config.status === "inactive" ? "opacity-60" : ""}>
+            const linkedStores = getLinkedStores(config);
+            return (
+              <Card key={config.id} className={config.status === "inactive" ? "opacity-60" : ""}>
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
@@ -199,25 +222,23 @@ export default function SquareLocationConfigs() {
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  {config.notes && (
-                    <p className="text-sm text-slate-600 mb-3">{config.notes}</p>
-                  )}
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="text-slate-500">Store:</span>
-                    {assignedStore ? (
-                      <Badge variant="outline" className="text-xs">{assignedStore.name}</Badge>
-                    ) : config.store_name ? (
-                      <Badge variant="outline" className="text-xs text-amber-600 border-amber-300">{config.store_name} (not found)</Badge>
+                  {config.notes && <p className="text-sm text-slate-600 mb-3">{config.notes}</p>}
+                  <div className="flex flex-wrap items-center gap-2 text-sm">
+                    <span className="text-slate-500">Stores:</span>
+                    {linkedStores.length > 0 ? (
+                      linkedStores.map((s) => (
+                        <Badge key={s.id} variant="outline" className="text-xs">{s.name}</Badge>
+                      ))
                     ) : (
-                      <span className="text-slate-400 italic">No store linked</span>
+                      <span className="text-slate-400 italic">No stores linked</span>
                     )}
                   </div>
                 </CardContent>
-              </Card>);
-
-        })}
+              </Card>
+            );
+          })}
         </div>
-      }
+      )}
 
       {/* Add/Edit Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
@@ -248,19 +269,30 @@ export default function SquareLocationConfigs() {
                 </Select>
               </div>
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="store_name">Store *</Label>
-              <Select value={formData.store_name} onValueChange={(value) => setFormData({ ...formData, store_name: value })}>
-                <SelectTrigger id="store_name">
-                  <SelectValue placeholder="Select a store..." />
-                </SelectTrigger>
-                <SelectContent className="z-[60003]">
-                  {stores.filter(Boolean).sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)).map((store) => (
-                    <SelectItem key={store.id} value={store.name}>{store.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Stores</Label>
+              <div className="border rounded-md max-h-44 overflow-y-auto p-2 space-y-1">
+                {sortedStores.length === 0 && (
+                  <p className="text-sm text-slate-400 italic px-1">No stores available</p>
+                )}
+                {sortedStores.map((store) => (
+                  <label key={store.id} className="flex items-center gap-2 cursor-pointer rounded px-2 py-1 hover:bg-slate-50">
+                    <Checkbox
+                      checked={formData.selectedStoreIds.includes(store.id)}
+                      onCheckedChange={() => toggleStoreId(store.id)} />
+                    <span className="text-sm">{store.name}</span>
+                    {store.square_location_config_id && store.square_location_config_id !== editingConfig?.id && (
+                      <span className="text-xs text-amber-500 ml-auto">linked elsewhere</span>
+                    )}
+                  </label>
+                ))}
+              </div>
+              {formData.selectedStoreIds.length > 0 && (
+                <p className="text-xs text-slate-500">{formData.selectedStoreIds.length} store{formData.selectedStoreIds.length > 1 ? "s" : ""} selected</p>
+              )}
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="square_location_id">Square Location ID *</Label>
               <Input
@@ -277,7 +309,6 @@ export default function SquareLocationConfigs() {
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                 rows={3} />
-
             </div>
           </div>
           <DialogFooter>
@@ -288,6 +319,6 @@ export default function SquareLocationConfigs() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>);
-
+    </div>
+  );
 }
