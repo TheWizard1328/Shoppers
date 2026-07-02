@@ -10,8 +10,9 @@ import {
 } from '@/components/ui/dialog';
 import {
   User, Bell, Moon, Smartphone, Monitor, LogOut, ChevronRight,
-  Sun, Check, Ruler, Save, Loader2,
+  Sun, Check, Ruler, Save, Loader2, ShieldAlert,
 } from 'lucide-react';
+import { initPushNotifications, resetPushSubscription } from '@/components/utils/pushNotifications';
 import { toast } from 'sonner';
 import { useUser } from '@/components/utils/UserContext';
 import AccountDeletionSection from '@/components/settings/AccountDeletionSection';
@@ -83,6 +84,10 @@ function NotificationsPanel({ currentUser, settings }) {
   const [notificationsEnabled, setNotificationsEnabled] = useState(settings.notifications_enabled ?? true);
   const [sound, setSound] = useState(settings.notifications_sound ?? true);
   const [vibration, setVibration] = useState(settings.notifications_vibration ?? true);
+  const [browserPermission, setBrowserPermission] = useState(
+    typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'
+  );
+  const [subscribing, setSubscribing] = useState(false);
 
   const handleToggle = async (key, value, setter) => {
     setter(value);
@@ -90,14 +95,96 @@ function NotificationsPanel({ currentUser, settings }) {
     toast.success('Preference saved');
   };
 
+  const handleEnableToggle = async (val) => {
+    if (val && browserPermission !== 'granted') {
+      // Ask browser for permission and subscribe
+      setSubscribing(true);
+      try {
+        await initPushNotifications(currentUser.id);
+        const newPermission = typeof Notification !== 'undefined' ? Notification.permission : 'unsupported';
+        setBrowserPermission(newPermission);
+        if (newPermission === 'granted') {
+          setNotificationsEnabled(true);
+          await saveSetting(currentUser.id, 'notifications_enabled', true);
+          toast.success('Push notifications enabled');
+        } else {
+          toast.error('Permission not granted — please allow notifications in your browser settings');
+        }
+      } catch {
+        toast.error('Could not enable notifications');
+      } finally {
+        setSubscribing(false);
+      }
+    } else {
+      handleToggle('notifications_enabled', val, setNotificationsEnabled);
+    }
+  };
+
+  const handleResubscribe = async () => {
+    setSubscribing(true);
+    try {
+      await resetPushSubscription(currentUser.id);
+      const newPermission = typeof Notification !== 'undefined' ? Notification.permission : 'unsupported';
+      setBrowserPermission(newPermission);
+      toast.success('Push subscription refreshed');
+    } catch {
+      toast.error('Could not re-subscribe');
+    } finally {
+      setSubscribing(false);
+    }
+  };
+
   const rows = [
-    { key: 'notifications_enabled', label: 'Enable Notifications', description: 'Receive in-app alerts and updates', value: notificationsEnabled, setter: setNotificationsEnabled },
     { key: 'notifications_sound', label: 'Sound', description: 'Play a sound with notifications', value: sound, setter: setSound },
     { key: 'notifications_vibration', label: 'Vibration', description: 'Vibrate device with notifications', value: vibration, setter: setVibration },
   ];
 
+  const permissionDenied = browserPermission === 'denied';
+
   return (
     <div className="divide-y divide-slate-100 p-1">
+      {/* Browser permission status banner */}
+      {permissionDenied && (
+        <div className="flex items-start gap-2 py-3 px-3 mb-1 bg-red-50 rounded-lg border border-red-200">
+          <ShieldAlert className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+          <p className="text-xs text-red-700">
+            Notifications are blocked by your browser. Go to your browser's site settings and allow notifications for this site, then re-open this panel.
+          </p>
+        </div>
+      )}
+
+      {/* Enable push notifications toggle */}
+      <div className="flex items-center justify-between py-4">
+        <div>
+          <p className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Enable Push Notifications</p>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-slate-500)' }}>
+            {browserPermission === 'granted' ? 'Browser permission granted ✓' : 'Receive alerts even when the app is in the background'}
+          </p>
+        </div>
+        {subscribing
+          ? <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+          : <Switch
+              checked={notificationsEnabled && browserPermission === 'granted'}
+              disabled={permissionDenied}
+              onCheckedChange={handleEnableToggle}
+            />
+        }
+      </div>
+
+      {/* Re-subscribe button — shown when granted but user wants to refresh */}
+      {browserPermission === 'granted' && (
+        <div className="flex items-center justify-between py-4">
+          <div>
+            <p className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Re-register Device</p>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-slate-500)' }}>Force a fresh push subscription for this device</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={handleResubscribe} disabled={subscribing}>
+            {subscribing ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Refresh'}
+          </Button>
+        </div>
+      )}
+
+      {/* Sound & Vibration */}
       {rows.map((row) => (
         <div key={row.key} className="flex items-center justify-between py-4">
           <div>
