@@ -72,6 +72,7 @@ import { getLayoutStyles } from './components/layout/layoutStyles';
 import { useWakeLockAndVisibility } from './components/layout/useWakeLockAndVisibility';
 import { mergePatients } from './components/layout/layoutDataHelpers';
 import { initializeAppLoadDataFlow, executeAppLoadDataSync } from './components/layout/AppLoadDataManager';
+import { initPushNotifications } from '@/components/utils/pushNotifications';
 import { initializeGlobalFilters, createMergedUser, hasCurrentUserRefreshImpact } from './components/layout/initializeGlobalFilters';
 import { usePayrollBadge } from './components/layout/usePayrollBadge';
 import { useLayoutEventHandlers } from './components/layout/useLayoutEventHandlers';
@@ -217,6 +218,47 @@ export default function Layout({ children, currentPageName }) {
   const [deviceTypeDetected, setDeviceTypeDetected] = useState(null);
   const [isSettingUpDevice, setIsSettingUpDevice] = useState(false);
   const [showInitRetryHint, setShowInitRetryHint] = useState(false);
+
+  // ─── Web Push: subscribe on first user gesture (iOS/Android requirement) ───
+  useEffect(() => {
+    if (!currentUser?.id || typeof Notification === 'undefined') return;
+
+    if (Notification.permission === 'granted') {
+      initPushNotifications(currentUser.id).catch(() => {});
+      return;
+    }
+    if (Notification.permission !== 'default') return;
+
+    const handleFirstGesture = () => {
+      document.removeEventListener('pointerdown', handleFirstGesture, true);
+      document.removeEventListener('keydown', handleFirstGesture, true);
+      initPushNotifications(currentUser.id).catch(() => {});
+    };
+    document.addEventListener('pointerdown', handleFirstGesture, true);
+    document.addEventListener('keydown', handleFirstGesture, true);
+    return () => {
+      document.removeEventListener('pointerdown', handleFirstGesture, true);
+      document.removeEventListener('keydown', handleFirstGesture, true);
+    };
+  }, [currentUser?.id]);
+
+  // ─── Deep-link: open chat from push notification tap ────────────────────
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const openChatUserId = params.get('openChat');
+      if (!openChatUserId) return;
+      const openChatName = params.get('openChatName') || 'User';
+      const conversationId = [currentUser.id, openChatUserId].sort().join('_');
+      setInitialConversation({ conversationId, otherUserId: openChatUserId, otherUserName: decodeURIComponent(openChatName) });
+      setShowMessaging(true);
+      params.delete('openChat');
+      params.delete('openChatName');
+      const newSearch = params.toString();
+      window.history.replaceState({}, '', `${window.location.pathname}${newSearch ? `?${newSearch}` : ''}${window.location.hash}`);
+    } catch (_) {}
+  }, [currentUser?.id]);
 
   // AppSettings sync via WebSocket realtime only (no polling)
   // adminImportEnabled updates are received through the realtimeSync WebSocket subscription

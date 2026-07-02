@@ -57,9 +57,12 @@ if ('serviceWorker' in navigator) {
   });
 
   window.addEventListener('load', async () => {
+    // Tile cache SW (also handles push via importScripts)
     navigator.serviceWorker.register('/map-tile-sw.js').then((registration) => {
       registration.update().catch(() => {});
     }).catch(() => {});
+    // Dedicated push SW (handles push + notificationclick)
+    navigator.serviceWorker.register('/push-sw.js').catch(() => {});
   });
 }
 

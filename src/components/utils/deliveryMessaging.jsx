@@ -40,7 +40,24 @@ export async function sendDeliveryMessage({
 }
 
 /**
- * Send notification through configured channels (in-app only)
+ * Fire-and-forget push notification alongside in-app messages
+ */
+async function sendPushForNotification({ receiverId, senderName, content }) {
+  if (!receiverId || !content) return;
+  try {
+    await base44.functions.invoke('sendPushNotification', {
+      user_id: receiverId,
+      title: senderName || 'RxDeliver',
+      body: content,
+      url: '/'
+    });
+  } catch (error) {
+    console.warn('[deliveryMessaging] Push notification failed:', error?.message || error);
+  }
+}
+
+/**
+ * Send notification through configured channels (in-app + push)
  */
 async function sendNotification({
   event,
@@ -62,6 +79,8 @@ async function sendNotification({
       receiverName,
       content
     });
+    // Fire-and-forget push alongside each in-app message
+    sendPushForNotification({ receiverId, senderName, content });
   }
 }
 
