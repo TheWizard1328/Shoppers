@@ -26,6 +26,20 @@ export default function SquareLocationConfigs() {
     selectedStoreIds: [] // local only — used to update Store.square_location_config_id
   });
 
+  // Subscribe to live Store updates via WebSocket
+  useEffect(() => {
+    const unsubscribe = base44.entities.Store.subscribe((event) => {
+      if (event.type === 'create') {
+        setStores((prev) => [...prev, event.data]);
+      } else if (event.type === 'update') {
+        setStores((prev) => prev.map((s) => s.id === event.data.id ? { ...s, ...event.data } : s));
+      } else if (event.type === 'delete') {
+        setStores((prev) => prev.filter((s) => s.id !== event.id));
+      }
+    });
+    return unsubscribe;
+  }, []);
+
   // Hydrate stores from offline IndexedDB immediately on mount
   useEffect(() => {
     (async () => {
