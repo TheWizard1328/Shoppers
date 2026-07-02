@@ -145,11 +145,19 @@ export default function AppSidebar({
           </button>
               }
 
-        <img
-                src={branding.favicon_url || "https://cdn-icons-png.flaticon.com/512/3843/3843479.png"}
-                alt="App Icon"
-                className="w-10 h-10 rounded object-contain"
-                style={{ filter: 'var(--image-filter, none)' }} />
+        {branding.logo_url && !branding.logo_url.includes('placehold') ? (
+          <img
+            src={branding.logo_url}
+            alt="RxDeliver"
+            className="w-10 h-10 rounded object-contain"
+            style={{ filter: 'var(--image-filter, none)' }}
+            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+          />
+        ) : (
+          <div className="w-10 h-10 rounded bg-emerald-700 flex items-center justify-center flex-shrink-0">
+            <span className="text-white font-bold text-sm">Rx</span>
+          </div>
+        )}
 
         <div>
           <h2 className="font-bold text-lg" style={{ color: 'var(--text-slate-900)' }}>
