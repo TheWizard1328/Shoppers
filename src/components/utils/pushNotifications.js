@@ -18,12 +18,22 @@ function isPushSupported() {
     'Notification' in window;
 }
 
+/**
+ * Get the best push-capable service worker registration.
+ * Waits up to 5s for push-sw.js to become active, then falls back to any ready SW.
+ */
 async function getPushRegistration() {
-  // Prefer the dedicated push-sw.js registration
-  const registrations = await navigator.serviceWorker.getRegistrations();
-  const pushReg = registrations.find(r => r.active?.scriptURL?.includes('push-sw.js'));
-  if (pushReg) return pushReg;
-  // Fallback: wait for any ready SW
+  // Wait for push-sw.js specifically (up to 5 seconds)
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline) {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    const pushReg = registrations.find(
+      r => r.active?.scriptURL?.includes('push-sw.js')
+    );
+    if (pushReg) return pushReg;
+    await new Promise(r => setTimeout(r, 300));
+  }
+  // Fallback: any ready service worker
   return navigator.serviceWorker.ready;
 }
 
@@ -58,19 +68,24 @@ export async function initPushNotifications(userId) {
       if (Notification.permission !== 'granted') return;
 
       const registration = await getPushRegistration();
+      console.log('[pushNotifications] Using SW:', registration.active?.scriptURL);
+
       let subscription = await registration.pushManager.getSubscription();
 
       if (!subscription) {
-        const { publicKey } = await base44.functions.invoke('getVapidPublicKey', {});
+        const result = await base44.functions.invoke('getVapidPublicKey', {});
+        const publicKey = result?.publicKey || result?.data?.publicKey;
         if (!publicKey) {
-          console.warn('[pushNotifications] No VAPID public key returned');
+          console.warn('[pushNotifications] No VAPID public key returned:', result);
           return;
         }
         subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: urlBase64ToUint8Array(publicKey)
         });
-        console.log('[pushNotifications] New subscription created');
+        console.log('[pushNotifications] New push subscription created');
+      } else {
+        console.log('[pushNotifications] Existing subscription found, persisting...');
       }
 
       await persistSubscription(userId, subscription);
@@ -85,8 +100,7 @@ export async function initPushNotifications(userId) {
 }
 
 /**
- * Force re-subscribe (clears existing subscription and creates a fresh one).
- * Useful if VAPID keys changed or subscription expired.
+ * Force re-subscribe: clears existing subscription and creates a fresh one.
  */
 export async function resetPushSubscription(userId) {
   if (!userId || !isPushSupported()) return;
